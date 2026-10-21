@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-21-oficina-mide-su-meta-en-integrantes",
+    fecha: "2026-10-21",
+    titulo: "Una oficina mide su meta en integrantes en la sede",
+    queMejoro:
+      "En el Dashboard, una sede de tipo central (como una oficina) ya no se mide contra «personal operativo»: su meta es cuántos integrantes hay en la sede, y se pinta en verde cuando están. " +
+      "Antes salía «meta por revisar» todos los días, porque en una oficina nadie es de un área operativa.\n\n" +
+      "En una tienda o un taller no cambia nada: ahí la meta sigue contando al personal operativo. " +
+      "Quien está de prueba tampoco suma en una oficina. Las pantallas de Turnos y Reporte de sede cuentan igual.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-21-liquidaciones-registra-que-paso-con-una-diferencia",
     fecha: "2026-10-21",
     titulo: "Liquidaciones: ya se puede registrar qué pasó con una diferencia",

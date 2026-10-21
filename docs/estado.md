@@ -64,7 +64,8 @@ costo de Pacífico y no sirve para decidir**. La cuenta útil es la prima real e
    Equipo deje cambiarlo desde el bloque de estaciones. La causa de fondo está en una sesión aparte, rama
    `claude/intelligent-elbakyan-cafd3f` («Estaciones de retail nacen como "Sin vínculo laboral"»): espera que Felipe
    elija una de sus tres opciones y pegue en el SQL Editor la consulta de md5 de producción. No escribió nada todavía.
-5. **Cargar la póliza en el módulo Seguros** (atajo «Las de planilla»), cuando haya condiciones particulares. El
+5. **Cargar la póliza en el módulo Seguros** (atajo «Las de planilla»), cuando haya condiciones particulares y esté
+   pegada la 0543, que siembra el tipo `vida_ley` (sección siguiente; sin ella DO lo agrega a mano). El
    lector de PDF no está probado con estos certificados: no traen vigencia ni prima ni el formato «Asegurado: nombre
    documento» que espera, así que saldrían con avisos y esos datos se teclean. Un mismo número en quince personas es
    la póliza colectiva que el módulo ya soporta.
@@ -78,6 +79,64 @@ ahora excluye las cuentas de servicio, cuenta solo `planilla`, ya no calcula el 
 Positiva y suma una consulta 5 (cruce contra los certificados, con una fila de ejemplo en vez de DNI reales).
 **No probado:** nada se pegó ni se corrió en producción desde esta sesión; las cifras salen de lo que Felipe pegó del
 SQL Editor. La consulta nueva se comprobó solo de sintaxis, contra una copia temporal de `personas`.
+
+## 2026-10-21 — Vida Ley entra a los tipos de seguro como seguro del sistema · migración 0543 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/seguro-vida-ley-tipo-9df9ee`
+
+**Qué es.** Felipe vio «Tipos de seguro» con solo EsSalud y FOLA y preguntó si se agregaba Vida Ley. La 0528 ya
+la daba por hecha como algo que DO agregaría con «+ Agregar un seguro»; ahora viene sembrada: una fila en
+`seguros_tipos` con clave `vida_ley`, **complementaria** (va además del principal), con póliza, sin vínculos
+automáticos y **del sistema** (no se archiva ni cambia de nombre por un clic). Con ella ya se puede registrar la póliza
+colectiva a todas de una vez, leer el PDF y bajar la lista de asegurados. La descripción lleva lo que el
+repositorio ya decía (D. Leg. 688 modificado por el D.U. 044-2019 y la Ley 31408; 16 y 32 remuneraciones; MTPE
+en 30 días) y se puede editar desde la pantalla si el contador corrige algo.
+
+**Por qué sembrada y no «que la agregue DO».** La clave. El día que se construya el aviso «persona en planilla
+sin Vida Ley» tiene que apuntar a un tipo que existe con un nombre estable; agregada a mano habría podido
+salir `seguro_de_vida` y habría que adivinar cuál es la buena.
+
+**Lo que NO se hizo, y sigue decidido así.** No hay aviso de quién está en planilla y fuera de la póliza: Felipe
+decidió el 2026-10-19 que espera la respuesta del contador (y qué vínculos obligan, ¿entra quien está de prueba?).
+Para un complementario, «estar en él» sigue siendo tener su póliza vigente. Tampoco se registró ninguna póliza:
+la de La Positiva no está firmada. **[Corregido el 2026-10-21, en la sección de arriba: lo contratado es Pacífico,
+póliza Nº 143720, con quince certificados emitidos. Y sobre «¿entra quien está de prueba?»: Felipe decidió ese mismo
+día que el seguro se cuenta solo sobre `planilla`.]**
+
+**Antes de pegar.** La consulta de solo lectura está en la cabecera de la 0543 (esperado: tipos de hoy = FOLA y
+EsSalud, cero pólizas de `vida_ley`). Si DO ya la agregó a mano con esa clave, la migración solo la marca «del
+sistema» sin tocar su descripción; si la dejó como principal por error, no la toca y la comprobación final lo
+muestra. **El PR no se fusiona hasta que esté pegada** (CLAUDE.md: la migración va antes).
+
+**Probado.** En un Postgres desechable con las 519 migraciones de `main`: la prueba 422 pasó de 308 a 312
+aserciones, 312 verdes (había que editarla: creaba «Vida Ley» ella misma y ahora chocaría); la 423, 116 de 116;
+repegar la 0543 no duplica nada; su propio bloque de revertir la quita; **sin la migración las aserciones nuevas
+se ponen en rojo** (37, 39, 40, 41, 42), con ella en verde. Probados los dos estados previos que podría tener
+producción (ya agregada bien, o agregada como principal). **No probado:** la pantalla con la fila nueva (no
+cambió código de pantalla) ni contra la base real: el estado actual de `seguros_tipos` en producción solo lo
+ve Felipe.
+
+## 2026-10-21 — Una oficina mide su meta en integrantes en la sede · SIN SQL · PR #576 ABIERTO, SIN FUSIONAR · rama `claude/problema-con-el-5-ca9a30`
+
+**Qué es.** Oficina TRU (sede de tipo `central`) salía en ámbar «5 trabajando ahora · meta por revisar» todos
+los días: su meta de 4 se medía contra personal de áreas operativas, y en una oficina no hay. Decisión de
+Felipe: la meta de una central es cuántos integrantes hay en la sede, y con ellos en piso sale verde
+(«5 / 4 integrantes · Cobertura correcta»). Sigue al #574, que solo había cambiado el titular de la fila.
+
+**Cómo.** Una sola regla, en `cuentaEnCobertura` (`packages/shared/src/cobertura-equipo.ts`): `cuentaEnMetaOp`
+= la persona operativa y, en una central, cualquiera del equipo menos quien está de prueba. `operativa` NO
+cambia —sigue diciendo «su área es operativa»— porque la usa el aviso de «marcó sin horario», que en una
+oficina sería ruido diario. Dashboard, Turnos y Reporte de sede leen el campo nuevo; la palabra pasa a
+«integrantes» solo en una central. Tienda y taller: nada cambia.
+
+**Lo que NO se hizo.** Turnos y Reporte de sede cuentan igual, pero Turnos todavía escribe «operativas» en sus
+rótulos aunque la sede sea central. Y la meta de 4 sigue guardada tal cual en Turnos: si Oficina TRU crece,
+se sube ahí. La salida de marcar sus áreas como operativas en Áreas (la que dejó escrita el 2026-10-20) ya no
+hace falta para una central.
+
+**Probado.** 2 527 pruebas verdes; se rompió la regla a propósito y la prueba nueva se puso en rojo. Visto en
+el navegador contra un simulador de la API con datos inventados (oficina central de 6 con 5 en piso y meta 4,
+y una tienda de 3 con 2 en piso y meta 3): la oficina sale verde con «5 / 4 integrantes», no aparece en
+«Requiere atención», y la tienda sigue en rojo con «2 / 3 operativas». **No probado:** contra datos reales de
+producción (esta sesión no los consulta) ni el Reporte de sede ni Turnos en pantalla.
 
 ## 2026-10-21 — La diferencia real de una liquidación pagada se cierra con una constancia · migración 0542 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/remover-pago-duplicado-8c818a`
 
