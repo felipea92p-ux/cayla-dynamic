@@ -496,6 +496,19 @@ export function seguroPorPersona(
   );
 }
 
+/**
+ * Quien no lleva un seguro de la empresa (honorarios, sin vínculo laboral) y no tiene ninguna póliza
+ * vigente ni un cambio por cerrar no tiene nada que mirar en Seguros: la pantalla no le da renglón
+ * (Felipe, 2026-10-21: «los de RxH no deben aparecer»). Basta una póliza que siga corriendo o un
+ * paso pendiente para que SÍ aparezca: ahí hay algo que atender. Se quita de lo que se DIBUJA,
+ * no de a quién se le puede registrar una póliza: a un RxH se le puede asegurar a mano.
+ */
+export function sinNadaQueMostrar(p: SeguroDePersona, hoy: string): boolean {
+  return p.situacion === "sin_seguro"
+    && p.cambiosPendientes.length === 0
+    && !p.otras.some((z) => z.vigente_hasta > hoy);
+}
+
 /** Los días que faltan, de menos a más; quien no tiene cuenta (hueco, EsSalud) va después de quien sí. */
 function compararDias(a: number | null, b: number | null): number {
   if (a === b) return 0;

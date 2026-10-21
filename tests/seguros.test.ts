@@ -16,7 +16,7 @@ import { describe, it, expect } from "vitest";
 import {
   coincideSeguro, contarPorTipo, cubiertoHasta, estadoPrima, etiquetaTipoArchivo, etiquetaVinculo,
   fechaDelPaso, fechasSospechosas, hermanasDe, numeroDeTexto, origenDelCambio, pasosDelCambio, pasosPendientes, pendientesDeSeguros, personasParaPoliza, polizaQueSeCruza,
-  resumenDelCambio, resumenDeSeguros, seguroPorPersona, sumarMeses,
+  resumenDelCambio, resumenDeSeguros, seguroPorPersona, sinNadaQueMostrar, sumarMeses,
   DIAS_AVISO_PRIMA, DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA,
   type CambioSeguro, type FilaEquipoSeguro, type Poliza,
 } from "@/lib/admin/seguros";
@@ -224,6 +224,21 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
     })]);
     expect(p.situacion).toBe("sin_seguro");
     expect(p.tipo).toBeNull();
+  });
+
+  it("quien no lleva seguro de la empresa y no tiene nada vigente ni pendiente (un RxH) no se dibuja; con algo que atender, sí", () => {
+    const rxh = persona({ persona_id: "p3", tipo_vinculo: "rxh", practicante_modalidad: null, en_planilla: false, ...SIN_SEGURO });
+    const [solo] = una([rxh]);
+    expect(sinNadaQueMostrar(solo, HOY)).toBe(true);
+
+    // Una póliza que sigue corriendo (un seguro de vida que DO le registró a mano) sí merece renglón…
+    const vida = poliza({ persona_id: "p3", poliza_id: "zv", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false, vigente_hasta: "2027-06-01" });
+    expect(sinNadaQueMostrar(una([rxh], [vida])[0], HOY)).toBe(false);
+    // …una vencida no…
+    const vencida = poliza({ persona_id: "p3", poliza_id: "zx", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false, vigente_hasta: "2026-09-01" });
+    expect(sinNadaQueMostrar(una([rxh], [vencida])[0], HOY)).toBe(true);
+    // …y un cambio de seguro por cerrar (pasó de planilla a honorarios: falta la baja) tampoco se esconde.
+    expect(sinNadaQueMostrar(una([rxh], [], [cambio({ persona_id: "p3" })])[0], HOY)).toBe(false);
   });
 
   it("un seguro complementario NO tapa el hueco del principal: va aparte, en «otras»", () => {

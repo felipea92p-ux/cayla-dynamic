@@ -62,7 +62,7 @@ import { Rotulo } from "@/components/ui/rotulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useRolActual } from "@/lib/admin/use-rol";
 import {
-  coincideSeguro, contarPorTipo, fechaDelPaso, hermanasDe, plural, resumenDeSeguros, seguroPorPersona, DIAS_AVISO_RENOVACION, PASOS_SEGURO,
+  coincideSeguro, contarPorTipo, fechaDelPaso, hermanasDe, plural, resumenDeSeguros, seguroPorPersona, sinNadaQueMostrar, DIAS_AVISO_RENOVACION, PASOS_SEGURO,
   type CambioSeguro, type FilaEquipoSeguro, type PasoSeguro, type Poliza, type SeguroDePersona, type SituacionSeguro, type TipoSeguro,
 } from "@/lib/admin/seguros";
 
@@ -156,17 +156,19 @@ function Seguros() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (puede) void cargar(); }, [puede, cargar]);
 
-  const personas = useMemo(() => seguroPorPersona(equipo, polizas, cambios, hoy), [equipo, polizas, cambios, hoy]);
+  const conSeguros = useMemo(() => seguroPorPersona(equipo, polizas, cambios, hoy), [equipo, polizas, cambios, hoy]);
+  // Lo que se dibuja: sin quienes no llevan un seguro de la empresa y no tienen nada vigente ni pendiente (los RxH).
+  const personas = useMemo(() => conSeguros.filter((p) => !sinNadaQueMostrar(p, hoy)), [conSeguros, hoy]);
   const resumen = useMemo(() => resumenDeSeguros(personas), [personas]);
   const personaDelAviso = useMemo(() => (soloPersona ? personas.find((p) => p.personaId === soloPersona) ?? null : null), [personas, soloPersona]);
   const porTipo = useMemo(() => contarPorTipo(personas, tipos), [personas, tipos]);
 
   // A quién se le puede registrar una póliza: las personas activas, con su seguro principal de hoy.
   const opciones = useMemo<OpcionPersona[]>(
-    () => personas.filter((p) => p.activa)
+    () => conSeguros.filter((p) => p.activa)
       .map((p) => ({ id: p.personaId, nombre: p.persona, sede: p.sede, tipoPrincipal: p.tipo?.clave ?? null, enPlanilla: p.enPlanilla, vinculo: p.vinculo }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
-    [personas],
+    [conSeguros],
   );
 
   // Los botones «Piden la baja» y «Cobertura suspendida» solo existen mientras hay alguien: si se
