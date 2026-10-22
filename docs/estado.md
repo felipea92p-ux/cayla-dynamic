@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-21 — Una estación de retail deja de figurar en planilla · migración 0544 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/intelligent-elbakyan-cafd3f`
+## 2026-10-21 — Una estación de retail deja de figurar en planilla · migración 0544 · SQL PEGADO (2026-10-22) · SIN FUSIONAR · rama `claude/intelligent-elbakyan-cafd3f`
 
 **Qué es.** Al cruzar el Seguro de Vida Ley contra quién está en planilla, «ESTACIÓN — Producción» salió como una
 persona a asegurar (21 «a cubrir» cuando eran 20). Nació con los defaults de la tabla —vínculo `planilla`, en planilla,
@@ -23,7 +23,10 @@ Ley ya filtran `cuenta_de_servicio` (las cuatro), pero eso llegó por el PR #579
 da `2ef42078…` con 2571 caracteres y 59 `\r` — es la 0490 pegada desde Windows (el cuerpo del archivo con `\r\n` da
 exactamente ese md5; `b9b3eb85…` es el del archivo con `\n`). Mismo código, nada roto. `fn_set_tipo_vinculo` y
 `fn_crear_persona` coinciden byte a byte con el repositorio; la 490, la 504 y la 513 están registradas. El freno de la
-0544 pasa contra esa variante. **La migración va ANTES de fusionar el PR**, y el PR no se fusiona sin OK de Felipe.
+0544 pasa contra esa variante. **Pegada el 2026-10-22** (Felipe devolvió la fila de comprobación): una sola versión nueva de la función, `anon` no
+puede marcar, registro `544 · una_cuenta_de_servicio_no_queda_en_planilla`, y md5 de llegada `50c00bbd…` —el esperado,
+pegada con saltos de línea normales—. La única estación en planilla seguía siendo «ESTACIÓN — Producción Lima», como se
+esperaba. Con la migración ya pegada, el PR se puede fusionar **solo con OK de Felipe** (fusionar es publicar).
 
 **Pendiente de Felipe (a mano, no lo hace la migración).** «ESTACIÓN — Producción» sigue en `planilla` hasta que la
 pase a «Sin vínculo laboral» desde Equipo. La comprobación final de la 0544 la nombra mientras siga así. El candado
