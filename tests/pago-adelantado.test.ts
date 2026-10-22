@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { hoyLima } from "@cayla-dynamic/shared";
 import {
-  PALABRA_PAGO_ADELANTADO, confirmaPagoAdelantado, diasQueFaltanParaTerminar, textoDiasQueFaltan,
+  PALABRA_PAGO_ADELANTADO, confirmaPagoAdelantado, diasQueFaltanParaTerminar, tituloAvisoPagoAdelantado,
 } from "@/lib/admin/planilla/pago-adelantado";
 
 // El caso real del 2026-10-21: periodo 28-sep → 28-oct, pagado el grupo planilla a las 15:27.
+// Tres respuestas: null = ya terminó · 0 = hoy es el cierre · N = faltan N días.
 describe("diasQueFaltanParaTerminar", () => {
   it("el incidente: el 21 de octubre le faltaban 7 días a un periodo que cierra el 28", () => {
     expect(diasQueFaltanParaTerminar("2026-10-28", "2026-10-21")).toBe(7);
@@ -14,13 +15,15 @@ describe("diasQueFaltanParaTerminar", () => {
     expect(diasQueFaltanParaTerminar("2026-10-28", "2026-10-27")).toBe(1);
   });
 
-  it("el día del cierre ya no avisa (la regla es «fecha_fin posterior a hoy»)", () => {
-    expect(diasQueFaltanParaTerminar("2026-10-28", "2026-10-28")).toBe(0);
+  it("el día del cierre son 0 días y NO es «ya terminó»: ese día todavía se marca", () => {
+    const r = diasQueFaltanParaTerminar("2026-10-28", "2026-10-28");
+    expect(r).toBe(0);
+    expect(r).not.toBeNull();
   });
 
-  it("un periodo que ya cerró nunca avisa, sea cuando sea", () => {
-    expect(diasQueFaltanParaTerminar("2026-10-28", "2026-10-29")).toBe(0);
-    expect(diasQueFaltanParaTerminar("2026-10-28", "2027-03-01")).toBe(0);
+  it("un periodo que ya cerró es null, sea cuando sea", () => {
+    expect(diasQueFaltanParaTerminar("2026-10-28", "2026-10-29")).toBeNull();
+    expect(diasQueFaltanParaTerminar("2026-10-28", "2027-03-01")).toBeNull();
   });
 
   it("cuenta bien al cruzar mes y año, y en febrero bisiesto", () => {
@@ -43,12 +46,25 @@ describe("diasQueFaltanParaTerminar", () => {
       vi.useRealTimers();
     }
   });
+
+  it("con hoyLima(): a las 9 pm de Lima del último día sigue siendo el cierre, no «ya terminó»", () => {
+    vi.useFakeTimers();
+    try {
+      // 2026-10-29T02:00Z = 28 de octubre, 21:00 en Lima: en UTC ya es el 29.
+      vi.setSystemTime(new Date("2026-10-29T02:00:00Z"));
+      expect(hoyLima()).toBe("2026-10-28");
+      expect(diasQueFaltanParaTerminar("2026-10-28", hoyLima())).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
-describe("textoDiasQueFaltan", () => {
-  it("singular y plural", () => {
-    expect(textoDiasQueFaltan(1)).toBe("Falta 1 día");
-    expect(textoDiasQueFaltan(7)).toBe("Faltan 7 días");
+describe("tituloAvisoPagoAdelantado", () => {
+  it("singular, plural y último día", () => {
+    expect(tituloAvisoPagoAdelantado(1)).toBe("Falta 1 día para que termine este periodo");
+    expect(tituloAvisoPagoAdelantado(7)).toBe("Faltan 7 días para que termine este periodo");
+    expect(tituloAvisoPagoAdelantado(0)).toBe("Hoy es el último día de este periodo");
   });
 });
 

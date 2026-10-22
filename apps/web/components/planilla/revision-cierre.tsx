@@ -10,11 +10,11 @@
 //   personas y doce meses se termina marcando sin mirar.
 // - Si hay un periodo ANTERIOR sin pagar, se nombra y se pide aceptarlo. No se
 //   bloquea: está permitido desde la 0323.
-//
-// - Pagar un periodo que TODAVÍA NO TERMINÓ pide, además, escribir una palabra
-//   (2026-10-22). El 2026-10-21 se marcó «pagado» el grupo planilla siete días
-//   antes del cierre con el mismo clic que uno ya terminado, y desde ese
-//   instante sus marcas nuevas entraron selladas sin recalcular horas. No se
+// - Pagar un periodo que TODAVÍA NO TERMINÓ —incluido el mismo día del cierre—
+//   pide, además, escribir una palabra (2026-10-22). El 2026-10-21 se marcó
+//   «pagado» el grupo planilla siete días antes del cierre con el mismo clic
+//   que uno ya terminado, y desde ese instante sus marcas nuevas entraron
+//   selladas sin recalcular horas. No se
 //   bloquea —Felipe: a veces es una excepción legítima, una liquidación o un
 //   practicante que se va—; se hace imposible hacerlo sin querer.
 //
@@ -30,7 +30,7 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Campo, CampoCasilla } from "@/components/ui/campo";
 import { MESES_LARGO, fechaCorta, fechaLargaLima } from "@/lib/admin/planilla/formato";
 import {
-  PALABRA_PAGO_ADELANTADO, confirmaPagoAdelantado, diasQueFaltanParaTerminar, textoDiasQueFaltan,
+  PALABRA_PAGO_ADELANTADO, confirmaPagoAdelantado, diasQueFaltanParaTerminar, tituloAvisoPagoAdelantado,
 } from "@/lib/admin/planilla/pago-adelantado";
 import type { HallazgoAgrupado, Totales } from "@/lib/admin/planilla/revision";
 import type { PeriodoInfo } from "@/lib/admin/planilla/tipos";
@@ -68,11 +68,12 @@ function Contenido({
   const [revisados, setRevisados] = useState(false);
   const [anterioresAceptados, setAnterioresAceptados] = useState(false);
   const [palabra, setPalabra] = useState("");
+  // null = el periodo ya terminó; 0 = hoy es el cierre (todavía no terminó); N = faltan N días.
   const diasQueFaltan = diasQueFaltanParaTerminar(periodo.fecha_fin, hoy);
   const listo = frenan.length === 0
     && (revisar.length === 0 || revisados)
     && (anteriores.length === 0 || anterioresAceptados)
-    && (diasQueFaltan === 0 || confirmaPagoAdelantado(palabra));
+    && (diasQueFaltan === null || confirmaPagoAdelantado(palabra));
 
   return (
     <div className="space-y-4 text-sm">
@@ -160,10 +161,10 @@ function Contenido({
         </div>
       )}
 
-      {frenan.length === 0 && diasQueFaltan > 0 && (
-        <BannerAviso variante="alerta" titulo={`${textoDiasQueFaltan(diasQueFaltan)} para que termine este periodo`}>
+      {frenan.length === 0 && diasQueFaltan !== null && (
+        <BannerAviso variante="alerta" titulo={tituloAvisoPagoAdelantado(diasQueFaltan)}>
           <p>
-            El periodo cierra el {fechaCorta(periodo.fecha_fin)}. Si confirmas ahora, desde este instante{" "}
+            El periodo cierra {diasQueFaltan === 0 ? "hoy," : "el"} {fechaCorta(periodo.fecha_fin)}. Si confirmas ahora, desde este instante{" "}
             <strong>las marcas nuevas de «{etiqueta}» entrarán selladas</strong> y{" "}
             <strong>sus horas no se recalcularán</strong>: quien marque de aquí al cierre puede quedar con la
             jornada sin salida y sin horas, y ya no se podrá corregir sin reabrir el pago.
