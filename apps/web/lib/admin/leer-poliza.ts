@@ -40,6 +40,29 @@
 //   del pago, de la tabla del convenio, solo se toma si es UNA cuota: con pago fraccionado el
 //   sistema no tiene dónde ponerlas y se deja en blanco con un aviso.
 //
+// EL CERTIFICADO DE VIDA LEY ES OTRA FORMA (medido el 2026-10-22 sobre los 15 certificados de Pacífico, 4 páginas)
+//   «Seguro de Vida en Grupo Obligatorio … “VIDA LEY”» no es una póliza individual sino el CERTIFICADO que
+//   Pacífico emite a cada integrante dentro de UNA póliza colectiva (la misma para todos). Trae:
+//     · «CERTIFICADO N° 110-…» (el de cada persona) y «Póliza Nº 143720» (la colectiva), la aseguradora y a
+//       quién asegura: apellidos, nombres y «D.N.I. / C.E. N°».
+//     · NO trae vigencia («empezará a las cero horas del primer día del mes en que fue declarado»), NO trae
+//       prima («es pagada mensualmente por el Contratante») y NO trae fin. Esos tres salen VACÍOS y con
+//       aviso: la pantalla los muestra como «falta» y los escribe DO. Un falso positivo aquí es peor que un
+//       campo en blanco, y el texto legal está lleno de números que parecen montos o fechas («16 y 32
+//       remuneraciones», «Ley 29946», «45 días») que NO se leen: este lector solo busca la póliza, el
+//       certificado y los datos del asegurado, nunca fechas ni montos.
+//     · pdf.js entrega la tabla «DATOS DEL ASEGURADO» con las etiquetas por un lado y los valores por otro
+//       (en el orden en que el generador del PDF los dibujó), así que no se pueden emparejar «etiqueta: valor»
+//       por cercanía. Se leen por su FORMA: el documento es el valor que sigue al apellido materno al final del
+//       bloque de etiquetas de la columna derecha, y apellido paterno + nombres son los dos renglones en
+//       mayúsculas que preceden a la fecha de nacimiento (que NO se lee). También se entiende la forma
+//       «Etiqueta: valor» en un mismo renglón, que es como la deja otro lector de PDF.
+//     · Si el papel trae más de un certificado (un PDF con varios), cada uno sale como su propia póliza con el
+//       mismo número de póliza colectiva.
+//     · Se empareja a la persona por el DOCUMENTO (`importar-polizas.ts` lo coteja contra la ficha); el nombre
+//       solo propone. Si no se pudo leer el documento, sale `asegurado: null` o con documento vacío y un aviso:
+//       no se adivina.
+//
 // SE ROMPE SI
 //   Otra aseguradora imprime otra forma. No hay nada que arreglar «a ojo»: se agrega UNA forma más
 //   con un PDF de muestra y su prueba. Mientras tanto, un PDF que no se entiende devuelve cero
@@ -69,9 +92,15 @@ export interface PolizaLeida {
   aseguradora: string | null;
   /** «Seguro de salud practicantes», como lo escribe el papel (solo para mostrar). */
   producto: string | null;
+  /** `documento` vacío = no se pudo leer (la pantalla no puede cotejarlo); `nombre` vacío = no se pudo leer el nombre (solo en el certificado de Vida Ley). */
   asegurado: { nombre: string; documento: string } | null;
   /** El día en que la aseguradora la emitió (ISO). */
   emitidaEl: string | null;
+  /**
+   * Solo en el certificado de Vida Ley: el número del certificado de ESA persona («110-143720-…»), porque
+   * `numero` es el de la póliza colectiva y es el mismo para todos. Las demás pólizas no lo traen.
+   */
+  certificado?: string;
   /** Lo que conviene mirar antes de registrarla: lo que no cuadra o no se encontró. */
   avisos: string[];
 }
@@ -188,7 +217,8 @@ export function leerPolizas(paginas: readonly string[]): PolizaLeida[] {
     if (leida.desde !== null || leida.hasta !== null) salida.push(leida);
   }
   avisarLasRepetidas(salida);
-  return salida;
+  // Los certificados de Vida Ley no traen fechas, así que la lectura de arriba nunca los devuelve (y no se mezclan).
+  return [...salida, ...leerCertificadosVidaLey(limpias)];
 }
 
 /**
@@ -300,6 +330,128 @@ function leerUna(numero: string, texto: string): PolizaLeida {
     emitidaEl: em ? fechaEnPalabras(em[1], em[2], em[3]) : null,
     avisos,
   };
+}
+
+// ── El certificado de Vida Ley ──────────────────────────────────────────────
+
+// La cabecera del certificado: «CERTIFICADO N° 110-143720-3096099-21015153». Por sí sola no basta (otros productos
+// también imprimen «Certificado N°»): la página tiene que decir además «SEGURO DE VIDA EN GRUPO» y «VIDA LEY».
+const CERTIFICADO = /CERTIFICADO\s+N[°ºo]\.?\s*:?\s*(\d[\d-]{5,})/i;
+const NOMBRE_DE_VIDA_LEY = /\bVIDA\s+LEY\b/i;
+const SEGURO_DE_VIDA_EN_GRUPO = /SEGURO\s+DE\s+VIDA\s+EN\s+GRUPO/i;
+const DOCUMENTO = String.raw`([A-Z0-9]{8,12})`;
+// Un nombre o apellido: letras (con tilde y ñ), espacios, apóstrofo, guion y punto; sin dígitos ni dos puntos.
+const NOMBRE = String.raw`[^\d:\n]`;
+// «Etiqueta: valor» en el mismo renglón, como lo deja un lector que respeta el orden visual de la tabla.
+const ASEGURADO_EN_LINEA = new RegExp(
+  String.raw`Apellido\s+Paterno\s*:\s*(${NOMBRE}+?)\s+Apellido\s+Materno\s*:[ ]*(${NOMBRE}*?)[ ]*\n\s*Nombres\s*:\s*(${NOMBRE}+?)\s+`
+  + String.raw`D\.?\s?N\.?\s?I\.?\s*\/\s*C\.?\s?E\.?\s*N[°ºo]?\.?\s*:?\s*${DOCUMENTO}\b`,
+  "i",
+);
+// La última etiqueta de la columna derecha de la tabla; sus valores vienen después, en el orden materno, documento…
+const ULTIMA_ETIQUETA_DERECHA = /Tel[ée]fono\s*\/\s*Fax\s*:[ ]*\n/i;
+const PARRAFOS_DE_LA_TABLA = new Set(["COBERTURAS", "SUMA ASEGURADA"]);
+const ES_NOMBRE = /^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ'’.\- ]*$/;
+const ES_DOCUMENTO = /^(?=[A-Z0-9]*\d)[A-Z0-9]{8,12}$/;
+const ES_FECHA = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+
+/**
+ * Quién es el asegurado de un certificado de Vida Ley. Primero la forma «Etiqueta: valor» en un renglón; si no
+ * está, la de pdf.js (etiquetas por un lado, valores por otro). Lo que no se pudo leer sale vacío, nunca inventado.
+ */
+function aseguradoDelCertificado(texto: string): { nombre: string; documento: string } | null {
+  const enLinea = ASEGURADO_EN_LINEA.exec(texto);
+  if (enLinea) {
+    const nombre = [enLinea[1], enLinea[2], enLinea[3]].join(" ").replace(/\s+/g, " ").trim();
+    return { nombre, documento: enLinea[4].toUpperCase() };
+  }
+
+  const renglones = texto.split("\n").map((r) => r.trim()).filter((r) => r !== "");
+
+  // Documento: tras la última etiqueta de la columna derecha viene el apellido materno (si lo hay) y luego el documento.
+  let documento = "";
+  let materno = "";
+  const fin = ULTIMA_ETIQUETA_DERECHA.exec(texto);
+  if (fin) {
+    const despues = texto.slice(fin.index + fin[0].length).split("\n").map((r) => r.trim()).filter((r) => r !== "");
+    const [primero, segundo] = despues;
+    // Un DNI son 8 dígitos; un carnet de extranjería es más largo y se parece a un teléfono (9 dígitos). El teléfono
+    // del contratante y el del asegurado se repiten en el certificado, y un documento aparece una sola vez: lo que
+    // no es de 8 dígitos se acepta solo si no se repite.
+    const esDocumento = (v: string | undefined): v is string =>
+      v !== undefined && ES_DOCUMENTO.test(v) && (/^\d{8}$/.test(v) || texto.split(v).length === 2);
+    if (esDocumento(primero)) documento = primero;
+    else if (primero && ES_NOMBRE.test(primero) && !PARRAFOS_DE_LA_TABLA.has(primero)) {
+      materno = primero;
+      if (esDocumento(segundo)) documento = segundo;
+    }
+  }
+
+  // Apellido paterno y nombres: los dos renglones en mayúsculas que preceden a la fecha de nacimiento (con el
+  // teléfono fijo, que puede faltar, en medio). La fecha solo ancla; no se lee.
+  let paterno = "";
+  let nombres = "";
+  for (let d = 2; d < renglones.length && paterno === ""; d++) {
+    if (!ES_FECHA.test(renglones[d])) continue;
+    // El teléfono fijo, si lo hay, va entre los nombres y la fecha.
+    const k = /^\d{6,12}$/.test(renglones[d - 1]) ? d - 1 : d;
+    const [x, y] = [renglones[k - 2], renglones[k - 1]];
+    if (x && y && ES_NOMBRE.test(x) && ES_NOMBRE.test(y) && !PARRAFOS_DE_LA_TABLA.has(x) && !PARRAFOS_DE_LA_TABLA.has(y)) {
+      paterno = x;
+      nombres = y;
+    }
+  }
+
+  // Un nombre a medias (solo el materno, porque el resto no se encontró) no se muestra como si fuera el de la persona.
+  const nombre = paterno !== "" && nombres !== "" ? [paterno, materno, nombres].filter((p) => p !== "").join(" ").replace(/\s+/g, " ").trim() : "";
+  return nombre !== "" || documento !== "" ? { nombre, documento } : null;
+}
+
+/**
+ * Los certificados de Vida Ley que trae el PDF, uno por cada página de cabecera («CERTIFICADO N° …») con las que
+ * le siguen hasta la cabecera siguiente. Nunca devuelve vigencia ni prima: el papel no las trae.
+ */
+function leerCertificadosVidaLey(limpias: readonly string[]): PolizaLeida[] {
+  const cabeceras: number[] = [];
+  limpias.forEach((p, i) => {
+    if (CERTIFICADO.test(p) && SEGURO_DE_VIDA_EN_GRUPO.test(p) && NOMBRE_DE_VIDA_LEY.test(p)) cabeceras.push(i);
+  });
+
+  const salida: PolizaLeida[] = [];
+  cabeceras.forEach((inicio, k) => {
+    const texto = limpias.slice(inicio, cabeceras[k + 1] ?? limpias.length).join("\n");
+    const certificado = CERTIFICADO.exec(texto)?.[1];
+    // Sin el número de póliza colectiva no hay a qué póliza asignarlo: no se devuelve (no se inventa uno).
+    const numero = [...texto.matchAll(NUMERO)].map((m) => m[1])[0];
+    if (!certificado || !numero) return;
+
+    const asegurado = aseguradoDelCertificado(texto);
+    const avisos = [
+      "Este certificado no trae fechas de vigencia (dice que la cobertura empieza el primer día del mes en que Pacífico recibió "
+      + "la declaración de planilla): escribe desde cuándo y hasta cuándo según la póliza colectiva.",
+      "Este certificado no trae la prima (dice que la paga el contratante cada mes): escríbela tú.",
+    ];
+    if (!asegurado) avisos.push("No encontré a quién asegura: elige a la persona tú.");
+    else {
+      if (asegurado.nombre === "") avisos.push("No encontré el nombre del asegurado: elige a la persona tú (el documento sí lo leí).");
+      if (asegurado.documento === "") avisos.push("No encontré el documento del asegurado: compáralo tú con la ficha de la persona.");
+    }
+    if (!PACIFICO.test(texto)) {
+      avisos.push("No reconocí la aseguradora: este lector solo está probado con pólizas de Pacífico. Revisa cada dato contra el papel.");
+    }
+
+    salida.push({
+      numero,
+      certificado,
+      desde: null, hasta: null, prima: null, primaVenceEl: null,
+      aseguradora: PACIFICO.test(texto) ? "Pacífico Seguros" : null,
+      producto: "Seguro de vida en grupo obligatorio · Vida Ley",
+      asegurado,
+      emitidaEl: null,
+      avisos,
+    });
+  });
+  return salida;
 }
 
 // ── A quién corresponde ─────────────────────────────────────────────────────

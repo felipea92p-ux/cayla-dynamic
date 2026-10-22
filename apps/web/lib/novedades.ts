@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-22-ya-puedes-ver-tu-seguro-de-vida-ley-en-mi-seguro",
+    fecha: "2026-10-22",
+    titulo: "Ya puedes ver tu Seguro de Vida Ley en «Mi seguro»",
+    queMejoro:
+      "Cuando Desarrollo Organizacional registra tu póliza de Vida Ley, aparece en «Mi seguro» con su propia tarjeta, aparte de tu " +
+      "seguro principal (EsSalud o FOLA): su número, la aseguradora, hasta cuándo es vigente y el PDF de tu certificado, que puedes " +
+      "abrir o descargar. Si aún no la ves, es porque todavía no está registrada.\n\n" +
+      "Debajo, «Cómo usar tu póliza Vida Ley» cuenta qué es, qué dice la póliza, cuánto dura y dónde está tu certificado. Es un " +
+      "resumen: lo que vale es el PDF. Si el papel no trae alguna fecha, la pantalla lo dice en vez de inventarla. Si algo no " +
+      "cuadra, avisa a Desarrollo Organizacional.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-22-planilla-pide-confirmar-pagar-antes-del-cierre",
     fecha: "2026-10-22",
     titulo: "Planilla: pagar un grupo antes de que termine el periodo ahora pide confirmar",

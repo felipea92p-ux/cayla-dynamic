@@ -448,3 +448,223 @@ describe("un nombre del papel y las personas que se le parecen", () => {
   });
 });
 
+
+// ============================================================================
+// El certificado de «Seguro de Vida en Grupo Obligatorio — VIDA LEY» (2026-10-22)
+// ============================================================================
+// Pacífico no emite una póliza por persona sino un CERTIFICADO dentro de una póliza colectiva. El papel NO trae
+// vigencia, NO trae prima y NO trae fin: esos campos tienen que salir VACÍOS (con aviso), jamás inventados. El
+// texto de abajo imita la forma real —incluido el orden en que pdf.js entrega la tabla «DATOS DEL ASEGURADO»,
+// con las etiquetas por un lado y los valores por otro— con datos inventados.
+// ============================================================================
+
+const LEGAL = `(1) Muerte Natural: Es el fallecimiento o deceso del Asegurado por causas naturales no accidentales.
+VI. EXCLUSIONES: De conformidad con lo dispuesto en el Decreto Legislativo N° 688, el seguro “Vida Ley” no contempla exclusiones.
+IX. RENOVACIÓN: anticipación no menor a 45 días previos al vencimiento. Plazo de 30 días. Ley N° 29946, Ley del Contrato de Seguro.
+Muerte por accidente: 32 remuneraciones mensuales asegurables. Ley 31408. Prima de S/ 150.00 por 12 meses, desde el 01/02/2020.`;
+
+/** La primera página como la entrega pdf.js: etiquetas de la tabla juntas y los valores aparte. */
+const CERTIFICADO_PDFJS = (opciones: {
+  numero?: string; certificado?: string; paterno?: string; materno?: string; nombres?: string; documento?: string; telefono?: string;
+} = {}) => {
+  const { numero = "999999", certificado = "110-999999-0000001-00000001", paterno = "PEREZ", materno = "GOMEZ", nombres = "ANA MARIA", documento = "00000001", telefono = "900000001" } = opciones;
+  return `CERTIFICADO N° ${certificado}
+SEGURO DE VIDA EN GRUPO OBLIGATORIO PARA TRABAJADORES RENOVABLE ANUALMENTE
+“VIDA LEY” 
+Póliza Nº ${numero} (Código SBS N° VI0000000000)
+Pacifico Compañía de Seguros y Reaseguros (en adelante, la   “Compañía” ), con R.U.C. N° 20000000001, con dirección física
+I.   DATOS DEL CONTRATANTE:
+II.   DATOS DEL ASEGURADO(*):
+III.   VIGENCIA:
+a)   Inicio de Vigencia:   La cobertura otorgada a cada Asegurado empezará a las cero horas del
+primer día del mes en que éste hubiera sido declarado por primera vez como Asegurado por el Contratante .
+IV. PRIMA Y FORMA DE PAGO:   Es pagada mensualmente por el Contratante y es determinada por acuerdo entre la
+Compañía y el Contratante. 
+V.   COBERTURAS Y SUMAS ASEGURADAS:
+${LEGAL}
+Denominación o Razón Social:
+Giro del Negocio CIIU:
+Dirección:
+Apellido Paterno:
+Nombres:
+Fecha de Nacimiento:
+Teléfono fijo:
+Domicilio:
+Relación con el Contratante:
+Muerte Natural   (1) 
+Invalidez Total y Permanente
+por Accidente   (3) 
+COBERTURAS 
+${paterno}
+${nombres}
+${telefono}
+01/01/2000
+4641 
+16 remuneraciones mensuales asegurables(4)   calculadas en base al promedio de
+32 remuneraciones mensuales asegurables(4)   percibidas por el   Asegurado   en la
+SUMA ASEGURADA 
+Trabajador
+CAYLA S.A.C. 
+1/4 
+Apellido Materno:
+D.N.I. / C.E. N°
+Nacionalidad:
+Celular:
+R.U.C. Nº
+Teléfono/Fax: 
+${materno}
+${documento}
+PERU
+${telefono}
+20000000001 `;
+};
+
+const CERTIFICADO_EN_LINEA = (documento = "00000001") => `CERTIFICADO N° 110-999999-0000001-00000001
+SEGURO DE VIDA EN GRUPO OBLIGATORIO PARA TRABAJADORES RENOVABLE ANUALMENTE
+“VIDA LEY”
+Póliza Nº 999999 (Código SBS N° VI0000000000)
+Pacifico Compañía de Seguros y Reaseguros (en adelante, la “Compañía”)
+II. DATOS DEL ASEGURADO(*):
+       Apellido Paterno: PEREZ                                Apellido Materno:        GOMEZ
+       Nombres:             ANA MARIA                      D.N.I. / C.E. N°         ${documento}
+       Teléfono fijo:       900000001                           Celular:
+       Fecha de Nacimiento:      01/01/2000                     Nacionalidad:            PERU
+${LEGAL}`;
+
+const PAGINAS_LEGALES = ["Segunda página.\n" + LEGAL, "Tercera página.\nXII. CONSULTAS Y/O RECLAMOS: 513-5000", "Cuarta página.\n4/4"];
+
+describe("el certificado de Vida Ley de Pacífico", () => {
+  it("devuelve póliza colectiva, certificado, aseguradora, producto y asegurado con su DNI; vigencia, prima y fin quedan VACÍOS", () => {
+    const [p, ...resto] = leerPolizas([CERTIFICADO_PDFJS(), ...PAGINAS_LEGALES]);
+    expect(resto).toEqual([]);
+    expect(p).toMatchObject({
+      numero: "999999",
+      certificado: "110-999999-0000001-00000001",
+      desde: null,
+      hasta: null,
+      prima: null,
+      primaVenceEl: null,
+      aseguradora: "Pacífico Seguros",
+      producto: "Seguro de vida en grupo obligatorio · Vida Ley",
+      asegurado: { nombre: "PEREZ GOMEZ ANA MARIA", documento: "00000001" },
+      emitidaEl: null,
+    });
+  });
+
+  it("dice qué falta: sin vigencia ni prima el aviso lo explica, y por eso nunca nace marcada como lista", () => {
+    const [p] = leerPolizas([CERTIFICADO_PDFJS()]);
+    expect(p.avisos).toHaveLength(2);
+    expect(p.avisos[0]).toMatch(/no trae fechas de vigencia/);
+    expect(p.avisos[1]).toMatch(/no trae la prima/);
+  });
+
+  it("los números del texto legal (16 y 32 remuneraciones, Ley 29946, 45 días, S/ 150.00, 01/02/2020, la fecha de nacimiento) NO se toman por fechas ni montos", () => {
+    const [p] = leerPolizas([CERTIFICADO_PDFJS(), ...PAGINAS_LEGALES]);
+    expect(p.desde).toBeNull();
+    expect(p.hasta).toBeNull();
+    expect(p.prima).toBeNull();
+    expect(p.primaVenceEl).toBeNull();
+    expect(p.emitidaEl).toBeNull();
+    // Ni el número de póliza ni el documento salen del texto legal.
+    expect(p.numero).toBe("999999");
+    expect(p.asegurado?.documento).toBe("00000001");
+  });
+
+  it("entiende también la forma «Etiqueta: valor» en un mismo renglón y da el mismo resultado", () => {
+    const enLinea = leerPolizas([CERTIFICADO_EN_LINEA()])[0];
+    const deLaTabla = leerPolizas([CERTIFICADO_PDFJS()])[0];
+    expect(enLinea.asegurado).toEqual({ nombre: "PEREZ GOMEZ ANA MARIA", documento: "00000001" });
+    expect(enLinea).toEqual(deLaTabla);
+  });
+
+  it("sin teléfono fijo se lee igual (la fecha de nacimiento ancla los nombres)", () => {
+    const sinTelefono = CERTIFICADO_PDFJS().replace("ANA MARIA\n900000001\n01/01/2000", "ANA MARIA\n01/01/2000");
+    expect(leerPolizas([sinTelefono])[0].asegurado).toEqual({ nombre: "PEREZ GOMEZ ANA MARIA", documento: "00000001" });
+  });
+
+  it("un carnet de extranjería (alfanumérico de 9 a 12) también es documento", () => {
+    expect(leerPolizas([CERTIFICADO_PDFJS({ documento: "000000012" })])[0].asegurado?.documento).toBe("000000012");
+    expect(leerPolizas([CERTIFICADO_EN_LINEA("000000012")])[0].asegurado?.documento).toBe("000000012");
+  });
+
+  it("sin apellido materno, el primer valor de la columna derecha ES el documento y el nombre queda con lo que hay", () => {
+    const sinMaterno = CERTIFICADO_PDFJS().replace("GOMEZ\n00000001\nPERU", "00000001\nPERU");
+    expect(leerPolizas([sinMaterno])[0].asegurado).toEqual({ nombre: "PEREZ ANA MARIA", documento: "00000001" });
+  });
+
+  it("si el documento no se puede leer, no se adivina: asegurado con documento vacío y un aviso", () => {
+    const sinDocumento = CERTIFICADO_PDFJS().replace("GOMEZ\n00000001\nPERU", "GOMEZ\nPERU");
+    const [p] = leerPolizas([sinDocumento]);
+    expect(p.asegurado).toEqual({ nombre: "PEREZ GOMEZ ANA MARIA", documento: "" });
+    expect(p.avisos).toContain("No encontré el documento del asegurado: compáralo tú con la ficha de la persona.");
+  });
+
+  it("si no se encuentra el nombre, no se muestra uno a medias: nombre vacío, el documento sí, y un aviso", () => {
+    const [p] = leerPolizas([CERTIFICADO_PDFJS().replace("COBERTURAS \nPEREZ\nANA MARIA\n900000001\n01/01/2000\n", "COBERTURAS \n")]);
+    expect(p.asegurado).toEqual({ nombre: "", documento: "00000001" });
+    expect(p.avisos).toContain("No encontré el nombre del asegurado: elige a la persona tú (el documento sí lo leí).");
+  });
+
+  it("si no se encuentra ni el nombre ni el documento, asegurado null y aviso (la persona la elige DO)", () => {
+    // Sin nombres ni documento, el teléfono (que se repite en el certificado) NO se toma por un documento.
+    const vacio = CERTIFICADO_PDFJS()
+      .replace("COBERTURAS \nPEREZ\nANA MARIA\n", "COBERTURAS \n")
+      .replace("GOMEZ\n00000001\nPERU", "PERU");
+    const [p] = leerPolizas([vacio]);
+    expect(p.asegurado).toBeNull();
+    expect(p.avisos).toContain("No encontré a quién asegura: elige a la persona tú.");
+  });
+
+  it("sin el número de póliza no se devuelve nada: no se inventa uno", () => {
+    expect(leerPolizas([CERTIFICADO_PDFJS().replace("Póliza Nº 999999", "Póliza")])).toEqual([]);
+  });
+
+  it("«Certificado N°» de otro seguro no es un certificado de Vida Ley", () => {
+    const otro = CERTIFICADO_PDFJS().replace("SEGURO DE VIDA EN GRUPO OBLIGATORIO", "SEGURO DE ACCIDENTES").replace(/“VIDA LEY”/, "“SCTR”");
+    expect(leerPolizas([otro])).toEqual([]);
+  });
+
+  it("un PDF con dos certificados da dos pólizas, cada una con su asegurado y la misma póliza colectiva", () => {
+    const otra = CERTIFICADO_PDFJS({ certificado: "110-999999-0000002-00000002", paterno: "LOPEZ", materno: "RIOS", nombres: "LUZ", documento: "00000002" });
+    const lista = leerPolizas([CERTIFICADO_PDFJS(), ...PAGINAS_LEGALES, otra, ...PAGINAS_LEGALES]);
+    expect(lista.map((p) => [p.numero, p.certificado, p.asegurado?.documento])).toEqual([
+      ["999999", "110-999999-0000001-00000001", "00000001"],
+      ["999999", "110-999999-0000002-00000002", "00000002"],
+    ]);
+  });
+
+  it("sin la razón social de Pacífico, avisa que no reconoce la aseguradora y no la inventa", () => {
+    const [p] = leerPolizas([CERTIFICADO_PDFJS().replace("Pacifico Compañía de Seguros y Reaseguros", "Otra Aseguradora")]);
+    expect(p.aseguradora).toBeNull();
+    expect(p.avisos.some((a) => /No reconocí la aseguradora/.test(a))).toBe(true);
+  });
+
+  it("el nombre leído se empareja con la ficha aunque el papel ponga los apellidos primero", () => {
+    const [p] = leerPolizas([CERTIFICADO_PDFJS()]);
+    const personas = [{ id: "a", nombre: "Ana María Pérez Gómez" }, { id: "b", nombre: "Luz Ríos López" }];
+    expect(emparejarPersona(p.asegurado!.nombre, personas)?.persona.id).toBe("a");
+  });
+});
+
+describe("lo que no es un certificado de Vida Ley sigue igual", () => {
+  it("una póliza de Pacífico con vigencia y prima NO trae el campo «certificado»", () => {
+    const [p] = leerPolizas(pdfDe(...ANA));
+    expect(p).not.toHaveProperty("certificado");
+    expect(p.hasta).toBe("2027-02-01");
+    expect(p.prima).toBe(179.97);
+  });
+
+  it("un PDF con una póliza y un certificado devuelve las dos cosas sin mezclarlas", () => {
+    const lista = leerPolizas([...pdfDe(...ANA), CERTIFICADO_PDFJS(), ...PAGINAS_LEGALES]);
+    expect(lista.map((p) => p.numero)).toEqual(["99000001", "999999"]);
+    expect(lista[0].prima).toBe(179.97);
+    expect(lista[1].prima).toBeNull();
+  });
+
+  it("texto que no es de ninguna póliza (basura, vacío, solo legal) devuelve cero pólizas sin romper", () => {
+    expect(leerPolizas([])).toEqual([]);
+    expect(leerPolizas([""])).toEqual([]);
+    expect(leerPolizas(["%%%% ¿¿ \n\n 123456 \u0000", LEGAL])).toEqual([]);
+    expect(leerPolizas(PAGINAS_LEGALES)).toEqual([]);
+  });
+});
