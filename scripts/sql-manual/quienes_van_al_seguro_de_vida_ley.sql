@@ -148,11 +148,13 @@ where p.estado = 'activo'
 
 -- Hasta el 2026-10-21 había una quinta columna, `prima_mensual_en_pct_de_la_masa`,
 -- que dividía S/170 (la cotización de La Positiva) entre esta masa. Se quitó: la
--- prima de Pacífico es otra y no está en este repo (sale de las condiciones
--- particulares o de la factura). El porcentaje se calcula a mano:
--- prima mensual real ÷ masa_remunerativa_mensual × 100. Una referencia SIN
--- VERIFICAR, de una sesión anterior: la prima de este seguro se cotizaría como
--- porcentaje de la remuneración asegurable, entre 0.53 % y 0.75 % mensual.
+-- prima de Pacífico es otra. Según las liquidaciones de septiembre y octubre de
+-- 2026 es de S/70 al mes (59.32 + IGV), la misma con S/20,160 y con S/22,420 de
+-- masa declarada, más S/5 por una inclusión en octubre. El porcentaje se calcula
+-- a mano: prima mensual ÷ masa_remunerativa_mensual × 100 (≈ 0.31 % sobre la masa
+-- de octubre). La referencia de una sesión anterior, entre 0.53 % y 0.75 %
+-- mensual y SIN VERIFICAR, no describe esta póliza: entre esas dos liquidaciones
+-- la prima no subió con la planilla.
 --
 -- Y recordar lo que Dante confirmó: en este seguro no hay comisión de corredor,
 -- se paga directo a la aseguradora. Cualquier intermediario que aparezca

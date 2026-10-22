@@ -6,13 +6,13 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-21 — Seguro de Vida Ley: la póliza existe (Pacífico, Nº 143720) y quedan dos personas por declarar · sin SQL nuevo · SIN FUSIONAR · rama `claude/seguro-vida-ley-d398d5`
+## 2026-10-21 — Seguro de Vida Ley: la póliza existe (Pacífico, Nº 143720), cuesta S/70 al mes y dos personas siguen sin certificado en mano · sin SQL nuevo · FUSIONADO Y PUBLICADO (PR #579, 2026-10-21) · corregido con las liquidaciones de prima en un PR nuevo, SIN FUSIONAR · rama `claude/vida-ley-liquidaciones`
 
 **Qué cambió respecto de lo que decía este archivo.** Hasta hoy `estado.md` y el Reglamento decían «cotizado en La
 Positiva, sin firmar». Felipe pasó quince certificados individuales y el seguro **está contratado con Pacífico
 Seguros**: póliza colectiva **Nº 143720** (código SBS VI2007310027), contratante CAYLA S.A.C. La cotización de La
-Positiva (S/170 al mes por 19 personas) ya no es la referencia. Este repo no dice por qué se eligió Pacífico ni
-cuánto cuesta la prima real.
+Positiva (S/170 al mes por 19 personas) ya no es la referencia. Este repo no dice por qué se eligió Pacífico; la
+prima real y el inicio de la póliza salen de tres liquidaciones de prima (sección que sigue a los certificados).
 
 **Lo que dicen los certificados** (leídos con `pdftotext`; sin nombres ni DNI aquí):
 - 16 remuneraciones por muerte natural y 32 por muerte accidental o invalidez total y permanente por accidente, sin
@@ -26,17 +26,40 @@ cuánto cuesta la prima real.
   sin ella se paga a los herederos tras una sucesión intestada. Al cesar, puede pedir continuar el seguro dentro de
   los 60 días siguientes (numeral 59.6 del Reglamento).
 - **No traen** la fecha de inicio de la póliza, la prima, las condiciones particulares ni si se contrató la
-  cláusula de «Cobertura Adicional a la Remuneración Máxima Asegurable».
+  cláusula de «Cobertura Adicional a la Remuneración Máxima Asegurable». El inicio y la prima sí salen de las
+  liquidaciones, abajo.
+
+**Lo que dicen las liquidaciones de prima** (tres PDF que Felipe pasó el 2026-10-21; también sin nombres):
+- Póliza 143720, plan «Vida Ley Empleados (D.L. 688)», **sin intermediación** (sin corredor, como confirmó Dante),
+  pago al contado, una liquidación por mes. **Inicio de la póliza: 01/08/2026.** El fin no consta en ningún papel;
+  el certificado dice «anual renovable».
+- **Prima: S/70.00 al mes** (59.32 + 10.68 de IGV), **la misma en septiembre y en octubre** aunque la masa declarada
+  subió de S/20,160 a S/22,420: entre esas dos liquidaciones no subió con la planilla. Es menos de la mitad de los
+  S/170 de La Positiva (0.31 % de la masa de octubre). Más **S/5.00** (4.24 + 0.76) por una inclusión en octubre.
+
+  | Documento | Cubre | Se emitió | Vence |
+  |---|---|---|---|
+  | Liquidación 3210083 | 01/09 al 01/10 | 31/08 | 30/09 |
+  | Liquidación 3242885 | 01/10 al 01/11 | 06/10 | 31/10 |
+  | Ajuste 3244429 (una inclusión) | 01/10 al 31/10 | 12/10 | 31/10 |
+
+- **«La cobertura, por la vigencia indicada, se inicia con el pago de la prima.»** En ningún papel consta que se
+  hayan pagado.
+- Traen totales de remuneraciones y **no nombres**: no dicen a quién se declaró cada mes.
 
 **El cruce (2026-10-21, consultas de Felipe en producción).**
-- **Quince certificados en mano; los números son correlativos y faltan tres dentro de la serie.** No se sabe a
+- **Quince certificados en mano; los números son correlativos y la serie tiene dieciocho.** Faltan tres. No se sabe a
   quién corresponden.
+- **Probablemente Pacífico declaró a 18 personas en octubre.** Los S/22,420 de esa liquidación entre 18 dan unos
+  S/1,245 por persona, que cuadra con un sueldo base de S/1,230, y la serie tiene 18 números. **Es deducción, no un
+  papel:** los tres certificados que faltan podrían ser de las dos personas de abajo.
 - En planilla hoy, con vínculo `planilla`: **17 personas, masa de base legal S/21,400**. Quince tienen certificado
-  y **dos no**: una de TRU (ingresó el 2026-09-03) y una de AQP (ingresó el 2026-10-02), las dos con la ficha
-  completa. Los nombres viven en la salida de la consulta, no en git.
-- **La de TRU tiene un hueco real.** La declaración de septiembre ya pasó: si Pacífico la declara en octubre, la
-  cobertura empieza el 1 de octubre y del 3 al 30 de septiembre queda sin seguro. La de AQP no tiene hueco si
-  entra en la declaración de octubre.
+  en mano y **dos no**: una de TRU (ingresó el 2026-09-03) y una de AQP (ingresó el 2026-10-02), las dos con la
+  ficha completa. Los nombres viven en la salida de la consulta, no en git.
+- **La de TRU puede tener un hueco.** Su ingreso es posterior a la liquidación de septiembre (emitida el 31/08): si
+  Pacífico la declaró por primera vez en octubre, la cobertura empieza el 1 de octubre y del 3 al 30 de septiembre
+  estuvo sin seguro. Solo se salva si hubo una inclusión de septiembre, y ese papel no lo tenemos. La de AQP no
+  tiene hueco si entró en la declaración de octubre.
 - Nadie con certificado quedó fuera de planilla: los quince siguen en planilla.
 
 **Decidido por Felipe (2026-10-21): el seguro se cuenta solo sobre `tipo_vinculo = 'planilla'`.** Quedan fuera
@@ -50,28 +73,37 @@ estación de retail (Lima, Producción): marcada `cuenta_de_servicio` —por eso
 con vínculo `planilla`, en planilla y S/1,230, a diferencia de las otras seis estaciones (`no_trabajador`, S/1,130).
 La causa es que el alta de una estación en Equipo (`fn_crear_persona`, 0513) inserta con los valores por defecto de
 la tabla y la marca después. El 0.646 % que daba la consulta era S/170 de La Positiva sobre esa masa: **no es el
-costo de Pacífico y no sirve para decidir**. La cuenta útil es la prima real entre S/21,400.
+costo de Pacífico y no sirve para decidir**. La prima real es S/70 al mes (liquidaciones), 0.31 % de los S/22,420
+declarados en octubre.
 
 **Pendiente, en este orden.**
-1. **Pacífico o la corredora (Felipe):** declarar a las dos personas en octubre. En el mismo mensaje: hasta qué día
-   del mes se declara para cubrir desde el día 1; si la de TRU entró en la declaración de septiembre y por qué no
-   tiene certificado; a quién corresponden los tres números que faltan; fecha de inicio de la póliza, prima real y
-   condiciones particulares.
-2. **Registrar la póliza en el MTPE** dentro de los 30 días de firmada. No consta en este repo que se haya hecho.
-3. **Las declaraciones juradas de beneficiarios**, una por persona, con firma legalizada. No consta que se hayan pedido.
-4. **Cambiar el vínculo de la estación de Producción** a «Sin vínculo laboral», desde Equipo (Felipe). Se hace por
+1. **Confirmar que se pagaron las liquidaciones (Felipe).** La cobertura «se inicia con el pago de la prima»:
+   septiembre (S/70, venció el 30/09), octubre (S/70) y la inclusión (S/5); las dos últimas **vencen el 31/10**. En
+   ningún papel consta el pago. Con 90 días de mora la póliza se extingue para todos.
+2. **Pacífico o la corredora (Felipe):** pedir por su número los tres certificados que faltan y confirmar si son de
+   las dos personas sin certificado; si no, declararlas en octubre (cubre desde el día 1 si se declara dentro del
+   mes: preguntar hasta qué día). Preguntar también si la de TRU entró en una inclusión de septiembre, a quién
+   corresponde la inclusión de octubre, cuándo termina la póliza y las condiciones particulares.
+3. **Registrar la póliza en el MTPE** dentro de los 30 días de firmada. No consta en este repo que se haya hecho.
+4. **Las declaraciones juradas de beneficiarios**, una por persona, con firma legalizada. No consta que se hayan pedido.
+5. **Cambiar el vínculo de la estación de Producción** a «Sin vínculo laboral», desde Equipo (Felipe). Se hace por
    `fn_set_tipo_vinculo`; desde el SQL Editor esa función se niega porque no sabe quién la llama. No se verificó que
-   Equipo deje cambiarlo desde el bloque de estaciones. La causa de fondo está en una sesión aparte, rama
-   `claude/intelligent-elbakyan-cafd3f` («Estaciones de retail nacen como "Sin vínculo laboral"»): espera que Felipe
-   elija una de sus tres opciones y pegue en el SQL Editor la consulta de md5 de producción. No escribió nada todavía.
-5. **Cargar la póliza en el módulo Seguros** (atajo «Las de planilla»), cuando haya condiciones particulares y esté
-   pegada la 0543, que siembra el tipo `vida_ley` (sección siguiente; sin ella DO lo agrega a mano). El
-   lector de PDF no está probado con estos certificados: no traen vigencia ni prima ni el formato «Asegurado: nombre
-   documento» que espera, así que saldrían con avisos y esos datos se teclean. Un mismo número en quince personas es
-   la póliza colectiva que el módulo ya soporta.
-6. **Reglamento:** los tres puntos que esto bloqueaba (27.1 d, 59.6 y el anuncio al ingreso) dejan de depender de que
-   exista la póliza. Revisarlos cuando las dos altas estén declaradas (ver `reglamento-pendientes-de-construir.md`, punto 26).
-7. **El indicador del umbral de 20 trabajadores** sigue acordado para después de cerrar Vida Ley (tabla de «lo que
+   Equipo deje cambiarlo desde el bloque de estaciones. La causa de fondo —el alta de una estación no fija el
+   vínculo— está en otra sesión, rama `claude/intelligent-elbakyan-cafd3f` (PR #578, migración 0544, «Estaciones de
+   retail nacen como "Sin vínculo laboral"»); su estado vive en su propia sección.
+6. **Cargar la póliza en el módulo Seguros**, cuando se decida la prima y esté el fin de la póliza. El selector ya
+   muestra «Vida Ley (va además del principal)» (captura de Felipe, 2026-10-22), así que el tipo existe. Datos: número
+   143720, Pacífico Seguros, **inicio 01/08/2026**; el fin no consta (anual renovable) y **la prima es mensual y de
+   grupo (S/70, S/75 con la inclusión)**, mientras el formulario la pide por persona y por todo el periodo: cómo
+   anotarla es una decisión abierta de Felipe y DO. **No usar el atajo «Las de planilla»**: marcaría a las 17,
+   también a quien aún no tiene certificado, y la lista de asegurados la daría por cubierta. **El lector de PDF no
+   entiende estos certificados** (probado con `leerPolizas` el 2026-10-21: lee 0 pólizas de los quince): no traen
+   vigencia ni prima ni el formato «Asegurado: nombre documento» que espera, así que todo se teclea y cada PDF se
+   sube a la póliza de su persona, con la casilla de copiar a las demás sin marcar.
+7. **Reglamento:** los tres puntos que esto bloqueaba (27.1 d, 59.6 y el anuncio al ingreso) dejan de depender de que
+   exista la póliza. Revisarlos cuando se confirme que todas las personas de planilla están declaradas (ver
+   `reglamento-pendientes-de-construir.md`, punto 26).
+8. **El indicador del umbral de 20 trabajadores** sigue acordado para después de cerrar Vida Ley (tabla de «lo que
    no bloquea», más abajo). El conteo correcto hoy es 20 personas: 17 de planilla y 3 de prueba, sin estaciones.
 
 **Qué se tocó en el repo.** Solo documentos y la consulta [`quienes_van_al_seguro_de_vida_ley.sql`](../scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql):
@@ -79,6 +111,13 @@ ahora excluye las cuentas de servicio, cuenta solo `planilla`, ya no calcula el 
 Positiva y suma una consulta 5 (cruce contra los certificados, con una fila de ejemplo en vez de DNI reales).
 **No probado:** nada se pegó ni se corrió en producción desde esta sesión; las cifras salen de lo que Felipe pegó del
 SQL Editor. La consulta nueva se comprobó solo de sintaxis, contra una copia temporal de `personas`.
+
+**Corrección con las liquidaciones (PR nuevo, solo documentos).** La primera versión de esta sección decía «dos por
+declarar» y «no consta la prima»: con las liquidaciones, la prima es S/70 al mes, la póliza empezó el 01/08/2026 y
+lo más probable es que Pacífico ya haya declarado a 18 personas, de modo que las dos sin certificado en mano pueden
+estar declaradas (deducción, sin confirmar). Se agregó además lo que no estaba a la vista: la cobertura depende del
+pago de cada liquidación. El comentario de la consulta de Vida Ley que decía que la prima no estaba en el repo se
+actualizó. **No probado:** que las liquidaciones estén pagadas, y a quién corresponden los tres números de la serie.
 
 ## 2026-10-21 — Vida Ley entra a los tipos de seguro como seguro del sistema · migración 0543 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/seguro-vida-ley-tipo-9df9ee`
 
@@ -9903,7 +9942,7 @@ copiada de su log; la **137** cubre las dos ubicaciones posibles del acta.
 |---|---|---|
 | **Los convenios individuales de movilidad, firmados y cargados** | **antes del 28/08/2026** — es cuando se paga el periodo | Se habrá pagado movilidad sin el papel que la sostiene. La **RTF 05449-4-2007** desconoció la de 14 de 21 trabajadores por eso exacto |
 | **La política de movilidad de empresa, firmada** | con fecha **anterior al 29/07/2026** | Es cuando empezó a pagarse movilidad. Un documento posterior a los pagos que justifica **no los justifica, y encima lo deja por escrito**. El tablero lo avisa solo, en rojo, con las dos fechas |
-| ~~**Contratar el Seguro Vida Ley**~~ | ✅ **contratado con Pacífico, póliza Nº 143720** — visto en los certificados el 2026-10-21 | Faltan **dos personas por declarar** (una desde septiembre) y no consta el registro en el MTPE ni las declaraciones juradas de beneficiarios: ver la sección del 2026-10-21, arriba. Quien quede sin declarar: CAYLA responde con su patrimonio, ~S/20,000 por muerte natural o ~S/40,000 por accidente o invalidez total (D.Leg. 688, mod. **Ley 31408**) |
+| ~~**Contratar el Seguro Vida Ley**~~ | ✅ **contratado con Pacífico, póliza Nº 143720** — visto en los certificados el 2026-10-21 | Prima **S/70 al mes**, inicio de la póliza 01/08/2026. **Dos personas sin certificado en mano** (puede que ya estén declaradas: la serie tiene 18 números y se liquidaron S/22,420 en octubre), **no consta el pago de las liquidaciones** (octubre vence el 31/10), ni el registro en el MTPE, ni las declaraciones juradas de beneficiarios: ver la sección del 2026-10-21, arriba. Quien quede sin declarar: CAYLA responde con su patrimonio, ~S/20,000 por muerte natural o ~S/40,000 por accidente o invalidez total (D.Leg. 688, mod. **Ley 31408**) |
 | **Pagar el día sustitutorio de Arequipa** | **el 29/09/2026**, con el periodo 29/08–28/09 ya cerrado | El equipo de AQP habrá descansado el 31/08 sin cobrarlo, y el acuerdo que firmaron dice que sí les tocaba. **No es automático**: el sistema no sabe que el 15/08 existe. Ver la sección propia más abajo |
 | **Registrar la póliza en el MTPE** | 30 días desde que se firma — **no consta que se haya hecho** (2026-10-21) | No registrarla es la misma infracción que no tenerla |
 | ~~**Pegar la [`0176`](../supabase/migrations/0176_quien_ya_se_fue_deja_de_tener_sueldo_vigente.sql)**~~ | ✅ **pegada el 2026-08-06** | Las seis de julio dejaron de tener sueldo vigente. No movió plata: su liquidación es S/ 0.00 antes y después (RxH, de 0 a 3 días). Comprobado con cuatro ceros: sin tramos abiertos, sin tramos pasados de largo, sin tramos posteriores al cese, sin motivos por revisar |
@@ -9912,9 +9951,9 @@ copiada de su log; la **137** cubre las dos ubicaciones posibles del acta.
 | ~~**Pegar la [`0201`](../supabase/migrations/0201_la_foto_del_pago_aprende_el_sobretiempo.sql)**~~ | ✅ **pegada el 2026-08-10** | Sin ella, «Marcar como PAGADO» fallaba **para todo el periodo** —no solo para quien hiciera sobretiempo— en cuanto alguien pasara de 48 h en un ciclo de siete días. El candado de la foto era de julio (0127) y no conocía el sobretiempo que la 0185 empezó a pagar en agosto. Confirmada con cinco comprobaciones en verde, incluida la que recorre las 96 fotos ya guardadas con la fórmula nueva: ninguna se rompió |
 
 **Del Seguro de Vida Ley (corregido el 2026-10-21):** lo que se cotizó en agosto fue **La Positiva, S/170/mes por 19
-personas**, pero lo contratado es **Pacífico, póliza Nº 143720**; la prima real no consta en este repo. Dante
-confirmó que en este seguro el reglamento no contempla comisión de corredor. El cruce contra planilla ya se hizo
-(17 en planilla, 15 con certificado, 2 por declarar): ver la sección del 2026-10-21, arriba. Quien esté en planilla y
+personas**, pero lo contratado es **Pacífico, póliza Nº 143720**, a **S/70 al mes** y sin intermediación (las
+liquidaciones lo dicen). Dante confirmó que en este seguro el reglamento no contempla comisión de corredor. El cruce
+contra planilla ya se hizo (17 en planilla, 15 con certificado en mano, 2 sin él): ver la sección del 2026-10-21, arriba. Quien esté en planilla y
 sin declarar a Pacífico queda sin cobertura, y ese capital lo paga CAYLA de su patrimonio. La consulta que arma la
 lista y el cruce está en
 [`quienes_van_al_seguro_de_vida_ley.sql`](../scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql).
