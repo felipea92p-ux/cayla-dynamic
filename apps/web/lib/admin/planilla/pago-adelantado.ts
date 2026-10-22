@@ -12,7 +12,8 @@
 //                 decisión sigue siendo de la persona. Tampoco consulta la base: el candado real es de `fn_periodo_pagado`.
 //               · no avisa el día del cierre (`fecha_fin` == hoy), porque la regla pedida es «fecha_fin posterior a hoy».
 //                 Ese día el grupo todavía puede marcar hasta la salida, y pagar a media jornada sellaría esas marcas igual.
-//                 Si se quiere cubrir, el cambio es una línea (`>=` en vez de `>`), pero es decisión de Felipe.
+//                 Cubrirlo no es cambiar un `<=`: la función tendría que distinguir «hoy es el cierre» (0 días, pero el
+//                 periodo no terminó) de «ya terminó». Es un cambio pequeño y es decisión de Felipe.
 //
 // POR QUÉ EXISTE · el 2026-10-21 (15:27, Lima) se marcó «pagado» el grupo planilla del periodo 28-sep → 28-oct, siete días
 //                 antes de terminar. Desde ese instante cada marca nueva de esas personas entró sellada y sus jornadas
