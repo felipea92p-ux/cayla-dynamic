@@ -6,7 +6,9 @@
 //   qué situación está el seguro de una persona hoy, hasta cuándo sigue cubierta
 //   contando las renovaciones que empalman, qué datos de la póliza ya están confirmados,
 //   cómo se rotula y se nombra cada archivo, y el texto fijo de «cómo usarlo» de los
-//   seguros que lo tienen. Sin React ni Supabase: se prueba con vitest
+//   seguros que lo tienen. También cuál de sus pólizas COMPLEMENTARIAS (Vida Ley) se destaca:
+//   un seguro que va además del principal tiene su propia tarjeta y no se confunde con él.
+//   Sin React ni Supabase: se prueba con vitest
 //   (`tests/mi-seguro.test.ts`).
 //
 // ES DE TODO EL EQUIPO (Felipe, 2026-10-17)
@@ -302,7 +304,7 @@ export function textoDelResumen(seguro: MiSeguro, fecha: (iso: string) => string
       return {
         variante: "neutral", insignia: "Por planilla",
         titulo: `Tu seguro es ${nombre}`,
-        detalle: "La empresa lo gestiona con la planilla; no hay póliza ni PDF.",
+        detalle: "La empresa lo gestiona con la planilla; este seguro no tiene póliza ni PDF.",
       };
     case "hueco": {
       const base = { variante: "alerta" as const, insignia: "Sin póliza vigente" };
@@ -378,6 +380,97 @@ export function resumenSoloRepite(seguro: MiSeguro): boolean {
     && seguro.cubiertoHasta === seguro.actual.vigente_hasta;
 }
 
+// ── Las fechas de una póliza, dichas con honestidad ─────────────────────────
+
+/** ¿Es una fecha `YYYY-MM-DD`? La base exige `vigente_desde` y `vigente_hasta` (0528), pero la pantalla no inventa una si no llegan. */
+export function fechaConocida(valor: unknown): valor is string {
+  return typeof valor === "string" && /^\d{4}-\d{2}-\d{2}$/.test(valor);
+}
+
+export type EstadoVigencia = "vigente" | "por_empezar" | "termina_hoy" | "vencida" | "sin_fecha_de_fin" | "sin_fechas";
+
+/**
+ * En qué punto de su vida está una póliza hoy. `cubre_hoy` lo dice la base; las fechas solo sirven para
+ * distinguir entre «aún no empieza», «termina hoy» y «venció». Si el papel no trajo una fecha, NO se
+ * adivina «Vencida» ni «Vigente»: se dice que falta (ver `textoDeVigencia`).
+ */
+export function estadoDeVigencia(
+  p: Pick<PolizaMia, "cubre_hoy" | "vigente_desde" | "vigente_hasta">,
+  hoy: string,
+): EstadoVigencia {
+  if (!fechaConocida(p.vigente_desde)) return "sin_fechas";
+  if (!fechaConocida(p.vigente_hasta)) return "sin_fecha_de_fin";
+  if (p.cubre_hoy) return "vigente";
+  if (p.vigente_desde > hoy) return "por_empezar";
+  if (p.vigente_hasta === hoy) return "termina_hoy";
+  return "vencida";
+}
+
+/** «Del 01/10/2026 al 01/01/2027, hasta las 12 del mediodía», o lo que el papel sí trae. */
+export function textoDeVigencia(
+  p: Pick<PolizaMia, "vigente_desde" | "vigente_hasta">,
+  fecha: (iso: string) => string,
+): string {
+  if (!fechaConocida(p.vigente_desde)) return "El papel de la póliza no trae fechas de vigencia. Pídelas a Desarrollo Organizacional.";
+  if (!fechaConocida(p.vigente_hasta)) {
+    return `Desde el ${fecha(p.vigente_desde)}. El papel de la póliza no trae la fecha en que termina. Pídela a Desarrollo Organizacional.`;
+  }
+  return `Del ${fecha(p.vigente_desde)} al ${fecha(p.vigente_hasta)}, hasta las 12 del mediodía`;
+}
+
+// ── Una póliza que va ADEMÁS del seguro principal ───────────────────────────
+
+/** Una póliza complementaria que cubre hoy, lista para dibujarse con su propia tarjeta. */
+export interface PolizaComplementaria {
+  poliza: PolizaMia;
+  /** Hasta cuándo llega sin interrupción (EXCLUSIVO), contando las renovaciones que empalman. */
+  hasta: string;
+  dias: number;
+  porVencer: boolean;
+}
+
+/**
+ * Las pólizas de seguros que van ADEMÁS del principal (Vida Ley) y que cubren hoy: una por seguro, la
+ * más reciente. Salen de `otras`, así que nunca es la del seguro principal. Cada una tiene su tarjeta
+ * y su guía; si no la destacáramos, una persona en EsSalud vería su Vida Ley como una fila más de
+ * «Tus pólizas», debajo de un resumen que dice «no hay póliza».
+ *
+ * Qué seguro es complementario lo dice la guía (`GuiaDeUso.complementario`), no una lista aparte: sin
+ * guía, un seguro que DO agregue sigue apareciendo en «Tus pólizas», como hasta ahora.
+ */
+export function polizasComplementarias(seguro: Pick<MiSeguro, "otras">, hoy: string): PolizaComplementaria[] {
+  const salida: PolizaComplementaria[] = [];
+  for (const z of seguro.otras) {
+    if (!z.cubre_hoy || !Object.hasOwn(GUIAS_DE_USO, z.producto) || !GUIAS_DE_USO[z.producto].complementario) continue;
+    if (salida.some((c) => c.poliza.producto === z.producto)) continue;
+    if (!fechaConocida(z.vigente_hasta)) continue;
+    const hasta = cubiertoHasta(z, seguro.otras.filter((o) => o.producto === z.producto && fechaConocida(o.vigente_hasta)));
+    const dias = diasEntre(hoy, hasta);
+    salida.push({ poliza: z, hasta, dias, porVencer: dias <= DIAS_AVISO_PERSONA });
+  }
+  return salida;
+}
+
+/**
+ * Lo que dice la tarjeta de una póliza complementaria. Mismo molde y misma regla que `textoDelResumen`:
+ * habla de la PÓLIZA y de sus fechas, nunca de que la persona «esté cubierta».
+ */
+export function textoDeComplementaria(c: PolizaComplementaria, fecha: (iso: string) => string): TextoResumen {
+  const hasta = fecha(c.hasta);
+  if (c.porVencer) {
+    return {
+      variante: "advertencia", insignia: `Vence en ${plural(c.dias, "día", "días")}`,
+      titulo: "Tu póliza vence pronto",
+      detalle: `Tu póliza va hasta el ${hasta} a las 12 del mediodía. Si se acerca la fecha y no ves aquí la que sigue, o si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.`,
+    };
+  }
+  return {
+    variante: "positivo", insignia: "Vigente",
+    titulo: "Tu póliza está vigente",
+    detalle: `Tu póliza va hasta el ${hasta} a las 12 del mediodía. ${SI_NO_CUADRA}`,
+  };
+}
+
 // ── Lo que la póliza ya tiene confirmado ────────────────────────────────────
 
 export interface DatoConfirmado {
@@ -451,8 +544,8 @@ export function nombreDeDescarga(
 }
 
 // ── El texto fijo: cómo usar un seguro ──────────────────────────────────────
-// Hoy hay UNO: el de FOLA, que salió del resumen informativo de la póliza de Pacífico (páginas
-// 2 a 5 del PDF que tiene Felipe). NO es la póliza: lo que vale es el PDF, y la pantalla lo
+// Hay DOS: el de FOLA, que salió del resumen informativo de la póliza de Pacífico (páginas 2 a 5 del
+// PDF que tiene Felipe), y el de Vida Ley, del certificado de la póliza de la empresa. NO es la póliza: lo que vale es el PDF, y la pantalla lo
 // dice. Si el producto cambia en una renovación hay que volver a leer ese resumen y corregir
 // esto; no hay otra copia del texto.
 //
@@ -478,6 +571,13 @@ export interface TelefonoDeUso {
 export interface GuiaDeUso {
   /** De quién son los teléfonos: «Pacífico». */
   aseguradora: string;
+  /**
+   * true = este seguro va ADEMÁS del principal (Vida Ley): tiene su propia tarjeta y su guía no habla de
+   * «baja». false = es uno que la persona usa como principal (FOLA). Es lo que ya dicen
+   * `seguros_tipos.principal` y la 0543; se repite aquí porque la guía ya es por producto, y el día que
+   * viva en una columna de `seguros_tipos` (ver arriba) esto se lee de ahí.
+   */
+  complementario: boolean;
   /** En el orden en que se necesitan: primero lo urgente. */
   pasos: readonly PasoDeUso[];
   telefonos: readonly TelefonoDeUso[];
@@ -486,7 +586,7 @@ export interface GuiaDeUso {
 }
 
 /**
- * Cómo se usa cada seguro con póliza. Hoy solo FOLA.
+ * Cómo se usa cada seguro con póliza. Hoy FOLA y Vida Ley (los pasos de abajo son de FOLA; ver el aparte de Vida Ley).
  *
  * REVISADA CONTRA LA PÓLIZA (2026-10-19, «Resumen informativo» y tabla de beneficios del PDF de una
  * póliza FOLA de Pacífico). Lo que cambió respecto del resumen anterior, y por qué importa:
@@ -507,6 +607,7 @@ export interface GuiaDeUso {
 export const GUIAS_DE_USO: Readonly<Record<string, GuiaDeUso>> = {
   salud_practicantes: {
     aseguradora: "Pacífico",
+    complementario: false,
     pasos: [
       {
         clave: "emergencia",
@@ -572,12 +673,54 @@ export const GUIAS_DE_USO: Readonly<Record<string, GuiaDeUso>> = {
       "Cirugía estética, salvo por un accidente cubierto",
     ],
   },
+
+  // Seguro de Vida Ley (D. Leg. 688). Sacado del certificado de la póliza de la empresa y de la 0543, no
+  // de un resumen del corredor. Lo que NO dice, a propósito: el trámite de un siniestro, los beneficiarios
+  // y cualquier teléfono —no se tienen a mano y no se inventan—, y nada de «cubierta» ni de la prima:
+  // la persona no ve si está pagada (ver la cabecera). Habla de lo que dice la PÓLIZA. Si el certificado
+  // cambia en una renovación hay que volver a leerlo y corregir esto.
+  vida_ley: {
+    aseguradora: "Pacífico",
+    complementario: true,
+    pasos: [
+      {
+        clave: "que_es",
+        titulo: "Qué es",
+        texto:
+          "Es un seguro de vida en grupo que la ley obliga a la empresa a tener para quienes están en planilla. Lo " +
+          "paga la empresa: no tiene costo para ti. Va además de tu seguro de salud.",
+      },
+      {
+        clave: "capital",
+        titulo: "Qué dice la póliza",
+        texto:
+          "Por muerte natural, el capital asegurado es de 16 remuneraciones mensuales asegurables. Por muerte " +
+          "accidental, y por invalidez total y permanente por accidente, es de 32.",
+      },
+      {
+        clave: "duracion",
+        titulo: "Cuánto dura",
+        texto: "Sigue mientras estés en planilla y la póliza de la empresa esté al día.",
+      },
+      {
+        clave: "certificado",
+        titulo: "Tu certificado",
+        texto:
+          "Tu certificado es el PDF que aparece arriba, en «Tu póliza»: ábrelo o descárgalo cuando lo necesites. Si " +
+          "no lo ves, pídeselo a Desarrollo Organizacional.",
+      },
+    ],
+    telefonos: [],
+    noCubre: [],
+  },
 };
 
 export interface GuiaQueAplica {
   clave: string;
   nombre: string;
   guia: GuiaDeUso;
+  /** ¿Va además del seguro principal (Vida Ley)? Entonces su guía no habla de «baja» ni de «tu seguro principal ahora es…». */
+  complementario: boolean;
   /**
    * ¿Es el seguro principal de la persona hoy? Si no —pasó de FOLA a EsSalud y la póliza sigue vigente
    * hasta que la aseguradora procese la baja—, la pantalla lo dice junto a la guía para no mostrar dos
@@ -597,7 +740,7 @@ export function guiasQueAplican(polizas: readonly PolizaMia[], principal: string
     if (!z.cubre_hoy || salida.some((g) => g.clave === z.producto)) continue;
     // `hasOwn`: la clave la crea DO, y un seguro llamado «constructor» no puede encontrar la guía de otro objeto.
     if (!Object.hasOwn(GUIAS_DE_USO, z.producto)) continue;
-    salida.push({ clave: z.producto, nombre: z.producto_nombre, guia: GUIAS_DE_USO[z.producto], esPrincipal: z.producto === principal });
+    salida.push({ clave: z.producto, nombre: z.producto_nombre, guia: GUIAS_DE_USO[z.producto], complementario: GUIAS_DE_USO[z.producto].complementario, esPrincipal: z.producto === principal });
   }
   return salida;
 }

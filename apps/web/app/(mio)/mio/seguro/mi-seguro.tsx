@@ -14,9 +14,10 @@ import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { BUCKET_SEGUROS } from "@/lib/admin/seguros";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
-  datosConfirmados, enlaceTelefono, guiasQueAplican, nombreDeDescarga, resolverMiSeguro, resumenSoloRepite, rotuloDeArchivo,
-  SI_NO_CUADRA, textoDelResumen, traerMiSeguro, type ArchivoMio, type GuiaQueAplica, type MiSeguro as MiSeguroCalculado,
-  type PolizaMia, type SeguroPrincipal, type TelefonoDeUso, type TextoResumen,
+  datosConfirmados, enlaceTelefono, estadoDeVigencia, guiasQueAplican, nombreDeDescarga, polizasComplementarias, resolverMiSeguro,
+  resumenSoloRepite, rotuloDeArchivo, SI_NO_CUADRA, textoDeComplementaria, textoDelResumen, textoDeVigencia, traerMiSeguro,
+  type ArchivoMio, type GuiaQueAplica, type MiSeguro as MiSeguroCalculado, type PolizaComplementaria, type PolizaMia,
+  type SeguroPrincipal, type TelefonoDeUso, type TextoResumen,
 } from "@/lib/mi-seguro";
 import { descargarArchivoDeSeguro } from "@/lib/mi-seguro-archivos";
 import { formatSoles } from "@/lib/rangos";
@@ -47,7 +48,12 @@ import { pesoLegible } from "@/lib/reducir-imagen";
  * está, una negativa en la clínica. El texto está en `textoDelResumen` (`lib/mi-seguro.ts`).
  *
  * EL TEXTO DE «CÓMO USAR» es un resumen de la póliza, no la póliza: lo dice y manda al PDF. Hoy
- * solo existe el de FOLA. Vive en `lib/mi-seguro.ts`.
+ * existen el de FOLA y el de Vida Ley. Viven en `lib/mi-seguro.ts`.
+ *
+ * VIDA LEY VA ADEMÁS DEL SEGURO PRINCIPAL. Quien está en EsSalud ve su resumen «por planilla» y, aparte,
+ * la tarjeta de su póliza de Vida Ley con su número y su PDF (`polizasComplementarias`). No se mezcla
+ * con el principal: sin esa tarjeta, la póliza quedaba como una fila más de «Tus pólizas», debajo de un
+ * resumen que dice «no hay póliza».
  */
 
 const fecha = isoADiaMesAnio;
@@ -120,9 +126,11 @@ function ArchivosDeLaPoliza({
  * No dice que la persona «esté cubierta»: ver el comentario de la sección sobre la mora.
  */
 function CarnePoliza({
-  p, hasta, resumen, repite, telefonos, aseguradora, ocupada, onAbrir, onDescargar, onCopiar,
+  p, hasta, resumen, repite, telefonos, aseguradora, ocupada, onAbrir, onDescargar, onCopiar, complementaria = false,
 }: {
   p: PolizaMia; hasta: string; resumen: TextoResumen; repite: boolean;
+  /** Un seguro que va ADEMÁS del principal (Vida Ley): no es «En qué seguro estás», y la tarjeta lo dice. */
+  complementaria?: boolean;
   telefonos: readonly TelefonoDeUso[]; aseguradora: string; ocupada: string | null;
   onAbrir: (a: ArchivoMio) => void;
   onDescargar: (p: PolizaMia, a: ArchivoMio) => void;
@@ -130,11 +138,14 @@ function CarnePoliza({
 }) {
   const datos = datosConfirmados(p, formatSoles);
   return (
-    <section aria-label="Tu póliza" data-tour="mio-seguro-principal" className="rounded-xl border border-tinta/30 bg-papel px-4 py-4">
+    <section aria-label={complementaria ? `Tu póliza ${p.producto_nombre}` : "Tu póliza"}
+      data-tour={complementaria ? "mio-seguro-complementario" : "mio-seguro-principal"}
+      className="rounded-xl border border-tinta/30 bg-papel px-4 py-4">
       <div className="flex items-start justify-between gap-2">
         <p className="text-base font-medium text-tinta">{p.producto_nombre}</p>
         <Insignia variante={resumen.variante} tamano="sm">{resumen.insignia}</Insignia>
       </div>
+      {complementaria && <p className="mt-0.5 text-taupe">Es un seguro aparte: va además de tu seguro principal.</p>}
 
       <Rotulo className="mt-4">Número de póliza</Rotulo>
       <div className="mt-1 flex items-center justify-between gap-3">
@@ -216,6 +227,7 @@ function TarjetaPoliza({
   onDescargar: (p: PolizaMia, a: ArchivoMio) => void;
 }) {
   const datos = datosConfirmados(p, formatSoles);
+  const estado = estadoDeVigencia(p, hoy);
   // Todas las tarjetas van sobre `bg-papel`: las insignias de estado se midieron sobre crema y papel, y
   // sobre `hueso` («Vigente» 4.40:1, «Empieza el…» 4.28:1) quedaban bajo el 4.5:1 de WCAG AA. La actual se
   // distingue por su borde, no por el fondo.
@@ -229,14 +241,14 @@ function TarjetaPoliza({
             <span className="font-mono">{p.numero_poliza}</span>
             <span className="font-normal text-taupe"> · {p.aseguradora}</span>
           </p>
-          <p className="mt-0.5 text-taupe">
-            Del {fecha(p.vigente_desde)} al {fecha(p.vigente_hasta)}, hasta las 12 del mediodía
-          </p>
+          <p className="mt-0.5 text-taupe">{textoDeVigencia(p, fecha)}</p>
         </div>
-        {p.cubre_hoy ? <Insignia variante="positivo" tamano="sm">Vigente</Insignia>
-          : p.vigente_desde > hoy ? <Insignia variante="informativo" tamano="sm">Empieza el {fecha(p.vigente_desde)}</Insignia>
-          : p.vigente_hasta === hoy ? <Insignia variante="advertencia" tamano="sm">Termina hoy</Insignia>
-          : <Insignia variante="neutral" tamano="sm">Vencida</Insignia>}
+        {estado === "vigente" ? <Insignia variante="positivo" tamano="sm">Vigente</Insignia>
+          : estado === "por_empezar" ? <Insignia variante="informativo" tamano="sm">Empieza el {fecha(p.vigente_desde)}</Insignia>
+          : estado === "termina_hoy" ? <Insignia variante="advertencia" tamano="sm">Termina hoy</Insignia>
+          : estado === "vencida" ? <Insignia variante="neutral" tamano="sm">Vencida</Insignia>
+          // El papel no trajo una fecha: no se dice «Vencida» ni «Vigente» sobre lo que no se sabe.
+          : <Insignia variante="advertencia" tamano="sm">{estado === "sin_fecha_de_fin" ? "Sin fecha de fin" : "Sin fechas"}</Insignia>}
       </div>
 
       {datos.length > 0 && (
@@ -262,7 +274,7 @@ function ComoUsarlo({ g, nombrePrincipal, sinTelefonos }: { g: GuiaQueAplica; no
     <TarjetaInfo como="section" titulo={`Cómo usar tu póliza ${g.nombre}`} className="text-sm" data-tour="mio-seguro-como-usarlo">
       {/* Con un seguro principal distinto (pasó de FOLA a EsSalud y la póliza sigue vigente hasta la baja) no se
           muestran dos «tu seguro» sin explicar. */}
-      {!g.esPrincipal && (
+      {!g.esPrincipal && !g.complementario && (
         <p className="mb-2 text-taupe">
           {nombrePrincipal ? `Tu seguro principal ahora es ${nombrePrincipal}. ` : ""}
           Esta póliza sigue registrada hasta que {guia.aseguradora} procese la baja.
@@ -301,8 +313,9 @@ function ComoUsarlo({ g, nombrePrincipal, sinTelefonos }: { g: GuiaQueAplica; no
       )}
 
       <p className="mt-5 border-t border-sand pt-3 text-xs text-taupe">
-        Esto es un resumen. Lo que vale es tu póliza en PDF; si tienes dudas, llama a {guia.aseguradora} o pregunta
-        a Desarrollo Organizacional. {SI_NO_CUADRA}
+        Esto es un resumen. Lo que vale es tu póliza en PDF; si tienes dudas,{" "}
+        {guia.telefonos.length > 0 ? `llama a ${guia.aseguradora} o pregunta a Desarrollo Organizacional.` : "pregunta a Desarrollo Organizacional."}{" "}
+        {SI_NO_CUADRA}
       </p>
     </TarjetaInfo>
   );
@@ -399,6 +412,12 @@ export function MiSeguro() {
   // Con una póliza vigente va primero SU tarjeta; sin ella, el resumen de siempre.
   const vigente = seguro.actual !== null && seguro.actual.cubre_hoy && seguro.cubiertoHasta !== null ? seguro.actual : null;
   const guiaDeLaVigente = vigente ? guias.find((g) => g.clave === vigente.producto) : undefined;
+  // Los seguros que van ADEMÁS del principal (Vida Ley) tienen su propia tarjeta, con su guía justo debajo.
+  const complementarias = polizasComplementarias(seguro, hoy);
+  const clavesComplementarias = new Set(complementarias.map((c) => c.poliza.producto));
+  const idsDestacados = new Set(complementarias.map((c) => c.poliza.poliza_id));
+  const resto = seguro.resto.filter((p) => !idsDestacados.has(p.poliza_id));
+  const guiaDe = (c: PolizaComplementaria) => guias.find((g) => g.clave === c.poliza.producto);
 
   return (
     <div className="space-y-4">
@@ -417,15 +436,29 @@ export function MiSeguro() {
       )}
 
       {/* La guía va justo debajo de la póliza: es lo que sigue a «tengo mi número». */}
-      {guias.map((g) => (
+      {guias.filter((g) => !clavesComplementarias.has(g.clave)).map((g) => (
         <ComoUsarlo key={g.clave} g={g} nombrePrincipal={seguro.tipo?.nombre ?? null}
           // Los teléfonos ya van en la tarjeta de su póliza, arriba: no se repiten.
           sinTelefonos={vigente !== null && g.clave === vigente.producto} />
       ))}
 
-      {seguro.resto.length > 0 && (
-        <TarjetaInfo como="section" titulo={seguro.actual ? "Otras pólizas registradas" : "Tus pólizas"} className="text-sm">
-          <div className="space-y-3">{seguro.resto.map((p) => poliza(p, false))}</div>
+      {complementarias.map((c) => {
+        const guiaC = guiaDe(c);
+        return (
+          <div key={c.poliza.poliza_id} className="space-y-4">
+            <CarnePoliza complementaria p={c.poliza} hasta={c.hasta} resumen={textoDeComplementaria(c, fecha)}
+              repite={!c.porVencer && c.hasta === c.poliza.vigente_hasta}
+              telefonos={guiaC?.guia.telefonos ?? []} aseguradora={c.poliza.aseguradora}
+              ocupada={ocupada} onAbrir={(a) => void abrir(a)} onDescargar={(x, a) => void descargar(x, a)}
+              onCopiar={(n) => void copiar(n)} />
+            {guiaC && <ComoUsarlo g={guiaC} nombrePrincipal={seguro.tipo?.nombre ?? null} sinTelefonos />}
+          </div>
+        );
+      })}
+
+      {resto.length > 0 && (
+        <TarjetaInfo como="section" titulo={seguro.actual || complementarias.length > 0 ? "Otras pólizas registradas" : "Tus pólizas"} className="text-sm">
+          <div className="space-y-3">{resto.map((p) => poliza(p, false))}</div>
         </TarjetaInfo>
       )}
     </div>

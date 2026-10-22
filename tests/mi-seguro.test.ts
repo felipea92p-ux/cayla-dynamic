@@ -28,8 +28,9 @@ import {
   type FilaEquipoSeguro, type Poliza as PolizaDeDO,
 } from "@/lib/admin/seguros";
 import {
-  DIAS_AVISO_PERSONA, GUIAS_DE_USO, SI_NO_CUADRA, archivosDe, datosConfirmados, enlaceTelefono, guiasQueAplican, leerPolizasMias,
-  nombreDeDescarga, resolverMiSeguro, resumenSoloRepite, rotuloDeArchivo, textoDelResumen, traerMiSeguro,
+  DIAS_AVISO_PERSONA, GUIAS_DE_USO, SI_NO_CUADRA, archivosDe, datosConfirmados, enlaceTelefono, estadoDeVigencia, fechaConocida,
+  guiasQueAplican, leerPolizasMias, nombreDeDescarga, polizasComplementarias, resolverMiSeguro, resumenSoloRepite, rotuloDeArchivo,
+  textoDeComplementaria, textoDelResumen, textoDeVigencia, traerMiSeguro,
   type ArchivoMio, type PolizaMia, type SeguroPrincipal,
 } from "@/lib/mi-seguro";
 
@@ -496,7 +497,7 @@ describe("lo que dice la tarjeta de arriba", () => {
     // El texto de EsSalud lo eligió Felipe (2026-10-17): «se paga por planilla» se leía como un descuento.
     expect(textos[8].t).toEqual({
       variante: "neutral", insignia: "Por planilla", titulo: "Tu seguro es EsSalud",
-      detalle: "La empresa lo gestiona con la planilla; no hay póliza ni PDF.",
+      detalle: "La empresa lo gestiona con la planilla; este seguro no tiene póliza ni PDF.",
     });
     expect(textos[9].t).toEqual({
       variante: "neutral", insignia: "Sin seguro asignado", titulo: "No tienes un seguro asignado en el sistema",
@@ -650,8 +651,8 @@ describe("el texto fijo de «cómo usar»", () => {
   const guia = GUIAS_DE_USO.salud_practicantes;
   const todoElTexto = [...guia.pasos.flatMap((p) => [p.titulo, p.texto]), ...guia.noCubre].join(" ");
 
-  it("hay guía para FOLA, que es lo único de lo que se tiene el resumen a mano", () => {
-    expect(Object.keys(GUIAS_DE_USO)).toEqual(["salud_practicantes"]);
+  it("hay guía para FOLA y para Vida Ley, que es de lo único que se tiene el papel a mano", () => {
+    expect(Object.keys(GUIAS_DE_USO)).toEqual(["salud_practicantes", "vida_ley"]);
     expect(guia.aseguradora).toBe("Pacífico");
   });
 
@@ -746,12 +747,21 @@ describe("el texto fijo de «cómo usar»", () => {
       expect(guiasQueAplican([])).toEqual([]);
     });
 
-    it("ni por un seguro del que no hay guía (Vida Ley, o uno que DO agregue)", () => {
-      expect(guiasQueAplican([vida])).toEqual([]);
+    it("ni por un seguro del que no hay guía (uno que DO agregue)", () => {
+      const otro = poliza({ poliza_id: "o1", producto: "seguro_de_algo", producto_nombre: "Algo" });
+      expect(guiasQueAplican([otro])).toEqual([]);
+    });
+
+    it("sí a quien tiene Vida Ley vigente, y la guía lo marca como complementario", () => {
+      const g = guiasQueAplican([vida], "essalud");
+      expect(g.map((x) => x.clave)).toEqual(["vida_ley"]);
+      expect(g[0].complementario).toBe(true);
+      expect(g[0].esPrincipal).toBe(false);
+      expect(guiasQueAplican([poliza()], "salud_practicantes")[0].complementario).toBe(false);
     });
 
     it("sí a quien ya está en EsSalud pero su póliza FOLA sigue cubriendo: todavía puede necesitarla", () => {
-      expect(guiasQueAplican([poliza(), vida]).map((g) => g.clave)).toEqual(["salud_practicantes"]);
+      expect(guiasQueAplican([poliza(), vida]).map((g) => g.clave)).toEqual(["salud_practicantes", "vida_ley"]);
     });
 
     it("una sola guía por seguro, aunque tenga dos pólizas que cubren", () => {
@@ -776,6 +786,175 @@ describe("el texto fijo de «cómo usar»", () => {
     it("la frase que cierra las guías es la misma que cierra las fechas", () => {
       expect(SI_NO_CUADRA).toBe("Si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.");
     });
+  });
+});
+
+describe("Vida Ley: va ADEMÁS del seguro principal y se lee como suya", () => {
+  const dmy = (iso: string) => iso.split("-").reverse().join("/");
+  const vida = (o: Partial<PolizaMia> = {}) => poliza({
+    poliza_id: "v1", producto: "vida_ley", producto_nombre: "Vida Ley", aseguradora: "Pacífico Seguros", numero_poliza: "143720",
+    vigente_desde: "2026-10-01", vigente_hasta: "2027-10-01", ...o,
+  });
+  const guia = GUIAS_DE_USO.vida_ley;
+  const textoDeLaGuia = [...guia.pasos.flatMap((p) => [p.titulo, p.texto]), ...guia.noCubre].join(" ");
+
+  describe("quien está en EsSalud y tiene su póliza de Vida Ley", () => {
+    const seguro = resolverMiSeguro(ESSALUD, [vida()], HOY);
+
+    it("sigue siendo «por planilla» en su seguro principal: Vida Ley no lo reemplaza ni lo confunde", () => {
+      expect(seguro.situacion).toBe("por_planilla");
+      expect(seguro.tipo?.nombre).toBe("EsSalud");
+      expect(seguro.actual).toBeNull();
+      expect(seguro.otras.map((z) => z.poliza_id)).toEqual(["v1"]);
+    });
+
+    it("el resumen de EsSalud no dice «no hay póliza ni PDF» a secas: debajo está su póliza de Vida Ley", () => {
+      const t = textoDelResumen(seguro, dmy);
+      expect(t.detalle).toBe("La empresa lo gestiona con la planilla; este seguro no tiene póliza ni PDF.");
+    });
+
+    it("su póliza de Vida Ley sale destacada, con su número y hasta cuándo, sin tocar la del principal", () => {
+      const [c] = polizasComplementarias(seguro, HOY);
+      expect(c.poliza.numero_poliza).toBe("143720");
+      expect(c.poliza.producto_nombre).toBe("Vida Ley");
+      expect(c.poliza.aseguradora).toBe("Pacífico Seguros");
+      expect(c.hasta).toBe("2027-10-01");
+      expect(c.porVencer).toBe(false);
+    });
+  });
+
+  describe("quién se destaca", () => {
+    it("quien está en FOLA y tiene Vida Ley: la de FOLA es la principal y la de Vida Ley la complementaria", () => {
+      const seguro = resolverMiSeguro(FOLA, [poliza(), vida()], HOY);
+      expect(seguro.actual?.producto).toBe("salud_practicantes");
+      expect(polizasComplementarias(seguro, HOY).map((c) => c.poliza.producto)).toEqual(["vida_ley"]);
+    });
+
+    it("la póliza del seguro PRINCIPAL nunca es complementaria, aunque tenga guía", () => {
+      expect(polizasComplementarias(resolverMiSeguro(FOLA, [poliza()], HOY), HOY)).toEqual([]);
+    });
+
+    it("una póliza de Vida Ley vencida o que aún no empieza no se destaca: se lista en «Tus pólizas»", () => {
+      expect(polizasComplementarias(resolverMiSeguro(ESSALUD, [vida({ vigente_desde: "2025-10-01", vigente_hasta: "2026-10-01" })], HOY), HOY)).toEqual([]);
+      expect(polizasComplementarias(resolverMiSeguro(ESSALUD, [vida({ vigente_desde: "2026-11-01", vigente_hasta: "2027-11-01" })], HOY), HOY)).toEqual([]);
+    });
+
+    it("un seguro que DO agregue y no tiene guía no se destaca: sigue en la lista, como antes", () => {
+      const otro = poliza({ poliza_id: "o1", producto: "seguro_de_algo", producto_nombre: "Algo" });
+      expect(polizasComplementarias(resolverMiSeguro(ESSALUD, [otro], HOY), HOY)).toEqual([]);
+    });
+
+    it("dos pólizas de Vida Ley que cubren hoy (renovación que empalma): una sola tarjeta, y la fecha cuenta la renovación", () => {
+      const vieja = vida({ poliza_id: "v1", vigente_desde: "2025-12-01", vigente_hasta: "2026-12-01" });
+      const nueva = vida({ poliza_id: "v2", vigente_desde: "2026-12-01", vigente_hasta: "2027-12-01" });
+      const c = polizasComplementarias(resolverMiSeguro(ESSALUD, [vieja, nueva], HOY), HOY);
+      expect(c).toHaveLength(1);
+      expect(c[0].hasta).toBe("2027-12-01");
+    });
+
+    it("avisa que vence a los 15 días, como el resto, y no antes", () => {
+      const justo = vida({ vigente_hasta: "2026-11-01" }); // 15 días desde HOY
+      expect(DIAS_AVISO_PERSONA).toBe(15);
+      expect(polizasComplementarias(resolverMiSeguro(ESSALUD, [justo], HOY), HOY)[0].porVencer).toBe(true);
+      expect(polizasComplementarias(resolverMiSeguro(ESSALUD, [vida({ vigente_hasta: "2026-11-03" })], HOY), HOY)[0].porVencer).toBe(false);
+    });
+  });
+
+  describe("lo que dice su tarjeta", () => {
+    const seguro = resolverMiSeguro(ESSALUD, [vida()], HOY);
+    const porVencer = resolverMiSeguro(ESSALUD, [vida({ vigente_hasta: "2026-10-27" })], HOY);
+
+    it("habla de la póliza y de su fecha, nunca de que la persona «esté cubierta»", () => {
+      for (const s of [seguro, porVencer]) {
+        const t = textoDeComplementaria(polizasComplementarias(s, HOY)[0], dmy);
+        expect(`${t.insignia} ${t.titulo} ${t.detalle}`).not.toMatch(/cubr|cobertura|cubiert/i);
+      }
+      const t = textoDeComplementaria(polizasComplementarias(seguro, HOY)[0], dmy);
+      expect(t.insignia).toBe("Vigente");
+      expect(t.detalle).toContain("01/10/2027");
+      expect(t.detalle).toContain(SI_NO_CUADRA);
+    });
+
+    it("si vence pronto, lo dice con los días y manda a Desarrollo Organizacional", () => {
+      const t = textoDeComplementaria(polizasComplementarias(porVencer, HOY)[0], dmy);
+      expect(t.variante).toBe("advertencia");
+      expect(t.insignia).toBe("Vence en 10 días");
+      expect(t.detalle).toMatch(/Desarrollo Organizacional/);
+    });
+  });
+
+  describe("el texto fijo de «cómo usarlo»", () => {
+    it("lleva lo que dice el certificado: las 16 y las 32 remuneraciones, y que dura mientras esté en planilla", () => {
+      expect(textoDeLaGuia).toMatch(/seguro de vida en grupo/i);
+      expect(textoDeLaGuia).toMatch(/muerte natural[^.]*16 remuneraciones mensuales asegurables/);
+      expect(textoDeLaGuia).toMatch(/muerte accidental[^.]*invalidez total y permanente por accidente[^.]*32/);
+      expect(textoDeLaGuia).toMatch(/mientras estés en planilla/);
+      expect(textoDeLaGuia).toMatch(/no tiene costo para ti/);
+      expect(textoDeLaGuia).toMatch(/certificado es el PDF/);
+    });
+
+    it("NUNCA dice que la persona esté cubierta: ni «cubierta», ni «cubre», ni «cobertura»", () => {
+      expect(textoDeLaGuia).not.toMatch(/cubr|cubiert|cobertura|asegurad[oa] (estás|estas)/i);
+    });
+
+    it("no menciona la prima ni montos: la persona no ve si está pagada, y el capital se dice en remuneraciones", () => {
+      expect(textoDeLaGuia).not.toMatch(/\bprima|S\/|soles|monto|\bUSD\b|\$/i);
+      // Solo dos números: 16 y 32.
+      expect([...new Set(textoDeLaGuia.match(/\d+/g) ?? [])].sort()).toEqual(["16", "32"]);
+    });
+
+    it("no promete lo que el sistema no tiene: ni beneficiarios, ni un reclamo desde aquí, ni teléfonos inventados", () => {
+      expect(textoDeLaGuia).not.toMatch(/beneficiari|reclam|siniestro|botón|solicit/i);
+      expect(guia.telefonos).toEqual([]);
+      expect(guia.noCubre).toEqual([]);
+    });
+
+    it("es complementario, no repite el «sigue registrada hasta la baja» del FOLA que cambió de seguro", () => {
+      expect(guia.complementario).toBe(true);
+      expect(textoDeLaGuia).not.toMatch(/baja/i);
+    });
+
+    it("habla como el resto del sistema", () => {
+      expect(textoDeLaGuia).not.toMatch(/empleado|sucursal|rrhh|\bjefe\b|supervisor|cliente/i);
+    });
+  });
+
+  describe("cuando el papel no trae una fecha", () => {
+    it("reconoce una fecha de verdad y rechaza lo demás", () => {
+      expect(fechaConocida("2026-10-17")).toBe(true);
+      for (const x of [null, undefined, "", "17/10/2026", 20261017]) expect(fechaConocida(x)).toBe(false);
+    });
+
+    it("sin fecha de fin lo dice, en vez de mostrar un hueco o «Vencida»", () => {
+      const sinFin = vida({ vigente_hasta: null as unknown as string, cubre_hoy: null as unknown as boolean });
+      expect(estadoDeVigencia(sinFin, HOY)).toBe("sin_fecha_de_fin");
+      const t = textoDeVigencia(sinFin, dmy);
+      expect(t).toBe("Desde el 01/10/2026. El papel de la póliza no trae la fecha en que termina. Pídela a Desarrollo Organizacional.");
+      expect(t).not.toMatch(/undefined|null|NaN|Invalid/);
+    });
+
+    it("sin ninguna fecha, también lo dice", () => {
+      const nada = vida({ vigente_desde: "" , vigente_hasta: undefined as unknown as string });
+      expect(estadoDeVigencia(nada, HOY)).toBe("sin_fechas");
+      expect(textoDeVigencia(nada, dmy)).toMatch(/no trae fechas de vigencia/);
+    });
+
+    it("una póliza sin fecha de fin no se destaca como vigente ni cuenta como «cubre»", () => {
+      const sinFin = vida({ vigente_hasta: null as unknown as string, cubre_hoy: null as unknown as boolean });
+      expect(polizasComplementarias(resolverMiSeguro(ESSALUD, [sinFin], HOY), HOY)).toEqual([]);
+    });
+
+    it("con las dos fechas, el estado sigue siendo el de siempre", () => {
+      expect(estadoDeVigencia(vida(), HOY)).toBe("vigente");
+      expect(estadoDeVigencia(vida({ vigente_desde: "2026-11-01", vigente_hasta: "2027-11-01" }), HOY)).toBe("por_empezar");
+      expect(estadoDeVigencia(vida({ vigente_desde: "2025-10-17", vigente_hasta: HOY }), HOY)).toBe("termina_hoy");
+      expect(estadoDeVigencia(vida({ vigente_desde: "2025-10-01", vigente_hasta: "2026-10-01" }), HOY)).toBe("vencida");
+      expect(textoDeVigencia(vida(), dmy)).toBe("Del 01/10/2026 al 01/10/2027, hasta las 12 del mediodía");
+    });
+  });
+
+  it("el archivo de su certificado se llama por la póliza, sin nombres de personas", () => {
+    expect(nombreDeDescarga(archivo(), { numero_poliza: "143720", producto_nombre: "Vida Ley" })).toBe("Poliza-Vida-Ley-143720.pdf");
   });
 });
 
