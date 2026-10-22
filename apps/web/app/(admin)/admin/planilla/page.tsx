@@ -1202,6 +1202,7 @@ export default function PlanillaPage() {
         <RevisionCierre
           grupo={revisandoGrupo}
           periodo={periodoActual}
+          hoy={hoy}
           totales={sumarFilas(filasRevisando)}
           cesaron={cesaron(filasRevisando)}
           hallazgos={agruparHallazgos(filasRevisando.map((f) => ({ fila: f, hallazgos: hallazgos.get(claveFila(f)) ?? [] })))}

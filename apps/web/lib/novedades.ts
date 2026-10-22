@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-22-planilla-pide-confirmar-pagar-antes-del-cierre",
+    fecha: "2026-10-22",
+    titulo: "Planilla: pagar un grupo antes de que termine el periodo ahora pide confirmar",
+    queMejoro:
+      "En «Revisar cierre», si el periodo todavía no terminó, aparece un aviso rojo que dice cuántos días faltan y qué pasa si se confirma: " +
+      "desde ese instante las marcas nuevas de ese grupo entran selladas y sus horas no se recalculan. Para seguir hay que escribir una palabra. " +
+      "Con el periodo ya terminado, el cierre se ve y se confirma igual que siempre.\n\n" +
+      "No se bloquea: pagar antes puede ser una excepción a propósito, como una liquidación o un practicante que se va. " +
+      "El aviso está para que no pase con un solo clic.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-21-oficina-mide-su-meta-en-integrantes",
     fecha: "2026-10-21",
     titulo: "Una oficina mide su meta en integrantes en la sede",
