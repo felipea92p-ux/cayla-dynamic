@@ -401,7 +401,9 @@ with repo(numero, nombre, nunca) as (values
     (542, 'la_diferencia_de_una_liquidacion_pagada_se_cierra_con_constancia', false),
     (543, 'vida_ley_es_un_seguro_del_sistema', false),
     (544, 'una_cuenta_de_servicio_no_queda_en_planilla', false),
-    (545, 'reabrir_un_grupo_pagado_repara_sus_horas', false)
+    (545, 'reabrir_un_grupo_pagado_repara_sus_horas', false),
+    (546, 'revertir_un_pago_repara_las_horas_del_grupo', false),
+    (547, 'correcciones_distingue_un_grupo_pagado_con_el_periodo_abierto', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
