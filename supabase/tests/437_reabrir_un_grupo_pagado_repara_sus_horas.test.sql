@@ -11,10 +11,12 @@
 --     2. su jornada no se recalcula: se queda «abierta», sin salida y sin horas,
 --        aunque la persona ya marcó su salida (el candado de fn_recalcular_jornada).
 --
---   Reabrir el grupo con `fn_revertir_pago` NO lo repara, porque esa función
---   solo recalcula si el periodo ENTERO estaba pagado antes (0323). Las
---   aserciones 6 y 7 lo fijan tal cual es HOY — si alguna vez cambian, es que
---   `fn_revertir_pago` se arregló: actualiza esta prueba, no la fuerces.
+--   Hasta la 0546, reabrir el grupo con `fn_revertir_pago` NO lo reparaba, porque
+--   esa función solo recalculaba si el periodo ENTERO estaba pagado antes (0323).
+--   Desde la 0546 sí lo repara (la 438 lo defiende). Esta prueba reabre el grupo
+--   A MANO —un `update` sobre `periodo_grupo_pago`— para aislar la herramienta:
+--   si reabriera con `fn_revertir_pago`, ella ya habría reparado y no quedaría
+--   nada que ver de lo que hace la herramienta por sí sola.
 --
 --   Lo que la 0545 agrega es la herramienta de reparación:
 --
@@ -145,17 +147,22 @@ select throws_like(
   '%sigue pagado%',
   'GUARDIA · si el grupo sigue pagado la herramienta se niega, en vez de «funcionar» sin cambiar nada');
 
--- ── 7-8 · Reabrir el grupo NO lo repara (lo que hace hoy fn_revertir_pago) ──
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000043709', true);
-select lives_ok(
-  $$ select fn_revertir_pago('00000000-0000-0000-0000-0000000437aa', 'Pago de planilla marcado por error', 'planilla') $$,
-  'Se puede reabrir el grupo planilla');
+-- ── 7-9 · Se reabre el grupo A MANO: las jornadas siguen atrasadas ─────────
+update periodo_grupo_pago
+   set estado = 'abierto', pagado_at = null, pagado_por = null
+ where periodo_id = '00000000-0000-0000-0000-0000000437aa' and grupo = 'planilla';
+
+select is(
+  (select estado from periodo_grupo_pago
+    where periodo_id = '00000000-0000-0000-0000-0000000437aa' and grupo = 'planilla'),
+  'abierto',
+  'Se reabrió el grupo planilla (a mano, sin pasar por fn_revertir_pago, para aislar la herramienta)');
 
 select is(
   (select estado from jornadas
     where persona_id = '00000000-0000-0000-0000-000000043702' and fecha = date '2026-10-21'),
   'abierta',
-  'LÍMITE ACTUAL · reabrir el grupo NO recalcula (el periodo entero estaba abierto). Si esto cambia, fn_revertir_pago se arregló: actualiza la prueba');
+  'REABIERTO A MANO · reabrir no recalcula nada solo: la jornada de A sigue atrasada hasta que alguien la repara');
 
 -- B tiene un día REALMENTE roto: una salida sin entrada, sellada. En vivo el
 -- terminal no deja marcar eso (el candado anti-doble-marcado); llega cuando una
