@@ -119,7 +119,7 @@ export const NOVEDADES: readonly Novedad[] = [
     fecha: "2026-10-22",
     titulo: "Planilla: pagar un grupo antes de que termine el periodo ahora pide confirmar",
     queMejoro:
-      "En «Revisar cierre», si el periodo todavía no terminó, aparece un aviso rojo que dice cuántos días faltan y qué pasa si se confirma: " +
+      "En «Revisar cierre», si el periodo todavía no terminó —o hoy es su último día—, aparece un aviso rojo que dice cuántos días faltan y qué pasa si se confirma: " +
       "desde ese instante las marcas nuevas de ese grupo entran selladas y sus horas no se recalculan. Para seguir hay que escribir una palabra. " +
       "Con el periodo ya terminado, el cierre se ve y se confirma igual que siempre.\n\n" +
       "No se bloquea: pagar antes puede ser una excepción a propósito, como una liquidación o un practicante que se va. " +
