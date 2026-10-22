@@ -801,6 +801,7 @@ const MOTIVO_DIA: Record<string, string> = {
   secuencia_imposible: "Marcas en un orden imposible",
   auto_cierre_sin_confirmar: "Cierre automático sin confirmar",
   sello_sin_levantar: "Día marcado para revisar",
+  grupo_pagado_periodo_abierto: "Marcas de un grupo ya pagado con el periodo abierto",
 };
 
 function textoDisciplina(d: ItemDisciplina, hoy: string): { titulo: string; accion: string; urgencia: Urgencia; href: string } {

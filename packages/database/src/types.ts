@@ -8116,6 +8116,8 @@ export type Database = {
         Args: { p_limite?: number | null }
         Returns: {
           fecha: string
+          grupo_pagado: string | null
+          grupo_pagado_at: string | null
           marcas: number
           motivo: string
           nombre: string

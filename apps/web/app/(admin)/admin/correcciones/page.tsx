@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { Search, ChevronRight, ChevronLeft, Calendar, ArrowUpRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import {
   CAMPOS_DE_MARCAJE, JORNADA_ESTADO_LABELS, MINUTOS_MAXIMOS_TARDANZA_MEDIBLE, ORIGEN_MARCA_LABELS,
-  ROLES_DO, TEMA_AUDITORIA_LABELS, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, esCampoDeMarcaje, esRolEncargada,
+  ROLES_DO, TEMA_AUDITORIA_LABELS, TIPOS_MARCA, TIPO_MARCA_LABELS, TIPO_VINCULO_LABEL, TZ_LIMA, anioLima, esCampoDeMarcaje, esRolEncargada,
   fechaLima, formatoMinutos, horaLima, hoyLima, leCorrespondeHorario, puedeOperarEquipo, rangoDelDiaLima, temaDeCampo,
-  type TipoMarca,
+  type TipoMarca, type TipoVinculo,
 } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -137,13 +137,22 @@ const TIPOS_DE_LA_FAMILIA = (tipo: TipoMarca): TipoMarca[] =>
  *  distintas y hasta la 0384 esta pantalla las anunciaba todas como si fueran la
  *  primera — un día con el auto-cierre sin confirmar salía titulado "secuencia
  *  imposible" aunque su secuencia fuera perfectamente posible. */
-type MotivoRevision = "secuencia_imposible" | "auto_cierre_sin_confirmar" | "sello_sin_levantar";
+type MotivoRevision =
+  | "secuencia_imposible" | "auto_cierre_sin_confirmar" | "sello_sin_levantar"
+  // 0547: el GRUPO de la persona se pagó con el periodo todavía abierto. Antes se
+  // anunciaba como «sello_sin_levantar» (ya cuadra, nada que corregir) y era lo único
+  // que se veía de un pago que bloqueaba las horas de todo un grupo.
+  | "grupo_pagado_periodo_abierto";
 interface DiaPorRevisar {
   persona_id: string; nombre: string; sede: string; fecha: string; marcas: number;
   periodo_pagado: boolean;
   // Puede llegar null si la base todavía no tiene la 0384: se trata como el caso
   // grave, que es el que no se puede dejar de avisar.
   motivo: MotivoRevision | null;
+  // 0547: qué grupo y cuándo, solo si su grupo se pagó con el periodo abierto. Pueden
+  // faltar si la base todavía no tiene la 0547: la banda nueva simplemente no sale.
+  grupo_pagado?: string | null;
+  grupo_pagado_at?: string | null;
 }
 
 /** Una marca que la persona hizo y el terminal no pudo enviar. No es un marcaje:
@@ -761,6 +770,10 @@ export default function CorreccionesPage() {
   const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
   const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
   const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");
+  // 0547 · el grupo de estas personas se pagó con el periodo abierto: sus marcas nuevas entran
+  // selladas y sus horas no se recalculan. Es de Planilla, no de Correcciones — se muestra aquí
+  // porque es donde se nota — y NO es «ya cuadra»: hay un pago que probablemente sobra.
+  const pagadosConPeriodoAbierto = accionables.filter((d) => d.motivo === "grupo_pagado_periodo_abierto");
 
   // Abre el día de verdad. El efecto de arriba se encarga de cargarlo.
   const abrir = (d: DiaPorRevisar) => {
@@ -789,13 +802,14 @@ export default function CorreccionesPage() {
 
   // Qué lista está abierta bajo «Para atender». `undefined` = nadie eligió todavía: se abre la más
   // grave que tenga algo. `""` = quien usa la pantalla la cerró a propósito.
-  const primeraConAlgo = apartadas.length > 0 ? "apartadas" : rotos.length > 0 ? "rotos" : cerrados.length > 0 ? "cerrados" : sellados.length > 0 ? "sellados" : "";
+  const primeraConAlgo = apartadas.length > 0 ? "apartadas" : pagadosConPeriodoAbierto.length > 0 ? "pagados" : rotos.length > 0 ? "rotos" : cerrados.length > 0 ? "cerrados" : sellados.length > 0 ? "sellados" : "";
   const atencion = atencionElegida ?? primeraConAlgo;
 
   // «Para atender» se lee a la derecha, como en Datos personales: con nadie elegido, la lista de lo que hay que
   // corregir ocupa la ventana; elegir a alguien abre su día en el mismo sitio.
   const hayPanelDeAtencion =
-    (atencion === "apartadas" && apartadas.length > 0) || (atencion === "rotos" && rotos.length > 0) ||
+    (atencion === "apartadas" && apartadas.length > 0) || (atencion === "pagados" && pagadosConPeriodoAbierto.length > 0) ||
+    (atencion === "rotos" && rotos.length > 0) ||
     (atencion === "cerrados" && cerrados.length > 0) || (atencion === "sellados" && sellados.length > 0);
   const panelDeAtencion = (
     <div className="@container">
@@ -900,6 +914,36 @@ export default function CorreccionesPage() {
           </BannerAviso>
         )}
 
+        {/* 0547 · Un grupo se pagó con el periodo abierto. NO es «ya cuadra»: mientras siga así, las marcas
+            nuevas de esa gente entran selladas y sus horas no se recalculan (el candado de horas es por
+            grupo). Si el pago fue a propósito —una liquidación, alguien que se va—, el aviso solo informa. */}
+        {atencion === "pagados" && pagadosConPeriodoAbierto.length > 0 && (() => {
+          const grupos = [...new Set(pagadosConPeriodoAbierto.map((d) => d.grupo_pagado).filter((g): g is string => !!g))];
+          const nombreGrupo = (g: string) => TIPO_VINCULO_LABEL[g as TipoVinculo] ?? g;
+          const cuando = (iso: string | null | undefined) => iso
+            ? `el ${fechaLima(iso).split("-").reverse().slice(0, 2).join("/")} a las ${horaLima(iso)}`
+            : "antes de terminar el periodo";
+          const primerPago = (g: string) => pagadosConPeriodoAbierto.find((d) => d.grupo_pagado === g)?.grupo_pagado_at;
+          return (
+            <BannerAviso
+              variante="alerta"
+              titulo={pagadosConPeriodoAbierto.length === 1
+                ? "1 día con marcas de un grupo que ya se pagó"
+                : `${pagadosConPeriodoAbierto.length} días con marcas de un grupo que ya se pagó`}
+            >
+              <p className="mb-3 text-taupe">
+                {grupos.length > 0
+                  ? grupos.map((g) => `«${nombreGrupo(g)}» se pagó ${cuando(primerPago(g))}`).join("; ") + ", pero su periodo sigue abierto. "
+                  : "Su grupo se pagó con el periodo todavía abierto. "}
+                Mientras siga así, las marcas nuevas de esa gente entran selladas y sus horas no se recalculan: el
+                día se vería como cero. Si el pago fue un error, ve a Planilla → Revertir pago; las horas se reparan
+                al reabrir. Si fue a propósito, esto es solo un aviso.
+              </p>
+              {lista(pagadosConPeriodoAbierto, "hover:bg-rojo/10")}
+            </BannerAviso>
+          );
+        })()}
+
         {/* 3 · Ya no hay nada que hacer, y aun así siguen marcados. */}
         {atencion === "sellados" && sellados.length > 0 && (
           <BannerAviso
@@ -961,6 +1005,7 @@ export default function CorreccionesPage() {
         <ParaAtender
           items={[
             { clave: "apartadas", texto: `${apartadas.length} marca${apartadas.length === 1 ? "" : "s"} sin registrar`, n: apartadas.length, tono: "rojo" },
+            { clave: "pagados", texto: `${pagadosConPeriodoAbierto.length} con su grupo ya pagado`, n: pagadosConPeriodoAbierto.length, tono: "rojo" },
             { clave: "rotos", texto: `${rotos.length} día${rotos.length === 1 ? "" : "s"} desordenado${rotos.length === 1 ? "" : "s"}`, n: rotos.length, tono: "ambar" },
             { clave: "cerrados", texto: `${cerrados.length} salida${cerrados.length === 1 ? "" : "s"} por confirmar`, n: cerrados.length, tono: "pizarra" },
             { clave: "sellados", texto: `${sellados.length} ya cuadra${sellados.length === 1 ? "" : "n"}`, n: sellados.length, tono: "neutro" },
