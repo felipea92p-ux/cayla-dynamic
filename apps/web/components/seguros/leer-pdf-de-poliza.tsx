@@ -298,6 +298,7 @@ function Cuerpo({
     <>
       <p className="mb-3 text-sm text-taupe">
         Elige el PDF de la póliza —o varios, uno por persona— y el sistema lee el número, la vigencia, la prima y a quién asegura.
+        Lo que el papel no dice (el certificado de Vida Ley no trae vigencia ni prima) queda en blanco y lo escribes tú.
         Se lee aquí, en tu computadora: no se sube ni se guarda nada hasta que revises y registres.
       </p>
 
@@ -431,6 +432,7 @@ function TarjetaDePdf({
             </span>
             <span className="block break-words text-xs text-taupe">
               {t.archivo.name} · {pesoLegible(t.archivo.size)}
+              {t.leida.certificado && <> · certificado {t.leida.certificado}</>}
               {t.leida.asegurado && <> · en el papel: {t.leida.asegurado.nombre} (doc. {t.leida.asegurado.documento})</>}
             </span>
           </span>
