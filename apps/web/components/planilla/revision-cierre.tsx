@@ -11,6 +11,13 @@
 // - Si hay un periodo ANTERIOR sin pagar, se nombra y se pide aceptarlo. No se
 //   bloquea: está permitido desde la 0323.
 //
+// - Pagar un periodo que TODAVÍA NO TERMINÓ pide, además, escribir una palabra
+//   (2026-10-22). El 2026-10-21 se marcó «pagado» el grupo planilla siete días
+//   antes del cierre con el mismo clic que uno ya terminado, y desde ese
+//   instante sus marcas nuevas entraron selladas sin recalcular horas. No se
+//   bloquea —Felipe: a veces es una excepción legítima, una liquidación o un
+//   practicante que se va—; se hace imposible hacerlo sin querer.
+//
 // Todo lo que muestra es del grupo COMPLETO, nunca de lo filtrado: es
 // exactamente lo que `fn_periodo_pagado` va a congelar.
 
@@ -19,8 +26,12 @@ import { TIPO_VINCULO_LABEL, type TipoVinculo } from "@cayla-dynamic/shared";
 import { formatSoles } from "@/lib/rangos";
 import { Modal } from "@/components/ui/modal";
 import { Boton } from "@/components/ui/boton";
-import { CampoCasilla } from "@/components/ui/campo";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { Campo, CampoCasilla } from "@/components/ui/campo";
 import { MESES_LARGO, fechaCorta, fechaLargaLima } from "@/lib/admin/planilla/formato";
+import {
+  PALABRA_PAGO_ADELANTADO, confirmaPagoAdelantado, diasQueFaltanParaTerminar, textoDiasQueFaltan,
+} from "@/lib/admin/planilla/pago-adelantado";
 import type { HallazgoAgrupado, Totales } from "@/lib/admin/planilla/revision";
 import type { PeriodoInfo } from "@/lib/admin/planilla/tipos";
 
@@ -37,10 +48,12 @@ export interface AnteriorPendiente {
 }
 
 function Contenido({
-  grupo, periodo, totales, cesaron, hallazgos, anteriores, guardando, onCerrar, onConfirmar,
+  grupo, periodo, hoy, totales, cesaron, hallazgos, anteriores, guardando, onCerrar, onConfirmar,
 }: {
   grupo: TipoVinculo;
   periodo: PeriodoInfo;
+  /** Hoy en Lima (`hoyLima()`), que decide si el periodo ya terminó. Llega de afuera para no recalcularlo aquí. */
+  hoy: string;
   totales: Totales;
   cesaron: number;
   hallazgos: HallazgoAgrupado[];
@@ -54,9 +67,12 @@ function Contenido({
   const revisar = hallazgos.filter((h) => h.severidad === "revisar");
   const [revisados, setRevisados] = useState(false);
   const [anterioresAceptados, setAnterioresAceptados] = useState(false);
+  const [palabra, setPalabra] = useState("");
+  const diasQueFaltan = diasQueFaltanParaTerminar(periodo.fecha_fin, hoy);
   const listo = frenan.length === 0
     && (revisar.length === 0 || revisados)
-    && (anteriores.length === 0 || anterioresAceptados);
+    && (anteriores.length === 0 || anterioresAceptados)
+    && (diasQueFaltan === 0 || confirmaPagoAdelantado(palabra));
 
   return (
     <div className="space-y-4 text-sm">
@@ -144,6 +160,29 @@ function Contenido({
         </div>
       )}
 
+      {frenan.length === 0 && diasQueFaltan > 0 && (
+        <BannerAviso variante="alerta" titulo={`${textoDiasQueFaltan(diasQueFaltan)} para que termine este periodo`}>
+          <p>
+            El periodo cierra el {fechaCorta(periodo.fecha_fin)}. Si confirmas ahora, desde este instante{" "}
+            <strong>las marcas nuevas de «{etiqueta}» entrarán selladas</strong> y{" "}
+            <strong>sus horas no se recalcularán</strong>: quien marque de aquí al cierre puede quedar con la
+            jornada sin salida y sin horas, y ya no se podrá corregir sin reabrir el pago.
+          </p>
+          <p className="mt-2 text-taupe">
+            Si es una excepción a propósito —por ejemplo una liquidación o un practicante que se va—, puedes seguir.
+            Si fue un clic de más, cancela.
+          </p>
+          <div className="mt-3">
+            <Campo
+              etiqueta={`Para confirmar, escribe «${PALABRA_PAGO_ADELANTADO}»`}
+              value={palabra}
+              onChange={(e) => setPalabra(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+        </BannerAviso>
+      )}
+
       <p className="text-xs text-taupe">
         Confirmar registra que ya se transfirió a estas {totales.personas} personas y congela su desglose: es la cifra que
         queda para contabilidad y ya no cambia sola. Si después hay que corregir, se reabre con motivo o se vuelve a
@@ -163,6 +202,7 @@ function Contenido({
 export function RevisionCierre(props: {
   grupo: TipoVinculo | null;
   periodo: PeriodoInfo;
+  hoy: string;
   totales: Totales;
   cesaron: number;
   hallazgos: HallazgoAgrupado[];
