@@ -204,8 +204,8 @@ export default function PerfilPersonaPage() {
     setGuardandoServicio(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
     avisar("ok", cuentaServicio
-      ? "Vuelve a ser una persona: entra otra vez a la planilla y a las listas del equipo."
-      : "Marcada como cuenta de servicio: sale de la planilla, del terminal y de las listas del equipo.");
+      ? "Deja de ser cuenta de servicio y vuelve a las listas del equipo. Su vínculo sigue en «Sin vínculo laboral»: cámbialo en Equipo si va a trabajar y cobrar."
+      : "Marcada como cuenta de servicio: su vínculo pasa a «Sin vínculo laboral» y sale de la planilla, del terminal y de las listas del equipo.");
     setCuentaServicio(!cuentaServicio);
     setCambiandoServicio(false);
     setMotivoServicio("");
@@ -1272,8 +1272,8 @@ export default function PerfilPersonaPage() {
       >
         <p className="text-sm text-taupe">
           {cuentaServicio
-            ? "Esta ficha vuelve a tratarse como una persona: entra otra vez a la planilla, al terminal de marcaje de su sede y a todas las listas del equipo."
-            : "Úsalo solo para una estación de Retail (una caja o un almacén compartido), nunca para una persona: deja de pagarse, sale del terminal de marcaje y de todas las listas del equipo. Su acceso a Retail no cambia; a Dynamic ya no podrá entrar."}
+            ? "Esta ficha vuelve a tratarse como una persona en el terminal de marcaje de su sede y en las listas del equipo. Su vínculo sigue en «Sin vínculo laboral»: no entra a la planilla ni cobra hasta que lo cambies en Equipo."
+            : "Úsalo solo para una estación de Retail (una caja o un almacén compartido), nunca para una persona: su vínculo pasa a «Sin vínculo laboral», deja de pagarse, sale del terminal de marcaje y de todas las listas del equipo. Su acceso a Retail no cambia; a Dynamic ya no podrá entrar."}
         </p>
         <div className="mt-3">
           <Campo

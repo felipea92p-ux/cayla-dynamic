@@ -149,19 +149,19 @@ select ok(
   position('cuenta_de_servicio' in pg_get_viewdef('public.terminal_roster'::regclass, true)) > 0,
   'TERMINAL · el roster de marcaje excluye las cuentas de servicio en su definición');
 
--- ── 12-13 · Desmarcar no tiene condiciones, y la devuelve ──────────────────
+-- ── 12-13 · Desmarcar no tiene condiciones, y la devuelve al cálculo ───────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000003881a', true);
 set role authenticated;
 select lives_ok(
   $$ select fn_set_cuenta_de_servicio('00000000-0000-0000-0000-000000038813', false, 'Era una persona') $$,
-  'PERMITIDO · desmarcar siempre se puede: devolver a alguien a la planilla no esconde nada');
+  'PERMITIDO · desmarcar siempre se puede: devolver a alguien a las listas no esconde nada');
 reset role;
 select is(
   (select count(*)::int
      from jsonb_array_elements(fn_planilla_calcular('2026-08-29'::date, '2026-09-28'::date)->'filas') f
     where f->>'persona_id' = '00000000-0000-0000-0000-000000038813'),
   1,
-  'CONTROL · desmarcada, vuelve a la planilla — la exclusión venía de la columna y de nada más');
+  'CONTROL · desmarcada, vuelve a tener fila en el cálculo — la exclusión venía de la columna (desde la 0544 su vínculo ya no vuelve solo: ver la 436)');
 
 -- ── 14 · El motivo escrito a mano queda en el rastro ───────────────────────
 select is(
