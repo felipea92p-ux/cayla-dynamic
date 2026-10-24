@@ -1,4 +1,5 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
+import { compartirMientrasVuela } from "./compartir-mientras-vuela";
 
 /**
  * Tu bono de cumpleaños, tal como lo contesta `fn_mi_bono_cumpleanos` (0478).
@@ -89,7 +90,7 @@ export function mostrarBonoEnInfo(b: MiBono | null | undefined, hoy: string): bo
 export async function traerMiBono(
   supabase: ClienteCayla,
 ): Promise<{ bono: MiBono | null; error: { message: string; code?: string } | null }> {
-  const { data, error } = await supabase.rpc("fn_mi_bono_cumpleanos");
+  const { data, error } = await compartirMientrasVuela("fn_mi_bono_cumpleanos", async () => await supabase.rpc("fn_mi_bono_cumpleanos"));
   if (error) return { bono: null, error };
   const fila = ((data ?? []) as unknown as MiBono[])[0] ?? null;
   return {
