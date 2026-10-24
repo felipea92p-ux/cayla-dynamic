@@ -11,6 +11,7 @@
 // existe), deja que la CSS decida con `xl:`. Ver `lib/use-nav-colapsado.ts`.
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { esActivo, type Contador, type Grupo } from "@/app/(admin)/admin/nav-items";
 import { cx } from "@/components/ui/cx";
@@ -73,6 +74,12 @@ const CLASES: Record<Modo, {
 // Es UNA sola etiqueta para todo el menú, con `position: fixed`, y no una por
 // renglón: el `<nav>` del sidebar tiene `overflow-y-auto`, y eso recorta
 // cualquier cosa absoluta que se salga por la derecha. Fixed la saca del recorte.
+//
+// Y va en un portal, a `document.body`. Con `fixed` sola no basta: el sidebar es
+// `sticky`, y un `sticky` abre su propio contexto de apilamiento, así que el
+// `z-50` de la etiqueta solo valía DENTRO del sidebar. La pantalla de al lado
+// (la tarjeta «Equipo» de Datos personales) se pintaba encima y comía la
+// etiqueta: «Horarios» se leía «Horario». Visto en producción el 2026-10-24.
 //
 // Solo donde no se ve el texto del renglón: en rail siempre, en auto hasta
 // 1280px (`xl:hidden`), y nunca en ancho ni en el cajón.
@@ -204,7 +211,7 @@ export function PanelNavegacion({
           })}
         </GrupoDeMenu>
       ))}
-      {etiqueta && claseEtiqueta !== null ? (
+      {etiqueta && claseEtiqueta !== null ? createPortal(
         <span
           role="presentation"
           style={{ top: etiqueta.top, left: etiqueta.left }}
@@ -214,7 +221,8 @@ export function PanelNavegacion({
           )}
         >
           {etiqueta.texto}
-        </span>
+        </span>,
+        document.body,
       ) : null}
     </>
   );
