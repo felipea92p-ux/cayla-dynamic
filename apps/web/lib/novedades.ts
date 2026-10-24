@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-24-barra-superior-con-saludo-y-menu-que-nombra-al-instante",
+    fecha: "2026-10-24",
+    titulo: "Barra superior con saludo, menú que nombra al instante y «Dar de baja»",
+    queMejoro:
+      "La barra de arriba se ordenó: el buscador quedó a la izquierda, en el centro te saluda según la hora —«Buenos días», " +
+      "«Buenas tardes» o «Buenas noches»— con la hora de Lima debajo, y a la derecha están los atajos, el modo claro u oscuro y, " +
+      "al final, «Cerrar sesión». El buscador funciona igual que siempre.\n\n" +
+      "En el menú lateral de iconos, el nombre de cada pantalla aparece al instante al pasar el mouse o al llegar con Tab, sin la " +
+      "espera de antes.\n\n" +
+      "Y en Equipo, el botón «Registrar salida» ahora se llama «Dar de baja». Hace lo mismo: anota el último día trabajado y el " +
+      "motivo, y la persona deja de aparecer en el terminal sin borrarse su historial.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-22-ya-puedes-ver-tu-seguro-de-vida-ley-en-mi-seguro",
     fecha: "2026-10-22",
     titulo: "Ya puedes ver tu Seguro de Vida Ley en «Mi seguro»",
