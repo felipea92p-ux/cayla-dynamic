@@ -3317,7 +3317,7 @@ export default function ContratosPage() {
             </div>
           )}
 
-      <div className="mx-auto max-w-6xl space-y-6 print:hidden">
+      <div className="space-y-6 print:hidden">
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Personas")}
           titulo="Contratos"
