@@ -1043,7 +1043,16 @@ export default function ContratosPage() {
       ),
     )
 
-    const inicio = tipo === "renovacion" && p.fecha_fin_contrato ? sumarDias(p.fecha_fin_contrato, 1) : hoyLima();
+    // El inicio nace donde empieza de verdad la relación: el día siguiente al
+    // fin del documento anterior si es una continuación (renovación, o un
+    // convenio que ya tiene uno registrado), y si no, la FECHA DE INGRESO de la
+    // persona — no «hoy». Con «hoy», cada contrato de alguien que ya está
+    // trabajando salía con inicio equivocado y había que corregirlo a mano
+    // (Felipe, 2026-10-24). El fin sigue siendo de quien genera: abajo solo
+    // nace con un plazo probable para no arrancar vacío.
+    const esConvenioDeEstaPersona = p.tipo_vinculo === "practicante" || tipo === "convenio_practicas";
+    const continuaElAnterior = p.fecha_fin_contrato !== null && (tipo === "renovacion" || esConvenioDeEstaPersona);
+    const inicio = continuaElAnterior && p.fecha_fin_contrato ? sumarDias(p.fecha_fin_contrato, 1) : (p.fecha_ingreso || hoyLima());
     setFechaInicio(inicio);
     // La fecha de fin NO arranca vacía (regla de la casa del 2026-08-26): su
     // vacío bloquea «Generar borrador», y en Safari un valor tecleado a mano
@@ -1051,7 +1060,6 @@ export default function ContratosPage() {
     // pasó justo eso con un convenio: 03/12/2026 a la vista y el botón apagado.
     // Nace con el plazo más probable —tres meses para un convenio, un año para
     // un contrato modal— y se cambia en un clic.
-    const esConvenioDeEstaPersona = p.tipo_vinculo === "practicante" || tipo === "convenio_practicas";
     setFechaFin(finDePlazo(inicio, esConvenioDeEstaPersona ? 3 : 12));
 
     // TRAER EL ANEXO I / PLAN FORMATIVO DEL DOCUMENTO ANTERIOR, SI HAY (hallazgo
