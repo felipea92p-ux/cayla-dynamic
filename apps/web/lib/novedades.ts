@@ -301,7 +301,7 @@ export const NOVEDADES: readonly Novedad[] = [
       "En la Bandeja hay un módulo nuevo, «Pruebas», para Desarrollo Organizacional y para las líderes de equipo, que " +
       "ven a su gente. Cada prueba dice cuántos días lleva y qué toca: si ya completó el plazo, decidir; si lo pasó y nadie " +
       "decidió, aparece en rojo. Ahí mismo se marca «No fue apto» o «Se retiró», y cada botón explica qué pasa antes de " +
-      "confirmar. En Equipo, «Registrar salida» de alguien que está de prueba abre ese mismo panel.\n\n" +
+      "confirmar. En Equipo, si das de baja a alguien que está de prueba (menú ⋯ de su fila, opción «Dar de baja»; antes se llamaba «Registrar salida»), se abre ese mismo panel.\n\n" +
       "Cuando el contrato queda firmado, «Subir contrato firmado» ofrece pasar a la persona de «Prueba» a «Planilla» en el " +
       "mismo paso. Desarrollo Organizacional ve además lo que se cerró en las últimas 48 horas, y quién lo decidió.",
     audiencia: "panel",
