@@ -1,6 +1,7 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { TZ_LIMA } from "@cayla-dynamic/shared";
 import { mensajeDeError } from "./admin/mensaje-error";
+import { compartirMientrasVuela } from "./compartir-mientras-vuela";
 
 /**
  * REPORTES — lo que «Lo mío» y su Bandeja comparten (docs/plan-reportes.md).
@@ -136,7 +137,7 @@ export interface FilaMiReporte {
 }
 
 export async function traerMisReportes(supabase: ClienteCayla): Promise<{ filas: FilaMiReporte[]; error: string | null }> {
-  const { data, error } = await supabase.rpc("fn_reportes_mios");
+  const { data, error } = await compartirMientrasVuela("fn_reportes_mios", async () => await supabase.rpc("fn_reportes_mios"));
   if (error) return { filas: [], error: mensajeDeError(error, "leer tus reportes") };
   return { filas: (data ?? []) as FilaMiReporte[], error: null };
 }

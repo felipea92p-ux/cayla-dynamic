@@ -32,37 +32,40 @@ interface Fila {
   dias_para_plazo: number | null;
 }
 
-export function ResumenEducacionMia() {
+/**
+ * `personaId` es el de quien tiene la pantalla abierta: /mio ya lo sabe, así que se pasa en
+ * vez de volver a buscarlo. Buscarlo era una ronda entera (sesión → `personas`) puesta
+ * delante de las otras dos, que ahora salen juntas. Mientras llega, se ve «Cargando…».
+ */
+export function ResumenEducacionMia({ personaId }: { personaId: string | null }) {
   const [filas, setFilas] = useState<Fila[] | null>(null);
   const [terminado, setTerminado] = useState<Fila | null>(null);
   const [renovacionEnRevision, setRenovacionEnRevision] = useState(false);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    if (!personaId) return;
     let vivo = true;
     const supabase = createAdminSupabaseClient();
     void (async () => {
-      const { data: sesion } = await supabase.auth.getSession();
-      const uid = sesion.session?.user.id;
-      if (!uid) return;
-      const [{ data: p }, sit] = await Promise.all([
-        supabase.from("personas").select("id").eq("auth_user_id", uid).maybeSingle(),
+      // Recién renovado, «Renuévalo →» sería pedirle lo que ya hizo: por eso se mira también
+      // la última solicitud, y se pide junto con la situación porque no depende de ella.
+      const [sit, { data: sol }] = await Promise.all([
         supabase.rpc("fn_educacion_situacion"),
+        supabase.from("educacion_solicitudes").select("estado")
+          .eq("persona_id", personaId).order("enviada_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
       if (!vivo) return;
-      if (sit.error || !p) { setError(true); setFilas([]); return; }
-      const mias = ((sit.data ?? []) as unknown as Fila[]).filter((f) => f.persona_id === p.id);
+      if (sit.error) { setError(true); setFilas([]); return; }
+      const mias = ((sit.data ?? []) as unknown as Fila[]).filter((f) => f.persona_id === personaId);
       setFilas(mias.filter((f) => f.vigencia !== "terminada"));
       // El que terminó más tarde: el mismo que /mio/educacion ofrece renovar.
       setTerminado(mias.filter((f) => f.vigencia === "terminada")
         .reduce<Fila | null>((m, f) => (!m || f.vigente_hasta > m.vigente_hasta ? f : m), null));
-      // Recién renovado, «Renuévalo →» sería pedirle lo que ya hizo.
-      const { data: sol } = await supabase.from("educacion_solicitudes").select("estado")
-        .eq("persona_id", p.id).order("enviada_at", { ascending: false }).limit(1).maybeSingle();
-      if (vivo) setRenovacionEnRevision(sol?.estado === "pendiente");
+      setRenovacionEnRevision(sol?.estado === "pendiente");
     })();
     return () => { vivo = false; };
-  }, []);
+  }, [personaId]);
 
   return (
     <section data-tour="mio-educacion-seccion" className="rounded-2xl border border-sand p-5 text-sm">

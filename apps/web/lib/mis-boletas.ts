@@ -1,6 +1,7 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { MESES_LARGO } from "./admin/planilla/formato";
 import { esBoletaNueva, esBoletaPorFirmar } from "./boletas";
+import { compartirMientrasVuela } from "./compartir-mientras-vuela";
 
 /**
  * LAS BOLETAS OFICIALES DE UNA PERSONA — lo que «Lo mío» y la Bandeja comparten.
@@ -47,7 +48,8 @@ export interface FilaMiBoleta {
 export async function traerMisBoletas(
   supabase: ClienteCayla,
 ): Promise<{ filas: FilaMiBoleta[]; error: string | null }> {
-  const { data, error } = await supabase.rpc("fn_mis_boletas");
+  // Compartida con la Bandeja, que cuenta sus avisos con la misma lectura (ver compartir-mientras-vuela.ts).
+  const { data, error } = await compartirMientrasVuela("fn_mis_boletas", async () => await supabase.rpc("fn_mis_boletas"));
   if (error) return { filas: [], error: "No pudimos leer tus boletas. Vuelve a intentarlo en un momento." };
   return { filas: (data ?? []) as FilaMiBoleta[], error: null };
 }

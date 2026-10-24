@@ -54,6 +54,7 @@ import {
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
+import { compartirMientrasVuela } from "@/lib/compartir-mientras-vuela";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
@@ -131,11 +132,6 @@ import { PuertaDeModuloVista } from "@/components/mio/puerta-de-modulo";
 interface Yo {
   id: string;
   nombre: string;
-  /** El nombre tal como aparece en el DNI (`datos_personales.nombre_dni`),
-   *  con reserva a `nombre` si todavía no cargó su ficha. Es el que se usa
-   *  para firmar documentos — nunca `nombre` a secas, que es de uso diario
-   *  y puede no coincidir con el oficial (ver FirmaEditor). */
-  nombreOficial: string;
   nombres: string;
   apellidos: string;
   fechaIngreso: string | null;
@@ -222,6 +218,8 @@ interface SolicitudDni {
  *  más — ver la cabecera del archivo sobre por qué se filtra siempre por
  *  `persona_id` explícito. */
 interface MisDatos {
+  /** `datos_personales.nombre_dni`: el nombre tal como aparece en el DNI. Ver `nombreOficial`. */
+  nombreDni: string | null;
   documento: string | null;
   tipoVinculo: string;
   conHijos: boolean;
@@ -523,6 +521,15 @@ export default function MioPage() {
   const router = useRouter();
   const [sesion, setSesion] = useState<boolean | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
+  // PRIMERO LO QUE SE VE, DESPUÉS LO QUE SE CUENTA. Abrir /mio disparaba unas 64
+  // consultas a la vez (medido el 2026-10-24), y las que pintan el Resumen —el
+  // periodo, los turnos, los objetivos— esperaban en la misma cola que las que
+  // solo alimentan un globito del menú o una pestaña que todavía nadie abrió.
+  // `segundaOla` se enciende cuando termina lo primero (`cargar`), cuando alguien
+  // sale del Resumen —ya no hay un «primero lo que se ve» que proteger— o a los
+  // 2,5 s si lo primero se atascó. Las lecturas que dependen de ella solo se
+  // POSPONEN: ninguna se quitó, y ninguna cambia lo que dice cuando llega.
+  const [segundaOla, setSegundaOla] = useState(false);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [errorFoto, setErrorFoto] = useState<string | null>(null);
 
@@ -593,7 +600,7 @@ export default function MioPage() {
    *  abajo, nunca el mecanismo (ver la cabecera del archivo). */
   const cargarDni = useCallback(async () => {
     if (!yo?.id) { setDniVigente({ anverso: null, reverso: null }); setSolicitudDni(null); return; }
-    const [ficha, solicitud, campo] = await Promise.all([
+    const [ficha, solicitud] = await Promise.all([
       supabase.from("datos_personales")
         .select("foto_dni_anverso_ruta, foto_dni_reverso_ruta")
         .eq("persona_id", yo.id).maybeSingle(),
@@ -601,18 +608,27 @@ export default function MioPage() {
         .select("estado, creada_at, resuelta_at, motivo")
         .eq("persona_id", yo.id).eq("campo", "foto_dni")
         .order("creada_at", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("catalogo_campos_perfil").select("campo").eq("campo", "foto_dni").maybeSingle(),
     ]);
     setDniVigente({
       anverso: ficha.data?.foto_dni_anverso_ruta ?? null,
       reverso: ficha.data?.foto_dni_reverso_ruta ?? null,
     });
     setSolicitudDni((solicitud.data as SolicitudDni | null) ?? null);
-    setHayCampoDni(campo.data !== null);
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarDni(); }, [cargarDni]);
+  useEffect(() => { if (segundaOla) void cargarDni(); }, [cargarDni, segundaOla]);
+
+  // Si existe el campo «foto_dni» decide si el menú lleva «Mi DNI». Va en la primera ola
+  // y no con el resto de lo del DNI: una fila que aparece en el menú después de pintarlo
+  // mueve lo que hay debajo justo cuando alguien ya iba a hacer clic.
+  useEffect(() => {
+    if (!yo?.id) return;
+    let vivo = true;
+    void supabase.from("catalogo_campos_perfil").select("campo").eq("campo", "foto_dni").maybeSingle()
+      .then(({ data }) => { if (vivo) setHayCampoDni(data !== null); });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id]);
 
   const [misDatos, setMisDatos] = useState<MisDatos | null>(null);
   const [derechohabientes, setDerechohabientes] = useState<Derechohabiente[]>([]);
@@ -630,13 +646,14 @@ export default function MioPage() {
         .select("documento, tipo_vinculo, con_hijos, email, funcion")
         .eq("id", yo.id).maybeSingle(),
       supabase.from("datos_personales")
-        .select("fecha_nacimiento, estado_civil, genero, grado_instruccion, celular, direccion, entidad_bancaria, numero_cuenta, discapacidad, discapacidad_conadis, emergencia_nombre, emergencia_telefono, emergencia_vinculo")
+        .select("nombre_dni, fecha_nacimiento, estado_civil, genero, grado_instruccion, celular, direccion, entidad_bancaria, numero_cuenta, discapacidad, discapacidad_conadis, emergencia_nombre, emergencia_telefono, emergencia_vinculo")
         .eq("persona_id", yo.id).maybeSingle(),
       supabase.from("derechohabientes")
         .select("id, nombres, apellidos, vinculo, documento, fecha_nacimiento, essalud, vida_ley")
         .eq("persona_id", yo.id).order("created_at", { ascending: true }),
     ]);
     setMisDatos({
+      nombreDni: (ficha.data?.nombre_dni as string | null | undefined) ?? null,
       documento: persona.data?.documento ?? null,
       tipoVinculo: persona.data?.tipo_vinculo ?? "",
       conHijos: persona.data?.con_hijos ?? false,
@@ -671,7 +688,13 @@ export default function MioPage() {
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarMisDatos(); }, [cargarMisDatos]);
+  useEffect(() => { if (segundaOla) void cargarMisDatos(); }, [cargarMisDatos, segundaOla]);
+
+  // El nombre que firma es el del DNI, no el de uso diario, con reserva a este por si todavía
+  // no cargó su ficha (mismo criterio que /mio/contrato; ver FirmaEditor). Vacío mientras
+  // `misDatos` no llega: la Firma y las Boletas ya tratan el vacío como «todavía no se puede
+  // firmar», y es mejor eso que firmar un instante con el nombre de uso diario.
+  const nombreOficial = yo && misDatos ? (misDatos.nombreDni || yo.nombre) : "";
 
   /** El bucket es privado —un DNI no se sirve por URL pública, a diferencia del
    *  retrato del terminal—, así que para pintarlas hace falta firmarlas. Se
@@ -862,7 +885,20 @@ export default function MioPage() {
    * Si algún día «Resumen» deja de ser la sección inicial, esa acción queda
    * escondida y hay que sacarla de ahí antes.
    */
-  const [tab, mostrarSeccion] = useState<Tab>("resumen");
+  const [tab, fijarSeccion] = useState<Tab>("resumen");
+
+  // Las secciones que piden sus datos al abrirse (Educación, Mi seguro) se quedan montadas,
+  // escondidas, después de la primera visita. Si se desmontan, cada vuelta a la misma sección
+  // repite sus consultas con un «Cargando…» delante: es lo que se sentía lento al ir y venir
+  // entre secciones. Se conservan hasta que la pantalla se vuelva a abrir, que es lo que ya
+  // pasaba con todas las demás secciones (sus datos se piden una vez por apertura).
+  const [visitadas, setVisitadas] = useState<ReadonlySet<Tab>>(() => new Set<Tab>(["resumen"]));
+  const mostrarSeccion = useCallback((t: Tab) => {
+    fijarSeccion(t);
+    setVisitadas((v) => (v.has(t) ? v : new Set(v).add(t)));
+    // Quien sale del Resumen ya no espera «lo que se ve primero»: se pide el resto sin demora.
+    if (t !== "resumen") setSegundaOla(true);
+  }, []);
 
   // El día abierto desde la cuadrícula. En un teléfono no hay `hover`, así que
   // sin esto los cuadritos de colores son decoración: se ve que el 12 está en
@@ -918,7 +954,7 @@ export default function MioPage() {
       mostrarSeccion(seccionDeLaDireccion(window.location.href, TABS, "resumen"));
     window.addEventListener("popstate", alMoverseEnElHistorial);
     return () => window.removeEventListener("popstate", alMoverseEnElHistorial);
-  }, []);
+  }, [mostrarSeccion]);
 
   /**
    * Toda forma de cambiar de sección pasa por aquí —el menú, los botones de
@@ -948,8 +984,10 @@ export default function MioPage() {
   useEffect(() => {
     if (!sesion) return;
     void (async () => {
-      const { data: sesionAuth } = await supabase.auth.getUser();
-      const uid = sesionAuth.user?.id;
+      // Del almacén de la sesión: `getUser()` era una ronda entera al servidor de
+      // autenticación ANTES de poder pedir nada más. La base valida el token en cada consulta.
+      const { data: sesionLocal } = await supabase.auth.getSession();
+      const uid = sesionLocal.session?.user.id;
       if (!uid) { setAviso("No se pudo leer tu sesión. Vuelve a entrar."); return; }
 
       const { data: p } = await supabase
@@ -963,14 +1001,11 @@ export default function MioPage() {
         return;
       }
       const nombre = `${p.nombres as string} ${p.apellidos as string}`;
-      // Mismo criterio que /mio/contrato: el nombre que firma es el del DNI,
-      // no el de uso diario — con reserva por si todavía no cargó su ficha.
-      const { data: ficha } = await supabase
-        .from("datos_personales").select("nombre_dni").eq("persona_id", p.id as string).maybeSingle();
+      // El nombre oficial (`nombre_dni`) ya no se pide acá: era una tercera ronda en fila
+      // antes de pintar nada, y solo lo usan la Firma y las Boletas. Viaja con `misDatos`.
       setYo({
         id: p.id as string,
         nombre,
-        nombreOficial: (ficha?.nombre_dni as string | null) || nombre,
         nombres: p.nombres as string,
         apellidos: p.apellidos as string,
         fechaIngreso: (p.fecha_ingreso as string | null) ?? null,
@@ -1081,9 +1116,17 @@ export default function MioPage() {
     setRevisiones(new Map(((revs as Revision[] | null) ?? []).map((r) => [r.fecha, r])));
     setPuedePedirRevision(!errRevs);
     setCargando(false);
+    setSegundaOla(true);
   }, [supabase, yo, desde, hasta]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // Si lo primero se atasca, lo segundo no espera para siempre.
+  useEffect(() => {
+    if (!yo?.id) return;
+    const t = setTimeout(() => setSegundaOla(true), 2500);
+    return () => clearTimeout(t);
+  }, [yo?.id]);
 
   // Se pide aparte y no dentro del bloque grande: es una sola pregunta, depende
   // solo de quién es, y si falla no debe llevarse por delante el resto de la
@@ -1109,7 +1152,7 @@ export default function MioPage() {
   const [contrato, setContrato] = useState<MiContrato | null>(null);
   const [contratoCargado, setContratoCargado] = useState(false);
   useEffect(() => {
-    if (!yo?.id) return;
+    if (!yo?.id || !segundaOla) return;
     let vivo = true;
     void supabase
       .from("contratos_generados")
@@ -1128,7 +1171,7 @@ export default function MioPage() {
         setContratoCargado(true);
       });
     return () => { vivo = false; };
-  }, [supabase, yo?.id]);
+  }, [supabase, yo?.id, segundaOla]);
 
   // Su propia declaración de ruta (0423). Aparte del bloque grande por la
   // misma razón que `contrato`: depende solo de quién es. `p_solo_mi_fila =>
@@ -1142,9 +1185,11 @@ export default function MioPage() {
   } | null>(null);
   const [miMovilidadCargada, setMiMovilidadCargada] = useState(false);
   useEffect(() => {
-    if (!yo?.id) return;
+    if (!yo?.id || !segundaOla) return;
     let vivo = true;
-    void supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }).then(({ data }) => {
+    // Compartida con la Bandeja, que pide la misma fila para contar sus avisos.
+    void compartirMientrasVuela("fn_documentos_tablero:mi_fila",
+      async () => await supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true })).then(({ data }) => {
       if (!vivo) return;
       type Fila = {
         estado: "sin_ruta" | "se_nego" | "ok"; ruta_firmada_el: string | null; ruta_desfasada: boolean;
@@ -1154,7 +1199,7 @@ export default function MioPage() {
       setMiMovilidadCargada(true);
     });
     return () => { vivo = false; };
-  }, [supabase, yo?.id]);
+  }, [supabase, yo?.id, segundaOla]);
 
   // Su bono de cumpleaños (0478). Aparte del bloque grande por la misma razón
   // que la ruta: depende solo de quién es. Qué le toca lo contesta la base
@@ -1162,11 +1207,11 @@ export default function MioPage() {
   // no puede ofrecer algo que el servidor después rechace.
   const [miBono, setMiBono] = useState<MiBono | null>(null);
   useEffect(() => {
-    if (!yo?.id) return;
+    if (!yo?.id || !segundaOla) return;
     let vivo = true;
     void traerMiBono(supabase).then(({ bono }) => { if (vivo) setMiBono(bono); });
     return () => { vivo = false; };
-  }, [supabase, yo?.id]);
+  }, [supabase, yo?.id, segundaOla]);
 
   // Sus boletas OFICIALES, las que entrega el contador (0482). Se traen acá y no
   // dentro de la pestaña porque el globito del menú y el aviso del Resumen tienen
@@ -1188,10 +1233,10 @@ export default function MioPage() {
   // no de forma síncrona; el linter no lo distingue. Mismo permiso que
   // `cargarAvisosDeBandeja`, más abajo.
   useEffect(() => {
-    if (!yo?.id) return;
+    if (!yo?.id || !segundaOla) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void cargarMisBoletas();
-  }, [cargarMisBoletas, yo?.id]);
+  }, [cargarMisBoletas, yo?.id, segundaOla]);
   const boletasPorFirmar = useMemo(() => (misBoletas ? contarBoletasPorFirmar(misBoletas) : 0), [misBoletas]);
 
   // Sus reportes (0488): igual que las boletas, se leen aquí y no en la
@@ -1205,10 +1250,10 @@ export default function MioPage() {
     setMisReportes(r.filas);
   }, [supabase]);
   useEffect(() => {
-    if (!yo?.id) return;
+    if (!yo?.id || !segundaOla) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void cargarMisReportes();
-  }, [cargarMisReportes, yo?.id]);
+  }, [cargarMisReportes, yo?.id, segundaOla]);
   const reportesSinLeer = useMemo(() => (misReportes ? contarSinLeer(misReportes) : 0), [misReportes]);
 
   // Su disciplina: lo entregado, lo enviado a su Info que todavía no recibió, y cómo va
@@ -1235,7 +1280,7 @@ export default function MioPage() {
     setMiDisciplina(((data as unknown as { documentos?: DocMio[] } | null)?.documentos) ?? []);
   }, [supabase, yo?.id]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarMiDisciplina(); }, [cargarMiDisciplina]);
+  useEffect(() => { if (segundaOla) void cargarMiDisciplina(); }, [cargarMiDisciplina, segundaOla]);
 
   // Lo que le pide algo: recibir lo enviado a su Info, o leer lo entregado en papel.
   const memosPorRecibir = useMemo(() => (miDisciplina ?? []).filter((d) => d.estado === "por_recibir"), [miDisciplina]);
@@ -1256,7 +1301,7 @@ export default function MioPage() {
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarSolicitudesVacas(); }, [cargarSolicitudesVacas]);
+  useEffect(() => { if (segundaOla) void cargarSolicitudesVacas(); }, [cargarSolicitudesVacas, segundaOla]);
 
   // Cuántos avisos le esperan en la Bandeja: lo que le falta hacer (su contrato
   // sin firmar, un documento por firmar, una constancia de ley, sus días con el
@@ -1278,7 +1323,7 @@ export default function MioPage() {
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarAvisosDeBandeja(); }, [cargarAvisosDeBandeja]);
+  useEffect(() => { if (segundaOla) void cargarAvisosDeBandeja(); }, [cargarAvisosDeBandeja, segundaOla]);
 
   /** Pedir un rango de vacaciones. No dice si alcanza el saldo: eso lo decide
    *  el servidor con el mismo cálculo que ya se le muestra arriba. */
@@ -2859,7 +2904,7 @@ export default function MioPage() {
           En qué seguro está cada colaborador y, si lleva póliza, la póliza y sus
           PDF. Es de todo el equipo: no se filtra por vínculo. El componente vive
           aparte, como Educación, y pide sus datos cuando se abre. */}
-      {tab === "seguro" && <MiSeguro />}
+      {visitadas.has("seguro") && <div hidden={tab !== "seguro"}><MiSeguro /></div>}
 
       {/* ── BOLETAS (0482) ───────────────────────────────────────────────────
           Las boletas oficiales del contador, por periodo pagado. NO es
@@ -2867,7 +2912,7 @@ export default function MioPage() {
           aparte, como Educación, y pinta la lectura de `fn_mis_boletas` que esta
           pantalla ya trajo para el globito del menú. */}
       {tab === "boletas" && (
-        <BoletasMias filas={misBoletas} error={misBoletasError} onRecargar={cargarMisBoletas} miNombre={yo?.nombreOficial ?? ""} />
+        <BoletasMias filas={misBoletas} error={misBoletasError} onRecargar={cargarMisBoletas} miNombre={nombreOficial} />
       )}
 
       {tab === "reportes" && <ReportesMios filas={misReportes} error={misReportesError} />}
@@ -2915,7 +2960,9 @@ export default function MioPage() {
       {/* ── EDUCACIÓN (0450) ─────────────────────────────────────────────────
           Solo dice en qué está su constancia y lleva a subirla. El flujo en
           sí vive en /mio/educacion, mismo criterio que contrato y movilidad. */}
-      {tab === "educacion" && <ResumenEducacionMia />}
+      {visitadas.has("educacion") && (
+        <div hidden={tab !== "educacion"}><ResumenEducacionMia personaId={yo?.id ?? null} /></div>
+      )}
 
       {/* ── FIRMA ────────────────────────────────────────────────────────────
           Mismo componente que usa Felipe en su ficha de Equipo (FirmaEditor:
@@ -2935,7 +2982,7 @@ export default function MioPage() {
           </p>
           {yo ? (
             <div data-tour="mio-firma-editor">
-              <FirmaEditor supabase={supabase} nombreOficial={yo.nombreOficial} avisar={avisar} />
+              <FirmaEditor supabase={supabase} nombreOficial={nombreOficial} avisar={avisar} />
             </div>
           ) : (
             <p className="text-sm text-taupe">Cargando…</p>
