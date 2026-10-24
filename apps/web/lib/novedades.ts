@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-24-cuentas-lista-a-las-integrantes-y-constancias-muestra-todas",
+    fecha: "2026-10-24",
+    titulo: "Cuentas lista a las integrantes con acceso, y Constancias muestra todas las que existen",
+    queMejoro:
+      "En Cuentas, la pestaña «Cuentas del equipo» ahora incluye también a las integrantes que ya tienen su acceso, no solo a las " +
+      "líderes y administradoras. Desde ahí puedes resetearles la contraseña o corregirles el correo, que antes no tenía dónde hacerse.\n\n" +
+      "En la hoja de constancias de la política salarial, debajo de los pendientes aparece «También dejaron constancia»: quienes dejaron " +
+      "su constancia pero no cuentan en el total de la hoja —practicantes y recibos por honorarios—. Se ve solo en pantalla; el papel " +
+      "impreso sigue con la población comprendida de siempre.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-24-barra-superior-con-saludo-y-menu-que-nombra-al-instante",
     fecha: "2026-10-24",
     titulo: "Barra superior con saludo, menú que nombra al instante y «Dar de baja»",
