@@ -57,6 +57,38 @@ interface Fila {
   fecha_cese: string | null;
 }
 
+// Constancias que SÍ existen en la base pero que la hoja no cuenta: la persona no
+// es de la población comprendida (`fn_poblacion_obligada`: activa y de planilla).
+// Se muestran solo en pantalla, aparte del cuadro y del total. Por qué no en el
+// papel: esta hoja es la prueba del numeral 25.23 para quien SÍ está obligada, y
+// poner a una locadora (rxh) en un papel laboral firmado por DO es justo la señal
+// de subordinación que la 0191 evita.
+interface FilaFuera {
+  persona_id: string;
+  nombre: string;
+  dni: string | null;
+  vinculo: string | null;
+  estado: string | null;
+  acusado_at: string | null;
+  nombre_declarado: string | null;
+}
+
+// Etiquetas de `personas.tipo_vinculo` solo para decir por qué la hoja no cuenta
+// a alguien. La verdad está en la tabla: un valor que no esté aquí se muestra tal
+// cual en vez de ocultarse.
+const VINCULO_LABEL: Record<string, string> = {
+  planilla: "Planilla",
+  prueba: "Días de selección",
+  practicante: "Practicante",
+  rxh: "Recibo por honorarios",
+  no_trabajador: "No trabajador",
+};
+
+function motivoFuera(f: FilaFuera): string {
+  if (f.estado && f.estado !== "activo") return `no está activa (${f.estado})`;
+  return `vínculo: ${f.vinculo ? VINCULO_LABEL[f.vinculo] ?? f.vinculo : "sin dato"}`;
+}
+
 function selloLima(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -97,6 +129,8 @@ function ConstanciasPoliticaSalarialContenido() {
   const [versionesDisponibles, setVersionesDisponibles] = useState<number[]>([]);
   const [publicadaAt, setPublicadaAt] = useState<string | null>(null);
   const [filas, setFilas] = useState<Fila[]>([]);
+  const [fuera, setFuera] = useState<FilaFuera[]>([]);
+  const [fueraFallo, setFueraFallo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   // Si `personas`, `sedes` o `politica_salarial` fallan, la fila se sigue
@@ -180,6 +214,35 @@ function ConstanciasPoliticaSalarialContenido() {
       ]),
     );
 
+    // Quien dejó constancia pero no es de la población comprendida. La función
+    // `fn_acuses_politica_salarial` solo devuelve a la comprendida, así que se
+    // lee la tabla de acuses (admin y líder la ven completa por RLS) y se
+    // descuenta lo que la hoja ya muestra.
+    const { data: todosAcuses, error: errTodos } = await supabase
+      .from("politica_salarial_acuses").select("persona_id, acusado_at, nombre_declarado").eq("version", v);
+    const enHoja = new Set(ids);
+    const sobrantes = (todosAcuses ?? []).filter((a) => !enHoja.has(a.persona_id as string));
+    const { data: persFuera, error: errFuera } = sobrantes.length
+      ? await supabase.from("personas")
+          .select("id, nombres, apellidos, documento, tipo_vinculo, estado")
+          .in("id", sobrantes.map((a) => a.persona_id as string))
+      : { data: [] as never[], error: null };
+    const fueraPorId = new Map((persFuera ?? []).map((p: Record<string, unknown>) => [p.id as string, p]));
+    const armadasFuera: FilaFuera[] = sobrantes.map((a) => {
+      const p = fueraPorId.get(a.persona_id as string) as Record<string, unknown> | undefined;
+      const apellidos = p?.apellidos as string | undefined;
+      const nombres = p?.nombres as string | undefined;
+      return {
+        persona_id: a.persona_id as string,
+        nombre: apellidos && nombres ? `${apellidos}, ${nombres}` : "(sin ficha)",
+        dni: (p?.documento as string | null) ?? null,
+        vinculo: (p?.tipo_vinculo as string | null) ?? null,
+        estado: (p?.estado as string | null) ?? null,
+        acusado_at: (a.acusado_at as string | null) ?? null,
+        nombre_declarado: (a.nombre_declarado as string | null) ?? null,
+      };
+    }).sort((x, y) => (x.acusado_at ?? "").localeCompare(y.acusado_at ?? ""));
+
     const porId = new Map((pers ?? []).map((p: Record<string, unknown>) => [p.id as string, p]));
 
     const armadas: Fila[] = base.map((b) => {
@@ -211,6 +274,8 @@ function ConstanciasPoliticaSalarialContenido() {
     setVersion(v);
     setPublicadaAt((pol?.publicada_at as string | undefined) ?? null);
     setFilas(armadas);
+    setFuera(armadasFuera);
+    setFueraFallo(Boolean(errTodos || errFuera));
     setCargando(false);
     })();
     return () => { cancelado.actual = true; };
@@ -396,6 +461,37 @@ function ConstanciasPoliticaSalarialContenido() {
                 </li>
               );
             })}
+          </ul>
+        </section>
+      )}
+
+      {/* Solo en pantalla: ver el comentario de `FilaFuera`. */}
+      {fueraFallo && (
+        <BannerAviso enLinea variante="advertencia" className="mt-5 text-xs print:hidden">
+          No se pudieron traer las constancias de quienes no están en la población comprendida.
+          Puede haber más constancias de las que se ven: recarga la página.
+        </BannerAviso>
+      )}
+      {fuera.length > 0 && (
+        <section className="mt-5 rounded-superficie border border-sand px-4 py-3 text-xs print:hidden">
+          <h2 className="mb-1 font-medium text-tinta">
+            También dejaron constancia · {fuera.length}
+          </h2>
+          <p className="mb-2 text-taupe">
+            Existen en el sistema pero esta hoja no las cuenta, porque la población comprendida es solo
+            personal activo y de planilla. No suman al total de arriba ni salen en el papel impreso.
+          </p>
+          <ul className="divide-y divide-sand">
+            {fuera.map((f) => (
+              <li key={f.persona_id} className="flex flex-wrap justify-between gap-2 py-1.5">
+                <span>
+                  {f.nombre} <span className="text-taupe">{f.dni ? `· DNI ${f.dni}` : ""}</span>
+                  <span className="block text-taupe">
+                    {motivoFuera(f)} · {selloLima(f.acusado_at)} · declaró «{f.nombre_declarado ?? "—"}»
+                  </span>
+                </span>
+              </li>
+            ))}
           </ul>
         </section>
       )}
