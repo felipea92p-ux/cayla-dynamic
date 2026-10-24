@@ -295,17 +295,22 @@ function NormasPageContenido() {
     setCargando(false);
   }, [supabase, avisar]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel.
-  useEffect(() => { void cargar(); }, [cargar]);
+  // La carga espera a que la sesión esté lista (`yo`). Al entrar directo a /admin/normas o al recargar, las
+  // consultas salían ANTES de que el cliente tuviera la sesión: Postgres las veía como anónimas, rechazaba
+  // `fn_documentos_vigentes` con 42501 («No tienes permiso…») y el contador de versiones quedaba en «—».
+  // La función y los permisos de producción estaban bien (medido el 2026-10-24).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar cuando la sesión está lista, mismo patrón que el resto del panel.
+  useEffect(() => { if (yo !== null) void cargar(); }, [cargar, yo]);
 
   useEffect(() => {
+    if (yo === null) return;
     void (async () => {
       const { count } = await supabase
         .from("documentos_institucionales")
         .select("id", { count: "exact", head: true });
       setVersionesCount(count ?? null);
     })();
-  }, [supabase]);
+  }, [supabase, yo]);
 
   useEffect(() => {
     if (!puedeGestionar) return;
