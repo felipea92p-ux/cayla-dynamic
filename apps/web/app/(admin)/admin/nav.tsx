@@ -18,16 +18,19 @@
 // por lo que existe `RUTAS_SIN_MARCO`: ese layout envuelve también al login y a
 // «nueva clave», donde todavía no hay sesión a la que preguntarle nada.
 //
-// Lo que NO cambió: los contadores siguen consultándose igual, con las mismas
-// RPC y las mismas dependencias `[rol, pathname]` — refrescarse en cada
-// navegación es su único mecanismo de actualización, y un contador de
-// Incidencias en frío es un reclamo sin leer con el periodo cerrándose.
+// Los contadores siguen consultándose con las mismas RPC. Lo que cambió el
+// 2026-10-24: ya no se vuelven a pedir en CADA navegación (eran 57–107
+// consultas por pantalla, medidas), sino cuando pasó más de un minuto desde la
+// última vez o al volver a la pestaña — ver `use-pulso-contadores.ts`, que
+// también dice qué se pierde. Resolver algo en la Bandeja sigue refrescando al
+// instante.
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
+import { usePulsoContadores } from "@/lib/admin/use-pulso-contadores";
 import { traerBandeja } from "@/lib/bandeja-mia";
 import { contarBandejaEquipoPendiente } from "@/lib/admin/bandeja-equipo";
 import { EVENTO_CAMBIO_BANDEJA } from "@/lib/admin/bandeja-urgencia";
@@ -142,6 +145,10 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   // evento y esto solo vuelve a disparar las MISMAS consultas — no cambia qué
   // se cuenta.
   const [cambiosEnBandeja, setCambiosEnBandeja] = useState(0);
+  // Cuándo volver a preguntar los contadores por haber navegado o vuelto a la
+  // pestaña (ver use-pulso-contadores.ts). Reemplaza al `pathname` en las
+  // dependencias de abajo.
+  const pulso = usePulsoContadores(pathname);
   useEffect(() => {
     const alCambiar = () => setCambiosEnBandeja((n) => n + 1);
     window.addEventListener(EVENTO_CAMBIO_BANDEJA, alCambiar);
@@ -192,7 +199,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
       .rpc("fn_educacion_por_atender")
       .then(({ data }) => { if (vivo) setEducacionPorAtender(Number(data) || 0); });
     return () => { vivo = false; };
-  }, [veEducacion, pathname]);
+  }, [veEducacion, pulso]);
 
   useEffect(() => {
     if (!veEquipo) return;
@@ -201,7 +208,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
       .rpc("fn_vacaciones_por_atender")
       .then(({ data }) => { if (vivo) setVacacionesPorAtender(Number(data) || 0); });
     return () => { vivo = false; };
-  }, [veEquipo, pathname]);
+  }, [veEquipo, pulso]);
 
   // Las revisiones pedidas las ve quien puede atenderlas: encargada de sede y
   // DO, o sea los mismos roles que ven Incidencias. No lleva función de conteo
@@ -221,7 +228,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
         if (vivo) setRevisionesPendientes(Array.isArray(data) ? data.length : 0);
       });
     return () => { vivo = false; };
-  }, [veEquipo, pathname, cambiosEnBandeja]);
+  }, [veEquipo, pulso, cambiosEnBandeja]);
 
   // El total de la Bandeja del equipo (ver lib/admin/bandeja-equipo.ts): la
   // unión de las nueve secciones que esa pantalla junta, no solo las tres de
@@ -235,7 +242,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     void contarBandejaEquipoPendiente(createAdminSupabaseClient(), rol)
       .then((n) => { if (vivo) setBandejaPendiente(n); });
     return () => { vivo = false; };
-  }, [veEquipo, rol, pathname, cambiosEnBandeja]);
+  }, [veEquipo, rol, pulso, cambiosEnBandeja]);
 
   // Lo suyo. Sale de `traerBandeja`, la MISMA función que pinta el número del
   // botón «Bandeja» de /mio: el menú del panel y esa pantalla no pueden decir
@@ -251,7 +258,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     void traerBandeja(createAdminSupabaseClient(), id)
       .then(({ bandeja }) => { if (vivo) setMisAvisos(bandeja.avisos); });
     return () => { vivo = false; };
-  }, [persona?.id, pathname]);
+  }, [persona?.id, pulso]);
 
   async function cerrarSesion() {
     const supabase = createAdminSupabaseClient();
