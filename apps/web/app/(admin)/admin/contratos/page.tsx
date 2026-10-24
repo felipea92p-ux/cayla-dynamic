@@ -1050,8 +1050,15 @@ export default function ContratosPage() {
     // trabajando salía con inicio equivocado y había que corregirlo a mano
     // (Felipe, 2026-10-24). El fin sigue siendo de quien genera: abajo solo
     // nace con un plazo probable para no arrancar vacío.
+    // Quien está en PRUEBA no tiene contrato anterior: su `fecha_fin_contrato` es
+    // el fin de los días de prueba, y el contrato que se le genera arranca el
+    // día que ingresó (caso Robert Cabrera, 2026-10-24: ingreso 19/10, prueba
+    // hasta el 21/10, y la regla anterior proponía el 22).
     const esConvenioDeEstaPersona = p.tipo_vinculo === "practicante" || tipo === "convenio_practicas";
-    const continuaElAnterior = p.fecha_fin_contrato !== null && (tipo === "renovacion" || esConvenioDeEstaPersona);
+    const continuaElAnterior =
+      p.fecha_fin_contrato !== null &&
+      p.tipo_vinculo !== "prueba" &&
+      (tipo === "renovacion" || p.tipo_vinculo === "practicante");
     const inicio = continuaElAnterior && p.fecha_fin_contrato ? sumarDias(p.fecha_fin_contrato, 1) : (p.fecha_ingreso || hoyLima());
     setFechaInicio(inicio);
     // La fecha de fin NO arranca vacía (regla de la casa del 2026-08-26): su
