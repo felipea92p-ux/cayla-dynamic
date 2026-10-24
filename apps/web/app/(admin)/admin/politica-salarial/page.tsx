@@ -7,6 +7,7 @@ import { ROLES_DO, TZ_LIMA, puedeEstamparFirmaDeEmpresa } from "@cayla-dynamic/s
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
@@ -468,9 +469,10 @@ export default function PoliticaSalarialPage() {
   if (cargando) return <Cargando />;
 
   return (
-    <main className="w-full px-6 pb-8 pt-6 print:max-w-none print:p-0">
+    <main className="flex-1 p-4 pt-6 sm:p-6 print:max-w-none print:p-0">
       <div className="print:hidden">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Publicaciones")}
           titulo="Política salarial"
           descripcion="Cómo se organiza el trabajo en CAYLA y cómo se determina lo que gana cada persona."
           accion={<Boton variante="secundario" tamano="sm" onClick={() => window.print()}>Imprimir / Guardar como PDF</Boton>}
@@ -507,8 +509,8 @@ export default function PoliticaSalarialPage() {
           </BannerAviso>
         )}
 
-        {error !== null && <p className="mb-4 rounded-control border border-rojo/30 bg-rojo/10 px-4 py-3 text-sm text-rojo">{error}</p>}
-        {aviso !== null && <p className="mb-4 rounded-control border border-verde/25 bg-verde/10 px-4 py-3 text-sm text-verde">{aviso}</p>}
+        {error !== null && <BannerAviso enLinea variante="alerta" role="alert" className="mb-4">{error}</BannerAviso>}
+        {aviso !== null && <BannerAviso enLinea variante="positivo" role="status" className="mb-4">{aviso}</BannerAviso>}
 
         <Campo
           type="search"

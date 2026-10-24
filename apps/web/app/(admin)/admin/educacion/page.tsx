@@ -34,10 +34,15 @@ import { useConstanciasPorMeses } from "@/lib/admin/use-constancias-por-meses";
 import { fechaHora, soles } from "@/lib/admin/educacion-formato";
 import type { Entrega, EntregaDeFamilia, Pendiente, Situacion } from "@/lib/admin/educacion-tipos";
 import { armarZip, descargarBlob, extensionDeArchivo, nombreEnZip, nombreLegible } from "@/lib/admin/zip-constancias";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { Fila } from "@/components/ui/tabla";
+import { Rotulo } from "@/components/ui/rotulo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { Drawer } from "@/components/ui/drawer";
@@ -766,6 +771,7 @@ function EducacionContenido() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-4 pt-6 sm:p-6">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Pago")}
           titulo="Educación"
           descripcion={puedeGestionar && !cargando
             ? `${apoyosPagandose} apoyo${apoyosPagandose === 1 ? "" : "s"} pagándose · ${soles(totalMensual)} al mes`
@@ -779,27 +785,27 @@ function EducacionContenido() {
         />
 
         {rol === null ? <Cargando /> : !puedeGestionar ? (
-          <div className="max-w-2xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+          <BannerAviso enLinea variante="advertencia" className="max-w-2xl">
             Solo Desarrollo Organizacional gestiona los apoyos educativos.
-          </div>
+          </BannerAviso>
         ) : (
           <>
             {cargaError && (
-              <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+              <BannerAviso enLinea variante="alerta" role="alert" className="mb-4 max-w-3xl">
                 {cargaError} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-              </div>
+              </BannerAviso>
             )}
 
             {cargando ? <Cargando /> : (
               <>
                 {personaPedida && (
-                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-sand bg-papel px-3 py-2 text-sm">
+                  <BannerAviso enLinea variante="neutral" className="mb-4 flex flex-wrap items-center gap-2">
                     <span>
                       Mostrando solo los estudios de{" "}
                       <strong>{situaciones.find((s) => s.persona_id === personaPedida)?.persona ?? "esta persona"}</strong>, vigentes o no.
                     </span>
                     <Boton variante="enlace" onClick={() => router.replace("/admin/educacion")}>Ver todas</Boton>
-                  </div>
+                  </BannerAviso>
                 )}
 
                 {/* ── PESTAÑAS ─────────────────────────────────────────────────────── */}
@@ -832,10 +838,7 @@ function EducacionContenido() {
 
                 {/* ── SOLICITUDES DE APOYO (0461): quien todavía no tiene asignación ── */}
                 {solicitudesPendientes.length > 0 && (
-                  <div className="mb-4 rounded-2xl border border-pizarra/30 bg-pizarra/10 px-4 py-2">
-                    <h2 className="text-xs font-medium uppercase tracking-wide text-pizarra">
-                      Solicitudes de apoyo por revisar · {solicitudesPendientes.length}
-                    </h2>
+                  <BannerAviso variante="informativo" titulo={`Solicitudes de apoyo por revisar · ${solicitudesPendientes.length}`} className="mb-4">
                     <ul className="flex flex-col divide-y divide-sand">
                       {solicitudesPendientes.map((s) => (
                         <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
@@ -850,7 +853,7 @@ function EducacionContenido() {
                         </li>
                       ))}
                     </ul>
-                  </div>
+                  </BannerAviso>
                 )}
 
                 {/* ── FILTROS: sede primero, después el grupo, y las herramientas ──── */}
@@ -865,9 +868,9 @@ function EducacionContenido() {
                 />
 
                 {textoErrorConstancias && (
-                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
+                  <BannerAviso enLinea variante="advertencia" role="alert" className="mb-4 flex flex-wrap items-center gap-2">
                     {textoErrorConstancias} <Boton variante="enlace" onClick={constancias.reintentar}>Reintentar</Boton>
-                  </div>
+                  </BannerAviso>
                 )}
 
                 {filtros.grupo === "sin_solicitar" && sinSolicitar.length === 0 ? (
@@ -936,16 +939,16 @@ function EducacionContenido() {
                           <p className="text-taupe">No hay personas activas para mostrar sus rangos.</p>
                         ) : (
                           <table className="mt-1 w-full max-w-sm text-sm">
-                            <thead className="text-left text-xs uppercase tracking-wide text-taupe">
+                            <thead className="text-left text-xs text-taupe">
                               <tr><th className="py-1 font-medium">Rango</th><th className="py-1 font-medium">Techo</th><th className="py-1 font-medium">Personas</th></tr>
                             </thead>
                             <tbody>
                               {niveles.map((n) => (
-                                <tr key={n.rango} className="border-t border-sand">
+                                <Fila key={n.rango}>
                                   <td className="py-1">{n.rango === "—" ? "sin rango asignado" : n.rango}</td>
                                   <td className="py-1 tabular-nums">{n.tope === null ? "sin techo cargado" : soles(n.tope)}</td>
                                   <td className="py-1 tabular-nums">{n.personas}</td>
-                                </tr>
+                                </Fila>
                               ))}
                             </tbody>
                           </table>
@@ -1209,18 +1212,18 @@ function PanelEstudio({
   return (
     <div className="flex flex-col gap-6 text-sm">
       {/* ── SITUACIÓN: qué toca hacer, antes de cualquier formulario ── */}
-      <section className="rounded-xl border border-sand bg-papel p-3">
+      <TarjetaInfo como="section" className="p-3 sm:p-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-taupe">Situación</h3>
+          <Rotulo como="h3">Situación</Rotulo>
           <Insignia variante={ESTADO_CONSTANCIA[s.estado_constancia].tono}>{ESTADO_CONSTANCIA[s.estado_constancia].etiqueta}</Insignia>
         </div>
         <p className="mt-2">{resumen.frase}</p>
         {resumen.ultima && <p className="mt-2 text-taupe">{resumen.ultima}</p>}
         {resumen.ojo && <p className="mt-2 rounded-lg bg-ambar/10 p-2 text-xs">{resumen.ojo}</p>}
-      </section>
+      </TarjetaInfo>
 
       {s.aviso_fin_id && (
-        <section className="rounded-xl border border-ambar/40 bg-ambar/10 p-3">
+        <BannerAviso enLinea variante="advertencia" className="p-3">
           <p className="font-medium">Avisó que ya no va a pagar este estudio</p>
           <p className="mt-1">«{s.aviso_fin_motivo}»</p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -1228,13 +1231,13 @@ function PanelEstudio({
             <Boton tamano="sm" variante="peligro" onClick={() => setAnulando(true)}>Anular</Boton>
             <Boton tamano="sm" cargando={trabajando} onClick={() => void atenderAviso()}>Marcar atendido sin cerrar</Boton>
           </div>
-        </section>
+        </BannerAviso>
       )}
 
       {/* ── CONSTANCIA POR REVISAR: solo si hay una ── */}
       {enRevision && (
         <section>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-taupe">Por revisar</h3>
+          <Rotulo como="h3" className="mb-2">Por revisar</Rotulo>
           <div className="rounded-xl border border-sand p-3">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
               <div><dt className="text-xs text-taupe">Pago</dt><dd>{fechaCorta(enRevision.fecha_pago)} · {TIPO_CONSTANCIA_LABELS[enRevision.tipo]}</dd></div>
@@ -1257,7 +1260,7 @@ function PanelEstudio({
 
       {/* ── BENEFICIO Y CALENDARIO ── */}
       <section>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-taupe">Beneficio y calendario de pagos</h3>
+        <Rotulo como="h3" className="mb-2">Beneficio y calendario de pagos</Rotulo>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
           <div><dt className="text-xs text-taupe">Sede</dt><dd>{s.sede} · rango {s.rango}</dd></div>
           <div><dt className="text-xs text-taupe">Estudia</dt><dd>{s.beneficiario === "hijo" ? (s.beneficiario_nombre ?? "su hijo/a") : "La persona misma"}</dd></div>
@@ -1287,7 +1290,7 @@ function PanelEstudio({
       {/* ── CONSTANCIAS: todas, y a qué mes de la cuadrícula pertenece cada aprobada ── */}
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-taupe">Constancias de este estudio</h3>
+          <Rotulo como="h3">Constancias de este estudio</Rotulo>
           {!cargandoAlNombre && (
             <Boton variante="enlace" className="text-xs" onClick={() => setCargandoAlNombre(true)}>
               Cargar una constancia a su nombre
@@ -1313,7 +1316,7 @@ function PanelEstudio({
 
       {/* ── TODO LO QUE PASÓ CON ESTA PERSONA (0529): el historial individual ── */}
       <details className="rounded-xl border border-sand p-3">
-        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-taupe">Historial de {s.persona.split(" ")[0]}</summary>
+        <summary className="cursor-pointer text-xs font-medium text-taupe">Historial de {s.persona.split(" ")[0]}</summary>
         <div className="mt-2"><HistorialEducacion modo="persona" personaId={s.persona_id} /></div>
       </details>
 

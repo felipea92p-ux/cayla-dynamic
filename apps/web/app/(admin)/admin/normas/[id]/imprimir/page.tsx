@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Documento } from "@/components/documento";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -87,9 +88,9 @@ export default function ImprimirDocumentoPage() {
   if (error || !doc) {
     return (
       <main className="mx-auto max-w-2xl p-6">
-        <p className="rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+        <EstadoVacio>
           {error ?? "No se pudo abrir el documento."}
-        </p>
+        </EstadoVacio>
         <Boton variante="secundario" tamano="sm" className="mt-3" onClick={() => router.push("/admin/normas")}>
           Volver a Normas
         </Boton>
