@@ -71,7 +71,7 @@ const POR_CONSTRAINT: Record<string, string> = {
   // igual: el día que alguien vuelva a escribir `estado` a mano, el aviso tiene
   // que decir qué falta, no publicar el nombre del constraint.
   personas_cese_coherente:
-    "Para dar de baja a alguien hace falta su último día trabajado, y para reactivarla hay que borrarlo. Usa «Registrar salida» y «Reactivar» en Equipo.",
+    "Para dar de baja a alguien hace falta su último día trabajado, y para reactivarla hay que borrarlo. Usa «Dar de baja» y «Reactivar» en Equipo.",
   personas_motivo_cese_valido:
     "Ese motivo de salida no es uno de los válidos. Elígelo de la lista.",
   // El candado de la 0309: una persona no puede tener dos tramos de horario

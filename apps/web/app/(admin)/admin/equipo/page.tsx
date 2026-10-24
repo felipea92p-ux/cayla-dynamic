@@ -659,7 +659,7 @@ export default function EquipoPage() {
   // angosta y "Editar" siempre visible al lado, cinco botones sueltos no
   // cabían sin romper a dos líneas en pantallas medianas.
   //
-  // Registrar salida / Reactivar exigen `puedeEscribir` (admin o
+  // Dar de baja / Reactivar exigen `puedeEscribir` (admin o
   // líder DO) — a una encargada de sede esas RPC la rechazan siempre. Si
   // ninguna de las dos familias de permiso aplica, el menú entero no tiene
   // nada que ofrecer y no se dibuja: un "•••" que abre a un menú vacío es
@@ -684,9 +684,9 @@ export default function EquipoPage() {
         )}
         {puedeSalarios && <MenuItem onClick={() => void verHistorial(p)}>Historial de salario</MenuItem>}
         {puedeEscribir && (p.estado === "activo" ? (
-          // «Registrar salida» y no «Desactivar»: lo que se hace es anotar
+          // «Dar de baja» y no «Desactivar»: lo que se hace es anotar
           // un hecho con su fecha y su motivo, no apagar un interruptor.
-          <MenuItem variante="peligro" onClick={() => empezarCese(p)}>Registrar salida</MenuItem>
+          <MenuItem variante="peligro" onClick={() => empezarCese(p)}>Dar de baja</MenuItem>
         ) : (
           <MenuItem onClick={() => setReactivarPendiente(p)}>Reactivar</MenuItem>
         ))}
@@ -1114,7 +1114,7 @@ export default function EquipoPage() {
     });
     setGuardandoCese(false);
     if (error) {
-      avisar("error", mensajeDeError(error, "registrar la salida"));
+      avisar("error", mensajeDeError(error, "dar de baja"));
       return;
     }
     setCeseId(null);
@@ -1965,7 +1965,7 @@ export default function EquipoPage() {
         <div className="flex justify-end gap-3">
           <Boton variante="secundario" onClick={cerrarPanelLateral} disabled={guardandoCese}>Cancelar</Boton>
           <Boton variante="primario" onClick={guardarCese} disabled={guardandoCese} cargando={guardandoCese}>
-            Registrar salida
+            Dar de baja
           </Boton>
         </div>
       </div>
@@ -2034,7 +2034,7 @@ export default function EquipoPage() {
     if (editandoId) return nombreDe(editandoId) ? `Editar a ${nombreDe(editandoId)}` : "Editar";
     if (puedeSalarios && salEditId) return nombreDe(salEditId) ? `Salario de ${nombreDe(salEditId)}` : "Salario";
     if (puedeSalarios && histId) return nombreDe(histId) ? `Historial de salario — ${nombreDe(histId)}` : "Historial de salario";
-    if (ceseId) return nombreDe(ceseId) ? `Registrar la salida de ${nombreDe(ceseId)}` : "Registrar salida";
+    if (ceseId) return nombreDe(ceseId) ? `Dar de baja a ${nombreDe(ceseId)}` : "Dar de baja";
     return undefined;
   })();
 
@@ -2054,7 +2054,7 @@ export default function EquipoPage() {
                 { titulo: "Sin salario", texto: "No cuenta a dirección, honorarios ni a quien no tiene vínculo laboral: esas personas no llevan un tramo de salario." },
                 { titulo: "Pendientes", texto: "Suma lo que la Bandeja tiene para esa persona. Pasa el cursor por la insignia para ver cuáles son; el enlace lleva a la Bandeja entera, que todavía no se puede filtrar por persona." },
                 { titulo: "Fin de contrato", texto: "Anotar la fecha es un plan, no da de baja a nadie: sirve para avisar antes de que llegue el día. Un contrato que se pasa de fecha con la persona todavía trabajando se vuelve indefinido solo (art. 77)." },
-                { titulo: "Registrar salida", texto: "No borra nada: la persona deja de aparecer en el terminal y su historial se conserva. De la fecha que anotes salen su gratificación, su CTS y sus vacaciones truncas." },
+                { titulo: "Dar de baja", texto: "No borra nada: la persona deja de aparecer en el terminal y su historial se conserva. De la fecha que anotes salen su gratificación, su CTS y sus vacaciones truncas." },
                 { titulo: "Quién edita", texto: "Solo Desarrollo Organizacional y dirección. Una líder de equipo consulta a su gente." },
               ]}
             />

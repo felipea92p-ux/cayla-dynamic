@@ -10,6 +10,7 @@
 // preguntar el ancho de la ventana con JavaScript (que en el servidor no
 // existe), deja que la CSS decida con `xl:`. Ver `lib/use-nav-colapsado.ts`.
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { esActivo, type Contador, type Grupo } from "@/app/(admin)/admin/nav-items";
 import { cx } from "@/components/ui/cx";
@@ -65,6 +66,25 @@ const CLASES: Record<Modo, {
   },
 };
 
+// El nombre de cada pantalla en rail. Antes era el `title` del navegador, que
+// espera cerca de un segundo, no se puede estilizar y no sale al llegar con Tab.
+// Esta etiqueta sale en el mismo instante, también con el teclado.
+//
+// Es UNA sola etiqueta para todo el menú, con `position: fixed`, y no una por
+// renglón: el `<nav>` del sidebar tiene `overflow-y-auto`, y eso recorta
+// cualquier cosa absoluta que se salga por la derecha. Fixed la saca del recorte.
+//
+// Solo donde no se ve el texto del renglón: en rail siempre, en auto hasta
+// 1280px (`xl:hidden`), y nunca en ancho ni en el cajón.
+const ETIQUETA_SEGUN_MODO: Record<Modo, string | null> = {
+  auto: "xl:hidden",
+  rail: "",
+  ancho: null,
+  cajon: null,
+};
+
+type Etiqueta = { texto: string; top: number; left: number };
+
 export function PanelNavegacion({
   grupos,
   pathname,
@@ -87,6 +107,27 @@ export function PanelNavegacion({
 }) {
   const c = CLASES[modo];
   const iconoTam = modo === "cajon" ? 18 : 16;
+  const claseEtiqueta = ETIQUETA_SEGUN_MODO[modo];
+  const [etiqueta, setEtiqueta] = useState<Etiqueta | null>(null);
+
+  // Si el menú se desplaza o se cambia de modo con la etiqueta puesta, queda
+  // flotando donde ya no hay nada.
+  useEffect(() => {
+    if (!etiqueta) return;
+    const quitar = () => setEtiqueta(null);
+    window.addEventListener("scroll", quitar, true);
+    window.addEventListener("resize", quitar);
+    return () => {
+      window.removeEventListener("scroll", quitar, true);
+      window.removeEventListener("resize", quitar);
+    };
+  }, [etiqueta]);
+
+  function mostrar(e: { currentTarget: HTMLElement }, texto: string) {
+    if (claseEtiqueta === null) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    setEtiqueta({ texto, top: r.top + r.height / 2, left: r.right + 8 });
+  }
 
   return (
     <>
@@ -114,7 +155,10 @@ export function PanelNavegacion({
                 // icono; y `aria-current` es la ÚNICA señal de dónde estás
                 // para quien no ve el resaltado.
                 aria-current={activo ? "page" : undefined}
-                title={conAviso ? `${it.label} — ${cuenta.titulo}` : it.label}
+                onMouseEnter={(e) => mostrar(e, conAviso ? `${it.label} — ${cuenta.titulo}` : it.label)}
+                onFocus={(e) => mostrar(e, conAviso ? `${it.label} — ${cuenta.titulo}` : it.label)}
+                onMouseLeave={() => setEtiqueta(null)}
+                onBlur={() => setEtiqueta(null)}
                 className={cx(
                   "relative flex items-center rounded-control text-sm transition-colors duration-150 active:scale-[0.97]",
                   c.enlace,
@@ -160,6 +204,18 @@ export function PanelNavegacion({
           })}
         </GrupoDeMenu>
       ))}
+      {etiqueta && claseEtiqueta !== null ? (
+        <span
+          role="presentation"
+          style={{ top: etiqueta.top, left: etiqueta.left }}
+          className={cx(
+            "pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-control bg-tinta px-2.5 py-1.5 text-xs text-crema",
+            claseEtiqueta,
+          )}
+        >
+          {etiqueta.texto}
+        </span>
+      ) : null}
     </>
   );
 }
