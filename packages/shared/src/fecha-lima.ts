@@ -68,6 +68,14 @@ export function horaLima(cuando: Date | string = new Date()): string {
   }).format(d);
 }
 
+/** La hora de Lima como se lee en voz alta, `8:40 a. m.` (para la barra superior). */
+export function horaLimaLegible(cuando: Date | string = new Date()): string {
+  const d = typeof cuando === "string" ? new Date(cuando) : cuando;
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: TZ_LIMA, hour: "numeric", minute: "2-digit", hour12: true,
+  }).format(d);
+}
+
 /**
  * La hora de Lima como número decimal (14:15 → 14.25).
  *

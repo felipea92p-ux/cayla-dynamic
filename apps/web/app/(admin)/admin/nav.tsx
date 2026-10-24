@@ -38,6 +38,7 @@ import { BuscadorGlobal } from "@/components/buscador-global";
 import { AtajosTeclado } from "@/components/atajos-teclado";
 import { ColibriViajero } from "@/components/colibri-viajero";
 import { SelectorTema } from "@/components/selector-tema";
+import { SaludoHora } from "@/components/nav/saludo-hora";
 import { SidebarAdmin } from "@/components/nav/sidebar-admin";
 import { CajonAdmin } from "@/components/nav/cajon-admin";
 import type { Contadores } from "@/components/nav/panel-navegacion";
@@ -333,38 +334,28 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-sand bg-crema px-4 sm:px-6 print:hidden">
-          {/* Un cuadrado RELLENO en tinta, no uno con borde `sand`, desde el
-              2026-09-11: el borde sand da 1.16:1 sobre crema y a la vista era
-              un icono flotando — se probó con gente en el menú de «Lo mío»,
-              que es la misma receta, y no lo encontraban. Se cambian los dos a
-              la vez porque son la misma pieza vista desde dos superficies. */}
-          <button
-            ref={hamburguesa}
-            onClick={() => setCajonAbierto(true)}
-            aria-label="Abrir menú"
-            aria-expanded={cajonAbierto}
-            className="rounded-control bg-tinta p-2 text-crema transition-colors duration-150 hover:bg-rojo active:scale-[0.97] md:hidden"
-          >
-            <Menu size={20} strokeWidth={1.8} aria-hidden />
-          </button>
-
-          {/* De 768px para arriba la marca vive en la cabecera del sidebar; acá
-              solo aparece cuando ese sidebar no está. */}
-          <Marca tono="tinta" isotipo="rojo" className="md:hidden" />
-
-          <div className="ml-auto flex shrink-0 items-center gap-3">
-            {persona && (
-              <span className="hidden text-sm text-taupe md:inline" title="Sesión activa">
-                {persona.nombreCompleto}
-              </span>
-            )}
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-sand bg-crema px-4 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr] print:hidden">
+          {/* IZQUIERDA: en teléfono, el menú y la marca; en todos, el buscador. */}
+          <div className="flex min-w-0 items-center gap-3 md:justify-self-start">
+            {/* Un cuadrado RELLENO en tinta, no uno con borde `sand`, desde el
+                2026-09-11: el borde sand da 1.16:1 sobre crema y a la vista era
+                un icono flotando — se probó con gente en el menú de «Lo mío»,
+                que es la misma receta, y no lo encontraban. Se cambian los dos a
+                la vez porque son la misma pieza vista desde dos superficies. */}
             <button
-              onClick={cerrarSesion}
-              className="hidden items-center gap-1.5 text-sm text-taupe transition-colors duration-150 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo md:flex"
+              ref={hamburguesa}
+              onClick={() => setCajonAbierto(true)}
+              aria-label="Abrir menú"
+              aria-expanded={cajonAbierto}
+              className="rounded-control bg-tinta p-2 text-crema transition-colors duration-150 hover:bg-rojo active:scale-[0.97] md:hidden"
             >
-              <LogOut size={15} strokeWidth={1.8} aria-hidden /> Cerrar sesión
+              <Menu size={20} strokeWidth={1.8} aria-hidden />
             </button>
+
+            {/* De 768px para arriba la marca vive en la cabecera del sidebar; acá
+                solo aparece cuando ese sidebar no está. */}
+            <Marca tono="tinta" isotipo="rojo" className="md:hidden" />
+
             <button
               onClick={() => setBuscadorAbierto(true)}
               aria-label="Buscar"
@@ -374,6 +365,15 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
               <span className="hidden sm:inline">Buscar</span>
               <kbd className="hidden rounded border border-sand bg-sand/50 px-1 font-sans text-[10px] text-taupe sm:inline">⌘K</kbd>
             </button>
+          </div>
+
+          {/* CENTRO: el saludo. Debajo de 768px no cabe y se esconde. */}
+          <SaludoHora nombreCompleto={persona?.nombreCompleto} className="hidden md:block" />
+
+          {/* DERECHA: atajos, modo claro/oscuro y, al final, cerrar sesión: la
+              acción que se hace una vez al día va donde menos se pulsa por
+              descuido, después de lo que se toca a cada rato. */}
+          <div className="ml-auto flex shrink-0 items-center gap-2 md:justify-self-end">
             <button
               onClick={() => setAyudaAbierta(true)}
               aria-label="Atajos de teclado"
@@ -383,6 +383,12 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
               <Keyboard size={15} strokeWidth={1.8} aria-hidden />
             </button>
             <SelectorTema />
+            <button
+              onClick={cerrarSesion}
+              className="hidden items-center gap-1.5 rounded-control border border-sand px-2.5 py-1.5 text-sm text-taupe transition-colors duration-150 hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo md:flex"
+            >
+              <LogOut size={15} strokeWidth={1.8} aria-hidden /> Cerrar sesión
+            </button>
           </div>
         </header>
 

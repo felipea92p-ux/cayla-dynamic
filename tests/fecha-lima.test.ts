@@ -8,7 +8,7 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import {
-  TZ_LIMA, fechaLima, rangoDelDiaLima, rangoDelMesLima, horaLima, horaDecimalLima,
+  TZ_LIMA, fechaLima, rangoDelDiaLima, rangoDelMesLima, horaLima, horaLimaLegible, horaDecimalLima,
   nombreDelMesLima, nombreDelMesLimaTitulo, mesesRecientesLima,
 } from "@cayla-dynamic/shared";
 
@@ -113,5 +113,14 @@ describe("los meses que el selector de Disciplina puede ofrecer", () => {
     const m = mesesRecientesLima(undefined, "2026-08-25");
     expect(m).toHaveLength(12);
     expect(m[11]).toBe("2025-09-01");
+  });
+});
+
+describe("la hora de la barra superior se lee en Lima, no en la zona de quien la mira", () => {
+  it("13:40 UTC es 8:40 de la mañana en Lima", () => {
+    expect(horaLimaLegible("2026-10-24T13:40:00Z").replace(/\s/g, " ")).toMatch(/^8:40 a\. ?m\.$/);
+  });
+  it("01:10 UTC ya es la noche anterior en Lima: 8:10 p. m.", () => {
+    expect(horaLimaLegible("2026-10-25T01:10:00Z").replace(/\s/g, " ")).toMatch(/^8:10 p\. ?m\.$/);
   });
 });
