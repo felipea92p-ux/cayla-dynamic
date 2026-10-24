@@ -937,7 +937,19 @@ export default function DocumentacionPage() {
   const cargar = useCallback(async () => {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: ps }, { data: ss }, { data: cfg }] = await Promise.all([
+    // TODAS las consultas de la pantalla salen juntas, en una sola ronda. Hasta el
+    // 2026-10-24 eran diez esperas en fila (cada `await` aparte), y como ninguna
+    // depende del resultado de otra, lo único que hacían era sumar viajes a
+    // Supabase: con ~150 ms de ida y vuelta, la pantalla tardaba ~1.6 s en
+    // salir de «Cargando…». Cada una sigue siendo tolerante por su cuenta —se
+    // lee su `data` y si falló viene vacía—, igual que cuando iban de a una; los
+    // comentarios de cada consulta explican por qué.
+    const [
+      { data: ps }, { data: ss }, { data: cfg },
+      tab, pol,
+      { data: archivos }, { data: bono }, { data: fin }, { data: fisicas },
+      { data: yo }, { data: cfgFirmante }, { data: fe },
+    ] = await Promise.all([
       supabase.from("personas")
         .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, en_planilla, tipo_vinculo")
         .eq("estado", "activo").eq("cuenta_de_servicio", false).order("apellidos"),
@@ -962,18 +974,44 @@ export default function DocumentacionPage() {
         .lte("vigente_desde", hoyLima())
         .is("vigente_hasta", null)
         .order("vigente_desde", { ascending: false }),
+      // El tablero y el estado de la política, en consultas aparte y tolerantes:
+      // si la 0157 todavía no está pegada en producción, la pantalla sigue
+      // imprimiendo — que es lo que hacía antes de que existiera el tablero.
+      // Mismo criterio que la tarifa y el fin de contrato.
+      supabase.rpc("fn_documentos_tablero"),
+      supabase.rpc("fn_documentos_estado_politica"),
+      // Dónde vive cada archivo ya subido (`fn_documentos_listar`): ver el
+      // comentario de abajo, donde se guardan.
+      supabase.rpc("fn_documentos_listar"),
+      // El monto del bono: ver abajo.
+      supabase
+        .from("parametros_laborales")
+        .select("valor")
+        .eq("clave", "bono_onomastico")
+        .lte("vigente_desde", hoyLima())
+        .is("vigente_hasta", null)
+        .order("vigente_desde", { ascending: false })
+        .limit(1),
+      // Quién tiene ya fecha de término de contrato: ver abajo.
+      supabase
+        .from("personas")
+        .select("id, fecha_fin_contrato")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
+        .not("fecha_fin_contrato", "is", null),
+      // Dónde trabaja cada quien: ver abajo.
+      supabase
+        .from("personas")
+        .select("id, sede_fisica_id")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
+        .not("sede_fisica_id", "is", null),
+      // Quién soy yo, quién firma por CAYLA y con qué firma: ver abajo.
+      supabase.rpc("fn_persona_actual_id"),
+      supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
+      supabase.rpc("fn_firma_empresa"),
     ]);
     const lista = (ps as Persona[]) ?? [];
     setPersonas(lista);
 
-    // El tablero y el estado de la política, en consultas aparte y tolerantes:
-    // si la 0157 todavía no está pegada en producción, la pantalla sigue
-    // imprimiendo — que es lo que hacía antes de que existiera el tablero.
-    // Mismo criterio que la tarifa y el fin de contrato de acá arriba.
-    const [tab, pol] = await Promise.all([
-      supabase.rpc("fn_documentos_tablero"),
-      supabase.rpc("fn_documentos_estado_politica"),
-    ]);
     setTablero((tab.data as FilaTablero[]) ?? []);
     if (!personaUrlAplicada.current) {
       personaUrlAplicada.current = true;
@@ -1004,7 +1042,7 @@ export default function DocumentacionPage() {
     //
     // Tolerante como sus vecinas: si falla, la pantalla se queda sin el botón
     // «Ver» y todo lo demás sigue funcionando.
-    const { data: archivos } = await supabase.rpc("fn_documentos_listar");
+    // (La consulta sale en la ronda de arriba; acá solo se guarda lo que trajo.)
     // Se guardan TODAS, anuladas incluidas: las anuladas son el historial.
     setDocumentos((archivos as DocArchivado[]) ?? []);
 
@@ -1015,14 +1053,6 @@ export default function DocumentacionPage() {
     // incluido «no hay»: sin fila vigente queda en null y la constancia no se
     // imprime. La pantalla se degrada a «no puedo emitir este papel y te digo por
     // qué», nunca a «emito el papel con la cifra que me acuerdo».
-    const { data: bono } = await supabase
-      .from("parametros_laborales")
-      .select("valor")
-      .eq("clave", "bono_onomastico")
-      .lte("vigente_desde", hoyLima())
-      .is("vigente_hasta", null)
-      .order("vigente_desde", { ascending: false })
-      .limit(1);
     const montoBono = Number((bono as { valor: number }[] | null)?.[0]?.valor);
     setBonoMonto(Number.isFinite(montoBono) && montoBono > 0 ? montoBono : null);
 
@@ -1032,11 +1062,6 @@ export default function DocumentacionPage() {
     // y la pantalla se quedaría sin nadie. Así, si falla, simplemente no hay
     // nadie con fin de contrato y el documento sigue saliendo — mismo criterio
     // que la tarifa de movilidad de acá arriba.
-    const { data: fin } = await supabase
-      .from("personas")
-      .select("id, fecha_fin_contrato")
-      .eq("estado", "activo").eq("cuenta_de_servicio", false)
-      .not("fecha_fin_contrato", "is", null);
     const porVencer = new Map(
       ((fin as { id: string; fecha_fin_contrato: string }[] | null) ?? [])
         .map((f) => [f.id, f.fecha_fin_contrato]),
@@ -1047,11 +1072,6 @@ export default function DocumentacionPage() {
     // de arriba: si la 0166 no está pegada, pedir `sede_fisica_id` en el select
     // principal haría fallar la consulta entera y la pantalla se quedaría sin
     // nadie. Así, si falla, simplemente todos se reparten por su sede base.
-    const { data: fisicas } = await supabase
-      .from("personas")
-      .select("id, sede_fisica_id")
-      .eq("estado", "activo").eq("cuenta_de_servicio", false)
-      .not("sede_fisica_id", "is", null);
     setSedeDeReparto(new Map(
       ((fisicas as { id: string; sede_fisica_id: string }[] | null) ?? [])
         .map((f) => [f.id, f.sede_fisica_id]),
@@ -1096,14 +1116,11 @@ export default function DocumentacionPage() {
     // movilidad cinco meses más, así que necesita el papel que la sostiene.
     const finDeMes = rangoDelMesLima().fin;
     for (const [id, fecha] of porVencer) if (fecha <= finDeMes) fuera.add(id);
-    const { data: yo } = await supabase.rpc("fn_persona_actual_id");
     if (typeof yo === "string") fuera.add(yo);
     // Y quien firma por CAYLA, aunque el documento lo imprima otra cuenta: desde
     // que la firma de la empresa se estampa por defecto (no solo cuando el
     // firmante tiene la sesión abierta), «quien imprime» ya no es «quien firma».
     // Quien firma el documento no puede además declarar haberlo recibido.
-    const { data: cfgFirmante } = await supabase
-      .from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle();
     const vf = (cfgFirmante?.valor ?? null) as { persona_id?: string; cargo?: string } | null;
     const firmanteId = vf?.persona_id ?? null;
     if (firmanteId) fuera.add(firmanteId);
@@ -1135,7 +1152,6 @@ export default function DocumentacionPage() {
     // salía la raya en blanco. Mismo criterio que /mio/contrato y /mio/movilidad.
     // Si todavía no tiene firma guardada, la hoja sale con la línea en blanco
     // para firmar a mano, como siempre.
-    const { data: fe } = await supabase.rpc("fn_firma_empresa");
     setFirmaEmpresaGlobal((fe as string | null) ?? null);
 
     // ⇩ Desde la 0130 la tarifa es POR SEDE, porque el pasaje no cuesta lo mismo
