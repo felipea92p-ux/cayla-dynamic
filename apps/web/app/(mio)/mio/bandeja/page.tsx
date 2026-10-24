@@ -144,8 +144,9 @@ export default function MiBandejaPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) return { tipo: "sin-sesion" };
 
-    const { data: sesionAuth } = await supabase.auth.getUser();
-    const uid = sesionAuth.user?.id;
+    // Del almacén de la sesión, sin viajar a la red: `getUser()` es una ronda al servidor de
+    // autenticación por cada pantalla, y la base ya valida el token en cada consulta.
+    const uid = sesion.session.user.id;
     if (!uid) return { tipo: "error", texto: "No se pudo leer tu sesión. Vuelve a entrar." };
 
     const { data: p } = await supabase

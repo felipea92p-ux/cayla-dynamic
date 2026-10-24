@@ -24,8 +24,8 @@ export function useMiFicha() {
     void (async () => {
       const { data: sesion } = await supabase.auth.getSession();
       if (!sesion.session) { router.replace("/mio"); return; }
-      const { data: u } = await supabase.auth.getUser();
-      const uid = u.user?.id;
+      // Del almacén de la sesión, sin viajar a la red (ver /mio/contrato).
+      const uid = sesion.session.user.id;
       if (!uid) { if (vivo) setFicha({ estado: "error", mensaje: "No se pudo leer tu sesión. Vuelve a entrar." }); return; }
       const { data: p, error } = await supabase.from("personas")
         .select("id, sede_base_id").eq("auth_user_id", uid).maybeSingle();

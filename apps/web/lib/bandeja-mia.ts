@@ -12,6 +12,7 @@ import { formatSoles } from "./rangos";
 import { esBoletaPorFirmar } from "./boletas";
 import { nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "./mis-boletas";
 import { fechaEnPalabras, traerMisReportes, tituloDeReporte, type FilaMiReporte } from "./reportes";
+import { compartirMientrasVuela } from "./compartir-mientras-vuela";
 
 /**
  * La Bandeja de cada persona — «qué te respondieron».
@@ -1199,7 +1200,8 @@ export async function traerBandeja(
     // hace seguro reusar la función del tablero admin: sin ese argumento,
     // alguien con rol admin o líder que abra su PROPIA bandeja vería la fila
     // de cualquier compañera (la primera que devuelva el orden), no la suya.
-    supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }),
+    // Compartida con la pantalla de /mio, que pide la misma fila al abrir (compartir-mientras-vuela.ts).
+    compartirMientrasVuela("fn_documentos_tablero:mi_fila", async () => await supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true })),
     // Sus propios pedidos de revisión de esa declaración (0425). Sin admin de
     // por medio, esta misma RPC ya devuelve solo lo suyo — mismo criterio que
     // fn_documentos_tablero con p_solo_mi_fila.

@@ -52,8 +52,10 @@ export function GuardaCuentaDeServicio({ children }: { children: React.ReactNode
   useEffect(() => {
     let vivo = true;
     const supabase = createAdminSupabaseClient();
-    void supabase.auth.getUser().then(async ({ data }) => {
-      if (!(await esCuentaDeServicio(supabase, data.user?.id)) || !vivo) return;
+    // Del almacén de la sesión: `getUser()` era una ronda entera al servidor de autenticación en
+    // cada apertura, para un dato que la sesión ya trae. La base sigue validando el token.
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!(await esCuentaDeServicio(supabase, data.session?.user.id)) || !vivo) return;
       setBloqueada(true);
       await supabase.auth.signOut();
     });
