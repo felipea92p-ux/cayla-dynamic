@@ -212,7 +212,8 @@ export function AprobadasDelCiclo({
 
   if (!plegable) return <section>{cuerpo}{modal}</section>;
   return (
-    <details className="mb-5 rounded-2xl border border-sand bg-papel p-4" open={abierta}
+    // receta-propia: es un <details> plegable y TarjetaInfo no puede serlo
+    <details className="mb-5 rounded-superficie border border-sand bg-papel p-4" open={abierta}
       onToggle={(e) => {
         const abre = e.currentTarget.open;
         setAbierta(abre);

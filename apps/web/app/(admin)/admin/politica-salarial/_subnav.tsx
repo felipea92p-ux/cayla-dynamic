@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cx } from "@/components/ui/cx";
+import { usePathname, useRouter } from "next/navigation";
+import { Pestanas } from "@/components/ui/pestanas";
 
 // La Fase 9 de la auditoría pidió separar "Documento vigente" de "Versiones y
 // publicación" — hoy eran la misma pantalla con un botón de publicar mezclado
@@ -12,33 +11,30 @@ import { cx } from "@/components/ui/cx";
 // documento — así que la separación vive ACÁ, como una sub-navegación local,
 // igual que ya hacía "hoja de constancias" con un link suelto antes de esta
 // pantalla.
+//
+// Desde el 2026-10-24 dibuja con <Pestanas> (la pieza del ADR 0004) en vez de su propia raya roja: una pestaña
+// subrayada se ve igual en todo el panel. Cada pestaña es una ruta, así que elegirla navega.
 const RUTAS = [
-  { href: "/admin/politica-salarial", label: "Documento vigente" },
-  { href: "/admin/politica-salarial/versiones", label: "Versiones y publicación" },
-  { href: "/admin/politica-salarial/categorias", label: "Categorías" },
-  { href: "/admin/politica-salarial/constancias", label: "Constancias" },
+  { href: "/admin/politica-salarial", texto: "Documento vigente" },
+  { href: "/admin/politica-salarial/versiones", texto: "Versiones y publicación" },
+  { href: "/admin/politica-salarial/categorias", texto: "Categorías" },
+  { href: "/admin/politica-salarial/constancias", texto: "Constancias" },
 ] as const;
 
 /** Solo para quien puede publicar (esDO) — cualquier otra persona ve solo el documento. */
 export function SubnavPoliticaSalarial() {
   const pathname = usePathname();
+  const router = useRouter();
+  const activa =
+    RUTAS.find((r) => r.href !== "/admin/politica-salarial" && pathname?.startsWith(r.href))?.href ??
+    RUTAS[0].href;
   return (
-    <nav className="mb-6 flex flex-wrap gap-1 border-b border-sand pb-px print:hidden">
-      {RUTAS.map((r) => {
-        const activo = r.href === "/admin/politica-salarial" ? pathname === r.href : pathname?.startsWith(r.href);
-        return (
-          <Link
-            key={r.href}
-            href={r.href}
-            className={cx(
-              "rounded-t-control border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150",
-              activo ? "border-rojo text-tinta" : "border-transparent text-taupe hover:text-tinta",
-            )}
-          >
-            {r.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <Pestanas
+      etiqueta="Secciones de Política salarial"
+      className="print:hidden"
+      pestanas={RUTAS.map((r) => ({ clave: r.href, texto: r.texto }))}
+      activa={activa}
+      alElegir={(href) => router.push(href)}
+    />
   );
 }

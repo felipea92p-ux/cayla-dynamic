@@ -370,6 +370,7 @@ function Cuerpo({
       {confirmando && (
         <div
           ref={panelDeConfirmacion} tabIndex={-1} role="alertdialog" aria-label="¿Descartar lo leído?"
+          // receta-propia: es un alertdialog que recibe el foco por ref y BannerAviso no admite ref
           className="mt-4 rounded-lg border border-rojo/30 bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo outline-none"
         >
           <p>

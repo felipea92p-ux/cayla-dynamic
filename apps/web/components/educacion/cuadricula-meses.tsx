@@ -13,6 +13,8 @@ import type { EntregaDeFamilia, Pendiente } from "@/lib/admin/educacion-tipos";
 import { fechaCorta } from "@/lib/educacion";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { Fila, Tabla, TablaEncabezado } from "@/components/ui/tabla";
 import { CasillaMes } from "./casilla-mes";
 
 /**
@@ -133,10 +135,8 @@ export function CuadriculaMeses({
       </div>
 
       {/* ── ESCRITORIO Y TABLET: tabla ───────────────────────────────────── */}
-      <div className="hidden overflow-x-auto rounded-superficie border border-sand bg-papel md:block">
-        <table className="w-full text-sm">
-          <thead className="bg-papel text-left text-taupe">
-            <tr className="bg-sand/70">
+      <Tabla className="hidden md:block">
+          <TablaEncabezado>
               <th className="sticky left-0 z-[1] bg-[color-mix(in_oklab,var(--color-sand)_70%,var(--color-papel))] px-4 py-2 font-normal">Persona</th>
               <th className="px-3 py-2 font-normal">Estudio</th>
               {meses.map((m, i) => {
@@ -157,8 +157,7 @@ export function CuadriculaMeses({
               })}
               <th className={`px-3 py-2 font-normal ${SEPARADOR_DE_COLUMNAS}`}>Estado</th>
               <th className="px-3 py-2"><span className="sr-only">Acciones</span></th>
-            </tr>
-          </thead>
+          </TablaEncabezado>
           {bloques.map(({ clave, sede, resumen, estudios: lista, sinSol }) => (
             <tbody key={clave}>
               {(resumen || sede) && (
@@ -175,7 +174,7 @@ export function CuadriculaMeses({
               {lista.map((e) => {
                 const f = fila(e);
                 return (
-                  <tr key={e.clave} className={`border-t border-sand transition-colors duration-150 hover:bg-crema/60 ${e.vigencia === "terminada" ? "text-taupe" : ""}`}>
+                  <Fila key={e.clave} className={e.vigencia === "terminada" ? "text-taupe" : ""}>
                     <td className="sticky left-0 z-[1] bg-papel px-4 py-2 align-middle">
                       <span className="block font-medium">{e.persona}</span>
                       <span className="block text-xs text-taupe">{e.sede}{e.rango && e.rango !== "—" ? ` · ${e.rango}` : ""}</span>
@@ -195,11 +194,11 @@ export function CuadriculaMeses({
                     <td className="px-3 py-2 text-right align-middle">
                       <Acciones e={e} pendiente={f.pendiente} onAbrirVisor={onAbrirVisor} onAbrirEstudio={onAbrirEstudio} />
                     </td>
-                  </tr>
+                  </Fila>
                 );
               })}
               {sinSol.map((p) => (
-                <tr key={`sin-${p.persona_id}`} className="border-t border-sand text-taupe">
+                <Fila key={`sin-${p.persona_id}`} className="text-taupe">
                   <td className="sticky left-0 z-[1] bg-papel px-4 py-2 align-middle">
                     <span className="block font-medium text-tinta">{p.persona}</span>
                     <span className="block text-xs">{p.sede}{p.rango && p.rango !== "—" ? ` · ${p.rango}` : ""}</span>
@@ -214,12 +213,11 @@ export function CuadriculaMeses({
                   <td className="px-3 py-2 text-right align-middle">
                     {onRegistrar && <Boton variante="sutil" tamano="sm" className="whitespace-nowrap" onClick={(ev) => onRegistrar(ev.currentTarget, p.persona_id)}>Registrar apoyo</Boton>}
                   </td>
-                </tr>
+                </Fila>
               ))}
             </tbody>
           ))}
-        </table>
-      </div>
+      </Tabla>
 
       {/* ── CELULAR: una tarjeta por estudio, con su tira de meses ────────── */}
       <div className="flex flex-col gap-5 md:hidden">
@@ -231,7 +229,7 @@ export function CuadriculaMeses({
               {lista.map((e) => {
                 const f = fila(e);
                 return (
-                  <li key={e.clave} className="rounded-superficie border border-sand bg-papel p-4 text-sm">
+                  <TarjetaInfo como="li" key={e.clave} className="text-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-medium">{e.persona}</p>
@@ -260,7 +258,7 @@ export function CuadriculaMeses({
                     <div className="mt-3 flex gap-2">
                     <Acciones e={e} pendiente={f.pendiente} onAbrirVisor={onAbrirVisor} onAbrirEstudio={onAbrirEstudio} ancha />
                     </div>
-                  </li>
+                  </TarjetaInfo>
                 );
               })}
               {sinSol.map((p) => (

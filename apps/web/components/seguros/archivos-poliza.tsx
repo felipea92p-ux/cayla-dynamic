@@ -38,6 +38,7 @@ import { fechaLima } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { AreaTexto } from "@/components/ui/area-texto";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
@@ -309,7 +310,7 @@ function Cuerpo({
           )}
 
           {faltanCopias && (
-            <div role="alert" className="mb-3 rounded-lg border border-ambar/40 bg-ambar/15 px-4 py-3 text-sm text-ambar">
+            <BannerAviso enLinea variante="advertencia" role="alert" className="mb-3">
               <p>
                 El archivo quedó en esta póliza y en {faltanCopias.total - faltanCopias.faltan.length} de las otras {faltanCopias.total},
                 pero no en: {faltanCopias.faltan.map((h) => h.titulo).join(", ")}.
@@ -320,7 +321,7 @@ function Cuerpo({
                   Guardarlo en {faltanCopias.faltan.length === 1 ? "esa póliza" : "esas pólizas"}
                 </Boton>
               </div>
-            </div>
+            </BannerAviso>
           )}
 
           <div className="rounded-xl border border-sand bg-hueso px-4 py-4">
