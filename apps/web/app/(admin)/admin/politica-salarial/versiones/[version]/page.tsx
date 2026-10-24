@@ -8,6 +8,10 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Insignia } from "@/components/ui/insignia";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { documentoDesdeGuardado } from "@/lib/politica-salarial";
@@ -60,7 +64,7 @@ export default function VersionHistoricaPage() {
   if (error !== null || fila === null) {
     return (
       <main className="mx-auto max-w-2xl px-4 py-8">
-        <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">{error}</p>
+        <EstadoVacio>{error ?? "No se encontró esa versión."}</EstadoVacio>
         <Boton variante="secundario" tamano="sm" className="mt-3" onClick={() => router.push("/admin/politica-salarial/versiones")}>Volver a Versiones</Boton>
       </main>
     );
@@ -69,26 +73,33 @@ export default function VersionHistoricaPage() {
   const doc = documentoDesdeGuardado(fila.documento);
 
   return (
-    <main className="w-full px-6 py-8 print:max-w-none print:p-0">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-serif text-xl text-tinta">Versión {fila.version}</h1>
-          <Insignia variante={esVigente ? "positivo" : "neutral"}>{esVigente ? "Vigente" : "Histórica"}</Insignia>
-          <span className="text-sm text-taupe">publicada el {fechaLarga(fila.publicada_at)}</span>
-        </div>
-        <div className="flex gap-2">
-          <Boton variante="secundario" tamano="sm" onClick={() => window.print()}>Descargar PDF</Boton>
-          <Boton variante="sutil" tamano="sm" onClick={() => router.push("/admin/politica-salarial/versiones")}>Volver</Boton>
-        </div>
+    <main className="flex-1 p-4 pt-6 sm:p-6 print:max-w-none print:p-0">
+      <div className="print:hidden">
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Publicaciones")}
+          titulo={`Versión ${fila.version}`}
+          descripcion={
+            <span className="inline-flex flex-wrap items-center gap-2">
+              <Insignia variante={esVigente ? "positivo" : "neutral"}>{esVigente ? "Vigente" : "Histórica"}</Insignia>
+              publicada el {fechaLarga(fila.publicada_at)}
+            </span>
+          }
+          accion={
+            <div className="flex gap-2">
+              <Boton variante="secundario" tamano="sm" onClick={() => window.print()}>Descargar PDF</Boton>
+              <Boton variante="sutil" tamano="sm" onClick={() => router.push("/admin/politica-salarial/versiones")}>Volver</Boton>
+            </div>
+          }
+        />
       </div>
       {fila.notas && <p className="mb-4 text-sm text-taupe print:hidden">Notas: {fila.notas}</p>}
 
       {doc ? (
         <DocumentoVista doc={doc} firmaUrl={puedeEstamparFirmaDeEmpresa(persona?.rol) ? firmaUrl : null} />
       ) : (
-        <article className="rounded-superficie border border-sand bg-papel p-6">
+        <TarjetaInfo como="article" className="p-6 sm:p-6">
           <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-tinta">{fila.documento}</pre>
-        </article>
+        </TarjetaInfo>
       )}
     </main>
   );

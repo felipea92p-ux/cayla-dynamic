@@ -295,17 +295,22 @@ function NormasPageContenido() {
     setCargando(false);
   }, [supabase, avisar]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel.
-  useEffect(() => { void cargar(); }, [cargar]);
+  // La carga espera a que la sesión esté lista (`yo`). Al entrar directo a /admin/normas o al recargar, las
+  // consultas salían ANTES de que el cliente tuviera la sesión: Postgres las veía como anónimas, rechazaba
+  // `fn_documentos_vigentes` con 42501 («No tienes permiso…») y el contador de versiones quedaba en «—».
+  // La función y los permisos de producción estaban bien (medido el 2026-10-24).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar cuando la sesión está lista, mismo patrón que el resto del panel.
+  useEffect(() => { if (yo !== null) void cargar(); }, [cargar, yo]);
 
   useEffect(() => {
+    if (yo === null) return;
     void (async () => {
       const { count } = await supabase
         .from("documentos_institucionales")
         .select("id", { count: "exact", head: true });
       setVersionesCount(count ?? null);
     })();
-  }, [supabase]);
+  }, [supabase, yo]);
 
   useEffect(() => {
     if (!puedeGestionar) return;
@@ -985,7 +990,7 @@ function NormasPageContenido() {
                   {gruposVersiones.map((g) => (
                     <div key={g.codigo}>
                       <TituloGrupo texto={g.nombre} />
-                      <div className="divide-y divide-sand rounded-superficie border border-sand bg-papel px-4">
+                      <TarjetaInfo className="divide-y divide-sand px-4 py-0 sm:px-4 sm:py-0">
                         {g.filas.map((row, i) => {
                           const esVigente = vigentePorTipo.get(row.tipo) === row.version;
                           const anterior = g.filas[i + 1];
@@ -1025,7 +1030,7 @@ function NormasPageContenido() {
                             </div>
                           );
                         })}
-                      </div>
+                      </TarjetaInfo>
                     </div>
                   ))}
                 </div>
@@ -1070,7 +1075,7 @@ function NormasPageContenido() {
               ) : misConstancias.length === 0 ? (
                 <EstadoVacio>Todavía no has dejado ninguna constancia.</EstadoVacio>
               ) : (
-                <div className="divide-y divide-sand rounded-superficie border border-sand bg-papel px-4">
+                <TarjetaInfo className="divide-y divide-sand px-4 py-0 sm:px-4 sm:py-0">
                   {misConstancias.map((m) => (
                     <div key={`${m.documento_id}-${m.acusado_at}`} className="flex flex-wrap items-center justify-between gap-2 py-3">
                       <div>
@@ -1080,7 +1085,7 @@ function NormasPageContenido() {
                       <Insignia variante="positivo">Constancia registrada — {selloLima(m.acusado_at)}</Insignia>
                     </div>
                   ))}
-                </div>
+                </TarjetaInfo>
               )}
               <p className="mt-3 text-xs text-taupe">
                 Solo ves tu propio historial. La política salarial tiene su propio seguimiento, en «Política salarial».
@@ -1504,7 +1509,8 @@ function ConstanciasTab({
           {/* UNA línea (variante D de la maqueta, 2026-10-20): el total en grande, una barra corta y una pastilla por sede. Antes eran una barra
               de ancho completo que repetía «17 / 17» y cuatro cajas que repetían lo mismo cuando todo estaba completo. El color de cada
               sede dice si le falta gente: verde completa, ámbar si falta poco, rojo si falta mucho. */}
-          <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-superficie border border-sand bg-papel px-4 py-3">
+          <TarjetaInfo className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-4 sm:py-3">
+            {/* receta-propia: es el número de una línea con barra y pastillas, no una casilla; <Cifra> no cabe en un renglón */}
             <span className="font-serif text-2xl leading-none tabular-nums text-tinta">{total}/{poblacion}</span>
             <span className="text-sm text-taupe">recibidas</span>
             <div className="h-1.5 min-w-32 max-w-xs flex-1 overflow-hidden rounded-pildora bg-sand" role="progressbar" aria-valuenow={total} aria-valuemin={0} aria-valuemax={poblacion} aria-label="Constancias recibidas">
@@ -1519,7 +1525,7 @@ function ConstanciasTab({
                 ))}
               </span>
             )}
-          </div>
+          </TarjetaInfo>
 
           {coberturaAnterior && docActual && (
             <div className="mb-5 flex flex-wrap gap-6">

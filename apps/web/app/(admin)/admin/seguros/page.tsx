@@ -50,6 +50,7 @@ import { ModalPaso, type PasoPorMarcar } from "@/components/seguros/modal-paso";
 import { TiposDeSeguro } from "@/components/seguros/tipos-de-seguro";
 import { useToast } from "@/components/toast";
 import { AreaTexto } from "@/components/ui/area-texto";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Campo } from "@/components/ui/campo";
@@ -59,6 +60,8 @@ import { Modal } from "@/components/ui/modal";
 import { Pestanas } from "@/components/ui/pestanas";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { Rotulo } from "@/components/ui/rotulo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useRolActual } from "@/lib/admin/use-rol";
 import {
@@ -315,10 +318,10 @@ function Seguros() {
   if (rol === null) return <main className="flex-1 p-6"><Cargando /></main>;
   if (!puede) {
     return (
-      <main className="flex-1 p-6">
-        <div className="max-w-2xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+      <main className="flex-1 p-4 pt-6 sm:p-6">
+        <BannerAviso enLinea variante="advertencia" className="max-w-2xl">
           Los seguros del equipo solo los ve Desarrollo Organizacional.
-        </div>
+        </BannerAviso>
       </main>
     );
   }
@@ -342,8 +345,9 @@ function Seguros() {
   const limpiarFiltros = () => { setFiltro(null); setTipoFiltro(TODOS); };
 
   return (
-    <main className="flex-1 p-6">
+    <main className="flex-1 p-4 pt-6 sm:p-6">
       <CabeceraPagina
+        sobretitulo={sobretituloDeHoy("Personas")}
         titulo="Seguros"
         descripcion="En qué seguro está cada colaborador y qué falta para que esté cubierto."
         ayuda={<AyudaDeSeguros />}
@@ -358,9 +362,9 @@ function Seguros() {
       />
 
       {cargaError && (
-        <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+        <BannerAviso enLinea variante="alerta" role="alert" className="mb-4 max-w-3xl">
           {cargaError} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-        </div>
+        </BannerAviso>
       )}
 
       {cargando ? <Cargando /> : !cargaError && (
@@ -370,14 +374,14 @@ function Seguros() {
           ) : (
             <>
               {soloPersona && (
-                <div className="mb-4 flex max-w-3xl flex-wrap items-center gap-3 rounded-lg bg-hueso px-4 py-3 text-sm text-tinta">
+                <BannerAviso enLinea variante="neutral" className="mb-4 flex max-w-3xl flex-wrap items-center gap-3">
                   <span>
                     {personaDelAviso
                       ? `Mostrando solo a ${personaDelAviso.persona}, que es a quien lleva el aviso.`
                       : "Esa persona ya no aparece en Seguros: no tiene un seguro ni una póliza vigente que mostrar."}
                   </span>
                   <Boton variante="enlace" onClick={() => router.replace("/admin/seguros")}>Ver a todos</Boton>
-                </div>
+                </BannerAviso>
               )}
 
               <Pestanas
@@ -416,7 +420,7 @@ function Seguros() {
               )}
 
               {filtrosAbiertos && (
-                <div id="filtros-de-seguros" className="mb-4 space-y-4 rounded-superficie border border-sand bg-papel p-4">
+                <TarjetaInfo id="filtros-de-seguros" className="mb-4 space-y-4">
                   <div>
                     <Rotulo className="mb-2">Situación</Rotulo>
                     <div role="group" aria-label="Filtrar por situación" className="flex flex-wrap gap-2">
@@ -444,11 +448,11 @@ function Seguros() {
                     {nFiltros > 0 && <Boton variante="enlace" onClick={limpiarFiltros}>Limpiar filtros</Boton>}
                     <Boton variante="enlace" onClick={() => setFiltrosAbiertos(false)}>Cerrar</Boton>
                   </div>
-                </div>
+                </TarjetaInfo>
               )}
 
               {visibles.length === 0 && (!soloPersona || personaDelAviso) && (
-                <p className="text-sm text-taupe">Nadie coincide con ese filtro{busqueda ? ` y con «${busqueda}»` : ""}.</p>
+                <EstadoVacio>Nadie coincide con ese filtro{busqueda ? ` y con «${busqueda}»` : ""}.</EstadoVacio>
               )}
 
               {visibles.length > 0 && (

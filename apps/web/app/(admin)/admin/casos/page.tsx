@@ -12,6 +12,8 @@ import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { BannerAviso } from "@/components/ui/banner-aviso";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { BuscadorPersona } from "@/components/ui/buscador-persona";
 import { Filtro } from "@/components/ui/filtro";
@@ -115,8 +117,8 @@ export default function CasosPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <main className="flex-1 p-6">
-        <div className="mx-auto w-full max-w-5xl text-sm">
+      <main className="flex-1 p-4 pt-6 sm:p-6">
+        <div className="w-full text-sm">
           <CabeceraPagina
             sobretitulo={sobretituloDeHoy("Personas")}
             titulo="Casos"
@@ -126,18 +128,17 @@ export default function CasosPage() {
             Un reporte no es una falta. Nada se sanciona desde aquí: si corresponde, se abre un expediente en Disciplina.
           </BannerAviso>
 
-          {error && <p className="mb-4 rounded-control bg-rojo/10 px-3 py-2 text-rojo-profundo">{error}</p>}
+          {error && <BannerAviso enLinea variante="alerta" role="alert" className="mb-4">{error}</BannerAviso>}
 
           {veCasos === false && puedeNombrarInvestigadora(rol) && (
-            <p className="mb-4 rounded-superficie border border-sand p-4 text-taupe">
+            <BannerAviso enLinea variante="neutral" className="mb-4">
               Tu cuenta tiene rol de administración pero no es la Gerencia General, así que no gestiona reportes: la
               regla del Reglamento no te muestra ninguno. Si crees que deberías verlos, habla con Desarrollo Organizacional.
-            </p>
+            </BannerAviso>
           )}
 
           {pendientes.length > 0 && (
-            <section className="mb-6 rounded-superficie border border-pizarra/30 bg-pizarra/10 p-4">
-              <h2 className="mb-1 font-serif text-lg">Instrucciones que te encargaron</h2>
+            <BannerAviso variante="informativo" titulo="Instrucciones que te encargaron" className="mb-6">
               <p className="mb-3 text-xs text-taupe">
                 Son medidas que Desarrollo Organizacional dictó en un caso. No se te muestra el caso a propósito: solo lo
                 que hay que hacer.
@@ -156,7 +157,7 @@ export default function CasosPage() {
                   </li>
                 ))}
               </ul>
-            </section>
+            </BannerAviso>
           )}
 
           <div className="mb-3 flex flex-wrap gap-1.5">
@@ -170,9 +171,9 @@ export default function CasosPage() {
 
           {casos === null && !error && <Cargando />}
           {casos && visibles.length === 0 && (
-            <p className="rounded-superficie border border-dashed border-sand p-5 text-taupe">
+            <EstadoVacio>
               {filtro === "todos" ? "No hay casos abiertos que te toque gestionar." : "Nada en este filtro."}
-            </p>
+            </EstadoVacio>
           )}
 
           {visibles.length > 0 && (
@@ -267,17 +268,12 @@ function SeccionOrganos({ organos, puedeNombrar, alGuardar }: {
   const vigentes = organos.filter((o) => !o.hasta || o.hasta >= hoyLima());
 
   return (
-    <section className="mt-8 rounded-superficie border border-sand p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-serif text-lg">Quién investiga el Título X en cada sede</h2>
-          <p className="text-xs text-taupe">
-            La Delegada que eligen las trabajadoras, su suplente, o mientras no haya, quien designe la Gerencia General
-            (48.3). Una queja de una sede sin nadie aquí llega sin quién la investigue.
-          </p>
-        </div>
-        {puedeNombrar && !abierto && <Boton tamano="sm" onClick={() => setAbierto(true)}>Registrar con acta</Boton>}
-      </div>
+    <TarjetaInfo como="section" className="mt-8" titulo="Quién investiga el Título X en cada sede"
+      accion={puedeNombrar && !abierto ? <Boton tamano="sm" onClick={() => setAbierto(true)}>Registrar con acta</Boton> : undefined}>
+      <p className="text-xs text-taupe">
+        La Delegada que eligen las trabajadoras, su suplente, o mientras no haya, quien designe la Gerencia General
+        (48.3). Una queja de una sede sin nadie aquí llega sin quién la investigue.
+      </p>
 
       {vigentes.length === 0 ? (
         <p className="mt-3 text-rojo-profundo">Ninguna sede tiene a alguien registrado.</p>
@@ -323,6 +319,6 @@ function SeccionOrganos({ organos, puedeNombrar, alGuardar }: {
           </div>
         </div>
       )}
-    </section>
+    </TarjetaInfo>
   );
 }

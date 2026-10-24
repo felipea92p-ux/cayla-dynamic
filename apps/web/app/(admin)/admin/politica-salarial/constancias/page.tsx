@@ -4,6 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -219,9 +221,9 @@ function ConstanciasPoliticaSalarialContenido() {
   if (error || version === null) {
     return (
       <main className="mx-auto max-w-2xl p-6">
-        <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+        <EstadoVacio>
           {error ?? "No se pudo abrir la política salarial."}
-        </p>
+        </EstadoVacio>
         <Boton variante="secundario" tamano="sm" className="mt-3" onClick={() => router.push("/admin/politica-salarial")}>
           Volver a Política salarial
         </Boton>
@@ -284,16 +286,16 @@ function ConstanciasPoliticaSalarialContenido() {
           ⌘P saltándose el botón deshabilitado: el papel tiene que decir por
           escrito que está incompleto, no salir en blanco y silencio. */}
       {noSePudo.length > 0 && (
-        <p className="mb-5 rounded-control border border-rojo/40 bg-rojo/10 px-4 py-3 text-xs text-rojo">
+        <BannerAviso enLinea variante="alerta" role="alert" className="mb-5 text-xs">
           No se pudo traer {noSePudo.join(", ")}. Esta hoja no prueba nada mientras falte ese
           dato: recarga la página, y si sigue igual avisa a Felipe.
-        </p>
+        </BannerAviso>
       )}
 
       {avisoNombres && (
-        <p className="mb-5 rounded-control border border-ambar/40 bg-ambar/[0.07] px-4 py-3 text-xs text-tinta print:hidden">
+        <BannerAviso enLinea variante="advertencia" className="mb-5 text-xs print:hidden">
           {avisoNombres}
-        </p>
+        </BannerAviso>
       )}
 
       <header className="mb-5 border-b border-sand pb-4">
@@ -409,7 +411,7 @@ function ConstanciasPoliticaSalarialContenido() {
 
 export default function ConstanciasPoliticaSalarialPage() {
   return (
-    <Suspense fallback={<main className="p-6"><p className="text-sm text-taupe">Cargando…</p></main>}>
+    <Suspense fallback={<main className="p-6"><Cargando /></main>}>
       <ConstanciasPoliticaSalarialContenido />
     </Suspense>
   );

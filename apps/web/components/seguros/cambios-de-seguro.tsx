@@ -16,6 +16,7 @@
 //   solo cuando la póliza ya terminó o ya se registró otra). Aquí solo se pinta.
 // ============================================================================
 
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import { origenDelCambio, resumenDelCambio, type CambioSeguro } from "@/lib/admin/seguros";
@@ -85,13 +86,13 @@ export function CambiosPendientes({ cambios, onPaso }: { cambios: CambioSeguro[]
   return (
     <div className="space-y-3">
       {cambios.map((c) => (
-        <div key={c.id} className="rounded-lg border border-ambar/30 bg-ambar/10 px-3 py-3">
+        <BannerAviso key={c.id} enLinea variante="advertencia">
           <p className="mb-2 text-sm text-tinta">
             <span className="font-medium">Cambió de seguro el {fecha(c.fecha)}: {resumenDelCambio(c)}.</span>{" "}
             <span className="text-taupe">Motivo: {origenDelCambio(c)}.</span>
           </p>
           <PasosDe c={c} onPaso={onPaso} />
-        </div>
+        </BannerAviso>
       ))}
     </div>
   );

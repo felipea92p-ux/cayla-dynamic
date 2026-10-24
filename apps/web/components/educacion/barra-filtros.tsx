@@ -11,6 +11,7 @@ import { FILTROS_VACIOS, hayFiltros, mesLargo, type Filtros, type QuienEstudia, 
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Filtro } from "@/components/ui/filtro";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Menu, MenuItem } from "@/components/ui/menu";
 
 /**
@@ -125,7 +126,7 @@ export function BarraFiltros({
       </div>
 
       {masAbierto && (
-        <div id="mas-filtros" className="grid gap-3 rounded-superficie border border-sand bg-papel p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <TarjetaInfo id="mas-filtros" className="grid gap-3 p-4 sm:grid-cols-2 sm:p-4 lg:grid-cols-4">
           <CampoSelect etiqueta="Mes del pago" value={filtros.mes} disabled={opciones.cargandoConstancias && opciones.meses.length === 0}
             onChange={(e) => cambiar({ mes: e.target.value, desde: "", hasta: "" })}>
             <option value="">Todos</option>
@@ -170,7 +171,7 @@ export function BarraFiltros({
               Se están trayendo las constancias: el mes, el tipo, quién revisó y el rango de fechas se aplican cuando terminen.
             </p>
           )}
-        </div>
+        </TarjetaInfo>
       )}
     </div>
   );

@@ -11,6 +11,7 @@ import { useSalidaAnimada } from "@/lib/use-salida-animada";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Rotulo } from "@/components/ui/rotulo";
+import { Fila } from "@/components/ui/tabla";
 import { LienzoArchivos } from "./lienzo-archivos";
 import { AccionesRevision } from "./revision-entrega";
 
@@ -306,6 +307,7 @@ function ChipConstancia({ entrega, activa, alTocar }: { entrega: EntregaDeFamili
     if (activa) ref.current?.scrollIntoView({ inline: "center", block: "nearest" });
   }, [activa]);
   return (
+    // receta-propia: lleva ref (scrollIntoView) y aria-current, y <Filtro> no admite ninguno de los dos
     <button ref={ref} type="button" onClick={alTocar} aria-current={activa ? "true" : undefined}
       title={`${ESTADO_ENTREGA[entrega.estado].etiqueta} · pago del ${fechaCorta(entrega.fecha_pago)}`}
       className={`flex items-center gap-1.5 whitespace-nowrap rounded-control border px-2.5 py-1.5 text-xs font-medium transition-colors duration-150 ${
@@ -384,11 +386,11 @@ function MesesDelPago({ meses, costo, tramo }: { meses: readonly CoberturaMes[];
   const nombre = (m: string) => `${MESES_LARGOS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-taupe">Pago adelantado · {meses.length} meses · {soles(total)}</p>
+      <Rotulo>Pago adelantado · {meses.length} meses · {soles(total)}</Rotulo>
       <table className="w-full text-sm">
         <tbody>
           {meses.map((x) => (
-            <tr key={x.mes} className="border-t border-sand">
+            <Fila key={x.mes}>
               <td className="py-1">
                 {nombre(x.mes)}
                 <span className={`block text-xs ${x.origen === "manual" ? "text-ambar" : "text-taupe"}`}>
@@ -396,7 +398,7 @@ function MesesDelPago({ meses, costo, tramo }: { meses: readonly CoberturaMes[];
                 </span>
               </td>
               <td className="py-1 text-right tabular-nums">{soles(Number(x.monto))}</td>
-            </tr>
+            </Fila>
           ))}
         </tbody>
       </table>

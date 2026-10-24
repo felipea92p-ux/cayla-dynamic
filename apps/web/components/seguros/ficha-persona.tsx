@@ -22,6 +22,7 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { BotonIcono } from "@/components/ui/boton-icono";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Insignia } from "@/components/ui/insignia";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
@@ -118,7 +119,7 @@ function FichaAbierta({
     && p.cambios.length === 0 && p.polizasPrincipales.length === 0 && p.otras.length === 0;
   if (compacta) {
     return (
-      <section className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-sand bg-papel px-5 py-3">
+      <TarjetaInfo como="section" className="flex flex-wrap items-center justify-between gap-2 py-3 sm:py-3">
         <div className="min-w-0">
           <h2 className="font-serif text-base text-tinta">{cabecera}</h2>
           <p className="text-sm text-taupe"><LineaSeguro p={p} /></p>
@@ -129,7 +130,7 @@ function FichaAbierta({
           <BotonIcono tamano="md" etiqueta={`Cerrar la ficha de ${p.persona}`} icono={<ChevronUp aria-hidden />} onClick={onCerrar} />
           {p.activa && hayAdemas && <Boton variante="sutil" tamano="sm" onClick={() => acciones.registrar({ personaId: p.personaId, soloAdemas: true })}>Registrar otro seguro</Boton>}
         </div>
-      </section>
+      </TarjetaInfo>
     );
   }
 
@@ -150,7 +151,8 @@ function FichaAbierta({
   );
 
   return (
-    <section className="rounded-2xl border border-sand bg-papel">
+    // receta-propia: la ficha abierta lleva franjas con línea de división a ras de borde (padding 0); TarjetaInfo trae su propio padding
+    <section className="rounded-superficie border border-sand bg-papel">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sand px-5 py-3">
         <h2 className="font-serif text-lg text-tinta">{cabecera}</h2>
         <span className="flex items-center gap-2">

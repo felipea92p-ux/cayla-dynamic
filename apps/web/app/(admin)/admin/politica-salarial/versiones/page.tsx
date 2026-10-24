@@ -7,6 +7,8 @@ import { ROLES_DO, TZ_LIMA } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
@@ -192,20 +194,20 @@ export default function VersionesPoliticaSalarialPage() {
   if (persona !== null && !esDO) {
     return (
       <main className="mx-auto max-w-2xl px-4 py-8">
-        <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+        <EstadoVacio>
           Esta pantalla es solo para quien puede publicar la política salarial.
-        </p>
+        </EstadoVacio>
       </main>
     );
   }
 
   return (
-    <main className="w-full px-6 py-8">
-      <CabeceraPagina titulo="Versiones y publicación" descripcion="Cada versión queda registrada con su fecha; las anteriores se conservan tal como se comunicaron." />
+    <main className="flex-1 p-4 pt-6 sm:p-6">
+      <CabeceraPagina sobretitulo={sobretituloDeHoy("Publicaciones")} titulo="Versiones y publicación" descripcion="Cada versión queda registrada con su fecha; las anteriores se conservan tal como se comunicaron." />
       <SubnavPoliticaSalarial />
 
-      {error !== null && <p className="mb-4 rounded-control border border-rojo/30 bg-rojo/10 px-4 py-3 text-sm text-rojo">{error}</p>}
-      {aviso !== null && <p className="mb-4 rounded-control border border-verde/25 bg-verde/10 px-4 py-3 text-sm text-verde">{aviso}</p>}
+      {error !== null && <BannerAviso enLinea variante="alerta" role="alert" className="mb-4">{error}</BannerAviso>}
+      {aviso !== null && <BannerAviso enLinea variante="positivo" role="status" className="mb-4">{aviso}</BannerAviso>}
 
       <TarjetaInfo como="section" titulo="Publicar" className="mb-8">
         <p className="mb-4 text-sm text-taupe">
