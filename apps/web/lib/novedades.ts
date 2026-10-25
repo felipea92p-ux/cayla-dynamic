@@ -115,6 +115,32 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-25-bandeja-cuenta-lo-que-le-toca-a-una-persona-y-explica-los-correos",
+    fecha: "2026-10-25",
+    titulo: "La Bandeja cuenta lo que le toca a una persona y explica los correos que no salieron",
+    queMejoro:
+      "El número del menú y el del Dashboard ahora son el mismo, y ya no se infla: cada fila de la Bandeja cuenta una vez, y los " +
+      "correos de aviso que no salieron cuentan una sola vez —no uno por cada correo—, igual que las constancias de Normas. Por eso " +
+      "el número bajó mucho: no es que haya menos por hacer, es que antes se contaba de más.\n\n" +
+      "La tarjeta «Sistema» quedó en una línea y, al abrir «Ver por qué y qué hacer», dice en una frase por motivo qué pasó con esos " +
+      "correos. Con «Revisar y resolver estos avisos» ves primero cuántos se volverían a enviar y cuántos se darían por cerrados, y " +
+      "recién al confirmar se hace. Cerrar un aviso no borra lo que avisaba: el contrato, las vacaciones o el día sin cerrar siguen " +
+      "en su pantalla.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-25-educacion-pago-unico-habla-de-fecha-no-de-calendario",
+    fecha: "2026-10-25",
+    titulo: "Educación: un pago único habla de «fecha del pago», no de calendario",
+    queMejoro:
+      "Si un estudio es de pago único, ya no te pide un «calendario de pagos»: pide «la fecha del pago». Y cuando su constancia ya " +
+      "está aprobada queda al día sin pedir nada más, y sale de la Bandeja y del número rojo del menú de Educación.\n\n" +
+      "Si un estudio ya tiene constancia aprobada pero nunca se le marcó «Pago único», el cajón ahora lo dice: elige «Pago único» y " +
+      "guarda, la fecha es opcional. En «Lo mío», quien tiene un pago único ve que su pago ya está registrado, en vez de que le pidan " +
+      "la fecha de un próximo pago que no existe.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-24-cuentas-lista-a-las-integrantes-y-constancias-muestra-todas",
     fecha: "2026-10-24",
     titulo: "Cuentas lista a las integrantes con acceso, y Constancias muestra todas las que existen",
