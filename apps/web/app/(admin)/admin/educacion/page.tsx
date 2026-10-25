@@ -10,8 +10,8 @@ import { useToast } from "@/components/toast";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import {
-  ESTADO_CONSTANCIA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIAS_PAGO, FRECUENCIA_PAGO_LABELS,
-  MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, hoyLima, problemaDeArchivo,
+  ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIAS_PAGO, FRECUENCIA_PAGO_LABELS,
+  MOTIVO_RECHAZO_LABELS, insigniaDeEstadoConstancia, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, hoyLima, problemaDeArchivo,
   puedeVerPlanilla, sugerirProximaFecha,
   type EstadoSolicitud, type FrecuenciaPago, type TipoConstancia,
 } from "@cayla-dynamic/shared";
@@ -28,7 +28,7 @@ import {
   mesLargo, montoMensual, pasaFiltros, resumenPorSede, sedesDe, ventanaParaFiltros, mesDe,
   type CoberturaMes, type ContextoDeFiltros, type Estudio, type Filtros,
 } from "@/lib/admin/educacion-meses";
-import { mesesQueCuenta, resumenDelPanel, ultimaAprobada } from "@/lib/admin/educacion-panel";
+import { formularioDeCalendario, mesesQueCuenta, resumenDelPanel, ultimaAprobada } from "@/lib/admin/educacion-panel";
 import { TODA_LA_HISTORIA, rangoDeLosFiltros, textoDelRango, type RangoDeMeses } from "@/lib/admin/educacion-carga";
 import { useConstanciasPorMeses } from "@/lib/admin/use-constancias-por-meses";
 import { fechaHora, soles } from "@/lib/admin/educacion-formato";
@@ -531,7 +531,7 @@ function EducacionContenido() {
       const { error: eCal } = await supabase.rpc("fn_educacion_fijar_calendario", {
         p_asignacion_id: id as string, p_frecuencia: form.frecuencia || null, p_proxima: form.primeraFechaPago || null,
       });
-      if (eCal) avisar("error", `Se guardó, pero no el calendario de pagos: ${mensajeDeError(eCal)}`);
+      if (eCal) avisar("error", `Se guardó, pero no ${form.frecuencia === "unico" ? "la fecha del pago" : "el calendario de pagos"}: ${mensajeDeError(eCal)}`);
     }
 
     setGuardando(false);
@@ -584,9 +584,14 @@ function EducacionContenido() {
         {FRECUENCIAS_PAGO.map((f) => <option key={f} value={f}>{FRECUENCIA_PAGO_LABELS[f]}</option>)}
       </CampoSelect>
       <div className="flex flex-col gap-1">
-        <Campo etiqueta="Próxima fecha de pago" type="date" value={form.primeraFechaPago}
+        {/* Un pago único tiene UNA fecha, no un calendario: solo cambia la palabra (0549). */}
+        <Campo etiqueta={form.frecuencia === "unico" ? "Fecha del pago" : "Próxima fecha de pago"} type="date" value={form.primeraFechaPago}
           onChange={(e) => setForm({ ...form, primeraFechaPago: e.target.value })} />
-        <span className="text-xs text-taupe">Opcional. Con ella el sistema avisa antes del pago y pide la constancia después.</span>
+        <span className="text-xs text-taupe">
+          {form.frecuencia === "unico"
+            ? "Opcional. Es el día en que paga a su institución: con ella el sistema avisa antes del pago y pide la constancia después."
+            : "Opcional. Con ella el sistema avisa antes del pago y pide la constancia después."}
+        </span>
       </div>
       <div className="flex flex-col gap-1 sm:col-span-2">
         <Campo etiqueta="Comprobante inicial (opcional)" type="file" accept={limite.tipos}
@@ -831,7 +836,7 @@ function EducacionContenido() {
                   extra={conteo.sinCalendario > 0 ? (
                     <button type="button" className="rounded-full border border-dashed border-taupe px-3 py-1 text-xs text-taupe hover:text-tinta"
                       onClick={() => cambiar({ estado: "sin_calendario", tarjeta: null, grupo: "solicitaron" })}>
-                      {conteo.sinCalendario} sin calendario de pagos
+                      {conteo.sinCalendario} sin calendario o fecha de pago
                     </button>
                   ) : null}
                 />
@@ -1156,6 +1161,11 @@ function PanelEstudio({
   const enRevision = pendientesDe.find((e) => e.id === entregaFoco) ?? pendientesDe[0] ?? null;
   const esPropia = miPersonaId !== null && miPersonaId === s.persona_id;
   const resumen = resumenDelPanel(s, entregas, hoyLima(), coberturas);
+  // Un pago único tiene UNA fecha, no un calendario (0549). Lo que cambia (palabras, botón, si se ve el
+  // campo) sale de `formularioDeCalendario`: sigue lo que DO elige en el formulario y lo que la base contestó.
+  const calendario = formularioDeCalendario(s, frecuencia, proxima);
+  const { esUnico } = calendario;
+  const insignia = insigniaDeEstadoConstancia(s.estado_constancia, s.frecuencia_pago, s.aprobadas);
   // Sin una constancia puesta en foco, se abre la última aprobada: el papel a la vista, sin un clic de más.
   const ultimaId = entregas ? (ultimaAprobada(entregas)?.id ?? null) : null;
 
@@ -1165,8 +1175,8 @@ function PanelEstudio({
       p_asignacion_id: s.asignacion_id, p_frecuencia: frecuencia || null, p_proxima: proxima || null,
     });
     setTrabajando(false);
-    if (error) { onError(mensajeDeError(error, "guardar el calendario")); return; }
-    await onCambio("Calendario de pagos guardado.");
+    if (error) { onError(mensajeDeError(error, esUnico ? "guardar la fecha del pago" : "guardar el calendario")); return; }
+    await onCambio(esUnico ? "Fecha del pago guardada." : "Calendario de pagos guardado.");
   }
 
   async function atenderAviso() {
@@ -1215,7 +1225,7 @@ function PanelEstudio({
       <TarjetaInfo como="section" className="p-3 sm:p-3">
         <div className="flex items-center justify-between gap-2">
           <Rotulo como="h3">Situación</Rotulo>
-          <Insignia variante={ESTADO_CONSTANCIA[s.estado_constancia].tono}>{ESTADO_CONSTANCIA[s.estado_constancia].etiqueta}</Insignia>
+          <Insignia variante={insignia.tono}>{insignia.etiqueta}</Insignia>
         </div>
         <p className="mt-2">{resumen.frase}</p>
         {resumen.ultima && <p className="mt-2 text-taupe">{resumen.ultima}</p>}
@@ -1260,7 +1270,7 @@ function PanelEstudio({
 
       {/* ── BENEFICIO Y CALENDARIO ── */}
       <section>
-        <Rotulo como="h3" className="mb-2">Beneficio y calendario de pagos</Rotulo>
+        <Rotulo como="h3" className="mb-2">{esUnico ? "Beneficio y fecha del pago" : "Beneficio y calendario de pagos"}</Rotulo>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
           <div><dt className="text-xs text-taupe">Sede</dt><dd>{s.sede} · rango {s.rango}</dd></div>
           <div><dt className="text-xs text-taupe">Estudia</dt><dd>{s.beneficiario === "hijo" ? (s.beneficiario_nombre ?? "su hijo/a") : "La persona misma"}</dd></div>
@@ -1272,11 +1282,16 @@ function PanelEstudio({
             <option value="">— sin definir —</option>
             {FRECUENCIAS_PAGO.map((f) => <option key={f} value={f}>{FRECUENCIA_PAGO_LABELS[f]}</option>)}
           </CampoSelect>
-          <Campo etiqueta="Próximo pago" type="date" value={proxima} onChange={(e) => setProxima(e.target.value)} />
+          {!calendario.ocultaFecha && (
+            <Campo etiqueta={esUnico ? "Fecha del pago" : "Próximo pago"} type="date" value={proxima} onChange={(e) => setProxima(e.target.value)} />
+          )}
         </div>
+        {calendario.nota && <p className="mt-2 text-xs text-taupe">{calendario.nota}</p>}
         <div className="mt-2 flex flex-wrap gap-2">
           <Boton tamano="sm" cargando={trabajando} onClick={() => void guardarCalendario()}
-            disabled={frecuencia === (s.frecuencia_pago ?? "") && proxima === (s.proxima_fecha_pago ?? "")}>Guardar calendario</Boton>
+            disabled={calendario.sinCambios}>
+            {calendario.rotuloBoton}
+          </Boton>
           <Boton tamano="sm" variante="sutil" onClick={onEditar}>Editar asignación</Boton>
           {s.vigencia !== "terminada" && (
             <>
@@ -1417,7 +1432,10 @@ function CargaAlNombre({ s, onCancelar, onListo, onError }: {
       <CampoSelect etiqueta="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoConstancia)}>
         {TIPOS_CONSTANCIA.map((t) => <option key={t} value={t}>{TIPO_CONSTANCIA_LABELS[t]}</option>)}
       </CampoSelect>
-      <Campo etiqueta="Próximo pago (opcional)" type="date" value={proxima} onChange={(e) => setProxima(e.target.value)} />
+      {/* Un pago único no tiene «próximo pago»: la constancia declara que no hay otro. */}
+      {s.frecuencia_pago !== "unico" && (
+        <Campo etiqueta="Próximo pago (opcional)" type="date" value={proxima} onChange={(e) => setProxima(e.target.value)} />
+      )}
       <Campo etiqueta="Archivos" type="file" multiple accept="application/pdf,image/*"
         onChange={(e) => {
           const nuevos: ArchivoElegido[] = [];

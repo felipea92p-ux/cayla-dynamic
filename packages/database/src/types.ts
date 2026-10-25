@@ -7315,6 +7315,10 @@ export type Database = {
         }[]
       }
       fn_alertas_reservar: { Args: { p_id: string | null }; Returns: boolean }
+      fn_alertas_resolver_fallidas: {
+        Args: { p_ejecutar?: boolean | null }
+        Returns: Json
+      }
       fn_anular_anuncio: { Args: { p_id: string | null }; Returns: undefined }
       fn_anular_ausencia: {
         Args: { p_id: string | null; p_motivo: string | null }

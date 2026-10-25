@@ -22,7 +22,9 @@
  * le diría a un auditor que hay respaldo donde no hay ninguno.
  */
 
-import { ESTADO_CONSTANCIA, type EstadoConstancia, type TonoEstado } from "@cayla-dynamic/shared";
+import {
+  ESTADO_CONSTANCIA, insigniaDeEstadoConstancia, type EstadoConstancia, type TonoEstado,
+} from "@cayla-dynamic/shared";
 
 export type GrupoEducacion = "solicitaron" | "al_dia" | "por_revisar" | "por_completar" | "en_falta" | "sin_solicitar";
 
@@ -33,9 +35,9 @@ export type GrupoEducacion = "solicitaron" | "al_dia" | "por_revisar" | "por_com
  */
 export const GRUPOS_EDUCACION: { clave: GrupoEducacion; etiqueta: string; ayuda: string }[] = [
   { clave: "solicitaron", etiqueta: "Solicitaron", ayuda: "Quienes pidieron apoyo: todos sus estudios, vigentes, por empezar o terminados." },
-  { clave: "al_dia", etiqueta: "Al día", ayuda: "Tienen constancia aprobada y su próximo pago todavía no llega." },
+  { clave: "al_dia", etiqueta: "Al día", ayuda: "Tienen constancia aprobada y su próximo pago todavía no llega, o es un pago único ya sustentado." },
   { clave: "por_revisar", etiqueta: "Por revisar", ayuda: "Enviaron una constancia y espera a Desarrollo Organizacional." },
-  { clave: "por_completar", etiqueta: "Por completar", ayuda: "Falta enviar la constancia (todavía con plazo), o falta definir el calendario de pagos." },
+  { clave: "por_completar", etiqueta: "Por completar", ayuda: "Falta enviar la constancia (todavía con plazo), o falta definir cuándo paga a su institución." },
   { clave: "en_falta", etiqueta: "Vencidas o rechazadas", ayuda: "El plazo pasó sin constancia, o la última se rechazó y falta la corregida." },
   { clave: "sin_solicitar", etiqueta: "Sin solicitar", ayuda: "Personas activas que no tienen ningún apoyo ni una solicitud por revisar." },
 ];
@@ -43,6 +45,14 @@ export const GRUPOS_EDUCACION: { clave: GrupoEducacion; etiqueta: string; ayuda:
 export interface EstudioParaGrupo {
   estado_constancia: string;
   aprobadas: number;
+  /** Solo para las palabras (0549): el estado lo decide la base, no esto. */
+  frecuencia_pago?: string | null;
+  /**
+   * Las aprobadas del tramo que habla por la fila, cuando no coinciden con `aprobadas` (que en un
+   * estudio suma todos los tramos en curso). La insignia de «pago único con constancia» mira este: la
+   * constancia de OTRO tramo no sustenta el pago único de este.
+   */
+  aprobadas_del_tramo?: number;
 }
 
 /** El grupo de un estudio. «sin_solicitar» no sale de acá: son personas, no estudios. */
@@ -72,7 +82,11 @@ export function estadoParaMostrar(s: EstudioParaGrupo): { etiqueta: string; tono
   if (s.estado_constancia === "al_dia" && s.aprobadas === 0) {
     return { etiqueta: "Sin constancias aún", tono: "neutral" };
   }
-  return ESTADO_CONSTANCIA[s.estado_constancia as EstadoConstancia] ?? { etiqueta: s.estado_constancia, tono: "neutral" };
+  // Para un pago único «sin calendario» se dice «Sin fecha de pago» (o «Pago único con constancia» si ya
+  // tiene una aprobada y la base todavía no es la de la 0549): solo cambia la palabra.
+  return ESTADO_CONSTANCIA[s.estado_constancia as EstadoConstancia]
+    ? insigniaDeEstadoConstancia(s.estado_constancia as EstadoConstancia, s.frecuencia_pago, s.aprobadas_del_tramo ?? s.aprobadas)
+    : { etiqueta: s.estado_constancia, tono: "neutral" };
 }
 
 export interface PersonaActiva {

@@ -96,6 +96,10 @@ export interface FilaEducacionBandeja {
   institucion: string;
   vigencia: string;
   estado_constancia: string;
+  /** Solo para las palabras (0549): quién entra a la Bandeja lo decide la base, no esto. */
+  frecuencia_pago?: string | null;
+  /** Las constancias aprobadas del estudio (`fn_educacion_situacion` ya lo devuelve). Solo para las palabras (0549). */
+  aprobadas?: number | null;
   fecha_pago_constancia: string | null;
   plazo: string | null;
   pago_proximo: boolean;
@@ -384,9 +388,20 @@ export const FUENTES_VACIAS: FuentesBandeja = {
   casos: [], seguros: { equipo: [], polizas: [], cambios: [] }, pruebas: [], cierresPruebas: [], resumenAlertas: null, fallidas: [],
 };
 
-/** Cuántos avisos por correo necesitan a una persona. Lo que se reintenta solo no cuenta. */
+/**
+ * Cuántos avisos por correo necesitan a una persona: los que fallaron las tres
+ * veces (`fallidas_definitivas`) y los que caducaron sin salir (`caducadas`).
+ * LO QUE SE REINTENTA SOLO NO CUENTA: una `atascada` (quedó a medio despachar
+ * hace más de una hora) la recoge el próximo despacho sin que nadie haga nada,
+ * así que ni enciende el menú ni entra al titular de la tarjeta Sistema; la
+ * tarjeta, si está a la vista por otro motivo, la nombra como línea informativa.
+ * Un corte transitorio de una hora no puede encender la Bandeja.
+ *
+ * Son AVISOS (la tarjeta Sistema dice «61 avisos»), no tareas: en la insignia
+ * pesan 1 por problema, no 1 por aviso (ver `cuentaDeLaBandeja`).
+ */
 export function alertasConProblema(r: ResumenAlertas | null): number {
-  return r ? r.atascadas + r.fallidas_definitivas + r.caducadas : 0;
+  return r ? (r.fallidas_definitivas ?? 0) + (r.caducadas ?? 0) : 0;
 }
 
 // ── Cargar ──────────────────────────────────────────────────────────────────
@@ -1151,13 +1166,44 @@ export function armarPendientes(
   return lista.sort(compararPendientes);
 }
 
+/** De qué se compone el número de la Bandeja. Ver `cuentaDeLaBandeja`. */
+export interface CuentaBandeja {
+  /** Filas de la lista (`armarPendientes`): una por pendiente, cada una la resuelve alguien. */
+  tareas: number;
+  /** 0 o 1: hay un problema con los correos de aviso. Un problema, no uno por correo. */
+  sistema: number;
+  /** 0 o 1: hay constancias de Normas por recoger. Una señal, no una por constancia. */
+  normas: number;
+  /** `tareas + sistema + normas`: el número del menú Y el del Dashboard. */
+  total: number;
+}
+
 /**
- * El número del ítem «Bandeja» del menú: exactamente las filas que se pintan,
- * más los avisos por correo con problema. Sale de la MISMA lista, así que no
- * puede discrepar de la pantalla.
+ * LA cuenta de «lo pendiente de la Bandeja», definida una sola vez. La usan el
+ * bolito del menú y el indicador del Dashboard, así que no pueden discrepar.
+ *
+ * QUÉ PROMETE. Cada fila de la lista cuenta una vez. Cada franja o tarjeta de
+ * SISTEMA de la pantalla cuenta una vez, como unidad: los correos con problema
+ * y las constancias de Normas valen 1 cada una, no una por correo ni una por
+ * constancia.
+ *
+ * POR QUÉ ASÍ (medido el 2026-10-25). El menú decía 96 = 31 filas + 61 correos
+ * fallidos + 4 de Normas. Los 61 correos eran UN problema —el envío está
+ * caído— contado 61 veces, y tapaban las 31 cosas que sí necesitan a una
+ * persona. Con esta cuenta son 31 + 1 + 1 = 33. «61 avisos» sigue diciéndose
+ * dentro de la tarjeta Sistema: lo que cambia es cuánto pesa en la insignia.
+ *
+ * Normas se queda (no se quita del todo): no tiene insignia propia en el menú
+ * y, sin esta unidad, las constancias del Reglamento no darían ninguna señal.
+ *
+ * QUÉ ASUME. `constanciasNormas` lo trae quien llama (solo DO; ver
+ * `bandeja-equipo.ts`): Normas no encaja en `Pendiente`. Cero o negativo = nada.
  */
-export function contarPendientesBandeja(f: FuentesBandeja, hoy: string = hoyLima()): number {
-  return armarPendientes(f, { hoy }).length + alertasConProblema(f.resumenAlertas);
+export function cuentaDeLaBandeja(f: FuentesBandeja, constanciasNormas = 0, hoy: string = hoyLima()): CuentaBandeja {
+  const tareas = armarPendientes(f, { hoy }).length;
+  const sistema = alertasConProblema(f.resumenAlertas) > 0 ? 1 : 0;
+  const normas = constanciasNormas > 0 ? 1 : 0;
+  return { tareas, sistema, normas, total: tareas + sistema + normas };
 }
 
 /**

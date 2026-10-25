@@ -32,7 +32,8 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
 import { usePulsoContadores } from "@/lib/admin/use-pulso-contadores";
 import { traerBandeja } from "@/lib/bandeja-mia";
-import { contarBandejaEquipoPendiente } from "@/lib/admin/bandeja-equipo";
+import { CUENTA_VACIA, cuentaBandejaEquipo } from "@/lib/admin/bandeja-equipo";
+import { tituloDelContadorBandeja } from "@/lib/admin/bandeja-sistema";
 import { EVENTO_CAMBIO_BANDEJA } from "@/lib/admin/bandeja-urgencia";
 import { useGruposCerrados, useNavColapsado } from "@/lib/use-nav-colapsado";
 import { Marca } from "@/components/marca";
@@ -136,7 +137,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
   const [revisionesPendientes, setRevisionesPendientes] = useState(0);
   const [misAvisos, setMisAvisos] = useState(0);
-  const [bandejaPendiente, setBandejaPendiente] = useState(0);
+  const [bandejaCuenta, setBandejaCuenta] = useState(CUENTA_VACIA);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
   // Resolver algo DENTRO de la Bandeja no cambia el pathname, así que los dos
@@ -239,8 +240,8 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   useEffect(() => {
     if (!veEquipo) return;
     let vivo = true;
-    void contarBandejaEquipoPendiente(createAdminSupabaseClient(), rol)
-      .then((n) => { if (vivo) setBandejaPendiente(n); });
+    void cuentaBandejaEquipo(createAdminSupabaseClient(), rol)
+      .then((c) => { if (vivo) setBandejaCuenta(c); });
     return () => { vivo = false; };
   }, [veEquipo, rol, pulso, cambiosEnBandeja]);
 
@@ -280,12 +281,12 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const educacion = veEducacion ? educacionPorAtender : 0;
   const vacaciones = veEquipo ? vacacionesPorAtender : 0;
   const revisiones = veEquipo ? revisionesPendientes : 0;
-  const bandeja = veEquipo ? bandejaPendiente : 0;
+  const bandeja = veEquipo ? bandejaCuenta.total : 0;
 
   const contadores: Contadores = {
     educacion: {
       n: educacion,
-      titulo: `${educacion} en Educación: constancias por revisar o vencidas, estudios sin calendario y avisos de fin`,
+      titulo: `${educacion} en Educación: constancias por revisar o vencidas, estudios sin calendario ni fecha de pago y avisos de fin`,
     },
     vacaciones: {
       n: vacaciones,
@@ -297,7 +298,9 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     },
     bandeja: {
       n: bandeja,
-      titulo: `${bandeja} cosa(s) pendiente(s) en la Bandeja del equipo`,
+      // Con de qué se compone: el número del menú no es el de la casilla «Todo» (suma
+      // 1 por los correos que no salieron y 1 por Normas) y sin esto parece un error.
+      titulo: tituloDelContadorBandeja(veEquipo ? bandejaCuenta : CUENTA_VACIA),
     },
     mio: {
       n: misAvisos,

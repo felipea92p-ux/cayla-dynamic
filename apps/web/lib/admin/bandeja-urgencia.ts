@@ -1,4 +1,4 @@
-import { fechaLima, hoyLima } from "@cayla-dynamic/shared";
+import { esPagoUnicoAprobadoSinFecha, fechaLima, hoyLima } from "@cayla-dynamic/shared";
 import { diasEntre, diaYMes } from "../bandeja-mia";
 import { situacionDe, type CierrePrueba, type FilaPrueba } from "./pruebas";
 
@@ -77,6 +77,10 @@ const EMPIEZAN = { futuro: "Empiezan", pasado: "Empezaron" };
  */
 export interface EstudioEducacion {
   estado_constancia: string;
+  /** Solo para las palabras (0549): quién entra a la Bandeja lo decide la base, no esto. */
+  frecuencia_pago?: string | null;
+  /** Las constancias aprobadas del estudio. Solo para las palabras (0549). */
+  aprobadas?: number | null;
   vigencia: string;
   plazo: string | null;
   fecha_pago_constancia: string | null;
@@ -114,6 +118,14 @@ export function urgenciaEducacion(f: EstudioEducacion, hoy: string = hoyLima()):
       orden: d,
     };
   }
+  // Un pago único tiene UNA fecha, no un calendario (0549): solo cambia la palabra. Si ya tiene su
+  // constancia aprobada (la base de antes de la 0549 todavía lo cuenta aquí), no «falta» nada que poner.
+  if (f.frecuencia_pago === "unico") {
+    if (esPagoUnicoAprobadoSinFecha(f.estado_constancia, f.frecuencia_pago, f.aprobadas)) {
+      return { grupo: "sin_plazo", plazo: "Sin plazo", nota: "no hace falta una fecha", orden: 0 };
+    }
+    return { grupo: "sin_plazo", plazo: "Sin fecha de pago", nota: "falta la fecha del pago", orden: 0 };
+  }
   return { grupo: "sin_plazo", plazo: "Sin calendario", nota: "falta saber cuándo paga", orden: 0 };
 }
 
@@ -121,6 +133,13 @@ export function urgenciaEducacion(f: EstudioEducacion, hoy: string = hoyLima()):
 export function documentoEducacion(f: EstudioEducacion): { titulo: string; accion: string } {
   if (f.estado_constancia === "vencida") return { titulo: "Constancia de estudios vencida", accion: "Pedir constancia" };
   if (f.pago_proximo) return { titulo: "Pago de estudios en camino", accion: "Ver estudio" };
+  if (f.frecuencia_pago === "unico") {
+    // Con constancia aprobada, «poner la fecha» EMPEORARÍA el estudio (la pediría de nuevo): se avisa sin aconsejarlo.
+    if (esPagoUnicoAprobadoSinFecha(f.estado_constancia, f.frecuencia_pago, f.aprobadas)) {
+      return { titulo: "Pago único con constancia aprobada", accion: "Ver estudio" };
+    }
+    return { titulo: "Pago único sin fecha de pago", accion: "Poner la fecha" };
+  }
   return { titulo: "Estudio sin calendario de pagos", accion: "Fijar calendario" };
 }
 

@@ -218,8 +218,12 @@ export interface Estudio {
   // Los tres de abajo hacen que un Estudio entre donde entra una Situación en
   // `grupoDeEstudio` y `estadoParaMostrar` (que piden `estado_constancia` y `aprobadas`).
   estado_constancia: EstadoConstancia;
+  /** Cada cuánto paga el tramo que habla por la fila. Solo cambia las PALABRAS de la insignia (0549). */
+  frecuencia_pago: Situacion["frecuencia_pago"];
   /** Las del tramo en curso (o del que habla, si todos terminaron): «al día» exige respaldo del tramo VIGENTE. */
   aprobadas: number;
+  /** Las aprobadas del tramo que habla por la fila, sin sumar los demás: solo para las PALABRAS de la insignia (0549). */
+  aprobadas_del_tramo: number;
   vigencia: Situacion["vigencia"];
   desde: string;
   hasta: string;
@@ -297,7 +301,9 @@ export function agruparEstudios(situaciones: readonly Situacion[]): Estudio[] {
       tramos,
       actual,
       estado_constancia: estadoDeLaFila(tramos, actual),
+      frecuencia_pago: actual.frecuencia_pago,
       aprobadas: (enCurso.length > 0 ? enCurso : [actual]).reduce((t, x) => t + x.aprobadas, 0),
+      aprobadas_del_tramo: actual.aprobadas,
       vigencia: actual.vigencia,
       desde: tramos[0].vigente_desde,
       hasta: tramos.reduce((m, x) => (x.vigente_hasta > m ? x.vigente_hasta : m), tramos[0].vigente_hasta),
@@ -623,6 +629,7 @@ export interface ConteoTarjetas {
   vencidas: number;
   rechazadas: number;
   pagos: number;
+  /** Estudios en `sin_calendario`: en pantalla se rotula «sin calendario o fecha de pago», porque a un pago único le falta una fecha, no un calendario (0549). */
   sinCalendario: number;
 }
 
