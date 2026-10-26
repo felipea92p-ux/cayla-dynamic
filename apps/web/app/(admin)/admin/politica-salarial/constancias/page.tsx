@@ -27,9 +27,12 @@ import { SubnavPoliticaSalarial } from "../_subnav";
 // la vigente — mismo comportamiento que antes de la 0458 para quien entra
 // directo a esta ruta.
 //
-// El criterio de a quién obliga es el mismo (activo y en planilla) porque lo
-// dice la misma función en `fn_acuses_politica_salarial`: activas y en
-// planilla, igual que `fn_poblacion_obligada`.
+// El criterio de a quién obliga lo dice `fn_acuses_politica_salarial`: activas y
+// con contrato de trabajo (`tipo_vinculo = 'planilla'`). Desde la 0551 ya NO es
+// «lo que dice `fn_poblacion_obligada`»: esa función incluye también al
+// practicante (Normas sí le pide constancia), y esta hoja lo deja fuera a
+// propósito porque la Política salarial no los alcanza (Ley 30709, decidido el
+// 2026-08-31). La condición está escrita dentro de la función, no aquí.
 
 const BASE_LEGAL =
   "Numeral 25.23 del RLGIT (Ley 30709): no basta con tener el cuadro de categorías y la política salarial — hay que acreditar que se informaron a cada integrante.";
@@ -58,7 +61,8 @@ interface Fila {
 }
 
 // Constancias que SÍ existen en la base pero que la hoja no cuenta: la persona no
-// es de la población comprendida (`fn_poblacion_obligada`: activa y de planilla).
+// es de la población comprendida (`fn_acuses_politica_salarial`: activa y de planilla;
+// el practicante queda aquí, a propósito, aunque en Normas sí cuente).
 // Se muestran solo en pantalla, aparte del cuadro y del total. Por qué no en el
 // papel: esta hoja es la prueba del numeral 25.23 para quien SÍ está obligada, y
 // poner a una locadora (rxh) en un papel laboral firmado por DO es justo la señal

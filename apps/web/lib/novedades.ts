@@ -125,6 +125,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-10-26-normas-cuenta-a-los-practicantes-en-sus-constancias",
+    fecha: "2026-10-26",
+    titulo: "Normas ya cuenta a los practicantes en la hoja de Constancias",
+    queMejoro:
+      "En Normas → Constancias ahora aparecen también los practicantes activos, tengan o no acceso: quien ya entró, quien fue " +
+      "invitado y todavía no abrió el correo, y quien no tiene cuenta —a esa persona se le registra el cargo en papel, como a " +
+      "cualquiera—. El «N de M» de cada documento y el número rojo de Constancias también los suman.\n\n" +
+      "Por eso ese número sube: es gente que antes no se contaba, no un retroceso. La hoja imprimible de constancias los incluye " +
+      "y su encabezado ya lo dice. La hoja de la Política salarial no cambia: sigue sin practicantes.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-26-cuentas-busca-por-nombre-o-correo-y-filtra-por-sede",
     fecha: "2026-10-26",
     titulo: "Cuentas: busca por nombre o correo y filtra por sede",

@@ -23,9 +23,10 @@ import { EMPRESA, TZ_LIMA, avisoNombresDelDni, hoyLima, usaNombreDelDni } from "
 //
 // POR QUÉ NO RECIBE UNA LISTA DE NOMBRES. Se pidió «la hoja de los 19», y la
 // tentación es un parámetro con las personas a incluir. No lo tiene a propósito:
-// la población obligada la responde `fn_acuses_documento` —activas y en
-// planilla, el mismo criterio que `fn_poblacion_obligada`— y quien falte APARECE
-// en la hoja, nombrado. Una hoja cuyo denominador se puede elegir no prueba
+// la población obligada la responde `fn_acuses_documento` —activas, con
+// contrato de trabajo o convenio de prácticas, el mismo criterio que
+// `fn_poblacion_obligada` desde la 0551— y quien falte APARECE en la hoja,
+// nombrado. Una hoja cuyo denominador se puede elegir no prueba
 // nada: es justo el documento que un inspector sabe descartar, y descartarlo se
 // lleva por delante la credibilidad de los 19 que sí firmaron.
 //
@@ -332,8 +333,8 @@ export default function ConstanciasDocumentoPage() {
       <section className="mb-5 rounded-superficie border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
         <p>
           Al <strong>{fechaLarga(hoyLima())}</strong>, de <strong>{total}</strong>{" "}
-          {total === 1 ? "integrante comprendida" : "integrantes comprendidas"} —personal activo y en
-          planilla—, <strong>{constan.length}</strong> {constan.length === 1 ? "dejó" : "dejaron"}{" "}
+          {total === 1 ? "integrante comprendida" : "integrantes comprendidas"} —personal activo con
+          contrato de trabajo o convenio de prácticas—, <strong>{constan.length}</strong> {constan.length === 1 ? "dejó" : "dejaron"}{" "}
           constancia de haber recibido este documento
           {total > 0 && constan.length === total && <> · <strong>cumplimiento del 100 %</strong></>}.
         </p>
