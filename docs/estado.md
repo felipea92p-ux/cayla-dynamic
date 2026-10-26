@@ -6,7 +6,36 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0552 · SQL SIN PEGAR · rama `claude/stoic-archimedes-8h71yn`
+## 2026-10-26 — Aviso «hay una versión nueva» que baja desde arriba (panel y «Lo mío») · sin SQL · EN PR (borrador) · rama `claude/amazing-clarke-7bi1ly`
+
+**Qué es.** Felipe pidió que, cuando se publica una mejora y alguien tiene Dynamic abierto, baje desde el borde de arriba una barra
+como la de retail: «Hay una versión nueva de Dynamic». Botones **Actualizar ahora** y una X (**Más tarde**). **No recarga sola**:
+quien tiene la pantalla abierta puede estar escribiendo algo sin guardar.
+
+**Cómo funciona.** `next.config.ts` hornea `VERCEL_DEPLOYMENT_ID` en el navegador al construir; `/api/version` devuelve el del
+despliegue que atiende. Cada 3 minutos con la pestaña a la vista —y al volver a ella— la página compara; si difieren, baja la barra
+(`components/aviso-version-nueva.tsx`, montado en los layouts de `(admin)` y `(mio)`). «Más tarde» la descarta hasta que llegue OTRA
+versión. Sin id (dev, `next start`) el aviso se apaga entero. Lógica pura y su prueba: `lib/version-despliegue.ts`,
+`tests/version-despliegue.test.ts`. Hay novedad en `novedades.ts` (audiencia «todos»).
+
+**Medido.** En navegador real (Playwright, servidor de desarrollo con el id simulado) la barra sale con versión distinta, **no** sale
+con la misma ni con una respuesta vacía, «Más tarde» la quita y no vuelve en la siguiente consulta, y otra versión distinta sí la
+vuelve a sacar. Se ve bien en claro, oscuro y a 390 px. `tsc`, ESLint y las pruebas de novedades en verde.
+
+**⚠️ Sin comprobar contra Vercel de verdad — se comprueba una vez, tras publicar.** Si el proyecto tiene **Skew Protection**, una
+pestaña vieja queda fijada a SU despliegue y la consulta a `/api/version` podría contestar la versión vieja: el aviso **nunca saltaría**
+(falla hacia el lado seguro: no avisa, jamás avisa de más). Prueba: con una pestaña del panel abierta, publicar cualquier cambio y
+esperar ≤3 min; si no baja la barra, es esto y el arreglo es pedirle a Vercel la versión sin fijar. Quien lo mida: anotarlo aquí.
+
+**Fuera, a propósito.** El **terminal** (la Mac mini de la sede): lo toca cualquiera para marcar, tiene su propio service worker y su
+cola sin conexión, y recargarlo por un aviso es una decisión aparte. Si el terminal necesita enterarse de las versiones nuevas, es otra
+rebanada con su propio criterio.
+
+**Publicar.** No hay migración. Fusionar el PR ES publicar (`main` se publica sola): pedir OK a Felipe.
+
+---
+
+## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0552 · SQL PEGADO (2026-10-26) · FUSIONADO Y PUBLICADO (PR #602, 2026-10-26) · rama `claude/stoic-archimedes-8h71yn`
 
 **Qué es.** Felipe pidió un módulo donde DO cambie sin código los números que mueven el sistema (días de prueba, escalera
 disciplinaria, porcentajes, sueldo base, provisiones), con historial de quién y cuándo, y con la lista de a quién le afecta antes
@@ -42,6 +71,15 @@ reescrita, así que repegar no falla). La consulta (2) debe volver sin funciones
 (esas dejarían de poder); la (3) trae los valores de partida: `auto_cierre_horas` entre 1 y 12 y `avisar_desde` entre 1 y 20, porque
 el trigger exige esos límites cuando alguien cambie el valor. **No toca la planilla**: `fn_planilla_calcular` lee las mismas claves con
 la misma forma de siempre; por eso no hay md5 de la planilla.
+
+**Pegado el 2026-10-26** (Felipe devolvió las filas de comprobación, después de fusionar: el frontend salió antes que el SQL, como
+estaba previsto, y mientras tanto la pantalla decía «Falta pegar la migración 0552»). El `select` final dio lo esperado:
+`parametros_en_el_catalogo` = 4, `el_candado_esta_puesto` y `el_candado_corre_con_quien_escribe` en `true`, `dias_de_prueba_hoy` = 3,
+`la_funcion_lee_la_tabla` y `la_fila_existe` en `true`, `registro` = `552 · los_parametros_tienen_puerta_y_dejan_rastro`. La guardia
+de la migración dejó pasar la función de partida, o sea que la de producción era la de la 0536 (`select 3;`) tal como se esperaba.
+**No se vieron** las consultas (1)–(3) de «ANTES DE PEGAR» —se corrió directo la migración, que tiene su propia guardia—; la (2) sigue
+siendo útil: si alguna función de producción pegada a mano fuera del repo escribe esas claves sin ser `SECURITY DEFINER`, dejaría de
+poder hacerlo. Queda pendiente la primera prueba real de la pantalla en producción (ver una fila, y mejor un cambio reversible).
 
 **Si el código llega antes que el SQL.** `main` se publica sola. La pantalla lo detecta (PGRST202, la función no existe) y dice «Falta
 pegar la migración 0552» en vez de romperse; nada más depende de la 0552 hasta que se pegue. El renglón «Parámetros» y la novedad
@@ -81,7 +119,7 @@ rango envolviendo `fn_fijar_base_declarada`, con **vigencia y vista previa de a 
 `configuracion` **sin fecha** (cambiarlas reescribiría el historial) y necesitan vigencia antes de ser editables: eso reescribe
 `fn_planilla_calcular`, con su protocolo de md5. Rebanada 4: la escalera disciplinaria, atada a una versión del RIT.
 
-## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · **SQL SIN PEGAR EN PRODUCCIÓN** · AUTOMERGE ARMADO (PR #601) · rama `claude/epic-ramanujan-rr0p0u`
+## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · **SQL PEGADO EN PRODUCCIÓN (2026-10-26)** · FUSIONADA (PR #601) · rama `claude/epic-ramanujan-rr0p0u`
 
 **Qué es.** Felipe, con la captura de Normas → Constancias: «en normas también deberían aparecerme los practicantes, deben
 aparecer todos incluyendo los que cuenten con su correo dentro del sistema y los que fueron invitados». Medido, no supuesto:
@@ -117,12 +155,25 @@ Ninguna constancia ya registrada se toca. `fn_reglamento_no_acusado` (el freno p
    (2026-10-26) y la sesión no puede pegar el SQL —el conector de Supabase de la sesión solo ve los proyectos Fructus, FastFruit y
    vonatur, no el de CAYLA—, así que el PR se fusiona solo cuando `db-tests` y `ui-tests` den verde y **el frontend sale antes que el
    SQL**. Es seguro: no llama a nada nuevo; solo se adelantan la frase del papel imprimible y la novedad (que dice «ya aparecen» y
-   hasta pegar no es cierto). **Hasta que Felipe pegue la 0551, Normas sigue sin mostrar a los practicantes**: pegarla cuanto antes.
+   hasta pegar no es cierto). El orden no se cumplió, como se avisó; la 0551 se pegó después (ver «Pegado el 2026-10-26»).
 3. Para ver de antemano cuánto va a subir el contador (solo lectura, en el SQL Editor):
    `select count(*) filter (where auth_user_id is not null) as con_cuenta, count(*) filter (where auth_user_id is null) as sin_cuenta
    from personas where tipo_vinculo = 'practicante' and estado = 'activo' and not cuenta_de_servicio;`
 4. Después de pegar, el `select` del final de la migración: `practicantes_activos` = `practicantes_contados` y
    `politica_sin_practicantes = true`.
+
+**Pegado el 2026-10-26** (Felipe devolvió las filas). Antes de pegar, su consulta de solo lectura dio **4 practicantes activos, los 4
+con cuenta y ninguno sin cuenta**. **El primer intento no se aplicó, y fue un error de la sesión:** el bloque que se le dio por el chat
+traía el `select` final corrupto (`where tipo_tipo_vinculo_placeholder`, una línea inventada al recortar la cabecera) y el editor
+revirtió todo el texto —se reprodujo en un banco: un error en la última sentencia deja `sin 551 | incluye practicante: false`—. El
+segundo intento, con las líneas 128–279 del archivo de `main` sin retocar, pasó la guardia y devolvió: `registrada` = `551
+los_practicantes_tambien_reciben_las_normas`, `poblacion_incluye_practicantes` = `true`, `practicantes_activos` =
+`practicantes_contados` = **4**, `politica_sin_practicantes` = `true`, `equipo_obligado` = **22**. **Lección de método:** el SQL que se
+entrega por el chat se saca del archivo con `sed -n`, nunca se reescribe a mano, y un aviso sobre un bloque va ANTES del bloque.
+El `md5` de partida de producción sigue sin medirse a mano: la guardia lo comprobó y pasó (acepta el de la 0491 y el de la 0458).
+**«La oficina Trujillo» es la sede `OTRU` («Oficina TRU», tipo central, donde están los practicantes en áreas de oficina):** no salía
+en Constancias porque nadie de esa sede estaba en la población; su chip y su opción en el filtro «Sede» se arman con las filas que
+llegan, así que aparece sola.
 
 **Lo que se verá.** El «N de M» de cada documento y «constancias pendientes» suben en practicantes × documentos que piden
 constancia, hasta que cada uno la deje o DO registre su cargo en papel: es gente que faltaba contar, no un retroceso (la novedad

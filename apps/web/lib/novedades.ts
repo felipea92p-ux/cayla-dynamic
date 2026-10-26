@@ -125,6 +125,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-10-26-un-aviso-baja-desde-arriba-cuando-hay-una-version-nueva",
+    fecha: "2026-10-26",
+    titulo: "Un aviso baja desde arriba cuando Dynamic tiene una versión nueva",
+    queMejoro:
+      "Si dejas el panel o «Lo mío» abierto y se publica una mejora, ahora baja desde el borde de arriba una barra que dice «Hay " +
+      "una versión nueva de Dynamic». Antes seguías con la pantalla vieja hasta que recargabas por tu cuenta, sin saber que había " +
+      "algo distinto.\n\n" +
+      "La barra no recarga nada sola, para que no pierdas lo que estás escribiendo: tú eliges «Actualizar ahora» o la X de «Más " +
+      "tarde». Si la descartas, no vuelve a salir hasta que se publique otra versión.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-26-parametros-los-numeros-del-sistema-se-cambian-desde-una-pantalla",
     fecha: "2026-10-26",
     titulo: "Parámetros: los números del sistema se cambian desde una pantalla, con su historial",
