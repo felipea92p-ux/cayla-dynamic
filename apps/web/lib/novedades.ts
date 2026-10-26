@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-26-cuentas-busca-por-nombre-o-correo-y-filtra-por-sede",
+    fecha: "2026-10-26",
+    titulo: "Cuentas: busca por nombre o correo y filtra por sede",
+    queMejoro:
+      "En «Cuentas del equipo» ya puedes escribir un nombre o un correo —sin tildes y en cualquier orden— y quedarte con una sola " +
+      "sede con un clic, en vez de recorrer la lista entera para llegar a una cuenta.\n\n" +
+      "Si el filtro no deja ver a nadie, la pantalla lo dice («Nadie coincide…») y trae el botón para quitarlo: no quiere decir que " +
+      "falte una cuenta. El filtro no se acuerda de la vez anterior: cada vez que entras vuelves a ver todas.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-25-bandeja-cuenta-lo-que-le-toca-a-una-persona-y-explica-los-correos",
     fecha: "2026-10-25",
     titulo: "La Bandeja cuenta lo que le toca a una persona y explica los correos que no salieron",
