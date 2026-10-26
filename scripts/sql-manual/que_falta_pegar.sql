@@ -403,7 +403,8 @@ with repo(numero, nombre, nunca) as (values
     (544, 'una_cuenta_de_servicio_no_queda_en_planilla', false),
     (548, 'los_avisos_que_fallaron_para_siempre_tienen_salida', false),
     (549, 'un_pago_unico_ya_sustentado_no_pide_calendario', false),
-    (550, 'una_alerta_solo_se_marca_leida', false)
+    (550, 'una_alerta_solo_se_marca_leida', false),
+    (551, 'los_practicantes_tambien_reciben_las_normas', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
