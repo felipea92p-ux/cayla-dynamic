@@ -6,7 +6,62 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553, 0554 y 0555 (las tres PEGADAS 2026-10-26) · EN PR #606 · rama `claude/nifty-knuth-n789e7`
+## 2026-10-26 — El periodo de prueba se pacta por persona y la etiqueta tiene fecha de corte (segunda rebanada) · migraciones 0556 y 0557 · SQL SIN PEGAR · EN PR (borrador) · rama `claude/nifty-knuth-n789e7`
+
+**Qué es.** Tres cosas que Felipe pidió el 2026-10-26, después de la primera rebanada:
+1. **Se puede dar un periodo de prueba menor que los 3 meses** (tres meses es el periodo ordinario de la ley, no un mínimo; ampliarlo
+   a 6 o 12 es otra cosa y no entra). Opciones al dar de alta o editar a alguien en planilla: **la ley (3 meses, por defecto)**,
+   **uno menor (1–89 días calendario)** o **ninguno**. Lo menor o ninguno pide motivo y queda en `correcciones_auditoria`.
+2. **El alta pide la fecha de ingreso** (arranca en hoy, visible y editable) y el periodo de prueba **debajo del vínculo**. Los
+   practicantes y las prácticas **no tienen periodo de prueba** (se rigen por su convenio; se les paga subvención): el selector avisa que
+   debe haber póliza o EsSalud vigente desde el primer día.
+3. **La etiqueta «En periodo de prueba» tiene fecha de corte**, editable en Parámetros, **por defecto el día en que se activa**: quien ya
+   estaba no la lleva, quien ingresa desde ahí sí, mientras dure su periodo. Llevar la fecha atrás rotula también a quien ya trabaja
+   y lleva menos de tres meses; Parámetros muestra **a quién se la pone o se la quita antes de confirmar**.
+
+**⚠️ La etiqueta NO es el periodo legal.** El periodo de prueba legal es una cláusula del contrato de **cada** persona (art. 10, D.S.
+003-97-TR) y corre desde su ingreso exista o no la etiqueta. La fecha de corte solo decide a quién le pone el rótulo la pantalla; no toca
+la planilla, ni los avisos de feriado (que miran la antigüedad), ni el texto del contrato. Efecto concreto de que el defecto sea «hoy»:
+**Robert Cabrera y Emily Rico** (pasados a planilla por la 0554), y cualquiera que haya ingresado antes de hoy, **dejan de llevar la
+etiqueta** aunque su periodo legal siga corriendo. Si Felipe prefiere verla en toda la gente reciente, se cambia la fecha en Parámetros.
+
+**0556 · SQL SIN PEGAR · no toca planilla.** Columna `personas.prueba_pactada_dias` (null = la ley, 0 = sin prueba, 1–89 = menor, con
+`check`), función guardián `fn_set_prueba_pactada(persona, dias, motivo)` (solo admin/DO, motivo ≥ 3, solo planilla, no sobre cesados,
+no-op si no cambia) y trigger `trg_personas_prueba_solo_por_rpc` que rechaza el `UPDATE` directo y el `INSERT` con pacto — el molde de
+`fn_set_sede_base` (0342). No reescribe ninguna función: **no hay md5 que pedir**. Prueba **448 → 23/23**, puesta en rojo a propósito de
+tres maneras (sin trigger, `check` ensanchado, sin la condición de planilla).
+
+**0557 · SQL SIN PEGAR · no toca planilla.** Parámetro operativo `prueba_etiqueta_desde` (unidad «fecha», tope 2026-01-01 a 2030-12-31) y
+`fn_prueba_etiqueta_desde()`. **Se guarda como entero AAAAMMDD** porque el catálogo de Parámetros (0552) solo guarda números y abrirlo a
+otro tipo tocaba la puerta que protege los de plata; la pantalla lo dibuja y lo pide como fecha, y la función valida que sea un día real
+(20261340 o 20260230 caen en la fecha de partida, no se corren al mes siguiente). La siembra pone **el día en que se pega**, con
+`do nothing`: repegar no mueve una fecha ya elegida. Prueba **449 → 13/13**, puesta en rojo quitando el respaldo de la función (2 fallas).
+Honestidad sobre la prueba: la comparación `to_char(...) <> v_n` de la función es redundante con el `exception` (Postgres ya rechaza
+20261340); se deja como cinturón.
+
+**Cambios en pantalla.** Equipo: fecha de ingreso en el alta (la base pone su `current_date` al crear, que de noche —hora de Lima— ya es
+«mañana» en UTC; por eso el alta siempre escribe la elegida), bloque «Periodo de prueba» en alta y edición, etiqueta con corte y pacto.
+Contratos: la cláusula TERCERA dice el plazo **pactado** —«cuarenta y cinco (45) días calendario», «sin período de prueba»— y se cuenta
+desde el ingreso (una renovación no lo reinicia); un valor raro se imprime como la ley. Parámetros: una fila de unidad «fecha» se dibuja
+y se edita como fecha, con vista previa de a quién le cambia (`impactoEtiquetaPrueba`, la misma función que usa Equipo).
+
+**Si el código llega antes que el SQL no se rompe nada:** las lecturas de `prueba_pactada_dias` y de `fn_prueba_etiqueta_desde` son
+aparte y tolerantes; sin la 0556 el selector queda apagado y dice qué falta, y sin la 0557 la etiqueta no tiene corte (se ve como hasta
+ahora). **Orden para pegar:** 0556, luego 0557 (la 0557 exige la 0553); las dos antes de fusionar.
+
+**Regla que queda dicha, «así en adelante».** Quien ya estaba con contrato no lleva etiqueta; quien ingresa desde la fecha de corte la lleva
+hasta que termina su periodo, sin que nadie la ponga ni la quite a mano. El periodo legal se pacta en el alta; el contrato lo imprime.
+
+**Probado.** `tsc` limpio; vitest verde (nuevas: `periodo-de-prueba` 31, `prueba-pactada` 6, `parametros` 43, `contrato-texto` 53).
+
+**Pendiente (siguiente rebanada).** Alerta a DO a los 30 días (evaluación interna) y de decisión a los 60/75/85, con atajo «No continúa»;
+aviso del costo de EsSalud al dar de alta; limpieza del legado «prueba» (tabla `pruebas`, `fn_prueba_cerrar`, Bandeja, terminal 0539 y 27
+pruebas pgTAP). **Felipe, antes del cierre del 28/10:** asignar sueldo a Noelia Ibarcena (desde 19/10) y Liliana Ocas (desde 25/10) y volver
+a correr la consulta de «horas sin salario» hasta que salga vacía.
+
+---
+
+## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553, 0554 y 0555 (las tres PEGADAS 2026-10-26) · FUSIONADO (PR #606)
 
 **Qué es.** Felipe lo dijo así (2026-10-26): tener a alguien «de prueba», o que empiece a trabajar, sin contrato y sin alta es
 prácticamente ilegal. «Prueba» (tres días trabajados sin contrato, y «si pasa, recién ahí se hace el contrato») no existe en la ley
