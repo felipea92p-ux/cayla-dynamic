@@ -14,13 +14,14 @@
   --color-taupe: #805c4c; /* acento tonal, estados intermedios */
   /* Borde de control: sand como borde de un input/select da 1.16:1 sobre crema
      y 1.24:1 sobre papel — muy por debajo del 3:1 que WCAG 1.4.11 pide para lo
-     que identifica un control (Campo, CampoSelect y el Boton "secundario" hoy
-     usan border-sand). Sand sigue siendo la línea decorativa correcta para
-     separadores y marcos de tarjeta; para un control interactivo hace falta
-     más peso. Alias a taupe, que ya lo tiene: 5.21:1 sobre crema, 5.57:1 sobre
-     papel, sin sumar un color nuevo al sistema. Definido acá para que Campo,
-     CampoSelect y Boton puedan pedir border-borde-control — aplicarlo es
-     trabajo de esos archivos, no de este. */
+     que identifica un control. Sand sigue siendo la línea decorativa correcta
+     para separadores y marcos de tarjeta; para un control interactivo hace
+     falta más peso. Alias a taupe, que ya lo tiene: 5.21:1 sobre crema, 5.57:1
+     sobre papel, sin sumar un color nuevo al sistema.
+     Aplicado el 2026-10-25 a Campo, CampoSelect, AreaTexto y Boton «secundario»
+     (el terminal ya lo usaba). Quedan con sand, sin decidir, las piezas que se
+     tocan pero llevan texto que las identifica: Filtro, BotonIcono, Boton
+     «sutil» y las pastillas de ParaAtender. */
   --color-borde-control: var(--color-taupe);
   /* Los dos colores de marca que NO cambian con el tema (mismos valores que tinta y crema en claro). Los usa solo el panel del
      login (login-vuelo.css), que es una pieza de marca oscura en los dos temas: ahí «tinta» y «crema» se invertirían en oscuro y

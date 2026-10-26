@@ -49,7 +49,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {avisos.map((a) => (
           <div key={a.id} role={a.tipo === "error" ? "alert" : "status"}
             className={`pointer-events-auto flex w-80 max-w-[calc(100vw-2rem)] items-start gap-2.5 rounded-lg border bg-papel px-4 py-3 text-sm shadow-xl transition ${
-              a.tipo === "error" ? "border-rojo/30 text-rojo" : "border-sand text-tinta"}`}>
+              a.tipo === "error" ? "border-rojo/30 text-rojo-profundo" : "border-sand text-tinta"}`}>
             <span aria-hidden
               className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${a.tipo === "error" ? "bg-rojo" : "bg-verde"}`} />
             <span className="flex-1">{a.texto}</span>

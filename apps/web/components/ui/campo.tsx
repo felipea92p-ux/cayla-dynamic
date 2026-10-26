@@ -9,6 +9,14 @@
 // seguidos (anillo, hueco, borde) alrededor de un fondo casi negro. Pegado al
 // borde es un solo marco.
 //
+// El borde (2026-10-25): `border-borde-control`, no `border-sand`. Sand como
+// borde de un campo da 1.2:1 y no lo identifica (WCAG 1.4.11 pide 3:1); el alias
+// ya existía en globals.css y solo faltaba pedirlo. El error es un `border-rojo`
+// que REEMPLAZA al borde de control —no se suma—: dos clases de color de borde
+// juntas las resuelve el orden de la hoja de Tailwind, no el orden en que se
+// escriben. Y el mensaje de error va en `rojo-profundo`: el `rojo` plano daba
+// 4.28:1 sobre papel en modo oscuro, bajo el 4.5:1 de AA para texto de 12 px.
+//
 // Retocado 2026-09-07, antes de que el Día 2 empiece a adoptarlo en masa:
 // - La etiqueta pasa de mayúsculas con tracking a caja normal, igual que las
 //   83 que ya existen hoy (`<label className="… text-sm">`). Se comparó a
@@ -55,14 +63,14 @@ export function Campo({
       <input
         id={id}
         className={cx(
-          "rounded-control border border-sand bg-hueso px-3 text-base text-tinta transition-colors duration-150 placeholder:text-taupe/60 focus-visible:outline-offset-0",
+          "rounded-control border bg-hueso px-3 text-base text-tinta transition-colors duration-150 placeholder:text-taupe/60 focus-visible:outline-offset-0",
           TAMANO_CAMPO[tamano],
-          error && "border-rojo",
+          error ? "border-rojo" : "border-borde-control",
           className,
         )}
         {...props}
       />
-      {error && <span className="text-xs text-rojo">{error}</span>}
+      {error && <span className="text-xs text-rojo-profundo">{error}</span>}
     </label>
   );
 }
@@ -98,7 +106,7 @@ export function CampoCasilla({
         {...props}
       />
       {etiqueta && <span className="text-sm text-tinta">{etiqueta}</span>}
-      {error && <span className="text-xs text-rojo">{error}</span>}
+      {error && <span className="text-xs text-rojo-profundo">{error}</span>}
     </label>
   );
 }
@@ -119,9 +127,9 @@ export function CampoSelect({
         <select
           id={id}
           className={cx(
-            "w-full appearance-none rounded-control border border-sand bg-hueso px-3 pr-8 text-base text-tinta transition-colors duration-150 focus-visible:outline-offset-0",
+            "w-full appearance-none rounded-control border bg-hueso px-3 pr-8 text-base text-tinta transition-colors duration-150 focus-visible:outline-offset-0",
             TAMANO_CAMPO[tamano],
-            error && "border-rojo",
+            error ? "border-rojo" : "border-borde-control",
             className,
           )}
           {...props}
@@ -141,7 +149,7 @@ export function CampoSelect({
           )}
         />
       </div>
-      {error && <span className="text-xs text-rojo">{error}</span>}
+      {error && <span className="text-xs text-rojo-profundo">{error}</span>}
     </label>
   );
 }
