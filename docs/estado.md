@@ -6,6 +6,81 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0552 · SQL SIN PEGAR · rama `claude/stoic-archimedes-8h71yn`
+
+**Qué es.** Felipe pidió un módulo donde DO cambie sin código los números que mueven el sistema (días de prueba, escalera
+disciplinaria, porcentajes, sueldo base, provisiones), con historial de quién y cuándo, y con la lista de a quién le afecta antes
+de confirmar. Se acordó construirlo **por rebanadas**; esta es la primera. Tres decisiones suyas (2026-10-26): (a) el líder de DO
+opera lo operativo y lo de plata, y **solo la dirección (admin) toca lo normativo**; (b) **la escalera disciplinaria no es editable**
+en esta entrega —es del RIT— y entra después atada a una versión del RIT; (c) nombre «Parámetros», dentro de Configuración.
+
+**El censo (medido leyendo el repo; no exhaustivo).** Los números que mandan viven en cuatro sitios y ninguno deja rastro de quién
+los movió: `configuracion` (jsonb sin autor, fecha ni vigencia; la RLS deja escribir a admin/líder de DO directo desde el navegador),
+`parametros_laborales` (versionada, «se escribe por migración»: RMV, EsSalud, movilidad, asignación familiar, bonificación
+extraordinaria, bono de cumpleaños), constantes dentro de funciones (la prueba de 3 días, la escalera 3→2→1 de tardanzas y sus 12
+meses, recargos 25 %/35 %, 48 h) y constantes en TypeScript (`rangos.ts`; subir la RMV obliga a mover **cuatro** sitios a la vez).
+`descanso_medico_aviso_dias` guarda **dos** números en una clave: `avisar_desde` (15, operativo) y `umbral_essalud` (20, el tope del
+RIT art. 31 f, que usa la planilla): el catálogo apunta a un campo y no a la clave entera.
+
+**Lo que cambia para quien la usa.**
+- **Pantalla `/admin/parametros`** (solo DO y admin). Tres parámetros se pueden cambiar: días de prueba antes del contrato (1–15,
+  hoy 3), horas de espera del auto-cierre (1–12, hoy 3) y desde cuántos días de descanso médico se avisa a DO (1–20, hoy 15). El
+  tope de 20 días del RIT se muestra aparte y sin botón. Cambiar pide un motivo y pasa por dos pasos: valor → **a quién afecta**
+  (las personas de prueba cuya situación cambia; las personas a las que se empezaría o dejaría de avisar) → confirmar.
+- **Historial** con quién, cuándo, de qué a qué y por qué, y un «Volver a este valor» que es un cambio nuevo, no un borrado.
+- **«Días de prueba» ya no está clavado**: `fn_prueba_dias_plazo()` lee `configuracion.prueba_dias` (parte en 3, el de siempre). Las
+  pantallas ya recibían el número como columna (`dias_plazo`), así que ninguna cambia.
+- **Un cambio hecho a mano en el SQL Editor también deja rastro**, marcado «A mano en la base» y sin autor; antes no dejaba nada.
+- **Un UPDATE/DELETE directo desde el navegador** sobre una de esas claves ya se rechaza. Apariencia, Educación y la firma de la empresa
+  no están en el catálogo y se escriben como siempre.
+
+**Antes de pegar (en el mismo mensaje en que se entrega el SQL; un md5 es una foto y caduca).** La 0552 reescribe UNA función,
+`fn_prueba_dias_plazo()` (la de la 0536, `select 3;`). Su cuerpo no tiene saltos de línea, así que ni el CRLF de Windows lo cambia.
+**md5 de PRODUCCIÓN pendiente**: la consulta (1) del encabezado debe dar `2645ded8d962eebe8104370a3d5ac219`, 11 caracteres, `i` y
+`false`; la guardia de la migración compara el cuerpo sin espacios y **PARA** ante cualquier otra versión (y acepta la ya
+reescrita, así que repegar no falla). La consulta (2) debe volver sin funciones **no** `SECURITY DEFINER` que escriban esas claves
+(esas dejarían de poder); la (3) trae los valores de partida: `auto_cierre_horas` entre 1 y 12 y `avisar_desde` entre 1 y 20, porque
+el trigger exige esos límites cuando alguien cambie el valor. **No toca la planilla**: `fn_planilla_calcular` lee las mismas claves con
+la misma forma de siempre; por eso no hay md5 de la planilla.
+
+**Si el código llega antes que el SQL.** `main` se publica sola. La pantalla lo detecta (PGRST202, la función no existe) y dice «Falta
+pegar la migración 0552» en vez de romperse; nada más depende de la 0552 hasta que se pegue. El renglón «Parámetros» y la novedad
+(solo para DO) sí aparecen.
+
+**Probado.** Typecheck limpio en los tres paquetes; **2 907 pruebas vitest verdes** (32 nuevas en `tests/parametros.test.ts`, más el
+contador y el permiso del menú); ESLint limpio sobre lo nuevo. En un **Postgres 16 propio con las 524 migraciones de `main`** (solo
+fallaron `pg_cron` y una columna de storage de mi imitación de Supabase; ninguna toca esto): la **prueba 444 da 55 de 55, seis veces
+seguidas**, y rompiendo la migración a propósito de **15 maneras** (sin trigger, trigger `SECURITY DEFINER`, sin límites, sin gate
+normativo, autor pegado a la transacción, historial editable, tabla legible directo, días de prueba clavados, la hora vuelta a
+`now()`…) **se pone roja las 15 veces**. «Revertir» (el del encabezado) se probó tal cual, y repegar la migración deja todo igual.
+En TypeScript, 6 mutaciones atrapadas, una de ellas (el borde de `>=` en el aviso) solo después de agregar el caso que la dejaba pasar.
+**En navegador** (Chromium con la API de Supabase simulada, interceptando las llamadas): el flujo completo —abrir, validar (el 30 se
+rechaza con «Va de 1 a 15 días»), ver «Le cambia a 2 personas», confirmar con la llamada correcta a `fn_parametro_cambiar` y «Volver a
+este valor»—, en 1440 y 390 px, claro y oscuro, más los dos estados de borde («Falta pegar la migración» y una integrante sin acceso):
+sin errores de consola ni desborde horizontal. La primera pasada encontró un defecto real y está corregido: en celular el botón
+«Cambiar» quedaba fuera de pantalla (última columna de una tabla que se desplaza); ahora sube junto al valor.
+
+**Dos hallazgos de la prueba, ya corregidos.** (1) *El empate de `now()`*: la hora del historial era `now()`, que vale lo mismo en toda
+la transacción, y dos aserciones pasaban o fallaban según el orden de un uuid al azar (la familia de falsos rojos que este archivo ya
+documenta). Ahora es `clock_timestamp()`: la hora real de escritura, y la prueba ya no depende del azar. (2) *La guardia* comparaba un
+marcador con el **número** de la migración y se negó a repegar tras renumerar (0551→0552, ver abajo); ahora compara un marcador de
+**contenido** (`prueba_dias`).
+
+**Renumerada de 0551 a 0552 (prueba 443→444).** Mientras se construía, el PR #601 tomó el 0551. Se trajo `main` a esta rama (merge),
+se renumeraron solo estos archivos y se probó con **las dos migraciones aplicadas en orden** (0551 de Normas y luego esta). Las dos son
+independientes: no tocan las mismas funciones.
+
+**No probado.** pgTAP real ni el CI `db-tests` (el banco local usa un sustituto mínimo: lo fiable es `db-tests` de GitHub); la
+pantalla contra una API y unas RLS reales (la simulé: lo que devuelve la base lo dicen las pruebas SQL, no esta); nada
+contra producción (la consulta (1)–(3) la corre Felipe); los grants reales de Supabase (la migración revoca y concede explícito para no
+depender de los de por defecto); y los límites 1–15 / 1–12 / 1–20 son una **propuesta** para atajar errores de tecla, no una norma:
+Felipe los puede mover con una migración.
+
+**Siguiente.** Rebanada 2: plata ya versionada (`parametros_laborales`: RMV, asignación, movilidad, tasas, bonos) y sueldo base por
+rango envolviendo `fn_fijar_base_declarada`, con **vigencia y vista previa de a quién le cambia**. Rebanada 3: provisiones, que viven en
+`configuracion` **sin fecha** (cambiarlas reescribiría el historial) y necesitan vigencia antes de ser editables: eso reescribe
+`fn_planilla_calcular`, con su protocolo de md5. Rebanada 4: la escalera disciplinaria, atada a una versión del RIT.
+
 ## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · **SQL SIN PEGAR EN PRODUCCIÓN** · AUTOMERGE ARMADO (PR #601) · rama `claude/epic-ramanujan-rr0p0u`
 
 **Qué es.** Felipe, con la captura de Normas → Constancias: «en normas también deberían aparecerme los practicantes, deben

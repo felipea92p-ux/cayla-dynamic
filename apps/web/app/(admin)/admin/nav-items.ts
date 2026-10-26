@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare, Archive, ShieldCheck, FileStack,
+  BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare, Archive, ShieldCheck, FileStack, SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS } from "@cayla-dynamic/shared";
@@ -226,6 +226,13 @@ export const GRUPOS: Grupo[] = [
     // el resto de este grupo: es un catálogo del sistema, no un dato de una
     // persona.
     { href: "/admin/apariencia", label: "Apariencia", Icon: Palette, roles: DO },
+    // Los números del sistema que DO puede cambiar sin pedir código (0552): días
+    // de prueba, horas del auto-cierre, el aviso de descanso médico. Cada cambio
+    // deja quién, cuándo y por qué. Va en Configuración y no en Pago aunque a
+    // futuro entren parámetros de plata: lo que se abre aquí es el CATÁLOGO, y
+    // el pago se sigue mirando en Planilla. Mismo permiso que el grupo; lo
+    // normativo lo separa `puedeCambiarParametro`, no el menú.
+    { href: "/admin/parametros", label: "Parámetros", Icon: SlidersHorizontal, roles: DO },
   ] },
 ];
 
