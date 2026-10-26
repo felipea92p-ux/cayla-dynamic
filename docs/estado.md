@@ -54,6 +54,11 @@ seguidas**, y rompiendo la migración a propósito de **15 maneras** (sin trigge
 normativo, autor pegado a la transacción, historial editable, tabla legible directo, días de prueba clavados, la hora vuelta a
 `now()`…) **se pone roja las 15 veces**. «Revertir» (el del encabezado) se probó tal cual, y repegar la migración deja todo igual.
 En TypeScript, 6 mutaciones atrapadas, una de ellas (el borde de `>=` en el aviso) solo después de agregar el caso que la dejaba pasar.
+**En navegador** (Chromium con la API de Supabase simulada, interceptando las llamadas): el flujo completo —abrir, validar (el 30 se
+rechaza con «Va de 1 a 15 días»), ver «Le cambia a 2 personas», confirmar con la llamada correcta a `fn_parametro_cambiar` y «Volver a
+este valor»—, en 1440 y 390 px, claro y oscuro, más los dos estados de borde («Falta pegar la migración» y una integrante sin acceso):
+sin errores de consola ni desborde horizontal. La primera pasada encontró un defecto real y está corregido: en celular el botón
+«Cambiar» quedaba fuera de pantalla (última columna de una tabla que se desplaza); ahora sube junto al valor.
 
 **Dos hallazgos de la prueba, ya corregidos.** (1) *El empate de `now()`*: la hora del historial era `now()`, que vale lo mismo en toda
 la transacción, y dos aserciones pasaban o fallaban según el orden de un uuid al azar (la familia de falsos rojos que este archivo ya
@@ -65,7 +70,8 @@ marcador con el **número** de la migración y se negó a repegar tras renumerar
 se renumeraron solo estos archivos y se probó con **las dos migraciones aplicadas en orden** (0551 de Normas y luego esta). Las dos son
 independientes: no tocan las mismas funciones.
 
-**No probado.** pgTAP real ni el CI `db-tests` (el banco local usa un sustituto mínimo: lo fiable es `db-tests` de GitHub); nada
+**No probado.** pgTAP real ni el CI `db-tests` (el banco local usa un sustituto mínimo: lo fiable es `db-tests` de GitHub); la
+pantalla contra una API y unas RLS reales (la simulé: lo que devuelve la base lo dicen las pruebas SQL, no esta); nada
 contra producción (la consulta (1)–(3) la corre Felipe); los grants reales de Supabase (la migración revoca y concede explícito para no
 depender de los de por defecto); y los límites 1–15 / 1–12 / 1–20 son una **propuesta** para atajar errores de tecla, no una norma:
 Felipe los puede mover con una migración.

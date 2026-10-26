@@ -116,6 +116,20 @@ export default function ParametrosPage() {
     setPanelAbierto(true);
   }
 
+  /** Qué se cambió por última vez, dicho en un renglón y su motivo. */
+  function ultimoCambio(f: ParametroFila) {
+    if (!f.ultimo_cambio_at) return "Sin cambios desde que existe.";
+    return (
+      <>
+        <div>
+          {cuandoSeCambio(f.ultimo_cambio_at)}
+          {f.ultimo_origen === "base" ? " · a mano en la base" : f.ultimo_cambio_por ? ` · ${f.ultimo_cambio_por}` : ""}
+        </div>
+        {f.ultimo_motivo && <div className="mt-0.5">«{f.ultimo_motivo}»</div>}
+      </>
+    );
+  }
+
   const { editables, fijos } = useMemo(() => repartirParametros(filas ?? []), [filas]);
   const porClave = useMemo(() => new Map((filas ?? []).map((f) => [f.parametro, f])), [filas]);
 
@@ -153,45 +167,44 @@ export default function ParametrosPage() {
                   <TablaEncabezado>
                     <Th>Parámetro</Th>
                     <Th>Hoy</Th>
-                    <Th>Último cambio</Th>
-                    <Th />
+                    <Th className="hidden md:table-cell">Último cambio</Th>
+                    <Th className="hidden md:table-cell" />
                   </TablaEncabezado>
                   <tbody>
-                    {editables.map((f) => (
-                      <Fila key={f.parametro}>
-                        <td className="max-w-md px-4 py-3 align-top">
-                          <div className="font-medium">{f.nombre}</div>
-                          <p className="mt-0.5 text-xs text-taupe">{f.descripcion}</p>
-                          <div className="mt-1.5">
-                            <Insignia tamano="sm" variante="neutral" punto={false}>{ETIQUETA_CLASE_PARAMETRO[f.clase]}</Insignia>
-                          </div>
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 align-top">
-                          <div className="font-medium">{valorConUnidad(f.valor_actual, f.unidad)}</div>
-                          {f.es_defecto && <div className="text-xs text-taupe">valor de partida</div>}
-                        </td>
-                        <td className="px-4 py-3 align-top text-xs text-taupe">
-                          {f.ultimo_cambio_at ? (
-                            <>
-                              <div>
-                                {cuandoSeCambio(f.ultimo_cambio_at)}
-                                {f.ultimo_origen === "base" ? " · a mano en la base" : f.ultimo_cambio_por ? ` · ${f.ultimo_cambio_por}` : ""}
-                              </div>
-                              {f.ultimo_motivo && <div className="mt-0.5">«{f.ultimo_motivo}»</div>}
-                            </>
-                          ) : (
-                            "Sin cambios desde que existe."
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right align-top">
-                          {puedeCambiarParametro(rol, f.clase) && (
-                            <Boton tamano="sm" onClick={(e) => abrir(f, e)}>
-                              Cambiar
-                            </Boton>
-                          )}
-                        </td>
-                      </Fila>
-                    ))}
+                    {editables.map((f) => {
+                      const puede = puedeCambiarParametro(rol, f.clase);
+                      return (
+                        <Fila key={f.parametro}>
+                          <td className="max-w-md px-4 py-3 align-top">
+                            <div className="font-medium">{f.nombre}</div>
+                            <p className="mt-0.5 text-xs text-taupe">{f.descripcion}</p>
+                            <div className="mt-1.5">
+                              <Insignia tamano="sm" variante="neutral" punto={false}>{ETIQUETA_CLASE_PARAMETRO[f.clase]}</Insignia>
+                            </div>
+                            {/* En celular la columna «Último cambio» no cabe: baja aquí. */}
+                            <div className="mt-2 text-xs text-taupe md:hidden">{ultimoCambio(f)}</div>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 align-top">
+                            <div className="font-medium">{valorConUnidad(f.valor_actual, f.unidad)}</div>
+                            {f.es_defecto && <div className="text-xs text-taupe">valor de partida</div>}
+                            {/* Y el botón sube junto al valor: la última columna queda fuera de la pantalla del teléfono. */}
+                            {puede && (
+                              <Boton tamano="sm" className="mt-2 md:hidden" onClick={(e) => abrir(f, e)}>
+                                Cambiar
+                              </Boton>
+                            )}
+                          </td>
+                          <td className="hidden px-4 py-3 align-top text-xs text-taupe md:table-cell">{ultimoCambio(f)}</td>
+                          <td className="hidden px-4 py-3 text-right align-top md:table-cell">
+                            {puede && (
+                              <Boton tamano="sm" onClick={(e) => abrir(f, e)}>
+                                Cambiar
+                              </Boton>
+                            )}
+                          </td>
+                        </Fila>
+                      );
+                    })}
                   </tbody>
                 </Tabla>
               )}
