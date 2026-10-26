@@ -407,7 +407,8 @@ with repo(numero, nombre, nunca) as (values
     (551, 'los_practicantes_tambien_reciben_las_normas', false),
     (552, 'los_parametros_tienen_puerta_y_dejan_rastro', false),
     (553, 'el_periodo_de_prueba_es_una_condicion_del_contrato', false),
-    (554, 'quien_figuraba_de_prueba_pasa_a_planilla', false)
+    (554, 'quien_figuraba_de_prueba_pasa_a_planilla', false),
+    (555, 'quien_se_retiro_en_prueba_cobra_lo_que_trabajo', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
