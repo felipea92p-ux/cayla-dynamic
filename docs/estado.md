@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553, 0554 (pegadas 2026-10-26) y 0555 (SIN PEGAR) · EN PR #606 · rama `claude/nifty-knuth-n789e7`
+## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553, 0554 y 0555 (las tres PEGADAS 2026-10-26) · EN PR #606 · rama `claude/nifty-knuth-n789e7`
 
 **Qué es.** Felipe lo dijo así (2026-10-26): tener a alguien «de prueba», o que empiece a trabajar, sin contrato y sin alta es
 prácticamente ilegal. «Prueba» (tres días trabajados sin contrato, y «si pasa, recién ahí se hace el contrato») no existe en la ley
@@ -61,7 +61,10 @@ abierta. **Lo medido antes de pegar la 0554 y que sigue abierto:** dos personas 
 planilla, o sea que **no se les paga lo que trabajaron** y el periodo cierra el 28/10. Se arregla con la 0555 (reescribe
 `fn_planilla_calcular_nucleo` quitando el bloque «CAMBIO 0537»), que exige el **md5 de PRODUCCIÓN justo antes de escribirla**.
 
-**0555 · quien se retiró en prueba cobra lo que trabajó · SQL SIN PEGAR · MUEVE PLATA.** Producción medida el 2026-10-26: 122 157
+**0555 · quien se retiró en prueba cobra lo que trabajó · SQL PEGADO (2026-10-26) · MUEVE PLATA.** Felipe devolvió la comprobación:
+`true · true · true · true · false · 1 · 121868 · aad8a0f00628539f27a4d789a4c1ac04 · 555` — la función de producción es exactamente la que se
+probó y ya no lee si alguien se retiró. **Falta mirar** que Mariel Sarmiento y Noelia Ibarcena aparezcan en la planilla del periodo abierto
+antes de cerrar el 28/10. Producción medida el 2026-10-26: 122 157
 caracteres, 0 retornos de carro, una versión, con «CAMBIO 0537», md5 `4e25d9fd99e5e6a4e8f82952207c0652` — idéntico al cuerpo del archivo
 de la 0537. La 0555 parte de ese cuerpo y **solo quita el bloque de la exclusión** (26 líneas de diferencia, todas dentro de él; el cuerpo
 nuevo queda en 121 868 caracteres, md5 de la función `aad8a0f00628539f27a4d789a4c1ac04`); su guardia se niega a pegar sobre cualquier otra
