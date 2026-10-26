@@ -90,7 +90,7 @@ rango envolviendo `fn_fijar_base_declarada`, con **vigencia y vista previa de a 
 `configuracion` **sin fecha** (cambiarlas reescribiría el historial) y necesitan vigencia antes de ser editables: eso reescribe
 `fn_planilla_calcular`, con su protocolo de md5. Rebanada 4: la escalera disciplinaria, atada a una versión del RIT.
 
-## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · **SQL PEGADO (2026-10-26)** · FUSIONADO Y PUBLICADO (PR #601, 2026-10-26) · rama `claude/epic-ramanujan-rr0p0u`
+## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · **SQL PEGADO EN PRODUCCIÓN (2026-10-26)** · FUSIONADA (PR #601) · rama `claude/epic-ramanujan-rr0p0u`
 
 **Qué es.** Felipe, con la captura de Normas → Constancias: «en normas también deberían aparecerme los practicantes, deben
 aparecer todos incluyendo los que cuenten con su correo dentro del sistema y los que fueron invitados». Medido, no supuesto:
@@ -126,17 +126,25 @@ Ninguna constancia ya registrada se toca. `fn_reglamento_no_acusado` (el freno p
    (2026-10-26) y la sesión no puede pegar el SQL —el conector de Supabase de la sesión solo ve los proyectos Fructus, FastFruit y
    vonatur, no el de CAYLA—, así que el PR se fusiona solo cuando `db-tests` y `ui-tests` den verde y **el frontend sale antes que el
    SQL**. Es seguro: no llama a nada nuevo; solo se adelantan la frase del papel imprimible y la novedad (que dice «ya aparecen» y
-   hasta pegar no es cierto). **Hasta que Felipe pegue la 0551, Normas sigue sin mostrar a los practicantes**: pegarla cuanto antes.
+   hasta pegar no es cierto). El orden no se cumplió, como se avisó; la 0551 se pegó después (ver «Pegado el 2026-10-26»).
 3. Para ver de antemano cuánto va a subir el contador (solo lectura, en el SQL Editor):
    `select count(*) filter (where auth_user_id is not null) as con_cuenta, count(*) filter (where auth_user_id is null) as sin_cuenta
    from personas where tipo_vinculo = 'practicante' and estado = 'activo' and not cuenta_de_servicio;`
 4. Después de pegar, el `select` del final de la migración: `practicantes_activos` = `practicantes_contados` y
    `politica_sin_practicantes = true`.
 
-**Pegado el 2026-10-26** (Felipe devolvió las filas de comprobación). La guardia de md5 dejó pasar las dos funciones, y el `select`
-final dio: `registrada` = `551 los_practicantes_tambien_reciben_las_normas`, `poblacion_incluye_practicantes` = `true`,
-`practicantes_activos` = 4 = `practicantes_contados`, `politica_sin_practicantes` = `true` y `equipo_obligado` = 22. La consulta de
-conteo previa dio 4 con cuenta y 0 sin cuenta. Desde ahora Normas cuenta a los practicantes.
+**Pegado el 2026-10-26** (Felipe devolvió las filas). Antes de pegar, su consulta de solo lectura dio **4 practicantes activos, los 4
+con cuenta y ninguno sin cuenta**. **El primer intento no se aplicó, y fue un error de la sesión:** el bloque que se le dio por el chat
+traía el `select` final corrupto (`where tipo_tipo_vinculo_placeholder`, una línea inventada al recortar la cabecera) y el editor
+revirtió todo el texto —se reprodujo en un banco: un error en la última sentencia deja `sin 551 | incluye practicante: false`—. El
+segundo intento, con las líneas 128–279 del archivo de `main` sin retocar, pasó la guardia y devolvió: `registrada` = `551
+los_practicantes_tambien_reciben_las_normas`, `poblacion_incluye_practicantes` = `true`, `practicantes_activos` =
+`practicantes_contados` = **4**, `politica_sin_practicantes` = `true`, `equipo_obligado` = **22**. **Lección de método:** el SQL que se
+entrega por el chat se saca del archivo con `sed -n`, nunca se reescribe a mano, y un aviso sobre un bloque va ANTES del bloque.
+El `md5` de partida de producción sigue sin medirse a mano: la guardia lo comprobó y pasó (acepta el de la 0491 y el de la 0458).
+**«La oficina Trujillo» es la sede `OTRU` («Oficina TRU», tipo central, donde están los practicantes en áreas de oficina):** no salía
+en Constancias porque nadie de esa sede estaba en la población; su chip y su opción en el filtro «Sede» se arman con las filas que
+llegan, así que aparece sola.
 
 **Lo que se verá.** El «N de M» de cada documento y «constancias pendientes» suben en practicantes × documentos que piden
 constancia, hasta que cada uno la deje o DO registre su cargo en papel: es gente que faltaba contar, no un retroceso (la novedad
