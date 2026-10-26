@@ -401,8 +401,7 @@ with repo(numero, nombre, nunca) as (values
     (542, 'la_diferencia_de_una_liquidacion_pagada_se_cierra_con_constancia', false),
     (543, 'vida_ley_es_un_seguro_del_sistema', false),
     (544, 'una_cuenta_de_servicio_no_queda_en_planilla', false),
-    (548, 'los_avisos_que_fallaron_para_siempre_tienen_salida', false),
-    (549, 'un_pago_unico_ya_sustentado_no_pide_calendario', false)
+    (550, 'una_alerta_solo_se_marca_leida', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

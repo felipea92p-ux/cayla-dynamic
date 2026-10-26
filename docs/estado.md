@@ -62,8 +62,62 @@ simulador de la API (1440 y 390 px; el modo oscuro solo antes de plegar la tarje
 reales de Supabase, Resend vivo, y nada contra datos de producción. La 440 original abortaba contra el esquema real
 (fixtures); lo cazó un revisor y quedó corregido.
 
-**Hueco preexistente, fuera de esta rama.** La política `alertas_marcar_leida_propia` (0003) deja a la dueña de una fila
-cambiar `estado` e `intentos` por PostgREST; falta el molde función guardián + trigger para `alertas`.
+**Hueco preexistente, cerrado aparte.** La política `alertas_marcar_leida_propia` (0003) dejaba a la dueña de una fila
+cambiar `estado` e `intentos` por PostgREST. Lo cierra la 0550 (entrada de abajo, PR #598, ya fusionado y con el SQL
+pegado): un trigger que solo deja cambiar `leido_at`. Las funciones de la 0548 son `SECURITY DEFINER` y corren como
+`postgres`, así que el trigger no las toca; el CI de este PR lo comprueba con la 0550 ya en main.
+
+## 2026-10-25 — Una alerta solo se marca leída: se cierra el hueco de la política de `alertas` · migración 0550 · SQL PEGADO (2026-10-25) · SIN FUSIONAR (PR #598, borrador) · rama `claude/sad-chandrasekhar-10f114`
+
+**Qué es.** El revisor de la 0548 midió un hueco que viene de la 0003: la política `alertas_marcar_leida_propia` deja a la
+dueña de una fila hacer UPDATE, y una política filtra filas, no columnas. Medido otra vez contra el esquema real
+(`authenticated`, sesión de una integrante): `update alertas set estado = 'enviado', intentos = 0, … where persona_id =
+<la suya>` da UPDATE 1 y deja **once columnas** reescritas —no las cinco del hallazgo; entran `tipo`, `canal`, `payload`,
+`created_at`, `ultimo_intento_at` e `id`—. El `payload` pesa: `/api/alertas-encargadas` arma el correo con él, así que una
+integrante podía fabricar un aviso con el texto que quisiera y el despacho lo mandaba a su encargada o a DO desde el
+remitente verificado de Dynamic. La brecha creció sola con cada `add column` (0354: `nota_fallo`; 0362: tres más). La
+0550 pone un trigger BEFORE UPDATE con **lista permitida** —solo `leido_at` puede cambiar— que aborta si `current_user <>
+'postgres'`, el molde de `fn_bloquear_rol_directo` (0296) y `fn_bloquear_sede_directa` (0342). Una columna que se agregue
+mañana nace cerrada.
+
+**Lo que cambia para quien la usa.** Nada visible: ninguna pantalla ni ruta escribe `alertas` directo (el despacho usa la
+llave de servicio solo para llamar a las funciones por `rpc`), y `leido_at` no lo escribe nadie hoy. Lo que sí cambia: un
+`PATCH /rest/v1/alertas` armado a mano deja de poder mover cualquier cosa que no sea `leido_at`.
+
+**Antes de pegar.** Dos consultas, escritas en el encabezado de la migración (sección «ANTES DE PEGAR»). La primera debe
+volver SIN FILAS: nombra cualquier función de producción, pegada a mano y fuera del repo, que haga `update alertas` sin ser
+`SECURITY DEFINER` de `postgres` — esa dejaría de poder escribir. La segunda trae `registro_550` en `null` y los triggers
+que ya tiene `alertas` (hoy ninguno). **No depende de la 0548** y se puede pegar antes o después; no reescribe ninguna
+función, así que no hay md5 de partida. Como toda migración: se pega ANTES de fusionar, aunque aquí no hay código nuevo que
+dependa de ella. **Pegada el 2026-10-25** (Felipe devolvió la fila de comprobación): el freno está puesto y activo, no es
+`SECURITY DEFINER`, ningún escritor de `alertas` queda fuera (`escritores_que_el_freno_dejaria_fuera = 0`) y el registro dice
+`550 · una_alerta_solo_se_marca_leida`. Con eso la consulta previa ya no hace falta: la tercera columna decía lo mismo.
+Con la migración ya pegada, el PR se puede fusionar **solo con OK de Felipe** (fusionar es publicar) y con el comentario
+`<!-- cayla:fusion-sesion -->` que pide el hook.
+
+**Una decisión que quedó escrita y es de Felipe.** El freno rechaza también a `service_role` escribiendo DIRECTO
+(`.from("alertas").update(…)` con la llave de servicio): solo pasan las funciones `SECURITY DEFINER`. Hoy nadie lo hace.
+Si algún día se quiere dejar pasar a `service_role`, es cambiar una condición en `fn_bloquear_alertas_directo`, y la
+prueba 442 tiene una aserción que lo fija hoy.
+
+**Probado.** En un Postgres 17 nativo (sin Docker; Docker Desktop sigue colgado) con las 544 migraciones de `main`: la
+prueba nueva **442, 33 de 33 con la migración y 22 en rojo sin ella** (las 11 que siguen verdes sin ella son los caminos
+permitidos y los que ya cerraba RLS, que deben darse igual en los dos mundos). Suite entera (345 archivos) con y sin la 0550:
+**la única diferencia es la 442**, aserción por aserción; los 39 archivos que fallan en ese banco fallan igual en los dos
+estados (mini-pgTAP y `auth.users` incompleto). Las ocho pruebas que escriben `alertas` (179, 281–285, 288, 294) pasan
+completas. Con la 0548 de `claude/notifications-calendar-errors-2e8886` dentro: su prueba 440 da 94 de 94 con y sin la
+0550, y la 442 da 33 de 33. Concurrencia medida con dos sesiones: el despacho reserva y retiene la fila 4 s; la dueña marca
+leída al mismo tiempo, espera, no falla y no le pisa `estado` ni `intentos`.
+
+**No probado.** Contra producción (nada se aplicó); con pgTAP real (el banco usa un sustituto que difiere en `throws_ok`;
+`db-tests` de GitHub es la señal fiable); por PostgREST de verdad (se simula con `set role authenticated` y
+`request.jwt.claim.sub`, como las demás pruebas de la casa).
+
+**Visto de paso, sin tocar.** `authenticated` conserva `TRUNCATE` sobre `alertas` por los grants por defecto, pero PostgREST
+no lo expone. Y `grant select, insert, update, delete on all tables in schema public to authenticated` (0004) es la
+línea que reabriría cualquier cierre hecho con grants: por eso esta migración no depende de ellos.
+
+---
 
 ## 2026-10-21 — Una estación de retail deja de figurar en planilla · migración 0544 · SQL PEGADO (2026-10-22) · FUSIONADO (PR #578, 2026-10-22) · rama `claude/intelligent-elbakyan-cafd3f`
 
@@ -5826,6 +5880,7 @@ primero, la línea de la 0365 queda redundante e inofensiva.
 - La política `alertas_marcar_leida_propia` (0003) más `grant update on alertas
   to authenticated` dejan que una integrante edite CUALQUIER columna de sus
   propias alertas (estado, intentos…). Preexistente; la 0362 lo amplía un poco.
+  **Cerrado por la 0550** (2026-10-25): ver la entrada de arriba.
 - `fn_crear_persona` sigue recibiendo el hash del PIN desde el navegador, y el
   terminal sigue comparándolo con bcryptjs en el cliente: es el crítico 1.
 - `fn_planilla_calcular` conserva `coalesce(…, 113.00)` como respaldo escrito
