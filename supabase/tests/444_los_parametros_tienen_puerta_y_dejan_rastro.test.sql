@@ -20,16 +20,18 @@
 --      escribiéndose como siempre — un freno que también detiene eso rompería
 --      una pantalla que hoy funciona.
 --
--- Y lo que prueba que el número ya no está clavado: `fn_prueba_dias_plazo()`
--- sigue lo que diga `configuracion.prueba_dias`, y `fn_pruebas_abiertas()` (la
--- que usa el panel) lo recibe como columna.
+-- Y lo que prueba que el número ya no está clavado: `fn_feriado_aviso_dias()`
+-- (0553) sigue lo que diga `configuracion.feriado_aviso_antiguedad_dias`.
+-- (Hasta la 0552 el conejillo de indias de esta prueba eran los «días de prueba»;
+-- la 0553 los retiró de Parámetros —ya no son un número que DO mueva— y este
+-- otro parámetro operativo, con límites 1–30, tomó su lugar.)
 --
 -- OJO CON EL `session_replication_role`: el fixture se monta con `= replica` y
 -- se devuelve a `origin` ANTES de cualquier ataque. Si no, se apagan en
 -- silencio todos los triggers de la sesión, incluido el que esta prueba defiende.
 -- ============================================================================
 begin;
-select plan(55);
+select plan(54);
 
 -- ── Fixture: cuatro roles y una persona de prueba ───────────────────────────
 insert into sedes (id, codigo, nombre, activa) values
@@ -57,8 +59,8 @@ set session_replication_role = origin;
 -- ── 0 · Lo instalado ────────────────────────────────────────────────────────
 select is(
   (select array_agg(parametro order by orden) from parametros_catalogo),
-  array['prueba_dias', 'auto_cierre_horas', 'descanso_medico_avisar_desde', 'descanso_medico_tope_essalud']::text[],
-  'El catálogo trae los cuatro parámetros de la primera rebanada, en su orden');
+  array['periodo_prueba_meses', 'feriado_aviso_antiguedad_dias', 'auto_cierre_horas', 'descanso_medico_avisar_desde', 'descanso_medico_tope_essalud']::text[],
+  'El catálogo trae los cinco parámetros (0552 y 0553), en su orden');
 
 select is(
   (select count(*)::int from pg_trigger
@@ -71,28 +73,28 @@ select is(
   (select prosecdef from pg_proc where proname = 'fn_parametros_guardar_cambio' and pronamespace = 'public'::regnamespace),
   false, 'El candado NO es SECURITY DEFINER (si lo fuera, current_user sería siempre postgres y dejaría pasar todo)');
 
-select is(fn_prueba_dias_plazo(), 3, 'Los días de prueba arrancan en 3, los de siempre');
+select is(fn_feriado_aviso_dias(), 15, 'El aviso de feriado arranca en 15 días');
 
 -- El 3 del final de la función (el que se usa si falta la fila) y el valor de
 -- partida del catálogo son dos copias del mismo número: tienen que coincidir.
-delete from configuracion where clave = 'prueba_dias';
+delete from configuracion where clave = 'feriado_aviso_antiguedad_dias';
 select is(
-  fn_prueba_dias_plazo(),
-  (select valor_defecto::int from parametros_catalogo where parametro = 'prueba_dias'),
-  'Sin la fila, la función cae en el valor de partida del catálogo (el 3 de antes)');
+  fn_feriado_aviso_dias(),
+  (select valor_defecto::int from parametros_catalogo where parametro = 'feriado_aviso_antiguedad_dias'),
+  'Sin la fila, la función cae en el valor de partida del catálogo (el 15)');
 
 -- Pedir el valor que YA rige (aquí, el de partida, porque no hay fila) es un cambio vacío:
 -- no escribe nada, ni siquiera crea la fila. Un «cambio» que no cambia no deja huella.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000004431c', true);
 set role authenticated;
 select lives_ok(
-  $$ select fn_parametro_cambiar('prueba_dias', 3, 'Pedir lo que ya rige no escribe nada') $$,
+  $$ select fn_parametro_cambiar('feriado_aviso_antiguedad_dias', 15, 'Pedir lo que ya rige no escribe nada') $$,
   'Pedir el valor que ya rige no falla');
 reset role;
-select is((select count(*)::int from configuracion where clave = 'prueba_dias'), 0,
+select is((select count(*)::int from configuracion where clave = 'feriado_aviso_antiguedad_dias'), 0,
   'Y tampoco crea la fila: un cambio vacío no escribe');
 select is((select count(*)::int from parametros_historial), 0, 'Ni una fila de historial');
-insert into configuracion (clave, valor) values ('prueba_dias', '3'::jsonb);
+insert into configuracion (clave, valor) values ('feriado_aviso_antiguedad_dias', '15'::jsonb);
 
 -- ── 1 · Quién ve y quién cambia ─────────────────────────────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000004431a', true);
@@ -103,7 +105,7 @@ select throws_ok(
   'Solo la dirección o Desarrollo Organizacional puede ver los parámetros.',
   'LA INTEGRANTE no ve la lista de parámetros');
 select throws_ok(
-  $$ select fn_parametro_cambiar('prueba_dias', 5, 'Probando con cinco') $$,
+  $$ select fn_parametro_cambiar('feriado_aviso_antiguedad_dias', 5, 'Probando con cinco') $$,
   'Solo la dirección o Desarrollo Organizacional puede cambiar parámetros.',
   'LA INTEGRANTE no cambia parámetros');
 select throws_ok(
@@ -116,7 +118,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000004431b
 set role authenticated;
 
 select throws_ok(
-  $$ select fn_parametro_cambiar('prueba_dias', 5, 'Probando con cinco') $$,
+  $$ select fn_parametro_cambiar('feriado_aviso_antiguedad_dias', 5, 'Probando con cinco') $$,
   'Solo la dirección o Desarrollo Organizacional puede cambiar parámetros.',
   'LA LÍDER DE EQUIPO no cambia parámetros: ni siquiera una operativa');
 select throws_ok(
@@ -133,34 +135,31 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000004431c
 set role authenticated;
 
 select lives_ok(
-  $$ select fn_parametro_cambiar('prueba_dias', 5, 'Probamos con cinco días a ver cuántas personas cumplen') $$,
-  'DO cambia los días de prueba de 3 a 5');
+  $$ select fn_parametro_cambiar('feriado_aviso_antiguedad_dias', 5, 'Probamos con cinco días a ver cuántas personas cumplen') $$,
+  'DO cambia el aviso de feriado de 15 a 5 días');
 
 reset role;
-select is(fn_prueba_dias_plazo(), 5, 'La función de los días de prueba ya devuelve 5');
-select is((select valor from configuracion where clave = 'prueba_dias'), '5'::jsonb,
+select is(fn_feriado_aviso_dias(), 5, 'La función del aviso de feriado ya devuelve 5');
+select is((select valor from configuracion where clave = 'feriado_aviso_antiguedad_dias'), '5'::jsonb,
   'Se guardó un 5 limpio (no 5.0): lo que otras funciones castean con ::int');
 select is(
   (select valor_anterior || ' → ' || valor_nuevo || ' · ' || origen || ' · ' || (cambiado_por = '00000000-0000-0000-0000-000000044313')::text || ' · ' || motivo
-     from parametros_historial where parametro = 'prueba_dias'),
-  '3 → 5 · pantalla · true · Probamos con cinco días a ver cuántas personas cumplen',
+     from parametros_historial where parametro = 'feriado_aviso_antiguedad_dias'),
+  '15 → 5 · pantalla · true · Probamos con cinco días a ver cuántas personas cumplen',
   'El historial dice de qué a qué, por la pantalla, QUIÉN (la de DO) y POR QUÉ');
 select is(coalesce(nullif(current_setting('cayla.parametro_actor', true), ''), 'vacío'), 'vacío',
   'El autor no queda pegado a la transacción: lo que siga a mano no hereda su nombre');
 
--- La función que usa el panel (fn_pruebas_abiertas) recibe el plazo nuevo como columna.
+-- (El panel de pruebas ya no recibe este número: la 0553 retiró los «días de prueba» de Parámetros.)
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000004431c', true);
 set role authenticated;
-select is(
-  (select dias_plazo from fn_pruebas_abiertas() where persona_id = '00000000-0000-0000-0000-000000044315'),
-  5, 'El panel de pruebas recibe el plazo nuevo (5) como columna, sin cambiar ninguna pantalla');
 
 -- Un cambio que no cambia nada no ensucia el historial.
 select lives_ok(
-  $$ select fn_parametro_cambiar('prueba_dias', 5, 'Lo mismo otra vez, a ver qué pasa') $$,
+  $$ select fn_parametro_cambiar('feriado_aviso_antiguedad_dias', 5, 'Lo mismo otra vez, a ver qué pasa') $$,
   'Cambiar a lo que ya vale no falla');
 reset role;
-select is((select count(*)::int from parametros_historial where parametro = 'prueba_dias'), 1,
+select is((select count(*)::int from parametros_historial where parametro = 'feriado_aviso_antiguedad_dias'), 1,
   'Y no suma una fila al historial: sin ruido');
 
 -- Un campo dentro de un objeto: se cambia ese, y el vecino queda como estaba.
@@ -184,23 +183,23 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000004431c
 set role authenticated;
 
 select throws_ok(
-  $$ select fn_parametro_cambiar('prueba_dias', 0, 'Cero días no tiene sentido') $$,
-  '«Días de prueba antes del contrato» va de 1 a 15 días.',
+  $$ select fn_parametro_cambiar('feriado_aviso_antiguedad_dias', 0, 'Cero días no tiene sentido') $$,
+  '«Días desde el ingreso en que se avisa un feriado trabajado» va de 1 a 30 días.',
   'Por debajo del mínimo: rechazado, y dice el rango');
 select throws_ok(
-  $$ select fn_parametro_cambiar('prueba_dias', 30, 'Un dedo de más en la tecla') $$,
-  '«Días de prueba antes del contrato» va de 1 a 15 días.',
+  $$ select fn_parametro_cambiar('feriado_aviso_antiguedad_dias', 31, 'Un dedo de más en la tecla') $$,
+  '«Días desde el ingreso en que se avisa un feriado trabajado» va de 1 a 30 días.',
   'Por encima del máximo (el 30 en vez del 3): rechazado');
 select throws_ok(
-  $$ select fn_parametro_cambiar('prueba_dias', 2.5, 'Dos días y medio') $$,
-  '«Días de prueba antes del contrato» tiene que ser un número entero.',
+  $$ select fn_parametro_cambiar('feriado_aviso_antiguedad_dias', 2.5, 'Dos días y medio') $$,
+  '«Días desde el ingreso en que se avisa un feriado trabajado» tiene que ser un número entero.',
   'Un decimal en un parámetro entero: rechazado');
 select throws_ok(
-  $$ select fn_parametro_cambiar('prueba_dias', null, 'Sin valor') $$,
+  $$ select fn_parametro_cambiar('feriado_aviso_antiguedad_dias', null, 'Sin valor') $$,
   'Falta el valor nuevo.',
   'Sin valor: rechazado');
 select throws_ok(
-  $$ select fn_parametro_cambiar('prueba_dias', 4, 'ab') $$,
+  $$ select fn_parametro_cambiar('feriado_aviso_antiguedad_dias', 4, 'ab') $$,
   'Escribe el motivo del cambio: es lo que explica el número dentro de un año.',
   'Un motivo de dos letras no es un motivo');
 select throws_ok(
@@ -209,7 +208,7 @@ select throws_ok(
   'Un parámetro que no está en el catálogo: rechazado');
 
 reset role;
-select is((select valor from configuracion where clave = 'prueba_dias'), '5'::jsonb,
+select is((select valor from configuracion where clave = 'feriado_aviso_antiguedad_dias'), '5'::jsonb,
   'Ningún rechazo movió el valor');
 
 -- ── 4 · Lo que fija una norma no se cambia desde acá, ni la dirección ───────
@@ -254,9 +253,9 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000004431c
 set role authenticated;
 
 select throws_ok(
-  $$ update configuracion set valor = '9'::jsonb where clave = 'prueba_dias' $$,
+  $$ update configuracion set valor = '9'::jsonb where clave = 'feriado_aviso_antiguedad_dias' $$,
   'Este valor se cambia desde Parámetros, no con una escritura directa a la tabla.',
-  'BLOQUEADO · un UPDATE directo de DO sobre los días de prueba (el PATCH armado a mano)');
+  'BLOQUEADO · un UPDATE directo de DO sobre el aviso de feriado (el PATCH armado a mano)');
 select throws_ok(
   $$ delete from configuracion where clave = 'auto_cierre_horas' $$,
   'Este valor se cambia desde Parámetros, no con una escritura directa a la tabla.',
@@ -277,25 +276,25 @@ select is((select valor from configuracion where clave = 'apariencia_tema'), '"o
 -- La llave de servicio tampoco escribe directo: solo pasan las funciones definer.
 set role service_role;
 select throws_ok(
-  $$ update configuracion set valor = '9'::jsonb where clave = 'prueba_dias' $$,
+  $$ update configuracion set valor = '9'::jsonb where clave = 'feriado_aviso_antiguedad_dias' $$,
   'Este valor se cambia desde Parámetros, no con una escritura directa a la tabla.',
   'BLOQUEADO · service_role tampoco escribe directo (decisión escrita en la 0552)');
 reset role;
 
 -- ── 7 · A mano en el SQL Editor: se deja ver y se acota ─────────────────────
-update configuracion set valor = '8'::jsonb where clave = 'prueba_dias';
+update configuracion set valor = '8'::jsonb where clave = 'feriado_aviso_antiguedad_dias';
 select is(
   (select valor_anterior || ' → ' || valor_nuevo || ' · ' || origen || ' · ' || coalesce(cambiado_por::text, 'sin autor') || ' · ' || motivo
-     from parametros_historial where parametro = 'prueba_dias' order by cambiado_at desc, id desc limit 1),
+     from parametros_historial where parametro = 'feriado_aviso_antiguedad_dias' order by cambiado_at desc, id desc limit 1),
   '5 → 8 · base · sin autor · Cambio hecho directamente en la base de datos, sin motivo escrito.',
   'Un cambio a mano queda en el historial como «base», sin autor y diciendo que no tiene motivo');
 select throws_ok(
-  $$ update configuracion set valor = '99'::jsonb where clave = 'prueba_dias' $$,
-  '«Días de prueba antes del contrato» va de 1 a 15 días (llegó 99).',
+  $$ update configuracion set valor = '99'::jsonb where clave = 'feriado_aviso_antiguedad_dias' $$,
+  '«Días desde el ingreso en que se avisa un feriado trabajado» va de 1 a 30 días (llegó 99).',
   'El máximo también ataja al SQL Editor: el 99 por el 9 no entra');
 select throws_ok(
-  $$ update configuracion set valor = '3.5'::jsonb where clave = 'prueba_dias' $$,
-  '«Días de prueba antes del contrato» tiene que ser un número entero (llegó 3.5).',
+  $$ update configuracion set valor = '3.5'::jsonb where clave = 'feriado_aviso_antiguedad_dias' $$,
+  '«Días desde el ingreso en que se avisa un feriado trabajado» tiene que ser un número entero (llegó 3.5).',
   'Y un decimal tampoco');
 
 -- ── 8 · El historial no se toca ─────────────────────────────────────────────
@@ -319,7 +318,7 @@ select is(
   'La lista dice el valor de hoy y quién fue el último en cambiarlo');
 select is(
   (select ultimo_origen || ' · ' || coalesce(ultimo_cambio_por, 'nadie')
-     from fn_parametros_listar() where parametro = 'prueba_dias'),
+     from fn_parametros_listar() where parametro = 'feriado_aviso_antiguedad_dias'),
   'base · nadie',
   'Y para el cambio a mano dice «base» y «nadie»: se ve que no pasó por la pantalla');
 select is(
@@ -327,7 +326,7 @@ select is(
   'Lider DO',
   'El historial trae el nombre de quien cambió, no un id');
 select is(
-  (select count(*)::int from fn_parametros_historial('prueba_dias', 1)),
+  (select count(*)::int from fn_parametros_historial('feriado_aviso_antiguedad_dias', 1)),
   1, 'El límite del historial se respeta');
 
 -- Nadie lee las tablas directo: el historial por la función, y punto.

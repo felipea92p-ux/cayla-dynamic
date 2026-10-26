@@ -7,7 +7,8 @@
 -- 430_en_la_prueba_se_paga_lo_trabajado.test.sql — 0537
 -- ============================================================================
 -- La regla (Felipe, 2026-10-19), tal como la paga la planilla:
---   · «se retiró»            → no se le paga: no es una fila de la planilla.
+--   · «se retiró»            → HASTA LA 0554 no se le pagaba; desde la 0555 SÍ: se le paga
+--                              lo trabajado, igual que a «no apto» (decidido 2026-10-26).
 --   · «no apto»              → se le paga lo trabajado, SIN asignación familiar.
 --   · prueba abierta         → lo trabajado, sin asignación familiar.
 --   · contrato firmado       → asignación familiar como cualquiera.
@@ -16,13 +17,13 @@
 --   · La mitad que no puede romperse: la gente de planilla y quien no tiene hijos
 --     cobra EXACTAMENTE lo mismo que antes. Arreglar la prueba apagando de paso la
 --     asignación de todos sería mucho peor que el defecto que se vino a arreglar.
---   · Quien se retiró no cuesta nada, pero sus marcas siguen en su sitio.
+--   · Quien se retiró aparece en la planilla (0555) y sus marcas siguen en su sitio.
 --   · Si la reactivan, vuelve a pagarse: el defecto seguro es pagar.
 --   · La 0537 copió el cuerpo de la 0524 y no se llevó por delante lo que se hizo
 --     antes (0416, 0463, 0484, 0491, 0504): se vigilan sus marcas.
 -- ============================================================================
 begin;
-select plan(19);
+select plan(21);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-000000430a01', 'ZZ430', 'Sede de laboratorio 430', true);
@@ -75,9 +76,13 @@ select (e->>'persona_id')::uuid as pid, e
   from jsonb_array_elements(fn_planilla_calcular_nucleo('2026-09-29', '2026-10-28') -> 'filas') e
  where (e->>'persona_id') like '00000000-0000-0000-0000-000000430b%';
 
--- ── 1 · «Se retiró»: no es una fila de la planilla ─────────────────────────
-select is((select count(*)::int from _f where pid = '00000000-0000-0000-0000-000000430b01'), 0,
-  'SE RETIRÓ · no aparece en la planilla: ni horas, ni asignación, ni pensión');
+-- ── 1 · «Se retiró»: desde la 0555 SÍ es una fila de la planilla ───────────
+select is((select count(*)::int from _f where pid = '00000000-0000-0000-0000-000000430b01'), 1,
+  'SE RETIRÓ · aparece en la planilla (0555): se le paga lo que trabajó');
+select is((select (e->>'pago_base')::numeric from _f where pid = '00000000-0000-0000-0000-000000430b01'), 41.00::numeric,
+  'SE RETIRÓ · un día de 6,5 h: S/ 41,00, lo trabajado');
+select is((select (e->>'asignacion_familiar')::numeric from _f where pid = '00000000-0000-0000-0000-000000430b01'), 0::numeric,
+  'SE RETIRÓ · y sin asignación familiar, como quien no fue apto');
 select is((select count(*)::int from jornadas where persona_id = '00000000-0000-0000-0000-000000430b01'), 1,
   'SE RETIRÓ · pero su marca sigue en Horas: la jornada no se corrige por debajo');
 select is((select resultado from pruebas where persona_id = '00000000-0000-0000-0000-000000430b01'), 'retirado',
@@ -114,8 +119,8 @@ select is((select (e->>'aporte_essalud')::numeric from _f where pid = '00000000-
   'ESSALUD · la prueba sigue sin generarlo (0484): esta migración no lo toca');
 
 -- ── 5 · Si la reactivan, vuelve a pagarse ───────────────────────────────────
-select is((select count(*)::int from _f where pid = '00000000-0000-0000-0000-000000430b07'), 0,
-  'REACTIVAR · mientras sigue inactiva, tampoco aparece');
+select is((select count(*)::int from _f where pid = '00000000-0000-0000-0000-000000430b07'), 1,
+  'REACTIVAR · mientras sigue inactiva también aparece (0555): ya no hay nada que retener');
 select lives_ok($$ select fn_reactivar_persona('00000000-0000-0000-0000-000000430b07') $$,
   'REACTIVAR · se la reactiva');
 select is(
@@ -127,9 +132,9 @@ select is(
 -- ── 6 · La 0537 no se llevó por delante lo anterior ─────────────────────────
 select ok(
   (select bool_and(position(m in prosrc) > 0)
-     from pg_proc, unnest(array['CAMBIO 0416', 'CAMBIO 0463', 'CAMBIO 0484', 'CAMBIO 0491', 'CAMBIO 0504', 'CAMBIO 0524', 'CAMBIO 0537']) m
+     from pg_proc, unnest(array['CAMBIO 0416', 'CAMBIO 0463', 'CAMBIO 0484', 'CAMBIO 0491', 'CAMBIO 0504', 'CAMBIO 0524', 'CAMBIO 0537', 'CAMBIO 0555']) m
     where proname = 'fn_planilla_calcular_nucleo'),
-  'VERSIÓN · el núcleo conserva las marcas de la 0416, 0463, 0484, 0491, 0504 y 0524, y trae la 0537');
+  'VERSIÓN · el núcleo conserva las marcas de la 0416, 0463, 0484, 0491, 0504 y 0524, y trae la 0537 y la 0555');
 select is((select count(*)::int from pg_proc where proname = 'fn_planilla_calcular_nucleo'), 1,
   'VERSIÓN · una sola función, sin sobrecarga ambigua');
 
