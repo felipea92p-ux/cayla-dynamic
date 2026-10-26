@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0552 · SQL SIN PEGAR · rama `claude/stoic-archimedes-8h71yn`
+## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0552 · SQL PEGADO (2026-10-26) · FUSIONADO Y PUBLICADO (PR #602, 2026-10-26) · rama `claude/stoic-archimedes-8h71yn`
 
 **Qué es.** Felipe pidió un módulo donde DO cambie sin código los números que mueven el sistema (días de prueba, escalera
 disciplinaria, porcentajes, sueldo base, provisiones), con historial de quién y cuándo, y con la lista de a quién le afecta antes
@@ -42,6 +42,15 @@ reescrita, así que repegar no falla). La consulta (2) debe volver sin funciones
 (esas dejarían de poder); la (3) trae los valores de partida: `auto_cierre_horas` entre 1 y 12 y `avisar_desde` entre 1 y 20, porque
 el trigger exige esos límites cuando alguien cambie el valor. **No toca la planilla**: `fn_planilla_calcular` lee las mismas claves con
 la misma forma de siempre; por eso no hay md5 de la planilla.
+
+**Pegado el 2026-10-26** (Felipe devolvió las filas de comprobación, después de fusionar: el frontend salió antes que el SQL, como
+estaba previsto, y mientras tanto la pantalla decía «Falta pegar la migración 0552»). El `select` final dio lo esperado:
+`parametros_en_el_catalogo` = 4, `el_candado_esta_puesto` y `el_candado_corre_con_quien_escribe` en `true`, `dias_de_prueba_hoy` = 3,
+`la_funcion_lee_la_tabla` y `la_fila_existe` en `true`, `registro` = `552 · los_parametros_tienen_puerta_y_dejan_rastro`. La guardia
+de la migración dejó pasar la función de partida, o sea que la de producción era la de la 0536 (`select 3;`) tal como se esperaba.
+**No se vieron** las consultas (1)–(3) de «ANTES DE PEGAR» —se corrió directo la migración, que tiene su propia guardia—; la (2) sigue
+siendo útil: si alguna función de producción pegada a mano fuera del repo escribe esas claves sin ser `SECURITY DEFINER`, dejaría de
+poder hacerlo. Queda pendiente la primera prueba real de la pantalla en producción (ver una fila, y mejor un cambio reversible).
 
 **Si el código llega antes que el SQL.** `main` se publica sola. La pantalla lo detecta (PGRST202, la función no existe) y dice «Falta
 pegar la migración 0552» en vez de romperse; nada más depende de la 0552 hasta que se pegue. El renglón «Parámetros» y la novedad
@@ -81,7 +90,7 @@ rango envolviendo `fn_fijar_base_declarada`, con **vigencia y vista previa de a 
 `configuracion` **sin fecha** (cambiarlas reescribiría el historial) y necesitan vigencia antes de ser editables: eso reescribe
 `fn_planilla_calcular`, con su protocolo de md5. Rebanada 4: la escalera disciplinaria, atada a una versión del RIT.
 
-## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · **SQL SIN PEGAR EN PRODUCCIÓN** · AUTOMERGE ARMADO (PR #601) · rama `claude/epic-ramanujan-rr0p0u`
+## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · **SQL PEGADO (2026-10-26)** · FUSIONADO Y PUBLICADO (PR #601, 2026-10-26) · rama `claude/epic-ramanujan-rr0p0u`
 
 **Qué es.** Felipe, con la captura de Normas → Constancias: «en normas también deberían aparecerme los practicantes, deben
 aparecer todos incluyendo los que cuenten con su correo dentro del sistema y los que fueron invitados». Medido, no supuesto:
@@ -123,6 +132,11 @@ Ninguna constancia ya registrada se toca. `fn_reglamento_no_acusado` (el freno p
    from personas where tipo_vinculo = 'practicante' and estado = 'activo' and not cuenta_de_servicio;`
 4. Después de pegar, el `select` del final de la migración: `practicantes_activos` = `practicantes_contados` y
    `politica_sin_practicantes = true`.
+
+**Pegado el 2026-10-26** (Felipe devolvió las filas de comprobación). La guardia de md5 dejó pasar las dos funciones, y el `select`
+final dio: `registrada` = `551 los_practicantes_tambien_reciben_las_normas`, `poblacion_incluye_practicantes` = `true`,
+`practicantes_activos` = 4 = `practicantes_contados`, `politica_sin_practicantes` = `true` y `equipo_obligado` = 22. La consulta de
+conteo previa dio 4 con cuenta y 0 sin cuenta. Desde ahora Normas cuenta a los practicantes.
 
 **Lo que se verá.** El «N de M» de cada documento y «constancias pendientes» suben en practicantes × documentos que piden
 constancia, hasta que cada uno la deje o DO registre su cargo en papel: es gente que faltaba contar, no un retroceso (la novedad
