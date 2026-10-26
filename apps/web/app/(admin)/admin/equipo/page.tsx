@@ -38,7 +38,7 @@ import {
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
   avisoDocumentoEnNombre, puedeMarcarCuentaDeServicio,
   TIPOS_DOCUMENTO, TIPO_DOCUMENTO_LABEL, AYUDA_DOCUMENTO, errorDeDocumento, normalizarDocumento, type TipoDocumento,
-  estaDePrueba,
+  estaDePrueba, periodoDePrueba, textoPeriodoDePrueba,
 } from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
@@ -605,6 +605,17 @@ export default function EquipoPage() {
     // contrato, y «sin salario» o «sin contrato» no son un olvido). Mismo texto que en Horas, Horarios y Planilla.
     const prueba = p.estado === "activo" ? pruebas.get(p.id) : undefined;
     if (prueba) filas.push(<EtiquetaPrueba key="prueba" fila={prueba} />);
+    // El periodo de prueba de verdad (0553): una CONDICIÓN del contrato, no un vínculo. Tres meses desde el
+    // ingreso (art. 10, D.S. 003-97-TR); la fecha se deriva, no se guarda. Informativa: solo recuerda hasta
+    // cuándo DO puede decidir sin indemnización.
+    const periodo = p.estado === "activo" && p.tipo_vinculo === "planilla" ? periodoDePrueba(ingresos.get(p.id)?.fecha_ingreso, hoy) : null;
+    if (periodo?.enCurso) {
+      filas.push(
+        <Insignia key="periodo" variante="informativo" tamano="sm" punto={false}>
+          En periodo de prueba · hasta {textoPeriodoDePrueba(periodo)}
+        </Insignia>,
+      );
+    }
     if (p.estado === "inactivo") {
       filas.push(
         <span key="salio" className="text-xs text-taupe">
@@ -1644,17 +1655,22 @@ export default function EquipoPage() {
             disabled={modo === "edicion" && !funcionesOk}
             className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
           >
-            <option value="planilla">Planilla — contrato de trabajo</option>
-            <option value="prueba">Prueba — días de prueba, aún sin contrato</option>
+            <option value="planilla">Planilla — contrato de trabajo (alta desde el primer día)</option>
+            {/* «Prueba» ya no se ofrece: quien trabaja se registra desde el primer día y «de prueba» es una condición
+                del contrato (0553). Solo aparece para quien todavía la trae, para que el selector no mienta. */}
+            {(form.tipoVinculo === "prueba" || personas.find((x) => x.id === editandoId)?.tipo_vinculo === "prueba") && (
+              <option value="prueba">Prueba (antiguo) — pásala a Planilla</option>
+            )}
             <option value="rxh">Recibo por honorarios</option>
             <option value="practicante">Practicante — modalidad formativa (Ley 28518)</option>
             <option value="no_trabajador">No trabajador — accionista sin servicios</option>
           </select>
           <span className="text-xs text-taupe">
             {form.tipoVinculo === "planilla"
-              ? "Acumula gratificación, CTS y vacaciones. Recibe movilidad y genera EsSalud. Se le mide asistencia y disciplina."
+              ? "Todo trabajo se registra desde el primer minuto: alta en T-Registro antes de empezar, con contrato, boleta, EsSalud y pensión. Sus primeros 3 meses son su periodo de prueba (art. 10 del D.S. 003-97-TR): en ese tiempo CAYLA puede decidir no continuar sin indemnización. Acumula gratificación, CTS y vacaciones por mes cumplido, recibe movilidad y se le mide asistencia y disciplina. No hace falta probar a nadie fuera de planilla."
+                + ((() => { const per = periodoDePrueba(form.fechaIngreso, hoy); return per?.enCurso ? ` Su periodo de prueba va hasta el ${textoPeriodoDePrueba(per)}.` : ""; })())
               : form.tipoVinculo === "prueba"
-                ? "Días de prueba antes de contratar: se le pagan sus horas y se le mide asistencia, pero NO acumula beneficios (decisión registrada en la 0085). Si se queda, pásala a Planilla — quien trabaja sin estar registrado es infracción muy grave (num. 25.20 del RLGIT)."
+                ? "Este vínculo se retira. «De prueba» no es un vínculo: es una condición del contrato, y quien trabaja se registra desde el primer día (trabajar sin estar registrado es infracción muy grave, num. 25.20 del RLGIT). Pásala a Planilla: su periodo de prueba corre desde su ingreso."
                 : form.tipoVinculo === "rxh"
                   ? "Locación de servicios: cobra sus horas, pero NO acumula beneficios, NO recibe movilidad y NO genera EsSalud. Tampoco se le mide disciplina — es lo que sostiene que no sea una relación laboral."
                   : form.tipoVinculo === "practicante"

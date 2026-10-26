@@ -125,6 +125,20 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-10-26-de-prueba-ya-no-es-un-vinculo-es-el-periodo-de-prueba-del-contrato",
+    fecha: "2026-10-26",
+    titulo: "«De prueba» ya no es un vínculo: es el periodo de prueba del contrato",
+    queMejoro:
+      "En Equipo, quien empieza a trabajar entra por Planilla, registrada desde el primer día, y sus tres meses de prueba " +
+      "corren desde su ingreso. Su fecha queda a la vista en la lista («En periodo de prueba · hasta…») y en su ficha. Ya no " +
+      "existen los «días de prueba antes del contrato»: no hay un paso en que se trabaje sin contrato y recién después se haga.\n\n" +
+      "En Parámetros, el periodo de prueba se muestra como lo que es —lo fija la ley— y ya no se puede cambiar. En su lugar hay " +
+      "un número que sí es de DO: desde cuántos días de ingreso Turnos avisa cuando alguien queda trabajando un feriado (hoy, " +
+      "menos de 15 días). El aviso mira cuánto lleva la persona desde su ingreso, recomienda descanso y deja confirmar si debe " +
+      "venir. Solo avisa; no cambia ningún pago.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-26-un-aviso-baja-desde-arriba-cuando-hay-una-version-nueva",
     fecha: "2026-10-26",
     titulo: "Un aviso baja desde arriba cuando Dynamic tiene una versión nueva",
