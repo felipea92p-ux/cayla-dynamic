@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553 y 0554 · SQL SIN PEGAR · EN PR (borrador) · rama `claude/nifty-knuth-n789e7`
+## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553 y 0554 · SQL PEGADO (2026-10-26) · EN PR #606 · rama `claude/nifty-knuth-n789e7`
 
 **Qué es.** Felipe lo dijo así (2026-10-26): tener a alguien «de prueba», o que empiece a trabajar, sin contrato y sin alta es
 prácticamente ilegal. «Prueba» (tres días trabajados sin contrato, y «si pasa, recién ahí se hace el contrato») no existe en la ley
@@ -53,6 +53,14 @@ sin clientas reales ni valor comercial, sin vínculo) es la siguiente rebanada y
 periodo: si ese periodo no está pagado, hoy no cobra lo que trabajó. Quitar esa exclusión exige reescribir `fn_planilla_calcular_nucleo`
 (122 157 caracteres) y su **md5 se pide a PRODUCCIÓN justo antes de escribirlo**. La consulta (2) del encabezado de la 0554 los lista:
 **correrla ANTES de pegar y devolver lo que salga.**
+
+**Pegado el 2026-10-26** (Felipe devolvió las filas de comprobación). La 0553 dio `true · true · true · 15 · true · 553`. La 0554 movió a
+**2 personas** (Robert Cabrera y Emily Rico, sede OTRU, sin hijos) y dejó `0 · 0 · 554`: ninguna activa sigue de prueba y ninguna prueba
+abierta. **Lo medido antes de pegar la 0554 y que sigue abierto:** dos personas cerradas como «se retiró» —**Mariel Sarmiento** (prueba
+16/10 → 21/10) y **Noelia Ibarcena** (19/10)— con el periodo 28/09–28/10 todavía **abierto**: la exclusión de la 0537 las deja fuera de la
+planilla, o sea que **no se les paga lo que trabajaron** y el periodo cierra el 28/10. Se arregla con la 0555 (reescribe
+`fn_planilla_calcular_nucleo` quitando el bloque «CAMBIO 0537»), que exige el **md5 de PRODUCCIÓN justo antes de escribirla**: se pidió.
+Hasta que esté pegada, la salida de emergencia es pagarles aparte, fuera del cierre, y dejarlo anotado.
 
 **Orden para pegar.** (1) 0553 (no mueve plata). (2) Correr las consultas (1) y (2) del encabezado de la 0554 y devolverlas. (3) 0554,
 solo con OK explícito a las cifras de arriba. (4) Recién entonces fusionar el PR: **fusionar ES publicar**. Si el código llega antes que
