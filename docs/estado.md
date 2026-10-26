@@ -6,6 +6,35 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-26 — Aviso «hay una versión nueva» que baja desde arriba (panel y «Lo mío») · sin SQL · EN PR (borrador) · rama `claude/amazing-clarke-7bi1ly`
+
+**Qué es.** Felipe pidió que, cuando se publica una mejora y alguien tiene Dynamic abierto, baje desde el borde de arriba una barra
+como la de retail: «Hay una versión nueva de Dynamic». Botones **Actualizar ahora** y una X (**Más tarde**). **No recarga sola**:
+quien tiene la pantalla abierta puede estar escribiendo algo sin guardar.
+
+**Cómo funciona.** `next.config.ts` hornea `VERCEL_DEPLOYMENT_ID` en el navegador al construir; `/api/version` devuelve el del
+despliegue que atiende. Cada 3 minutos con la pestaña a la vista —y al volver a ella— la página compara; si difieren, baja la barra
+(`components/aviso-version-nueva.tsx`, montado en los layouts de `(admin)` y `(mio)`). «Más tarde» la descarta hasta que llegue OTRA
+versión. Sin id (dev, `next start`) el aviso se apaga entero. Lógica pura y su prueba: `lib/version-despliegue.ts`,
+`tests/version-despliegue.test.ts`. Hay novedad en `novedades.ts` (audiencia «todos»).
+
+**Medido.** En navegador real (Playwright, servidor de desarrollo con el id simulado) la barra sale con versión distinta, **no** sale
+con la misma ni con una respuesta vacía, «Más tarde» la quita y no vuelve en la siguiente consulta, y otra versión distinta sí la
+vuelve a sacar. Se ve bien en claro, oscuro y a 390 px. `tsc`, ESLint y las pruebas de novedades en verde.
+
+**⚠️ Sin comprobar contra Vercel de verdad — se comprueba una vez, tras publicar.** Si el proyecto tiene **Skew Protection**, una
+pestaña vieja queda fijada a SU despliegue y la consulta a `/api/version` podría contestar la versión vieja: el aviso **nunca saltaría**
+(falla hacia el lado seguro: no avisa, jamás avisa de más). Prueba: con una pestaña del panel abierta, publicar cualquier cambio y
+esperar ≤3 min; si no baja la barra, es esto y el arreglo es pedirle a Vercel la versión sin fijar. Quien lo mida: anotarlo aquí.
+
+**Fuera, a propósito.** El **terminal** (la Mac mini de la sede): lo toca cualquiera para marcar, tiene su propio service worker y su
+cola sin conexión, y recargarlo por un aviso es una decisión aparte. Si el terminal necesita enterarse de las versiones nuevas, es otra
+rebanada con su propio criterio.
+
+**Publicar.** No hay migración. Fusionar el PR ES publicar (`main` se publica sola): pedir OK a Felipe.
+
+---
+
 ## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0552 · SQL PEGADO (2026-10-26) · FUSIONADO Y PUBLICADO (PR #602, 2026-10-26) · rama `claude/stoic-archimedes-8h71yn`
 
 **Qué es.** Felipe pidió un módulo donde DO cambie sin código los números que mueven el sistema (días de prueba, escalera

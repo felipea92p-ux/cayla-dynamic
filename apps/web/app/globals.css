@@ -400,6 +400,15 @@
   from { opacity: 1; }
   to { opacity: 0; }
 }
+/* El aviso de «hay una versión nueva» baja desde el borde de arriba. Mismos 260 ms y
+   misma curva que el cajón, por la regla de esta hoja: una sola forma de entrar.
+   `backwards`, igual que los demás, para no dejar un transform puesto al terminar. */
+@keyframes aviso-baja {
+  from { transform: translateY(-100%); }
+}
+.aviso-baja { animation: aviso-baja 260ms var(--ease-salida) backwards; }
+@media (prefers-reduced-motion: reduce) { .aviso-baja { animation: none; } }
+
 .cajon-entra { animation: cajon-entra 260ms var(--ease-salida) backwards; }
 .cajon-sale { animation: cajon-sale 200ms ease-in forwards; }
 .velo-entra { animation: velo-entra 200ms ease-out backwards; }
