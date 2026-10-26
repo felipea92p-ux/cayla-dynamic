@@ -37,7 +37,7 @@
 // la LPCL (arts. 16, 22-25 y 38 del TUO del D.Leg. 728), pero tampoco tuvo
 // revisión legal de un abogado.
 
-import { EMPRESA, maximoSemanalPracticante } from "@cayla-dynamic/shared";
+import { EMPRESA, finDelPeriodoDePruebaDe, maximoSemanalPracticante } from "@cayla-dynamic/shared";
 
 export interface DatosContrato {
   tipo: "nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido";
@@ -748,13 +748,12 @@ function clausulaPeriodoPrueba(d: DatosContrato): string {
  * así que construirlas en la hora local del navegador podría correrlas un día.
  */
 export function finDelPeriodoDePrueba(fechaIngreso: string): string {
-  const d = new Date(`${fechaIngreso}T00:00:00Z`);
-  const dia = d.getUTCDate();
-  d.setUTCMonth(d.getUTCMonth() + 3);
-  // Si el día no existe en el mes destino (31 de noviembre), Date se pasa al
-  // mes siguiente; se retrocede al último día del mes que corresponde.
-  if (d.getUTCDate() !== dia) d.setUTCDate(0);
-  return d.toISOString().slice(0, 10);
+  // La cuenta vive en packages/shared (`finDelPeriodoDePruebaDe`): Equipo y las alertas preguntan allí también,
+  // para que la fecha de la pantalla y la que imprime el contrato sean la misma. Una fecha que no existe
+  // sigue siendo un error, como antes: no se imprime en un contrato una fecha inventada.
+  const fin = finDelPeriodoDePruebaDe(fechaIngreso);
+  if (fin === null) throw new RangeError(`Fecha de ingreso inválida: ${fechaIngreso}`);
+  return fin;
 }
 
 /**

@@ -6,6 +6,72 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553 y 0554 · SQL SIN PEGAR · EN PR (borrador) · rama `claude/nifty-knuth-n789e7`
+
+**Qué es.** Felipe lo dijo así (2026-10-26): tener a alguien «de prueba», o que empiece a trabajar, sin contrato y sin alta es
+prácticamente ilegal. «Prueba» (tres días trabajados sin contrato, y «si pasa, recién ahí se hace el contrato») no existe en la ley
+peruana: el periodo de prueba es una cláusula **dentro** de un contrato (art. 10, D.S. 003-97-TR), tres meses sin protección contra el
+despido arbitrario. Quien trabaja se registra desde el primer día y se le paga lo trabajado. Cinco decisiones suyas: (a) deja de existir
+el paso «a los N días recién se hace el contrato»; (b) sí se etiqueta como «en periodo de prueba»; (c) «Días de prueba» sale de
+Parámetros y solo se **muestra** (como el tope de 20 días de descanso médico); (d) quien está de prueba **no lleva fecha de cese
+obligatoria** (el contrato indefinido ya existía, 0347); (e) **se deroga «quien se retira no cobra»** (0537) y los **días calendario
+desde el ingreso** son el criterio del aviso de feriado.
+
+**Lo que cambia para quien usa el panel.**
+- **Equipo.** El selector de vínculo ya no ofrece «Prueba» (solo la ve quien aún la trae, como «Prueba (antiguo)»). Planilla dice que se
+  registra desde el primer minuto y que sus 3 meses de prueba corren desde el ingreso. La lista muestra «En periodo de prueba · hasta
+  dd/mm/aaaa». La fecha se **deriva** del ingreso (`periodoDePrueba`, `packages/shared`), no se guarda; es la misma cuenta que imprime
+  el contrato (`finDelPeriodoDePrueba` ahora delega allí).
+- **Parámetros (0553).** «Periodo de prueba · 3 meses» aparece como fila normativa fija, con el art. 10 como base; la base rechaza por
+  cualquier camino un valor distinto de 3. «Días de prueba antes del contrato» sale del catálogo (si ya tenía historial se queda fija y
+  marcada «retirado»). Nuevo parámetro operativo **«Días desde el ingreso en que se avisa un feriado trabajado»** (1–30, hoy 15), con su
+  vista previa de a quién le cambia.
+- **Turnos.** El aviso de feriado ya no mira el vínculo «prueba»: mira **menos de N días calendario desde el ingreso, a la fecha del
+  feriado**. Tres caminos en el texto: descanso (recomendado; el feriado se paga igual), descanso sustitutorio (se registra en Feriados) o
+  confirmar y pagar la sobretasa. Si la base aún no tiene la 0553, rige el 15.
+- **Cobertura.** Quien está en periodo de prueba (planilla) **suma desde su primer día**; antes «prueba» no sumaba.
+
+**Lo que mueve plata: la 0554 (SQL aparte, a propósito).** Pasa a «planilla» a toda persona **activa** con vínculo «prueba» (no toca
+inactivas ni cuentas de servicio). **No toca ninguna función de pago**: cambia un dato que la planilla ya lee, así que **no hay md5 que
+pedir**. Auditado en el Postgres local con las 552 migraciones, dentro de `BEGIN … ROLLBACK`, con tres días de 6,5 h en el periodo
+29/09–28/10 y sueldo de S/ 1 230:
+
+| | horas (pago_base) | asignación familiar | EsSalud | pensión |
+|---|---|---|---|---|
+| Con hijos, 3 días | 123,00 → 123,00 | 0 → 123,00 | 0 → 110,70 | 15,99 → 31,98 (ONP) |
+| Sin hijos, 2 días | 82,00 → 82,00 | 0 → 0 | 0 → 110,70 | 10,66 → 10,66 |
+| Testigo (ya en planilla) | igual | igual | igual | igual |
+
+**⚠️ La decisión que hay que tomar CON ESTE NÚMERO: el piso de EsSalud.** Registrar a quien trabaja **dos días** cuesta S/ 110,70 de
+EsSalud —más que lo que se le paga por sus horas (S/ 82)—, porque el piso es la RMV entera, sin prorratear por días
+(`docs/planilla-anexo-tecnico.md`; D.S. 009-97-SA). Era justo lo que la 0484 evitaba para «prueba», con un riesgo legal que Felipe aceptó
+el 2026-09-27 (subdeclarar frente a SUNAT). Pasar a planilla cierra ese riesgo y cuesta eso por cada persona que no se queda. **La
+defensa de verdad es no dejar trabajar a nadie que no se vaya a quedar**: la evaluación de selección (hasta 3 horas, tarea simulada,
+sin clientas reales ni valor comercial, sin vínculo) es la siguiente rebanada y no existe todavía.
+
+**⚠️ Lo que la 0554 NO arregla.** Quien ya quedó cerrado como «se retiró» (0537) sigue inactiva y **sigue excluida de la planilla** de su
+periodo: si ese periodo no está pagado, hoy no cobra lo que trabajó. Quitar esa exclusión exige reescribir `fn_planilla_calcular_nucleo`
+(122 157 caracteres) y su **md5 se pide a PRODUCCIÓN justo antes de escribirlo**. La consulta (2) del encabezado de la 0554 los lista:
+**correrla ANTES de pegar y devolver lo que salga.**
+
+**Orden para pegar.** (1) 0553 (no mueve plata). (2) Correr las consultas (1) y (2) del encabezado de la 0554 y devolverlas. (3) 0554,
+solo con OK explícito a las cifras de arriba. (4) Recién entonces fusionar el PR: **fusionar ES publicar**. Si el código llega antes que
+la 0553, Turnos usa el 15 y Parámetros sigue mostrando «días de prueba»; nada se rompe.
+
+**Probado.** `tsc` limpio; vitest verde (nuevas: `periodo-de-prueba` 19, `feriado-recien-ingresado` 20; `parametros` 34; en total 2 953). En un Postgres
+16 propio con las 552 migraciones, pgTAP y pg_cron: **444 → 54/54** (adaptada al parámetro nuevo), **445 → 19/19** y **446 → 17/17**, las
+dos nuevas puestas en rojo a propósito de tres maneras cada una. **Suite completa: 347 de 351 archivos**; los 4 que fallan (122, 136, 301,
+386) fallan **igual** en una base con solo hasta la 0552 (límites de mi imitación de Supabase y un defecto previo de la 386).
+
+**Quedó pendiente (cada cosa es la siguiente rebanada).** (a) Limpiar el legado: tabla `pruebas`, `fn_prueba_cerrar`, `fn_pruebas_abiertas`,
+Bandeja, terminal (0539), panel de Contratos y 27 pruebas pgTAP que aún crean personas «prueba»; la base **todavía acepta asignar «prueba»
+por `fn_set_tipo_vinculo`** (ninguna pantalla lo ofrece). (b) Alertas de decisión en los días 60/75/85 con margen. (c) Baja express y
+liquidación corta con reloj de 48 horas y entrega guardada. (d) Módulo Selección (evaluación breve sin vínculo). (e) Periodo de prueba
+ampliado a 6/12 meses por pacto escrito. (f) Ficha de alta/baja para T-Registro. **Citas legales sin verificar contra el texto oficial:**
+escala vigente de multas (art. 48 RLGIT), el numeral y el plazo de las 48 horas, el art. 168 del Código Penal; las valida el área legal.
+
+---
+
 ## 2026-10-26 — Aviso «hay una versión nueva» que baja desde arriba (panel y «Lo mío») · sin SQL · EN PR (borrador) · rama `claude/amazing-clarke-7bi1ly`
 
 **Qué es.** Felipe pidió que, cuando se publica una mejora y alguien tiene Dynamic abierto, baje desde el borde de arriba una barra

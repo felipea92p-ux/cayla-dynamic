@@ -8904,6 +8904,7 @@ export type Database = {
         Args: { p_persona_id: string | null }
         Returns: string
       }
+      fn_feriado_aviso_dias: { Args: never; Returns: number }
       fn_feriado_devengado: {
         Args: {
           p_desde: string | null

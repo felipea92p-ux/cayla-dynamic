@@ -8,7 +8,7 @@
 // Los dos pasos son a propósito. Lo que Felipe pidió es que antes de guardar el
 // sistema diga a quién le cambia algo; un solo paso con un botón «Guardar» deja
 // esa lectura para después de hecho. Para los parámetros que tienen personas
-// detrás (días de prueba, aviso de descanso médico) el paso 2 las lista con su
+// detrás (aviso de feriado a quien ingresó hace poco, aviso de descanso médico) el paso 2 las lista con su
 // antes y su después; para los demás dice en palabras qué cambia y qué no.
 //
 // Nada de lo que se valida acá es la última palabra: la que manda es
@@ -19,6 +19,7 @@ import { useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
   describirCambioDeParametro,
+  hoyLima,
   validarValorParametro,
   valorConUnidad,
 } from "@cayla-dynamic/shared";
@@ -30,12 +31,12 @@ import { Rotulo } from "@/components/ui/rotulo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import type { FilaPrueba } from "@/lib/admin/pruebas";
 import {
   fuenteDeImpacto,
   impactoAvisoDescansoMedico,
-  impactoDiasDePrueba,
+  impactoAvisoFeriado,
   notaDeEfecto,
+  type FilaIngreso,
   type FilaSubsidio,
   type Impacto,
   type ParametroFila,
@@ -90,10 +91,24 @@ export function PanelCambio({
     setImpacto(null);
     const supabase = createAdminSupabaseClient();
     const fuente = fuenteDeImpacto(fila.parametro);
-    if (fuente === "pruebas") {
-      const { data, error } = await supabase.rpc("fn_pruebas_abiertas");
-      if (error) setErrorImpacto(mensajeDeError(error, "ver quién está de prueba"));
-      else setImpacto(impactoDiasDePrueba((data ?? []) as unknown as FilaPrueba[], v.valor));
+    if (fuente === "ingreso_reciente") {
+      // Quién está en planilla y cuándo ingresó: dos lecturas que la pantalla de Equipo ya hace.
+      const [ingresos, personas] = await Promise.all([
+        supabase.rpc("fn_ingresos"),
+        supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").eq("en_planilla", true),
+      ]);
+      const fallo = ingresos.error ?? personas.error;
+      if (fallo) setErrorImpacto(mensajeDeError(fallo, "ver quién ingresó hace poco"));
+      else {
+        const fechas = new Map(
+          ((ingresos.data as { persona_id: string; fecha_ingreso: string | null }[] | null) ?? []).map((r) => [r.persona_id, r.fecha_ingreso] as const),
+        );
+        const filas: FilaIngreso[] = (personas.data ?? []).map((x) => ({
+          persona: `${x.nombres} ${x.apellidos}`.trim(),
+          fecha_ingreso: fechas.get(x.id) ?? null,
+        }));
+        setImpacto(impactoAvisoFeriado(filas, fila.valor_actual, v.valor, hoyLima()));
+      }
     } else if (fuente === "descanso_medico") {
       const { data, error } = await supabase.rpc("fn_ausencias_subsidio");
       if (error) setErrorImpacto(mensajeDeError(error, "ver los días de descanso médico"));
