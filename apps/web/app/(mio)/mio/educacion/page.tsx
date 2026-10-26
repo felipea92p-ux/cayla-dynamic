@@ -4,9 +4,9 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  ARCHIVOS_POR_ENTREGA, ESTADO_CONSTANCIA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIA_PAGO_LABELS,
+  ARCHIVOS_POR_ENTREGA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIA_PAGO_LABELS,
   MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, VIGENCIA_CORTA_DIAS, diasDeVigencia,
-  finDeCicloSugerido, hoyLima, problemaDeArchivo, sugerirProximaFecha,
+  esPagoUnicoSustentado, finDeCicloSugerido, hoyLima, insigniaDeEstadoConstancia, problemaDeArchivo, sugerirProximaFecha,
   type EstadoConstancia, type EstadoEntrega, type EstadoSolicitud, type FrecuenciaPago, type MotivoRechazo,
   type TipoConstancia, nombreDelMesLima,
 } from "@cayla-dynamic/shared";
@@ -73,6 +73,7 @@ interface Situacion {
   entrega_archivos: number | null;
   motivo_categoria: MotivoRechazo | null;
   motivo_comentario: string | null;
+  aprobadas: number;
   aviso_fin_id: string | null;
 }
 
@@ -142,10 +143,22 @@ function fraseDeConstancia(s: Situacion, hoy: string): string {
     case "falta_enviar":
       return `Tu pago del ${fechaCorta(s.fecha_pago_constancia)} necesita su constancia.${plazo}`;
     case "al_dia":
+      // Lo que la base contestó, no una cuenta nueva (0549): un pago único con su constancia aprobada.
+      if (esPagoUnicoSustentado(s)) return "Tu pago único ya está registrado: no tienes más constancias que subir.";
+      if (s.frecuencia_pago === "unico" && s.proxima_fecha_pago && s.proxima_fecha_pago > hoy) {
+        return `Tu pago es el ${fechaCorta(s.proxima_fecha_pago)}. Cuando pagues, sube aquí la constancia.`;
+      }
       return s.proxima_fecha_pago && s.proxima_fecha_pago > hoy
         ? `Tu próximo pago es el ${fechaCorta(s.proxima_fecha_pago)}. Cuando pagues, sube aquí la constancia.`
         : "No tienes constancias pendientes.";
     case "sin_calendario":
+      // Un pago único no tiene «próxima fecha de pago»: es una sola. Si ya tiene su constancia aprobada
+      // (la base de antes de la 0549 todavía lo cuenta como «sin calendario»), no se le pide nada.
+      if (s.frecuencia_pago === "unico") {
+        return s.aprobadas > 0
+          ? "Tu pago único ya tiene su constancia aprobada."
+          : "Todavía no está registrado cuándo pagas a tu institución. Cuando pagues, sube aquí la constancia.";
+      }
       return "Todavía no está registrado cuándo pagas a tu institución. Cuando pagues, sube aquí la constancia e indica tu próxima fecha de pago.";
   }
 }
@@ -336,7 +349,7 @@ function Estudio({
   const [confirmarRetiro, setConfirmarRetiro] = useState(false);
   const [avisoFin, setAvisoFin] = useState(false);
 
-  const estado = ESTADO_CONSTANCIA[s.estado_constancia];
+  const estado = insigniaDeEstadoConstancia(s.estado_constancia, s.frecuencia_pago, s.aprobadas);
   const pendiente = historial.find((e) => e.estado === "pendiente") ?? null;
   const rechazada = s.estado_constancia === "rechazada" ? historial.find((e) => e.id === s.entrega_id) ?? null : null;
 
@@ -717,6 +730,11 @@ function FormularioConstancia({
             </div>
           </div>
         ) : (
+        s.frecuencia_pago === "unico" ? (
+          // Un pago único no tiene «próximo pago» ni «último pago»: es uno solo. Preguntarlo era pedirle una
+          // fecha que no existe, y `proxima` queda vacía (sugerirProximaFecha solo sugiere para mensual).
+          <p className="text-xs text-taupe sm:col-span-2">Es un pago único: no hay un próximo pago que indicar.</p>
+        ) : (
         <div className="flex flex-col gap-1 sm:col-span-2">
           <Campo etiqueta="¿Cuándo es tu próximo pago?" type="date" value={ultimoPago ? "" : proxima}
             onChange={(e) => { setProxima(e.target.value); setProximaTocada(true); }} disabled={enCurso || ultimoPago} />
@@ -727,6 +745,7 @@ function FormularioConstancia({
           </label>
           <span className="text-xs text-taupe">Si todavía no sabes la fecha, déjala vacía: Desarrollo Organizacional te la preguntará.</span>
         </div>
+        )
         )}
       </div>
 

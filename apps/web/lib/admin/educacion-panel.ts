@@ -24,6 +24,7 @@ import {
   MESES_INICIALES, mesDe, mesLargo, mesesDeLaEntrega, mesesEntre, etiquetaMes, type CoberturaMes,
 } from "./educacion-meses";
 import { fechaCorta } from "@/lib/educacion";
+import { esPagoUnicoAprobadoSinFecha, esPagoUnicoSustentado } from "@cayla-dynamic/shared";
 
 /** La constancia aprobada más reciente por fecha de pago; el empate lo deshace el envío y, al final, el id. */
 export function ultimaAprobada(entregas: readonly Entrega[]): Entrega | null {
@@ -72,9 +73,36 @@ function fraseDelEstado(s: Situacion): string {
     case "rechazada":
       return "Se rechazó la última; se espera que la integrante envíe la corregida.";
     case "sin_calendario":
+      // Un pago único tiene UNA fecha, no un calendario. Mensual, por ciclo, otra y sin decir siguen con
+      // la frase de siempre: su NULL es ambiguo («nadie dijo cuándo» o «ya no hay más pagos») y eso sigue
+      // siendo una decisión abierta (0549).
+      if (s.frecuencia_pago === "unico") {
+        // Con constancia aprobada, el estado es el de la base de ANTES de la 0549 (main se publica sola y la
+        // migración se pega a mano): ahí el consejo «escribe la fecha» EMPEORA el estudio, porque guardar una
+        // fecha lo pasa a «falta enviar» y pide constancia de un pago ya sustentado. Se dice lo cierto y no se
+        // aconseja nada que dañe. Sin aprobada, «falta la fecha» es cierto antes y después de pegarla.
+        if (esPagoUnicoAprobadoSinFecha(s.estado_constancia, s.frecuencia_pago, s.aprobadas)) {
+          return "Este pago único ya tiene su constancia aprobada. No hace falta una fecha; si el estudio ya terminó, puedes cerrar la asignación.";
+        }
+        return "Falta la fecha del pago, así que el sistema todavía no le pide constancia ni cuenta plazos. "
+          + "Escribe la «Fecha del pago» y guárdala. Si ya no va a pagar, cierra la asignación.";
+      }
       return "No se sabe cuándo toca su próximo pago a la institución, así que el sistema todavía no le pide constancia ni cuenta plazos. "
-        + "Elige «Paga a su institución» y el «Próximo pago» y guarda el calendario. Si ya no va a pagar más, cierra la asignación.";
+        + "Elige «Paga a su institución» y el «Próximo pago» y guarda el calendario. Si ya no va a pagar más, cierra la asignación."
+        // Frecuencia en blanco + constancia aprobada: puede ser un pago único que nadie marcó como tal. Es la
+        // pregunta de DO («si es pago único, ¿para qué me pide calendario?»): en un pago único la fecha es
+        // opcional. Mensual, por ciclo y otra no llevan esta frase.
+        + (!s.frecuencia_pago && s.aprobadas > 0
+          ? " Ya tiene una constancia aprobada. Si fue un pago único, elige «Pago único» y guarda: la fecha es opcional."
+          : "");
     case "al_dia":
+      // Lo que la base contestó, no una cuenta nueva: ver `esPagoUnicoSustentado`.
+      if (esPagoUnicoSustentado(s)) {
+        return "Pago único registrado: no hay más pagos que sustentar. Si el estudio ya terminó, puedes cerrar la asignación.";
+      }
+      if (s.frecuencia_pago === "unico" && s.proxima_fecha_pago) {
+        return `Está al día. Su pago único es el ${fechaCorta(s.proxima_fecha_pago)}.`;
+      }
       return s.proxima_fecha_pago ? `Está al día. Su próximo pago es el ${fechaCorta(s.proxima_fecha_pago)}.` : "Está al día.";
     default:
       // por_vencer, vencida y falta_enviar: la base ya dijo de qué pago y hasta cuándo.
@@ -82,6 +110,50 @@ function fraseDelEstado(s: Situacion): string {
         ? `Falta la constancia del pago del ${fechaCorta(s.fecha_pago_constancia)}${s.plazo ? `, plazo ${fechaCorta(s.plazo)}` : ""}.`
         : "Está pendiente la constancia de su próximo pago.";
   }
+}
+
+/**
+ * LO QUE MUESTRA EL BLOQUE «Paga a su institución» DEL CAJÓN, según lo que DO tiene elegido en el
+ * formulario (`frecuencia`, `proxima`: aún sin guardar) y lo que la base devolvió (`s`).
+ *
+ * PROMETE: que el botón nunca pida guardar «una fecha» cuando lo único que cambió es la frecuencia, y
+ * que un pago único ya sustentado no muestre un campo de fecha vacío que parezca pedir algo.
+ * ASUME: `esPagoUnicoSustentado` solo da true con la base de la 0549; sin ella, el campo se ve como siempre.
+ * NO HACE: no decide el estado ni afirma qué hará el SQL al guardar una fecha.
+ */
+export function formularioDeCalendario(
+  s: Pick<Situacion, "estado_constancia" | "frecuencia_pago" | "proxima_fecha_pago" | "fecha_pago_constancia">,
+  frecuencia: string,
+  proxima: string,
+): {
+  esUnico: boolean;
+  /** Un pago único ya sustentado no pide fecha: se esconde el campo y se deja la frase. */
+  ocultaFecha: boolean;
+  /** Qué decir en lugar del campo; null si el campo se ve. */
+  nota: string | null;
+  rotuloBoton: string;
+  /** Nada cambió respecto a lo guardado. */
+  sinCambios: boolean;
+} {
+  const esUnico = frecuencia === "unico";
+  // Se esconde solo si DO sigue en «Pago único»: si cambia la frecuencia a «Otra» o «Mensual» (hubo un
+  // segundo pago) el campo vuelve, con la fecha que ya estaba guardada.
+  const ocultaFecha = esUnico && esPagoUnicoSustentado(s);
+  const cambioFrecuencia = frecuencia !== (s.frecuencia_pago ?? "");
+  const cambioFecha = proxima !== (s.proxima_fecha_pago ?? "");
+  const rotuloBoton = !esUnico
+    ? "Guardar calendario"
+    // Solo cambió la frecuencia: guardar eso no es «guardar una fecha», y la fecha de un pago único es opcional.
+    : cambioFrecuencia && !cambioFecha ? "Guardar" : "Guardar fecha del pago";
+  return {
+    esUnico,
+    ocultaFecha,
+    nota: ocultaFecha
+      ? "Pago único registrado: no hace falta una fecha. Si hubo un segundo pago, cambia la frecuencia a «Otra» o «Mensual»."
+      : null,
+    rotuloBoton,
+    sinCambios: !cambioFrecuencia && !cambioFecha,
+  };
 }
 
 /**

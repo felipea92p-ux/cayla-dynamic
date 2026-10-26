@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { haceCuanto, mesesQueCuenta, resumenDelPanel, ultimaAprobada } from "@/lib/admin/educacion-panel";
+import { formularioDeCalendario, haceCuanto, mesesQueCuenta, resumenDelPanel, ultimaAprobada } from "@/lib/admin/educacion-panel";
 import type { CoberturaMes } from "@/lib/admin/educacion-meses";
 import type { Entrega, Situacion } from "@/lib/admin/educacion-tipos";
 
@@ -103,6 +103,74 @@ describe("resumenDelPanel", () => {
     expect(r.ojo).toContain("«Aprobadas del ciclo»");
   });
 
+  it("pago ÚNICO sustentado (lo que contesta la 0549): no hay más pagos que sustentar", () => {
+    const r = resumenDelPanel(sit({ frecuencia_pago: "unico", estado_constancia: "al_dia", proxima_fecha_pago: null,
+      fecha_pago_constancia: null, aprobadas: 1 }), [ent({ fecha_pago: "2026-10-01" })], HOY);
+    expect(r.frase).toBe("Pago único registrado: no hay más pagos que sustentar. Si el estudio ya terminó, puedes cerrar la asignación.");
+  });
+
+  it("pago único sustentado aunque la base conserve una fecha guardada: sigue siendo uno solo", () => {
+    const r = resumenDelPanel(sit({ frecuencia_pago: "unico", estado_constancia: "al_dia", proxima_fecha_pago: "2026-10-25",
+      fecha_pago_constancia: null }), null, HOY);
+    expect(r.frase).toContain("Pago único registrado");
+    expect(r.frase).not.toContain("próximo pago");
+  });
+
+  it("pago único SIN fecha: pide la «Fecha del pago», no un calendario", () => {
+    const r = resumenDelPanel(sit({ frecuencia_pago: "unico", estado_constancia: "sin_calendario", aprobadas: 0 }), [], HOY);
+    expect(r.frase).toContain("Falta la fecha del pago");
+    expect(r.frase).toContain("«Fecha del pago»");
+    expect(r.frase).not.toContain("calendario");
+  });
+
+  it("pago único con su fecha por venir y sin constancia: «su pago único es el…», no «su próximo pago»", () => {
+    const r = resumenDelPanel(sit({ frecuencia_pago: "unico", estado_constancia: "al_dia", proxima_fecha_pago: "2026-11-14",
+      fecha_pago_constancia: "2026-11-14", aprobadas: 0 }), [], HOY);
+    expect(r.frase).toBe("Está al día. Su pago único es el 14/11/2026.");
+  });
+
+  it("MENSUAL, ciclo, otra y sin decir NO cambian: su «sin calendario» sigue ambiguo (decisión abierta)", () => {
+    for (const frecuencia_pago of ["mensual", "ciclo", "otra", null] as const) {
+      const r = resumenDelPanel(sit({ frecuencia_pago, estado_constancia: "sin_calendario" }), null, HOY);
+      expect(r.frase).toContain("No se sabe cuándo toca su próximo pago");
+    }
+  });
+
+  // La frase de siempre, palabra por palabra: lo que NO se tocó no puede moverse sin que esta prueba lo diga.
+  const FRASE_DE_SIEMPRE =
+    "No se sabe cuándo toca su próximo pago a la institución, así que el sistema todavía no le pide constancia ni cuenta plazos. "
+    + "Elige «Paga a su institución» y el «Próximo pago» y guarda el calendario. Si ya no va a pagar más, cierra la asignación.";
+
+  it("mensual, ciclo y otra: IDÉNTICO a hoy, tengan o no constancias aprobadas", () => {
+    for (const frecuencia_pago of ["mensual", "ciclo", "otra"] as const) {
+      for (const aprobadas of [0, 1, 4]) {
+        expect(resumenDelPanel(sit({ frecuencia_pago, estado_constancia: "sin_calendario", aprobadas }), null, HOY).frase)
+          .toBe(FRASE_DE_SIEMPRE);
+      }
+    }
+  });
+
+  it("frecuencia en blanco y SIN aprobadas: idéntico a hoy (no hay de qué sospechar un pago único)", () => {
+    expect(resumenDelPanel(sit({ frecuencia_pago: null, estado_constancia: "sin_calendario", aprobadas: 0 }), null, HOY).frase)
+      .toBe(FRASE_DE_SIEMPRE);
+  });
+
+  // La pregunta de Felipe: «si es pago único, ¿para qué me pide calendario?». Puede que nadie haya marcado «Pago único».
+  it("frecuencia en blanco CON una constancia aprobada: le dice a DO que si fue un pago único la fecha es opcional", () => {
+    const r = resumenDelPanel(sit({ frecuencia_pago: null, estado_constancia: "sin_calendario", aprobadas: 1 }), null, HOY);
+    expect(r.frase).toBe(FRASE_DE_SIEMPRE
+      + " Ya tiene una constancia aprobada. Si fue un pago único, elige «Pago único» y guarda: la fecha es opcional.");
+  });
+
+  // Base de ANTES de la 0549 (main se publica sola; la migración se pega a mano): un pago único con constancia
+  // aprobada sigue llegando «sin calendario». Aconsejar «escribe la fecha» lo EMPEORARÍA: pasa a «falta enviar».
+  it("pago único «sin calendario» CON constancia aprobada: dice lo cierto y NO aconseja poner una fecha", () => {
+    const r = resumenDelPanel(sit({ frecuencia_pago: "unico", estado_constancia: "sin_calendario", aprobadas: 1 }), null, HOY);
+    expect(r.frase).toBe("Este pago único ya tiene su constancia aprobada. No hace falta una fecha; si el estudio ya terminó, puedes cerrar la asignación.");
+    expect(r.frase).not.toContain("Escribe");
+    expect(r.frase).not.toContain("guárdala");
+  });
+
   it("una constancia reciente no levanta el «ojo»", () => {
     const r = resumenDelPanel(sit({ estado_constancia: "al_dia", frecuencia_pago: "mensual", proxima_fecha_pago: "2026-10-30" }),
       [ent({ fecha_pago: "2026-09-30" })], HOY);
@@ -148,5 +216,59 @@ describe("resumenDelPanel", () => {
   it("pendiente y rechazada mandan a la revisión y a esperar, sin inventar plazos", () => {
     expect(resumenDelPanel(sit({ estado_constancia: "pendiente_revision" }), [], HOY).frase).toContain("más abajo puedes aprobarla o rechazarla");
     expect(resumenDelPanel(sit({ estado_constancia: "rechazada" }), [], HOY).frase).toContain("se espera que la integrante envíe la corregida");
+  });
+});
+
+describe("formularioDeCalendario — el bloque «Paga a su institución» del cajón", () => {
+  const guardado = (over: Partial<Situacion> = {}) =>
+    sit({ frecuencia_pago: "mensual", proxima_fecha_pago: "2026-10-30", estado_constancia: "al_dia", ...over });
+  const sustentadoUnico = () =>
+    sit({ frecuencia_pago: "unico", proxima_fecha_pago: null, estado_constancia: "al_dia", fecha_pago_constancia: null, aprobadas: 1 });
+
+  it("mensual sin tocar: «Guardar calendario», deshabilitado y con el campo a la vista", () => {
+    const f = formularioDeCalendario(guardado(), "mensual", "2026-10-30");
+    expect(f).toMatchObject({ esUnico: false, ocultaFecha: false, nota: null, rotuloBoton: "Guardar calendario", sinCambios: true });
+  });
+
+  it("elegir «Pago único» sin escribir fecha: el botón dice «Guardar», no «Guardar fecha del pago»", () => {
+    // Antes quedaba habilitado diciendo «Guardar fecha del pago» con la fecha vacía solo porque cambió el select.
+    const f = formularioDeCalendario(guardado({ estado_constancia: "sin_calendario", proxima_fecha_pago: null }), "unico", "");
+    expect(f.rotuloBoton).toBe("Guardar");
+    expect(f.sinCambios).toBe(false);
+    expect(f.ocultaFecha).toBe(false);
+  });
+
+  it("elegir «Pago único» y escribir la fecha: «Guardar fecha del pago»", () => {
+    const f = formularioDeCalendario(guardado({ proxima_fecha_pago: null }), "unico", "2026-11-14");
+    expect(f.rotuloBoton).toBe("Guardar fecha del pago");
+  });
+
+  it("un pago único ya guardado al que solo se le cambia la fecha: «Guardar fecha del pago»", () => {
+    const f = formularioDeCalendario(sit({ frecuencia_pago: "unico", proxima_fecha_pago: "2026-11-14" }), "unico", "2026-11-20");
+    expect(f.rotuloBoton).toBe("Guardar fecha del pago");
+  });
+
+  it("pago único ya sustentado: se esconde el campo y queda solo la frase, sin prometer lo que haga el SQL", () => {
+    const f = formularioDeCalendario(sustentadoUnico(), "unico", "");
+    expect(f.ocultaFecha).toBe(true);
+    expect(f.sinCambios).toBe(true);
+    expect(f.nota).toBe("Pago único registrado: no hace falta una fecha. Si hubo un segundo pago, cambia la frecuencia a «Otra» o «Mensual».");
+    expect(f.nota).not.toContain("no vuelve a pedir");
+  });
+
+  it("si DO cambia la frecuencia de un pago único sustentado a «Otra» o «Mensual», el campo vuelve (hubo un segundo pago)", () => {
+    for (const frecuencia of ["otra", "mensual"]) {
+      const f = formularioDeCalendario(sustentadoUnico(), frecuencia, "");
+      expect(f.ocultaFecha).toBe(false);
+      expect(f.nota).toBeNull();
+      expect(f.sinCambios).toBe(false);
+    }
+  });
+
+  it("con la base de antes de la 0549 (pago único con aprobada, aún «sin calendario») el campo NO se esconde", () => {
+    const f = formularioDeCalendario(
+      sit({ frecuencia_pago: "unico", estado_constancia: "sin_calendario", proxima_fecha_pago: null, aprobadas: 1 }), "unico", "");
+    expect(f.ocultaFecha).toBe(false);
+    expect(f.nota).toBeNull();
   });
 });

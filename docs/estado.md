@@ -6,6 +6,73 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-25 — La Bandeja cuenta 33 y no 96 · los 61 correos tienen salida · un pago único ya sustentado no pide calendario · migraciones 0548 y 0549 · SQL PEGADO (2026-10-25) · SIN FUSIONAR (PR #597, borrador) · rama `claude/notifications-calendar-errors-2e8886`
+
+**Qué es.** Felipe preguntó tres cosas con tres capturas: «si es pago único, ¿para qué me pide calendario?», «la mayoría
+de las notificaciones son ruido» y «¿61 fallaron?». Medido, no opinado: la insignia del menú decía **96 = 31 filas + 61
+correos fallidos (un solo problema contado 61 veces) + 4 de Normas**; el chip «Todo» decía 31 y el Dashboard habría dicho 92
+(tres cuentas para una pregunta). De las 31 filas casi todas son plazo legal, dinero o una persona esperando: **no se
+construyó un botón «descartar» general** (ver «Decisión abierta»). Los 61 fallan por un 403 de Resend, «el dominio cayla.pe no
+está verificado», y por «sin líder de equipo con correo»: la primera es configuración externa que solo Felipe arregla.
+
+**Lo que cambia para quien la usa.**
+- **Una sola cuenta** (`cuentaDeLaBandeja`): filas + 1 si hay correos que no salieron + 1 si hay constancias de Normas. Menú y
+  Dashboard dan el mismo número (33 con los datos de la captura). Las «atascadas» se reintentan solas y ya no cuentan.
+- **Tarjeta «Sistema»** plegada a una línea (52 px, antes 228) con la causa en palabras y, al abrir, qué hacer. Botón
+  «Revisar y resolver estos avisos» (solo DO): primero una vista previa, y solo al confirmar reencola lo que aún es cierto y da
+  por cerrado lo que ya no. **Antes de pulsarlo hay que arreglar Resend**, o lo reencolado vuelve a fallar.
+- **Ruta de correo** (`/api/alertas-encargadas`): ante una avería del canal corta el lote en vez de gastar el intento de todas
+  las filas (así 3 días de 403 mataron 61); clasifica el fallo por su causa (un mismo 403 ya no sale dos veces); los días de
+  «vence en N» se calculan al enviar y no al generar; si el correo sale tarde, lo dice.
+- **Educación:** un pago único con una constancia aprobada ya no cae en «sin calendario»; el campo se llama «Fecha del pago»
+  y, si ya está sustentado, no se muestra. Mensual, ciclo y otra quedan idénticos.
+
+**Antes de pegar (en el mismo mensaje en que se entrega el SQL; un md5 es una foto y caduca).**
+1. **0548 — no reescribe ninguna función, no hay md5 de partida.** Corre las tres consultas de SOLO LECTURA del encabezado
+   (la que cuenta los 61 por destino y causa, el `pg_get_constraintdef` de `alertas_estado_check` y los estados presentes) y
+   manda las filas. La fila «2 · REENCOLAR CON VENTANA RENOVADA» dice cuántos contratos y vacaciones vigentes se salvan.
+2. **0549 — SÍ reescribe `fn_educacion_situacion`.** md5 de PRODUCCIÓN pendiente: la consulta está en su encabezado; se
+   espera 4 006 caracteres y `f0ddaf5b…` con 0 marcadores (4 094 con 88 retornos si se pegó desde Windows). Su guardia por md5
+   **PARA** ante cualquier otro cuerpo. Corre también las consultas de impacto y de residuo del encabezado.
+3. **ORDEN CON LA 0526** (borrador sin pegar, rama `agitated-nightingale-7e118e`, reescribe la misma función): pegar la 0549
+   primero; la 0526 se rehace después sobre su cuerpo y con su propia guardia (la fusión de tres vías dio 0 conflictos). Pegada
+   en el orden contrario, la 0526 **revierte en silencio** la 0549.
+4. Las dos se pegan **antes** de fusionar el PR. Si el frontend llega antes: nada se rompe (la tarjeta sin botón, los textos de
+   pago único con constancia dicen la verdad), pero el número rojo de Educación no baja hasta pegar la 0549.
+
+**Pegado el 2026-10-25** (Felipe devolvió las filas de comprobación). Antes de pegar, `fn_educacion_situacion` en producción medía
+4 006 caracteres, md5 `f0ddaf5b…`, 0 retornos y 0 marcadores: la 0450 sin retoques, así que la 0526 no estaba pegada y la guardia de
+la 0549 pasó. **0548:** las nueve columnas de la comprobación en lo esperado y `sin_salida_hoy = 61`, igual a los 61 de la tarjeta.
+**0549:** `registradas` = 548 · 549 · 550 y la función en 4 959 caracteres, md5 `faba3345…`, el de llegada declarado en su encabezado.
+Con las dos pegadas, el PR se puede fusionar **solo con OK de Felipe**; mientras no se fusione, el botón no existe en pantalla.
+
+**Pendiente de Felipe (a mano, no lo hace el código).** Verificar el dominio de envío en resend.com/domains con `RESEND_FROM`
+exactamente en ese dominio y comprobar `RESEND_API_KEY` y el redeploy; cargar en Equipo el correo de las líderes de las sedes
+que salgan en la consulta de causas. Sandra Ramírez (Pop in colors): si su frecuencia está en blanco, un clic —elegir «Pago
+único» y guardar con la fecha vacía— la deja al día; **no guardar «Pago único» + 25/10 antes de pegar la 0549**: la pasaría a
+«falta enviar».
+
+**Decisiones abiertas de Felipe.** (a) Pago único con fecha futura y constancia aprobada queda callado para siempre: ¿el
+comprobante inicial prueba el pago o puede ser una proforma? (b) Mensual/ciclo/otra con «último pago» siguen en «sin
+calendario»: hace falta una columna `es_ultimo_pago`. (c) ¿Botón «descartar» general? Se recomienda que no: casi todos los
+tipos de fila son plazo legal, dinero o una persona esperando respuesta, y el único candidato real (`educacion` sin calendario) se arregló en la fuente.
+(d) «Normas» dice «N constancias pendientes» (la suma es de pares persona-documento) y pesa 1 en el menú. (e) ¿El proyecto de
+Vercel tiene fluid compute? Decide si `maxDuration` sube de 60 a 300 s.
+
+**Probado.** Typecheck limpio y 2 851 pruebas vitest verdes. **440: 94/94 y 441: 29/29** en un Postgres 17 nativo con las
+migraciones 0001–0544 (el Docker de esta Mac estaba colgado); sin sus migraciones se ponen rojas, con 18 mutaciones de la
+0548 y 54 de la ruta en rojo; las 18 pruebas que tocan `alertas` y las 355/226/421/365 dan lo mismo con y sin ellas; el
+caso de Sandra y el de un contrato con aviso de hace 10 días se reprodujeron de punta a punta con las funciones reales; el
+barrido de 1 080 estudios solo cambia los pagos únicos con constancia aprobada. La pantalla se midió en el navegador con un
+simulador de la API (1440 y 390 px; el modo oscuro solo antes de plegar la tarjeta). **No probado:** pgTAP real ni el CI `db-tests` de GitHub, los grants
+reales de Supabase, Resend vivo, y nada contra datos de producción. La 440 original abortaba contra el esquema real
+(fixtures); lo cazó un revisor y quedó corregido.
+
+**Hueco preexistente, cerrado aparte.** La política `alertas_marcar_leida_propia` (0003) dejaba a la dueña de una fila
+cambiar `estado` e `intentos` por PostgREST. Lo cierra la 0550 (entrada de abajo, PR #598, ya fusionado y con el SQL
+pegado): un trigger que solo deja cambiar `leido_at`. Las funciones de la 0548 son `SECURITY DEFINER` y corren como
+`postgres`, así que el trigger no las toca; el CI de este PR lo comprueba con la 0550 ya en main.
+
 ## 2026-10-25 — Una alerta solo se marca leída: se cierra el hueco de la política de `alertas` · migración 0550 · SQL PEGADO (2026-10-25) · SIN FUSIONAR (PR #598, borrador) · rama `claude/sad-chandrasekhar-10f114`
 
 **Qué es.** El revisor de la 0548 midió un hueco que viene de la 0003: la política `alertas_marcar_leida_propia` deja a la

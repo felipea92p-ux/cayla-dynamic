@@ -443,6 +443,18 @@ describe("«al día» exige respaldo del tramo EN CURSO", () => {
     expect(estadoParaMostrar(e).etiqueta).toBe("Sin constancias aún");
   });
 
+  it("la fila guarda por aparte las aprobadas del tramo que habla y su frecuencia (solo para las palabras de la insignia)", () => {
+    const [e] = agruparEstudios([
+      sit({ familia_id: "f1", vigente_desde: "2026-07-01", vigente_hasta: "2026-12-31", estado_constancia: "al_dia", aprobadas: 4 }),
+      sit({ familia_id: "f2", vigente_desde: "2026-08-01", vigente_hasta: "2026-12-31", estado_constancia: "sin_calendario", frecuencia_pago: "unico", aprobadas: 0 }),
+    ]);
+    expect(e.actual.familia_id).toBe("f2");
+    expect(e.aprobadas).toBe(4);
+    expect(e.aprobadas_del_tramo).toBe(0);
+    expect(e.frecuencia_pago).toBe("unico");
+    expect(estadoParaMostrar(e).etiqueta).toBe("Sin fecha de pago");
+  });
+
   it("dos registros vigentes a la vez siguen sumando", () => {
     const [e] = agruparEstudios([sit({ familia_id: "f1", aprobadas: 1 }), sit({ familia_id: "f2", aprobadas: 2 })]);
     expect(e.aprobadas).toBe(3);

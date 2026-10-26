@@ -60,7 +60,8 @@ import {
   alertasConProblema, armarPendientes, diaLima, ETIQUETA_MODULO, FUENTES_VACIAS, modulosDeLaBandeja,
   resumenValorPerfil, traerFuentesBandeja, type FuentesBandeja, type ModuloBandeja, type Pendiente, type TipoItemVisto,
 } from "@/lib/admin/bandeja-fuentes";
-import { hoyLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { hoyLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla, puedeVerSaludDeAlertas, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { TarjetaSistema } from "@/components/bandeja/tarjeta-sistema";
 import { PanelPrueba } from "@/components/pruebas/panel-prueba";
 import { textoDeHoras } from "@/lib/admin/pruebas";
 import { resumenNormasPendientes, type ResumenNormas } from "@/lib/admin/bandeja-equipo";
@@ -647,6 +648,7 @@ export default function BandejaPage() {
                 { titulo: "Si un módulo no cargó", texto: "Su casilla dice «No se pudo cargar» en rojo. No se pinta «Al día» sobre un hueco: que no se pudiera mirar no significa que no haya nada." },
                 { titulo: "La lista", texto: "Va por urgencia: Vencido (ya pasó el plazo o el riesgo corre), Hoy, Próximos y Sin plazo. Cada fila dice si se resuelve aquí mismo o en su módulo." },
                 { titulo: "Qué ves", texto: "Los líderes de equipo ven solo lo de su sede; Desarrollo Organizacional y dirección, todas." },
+                { titulo: "El número del menú", texto: "Suma las filas de la lista (la casilla «Todo»), más 1 si hay correos de aviso que no salieron (la tarjeta «Sistema») y 1 si hay constancias de Normas por recoger (el enlace de arriba). Por eso puede ser 2 más que «Todo»: la tarjeta y el enlace cuentan una vez cada uno, aunque dentro haya decenas de avisos." },
               ]}
             />
           }
@@ -753,66 +755,17 @@ export default function BandejaPage() {
 
             {/* ── Sistema: salud del despacho de correos, no una tarea ─── */}
             {resumenAlertas && problemasCorreo > 0 && (
-              <details className="group mt-4 rounded-control border border-pizarra/30 bg-pizarra/5 px-4 py-2.5 text-sm">
-                <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2">
-                  <span className="rounded bg-pizarra/15 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-pizarra">Sistema</span>
-                  <span>
-                    <strong>{problemasCorreo} aviso{problemasCorreo === 1 ? "" : "s"} por correo</strong>{" "}
-                    no va{problemasCorreo === 1 ? "" : "n"} a salir solo{problemasCorreo === 1 ? "" : "s"}.
-                  </span>
-                  <span className="text-rojo group-open:hidden">Ver qué pasó →</span>
-                </summary>
-                <ul className="mt-2 space-y-2">
-                  {resumenAlertas.fallidas_definitivas > 0 && (
-                    <li className="rounded-control border border-pizarra/30 bg-papel p-3">
-                      <strong className="text-rojo-profundo">
-                        {resumenAlertas.fallidas_definitivas} fall{resumenAlertas.fallidas_definitivas === 1 ? "ó" : "aron"} tres veces
-                      </strong>
-                      <span className="text-taupe"> — ya no se reintentan. </span>
-                      {resumenAlertas.motivos_definitivos.length > 0 ? (
-                        <>
-                          Motivo del último intento:
-                          <ul className="mt-1 list-disc pl-5 text-taupe">
-                            {resumenAlertas.motivos_definitivos.map((m) => <li key={m}>{m}</li>)}
-                          </ul>
-                          <span className="mt-1 block">
-                            Si dice «sin líder de equipo con correo» (o «sin encargada con correo», en avisos anteriores),
-                            se arregla en Equipo cargando el correo de su líder de equipo;
-                            si es de Resend, revisa la clave <code>RESEND_API_KEY</code> y el dominio verificado.
-                          </span>
-                        </>
-                      ) : (
-                        <>Sin nota del motivo: revisa en Sentry el último despacho y la cuenta de Resend (clave <code>RESEND_API_KEY</code> y dominio verificado).</>
-                      )}
-                    </li>
-                  )}
-                  {resumenAlertas.atascadas > 0 && (
-                    <li className="rounded-control border border-pizarra/30 bg-papel p-3">
-                      <strong className="text-ambar">
-                        {resumenAlertas.atascadas} qued{resumenAlertas.atascadas === 1 ? "ó" : "aron"} a medio despachar
-                      </strong>
-                      <span className="text-taupe"> hace más de una hora. </span>
-                      Se reintentan solos en el próximo despacho (hasta tres veces); si vuelve a pasar, revisa en Sentry por qué se corta.
-                    </li>
-                  )}
-                  {resumenAlertas.caducadas > 0 && (
-                    <li className="rounded-control border border-pizarra/30 bg-papel p-3">
-                      <strong className="text-ambar">
-                        {resumenAlertas.caducadas} caduc{resumenAlertas.caducadas === 1 ? "ó" : "aron"} sin salir
-                      </strong>
-                      <span className="text-taupe"> — más de siete días sin despacho. </span>
-                      Ya no se van a mandar: si el aviso todavía importa, hay que darlo a mano.
-                    </li>
-                  )}
-                </ul>
-                <p className="mt-2 text-taupe">
-                  {resumenAlertas.despachables} esperando el próximo despacho ·{" "}
-                  {resumenAlertas.ultimo_envio_at
-                    ? `último correo enviado el ${diaLima(resumenAlertas.ultimo_envio_at)}`
-                    : "todavía no salió ningún correo"}
-                  {" "}— si esa fecha se aleja, el cron dejó de correr.
-                </p>
-              </details>
+              <TarjetaSistema
+                resumen={resumenAlertas}
+                total={problemasCorreo}
+                puedeResolver={puedeVerSaludDeAlertas(rol)}
+                onResuelto={async () => {
+                  // Recargar la lista no basta: el número del menú se calcula aparte y solo
+                  // vuelve a contar al oír este aviso (el mismo que da `retirar`).
+                  await cargar();
+                  avisarCambioEnBandeja();
+                }}
+              />
             )}
 
             {/* ── La lista, por urgencia ───────────────────────────────── */}

@@ -2,15 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { armarPendientes, contarPendientesBandeja, traerFuentesBandeja } from "@/lib/admin/bandeja-fuentes";
-import { resumirPendientes, type ResumenPendientes } from "@/lib/admin/pendientes-resumen";
+import { traerFuentesYNormas } from "@/lib/admin/bandeja-equipo";
+import { resumenDeLaBandeja, type ResumenPendientes } from "@/lib/admin/pendientes-resumen";
 
 // Los pendientes de la Bandeja para el indicador opcional del Dashboard.
 //
 // SOLO CONSULTA MIENTRAS `activo`: quien deja el Dashboard con solo asistencia
 // (el diseño por defecto) no paga ni una petición de esto. Usa las mismas
-// fuentes que el menú y que /admin/bandeja (`traerFuentesBandeja`), no una
-// consulta propia.
+// fuentes que el menú y que /admin/bandeja, y por el mismo camino que el menú
+// (`traerFuentesYNormas`, que incluye Normas para DO), no una consulta propia.
+// El número sale de `resumenDeLaBandeja`, que usa `cuentaDeLaBandeja`: la misma
+// cuenta que el menú. Antes sumaba cada correo fallido pero no Normas, y el
+// indicador decía un número distinto al del menú para lo mismo.
 //
 // Se refresca cada 5 minutos —no cada 30 s como la asistencia—: la Bandeja no
 // es un tablero en vivo y son varias consultas.
@@ -33,10 +36,10 @@ export function usePendientesBandeja(activo: boolean, rol: string | null | undef
     let vivo = true;
     async function cargar() {
       try {
-        const f = await traerFuentesBandeja(createAdminSupabaseClient(), rol);
+        const { fuentes: f, constanciasNormas } = await traerFuentesYNormas(createAdminSupabaseClient(), rol);
         if (!vivo) return;
         setEstado({
-          resumen: resumirPendientes(armarPendientes(f), contarPendientesBandeja(f)),
+          resumen: resumenDeLaBandeja(f, constanciasNormas),
           incompleto: f.fallidas.length > 0,
           fallo: false,
         });

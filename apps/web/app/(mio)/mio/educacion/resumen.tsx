@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CONSTANCIA, type EstadoConstancia } from "@cayla-dynamic/shared";
+import { insigniaDeEstadoConstancia, type EstadoConstancia } from "@cayla-dynamic/shared";
 import { Insignia } from "@/components/ui/insignia";
 import { enDias } from "@/lib/admin/bandeja-urgencia";
 import { fechaCorta } from "@/lib/educacion";
@@ -28,6 +28,10 @@ interface Fila {
   vigencia: string;
   vigente_hasta: string;
   estado_constancia: EstadoConstancia;
+  /** Solo para las palabras de la insignia (0549): el estado lo decidió la base. */
+  frecuencia_pago?: string | null;
+  /** Las constancias aprobadas: con la base de antes de la 0549 deciden si un pago único dice «con constancia». */
+  aprobadas?: number | null;
   plazo: string | null;
   dias_para_plazo: number | null;
 }
@@ -96,7 +100,7 @@ export function ResumenEducacionMia({ personaId }: { personaId: string | null })
         <>
           <ul className="mt-2 flex flex-col gap-2">
             {filas.map((f) => {
-              const est = ESTADO_CONSTANCIA[f.estado_constancia];
+              const est = insigniaDeEstadoConstancia(f.estado_constancia, f.frecuencia_pago, f.aprobadas);
               return (
                 <li key={f.familia_id} className="flex flex-wrap items-center justify-between gap-2">
                   <span>
