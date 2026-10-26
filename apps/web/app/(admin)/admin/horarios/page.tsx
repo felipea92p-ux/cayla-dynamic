@@ -941,13 +941,15 @@ export default function HorariosPage() {
                     repartía las columnas a su manera — «Horario» caía en un
                     sitio distinto en cada sede. Horario se queda con lo que
                     sobra; Nombre lleva un porcentaje para no quedar en 70 px
-                    cuando la ventana es angosta. */}
+                    cuando la ventana es angosta, y Horas semanales mide lo
+                    que su insignia más larga («falta su modalidad», ~131 px):
+                    con 96 px se montaba sobre la fecha de al lado. */}
                 <Tabla className="[font-variant-numeric:tabular-nums] [&>table]:table-fixed" alturaMaxima="60vh">
                   <TablaEncabezado>
                     <Th className="w-9">{null}</Th>
-                    <Th className="w-[26%]">Nombre</Th>
+                    <Th className="w-[22%]">Nombre</Th>
                     <Th>Horario</Th>
-                    <Th className="w-24">Horas semanales</Th>
+                    <Th className="w-[10.5rem]">Horas semanales</Th>
                     <Th className="w-[7.5rem]">Vigente desde</Th>
                     <Th className="w-40">{null}</Th>
                   </TablaEncabezado>
