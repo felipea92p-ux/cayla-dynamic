@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-25 — Una alerta solo se marca leída: se cierra el hueco de la política de `alertas` · migración 0550 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/sad-chandrasekhar-10f114`
+## 2026-10-25 — Una alerta solo se marca leída: se cierra el hueco de la política de `alertas` · migración 0550 · SQL PEGADO (2026-10-25) · SIN FUSIONAR (PR #598, borrador) · rama `claude/sad-chandrasekhar-10f114`
 
 **Qué es.** El revisor de la 0548 midió un hueco que viene de la 0003: la política `alertas_marcar_leida_propia` deja a la
 dueña de una fila hacer UPDATE, y una política filtra filas, no columnas. Medido otra vez contra el esquema real
@@ -28,7 +28,11 @@ volver SIN FILAS: nombra cualquier función de producción, pegada a mano y fuer
 `SECURITY DEFINER` de `postgres` — esa dejaría de poder escribir. La segunda trae `registro_550` en `null` y los triggers
 que ya tiene `alertas` (hoy ninguno). **No depende de la 0548** y se puede pegar antes o después; no reescribe ninguna
 función, así que no hay md5 de partida. Como toda migración: se pega ANTES de fusionar, aunque aquí no hay código nuevo que
-dependa de ella.
+dependa de ella. **Pegada el 2026-10-25** (Felipe devolvió la fila de comprobación): el freno está puesto y activo, no es
+`SECURITY DEFINER`, ningún escritor de `alertas` queda fuera (`escritores_que_el_freno_dejaria_fuera = 0`) y el registro dice
+`550 · una_alerta_solo_se_marca_leida`. Con eso la consulta previa ya no hace falta: la tercera columna decía lo mismo.
+Con la migración ya pegada, el PR se puede fusionar **solo con OK de Felipe** (fusionar es publicar) y con el comentario
+`<!-- cayla:fusion-sesion -->` que pide el hook.
 
 **Una decisión que quedó escrita y es de Felipe.** El freno rechaza también a `service_role` escribiendo DIRECTO
 (`.from("alertas").update(…)` con la llave de servicio): solo pasan las funciones `SECURITY DEFINER`. Hoy nadie lo hace.
