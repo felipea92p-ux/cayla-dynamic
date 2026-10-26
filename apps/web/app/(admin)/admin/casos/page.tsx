@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Info } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima, puedeNombrarInvestigadora, puedeVerCasos } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -11,9 +10,16 @@ import { fechaLargaLima } from "@/lib/admin/planilla/formato";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
+import { BuscadorPersona } from "@/components/ui/buscador-persona";
+import { Filtro } from "@/components/ui/filtro";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Cargando } from "@/components/cargando";
-import { cx } from "@/components/ui/cx";
 import { etiquetaDeEstado, etiquetaDeVia, fechaEnPalabras } from "@/lib/reportes";
 
 /**
@@ -111,29 +117,28 @@ export default function CasosPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <main className="flex-1 p-6">
-        <div className="mx-auto w-full max-w-5xl text-sm">
-          <h1 className="mb-1 font-serif text-2xl">Casos</h1>
-          <p className="mb-3 text-taupe">
-            Los reportes del equipo que te toca gestionar. Lo urgente primero; después, lo que vence antes.
-          </p>
-          <p className="mb-5 flex items-center gap-2 text-xs text-taupe">
-            <Info className="size-4" strokeWidth={1.8} aria-hidden />
+      <main className="flex-1 p-4 pt-6 sm:p-6">
+        <div className="w-full text-sm">
+          <CabeceraPagina
+            sobretitulo={sobretituloDeHoy("Personas")}
+            titulo="Casos"
+            descripcion="Los reportes del equipo que te toca gestionar. Lo urgente primero; después, lo que vence antes."
+          />
+          <BannerAviso enLinea variante="informativo" className="mb-5">
             Un reporte no es una falta. Nada se sanciona desde aquí: si corresponde, se abre un expediente en Disciplina.
-          </p>
+          </BannerAviso>
 
-          {error && <p className="mb-4 rounded-control bg-rojo/10 px-3 py-2 text-rojo-profundo">{error}</p>}
+          {error && <BannerAviso enLinea variante="alerta" role="alert" className="mb-4">{error}</BannerAviso>}
 
           {veCasos === false && puedeNombrarInvestigadora(rol) && (
-            <p className="mb-4 rounded-superficie border border-sand p-4 text-taupe">
+            <BannerAviso enLinea variante="neutral" className="mb-4">
               Tu cuenta tiene rol de administración pero no es la Gerencia General, así que no gestiona reportes: la
               regla del Reglamento no te muestra ninguno. Si crees que deberías verlos, habla con Desarrollo Organizacional.
-            </p>
+            </BannerAviso>
           )}
 
           {pendientes.length > 0 && (
-            <section className="mb-6 rounded-superficie border border-pizarra/30 bg-pizarra/10 p-4">
-              <h2 className="mb-1 font-serif text-lg">Instrucciones que te encargaron</h2>
+            <BannerAviso variante="informativo" titulo="Instrucciones que te encargaron" className="mb-6">
               <p className="mb-3 text-xs text-taupe">
                 Son medidas que Desarrollo Organizacional dictó en un caso. No se te muestra el caso a propósito: solo lo
                 que hay que hacer.
@@ -152,46 +157,41 @@ export default function CasosPage() {
                   </li>
                 ))}
               </ul>
-            </section>
+            </BannerAviso>
           )}
 
           <div className="mb-3 flex flex-wrap gap-1.5">
             {([["todos", "Abiertos"], ["mios", "Lo que llevo yo"], ["vencidos", "Vencidos"]] as const).map(([v, t]) => (
-              <button key={v} type="button" onClick={() => setFiltro(v)}
-                className={cx("rounded-pildora border px-3 py-1 text-xs",
-                  filtro === v ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:text-tinta")}>
+              <Filtro key={v} tamano="sm" activo={filtro === v} onClick={() => setFiltro(v)}>
                 {t}
                 {v === "vencidos" && casos ? ` · ${casos.filter((c) => c.semaforo === "vencido").length}` : ""}
-              </button>
+              </Filtro>
             ))}
           </div>
 
           {casos === null && !error && <Cargando />}
           {casos && visibles.length === 0 && (
-            <p className="rounded-superficie border border-dashed border-sand p-5 text-taupe">
+            <EstadoVacio>
               {filtro === "todos" ? "No hay casos abiertos que te toque gestionar." : "Nada en este filtro."}
-            </p>
+            </EstadoVacio>
           )}
 
           {visibles.length > 0 && (
-            <div className="overflow-hidden rounded-superficie border border-sand">
-              <table className="w-full border-collapse bg-papel">
-                <thead>
-                  <tr className="bg-sand text-left text-xs text-taupe">
-                    <th className="px-3 py-2 font-medium">Caso</th>
-                    <th className="px-3 py-2 font-medium">Camino</th>
-                    <th className="hidden px-3 py-2 font-medium sm:table-cell">Sede</th>
-                    <th className="px-3 py-2 font-medium">Lo lleva</th>
-                    <th className="px-3 py-2 font-medium">Próximo plazo</th>
-                  </tr>
-                </thead>
+            <Tabla>
+                <TablaEncabezado>
+                    <Th>Caso</Th>
+                    <Th>Camino</Th>
+                    <Th className="hidden sm:table-cell">Sede</Th>
+                    <Th>Lo lleva</Th>
+                    <Th>Próximo plazo</Th>
+                </TablaEncabezado>
                 <tbody>
                   {visibles.map((c) => {
                     const estado = etiquetaDeEstado(c.estado);
                     const sem = c.semaforo ? SEMAFORO[c.semaforo] : null;
                     return (
-                      <tr key={c.id} className="border-t border-sand align-top even:bg-hueso/50 hover:bg-sand/40">
-                        <td className="px-3 py-2.5">
+                      <Fila key={c.id} className="align-top">
+                        <td className="px-4 py-2.5">
                           <Link href={`/admin/casos/${c.id}`} className="font-medium tabular-nums underline-offset-2 hover:underline">
                             {c.codigo}
                           </Link>
@@ -200,10 +200,10 @@ export default function CasosPage() {
                             <Insignia variante={estado.variante} tamano="sm">{estado.texto}</Insignia>
                           </div>
                         </td>
-                        <td className="px-3 py-2.5">{etiquetaDeVia(c.via, c.tipo)}</td>
-                        <td className="hidden px-3 py-2.5 sm:table-cell">{c.sede_codigo}</td>
-                        <td className="px-3 py-2.5">{c.gestiona ? LLEVA[c.gestiona] ?? c.gestiona : "—"}</td>
-                        <td className="px-3 py-2.5">
+                        <td className="px-4 py-2.5">{etiquetaDeVia(c.via, c.tipo)}</td>
+                        <td className="hidden px-4 py-2.5 sm:table-cell">{c.sede_codigo}</td>
+                        <td className="px-4 py-2.5">{c.gestiona ? LLEVA[c.gestiona] ?? c.gestiona : "—"}</td>
+                        <td className="px-4 py-2.5">
                           {sem && <Insignia variante={sem.variante} tamano="sm">{sem.texto}</Insignia>}
                           {c.proximo_plazo && (
                             <div className="mt-1 text-xs text-taupe">
@@ -212,12 +212,11 @@ export default function CasosPage() {
                             </div>
                           )}
                         </td>
-                      </tr>
+                      </Fila>
                     );
                   })}
                 </tbody>
-              </table>
-            </div>
+            </Tabla>
           )}
 
           <SeccionOrganos organos={organos} puedeNombrar={puedeNombrarInvestigadora(rol)} alGuardar={cargar} />
@@ -269,17 +268,12 @@ function SeccionOrganos({ organos, puedeNombrar, alGuardar }: {
   const vigentes = organos.filter((o) => !o.hasta || o.hasta >= hoyLima());
 
   return (
-    <section className="mt-8 rounded-superficie border border-sand p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-serif text-lg">Quién investiga el Título X en cada sede</h2>
-          <p className="text-xs text-taupe">
-            La Delegada que eligen las trabajadoras, su suplente, o mientras no haya, quien designe la Gerencia General
-            (48.3). Una queja de una sede sin nadie aquí llega sin quién la investigue.
-          </p>
-        </div>
-        {puedeNombrar && !abierto && <Boton tamano="sm" onClick={() => setAbierto(true)}>Registrar con acta</Boton>}
-      </div>
+    <TarjetaInfo como="section" className="mt-8" titulo="Quién investiga el Título X en cada sede"
+      accion={puedeNombrar && !abierto ? <Boton tamano="sm" onClick={() => setAbierto(true)}>Registrar con acta</Boton> : undefined}>
+      <p className="text-xs text-taupe">
+        La Delegada que eligen las trabajadoras, su suplente, o mientras no haya, quien designe la Gerencia General
+        (48.3). Una queja de una sede sin nadie aquí llega sin quién la investigue.
+      </p>
 
       {vigentes.length === 0 ? (
         <p className="mt-3 text-rojo-profundo">Ninguna sede tiene a alguien registrado.</p>
@@ -301,10 +295,13 @@ function SeccionOrganos({ organos, puedeNombrar, alGuardar }: {
             <option value="">Elige la sede</option>
             {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </CampoSelect>
-          <CampoSelect etiqueta="Persona" value={persona} onChange={(e) => setPersona(e.target.value)}>
-            <option value="">Elige a la persona</option>
-            {padron.map((p) => <option key={p.id} value={p.id}>{p.nombre}{p.sede_codigo ? ` · ${p.sede_codigo}` : ""}</option>)}
-          </CampoSelect>
+          <div className="sm:col-span-2">
+            <BuscadorPersona
+              opciones={padron.map((p) => ({ id: p.id, nombre: p.nombre, sede: p.sede_codigo }))}
+              value={persona}
+              onChange={setPersona}
+            />
+          </div>
           <CampoSelect etiqueta="Papel" value={papel} onChange={(e) => setPapel(e.target.value)}>
             <option value="designada">Designada (transitoria)</option>
             <option value="delegada">Delegada elegida</option>
@@ -322,6 +319,6 @@ function SeccionOrganos({ organos, puedeNombrar, alGuardar }: {
           </div>
         </div>
       )}
-    </section>
+    </TarjetaInfo>
   );
 }

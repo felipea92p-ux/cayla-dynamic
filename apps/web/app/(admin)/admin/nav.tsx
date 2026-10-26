@@ -18,25 +18,31 @@
 // por lo que existe `RUTAS_SIN_MARCO`: ese layout envuelve también al login y a
 // «nueva clave», donde todavía no hay sesión a la que preguntarle nada.
 //
-// Lo que NO cambió: los contadores siguen consultándose igual, con las mismas
-// RPC y las mismas dependencias `[rol, pathname]` — refrescarse en cada
-// navegación es su único mecanismo de actualización, y un contador de
-// Incidencias en frío es un reclamo sin leer con el periodo cerrándose.
+// Los contadores siguen consultándose con las mismas RPC. Lo que cambió el
+// 2026-10-24: ya no se vuelven a pedir en CADA navegación (eran 57–107
+// consultas por pantalla, medidas), sino cuando pasó más de un minuto desde la
+// última vez o al volver a la pestaña — ver `use-pulso-contadores.ts`, que
+// también dice qué se pierde. Resolver algo en la Bandeja sigue refrescando al
+// instante.
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
+import { usePulsoContadores } from "@/lib/admin/use-pulso-contadores";
 import { traerBandeja } from "@/lib/bandeja-mia";
-import { contarBandejaEquipoPendiente } from "@/lib/admin/bandeja-equipo";
+import { CUENTA_VACIA, cuentaBandejaEquipo } from "@/lib/admin/bandeja-equipo";
+import { tituloDelContadorBandeja } from "@/lib/admin/bandeja-sistema";
 import { EVENTO_CAMBIO_BANDEJA } from "@/lib/admin/bandeja-urgencia";
 import { useGruposCerrados, useNavColapsado } from "@/lib/use-nav-colapsado";
 import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { BuscadorGlobal } from "@/components/buscador-global";
 import { AtajosTeclado } from "@/components/atajos-teclado";
+import { ColibriViajero } from "@/components/colibri-viajero";
 import { SelectorTema } from "@/components/selector-tema";
+import { SaludoHora } from "@/components/nav/saludo-hora";
 import { SidebarAdmin } from "@/components/nav/sidebar-admin";
 import { CajonAdmin } from "@/components/nav/cajon-admin";
 import type { Contadores } from "@/components/nav/panel-navegacion";
@@ -131,7 +137,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
   const [revisionesPendientes, setRevisionesPendientes] = useState(0);
   const [misAvisos, setMisAvisos] = useState(0);
-  const [bandejaPendiente, setBandejaPendiente] = useState(0);
+  const [bandejaCuenta, setBandejaCuenta] = useState(CUENTA_VACIA);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
   // Resolver algo DENTRO de la Bandeja no cambia el pathname, así que los dos
@@ -140,6 +146,10 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   // evento y esto solo vuelve a disparar las MISMAS consultas — no cambia qué
   // se cuenta.
   const [cambiosEnBandeja, setCambiosEnBandeja] = useState(0);
+  // Cuándo volver a preguntar los contadores por haber navegado o vuelto a la
+  // pestaña (ver use-pulso-contadores.ts). Reemplaza al `pathname` en las
+  // dependencias de abajo.
+  const pulso = usePulsoContadores(pathname);
   useEffect(() => {
     const alCambiar = () => setCambiosEnBandeja((n) => n + 1);
     window.addEventListener(EVENTO_CAMBIO_BANDEJA, alCambiar);
@@ -190,7 +200,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
       .rpc("fn_educacion_por_atender")
       .then(({ data }) => { if (vivo) setEducacionPorAtender(Number(data) || 0); });
     return () => { vivo = false; };
-  }, [veEducacion, pathname]);
+  }, [veEducacion, pulso]);
 
   useEffect(() => {
     if (!veEquipo) return;
@@ -199,7 +209,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
       .rpc("fn_vacaciones_por_atender")
       .then(({ data }) => { if (vivo) setVacacionesPorAtender(Number(data) || 0); });
     return () => { vivo = false; };
-  }, [veEquipo, pathname]);
+  }, [veEquipo, pulso]);
 
   // Las revisiones pedidas las ve quien puede atenderlas: encargada de sede y
   // DO, o sea los mismos roles que ven Incidencias. No lleva función de conteo
@@ -219,7 +229,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
         if (vivo) setRevisionesPendientes(Array.isArray(data) ? data.length : 0);
       });
     return () => { vivo = false; };
-  }, [veEquipo, pathname, cambiosEnBandeja]);
+  }, [veEquipo, pulso, cambiosEnBandeja]);
 
   // El total de la Bandeja del equipo (ver lib/admin/bandeja-equipo.ts): la
   // unión de las nueve secciones que esa pantalla junta, no solo las tres de
@@ -230,10 +240,10 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   useEffect(() => {
     if (!veEquipo) return;
     let vivo = true;
-    void contarBandejaEquipoPendiente(createAdminSupabaseClient(), rol)
-      .then((n) => { if (vivo) setBandejaPendiente(n); });
+    void cuentaBandejaEquipo(createAdminSupabaseClient(), rol)
+      .then((c) => { if (vivo) setBandejaCuenta(c); });
     return () => { vivo = false; };
-  }, [veEquipo, rol, pathname, cambiosEnBandeja]);
+  }, [veEquipo, rol, pulso, cambiosEnBandeja]);
 
   // Lo suyo. Sale de `traerBandeja`, la MISMA función que pinta el número del
   // botón «Bandeja» de /mio: el menú del panel y esa pantalla no pueden decir
@@ -249,7 +259,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     void traerBandeja(createAdminSupabaseClient(), id)
       .then(({ bandeja }) => { if (vivo) setMisAvisos(bandeja.avisos); });
     return () => { vivo = false; };
-  }, [persona?.id, pathname]);
+  }, [persona?.id, pulso]);
 
   async function cerrarSesion() {
     const supabase = createAdminSupabaseClient();
@@ -271,12 +281,12 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const educacion = veEducacion ? educacionPorAtender : 0;
   const vacaciones = veEquipo ? vacacionesPorAtender : 0;
   const revisiones = veEquipo ? revisionesPendientes : 0;
-  const bandeja = veEquipo ? bandejaPendiente : 0;
+  const bandeja = veEquipo ? bandejaCuenta.total : 0;
 
   const contadores: Contadores = {
     educacion: {
       n: educacion,
-      titulo: `${educacion} en Educación: constancias por revisar o vencidas, estudios sin calendario y avisos de fin`,
+      titulo: `${educacion} en Educación: constancias por revisar o vencidas, estudios sin calendario ni fecha de pago y avisos de fin`,
     },
     vacaciones: {
       n: vacaciones,
@@ -288,7 +298,9 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     },
     bandeja: {
       n: bandeja,
-      titulo: `${bandeja} cosa(s) pendiente(s) en la Bandeja del equipo`,
+      // Con de qué se compone: el número del menú no es el de la casilla «Todo» (suma
+      // 1 por los correos que no salieron y 1 por Normas) y sin esto parece un error.
+      titulo: tituloDelContadorBandeja(veEquipo ? bandejaCuenta : CUENTA_VACIA),
     },
     mio: {
       n: misAvisos,
@@ -332,38 +344,28 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-sand bg-crema px-4 sm:px-6 print:hidden">
-          {/* Un cuadrado RELLENO en tinta, no uno con borde `sand`, desde el
-              2026-09-11: el borde sand da 1.16:1 sobre crema y a la vista era
-              un icono flotando — se probó con gente en el menú de «Lo mío»,
-              que es la misma receta, y no lo encontraban. Se cambian los dos a
-              la vez porque son la misma pieza vista desde dos superficies. */}
-          <button
-            ref={hamburguesa}
-            onClick={() => setCajonAbierto(true)}
-            aria-label="Abrir menú"
-            aria-expanded={cajonAbierto}
-            className="rounded-control bg-tinta p-2 text-crema transition-colors duration-150 hover:bg-rojo active:scale-[0.97] md:hidden"
-          >
-            <Menu size={20} strokeWidth={1.8} aria-hidden />
-          </button>
-
-          {/* De 768px para arriba la marca vive en la cabecera del sidebar; acá
-              solo aparece cuando ese sidebar no está. */}
-          <Marca tono="tinta" isotipo="rojo" className="md:hidden" />
-
-          <div className="ml-auto flex shrink-0 items-center gap-3">
-            {persona && (
-              <span className="hidden text-sm text-taupe md:inline" title="Sesión activa">
-                {persona.nombreCompleto}
-              </span>
-            )}
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-sand bg-crema px-4 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr] print:hidden">
+          {/* IZQUIERDA: en teléfono, el menú y la marca; en todos, el buscador. */}
+          <div className="flex min-w-0 items-center gap-3 md:justify-self-start">
+            {/* Un cuadrado RELLENO en tinta, no uno con borde `sand`, desde el
+                2026-09-11: el borde sand da 1.16:1 sobre crema y a la vista era
+                un icono flotando — se probó con gente en el menú de «Lo mío»,
+                que es la misma receta, y no lo encontraban. Se cambian los dos a
+                la vez porque son la misma pieza vista desde dos superficies. */}
             <button
-              onClick={cerrarSesion}
-              className="hidden items-center gap-1.5 text-sm text-taupe transition-colors duration-150 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo md:flex"
+              ref={hamburguesa}
+              onClick={() => setCajonAbierto(true)}
+              aria-label="Abrir menú"
+              aria-expanded={cajonAbierto}
+              className="rounded-control bg-tinta p-2 text-crema transition-colors duration-150 hover:bg-rojo active:scale-[0.97] md:hidden"
             >
-              <LogOut size={15} strokeWidth={1.8} aria-hidden /> Cerrar sesión
+              <Menu size={20} strokeWidth={1.8} aria-hidden />
             </button>
+
+            {/* De 768px para arriba la marca vive en la cabecera del sidebar; acá
+                solo aparece cuando ese sidebar no está. */}
+            <Marca tono="tinta" isotipo="rojo" className="md:hidden" />
+
             <button
               onClick={() => setBuscadorAbierto(true)}
               aria-label="Buscar"
@@ -373,6 +375,15 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
               <span className="hidden sm:inline">Buscar</span>
               <kbd className="hidden rounded border border-sand bg-sand/50 px-1 font-sans text-[10px] text-taupe sm:inline">⌘K</kbd>
             </button>
+          </div>
+
+          {/* CENTRO: el saludo. Debajo de 768px no cabe y se esconde. */}
+          <SaludoHora nombreCompleto={persona?.nombreCompleto} className="hidden md:block" />
+
+          {/* DERECHA: atajos, modo claro/oscuro y, al final, cerrar sesión: la
+              acción que se hace una vez al día va donde menos se pulsa por
+              descuido, después de lo que se toca a cada rato. */}
+          <div className="ml-auto flex shrink-0 items-center gap-2 md:justify-self-end">
             <button
               onClick={() => setAyudaAbierta(true)}
               aria-label="Atajos de teclado"
@@ -382,6 +393,12 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
               <Keyboard size={15} strokeWidth={1.8} aria-hidden />
             </button>
             <SelectorTema />
+            <button
+              onClick={cerrarSesion}
+              className="hidden items-center gap-1.5 rounded-control border border-sand px-2.5 py-1.5 text-sm text-taupe transition-colors duration-150 hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo md:flex"
+            >
+              <LogOut size={15} strokeWidth={1.8} aria-hidden /> Cerrar sesión
+            </button>
           </div>
         </header>
 
@@ -394,6 +411,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
 
       <BuscadorGlobal grupos={grupos} abierto={buscadorAbierto} onCerrar={() => setBuscadorAbierto(false)} />
       <AtajosTeclado grupos={grupos} abierto={ayudaAbierta} setAbierto={setAyudaAbierta} />
+      <ColibriViajero />
     </div>
   );
 }

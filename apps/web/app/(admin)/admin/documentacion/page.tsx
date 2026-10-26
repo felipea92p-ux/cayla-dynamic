@@ -8,10 +8,13 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
+import { PapelBono, TextoBono } from "@/components/papel-bono";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
+import { BuscadorPersona } from "@/components/ui/buscador-persona";
+import { useSedesPorId } from "@/lib/admin/use-sedes";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -19,9 +22,15 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Insignia } from "@/components/ui/insignia";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
+import { Drawer } from "@/components/ui/drawer";
+import { ImprimibleAparte, useImprimirAparte } from "@/components/ui/imprimible-aparte";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Pestanas } from "@/components/ui/pestanas";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
-import { EMPRESA, hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { EMPRESA, hoyLima, rangoDelMesLima, puedeEstamparFirmaDeEmpresa, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 // Documentación de CAYLA: eliges el documento y la persona, y sale listo para
 // imprimir y firmar con sus datos ya puestos.
@@ -318,6 +327,9 @@ interface DocArchivado {
   ruta_declarada: string | null;
   storage_path: string | null;
   firma_persona: string | null;
+  /** Lo que dice la constancia del bono (tipo=bono): el monto que firmó, no el
+   *  vigente hoy. En la ruta es la tarifa de su sede. */
+  monto_declarado: number | null;
   nota: string | null;
   registrado_por: string | null;
   anulado_at: string | null;
@@ -344,6 +356,7 @@ const MAX_BYTES_DOC = 50 * 1024 * 1024;
 const TIPOS_DOC = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
 
 export default function DocumentacionPage() {
+  const sedePorId = useSedesPorId();
   const router = useRouter();
   const rol = useRolActual();
   const puede = puedeGestionarCatalogos(rol);
@@ -369,10 +382,6 @@ export default function DocumentacionPage() {
   // propósito: el caso normal es que lo reciba todo el equipo, así que una
   // persona nueva entra sola en la lista sin que nadie tenga que acordarse.
   const [excluidos, setExcluidos] = useState<Set<string>>(new Set());
-  const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
-  // ¿Quien tiene la sesión abierta es quien firma por CAYLA? Hoy hay cuatro
-  // cuentas admin y una sola persona firma los documentos de la empresa.
-  const [esFirmante, setEsFirmante] = useState(false);
   // El nombre y el cargo que se imprimen. Salen de la ficha de esa persona
   // (0147) y no de un texto escrito acá: así el nombre impreso y la firma
   // estampada no pueden ser de dos personas distintas. Arrancan con la
@@ -423,7 +432,6 @@ export default function DocumentacionPage() {
   const [notaDoc, setNotaDoc] = useState("");
   const [progresoDoc, setProgresoDoc] = useState<number | null>(null);
   const [guardandoDoc, setGuardandoDoc] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   // «Ver» de una firma digital: no hay archivo que abrir —el texto y la firma
   // viven en columnas, no en storage— así que se arma el mismo documento con
@@ -443,9 +451,32 @@ export default function DocumentacionPage() {
     costoPasaje: number | null; gastoDiario: number | null;
     costoTaxi: number | null; frecuenciaTaxi: number | null;
   } | null>(null);
+  // El nombre con que el navegador propone guardar el PDF, y la copia que se imprime aparte del modal.
+  const { copia: copiaFirma, preparando: preparandoFirma, imprimir: imprimirFirma } = useImprimirAparte(
+    verFirma ? `Declaración de ruta — ${verFirma.persona}` : null,
+  );
   // La firma de la empresa para ese visor — ver el comentario junto a
   // `fn_firma_empresa` en `cargar()`.
   const [firmaEmpresaGlobal, setFirmaEmpresaGlobal] = useState<string | null>(null);
+  // Cómo se firma la política (0531): con la firma que el sistema ya tiene de
+  // quien firma por CAYLA, o subiendo el papel firmado a mano como siempre.
+  // Arranca en «sistema» cuando esa firma existe — es lo que se pidió: no
+  // tener que imprimir, firmar y escanear para algo que el sistema ya sabe.
+  const [modoPolitica, setModoPolitica] = useState<"sistema" | "archivo">("archivo");
+  // La política armada con la firma estampada, oculta, para congelarla tal
+  // cual al firmar: lo que se guarda es exactamente lo que se ve impreso.
+  const politicaParaFirmarRef = useRef<HTMLDivElement>(null);
+  // «Ver» de una política firmada desde el sistema: no hay archivo en storage,
+  // el documento congelado vive en `documento_html`.
+  const [verPolitica, setVerPolitica] = useState<{ html: string; fecha: string | null } | null>(null);
+  // «Ver» de un cargo de cumpleaños firmado desde el sistema (0477). Mismo
+  // motivo que `verFirma`: no hay archivo en storage, la firma vive en una
+  // columna. Antes de esto, esas filas decían «Firmado» y no había forma de
+  // abrir lo firmado: el botón «Ver» solo existía para un escaneo.
+  const [verBono, setVerBono] = useState<{
+    persona: string; documento: string | null; monto: number | null;
+    fecha: string | null; firma: string | null; practicante: boolean;
+  } | null>(null);
   // Las hojas que se imprimen de una vez. `null` = modo normal, una sola hoja:
   // la de la persona elegida arriba. Se llena, se imprime y se vacía; no es un
   // modo en el que la pantalla se quede.
@@ -470,7 +501,10 @@ export default function DocumentacionPage() {
   // que cada recarga tras subir un papel vuelva a pisar lo que se escribió.
   const personaUrlAplicada = useRef(false);
   const [generarAbierto, setGenerarAbierto] = useState(false);
-  const bonoRef = useRef<HTMLDivElement>(null);
+  // Qué documento se está mirando: una pestaña por familia (ruta, cargo de cumpleaños, política de la empresa).
+  const [pestana, setPestana] = useState<"rutas" | "cumples" | "politica">("rutas");
+  // A quién devolverle el foco al cerrar el cajón de subida: el botón que lo abrió.
+  const volverFocoSubida = useRef<HTMLElement | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
   // LA TARIFA QUE LE TOCA A UNA PERSONA. Primero la fila de SU sede; si su sede
@@ -606,10 +640,9 @@ export default function DocumentacionPage() {
     // hoy. Proponer hoy era empujar al error: el formulario ofrecía de entrada
     // el único valor que el propio sistema iba a marcar en rojo.
     setFechaFirma(que === "politica" ? fechaDeLaPolitica : hoyLima());
-    // El formulario es uno solo y vive arriba; el botón que lo abre puede estar
-    // veinte filas más abajo. Sin esto, quien hace clic en la última fila no ve
-    // que pasó nada y vuelve a hacer clic.
-    setTimeout(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 30);
+    setModoPolitica(firmaEmpresaGlobal ? "sistema" : "archivo");
+    // El formulario es un cajón por la derecha: se ve sin importar qué tan abajo estaba el botón que lo abrió.
+    volverFocoSubida.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   }
 
   /** id → dónde está su archivo. Derivado, para no guardar dos veces la verdad. */
@@ -644,6 +677,14 @@ export default function DocumentacionPage() {
         .filter((d) => d.tipo === "politica" && d.anulado_at)
         .sort((a, b) => (b.anulado_at ?? "").localeCompare(a.anulado_at ?? "")),
     [documentos],
+  );
+
+  /** La fila de la política vigente. `fn_documentos_estado_politica` dice si
+   *  hay una y su archivo, pero no si se firmó desde el sistema (0531): eso
+   *  lo dice `firma_persona`, que ya viene en el historial. */
+  const politicaVigente = useMemo(
+    () => documentos.find((d) => d.id === politica?.id) ?? null,
+    [documentos, politica],
   );
 
   /**
@@ -705,8 +746,28 @@ export default function DocumentacionPage() {
     });
   }
 
+  /** «Ver» para un cargo de cumpleaños firmado desde el sistema. El monto y la
+   *  fecha son LOS DE LA FILA que se firmó (`monto_declarado`, `fecha_firma`),
+   *  nunca el vigente hoy: si el bono sube el año que viene, el papel de este
+   *  año tiene que seguir diciendo lo que de verdad se firmó. */
+  function abrirVerBono(f: FilaTablero, doc: DocArchivado) {
+    const quien = personas.find((p) => p.id === f.persona_id);
+    setVerBono({
+      persona: quien ? `${quien.nombres} ${quien.apellidos}` : f.persona,
+      documento: quien?.documento ?? null,
+      monto: doc.monto_declarado,
+      fecha: doc.fecha_firma ?? f.bono_firmada_el,
+      firma: doc.firma_persona,
+      practicante: quien?.tipo_vinculo === "practicante",
+    });
+  }
+
   async function guardarDocumento() {
     if (!subiendo) return;
+    if (subiendo.que === "politica" && modoPolitica === "sistema") {
+      await firmarPoliticaDesdeSistema();
+      return;
+    }
     if (!archivoDoc) {
       avisar("error", subiendo.negativa
         ? "Falta el acta de la negativa. Sin el papel con el testigo, no queda constancia de que se ofreció."
@@ -808,10 +869,87 @@ export default function DocumentacionPage() {
           : `Declaración de ${quien} archivada.`);
   }
 
+  /**
+   * Firmar la política con la firma que el sistema ya tiene de quien firma
+   * por CAYLA (0531), en vez de subir el papel.
+   *
+   * Lo que se manda es el documento tal como sale impreso, con la firma
+   * estampada — no un resumen: queda congelado como queda un escaneo, y si
+   * mañana cambian las tarifas o una cláusula, esta política sigue diciendo
+   * lo que se firmó hoy. La base comprueba que la firma estampada sea
+   * exactamente la guardada del firmante; la pantalla no puede elegir otra.
+   */
+  async function firmarPoliticaDesdeSistema() {
+    if (!firmaEmpresaGlobal) {
+      avisar("error", `${firmanteNombre} todavía no tiene su firma guardada en el sistema. Sube el papel firmado a mano.`);
+      return;
+    }
+    if (!fechaFirma) {
+      avisar("error", "Indica la fecha de la política.");
+      return;
+    }
+    // Sin tarifa la hoja sale con el aviso rojo en vez del monto: firmarla así
+    // congelaría para siempre una política que no dice cuánto se paga.
+    if (!tarifas.some((t) => t.sede_codigo) && tarifa === null) {
+      avisar("error", "No hay ninguna tarifa de movilidad vigente, así que la política no puede afirmar un monto. Créala en parámetros laborales antes de firmarla.");
+      return;
+    }
+    const html = politicaParaFirmarRef.current?.innerHTML ?? "";
+    if (!html) {
+      avisar("error", "No se pudo armar el documento de la política. Recarga la página y vuelve a intentarlo.");
+      return;
+    }
+    setGuardandoDoc(true);
+    const { error } = await supabase.rpc("fn_politica_firmar_con_firma_empresa", {
+      p_fecha_firma: fechaFirma,
+      p_documento_html: html,
+      p_nota: notaDoc.trim() || null,
+    });
+    setGuardandoDoc(false);
+    if (error) {
+      // La 0531 se pega a mano: hasta que llegue, el servidor no conoce la
+      // función. No es un permiso ni un dato mal puesto, y decirlo así evita
+      // que alguien lo reintente diez veces.
+      const sinFuncion = error.code === "PGRST202" || error.code === "42883";
+      avisar("error", sinFuncion
+        ? "La firma desde el sistema todavía no está activada en el servidor. Mientras tanto, sube el papel firmado."
+        : mensajeDeError(error, "guardar"));
+      return;
+    }
+    setSubiendo(null);
+    await cargar();
+    avisar("ok", `Política de movilidad firmada con la firma de ${firmanteNombre}. Ya sostiene a todo el equipo.`);
+  }
+
+  /** «Ver» de una política firmada desde el sistema: el documento congelado
+   *  se pide aparte, al abrirlo, porque lleva la firma dentro y no hace falta
+   *  traerlo con todo el historial cada vez que carga la pantalla. */
+  async function abrirVerPolitica(id: string, fecha: string | null) {
+    const { data, error } = await supabase
+      .from("documentos_firmados").select("documento_html").eq("id", id).maybeSingle();
+    if (error || !data?.documento_html) {
+      avisar("error", mensajeDeError(error, "cargar") || "No se encontró el documento firmado.");
+      return;
+    }
+    setVerPolitica({ html: data.documento_html, fecha });
+  }
+
   const cargar = useCallback(async () => {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: ps }, { data: ss }, { data: cfg }] = await Promise.all([
+    // TODAS las consultas de la pantalla salen juntas, en una sola ronda. Hasta el
+    // 2026-10-24 eran diez esperas en fila (cada `await` aparte), y como ninguna
+    // depende del resultado de otra, lo único que hacían era sumar viajes a
+    // Supabase: con ~150 ms de ida y vuelta, la pantalla tardaba ~1.6 s en
+    // salir de «Cargando…». Cada una sigue siendo tolerante por su cuenta —se
+    // lee su `data` y si falló viene vacía—, igual que cuando iban de a una; los
+    // comentarios de cada consulta explican por qué.
+    const [
+      { data: ps }, { data: ss }, { data: cfg },
+      tab, pol,
+      { data: archivos }, { data: bono }, { data: fin }, { data: fisicas },
+      { data: yo }, { data: cfgFirmante }, { data: fe },
+    ] = await Promise.all([
       supabase.from("personas")
         .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, en_planilla, tipo_vinculo")
         .eq("estado", "activo").eq("cuenta_de_servicio", false).order("apellidos"),
@@ -836,18 +974,44 @@ export default function DocumentacionPage() {
         .lte("vigente_desde", hoyLima())
         .is("vigente_hasta", null)
         .order("vigente_desde", { ascending: false }),
+      // El tablero y el estado de la política, en consultas aparte y tolerantes:
+      // si la 0157 todavía no está pegada en producción, la pantalla sigue
+      // imprimiendo — que es lo que hacía antes de que existiera el tablero.
+      // Mismo criterio que la tarifa y el fin de contrato.
+      supabase.rpc("fn_documentos_tablero"),
+      supabase.rpc("fn_documentos_estado_politica"),
+      // Dónde vive cada archivo ya subido (`fn_documentos_listar`): ver el
+      // comentario de abajo, donde se guardan.
+      supabase.rpc("fn_documentos_listar"),
+      // El monto del bono: ver abajo.
+      supabase
+        .from("parametros_laborales")
+        .select("valor")
+        .eq("clave", "bono_onomastico")
+        .lte("vigente_desde", hoyLima())
+        .is("vigente_hasta", null)
+        .order("vigente_desde", { ascending: false })
+        .limit(1),
+      // Quién tiene ya fecha de término de contrato: ver abajo.
+      supabase
+        .from("personas")
+        .select("id, fecha_fin_contrato")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
+        .not("fecha_fin_contrato", "is", null),
+      // Dónde trabaja cada quien: ver abajo.
+      supabase
+        .from("personas")
+        .select("id, sede_fisica_id")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
+        .not("sede_fisica_id", "is", null),
+      // Quién soy yo, quién firma por CAYLA y con qué firma: ver abajo.
+      supabase.rpc("fn_persona_actual_id"),
+      supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
+      supabase.rpc("fn_firma_empresa"),
     ]);
     const lista = (ps as Persona[]) ?? [];
     setPersonas(lista);
 
-    // El tablero y el estado de la política, en consultas aparte y tolerantes:
-    // si la 0157 todavía no está pegada en producción, la pantalla sigue
-    // imprimiendo — que es lo que hacía antes de que existiera el tablero.
-    // Mismo criterio que la tarifa y el fin de contrato de acá arriba.
-    const [tab, pol] = await Promise.all([
-      supabase.rpc("fn_documentos_tablero"),
-      supabase.rpc("fn_documentos_estado_politica"),
-    ]);
     setTablero((tab.data as FilaTablero[]) ?? []);
     if (!personaUrlAplicada.current) {
       personaUrlAplicada.current = true;
@@ -878,7 +1042,7 @@ export default function DocumentacionPage() {
     //
     // Tolerante como sus vecinas: si falla, la pantalla se queda sin el botón
     // «Ver» y todo lo demás sigue funcionando.
-    const { data: archivos } = await supabase.rpc("fn_documentos_listar");
+    // (La consulta sale en la ronda de arriba; acá solo se guarda lo que trajo.)
     // Se guardan TODAS, anuladas incluidas: las anuladas son el historial.
     setDocumentos((archivos as DocArchivado[]) ?? []);
 
@@ -889,14 +1053,6 @@ export default function DocumentacionPage() {
     // incluido «no hay»: sin fila vigente queda en null y la constancia no se
     // imprime. La pantalla se degrada a «no puedo emitir este papel y te digo por
     // qué», nunca a «emito el papel con la cifra que me acuerdo».
-    const { data: bono } = await supabase
-      .from("parametros_laborales")
-      .select("valor")
-      .eq("clave", "bono_onomastico")
-      .lte("vigente_desde", hoyLima())
-      .is("vigente_hasta", null)
-      .order("vigente_desde", { ascending: false })
-      .limit(1);
     const montoBono = Number((bono as { valor: number }[] | null)?.[0]?.valor);
     setBonoMonto(Number.isFinite(montoBono) && montoBono > 0 ? montoBono : null);
 
@@ -906,11 +1062,6 @@ export default function DocumentacionPage() {
     // y la pantalla se quedaría sin nadie. Así, si falla, simplemente no hay
     // nadie con fin de contrato y el documento sigue saliendo — mismo criterio
     // que la tarifa de movilidad de acá arriba.
-    const { data: fin } = await supabase
-      .from("personas")
-      .select("id, fecha_fin_contrato")
-      .eq("estado", "activo").eq("cuenta_de_servicio", false)
-      .not("fecha_fin_contrato", "is", null);
     const porVencer = new Map(
       ((fin as { id: string; fecha_fin_contrato: string }[] | null) ?? [])
         .map((f) => [f.id, f.fecha_fin_contrato]),
@@ -921,11 +1072,6 @@ export default function DocumentacionPage() {
     // de arriba: si la 0166 no está pegada, pedir `sede_fisica_id` en el select
     // principal haría fallar la consulta entera y la pantalla se quedaría sin
     // nadie. Así, si falla, simplemente todos se reparten por su sede base.
-    const { data: fisicas } = await supabase
-      .from("personas")
-      .select("id, sede_fisica_id")
-      .eq("estado", "activo").eq("cuenta_de_servicio", false)
-      .not("sede_fisica_id", "is", null);
     setSedeDeReparto(new Map(
       ((fisicas as { id: string; sede_fisica_id: string }[] | null) ?? [])
         .map((f) => [f.id, f.sede_fisica_id]),
@@ -970,8 +1116,14 @@ export default function DocumentacionPage() {
     // movilidad cinco meses más, así que necesita el papel que la sostiene.
     const finDeMes = rangoDelMesLima().fin;
     for (const [id, fecha] of porVencer) if (fecha <= finDeMes) fuera.add(id);
-    const { data: yo } = await supabase.rpc("fn_persona_actual_id");
     if (typeof yo === "string") fuera.add(yo);
+    // Y quien firma por CAYLA, aunque el documento lo imprima otra cuenta: desde
+    // que la firma de la empresa se estampa por defecto (no solo cuando el
+    // firmante tiene la sesión abierta), «quien imprime» ya no es «quien firma».
+    // Quien firma el documento no puede además declarar haberlo recibido.
+    const vf = (cfgFirmante?.valor ?? null) as { persona_id?: string; cargo?: string } | null;
+    const firmanteId = vf?.persona_id ?? null;
+    if (firmanteId) fuera.add(firmanteId);
     setExcluidos(fuera);
 
     // QUIÉN FIRMA POR CAYLA. Sale de `configuracion` desde la 0147, guardado
@@ -984,28 +1136,22 @@ export default function DocumentacionPage() {
     // Si la fila no está —la 0147 sin pegar todavía— se queda la constante de
     // siempre y la raya sale en blanco. El documento nunca deja de imprimirse
     // por no poder leer un parámetro; mismo criterio que la tarifa de movilidad.
-    const { data: cfgFirmante } = await supabase
-      .from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle();
-    const vf = (cfgFirmante?.valor ?? null) as { persona_id?: string; cargo?: string } | null;
-    const firmanteId = vf?.persona_id ?? null;
+    // (`vf` y `firmanteId` se leyeron más arriba, para dejar fuera de «quién lo
+    // recibe» a quien firma.)
     // El trigger de la 0147 garantiza que esa persona está activa, así que tiene
     // que estar en `lista` — que son las activas.
     const fichaFirmante = firmanteId ? lista.find((p) => p.id === firmanteId) : undefined;
     if (fichaFirmante) setFirmanteNombre(`${fichaFirmante.apellidos} ${fichaFirmante.nombres}`);
     if (vf?.cargo) setFirmanteCargo(vf.cargo);
-    setEsFirmante(Boolean(firmanteId) && firmanteId === yo);
 
-    // La firma escaneada de quien está imprimiendo. Si no tiene, el documento
-    // sale con la línea en blanco para firmar a mano, como hasta ahora.
-    const { data: fu } = await supabase.rpc("fn_mi_firma");
-    setFirmaUrl(typeof fu === "string" && fu.startsWith("data:image") ? fu : null);
-
-    // La firma de la empresa, para el «Ver» de una firma digital — a
-    // diferencia de `firmaUrl` (la de quien imprime, condicionada a que SEA
-    // el firmante), esta se muestra siempre: el documento ya está firmado, y
-    // quien lo mira no es quien lo firmó por CAYLA. Mismo criterio que ya usa
-    // /mio/contrato y /mio/movilidad.
-    const { data: fe } = await supabase.rpc("fn_firma_empresa");
+    // La firma de la empresa: la de quien firma por CAYLA, no la de quien
+    // imprime. Sirve para las dos cosas: el «Ver» de una firma digital (el
+    // documento ya está firmado y quien lo mira no es quien lo firmó) y la
+    // línea de firma de las hojas que se imprimen aquí — antes esta última se
+    // estampaba solo si el firmante tenía la sesión abierta, y con otra cuenta
+    // salía la raya en blanco. Mismo criterio que /mio/contrato y /mio/movilidad.
+    // Si todavía no tiene firma guardada, la hoja sale con la línea en blanco
+    // para firmar a mano, como siempre.
     setFirmaEmpresaGlobal((fe as string | null) ?? null);
 
     // ⇩ Desde la 0130 la tarifa es POR SEDE, porque el pasaje no cuesta lo mismo
@@ -1032,15 +1178,19 @@ export default function DocumentacionPage() {
   const persona = personas.find((p) => p.id === personaId);
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "";
 
-  // La rúbrica que de verdad se imprime. Hacen falta las dos cosas: tener firma
-  // cargada Y ser quien la línea nombra. Si falta cualquiera de las dos el
+  // La rúbrica que de verdad se imprime: la de quien firma por CAYLA, por
+  // defecto, para quien abre el panel con un rol que la estampa. Siempre sale
+  // del mismo firmante que da el nombre bajo la raya, así que la firma de una
+  // persona no cae bajo el nombre de otra. Si el firmante aún no la guardó el
   // documento sale con la raya en blanco, que es como salía antes — nunca se
   // rompe, solo deja de estamparse.
-  const firmaEstampada = esFirmante ? firmaUrl : null;
+  const firmaEstampada = puedeEstamparFirmaDeEmpresa(rol) ? firmaEmpresaGlobal : null;
   const doc = DOCS.find((d) => d.id === tipo)!;
 
   useTituloDocumento(
-    tipo === "politica"
+    verBono
+      ? `${verBono.persona} — Constancia del bono de cumpleaños`
+      : verPolitica || tipo === "politica"
       ? "Política de movilidad supeditada a asistencia — CAYLA"
       : nombre
         ? `${nombre} — Declaración de ruta de transporte`
@@ -1164,14 +1314,6 @@ export default function DocumentacionPage() {
     return coincideBusqueda(f.persona);
   });
 
-  function alternarFiltroEstado(v: "pendientes" | "firmados" | "negativas") {
-    setFiltroEstado((prev) => (prev === v ? "todos" : v));
-  }
-
-  function irAPendientesEspeciales() {
-    bonoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   // Una sola pareja de componentes decide qué botón va de primario y cuáles
   // van al menú "···" — así la fila nunca vuelve a mostrar cuatro acciones
   // sueltas, ni acá ni el día que se agregue una quinta. Cada `onClick` se
@@ -1216,9 +1358,15 @@ export default function DocumentacionPage() {
   }
 
   function FilaAccionesBono({ f }: { f: FilaTablero }) {
+    // Firmado desde el sistema: sin archivo, pero con firma guardada.
+    const firmadoDigital = f.bono_id
+      ? documentos.find((d) => d.id === f.bono_id && d.firma_persona)
+      : undefined;
     const ver = f.bono_id && rutasDeArchivo.has(f.bono_id)
       ? () => void verDocumento(rutasDeArchivo.get(f.bono_id!)!)
-      : null;
+      : firmadoDigital
+        ? () => abrirVerBono(f, firmadoDigital)
+        : null;
     const subirEtiqueta = f.bono_estado === "ok" ? "Subir otro" : "Subir cargo";
     return (
       <div className="flex items-center justify-end gap-1.5">
@@ -1274,7 +1422,13 @@ export default function DocumentacionPage() {
   // demás —el firmante, el logo, la política, los textos legales— es igual para
   // las veinte, y por eso sigue saliendo del closure en vez de viajar como
   // parámetro: veinte props que nunca cambian solo esconden las dos que sí.
-  function hoja(quien: Persona | null | undefined) {
+  //
+  // `firmada` es la política que se congela al firmarla desde el sistema
+  // (0531): la misma hoja, con la firma de la empresa estampada y la fecha
+  // elegida, y sin el cargo de recepción —esa tabla es para que cada persona
+  // firme a mano que la recibió, no parte de lo que firma CAYLA—.
+  function hoja(quien: Persona | null | undefined, firmada?: { imagen: string; fecha: string }) {
+    const tipoHoja: TipoDoc = firmada ? "politica" : tipo;
     const tarifaSuya = quien ? tarifaDeSede(quien.sede_base_id) : null;
     return (
       <div className="hoja rounded-control border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
@@ -1295,7 +1449,7 @@ export default function DocumentacionPage() {
             de que el monto lo decidió alguien y no un criterio —que es
             exactamente lo que el Exp. 1038-2019 usó para reclasificar una
             movilidad entera. */}
-        {tipo === "ruta" && quien && tarifaSuya === null && (
+        {tipoHoja === "ruta" && quien && tarifaSuya === null && (
           <div className="rounded-control border border-rojo bg-rojo/5 p-4 text-sm">
             <p className="mb-2">
               <strong className="text-rojo">
@@ -1316,7 +1470,7 @@ export default function DocumentacionPage() {
           </div>
         )}
 
-        {tipo === "ruta" && quien && tarifaSuya !== null && (
+        {tipoHoja === "ruta" && quien && tarifaSuya !== null && (
           <>
             <h2 className="mb-6 text-center font-serif text-xl">
               Declaración de ruta y gasto de transporte
@@ -1402,7 +1556,7 @@ export default function DocumentacionPage() {
             por el mismo motivo: la constancia se firma, y una cifra puesta
             por el código en vez de por la base es una afirmación que nadie
             decidió. */}
-        {tipo === "bono" && bonoMonto === null && (
+        {tipoHoja === "bono" && bonoMonto === null && (
           <div className="rounded-control border border-rojo bg-rojo/5 p-4 text-sm">
             <p className="mb-2">
               <strong className="text-rojo">
@@ -1423,40 +1577,27 @@ export default function DocumentacionPage() {
           </div>
         )}
 
-        {tipo === "bono" && bonoMonto !== null && (
+        {tipoHoja === "bono" && bonoMonto !== null && (
           <>
             <h2 className="mb-6 text-center font-serif text-xl">
-              Asignación por cumpleaños
+              {quien?.tipo_vinculo === "practicante" ? "Entrega por cumpleaños" : "Asignación por cumpleaños"}
             </h2>
 
-            <p className="mb-4">
-              {EMPRESA.nombre}, con RUC {EMPRESA.ruc}, hace entrega a{" "}
-              <strong>{quien ? `${quien.nombres} ${quien.apellidos}` : "—"}</strong>
-              {quien?.documento ? `, con documento de identidad ${quien.documento},` : ","}{" "}
-              de la suma de <strong>S/ {bonoMonto.toFixed(2)}</strong> con ocasión de su
-              onomástico.
-            </p>
-
-            {/* LA CLÁUSULA. No dice «gratificación extraordinaria» ni «a título de
-                liberalidad» ni «a discreción», y eso es deliberado: esas palabras
-                invocan el inciso a) del art. 19, que exige que el pago sea OCASIONAL
-                — y la Casación 28833-2022 Lima (considerando décimo sétimo) establece
-                que un pago repetitivo, incluida la periodicidad ANUAL, ya no es
-                extraordinario. Además «liberalidad» hace el gasto NO DEDUCIBLE por el
-                art. 44 inciso d) de la Ley del Impuesto a la Renta.
-                El inciso g) no pide nada de eso: solo pide la CAUSA, que es el
-                onomástico, y está nombrada literalmente en la norma. */}
-            <p className="mb-4 border-l-2 border-sand pl-4">
-              Esta asignación se otorga con ocasión del onomástico del trabajador, conforme
-              al literal g) del artículo 19 del Texto Único Ordenado del Decreto Legislativo
-              N° 650, aprobado por Decreto Supremo N° 001-97-TR. En consecuencia,{" "}
-              <strong>no constituye remuneración computable para ningún efecto legal</strong>,
-              de acuerdo con el artículo 7 del Decreto Supremo N° 003-97-TR.
-            </p>
+            {/* El cuerpo legal vive en `TextoBono`, compartido con la hoja que
+                se firma desde el sistema (`PapelBono`): escaneo y firma digital
+                tienen que acreditar exactamente la misma causa. La cláusula —y
+                por qué NO dice «liberalidad» ni «extraordinaria»— se explica
+                allí, junto con la versión para practicantes (0519). */}
+            <TextoBono
+              practicante={quien?.tipo_vinculo === "practicante"}
+              nombre={quien ? `${quien.nombres} ${quien.apellidos}` : "—"}
+              documento={quien?.documento ?? null}
+              monto={`S/ ${bonoMonto.toFixed(2)}`}
+            />
 
             <p className="mb-6 text-sm text-taupe">
-              La presente constancia acredita la entrega y su causa. Se archiva firmada por
-              el trabajador.
+              La presente constancia acredita la entrega y su causa. Se archiva firmada por{" "}
+              {quien?.tipo_vinculo === "practicante" ? "quien la recibe" : "el trabajador"}.
             </p>
 
             {/* Este papel no llevaba NINGUNA fecha, y un cargo de entrega sin fecha
@@ -1485,7 +1626,7 @@ export default function DocumentacionPage() {
           </>
         )}
 
-        {tipo === "politica" && (
+        {tipoHoja === "politica" && (
           <>
             <h2 className="mb-6 text-center font-serif text-xl">
               Política de movilidad supeditada a asistencia
@@ -1607,18 +1748,18 @@ export default function DocumentacionPage() {
             </p>
 
             <p className="mb-10 text-xs text-taupe">
-              Emitida el {fechaLarga(fechaDeLaPolitica)}.
+              Emitida el {fechaLarga(firmada?.fecha ?? fechaDeLaPolitica)}.
             </p>
 
             <div className="mb-10 w-1/2">
               <BloqueFirma
-                imagen={firmaEstampada}
+                imagen={firmada?.imagen ?? firmaEstampada}
                 nombre={firmanteNombre}
                 pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
               />
             </div>
 
-            <div className="break-inside-avoid border-t border-sand pt-4">
+            {!firmada && <div className="break-inside-avoid border-t border-sand pt-4">
               <p className="mb-3 font-medium">Cargo de recepción</p>
               <p className="mb-4 text-xs text-taupe">
                 Declaro haber recibido copia de la presente política y tomado conocimiento de
@@ -1651,10 +1792,125 @@ export default function DocumentacionPage() {
               <p className="mt-3 text-xs text-taupe">
                 {reciben.length} {reciben.length === 1 ? "persona" : "personas"}.
               </p>
-            </div>
+            </div>}
           </>
         )}
       </div>
+    );
+  }
+
+  /** La declaración de ruta firmada, tal cual quedó: la misma hoja en el modal y en la copia que se imprime. */
+  function hojaDeFirma(v: NonNullable<typeof verFirma>) {
+    return (
+                    <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
+                      <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
+                        <Marca tono="tinta" isotipo="rojo" />
+                        <div className="text-right text-xs text-taupe">
+                          <p>{EMPRESA.nombre}</p>
+                          <p>RUC {EMPRESA.ruc}</p>
+                        </div>
+                      </div>
+
+                      <h2 className="mb-6 text-center font-serif text-xl">
+                        Declaración de ruta y gasto de transporte
+                      </h2>
+
+                      <p className="mb-4">
+                        Yo, <strong>{v.persona}</strong>, con documento de identidad N.º{" "}
+                        <strong>{v.documento ?? "—"}</strong>, que desempeño el cargo de{" "}
+                        <strong>{v.funcion ?? "—"}</strong> en la sede{" "}
+                        <strong>{v.sedeNombre}</strong> de {EMPRESA.nombre}, declaro lo siguiente respecto de
+                        mi traslado diario entre mi domicilio y mi centro de labores:
+                      </p>
+
+                      {v.distrito ? (
+                        // Lista numerada (0429): las piezas se guardaron aparte
+                        // al firmar, así que se arma la MISMA estructura que ya
+                        // ve la persona al firmar en /mio/movilidad — nunca un
+                        // segundo intento de decir lo mismo con otra forma.
+                        <>
+                          <ol className="mb-6 list-decimal space-y-2 pl-6">
+                            <li>
+                              Reside en el distrito de <strong>{v.distrito}</strong>, provincia de{" "}
+                              <strong>{v.provincia}</strong>.
+                            </li>
+                            <li>
+                              Para llegar a su centro de labores utiliza <strong>{v.mediosIda}</strong>{" "}
+                              medio(s) de transporte por tramo, y de regreso{" "}
+                              <strong>{v.mediosVuelta}</strong>.
+                            </li>
+                            {/* Pasaje y taxi (0489): solo si se declararon —
+                                lo firmado antes no los tenía. */}
+                            {v.costoPasaje !== null && (
+                              <>
+                                <li>
+                                  El costo de cada pasaje es de S/{" "}
+                                  <strong>{Number(v.costoPasaje).toFixed(2)}</strong>, de modo que su gasto
+                                  diario habitual de ida y vuelta asciende a S/{" "}
+                                  <strong>{Number(v.gastoDiario ?? 0).toFixed(2)}</strong>.
+                                </li>
+                                <li>
+                                  {v.costoTaxi !== null ? (
+                                    <>
+                                      Según el horario de su turno, en ocasiones debe utilizar taxi u otro medio
+                                      particular, cuyo costo por viaje asciende aproximadamente a S/{" "}
+                                      <strong>{Number(v.costoTaxi).toFixed(2)}</strong>. Esto ocurre
+                                      alrededor de <strong>{v.frecuenciaTaxi}</strong> veces por semana.
+                                    </>
+                                  ) : (
+                                    <>No utiliza taxi ni otro medio particular para este traslado.</>
+                                  )}
+                                </li>
+                              </>
+                            )}
+                            <li>
+                              Declara que la información consignada es veraz, y se compromete a informar a{" "}
+                              {EMPRESA.nombre} si cambia de domicilio o de ruta habitual.
+                            </li>
+                          </ol>
+                          <p className="mb-6">
+                            Toma conocimiento de que {EMPRESA.nombre} le otorga una asignación por movilidad de{" "}
+                            <strong>
+                              S/ {v.tarifa !== null ? v.tarifa.toFixed(2) : "—"} por día
+                              efectivamente asistido
+                            </strong>
+                            , destinada a cubrir dicho traslado; que se abona únicamente por los días en que
+                            asiste a laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y
+                            que este concepto <strong>no tiene carácter remunerativo</strong>, conforme al
+                            artículo 19 inciso e) del Decreto Supremo N.º 001-97-TR.
+                          </p>
+                        </>
+                      ) : v.texto ? (
+                        // Firmada antes de la 0429: esas cuatro columnas no
+                        // existían ese día, así que se muestra el texto real
+                        // que se firmó, tal cual — no se inventa una lista con
+                        // datos que no se guardaron por separado.
+                        <p className="mb-6">{v.texto}</p>
+                      ) : (
+                        <p className="mb-6 text-taupe">No se guardó el texto de esta declaración.</p>
+                      )}
+
+                      <p className="mb-10 text-xs text-taupe">
+                        Suscrito en {v.sedeNombre}
+                        {v.fecha && <>, el {fechaLarga(v.fecha)}</>}.
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-10 pt-6">
+                        <BloqueFirma
+                          imagen={v.firma}
+                          nombre={v.persona}
+                          pie={`DNI ${v.documento ?? "—————"} · el/la declarante`}
+                        />
+                        <BloqueFirma
+                          imagen={firmaEmpresaGlobal}
+                          nombre={firmanteNombre}
+                          pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+                        />
+                      </div>
+                      <p className="mt-6 text-center text-xs text-taupe">
+                        Firma digital, confirmada desde el sistema{v.fecha && <> el {fechaLarga(v.fecha)}</>}.
+                      </p>
+                    </div>
     );
   }
 
@@ -1665,38 +1921,58 @@ export default function DocumentacionPage() {
         {/* Controles — no se imprimen */}
         <div className="mb-6 print:hidden">
           <CabeceraPagina
+            sobretitulo={sobretituloDeHoy("Personas")}
             titulo="Documentación"
-            descripcion="Gestiona documentos, firmas y pendientes de cada colaborador."
+            descripcion="Quién firmó qué y a quién le falta: movilidad, cargos de cumpleaños y la política de la empresa."
+            ayuda={
+              <AyudaPantalla
+                titulo="Cómo funciona Documentación"
+                intro="Hay tres documentos distintos, cada uno con su pestaña. Lo que pide atención hoy está arriba, en «Para atender»."
+                secciones={[
+                  { titulo: "Declaraciones de ruta", texto: "Cada persona declara su ruta y el monto de su movilidad. Sin esa declaración firmada, el monto deja de ser no remunerativo. Una negativa a firmar deja constancia, pero NO habilita el pago de movilidad." },
+                  { titulo: "Cargos de cumpleaños", texto: "El cargo del bono de onomástico se entrega una vez al año. Aquí aparece en el mes del cumpleaños; si se pasa el mes sin cargo, queda marcado." },
+                  { titulo: "Política de movilidad", texto: "Es un solo documento para toda la empresa y lo firma quien firma por CAYLA. Va fechado el día en que empezó a pagarse movilidad: una política firmada después de los primeros pagos queda por escrito como tardía." },
+                  { titulo: "Anular no borra", texto: "Un documento anulado se queda en el historial con quién lo anuló, cuándo y por qué." },
+                ]}
+              />
+            }
             accion={<Boton variante="primario" onClick={() => setGenerarAbierto(true)}>+ Generar documento</Boton>}
           />
 
-          {/* ── Indicadores, que funcionan como filtro de la tabla de abajo ──
-              Clic en un número filtra la misma tabla en vez de abrir una
-              bandeja aparte: la misma persona no aparece nunca en dos listas
-              distintas de esta pantalla. */}
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <button type="button" onClick={() => alternarFiltroEstado("pendientes")}
-              className={`rounded-control border p-3 text-left transition-colors duration-150 ${filtroEstado === "pendientes" ? "border-rojo bg-rojo/5" : "border-sand hover:bg-sand/30"}`}>
-              <div className="text-2xl font-medium text-tinta">{totalPendientes}</div>
-              <div className="text-xs text-taupe">Pendientes de firma</div>
-            </button>
-            <button type="button" onClick={() => alternarFiltroEstado("firmados")}
-              className={`rounded-control border p-3 text-left transition-colors duration-150 ${filtroEstado === "firmados" ? "border-verde bg-verde/5" : "border-sand hover:bg-sand/30"}`}>
-              <div className="text-2xl font-medium text-tinta">{totalFirmados}</div>
-              <div className="text-xs text-taupe">Firmados</div>
-            </button>
-            <button type="button" onClick={() => alternarFiltroEstado("negativas")}
-              className={`rounded-control border p-3 text-left transition-colors duration-150 ${filtroEstado === "negativas" ? "border-rojo bg-rojo/5" : "border-sand hover:bg-sand/30"}`}>
-              <div className="text-2xl font-medium text-tinta">{totalNegativas}</div>
-              <div className="text-xs text-taupe">Negativas</div>
-            </button>
-            <button type="button" onClick={irAPendientesEspeciales}
-              className="rounded-control border border-sand p-3 text-left transition-colors duration-150 hover:bg-sand/30">
-              <div className="text-2xl font-medium text-tinta">{bonoPendientes.length}</div>
-              <div className="text-xs text-taupe">Pendientes especiales</div>
-            </button>
-          </div>
+          {/* PARA ATENDER: lo que pide una decisión, en una línea, y cada pastilla lleva a su pestaña. Reemplaza las cuatro
+              cifras (que repetían lo que dice la tabla) y el aviso rojo de la política, que ocupaba media pantalla. */}
+          {(tablero.length > 0 || politica) && (
+            <ParaAtender
+              items={[
+                ...(politica && !politica.cargada ? [{ clave: "politica", texto: "Falta la política de movilidad", n: 1, tono: "rojo" as const }] : []),
+                ...(politica && politica.cargada && politica.llego_tarde ? [{ clave: "politica", texto: "Política firmada después del primer pago", n: 1, tono: "ambar" as const }] : []),
+                { clave: "pendientes", texto: `${totalPendientes} sin firmar`, n: totalPendientes, tono: "pizarra" as const },
+                { clave: "negativas", texto: `${totalNegativas} ${totalNegativas === 1 ? "se negó" : "se negaron"} a firmar`, n: totalNegativas, tono: "rojo" as const },
+                { clave: "cumples", texto: `${bonoPendientes.length} ${bonoPendientes.length === 1 ? "cargo" : "cargos"} de cumpleaños`, n: bonoPendientes.length, tono: "ambar" as const },
+              ]}
+              activa={pestana === "politica" ? "politica" : pestana === "cumples" ? "cumples" : filtroEstado === "pendientes" ? "pendientes" : filtroEstado === "negativas" ? "negativas" : null}
+              alTocar={(clave) => {
+                if (clave === "politica") { setPestana("politica"); return; }
+                if (clave === "cumples") { setPestana("cumples"); return; }
+                setPestana("rutas");
+                setFiltroEstado((prev) => (prev === clave ? "todos" : (clave as "pendientes" | "negativas")));
+              }}
+            />
+          )}
 
+          <Pestanas
+            etiqueta="Documentos"
+            pestanas={[
+              { clave: "rutas" as const, texto: "Declaraciones de ruta", aviso: totalPendientes + totalNegativas },
+              { clave: "cumples" as const, texto: "Cargos de cumpleaños", aviso: bonoPendientes.length },
+              { clave: "politica" as const, texto: "Política de movilidad", aviso: politica && (!politica.cargada || politica.llego_tarde) ? 1 : 0 },
+            ]}
+            activa={pestana}
+            alElegir={setPestana}
+          />
+
+          {pestana === "politica" && (
+            <>
           {/* ── La política de empresa ──────────────────────────────────────
               Va arriba y en rojo porque su ausencia afecta a las 22 personas a
               la vez, no a una. Y porque el error caro —firmarla DESPUÉS de haber
@@ -1734,7 +2010,9 @@ export default function DocumentacionPage() {
                   Imprimir
                 </Boton>
                 <Boton variante="peligro" tamano="sm" onClick={() => abrirSubida("politica", null)}>
-                  {politica.cargada ? "Subir otra" : "Subir la política firmada"}
+                  {firmaEmpresaGlobal
+                    ? (politica.cargada ? "Firmar otra" : "Firmar la política")
+                    : (politica.cargada ? "Subir otra" : "Subir la política firmada")}
                 </Boton>
               </div>
             </BannerAviso>
@@ -1751,6 +2029,12 @@ export default function DocumentacionPage() {
                 <div className="flex items-center gap-1.5">
                   {politica.storage_path && (
                     <Boton variante="secundario" tamano="sm" onClick={() => void verDocumento(politica.storage_path!)}>Ver documento</Boton>
+                  )}
+                  {!politica.storage_path && politicaVigente?.firma_persona && (
+                    <Boton variante="secundario" tamano="sm"
+                      onClick={() => void abrirVerPolitica(politicaVigente.id, politicaVigente.fecha_firma)}>
+                      Ver documento
+                    </Boton>
                   )}
                   <Menu alinear="derecha" trigger={({ abierto, alternar }) => (
                     <Boton variante="sutil" tamano="sm" onClick={alternar}
@@ -1775,7 +2059,14 @@ export default function DocumentacionPage() {
               <dl className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <dt className="text-xs text-taupe">Estado</dt>
-                  <dd className="mt-0.5"><Insignia variante="positivo">Firmada</Insignia></dd>
+                  <dd className="mt-0.5">
+                    <Insignia variante="positivo">Firmada</Insignia>
+                    {(politicaVigente?.firma_persona || politica.storage_path) && (
+                      <span className="mt-1 block text-xs text-taupe">
+                        {politicaVigente?.firma_persona ? "Con la firma del sistema" : "Papel escaneado"}
+                      </span>
+                    )}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-taupe">Vigente desde</dt>
@@ -1787,189 +2078,6 @@ export default function DocumentacionPage() {
                 </div>
               </dl>
             </TarjetaInfo>
-          )}
-
-          {/* El motivo es obligatorio y no es burocracia: sin él, el historial se
-              convierte en una lista de papeles retirados sin decir por qué, que no
-              sirve para lo único que tiene que servir.
-              Modal de verdad (no un panel dentro de la página): a pedido de Felipe,
-              para que anular pida una confirmación aparte y no un clic más en medio
-              de una tabla larga. Mismo patrón que ya usa admin/contratos. */}
-          {anulando && (
-            <div
-              className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4"
-              onClick={() => setAnulando(null)}
-            >
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label="Anular documento"
-                className="w-full max-w-md rounded-flotante border border-rojo/40 bg-papel p-4 text-sm"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="font-medium text-rojo">
-                  {anulando.etiqueta
-                    ? `¿Seguro que quieres anular la firma de ${anulando.etiqueta}?`
-                    : "¿Seguro que quieres anular este documento?"}
-                </div>
-                <p className="mt-1 text-xs text-taupe">
-                  No se borra: queda guardado en el historial con tu nombre, la hora y este motivo.
-                </p>
-                <div className="mt-3">
-                  <Campo value={anulando.motivo}
-                    onChange={(e) => setAnulando({ ...anulando, motivo: e.target.value })}
-                    placeholder="ej. se subió el escaneo equivocado" />
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <Boton variante="peligro" tamano="sm"
-                    onClick={() => void anularDocumento(anulando.id, anulando.motivo.trim())}
-                    disabled={anulando.motivo.trim().length < 4}>
-                    Sí, anular
-                  </Boton>
-                  <Boton variante="enlace" onClick={() => setAnulando(null)}>Cancelar</Boton>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* «Ver» de una firma digital — el documento tal cual quedó
-              firmado, con el mismo membrete que ya usa `hoja()` al imprimir
-              y el mismo patrón de modal que ya usa admin/contratos (título +
-              Imprimir, y el papel adentro). A diferencia de `hoja()`, acá NO
-              hay rayas en blanco: todo son los datos reales de ESTA
-              declaración ya firmada. */}
-          {verFirma && (
-            <div
-              className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
-              onClick={() => setVerFirma(null)}
-            >
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label={`Declaración de ruta de ${verFirma.persona}`}
-                className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
-                  <Boton variante="primario" onClick={() => window.print()}>
-                    Imprimir / Guardar como PDF
-                  </Boton>
-                  <Boton variante="enlace" onClick={() => setVerFirma(null)}>Cerrar</Boton>
-                </div>
-
-                <div className="overflow-y-auto p-5 print:overflow-visible print:p-0">
-                  <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
-                    <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
-                      <Marca tono="tinta" isotipo="rojo" />
-                      <div className="text-right text-xs text-taupe">
-                        <p>{EMPRESA.nombre}</p>
-                        <p>RUC {EMPRESA.ruc}</p>
-                      </div>
-                    </div>
-
-                    <h2 className="mb-6 text-center font-serif text-xl">
-                      Declaración de ruta y gasto de transporte
-                    </h2>
-
-                    <p className="mb-4">
-                      Yo, <strong>{verFirma.persona}</strong>, con documento de identidad N.º{" "}
-                      <strong>{verFirma.documento ?? "—"}</strong>, que desempeño el cargo de{" "}
-                      <strong>{verFirma.funcion ?? "—"}</strong> en la sede{" "}
-                      <strong>{verFirma.sedeNombre}</strong> de {EMPRESA.nombre}, declaro lo siguiente respecto de
-                      mi traslado diario entre mi domicilio y mi centro de labores:
-                    </p>
-
-                    {verFirma.distrito ? (
-                      // Lista numerada (0429): las piezas se guardaron aparte
-                      // al firmar, así que se arma la MISMA estructura que ya
-                      // ve la persona al firmar en /mio/movilidad — nunca un
-                      // segundo intento de decir lo mismo con otra forma.
-                      <>
-                        <ol className="mb-6 list-decimal space-y-2 pl-6">
-                          <li>
-                            Reside en el distrito de <strong>{verFirma.distrito}</strong>, provincia de{" "}
-                            <strong>{verFirma.provincia}</strong>.
-                          </li>
-                          <li>
-                            Para llegar a su centro de labores utiliza <strong>{verFirma.mediosIda}</strong>{" "}
-                            medio(s) de transporte por tramo, y de regreso{" "}
-                            <strong>{verFirma.mediosVuelta}</strong>.
-                          </li>
-                          {/* Pasaje y taxi (0489): solo si se declararon —
-                              lo firmado antes no los tenía. */}
-                          {verFirma.costoPasaje !== null && (
-                            <>
-                              <li>
-                                El costo de cada pasaje es de S/{" "}
-                                <strong>{Number(verFirma.costoPasaje).toFixed(2)}</strong>, de modo que su gasto
-                                diario habitual de ida y vuelta asciende a S/{" "}
-                                <strong>{Number(verFirma.gastoDiario ?? 0).toFixed(2)}</strong>.
-                              </li>
-                              <li>
-                                {verFirma.costoTaxi !== null ? (
-                                  <>
-                                    Según el horario de su turno, en ocasiones debe utilizar taxi u otro medio
-                                    particular, cuyo costo por viaje asciende aproximadamente a S/{" "}
-                                    <strong>{Number(verFirma.costoTaxi).toFixed(2)}</strong>. Esto ocurre
-                                    alrededor de <strong>{verFirma.frecuenciaTaxi}</strong> veces por semana.
-                                  </>
-                                ) : (
-                                  <>No utiliza taxi ni otro medio particular para este traslado.</>
-                                )}
-                              </li>
-                            </>
-                          )}
-                          <li>
-                            Declara que la información consignada es veraz, y se compromete a informar a{" "}
-                            {EMPRESA.nombre} si cambia de domicilio o de ruta habitual.
-                          </li>
-                        </ol>
-                        <p className="mb-6">
-                          Toma conocimiento de que {EMPRESA.nombre} le otorga una asignación por movilidad de{" "}
-                          <strong>
-                            S/ {verFirma.tarifa !== null ? verFirma.tarifa.toFixed(2) : "—"} por día
-                            efectivamente asistido
-                          </strong>
-                          , destinada a cubrir dicho traslado; que se abona únicamente por los días en que
-                          asiste a laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y
-                          que este concepto <strong>no tiene carácter remunerativo</strong>, conforme al
-                          artículo 19 inciso e) del Decreto Supremo N.º 001-97-TR.
-                        </p>
-                      </>
-                    ) : verFirma.texto ? (
-                      // Firmada antes de la 0429: esas cuatro columnas no
-                      // existían ese día, así que se muestra el texto real
-                      // que se firmó, tal cual — no se inventa una lista con
-                      // datos que no se guardaron por separado.
-                      <p className="mb-6">{verFirma.texto}</p>
-                    ) : (
-                      <p className="mb-6 text-taupe">No se guardó el texto de esta declaración.</p>
-                    )}
-
-                    <p className="mb-10 text-xs text-taupe">
-                      Suscrito en {verFirma.sedeNombre}
-                      {verFirma.fecha && <>, el {fechaLarga(verFirma.fecha)}</>}.
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-10 pt-6">
-                      <BloqueFirma
-                        imagen={verFirma.firma}
-                        nombre={verFirma.persona}
-                        pie={`DNI ${verFirma.documento ?? "—————"} · el/la declarante`}
-                      />
-                      <BloqueFirma
-                        imagen={firmaEmpresaGlobal}
-                        nombre={firmanteNombre}
-                        pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
-                      />
-                    </div>
-                    <p className="mt-6 text-center text-xs text-taupe">
-                      Firma digital, confirmada desde el sistema{verFirma.fecha && <> el {fechaLarga(verFirma.fecha)}</>}.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
           )}
 
           {/* ── El historial ─────────────────────────────────────────────────
@@ -1993,42 +2101,76 @@ export default function DocumentacionPage() {
                     {d.storage_path && (
                       <Boton variante="enlace" onClick={() => void verDocumento(d.storage_path!)}>Ver</Boton>
                     )}
+                    {!d.storage_path && d.firma_persona && (
+                      <Boton variante="enlace" onClick={() => void abrirVerPolitica(d.id, d.fecha_firma)}>Ver</Boton>
+                    )}
                   </li>
                 ))}
               </ul>
             </details>
           )}
 
-          {/* ── Pendientes especiales (el bono del mes) ─────────────────────
-              El cargo del onomástico se olvida por calendario, no por descuido:
-              se entrega una vez al año y en diciembre nadie recuerda si alguien
-              firmó en agosto. Por eso el aviso es del MES, no de la persona —
-              y cada nombre es una tarea con su acción lista, no un párrafo. */}
-          {bonoPendientes.length > 0 && (
-            <TarjetaInfo titulo="Pendientes especiales" className="mb-6">
-              {bonoMonto === null && (
-                <p className="mb-3 rounded-control bg-rojo/[0.06] px-3 py-2 text-xs text-rojo-profundo">
-                  Falta fijar el monto del bono en parámetros laborales (<code>bono_onomastico</code>):
-                  hasta entonces ninguna constancia se puede emitir.
-                </p>
-              )}
-              <ul className="divide-y divide-sand">
-                {bonoPendientes.map((f) => (
-                  <li key={f.persona_id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                    <div>
-                      <span className="text-tinta">{f.persona}</span>{" "}
-                      <span className="text-taupe">
-                        {f.bono_estado === "este_mes"
-                          ? "· cargo de cumpleaños pendiente"
-                          : `· cumplió en ${MES_LARGO[(f.bono_mes ?? 1) - 1]} y no hay cargo`}
-                      </span>
-                    </div>
-                    <Boton variante="enlace" onClick={() => abrirSubida("bono", f.persona_id)}>Resolver →</Boton>
-                  </li>
-                ))}
-              </ul>
-            </TarjetaInfo>
+            </>
           )}
+
+          {/* El motivo es obligatorio y no es burocracia: sin él, el historial se
+              convierte en una lista de papeles retirados sin decir por qué, que no
+              sirve para lo único que tiene que servir.
+              Modal de verdad (no un panel dentro de la página): a pedido de Felipe,
+              para que anular pida una confirmación aparte y no un clic más en medio
+              de una tabla larga. Mismo patrón que ya usa admin/contratos. */}
+          <Modal
+            abierto={anulando !== null}
+            onCerrar={() => setAnulando(null)}
+            titulo={anulando?.etiqueta ? `¿Seguro que quieres anular la firma de ${anulando.etiqueta}?` : "¿Seguro que quieres anular este documento?"}
+            ancho="sm"
+          >
+            {anulando && (
+              <>
+                <p className="text-sm text-taupe">
+                  No se borra: queda guardado en el historial con tu nombre, la hora y este motivo.
+                </p>
+                <div className="mt-3">
+                  <Campo etiqueta="Motivo" value={anulando.motivo}
+                    onChange={(e) => setAnulando({ ...anulando, motivo: e.target.value })}
+                    placeholder="ej. se subió el escaneo equivocado" />
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Boton variante="secundario" onClick={() => setAnulando(null)}>Cancelar</Boton>
+                  <Boton variante="peligro"
+                    onClick={() => void anularDocumento(anulando.id, anulando.motivo.trim())}
+                    disabled={anulando.motivo.trim().length < 4}>
+                    Sí, anular
+                  </Boton>
+                </div>
+              </>
+            )}
+          </Modal>
+
+          {/* «Ver» de una firma digital — el documento tal cual quedó
+              firmado, con el mismo membrete que ya usa `hoja()` al imprimir
+              y el mismo patrón de modal que ya usa admin/contratos (título +
+              Imprimir, y el papel adentro). A diferencia de `hoja()`, acá NO
+              hay rayas en blanco: todo son los datos reales de ESTA
+              declaración ya firmada. */}
+          <Modal
+            abierto={verFirma !== null}
+            onCerrar={() => setVerFirma(null)}
+            titulo={verFirma ? `Declaración de ruta de ${verFirma.persona}` : undefined}
+            ancho="xl"
+          >
+            {verFirma && (
+              <>
+                {hojaDeFirma(verFirma)}
+                {/* Una copia suelta para el papel: el modal recortaría lo impreso a su propio alto. */}
+                <ImprimibleAparte ref={copiaFirma}>{hojaDeFirma(verFirma)}</ImprimibleAparte>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Boton variante="secundario" onClick={() => setVerFirma(null)}>Cerrar</Boton>
+                  <Boton variante="primario" cargando={preparandoFirma} onClick={() => void imprimirFirma()}>Descargar PDF</Boton>
+                </div>
+              </>
+            )}
+          </Modal>
 
           {/* ── El panel de subida ──────────────────────────────────────────
               Uno solo para los tres documentos, y fuera del tablero. Estaba
@@ -2037,9 +2179,14 @@ export default function DocumentacionPage() {
               tablero venga vacío. Un formulario que existe pero no se ve es
               peor que uno que falta: quien lo usa cree que hizo clic mal. */}
           {subiendo && (
-            <div ref={panelRef} className="mb-6 rounded-control border border-sand bg-sand/20 p-4">
-              <h3 className="mb-1 text-sm font-medium">
-                {subiendo.negativa ? "Registrar una negativa a firmar" : ETIQUETA_SUBIDA[subiendo.que].titulo}
+            <Drawer abierto onCerrar={() => setSubiendo(null)} bloqueado={guardandoDoc} volverElFocoA={volverFocoSubida}>
+            <div>
+              <h3 className="mb-1 font-serif text-lg">
+                {subiendo.negativa
+                  ? "Registrar una negativa a firmar"
+                  : subiendo.que === "politica" && modoPolitica === "sistema"
+                    ? "Firmar la política de movilidad"
+                    : ETIQUETA_SUBIDA[subiendo.que].titulo}
                 {/* La política no es de nadie: ponerle un nombre al lado la
                     haría parecer un documento personal, que es exactamente
                     la confusión que la 0157 diseñó para hacer imposible. */}
@@ -2053,14 +2200,90 @@ export default function DocumentacionPage() {
                   : ETIQUETA_SUBIDA[subiendo.que].ayuda}
               </p>
 
+              {/* La política se puede firmar con la firma que el sistema ya
+                  tiene de quien firma por CAYLA (0531) — la misma que ya sale
+                  en contratos, rutas y bonos—, o subiendo el papel como siempre.
+                  Las dos valen igual y manda la más reciente. */}
+              {subiendo.que === "politica" && (
+                <div className="mb-3">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {([
+                      ["sistema", `Con la firma guardada de ${firmanteNombre}`],
+                      ["archivo", "Subir el papel firmado a mano"],
+                    ] as const).map(([modo, etiqueta]) => (
+                      <label
+                        key={modo}
+                        className={`flex items-center gap-2 rounded-lg border p-3 text-sm transition-colors duration-150 ${
+                          modo === "sistema" && !firmaEmpresaGlobal
+                            ? "cursor-not-allowed border-sand opacity-60"
+                            : modoPolitica === modo
+                              ? "cursor-pointer border-tinta bg-hueso/60"
+                              : "cursor-pointer border-sand hover:bg-hueso/60"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="modo-politica"
+                          className="accent-tinta"
+                          checked={modoPolitica === modo}
+                          disabled={modo === "sistema" && !firmaEmpresaGlobal}
+                          onChange={() => setModoPolitica(modo)}
+                        />
+                        {etiqueta}
+                      </label>
+                    ))}
+                  </div>
+                  {!firmaEmpresaGlobal && (
+                    <p className="mt-2 text-xs text-taupe">
+                      {firmanteNombre} todavía no tiene su firma guardada en el sistema. Puede
+                      guardarla desde su ficha; mientras tanto, sube el papel firmado a mano.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {subiendo.que === "politica" && modoPolitica === "sistema" && firmaEmpresaGlobal && (
+                <div className="mb-3">
+                  <p className="mb-2 text-xs text-taupe">
+                    Así queda firmada. Se guarda la política tal como sale impresa hoy, con
+                    esta firma y la fecha de abajo, y no cambia aunque después cambien las
+                    tarifas.{" "}
+                    <Boton variante="enlace" onClick={() => {
+                      setTipo("politica");
+                      setTimeout(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                    }}>
+                      Leer la política completa
+                    </Boton>
+                  </p>
+                  <div className="hoja w-full max-w-md rounded-control border border-sand p-4">
+                    <BloqueFirma
+                      imagen={firmaEmpresaGlobal}
+                      nombre={firmanteNombre}
+                      pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+                    />
+                  </div>
+                  {/* Lo que se congela: la misma hoja que se imprime, con la
+                      firma puesta. Oculta — ya se lee entera más abajo. */}
+                  <div ref={politicaParaFirmarRef} hidden>
+                    {hoja(null, { imagen: firmaEmpresaGlobal, fecha: fechaFirma })}
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-3 sm:grid-cols-2">
+                {!(subiendo.que === "politica" && modoPolitica === "sistema") && (
+                  <Campo
+                    etiqueta={subiendo.negativa ? "Acta de la negativa" : ETIQUETA_SUBIDA[subiendo.que].archivo}
+                    type="file" accept={TIPOS_DOC}
+                    onChange={(e) => setArchivoDoc(e.target.files?.[0] ?? null)}
+                    className="file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm" />
+                )}
                 <Campo
-                  etiqueta={subiendo.negativa ? "Acta de la negativa" : ETIQUETA_SUBIDA[subiendo.que].archivo}
-                  type="file" accept={TIPOS_DOC}
-                  onChange={(e) => setArchivoDoc(e.target.files?.[0] ?? null)}
-                  className="file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm" />
-                <Campo
-                  etiqueta={subiendo.negativa ? "Fecha de la negativa" : ETIQUETA_SUBIDA[subiendo.que].fecha}
+                  etiqueta={subiendo.negativa
+                    ? "Fecha de la negativa"
+                    : subiendo.que === "politica" && modoPolitica === "sistema"
+                      ? "Fecha de la política"
+                      : ETIQUETA_SUBIDA[subiendo.que].fecha}
                   type="date" value={fechaFirma} max={hoyLima()}
                   onChange={(e) => setFechaFirma(e.target.value)} />
                 <div className="sm:col-span-2">
@@ -2087,17 +2310,20 @@ export default function DocumentacionPage() {
 
               <div className="mt-3 flex items-center gap-3">
                 <Boton variante="primario" cargando={guardandoDoc} onClick={() => void guardarDocumento()}>
-                  {progresoDoc !== null ? `Subiendo… ${progresoDoc}%` : "Guardar"}
+                  {progresoDoc !== null
+                    ? `Subiendo… ${progresoDoc}%`
+                    : subiendo.que === "politica" && modoPolitica === "sistema" ? "Firmar y guardar" : "Guardar"}
                 </Boton>
                 <Boton variante="secundario" onClick={() => setSubiendo(null)}>
                   Cancelar
                 </Boton>
               </div>
             </div>
+            </Drawer>
           )}
 
           {/* ── Declaraciones de ruta — la sección central ───────────────── */}
-          {tablero.length > 0 && (
+          {pestana === "rutas" && tablero.length > 0 && (
             <div className="mb-8">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-serif text-lg">Declaraciones de ruta</h2>
@@ -2111,6 +2337,13 @@ export default function DocumentacionPage() {
                 <CampoSelect etiqueta="Sede" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} className="w-40">
                   <option value="todas">Todas</option>
                   {sedesEnTablero.map((s) => <option key={s} value={s}>{s}</option>)}
+                </CampoSelect>
+                {/* Los «Firmados» ya no son una cifra arriba (no piden nada): se ven con este filtro. */}
+                <CampoSelect etiqueta="Estado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)} className="w-44">
+                  <option value="todos">Todos</option>
+                  <option value="pendientes">Sin firmar</option>
+                  <option value="firmados">Firmados</option>
+                  <option value="negativas">Se negaron</option>
                 </CampoSelect>
                 {(filtroSede !== "todas" || busca.trim() !== "" || filtroEstado !== "todos") && (
                   <Boton variante="enlace" onClick={() => { setFiltroSede("todas"); setBusca(""); setFiltroEstado("todos"); }}>
@@ -2210,8 +2443,15 @@ export default function DocumentacionPage() {
               completas con «cumple en octubre» repetido no informaban: el
               90% del año la respuesta es «nada que hacer», y una lista que
               casi siempre dice eso deja de leerse. */}
-          {tablero.length > 0 && (
-            <div ref={bonoRef} className="mb-8">
+          {pestana === "cumples" && tablero.length > 0 && (
+            <div className="mb-8">
+              {/* Venía dentro de la tarjeta «Pendientes especiales», que repetía esta misma lista: el aviso se queda, la tarjeta no. */}
+              {bonoMonto === null && bonoPendientes.length > 0 && (
+                <BannerAviso variante="alerta" enLinea className="mb-3">
+                  Falta fijar el monto del bono en parámetros laborales (<code>bono_onomastico</code>): hasta entonces
+                  ninguna constancia se puede emitir.
+                </BannerAviso>
+              )}
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-serif text-lg">Cargos de cumpleaños</h2>
                 {bonoPendientes.length > 0 && (
@@ -2248,7 +2488,7 @@ export default function DocumentacionPage() {
                             ) : f.bono_estado === "este_mes" ? (
                               <Insignia variante="advertencia">Cumple este mes</Insignia>
                             ) : (
-                              <Insignia variante="alerta">Sin cargo</Insignia>
+                              <Insignia variante="alerta">Sin cargo · cumplió en {MES_LARGO[(f.bono_mes ?? 1) - 1]}</Insignia>
                             )}
                           </td>
                           <td className="px-4 py-2 text-taupe">
@@ -2276,7 +2516,7 @@ export default function DocumentacionPage() {
                         ) : f.bono_estado === "este_mes" ? (
                           <Insignia variante="advertencia">Cumple este mes</Insignia>
                         ) : (
-                          <Insignia variante="alerta">Sin cargo</Insignia>
+                          <Insignia variante="alerta">Sin cargo · cumplió en {MES_LARGO[(f.bono_mes ?? 1) - 1]}</Insignia>
                         )}
                       </div>
                       <div className="mt-2 flex justify-end">
@@ -2295,7 +2535,8 @@ export default function DocumentacionPage() {
               bandeja para no competir con los pendientes — generar uno nuevo
               es una tarea aparte y deliberada. */}
           <Modal abierto={generarAbierto} onCerrar={() => setGenerarAbierto(false)} titulo="Generar documento" ancho="lg">
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* Una columna: el buscador de persona lleva fichas de sede y no cabe en media. */}
+            <div className="grid gap-3">
               <CampoSelect
                 etiqueta="Documento"
                 value={tipo}
@@ -2305,12 +2546,7 @@ export default function DocumentacionPage() {
               </CampoSelect>
 
               {doc.necesitaPersona && (
-                <CampoSelect
-                  etiqueta="Persona"
-                  value={personaId}
-                  onChange={(e) => setPersonaId(e.target.value)}
-                >
-                  <option value="">Elige a quién…</option>
+                <>
                   {/* Solo en_planilla: "ruta" y "bono" son papeles que declaran una
                       asignación por asistencia y una política de movilidad — que
                       un locador los firme es, en palabras del propio comentario
@@ -2320,17 +2556,20 @@ export default function DocumentacionPage() {
                       arriba ya excluye a quien no está en planilla; este
                       desplegable se había quedado sin ese mismo filtro.
 
-                      CAMBIO 0424: para "ruta" (y solo para "ruta") también entra
-                      quien es practicante — mismo criterio que ya usan el tablero
-                      y `fn_documento_registrar` (`fn_persona_le_corresponde_movilidad`).
-                      El bono se queda exactamente como estaba: abrirlo también
-                      sería otra decisión de negocio, que nadie pidió. */}
-                  {personas
-                    .filter((p) => p.en_planilla || (tipo === "ruta" && p.tipo_vinculo === "practicante"))
-                    .map((p) => (
-                    <option key={p.id} value={p.id}>{p.apellidos}, {p.nombres}</option>
-                  ))}
-                </CampoSelect>
+                      CAMBIO 0424: para "ruta" también entra quien es practicante —
+                      mismo criterio que ya usan el tablero y `fn_documento_registrar`
+                      (`fn_persona_le_corresponde_movilidad`).
+                      CAMBIO 0519: y para "bono" también — decidido por Felipe el
+                      2026-10-13, con el texto propio de practicantes (`TextoBono`).
+                      Sigue la regla de `fn_persona_le_corresponde_bono`. */}
+                  <BuscadorPersona
+                    opciones={personas
+                      .filter((p) => p.en_planilla || ((tipo === "ruta" || tipo === "bono") && p.tipo_vinculo === "practicante"))
+                      .map((p) => ({ id: p.id, nombre: `${p.apellidos}, ${p.nombres}`, sede: sedePorId.get(p.sede_base_id) ?? null }))}
+                    value={personaId}
+                    onChange={setPersonaId}
+                  />
+                </>
               )}
             </div>
 
@@ -2353,8 +2592,9 @@ export default function DocumentacionPage() {
                 </summary>
                 <p className="mt-2 text-xs text-taupe">
                   Vienen desmarcados quien firma —no declara haber recibido lo que emite—,
-                  quien no está en planilla, porque no cobra movilidad ni bono de cumpleaños,
-                  y quien termina contrato este mes. A quien termina más adelante SÍ se le
+                  quien no está en planilla —un locador no cobra movilidad ni bono de
+                  cumpleaños; a un practicante, que sí, hay que marcarlo a mano— y quien
+                  termina contrato este mes. A quien termina más adelante SÍ se le
                   entrega: hasta ese día cobra movilidad, así que hasta ese día necesita el
                   papel. Revisa la lista igual: la decisión final es tuya.
                 </p>
@@ -2398,16 +2638,16 @@ export default function DocumentacionPage() {
 
             {/* QUÉ VA A SALIR EN LA LÍNEA DE FIRMA, antes de gastar papel.
                 Sin este aviso el estampado falla en silencio: quien imprime ve la
-                raya en blanco y no tiene forma de saber si es porque no cargó su
-                firma, porque no es la persona que el documento nombra, o porque la
+                raya en blanco y no tiene forma de saber si es porque el firmante
+                no guardó su firma, porque su rol no la estampa, o porque la
                 pantalla está rota. Las tres se ven idénticas en el papel. */}
             {!cargando && (
               <p className="mt-3 text-xs text-taupe">
                 {firmaEstampada
-                  ? `Tu firma escaneada saldrá impresa en la línea de ${firmanteCargo}.`
-                  : esFirmante
-                    ? "No tienes una firma escaneada cargada: el documento sale con la línea en blanco para firmar a mano."
-                    : `La línea de firma dice ${firmanteNombre}, y esa no es tu cuenta: el documento sale con la raya en blanco. La firma de una persona no se estampa bajo el nombre de otra.`}
+                  ? `La firma guardada de ${firmanteNombre} saldrá impresa en la línea de ${firmanteCargo}.`
+                  : firmaEmpresaGlobal
+                    ? "Tu rol no estampa la firma de la empresa: el documento sale con la raya en blanco."
+                    : `${firmanteNombre} todavía no tiene su firma guardada en «Mi firma»: el documento sale con la línea en blanco para firmar a mano.`}
               </p>
             )}
 
@@ -2455,11 +2695,90 @@ export default function DocumentacionPage() {
             propia página: sin eso, la declaración de la segunda persona
             empezaría a media hoja de la primera y ninguna de las dos serviría
             para firmar. */}
-        {lote
+        {/* Con el visor del bono abierto, esta hoja no se monta: tapada por el
+            visor en pantalla no se nota, pero al imprimir saldría la hoja del
+            generador en vez de —o junto a— la constancia que se está viendo. */}
+        {!verBono && !verPolitica && (lote
           ? lote.map((quien) => (
               <div key={quien.id} className="hoja-suelta">{hoja(quien)}</div>
             ))
-          : (!doc.necesitaPersona || persona) && hoja(persona)}
+          : (!doc.necesitaPersona || persona) && hoja(persona))}
+
+        {/* «Ver» de un cargo de cumpleaños firmado desde el sistema. Vive FUERA
+            del bloque de controles de arriba a propósito: ese bloque es
+            `print:hidden`, y un `display: none` en un ancestro apaga a todos sus
+            hijos sin importar lo que diga el hijo — igual que el visor de
+            contratos, que es hijo directo de <main> por esto mismo. */}
+        {verBono && (
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
+            onClick={() => setVerBono(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Constancia del bono de cumpleaños de ${verBono.persona}`}
+              className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
+                <Boton variante="primario" onClick={() => window.print()}>
+                  Imprimir / Guardar como PDF
+                </Boton>
+                <Boton variante="enlace" onClick={() => setVerBono(null)}>Cerrar</Boton>
+              </div>
+              <div className="overflow-y-auto p-5 print:overflow-visible print:p-0">
+                <PapelBono
+                  practicante={verBono.practicante}
+                  monto={verBono.monto}
+                  fecha={verBono.fecha}
+                  nombreOficial={verBono.persona}
+                  documento={verBono.documento}
+                  firmaPersona={verBono.firma}
+                  firmaEmpresa={firmaEmpresaGlobal}
+                  firmanteNombre={firmanteNombre}
+                  firmanteCargo={firmanteCargo}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* «Ver» de una política firmada desde el sistema (0531). Se pinta el
+            documento CONGELADO al firmar, no se vuelve a armar: con las tarifas
+            o el texto de hoy diría algo que no se firmó. Mismo lugar y misma
+            forma que el visor del bono, por la misma razón de impresión. */}
+        {verPolitica && (
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
+            onClick={() => setVerPolitica(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Política de movilidad firmada"
+              className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
+                <Boton variante="primario" onClick={() => window.print()}>
+                  Imprimir / Guardar como PDF
+                </Boton>
+                <Boton variante="enlace" onClick={() => setVerPolitica(null)}>Cerrar</Boton>
+                {verPolitica.fecha && (
+                  <span className="ml-auto text-xs text-taupe">Firmada con fecha {fechaLarga(verPolitica.fecha)}</span>
+                )}
+              </div>
+              {/* El HTML lo armó esta misma pantalla con React al firmar, y la
+                  0531 rechaza en la base cualquier <script> o atributo on…=:
+                  mismo criterio que el visor de contratos. */}
+              <div
+                className="overflow-y-auto p-5 print:overflow-visible print:p-0"
+                dangerouslySetInnerHTML={{ __html: verPolitica.html }}
+              />
+            </div>
+          </div>
+        )}
       </main>
     </>
   );

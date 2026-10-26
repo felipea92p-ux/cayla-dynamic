@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Clock, Paperclip } from "lucide-react";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Rotulo } from "@/components/ui/rotulo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Cargando } from "@/components/cargando";
 import { cx } from "@/components/ui/cx";
@@ -107,9 +110,9 @@ export default function MiReporte() {
   if (ficha.estado === "error") return <main className="p-8 text-sm text-rojo">{ficha.mensaje}</main>;
   if (error) {
     return (
-      <main className="mx-auto max-w-3xl px-5 py-8 text-sm">
+      <main className="mx-auto w-full max-w-3xl px-5 py-8 text-sm">
         <p className="rounded-control bg-rojo/10 px-3 py-2 text-rojo-profundo">{error}</p>
-        <Link href="/mio?tab=reportes" className="mt-4 inline-block underline underline-offset-2">← Tus reportes</Link>
+        <EnlaceVolver href="/mio?tab=reportes" className="mt-4 inline-block underline underline-offset-2">← Tus reportes</EnlaceVolver>
       </main>
     );
   }
@@ -122,9 +125,9 @@ export default function MiReporte() {
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-5 py-8 text-sm text-tinta">
-      <Link href="/mio?tab=reportes" className="mb-4 inline-block rounded-control border border-sand px-3 py-1 text-xs text-taupe hover:text-tinta">
+      <EnlaceVolver href="/mio?tab=reportes" className="mb-4 inline-block rounded-control border border-sand px-3 py-1 text-xs text-taupe hover:text-tinta">
         ← Tus reportes
-      </Link>
+      </EnlaceVolver>
 
       {params.get("nuevo") && (
         <p className="mb-4 rounded-control bg-verde/15 px-3 py-2 text-verde">
@@ -143,18 +146,16 @@ export default function MiReporte() {
         </p>
       )}
 
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="etiqueta text-taupe">
-            {tituloDeReporte(detalle.tipo, detalle.via)} · <span className="tabular-nums">{detalle.codigo}</span>
-          </p>
-          <h1 className="mt-0.5 font-serif text-3xl leading-tight">Enviado el {fechaLargaLima(detalle.creado_at)}</h1>
-        </div>
-        <div className="flex gap-2">
-          {detalle.urgente && <Insignia variante="alerta">Urgente</Insignia>}
-          <Insignia variante={estado.variante}>{estado.texto}</Insignia>
-        </div>
-      </div>
+      <CabeceraPagina
+        sobretitulo={<>{tituloDeReporte(detalle.tipo, detalle.via)} · <span className="tabular-nums">{detalle.codigo}</span></>}
+        titulo={`Enviado el ${fechaLargaLima(detalle.creado_at)}`}
+        accion={
+          <div className="flex gap-2">
+            {detalle.urgente && <Insignia variante="alerta">Urgente</Insignia>}
+            <Insignia variante={estado.variante}>{estado.texto}</Insignia>
+          </div>
+        }
+      />
 
       <ol className="my-2 flex flex-wrap items-center gap-2" aria-label="En qué va">
         {PASOS.map((p, i) => (
@@ -179,15 +180,14 @@ export default function MiReporte() {
       )}
 
       {cerrado && detalle.cierre_texto && (
-        <div className="my-4 rounded-superficie border border-sand bg-papel p-4">
-          <p className="etiqueta mb-1.5 text-taupe">Respuesta · {detalle.cerrado_at ? fechaLargaLima(detalle.cerrado_at) : ""}</p>
+        <TarjetaInfo className="my-4">
+          <Rotulo className="mb-1.5">Respuesta · {detalle.cerrado_at ? fechaLargaLima(detalle.cerrado_at) : ""}</Rotulo>
           <p className="whitespace-pre-line border-l-[3px] border-verde pl-3.5">{detalle.cierre_texto}</p>
-        </div>
+        </TarjetaInfo>
       )}
 
       <div className="mt-4 grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
-        <section className="rounded-superficie border border-sand bg-papel p-5">
-          <h2 className="mb-3 font-serif text-lg">Conversación</h2>
+        <TarjetaInfo como="section" titulo="Conversación">
           <div className="grid gap-3">
             <p className="text-center text-xs text-taupe">{fechaLargaLima(detalle.creado_at)} · Recibimos tu reporte</p>
             {hilo.map((m) => (
@@ -218,17 +218,17 @@ export default function MiReporte() {
               </div>
             </div>
           )}
-        </section>
+        </TarjetaInfo>
 
         <aside className="grid gap-3">
-          <div className="rounded-superficie border border-sand bg-papel p-4">
-            <p className="etiqueta mb-1.5 text-taupe">Lo que contaste</p>
+          <TarjetaInfo>
+            <Rotulo className="mb-1.5">Lo que contaste</Rotulo>
             <p className="whitespace-pre-line">{detalle.relato}</p>
             <p className="mt-2 text-xs text-taupe">{fechaLargaLima(detalle.fecha_hecho + "T12:00:00-05:00")} · {detalle.sede_codigo}</p>
-          </div>
+          </TarjetaInfo>
           {adjuntos.length > 0 && (
-            <div className="rounded-superficie border border-sand bg-papel p-4">
-              <p className="etiqueta mb-1.5 text-taupe">Archivos</p>
+            <TarjetaInfo>
+              <Rotulo className="mb-1.5">Archivos</Rotulo>
               <ul className="grid gap-1">
                 {adjuntos.map((a, i) => (
                   <li key={a.id}>
@@ -240,7 +240,7 @@ export default function MiReporte() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </TarjetaInfo>
           )}
           {ocupada === "adjuntar" && <p className="text-xs text-taupe">Subiendo el archivo…</p>}
         </aside>

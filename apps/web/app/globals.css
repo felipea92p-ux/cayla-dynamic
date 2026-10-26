@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./login-vuelo.css"; /* el panel de marca del login en pantalla ancha */
 
 @theme {
   /* ── Paleta CAYLA ─────────────────────────────────────────────
@@ -13,14 +14,20 @@
   --color-taupe: #805c4c; /* acento tonal, estados intermedios */
   /* Borde de control: sand como borde de un input/select da 1.16:1 sobre crema
      y 1.24:1 sobre papel — muy por debajo del 3:1 que WCAG 1.4.11 pide para lo
-     que identifica un control (Campo, CampoSelect y el Boton "secundario" hoy
-     usan border-sand). Sand sigue siendo la línea decorativa correcta para
-     separadores y marcos de tarjeta; para un control interactivo hace falta
-     más peso. Alias a taupe, que ya lo tiene: 5.21:1 sobre crema, 5.57:1 sobre
-     papel, sin sumar un color nuevo al sistema. Definido acá para que Campo,
-     CampoSelect y Boton puedan pedir border-borde-control — aplicarlo es
-     trabajo de esos archivos, no de este. */
+     que identifica un control. Sand sigue siendo la línea decorativa correcta
+     para separadores y marcos de tarjeta; para un control interactivo hace
+     falta más peso. Alias a taupe, que ya lo tiene: 5.21:1 sobre crema, 5.57:1
+     sobre papel, sin sumar un color nuevo al sistema.
+     Aplicado el 2026-10-25 a Campo, CampoSelect, AreaTexto y Boton «secundario»
+     (el terminal ya lo usaba). Quedan con sand, sin decidir, las piezas que se
+     tocan pero llevan texto que las identifica: Filtro, BotonIcono, Boton
+     «sutil» y las pastillas de ParaAtender. */
   --color-borde-control: var(--color-taupe);
+  /* Los dos colores de marca que NO cambian con el tema (mismos valores que tinta y crema en claro). Los usa solo el panel del
+     login (login-vuelo.css), que es una pieza de marca oscura en los dos temas: ahí «tinta» y «crema» se invertirían en oscuro y
+     el panel dejaría de ser oscuro. No se redefinen en ningún bloque de modo oscuro, a propósito. */
+  --color-tinta-fija: #1a1a18;
+  --color-crema-fija: #f5f0e8;
   /* Estados operativos: verdes/ámbar cálidos, apagados para convivir con la crema.
      Retunados el 2026-09-06: los valores anteriores (#5b754f, #8d6726) daban
      4.51:1 sobre crema — el límite exacto de WCAG AA, tal como se pinta el pill
@@ -53,6 +60,35 @@
      opacidad y el fondo con que el componente lo pinta de verdad, nunca sobre
      el token plano. */
   --color-pizarra: #4c5d6e;
+  /* Trece tokens desde el 2026-10-05: dos más, para el estado de cada integrante
+     en el terminal (Laborando, En refrigerio, En pausa, Turno terminado). Los
+     cuatro necesitaban su propio color —antes «En refrigerio» y «En pausa»
+     compartían ámbar y no se distinguían— y ninguno de los once que había
+     cubría un azul de «afuera, en la calle» ni un gris de «ya terminó».
+     Elegidos midiendo, no a ojo. Separación entre los cuatro colores del estado
+     (distancia de color ΔE; menos de ~10 se confunde), el par más cercano
+     siempre es verde/ceniza:
+       visión normal 20 (claro) · 24 (oscuro)     deuteranopía 10.6 · 12.9
+       protanopía    14.2 · 17.5                  tritanopía   13.0 · 14.6
+     El número más ajustado es 10.6, y por eso el color nunca va solo: cada
+     estado lleva además su ícono y su palabra, y «Turno terminado» se ve
+     apagado (foto y nombre atenuados, casilla más tenue). La simulación de
+     daltonismo es una aproximación (modelo de Machado): la prueba final es
+     verlo en la pantalla de la tienda.
+     Todo contraste se mide como el componente pinta de verdad, sobre papel:
+       azul    texto sobre la casilla teñida al 11 %   5.21:1 (claro) · 6.43:1 (oscuro)
+               texto sobre insignia al 15 % sobre crema 4.61:1 (claro) · 6.54:1 (oscuro)
+               ícono crema sobre el relleno             5.69:1 (claro) · 8.83:1 (oscuro)
+       ceniza  texto sobre la casilla teñida al 7 %    5.45:1 (claro) · 5.72:1 (oscuro)
+               texto sobre insignia al 15 % sobre crema 4.57:1 (claro) · 5.46:1 (oscuro)
+               ícono crema sobre el relleno             5.60:1 (claro) · 7.09:1 (oscuro)
+     Ceniza partió en #68645c y como insignia daba 4.27:1 sobre crema, bajo el
+     4.5:1 de WCAG AA: se oscureció un paso a #635f58 en vez de dejarlo para el
+     día en que alguien lo use así y nadie lo mida. Azul: no es el pizarra —ese
+     es gris azulado de «informativo» y en pantalla se confunde con el gris del
+     turno terminado—; es un azul franco. */
+  --color-azul: #2f5f9e; /* en pausa: trámite, médico, personal… */
+  --color-ceniza: #635f58; /* turno terminado */
 
   /* ── Radios ───────────────────────────────────────────────────
      Antes convivían 7 escalas (rounded, rounded-md, rounded-lg, rounded-xl,
@@ -131,6 +167,8 @@
     --color-ambar: #c99a4a;
     --color-hueso: #15110d;
     --color-pizarra: #9db0c2;
+    --color-azul: #9bbbe8;
+    --color-ceniza: #aaa59b;
     /* Sin esto, el calendario de <input type="date">, la lista de <select>,
        las scrollbars y el resaltado de autocompletado los sigue pintando el
        navegador en su paleta clara aunque la app esté en oscuro — invisibles
@@ -151,6 +189,8 @@
   --color-ambar: #c99a4a;
   --color-hueso: #15110d;
   --color-pizarra: #9db0c2;
+  --color-azul: #9bbbe8;
+  --color-ceniza: #aaa59b;
   color-scheme: dark;
 }
 
@@ -381,6 +421,21 @@
 .cajon-derecha-entra { animation: cajon-derecha-entra 260ms var(--ease-salida) backwards; }
 .cajon-derecha-sale { animation: cajon-derecha-sale 200ms ease-in forwards; }
 
+/* La hoja que sube desde abajo — para HojaInferior (2026-10-06, filtros del
+   Dashboard en celular). Misma duración y curva que los dos cajones de arriba,
+   por la misma razón: una tercera curva en la misma pantalla se siente como
+   otro producto. Solo cambia el eje: translateY. */
+@keyframes hoja-entra {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes hoja-sale {
+  from { transform: none; }
+  to { transform: translateY(100%); }
+}
+.hoja-entra { animation: hoja-entra 260ms var(--ease-salida) backwards; }
+.hoja-sale { animation: hoja-sale 200ms ease-in forwards; }
+
 @keyframes entra-fila {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
@@ -419,6 +474,8 @@
   .cajon-sale,
   .velo-entra,
   .velo-sale,
+  .hoja-entra,
+  .hoja-sale,
   .cajon-entra .fila-en-cascada,
   .titulo-entra,
   .menu-se-hace-notar,
@@ -435,6 +492,74 @@
   background-color: currentColor;
   -webkit-mask: url(/colibri.png) center / contain no-repeat;
   mask: url(/colibri.png) center / contain no-repeat;
+}
+
+/* ── Easter eggs del colibrí (docs/easter-eggs.md) ───────────────
+   Dos, y los dos pasivos: nada de esto se ve si nadie lo busca.
+
+   `.colibri-viajero` es el que cruza la pantalla con el código Konami: fijo,
+   encima de todo y sin recibir clics, así que nunca estorba a lo que haya
+   debajo. Cruza en 3.4 s y el componente lo retira al terminar la animación.
+   El ala (`.colibri-aleteo`) vibra con scaleY; se anima el contenedor y el
+   ala por separado para que el aleteo no dependa del trayecto.
+
+   `[data-travieso]` es el revoloteo del colibrí del login tras cinco clics.
+   Usa las propiedades `translate` y `rotate` (no `transform`) a propósito: el
+   colibrí del panel ya lleva un `transform` en línea, y las propiedades
+   individuales se SUMAN a él en vez de reemplazarlo.
+
+   Con `prefers-reduced-motion` el viajero no cruza: asoma un momento en la
+   esquina, sin moverse, y el del login simplemente no se mueve. */
+.colibri-viajero {
+  position: fixed;
+  top: 38vh;
+  left: 0;
+  z-index: 60;
+  pointer-events: none;
+  animation: colibri-cruza 3.4s ease-in-out forwards;
+}
+.colibri-aleteo {
+  transform-origin: 40% 60%;
+  animation: colibri-aleteo 0.14s ease-in-out infinite alternate;
+}
+@keyframes colibri-cruza {
+  0% { transform: translate(-12vw, 0); opacity: 0; }
+  8% { opacity: 1; }
+  25% { transform: translate(24vw, -9vh); }
+  50% { transform: translate(50vw, 5vh); }
+  75% { transform: translate(76vw, -7vh); }
+  92% { opacity: 1; }
+  100% { transform: translate(112vw, 0); opacity: 0; }
+}
+@keyframes colibri-aleteo {
+  from { transform: scaleY(1) rotate(-2deg); }
+  to { transform: scaleY(0.9) rotate(2deg); }
+}
+@keyframes colibri-asoma {
+  0%, 100% { opacity: 0; }
+  20%, 80% { opacity: 1; }
+}
+[data-travieso] {
+  animation: colibri-travieso 1.3s ease-in-out;
+}
+@keyframes colibri-travieso {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  15% { translate: 0 -14px; rotate: -8deg; }
+  30% { translate: 6px 2px; rotate: 6deg; }
+  45% { translate: 0 -10px; rotate: -5deg; }
+  60% { translate: -4px 0; rotate: 4deg; }
+  80% { translate: 0 -4px; rotate: -2deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .colibri-viajero {
+    top: auto;
+    left: auto;
+    right: 24px;
+    bottom: 24px;
+    animation: colibri-asoma 2.4s ease-in-out forwards;
+  }
+  .colibri-aleteo { animation: none; }
+  [data-travieso] { animation: none; }
 }
 
 /* ── El contrato de trabajo ──────────────────────────────────────
@@ -526,6 +651,28 @@
 .contrato .firmas > div {
   flex: 1;
 }
+/* En el celular —que es donde cada quien abre y firma su contrato desde /mio—
+   las dos firmas lado a lado no caben en ~300 px, y una palabra larga en
+   mayúsculas («PREPROFESIONALES») empujaba la hoja más ancha que la pantalla.
+   Solo en pantalla angosta: el papel impreso (A4, ~794 px) no entra acá y
+   sigue con las firmas lado a lado como siempre. */
+.contrato {
+  overflow-wrap: break-word;
+}
+@media screen and (max-width: 30rem) {
+  /* Justificado en ~300 px deja huecos enormes entre palabras. */
+  .contrato p {
+    text-align: left;
+  }
+  .contrato header p,
+  .contrato .firmas p {
+    text-align: center;
+  }
+  .contrato .firmas {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+}
 .contrato .firmas p {
   text-align: center;
 }
@@ -604,7 +751,7 @@
      su valor de pantalla al imprimir. Ya se desincronizó una vez (verde/ámbar
      quedaron en los valores que el 2026-09-06 se retiraron por dar justo el
      mínimo de WCAG AA, y faltaban hueso/pizarra, agregados ese mismo día).
-     Los once valores de acá son una copia exacta de los de `@theme` en modo
+     Los trece valores de acá son una copia exacta de los de `@theme` en modo
      claro — si uno se retona, este bloque también. */
   :root:not([data-tema="claro"]),
   :root[data-tema="claro"],
@@ -620,6 +767,8 @@
     --color-ambar: #74501a;
     --color-hueso: #eae1d2;
     --color-pizarra: #4c5d6e;
+    --color-azul: #2f5f9e;
+    --color-ceniza: #635f58;
     color-scheme: light;
   }
 
@@ -692,6 +841,42 @@
   }
 }
 
+/* ── Un documento que se imprime solo, desde un modal (2026-10-17) ──
+   `ImprimibleAparte` (components/ui/imprimible-aparte.tsx) cuelga una copia
+   del documento directo de <body>. En pantalla no se ve; al imprimir es lo
+   ÚNICO que sale. Lo usa la boleta firmada: vive en un modal, y el modal
+   recortaría lo impreso a su propio alto. `:has()` hace que la regla solo
+   exista mientras esa copia está montada: el resto de las pantallas imprime
+   como siempre. */
+.imprimible-aparte {
+  display: none;
+}
+
+@media print {
+  body:has(> .imprimible-aparte) > :not(.imprimible-aparte) {
+    display: none !important;
+  }
+
+  .imprimible-aparte {
+    display: block;
+  }
+
+  /* La firma nunca queda sola en la página siguiente, lejos del documento
+     que firma: una firma suelta no prueba nada. */
+  .constancia-boleta .bloque-firma {
+    break-inside: avoid;
+    break-before: avoid;
+  }
+
+  .constancia-boleta .pagina-boleta {
+    break-inside: avoid;
+  }
+
+  .constancia-boleta .rotulo-boleta {
+    break-after: avoid;
+  }
+}
+
 /* ── Recorrido guiado (driver.js) ─────────────────────────────────────────
    driver.js trae su propio CSS con `all: unset` — sin esto se ve como el
    demo por defecto de la librería: recuadro blanco, botones grises, cero
@@ -734,6 +919,7 @@
   color: var(--color-tinta);
 }
 .recorrido-cayla .driver-popover-progress-text {
+  white-space: nowrap;
   font-size: var(--text-nano);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -768,17 +954,105 @@
 .recorrido-cayla .driver-popover-arrow {
   border-color: var(--color-papel);
 }
-.recorrido-checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
-  margin-top: 0.7rem;
-  font-size: var(--text-micro);
-  line-height: 1.4;
+/* El aro que señala lo que se explica. El velo es casi transparente (ver
+   `overlayOpacity` en use-recorrido-guiado.ts), así que esto es lo que dice
+   «mira aquí». driver.js le pone esta clase al elemento activo. */
+.driver-active-element {
+  outline: 2px solid var(--color-rojo);
+  outline-offset: 4px;
+}
+/* «Omitir»: un texto, no un botón más. Va a la izquierda del pie, lejos de
+   «Siguiente», para que no se confunda con avanzar. */
+.recorrido-cayla .recorrido-omitir {
+  margin-right: auto;
+  border: 0;
+  background: transparent;
+  padding: 0.4rem 0.25rem;
+  font-size: 0.8rem;
   color: var(--color-taupe);
+  text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
 }
-.recorrido-checkbox input {
-  margin-top: 0.2rem;
-  accent-color: var(--color-pizarra);
+.recorrido-cayla .recorrido-omitir:hover,
+.recorrido-cayla .recorrido-omitir:focus {
+  color: var(--color-tinta);
+}
+
+/* ============================================================================
+   LA LISTA DE UN DESPLEGABLE (2026-10-20)
+   ----------------------------------------------------------------------------
+   Los ~150 <select> del panel abrían la lista del sistema operativo: una caja
+   gris oscura translúcida, con la letra del sistema, igual en claro y en oscuro
+   y sin relación con nada de lo demás. Era la única pieza del panel que no se
+   dibujaba con los trece colores.
+
+   `appearance: base-select` (Chrome 135+) deja pintar esa lista con CSS; los
+   navegadores que no lo entienden (Safari, Firefox) siguen con la suya, nativa,
+   y todo funciona igual — por eso va dentro de `@supports`. No cambia el HTML ni
+   ningún componente: es la lista y nada más. Va FUERA de `@layer` a propósito: el
+   `appearance-none` de <CampoSelect> está en `utilities` y, dentro de una capa,
+   le ganaría a esto.
+
+   Solo se le pide al <select> que acepte el modo; su caja (borde, fondo,
+   relleno, flecha) sigue siendo la de siempre. Donde el componente ya dibuja su
+   propia flecha se oculta la del modo, para no ver dos.
+   ========================================================================== */
+@supports (appearance: base-select) {
+  select,
+  select::picker(select) {
+    appearance: base-select;
+  }
+  select:has(+ span[aria-hidden])::picker-icon {
+    display: none;
+  }
+  select::picker(select) {
+    box-sizing: border-box;
+    margin-block: 4px;
+    padding: 4px;
+    max-height: min(22rem, 60vh);
+    background: var(--color-papel);
+    color: var(--color-tinta);
+    border: 1px solid var(--color-sand);
+    border-radius: var(--radius-superficie);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 0.14);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    /* La barra de la lista: la misma taupe translúcida que la del resto del panel. Las reglas
+       `::-webkit-scrollbar` de arriba no llegan aquí —la lista es otro árbol—, así que se dice con
+       las propiedades estándar, que sí. */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--color-taupe) 35%, transparent) transparent;
+  }
+  select option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-control);
+    font-family: var(--font-sans);
+    color: var(--color-tinta);
+    cursor: pointer;
+  }
+  select option:hover,
+  select option:focus-visible {
+    background: var(--color-hueso);
+    outline: none;
+  }
+  select option:checked {
+    font-weight: 500;
+  }
+  select option:disabled {
+    color: var(--color-taupe);
+    cursor: default;
+  }
+  select option::checkmark {
+    color: var(--color-rojo);
+    order: 1;
+    margin-left: auto;
+  }
+  select optgroup {
+    font-weight: 500;
+    color: var(--color-taupe);
+  }
 }

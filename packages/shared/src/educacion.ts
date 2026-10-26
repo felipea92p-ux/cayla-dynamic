@@ -87,6 +87,69 @@ export const ESTADO_CONSTANCIA: Record<EstadoConstancia, { etiqueta: string; ton
   falta_enviar: { etiqueta: "Falta enviar", tono: "advertencia" },
 };
 
+/**
+ * ¿Es un pago único con constancia aprobada que la base TODAVÍA cuenta como
+ * «sin calendario»? Esta combinación solo existe con la base de antes de la 0549:
+ * con la 0549 pegada, la base contesta «al día» a un pago único con constancia
+ * aprobada (ver `esPagoUnicoSustentado`), así que aquí no entra nunca.
+ *
+ * Importa porque en ese estado el consejo natural —«escribe la fecha del pago»—
+ * EMPEORA el estudio: guardar una fecha lo pasa a «falta enviar» y le pide
+ * constancia de un pago que ya está sustentado. Main se publica sola y la
+ * migración la pega Felipe a mano, así que durante esa ventana las pantallas
+ * nuevas conviven con la base vieja: por eso las palabras miran las
+ * constancias aprobadas y no solo la frecuencia. Es literalmente lo que la base
+ * contestó (`aprobadas`), no una cuenta nueva.
+ */
+export function esPagoUnicoAprobadoSinFecha(
+  estado: string,
+  frecuencia: string | null | undefined,
+  aprobadas: number | null | undefined,
+): boolean {
+  return estado === "sin_calendario" && frecuencia === "unico" && (aprobadas ?? 0) > 0;
+}
+
+/**
+ * Cómo se nombra el estado de un estudio en una insignia, según cada cuánto paga.
+ * El ESTADO lo decidió la base y no se toca: solo cambia la palabra. Para un pago
+ * único el «calendario de pagos» no existe —hay una sola fecha—, así que la
+ * insignia dice «Sin fecha de pago». Si además ya tiene su constancia aprobada
+ * (la base de antes de la 0549), no falta nada que DO pueda poner: «Pago único
+ * con constancia». Mensual, por ciclo, otra y sin decir siguen diciendo lo de
+ * siempre: su NULL sigue siendo ambiguo (¿nadie dijo cuándo, o ya no hay más
+ * pagos?) y esa es una decisión abierta (0549).
+ *
+ * `aprobadas` es opcional: quien no lo sabe obtiene el comportamiento de antes.
+ */
+export function insigniaDeEstadoConstancia(
+  estado: EstadoConstancia,
+  frecuencia: string | null | undefined,
+  aprobadas?: number | null,
+): { etiqueta: string; tono: TonoEstado } {
+  if (estado === "sin_calendario" && frecuencia === "unico") {
+    const etiqueta = esPagoUnicoAprobadoSinFecha(estado, frecuencia, aprobadas) ? "Pago único con constancia" : "Sin fecha de pago";
+    return { etiqueta, tono: ESTADO_CONSTANCIA.sin_calendario.tono };
+  }
+  return ESTADO_CONSTANCIA[estado];
+}
+
+/**
+ * ¿Es un pago único que la base ya dio por sustentado? NO recalcula nada: lee lo
+ * que la base devolvió. Con la 0549 pegada, `fn_educacion_situacion` contesta
+ * «al_dia» SIN fecha de constancia a un estudio 'unico' con una constancia
+ * aprobada. Antes de la 0549 un «al_dia» siempre traía fecha (el NULL de la
+ * próxima fecha lo atrapaba 'sin_calendario' primero), así que sin la migración
+ * esta combinación no existe y la función devuelve false: ningún texto que dependa
+ * de ella puede volverse falso con la migración sin pegar.
+ */
+export function esPagoUnicoSustentado(s: {
+  frecuencia_pago?: string | null;
+  estado_constancia: string;
+  fecha_pago_constancia?: string | null;
+}): boolean {
+  return s.frecuencia_pago === "unico" && s.estado_constancia === "al_dia" && s.fecha_pago_constancia == null;
+}
+
 /** Los estados que piden algo a la integrante. */
 export function constanciaPideAlgoALaIntegrante(estado: EstadoConstancia): boolean {
   return estado === "rechazada" || estado === "vencida" || estado === "por_vencer" || estado === "falta_enviar";
@@ -158,6 +221,44 @@ export function sugerirProximaFecha(fechaPago: string, frecuencia: string | null
   const ultimo = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
   return `${anio}-${String(mes).padStart(2, "0")}-${String(Math.min(d, ultimo)).padStart(2, "0")}`;
 }
+
+/**
+ * Hasta cuándo se SUGIERE que dura un estudio que empieza en `desde`: el fin
+ * del semestre académico peruano en que cae —31 de julio si empieza de enero a
+ * julio, 31 de diciembre si empieza de agosto a diciembre—.
+ *
+ * Existe porque el campo nacía en HOY, y una fecha de fin que nadie toca pide
+ * un apoyo de un día. Peor: se leía como «hasta cuándo vale este pago», no
+ * «hasta cuándo estudio». En octubre de 2026 un apoyo pedido el 15/09 quedó
+ * registrado hasta el 26/09, como si fuera de un solo mes, y al terminar la
+ * pantalla dejó de ofrecer subir constancias aunque la persona seguía pagando
+ * su pensión todos los meses. Es una sugerencia visible y editable: un curso
+ * de tres meses la cambia; lo que no puede pasar es que nazca en el mismo día.
+ */
+export function finDeCicloSugerido(desde: string): string {
+  const [y, m] = desde.split("-").map(Number);
+  return m && m <= 7 ? `${y}-07-31` : `${y}-12-31`;
+}
+
+/**
+ * Cuántos días cubre una vigencia, contando el primero y el último: del 15 al
+ * 26 de septiembre son 12. Aritmética UTC, sin `Date` local, por la misma
+ * razón que `sugerirProximaFecha`.
+ */
+export function diasDeVigencia(desde: string, hasta: string): number {
+  const ms = (f: string) => {
+    const [y, m, d] = f.split("-").map(Number);
+    return Date.UTC(y!, m! - 1, d!);
+  };
+  return Math.round((ms(hasta) - ms(desde)) / 86_400_000) + 1;
+}
+
+/**
+ * Por debajo de esto, el formulario pregunta antes de enviar si de verdad el
+ * estudio dura tan poco. No bloquea: un curso de dos semanas existe. Un mes
+ * completo (del 1 al 31) ya no pregunta.
+ */
+export const VIGENCIA_CORTA_DIAS = 31;
 
 /**
  * Un nombre de archivo que se puede poner en una ruta del almacén: sin

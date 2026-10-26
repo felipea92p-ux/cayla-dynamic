@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Registrar una falta</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<!--
+  Prototipo de la entrega 3 de «amonestaciones por conducta» (2026-10-06).
+  Responde tres preguntas de diseño mostrando cada opción como se vería:
+  dónde empieza la líder, cómo elige la falta y qué nivel viene marcado.
+  Datos ficticios. Los colores son los trece tokens de apps/web/app/globals.css.
+  No es código de la app: es para decidir antes de construir.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18;
+    --color-rojo:#b8412d; --color-sand:#e8e0d0; --color-taupe:#805c4c;
+    --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-azul:#2f5f9e; --color-ceniza:#635f58;
+    --font-sans:'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-serif:'EB Garamond', ui-serif, Georgia, "Times New Roman", serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+      --color-rojo:#d4634a; --color-sand:#332e27; --color-taupe:#ab9080;
+      --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+      --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+    --color-rojo:#d4634a; --color-sand:#332e27; --color-taupe:#ab9080;
+    --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+    color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{
+    background:var(--color-crema); color:var(--color-tinta);
+    font-family:var(--font-sans); font-size:14.5px; line-height:1.5;
+    padding:28px 16px 72px;
+  }
+  .page{ max-width:1120px; margin-inline:auto; display:flex; flex-direction:column; gap:28px; }
+  h1,h2,h3,h4{ font-family:var(--font-serif); font-weight:600; margin:0; text-wrap:balance; }
+  p{ margin:0; }
+  button, input, select, textarea{ font-family:inherit; font-size:inherit; color:inherit; }
+  :focus-visible{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+
+  /* ── cabecera del prototipo ───────────────────────────────── */
+  .masthead{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px; align-items:flex-start; }
+  .masthead h1{ font-size:1.9rem; margin-bottom:6px; }
+  .masthead p{ color:var(--color-taupe); max-width:62ch; }
+  .badge-demo{
+    display:inline-flex; align-items:center; gap:6px; font-size:.72rem; font-weight:600;
+    letter-spacing:.04em; text-transform:uppercase; color:var(--color-pizarra);
+    background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel));
+    border:1px solid color-mix(in oklab, var(--color-pizarra) 35%, transparent);
+    padding:5px 10px; border-radius:100px; white-space:nowrap;
+  }
+  .controles{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .seg{ display:inline-flex; border:1px solid var(--color-sand); border-radius:10px; overflow:hidden; background:var(--color-papel); }
+  .seg button{ border:0; background:none; padding:7px 12px; font-size:.82rem; font-weight:600; color:var(--color-taupe); cursor:pointer; }
+  .seg button[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); }
+
+  /* ── una decisión ─────────────────────────────────────────── */
+  .decision{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:16px; }
+  .decision header{ display:flex; flex-direction:column; gap:4px; }
+  .decision .num{ font-size:.75rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--color-rojo); }
+  .decision h2{ font-size:1.45rem; }
+  .decision header p{ color:var(--color-taupe); max-width:70ch; }
+  .opciones{ display:flex; flex-wrap:wrap; gap:8px; }
+  .opcion{
+    border:1px solid var(--color-sand); background:var(--color-crema); border-radius:12px;
+    padding:9px 14px; cursor:pointer; text-align:left; display:flex; flex-direction:column; gap:1px; min-width:0;
+  }
+  .opcion strong{ font-size:.9rem; }
+  .opcion span{ font-size:.75rem; color:var(--color-taupe); }
+  .opcion[aria-selected="true"]{ border-color:var(--color-tinta); background:var(--color-papel); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+  .rec{ font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--color-verde); }
+  .ganas{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:640px){ .ganas{ grid-template-columns:1fr; } }
+  .ganas div{ border-radius:10px; padding:10px 12px; font-size:.86rem; }
+  .ganas .g{ background:color-mix(in oklab, var(--color-verde) 10%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-verde) 30%, transparent); }
+  .ganas .p{ background:color-mix(in oklab, var(--color-ambar) 10%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-ambar) 30%, transparent); }
+  .ganas b{ display:block; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px; }
+  .variante{ display:none; }
+  .variante.activa{ display:block; }
+
+  /* ── el marco donde se dibuja la pantalla ─────────────────── */
+  .escenario{ background:var(--color-hueso); border-radius:14px; padding:18px; display:flex; justify-content:center; }
+  .pantalla{
+    width:100%; max-width:980px; background:var(--color-crema); border:1px solid var(--color-sand);
+    border-radius:12px; overflow:hidden; transition:max-width .25s ease;
+  }
+  body.celular .pantalla{ max-width:390px; }
+  .barra-app{ display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--color-sand); background:var(--color-papel); font-size:.8rem; color:var(--color-taupe); }
+  .barra-app .marca{ font-family:var(--font-serif); font-size:1.05rem; color:var(--color-tinta); font-weight:600; }
+  .barra-app .quien{ margin-left:auto; }
+  .cuerpo-app{ padding:18px; display:flex; flex-direction:column; gap:14px; }
+  .titulo-app{ display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; justify-content:space-between; }
+  .titulo-app h3{ font-size:1.6rem; }
+  .titulo-app p{ color:var(--color-taupe); font-size:.85rem; }
+  .btn{ border-radius:10px; padding:9px 14px; font-weight:600; font-size:.88rem; cursor:pointer; border:1px solid transparent; white-space:nowrap; }
+  .btn-primario{ background:var(--color-tinta); color:var(--color-crema); }
+  .btn-primario[disabled]{ opacity:.4; cursor:not-allowed; }
+  .btn-sec{ background:var(--color-papel); border-color:var(--color-sand); }
+  .btn-rojo{ background:var(--color-rojo); color:var(--color-crema); }
+  body.celular .titulo-app .btn{ width:100%; }
+  .pestanas{ display:flex; gap:2px; border-bottom:1px solid var(--color-sand); overflow-x:auto; }
+  .pestanas span{ padding:8px 12px; font-size:.84rem; font-weight:600; color:var(--color-taupe); border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; }
+  .pestanas span.on{ color:var(--color-tinta); border-bottom-color:var(--color-rojo); }
+  .cnt{ font-size:.68rem; background:var(--color-sand); border-radius:100px; padding:1px 6px; margin-left:4px; }
+  .fila{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:10px; padding:12px 14px; display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center; justify-content:space-between; }
+  .fila .q{ font-weight:600; }
+  .fila .s{ font-size:.8rem; color:var(--color-taupe); }
+  .pill{ font-size:.72rem; font-weight:600; border-radius:100px; padding:2px 8px; white-space:nowrap; }
+  .pill-pizarra{ color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel)); }
+  .pill-ambar{ color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 14%, var(--color-papel)); }
+  .pill-verde{ color:var(--color-verde); background:color-mix(in oklab, var(--color-verde) 14%, var(--color-papel)); }
+  .pill-rojo{ color:var(--color-rojo); background:color-mix(in oklab, var(--color-rojo) 12%, var(--color-papel)); }
+  .nota{ font-size:.8rem; color:var(--color-taupe); border-left:3px solid var(--color-sand); padding-left:10px; }
+  .dos{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  body.celular .dos, .dos.siempre-una{ grid-template-columns:1fr; }
+  @media (max-width:760px){ .dos{ grid-template-columns:1fr; } }
+  .mini-rotulo{ font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--color-taupe); margin-bottom:6px; }
+
+  /* ── formulario ───────────────────────────────────────────── */
+  .form{ display:flex; flex-direction:column; gap:16px; }
+  .campo{ display:flex; flex-direction:column; gap:6px; }
+  .campo > label, .campo > .lbl{ font-weight:600; font-size:.88rem; }
+  .campo .ayuda{ font-size:.78rem; color:var(--color-taupe); }
+  .input, select.input, textarea.input{
+    width:100%; background:var(--color-hueso); border:1px solid var(--color-sand); border-radius:10px; padding:9px 11px;
+  }
+  textarea.input{ min-height:92px; resize:vertical; }
+  .buscador{ position:relative; }
+  .buscador .input{ padding-left:32px; }
+  .buscador svg{ position:absolute; left:10px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:var(--color-taupe); }
+  .grupo-faltas{ display:flex; flex-direction:column; gap:6px; }
+  .grupo-faltas h5{ margin:6px 0 0; font-size:.74rem; text-transform:uppercase; letter-spacing:.05em; color:var(--color-taupe); font-family:var(--font-sans); }
+  .falta{
+    display:flex; gap:10px; align-items:flex-start; text-align:left; width:100%;
+    background:var(--color-papel); border:1px solid var(--color-sand); border-radius:10px; padding:9px 11px; cursor:pointer;
+  }
+  .falta .lit{ font-variant-numeric:tabular-nums; font-size:.74rem; font-weight:700; color:var(--color-taupe); min-width:46px; padding-top:2px; }
+  .falta .txt{ font-size:.86rem; }
+  .falta[aria-checked="true"]{ border-color:var(--color-tinta); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+  .falta[hidden]{ display:none; }
+  .lista-faltas{ max-height:300px; overflow:auto; display:flex; flex-direction:column; gap:10px; padding-right:4px; }
+  .vacio{ font-size:.85rem; color:var(--color-taupe); padding:8px 0; }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{ border:1px solid var(--color-sand); background:var(--color-papel); border-radius:100px; padding:6px 11px; font-size:.82rem; cursor:pointer; }
+  .chip[aria-checked="true"]{ background:var(--color-tinta); color:var(--color-crema); border-color:var(--color-tinta); }
+  .elegida{ font-size:.82rem; background:var(--color-hueso); border-radius:10px; padding:9px 11px; }
+  .elegida b{ font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; color:var(--color-taupe); display:block; }
+  .corresponde{
+    border:1px solid color-mix(in oklab, var(--color-pizarra) 35%, transparent);
+    background:color-mix(in oklab, var(--color-pizarra) 8%, var(--color-papel)); border-radius:12px; padding:12px 14px;
+    display:flex; flex-direction:column; gap:6px; font-size:.86rem;
+  }
+  .corresponde .tit{ font-weight:700; color:var(--color-pizarra); font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
+  .corresponde ul{ margin:0; padding-left:18px; }
+  .niveles{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  body.celular .niveles{ grid-template-columns:1fr; }
+  @media (max-width:640px){ .niveles{ grid-template-columns:1fr; } }
+  .nivel{
+    text-align:left; background:var(--color-papel); border:1px solid var(--color-sand); border-radius:12px; padding:12px 14px; cursor:pointer;
+    display:flex; flex-direction:column; gap:4px; position:relative;
+  }
+  .nivel strong{ font-size:.95rem; display:flex; gap:8px; align-items:center; }
+  .nivel span{ font-size:.8rem; color:var(--color-taupe); }
+  .nivel[aria-checked="true"]{ border-color:var(--color-tinta); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+  .nivel .radio{ width:15px; height:15px; border-radius:50%; border:2px solid var(--color-taupe); flex:none; }
+  .nivel[aria-checked="true"] .radio{ border-color:var(--color-tinta); background:radial-gradient(circle, var(--color-tinta) 45%, transparent 50%); }
+  .sugerido{ position:absolute; top:10px; right:10px; }
+  .aviso{ border-radius:10px; padding:10px 12px; font-size:.84rem; background:color-mix(in oklab, var(--color-ambar) 10%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-ambar) 30%, transparent); }
+  .pie-form{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; border-top:1px solid var(--color-sand); padding-top:14px; }
+  body.celular .pie-form .btn{ flex:1; }
+  .por-que{ font-size:.78rem; color:var(--color-taupe); text-align:right; width:100%; }
+  .contador{ font-size:.74rem; color:var(--color-taupe); text-align:right; }
+  .fechas{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  body.celular .fechas{ grid-template-columns:1fr; }
+
+  /* ── cajón lateral (como el PanelCaso de la app) ──────────── */
+  .con-cajon{ position:relative; min-height:560px; }
+  .cajon{
+    position:absolute; top:0; right:0; bottom:0; width:min(520px, 100%); background:var(--color-papel);
+    border-left:1px solid var(--color-sand); box-shadow:-12px 0 32px rgb(0 0 0 / .12); padding:18px; overflow:auto;
+    transform:translateX(105%); transition:transform .28s ease;
+  }
+  .cajon.abierto{ transform:none; }
+  .cajon .cab{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:14px; }
+  .cajon h4{ font-size:1.3rem; }
+  .x{ border:0; background:none; font-size:1.3rem; cursor:pointer; color:var(--color-taupe); line-height:1; }
+  .ficha-cab{ display:flex; gap:12px; align-items:center; }
+  .avatar{ width:44px; height:44px; border-radius:50%; background:var(--color-sand); display:grid; place-items:center; font-weight:700; color:var(--color-taupe); }
+  .bandeja-item{ display:flex; gap:12px; align-items:flex-start; }
+  .punto{ width:8px; height:8px; border-radius:50%; background:var(--color-rojo); margin-top:7px; flex:none; }
+  .franja{ border-radius:10px; padding:10px 12px; font-size:.84rem; background:color-mix(in oklab, var(--color-azul) 10%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-azul) 30%, transparent); }
+  footer.fin{ color:var(--color-taupe); font-size:.8rem; text-align:center; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <section class="masthead">
+    <div>
+      <span class="badge-demo">Prototipo · datos ficticios</span>
+      <h1 style="margin-top:10px">Registrar una falta de conducta</h1>
+      <p>Tres decisiones antes de construir la pantalla de la líder de equipo. En cada una, elige la opción y mira cómo se vería. La recomendada viene marcada; nada de esto es la app todavía.</p>
+    </div>
+    <div class="controles">
+      <div class="seg" role="group" aria-label="Tamaño de pantalla">
+        <button type="button" data-dispositivo="computadora" aria-pressed="true">Computadora</button>
+        <button type="button" data-dispositivo="celular" aria-pressed="false">Celular</button>
+      </div>
+      <div class="seg" role="group" aria-label="Tema">
+        <button type="button" data-tema="" aria-pressed="true">Sistema</button>
+        <button type="button" data-tema="light" aria-pressed="false">Claro</button>
+        <button type="button" data-tema="dark" aria-pressed="false">Oscuro</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════ 1 · DÓNDE ════════════════════════════ -->
+  <section class="decision" data-decision="donde">
+    <header>
+      <span class="num">Decisión 1 de 3</span>
+      <h2>¿Dónde empieza la líder a registrar una falta?</h2>
+      <p>Después de registrarla, el trámite sigue igual que hoy en Disciplina: comunicar, firmar y entregar.</p>
+    </header>
+    <div class="opciones" role="tablist">
+      <button class="opcion" role="tab" aria-selected="true" data-v="a"><span class="rec">Recomendada</span><strong>A · Botón en Disciplina</strong><span>Una sola puerta, donde sigue el trámite</span></button>
+      <button class="opcion" role="tab" aria-selected="false" data-v="b"><strong>B · Desde la ficha</strong><span>Parte de la persona</span></button>
+      <button class="opcion" role="tab" aria-selected="false" data-v="c"><strong>C · En los dos lados</strong><span>Dos puertas al mismo formulario</span></button>
+    </div>
+
+    <div class="variante activa" data-v="a">
+      <div class="escenario"><div class="pantalla con-cajon">
+        <div class="barra-app"><span class="marca">Dynamic</span><span>Panel</span><span class="quien">Lucía Ramos · Líder de equipo · TRU</span></div>
+        <div class="cuerpo-app">
+          <div class="titulo-app">
+            <div><h3>Disciplina</h3><p>Tienda Trujillo · lo que detecta el sistema y lo que registras tú</p></div>
+            <button class="btn btn-primario" data-abrir="cajon-a">+ Registrar una falta</button>
+          </div>
+          <div class="pestanas"><span class="on">Revisión<span class="cnt">2</span></span><span>Borradores<span class="cnt">1</span></span><span>Por entregar</span><span>Historial</span></div>
+          <div class="fila"><div><div class="q">Andrea Torres</div><div class="s">3 tardanzas en setiembre · alcanzó el umbral</div></div><span class="pill pill-ambar">Amonestación por tardanzas</span></div>
+          <div class="fila"><div><div class="q">Camila Flores</div><div class="s">2 tardanzas en octubre · en seguimiento</div></div><span class="pill pill-pizarra">En seguimiento</span></div>
+          <p class="nota">Las tardanzas y las inasistencias las sigue detectando el sistema. La conducta no la detecta nadie más que ella: por eso es un botón, no una fila.</p>
+        </div>
+        <aside class="cajon" id="cajon-a" aria-label="Registrar una falta">
+          <div class="cab"><div><span class="mini-rotulo">Conducta</span><h4>Registrar una falta</h4></div><button class="x" data-cerrar="cajon-a" aria-label="Cerrar">×</button></div>
+          <p class="nota">Este es el formulario completo — está entero en la sección 4, más abajo.</p>
+        </aside>
+      </div></div>
+    </div>
+
+    <div class="variante" data-v="b">
+      <div class="escenario"><div class="pantalla">
+        <div class="barra-app"><span class="marca">Dynamic</span><span>Equipo › Andrea Torres</span><span class="quien">Lucía Ramos · TRU</span></div>
+        <div class="cuerpo-app">
+          <div class="titulo-app">
+            <div class="ficha-cab"><div class="avatar">AT</div><div><h3 style="font-size:1.35rem">Andrea Torres</h3><p>Asesora de ventas · Tienda Trujillo · desde marzo de 2024</p></div></div>
+            <button class="btn btn-primario">+ Registrar una falta</button>
+          </div>
+          <div class="pestanas"><span>Datos</span><span>Horario</span><span>Asistencia</span><span class="on">Disciplina</span></div>
+          <div class="fila"><div><div class="q">Sin documentos vigentes</div><div class="s">Una amonestación por tardanzas de 2025, ya cancelada (56.7)</div></div></div>
+          <div class="aviso">Al guardar, el borrador aparece en <b>Disciplina › Borradores</b>, y desde ahí se comunica, se firma y se entrega. Registra aquí y firma allá.</div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="variante" data-v="c">
+      <div class="escenario"><div class="pantalla">
+        <div class="barra-app"><span class="marca">Dynamic</span><span>Panel</span><span class="quien">Lucía Ramos · TRU</span></div>
+        <div class="cuerpo-app">
+          <div class="dos">
+            <div><div class="mini-rotulo">En Disciplina</div><div class="fila"><div class="q">Disciplina</div><button class="btn btn-primario">+ Registrar una falta</button></div></div>
+            <div><div class="mini-rotulo">En la ficha de cada persona</div><div class="fila"><div class="q">Andrea Torres</div><button class="btn btn-primario">+ Registrar una falta</button></div></div>
+          </div>
+          <p class="nota">El mismo formulario detrás de los dos botones. Desde la ficha llega con la persona ya elegida.</p>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="ganas">
+      <div class="g" data-gp="a"><b>Ganas</b>Una sola puerta, en la pantalla donde después firma y entrega: no salta de pantalla a mitad del trámite.</div>
+      <div class="p" data-gp="a"><b>Pagas</b>Si está mirando la ficha de alguien, tiene que ir a Disciplina y elegir a la persona.</div>
+      <div class="g" data-gp="b" hidden><b>Ganas</b>Parte de la persona, que es como lo piensa la líder.</div>
+      <div class="p" data-gp="b" hidden><b>Pagas</b>Registra en un lado y firma en otro; y la ficha hoy no tiene pestaña de Disciplina — habría que crearla.</div>
+      <div class="g" data-gp="c" hidden><b>Ganas</b>La encuentra esté donde esté.</div>
+      <div class="p" data-gp="c" hidden><b>Pagas</b>Dos puertas a lo mismo: más que construir, y dos sitios que explicar.</div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════ 2 · LA FALTA ════════════════════════════ -->
+  <section class="decision" data-decision="falta">
+    <header>
+      <span class="num">Decisión 2 de 3</span>
+      <h2>¿Cómo elige qué falta fue?</h2>
+      <p>Son las 17 faltas leves y significativas del Reglamento que se registran a mano. Prueba a buscar «teléfono», «caja» o «clienta».</p>
+    </header>
+    <div class="opciones" role="tablist">
+      <button class="opcion" role="tab" aria-selected="true" data-v="a"><span class="rec">Recomendada</span><strong>A · Texto del RIT con buscador</strong><span>Lee lo que se va a citar</span></button>
+      <button class="opcion" role="tab" aria-selected="false" data-v="b"><strong>B · Nombres cortos</strong><span>Más rápido, otra redacción</span></button>
+      <button class="opcion" role="tab" aria-selected="false" data-v="c"><strong>C · Desplegable por número</strong><span>Compacto</span></button>
+    </div>
+
+    <div class="variante activa" data-v="a">
+      <div class="escenario"><div class="pantalla"><div class="cuerpo-app">
+        <div class="campo">
+          <span class="lbl">¿Qué pasó?</span>
+          <div class="buscador">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input class="input" type="search" placeholder="Busca por palabra: teléfono, caja, clienta, uniforme…" data-buscar="lista-a" aria-label="Buscar la falta">
+          </div>
+          <div class="lista-faltas" id="lista-a" role="radiogroup" aria-label="Faltas del Reglamento"></div>
+          <span class="ayuda">Es el texto exacto del artículo 53 del Reglamento: lo mismo que va a decir el papel.</span>
+        </div>
+      </div></div></div>
+    </div>
+
+    <div class="variante" data-v="b">
+      <div class="escenario"><div class="pantalla"><div class="cuerpo-app">
+        <div class="campo">
+          <span class="lbl">¿Qué pasó?</span>
+          <div class="mini-rotulo">Leves</div><div class="chips" id="chips-leve" role="radiogroup"></div>
+          <div class="mini-rotulo" style="margin-top:6px">Significativas</div><div class="chips" id="chips-sig" role="radiogroup"></div>
+          <div class="elegida" id="elegida-b"><b>Lo que dirá el papel</b>Elige una falta.</div>
+          <span class="ayuda">Los nombres cortos son nuestros, no del Reglamento: alguien tiene que mantenerlos al día cuando cambie el RIT.</span>
+        </div>
+      </div></div></div>
+    </div>
+
+    <div class="variante" data-v="c">
+      <div class="escenario"><div class="pantalla"><div class="cuerpo-app">
+        <div class="campo">
+          <label for="sel-c">¿Qué falta fue?</label>
+          <select class="input" id="sel-c"><option value="">Elige el literal…</option></select>
+          <div class="elegida" id="elegida-c"><b>Lo que dirá el papel</b>Elige un literal.</div>
+          <span class="ayuda">Quien no se sabe el artículo de memoria elige un número y recién después lee qué dice.</span>
+        </div>
+      </div></div></div>
+    </div>
+
+    <div class="ganas">
+      <div class="g" data-gp="a"><b>Ganas</b>Elige leyendo exactamente lo que se cita en el papel: sin traducción de por medio, y el buscador la lleva en dos letras.</div>
+      <div class="p" data-gp="a"><b>Pagas</b>Son textos de una o dos líneas: en el celular la lista es larga (por eso se puede buscar).</div>
+      <div class="g" data-gp="b" hidden><b>Ganas</b>Lo más rápido de elegir.</div>
+      <div class="p" data-gp="b" hidden><b>Pagas</b>Una segunda redacción del Reglamento que se desactualiza sola; elige por un nombre que no es lo que dice el papel.</div>
+      <div class="g" data-gp="c" hidden><b>Ganas</b>Lo más compacto.</div>
+      <div class="p" data-gp="c" hidden><b>Pagas</b>Elegir mal el literal es acusar de otra falta. En una tienda nadie se sabe el 53.2 g).</div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════ 3 · EL NIVEL ════════════════════════════ -->
+  <section class="decision" data-decision="nivel">
+    <header>
+      <span class="num">Decisión 3 de 3</span>
+      <h2>¿Qué nivel viene marcado?</h2>
+      <p>Cambia la situación de la persona para ver qué le dice el sistema a la líder en cada caso.</p>
+    </header>
+    <div class="controles">
+      <span class="mini-rotulo" style="margin:0">Situación:</span>
+      <div class="seg" role="group" aria-label="Situación de ejemplo">
+        <button type="button" data-escenario="leve" aria-pressed="true">Falta leve, sin antecedentes</button>
+        <button type="button" data-escenario="sig" aria-pressed="false">Significativa, con antecedente</button>
+        <button type="button" data-escenario="cuarta" aria-pressed="false">4.ª leve del año</button>
+      </div>
+    </div>
+    <div class="opciones" role="tablist">
+      <button class="opcion" role="tab" aria-selected="true" data-v="a"><span class="rec">Recomendada</span><strong>A · Ninguno marcado</strong><span>Ella elige, viendo lo que corresponde</span></button>
+      <button class="opcion" role="tab" aria-selected="false" data-v="b"><strong>B · Lo que sugiere el sistema</strong><span>Viene marcado el máximo</span></button>
+      <button class="opcion" role="tab" aria-selected="false" data-v="c"><strong>C · Siempre llamada verbal</strong><span>La medida más suave</span></button>
+    </div>
+    <div class="escenario"><div class="pantalla"><div class="cuerpo-app">
+      <div class="corresponde" id="corresponde-3"></div>
+      <div class="niveles" role="radiogroup" aria-label="Nivel" id="niveles-3"></div>
+      <div class="pie-form"><span class="por-que" id="porque-3"></span><button class="btn btn-sec">Cancelar</button><button class="btn btn-primario" id="guardar-3">Guardar borrador</button></div>
+    </div></div></div>
+    <div class="ganas">
+      <div class="g" data-gp="a"><b>Ganas</b>Una sanción siempre es una decisión: nunca queda tomada por un valor que venía puesto.</div>
+      <div class="p" data-gp="a"><b>Pagas</b>Un clic más — y el botón espera hasta que elija.</div>
+      <div class="g" data-gp="b" hidden><b>Ganas</b>Más rápido.</div>
+      <div class="p" data-gp="b" hidden><b>Pagas</b>Viene marcado el máximo que permite el RIT y quien no lee lo deja así; el 52.10 pide la medida menos gravosa que baste.</div>
+      <div class="g" data-gp="c" hidden><b>Ganas</b>Arranca por la medida más suave (52.10).</div>
+      <div class="p" data-gp="c" hidden><b>Pagas</b>Ante una significativa, quien no mira emite una llamada verbal, que no es antecedente ni escalón (54.2).</div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════ 4 · EL FORMULARIO ENTERO ════════════════════════════ -->
+  <section class="decision">
+    <header>
+      <span class="num">Con las tres recomendadas</span>
+      <h2>El formulario entero</h2>
+      <p>Lo que vería Lucía, líder de equipo en Trujillo, al pulsar «Registrar una falta». Prueba elegir a Rocío: todavía no firmó la constancia del Reglamento.</p>
+    </header>
+    <div class="escenario"><div class="pantalla"><div class="cuerpo-app">
+      <div class="form">
+        <div class="campo">
+          <label for="f-persona">¿A quién?</label>
+          <select class="input" id="f-persona">
+            <option value="andrea">Andrea Torres · Asesora de ventas</option>
+            <option value="camila">Camila Flores · Asesora de ventas</option>
+            <option value="rocio">Rocío Mendoza · Atención al cliente</option>
+            <option value="valeria">Valeria Chávez · Caja</option>
+          </select>
+          <span class="ayuda">Solo integrantes de tu sede. A otra líder la amonesta Desarrollo Organizacional.</span>
+          <div class="aviso" id="f-constancia" hidden>Rocío todavía no firmó la constancia del Reglamento. Puedes guardar el borrador, pero no se podrá firmar hasta que DO se la recoja (RIT 60.5).</div>
+        </div>
+        <div class="campo">
+          <span class="lbl">¿Qué pasó?</span>
+          <div class="buscador">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input class="input" type="search" placeholder="Busca por palabra: teléfono, caja, clienta…" data-buscar="lista-f" aria-label="Buscar la falta">
+          </div>
+          <div class="lista-faltas" id="lista-f" role="radiogroup" aria-label="Faltas del Reglamento"></div>
+        </div>
+        <div class="fechas">
+          <div class="campo"><label for="f-hecho">¿Cuándo pasó?</label><input class="input" type="date" id="f-hecho"></div>
+          <div class="campo"><label for="f-supo">¿Cuándo te enteraste?</label><input class="input" type="date" id="f-supo"><span class="ayuda">Si lo viste tú, es el mismo día. Desde aquí corre el plazo para actuar (52.6).</span></div>
+        </div>
+        <div class="campo">
+          <label for="f-relato">Cuéntalo como se lo contarías a alguien que no estuvo</label>
+          <textarea class="input" id="f-relato" placeholder="Qué pasó, dónde, quién estaba. Es lo que ella va a leer."></textarea>
+          <span class="contador" id="f-contador">Faltan 20 letras</span>
+        </div>
+        <div class="corresponde" id="f-corresponde"><span class="tit">Lo que corresponde</span><span>Elige primero la falta.</span></div>
+        <div class="campo">
+          <span class="lbl">¿Qué vas a hacer?</span>
+          <div class="niveles" role="radiogroup" aria-label="Nivel" id="f-niveles"></div>
+        </div>
+        <div class="pie-form"><span class="por-que" id="f-porque"></span><button class="btn btn-sec">Cancelar</button><button class="btn btn-primario" id="f-guardar" disabled>Guardar borrador</button></div>
+        <p class="nota">Al guardar: queda en Borradores y le llega un aviso a la líder DO. Después, como hoy: comunicar, firmar y entregar en papel o por su Info.</p>
+      </div>
+    </div></div></div>
+  </section>
+
+  <!-- ════════════════════════════ 5 · LO QUE VE DO ════════════════════════════ -->
+  <section class="decision">
+    <header>
+      <span class="num">Ya decidido</span>
+      <h2>Lo que ve DO</h2>
+      <p>El aviso aparece en su Bandeja apenas se guarda el borrador, y se va cuando lo abre. Si no le parece, toma el caso; si después le parece bien, se lo devuelve a la líder.</p>
+    </header>
+    <div class="escenario"><div class="pantalla con-cajon">
+      <div class="barra-app"><span class="marca">Dynamic</span><span>Bandeja</span><span class="quien">Desarrollo Organizacional</span></div>
+      <div class="cuerpo-app">
+        <div class="fila"><div class="bandeja-item"><span class="punto" aria-label="Nuevo"></span><div><div class="q">Lucía Ramos registró una amonestación a Andrea Torres</div><div class="s">Trato descortés a una clienta (53.2 h) · Tienda Trujillo · hace 5 minutos</div></div></div><button class="btn btn-sec" data-abrir="cajon-do">Ver</button></div>
+        <div class="fila"><div class="bandeja-item"><div style="width:8px"></div><div><div class="q">2 contratos por firmar</div><div class="s">Contratos</div></div></div><button class="btn btn-sec">Ir</button></div>
+      </div>
+      <aside class="cajon" id="cajon-do" aria-label="El caso">
+        <div class="cab"><div><span class="mini-rotulo">Borrador · conducta</span><h4>Andrea Torres</h4></div><button class="x" data-cerrar="cajon-do" aria-label="Cerrar">×</button></div>
+        <div class="form">
+          <div class="elegida"><b>Falta · 53.2 h)</b>Tratar de forma descortés o desconsiderada a una clienta, a una compañera o a un tercero.</div>
+          <div class="elegida"><b>Lo que pasó · 2 de octubre</b>Le respondió de mala manera a una clienta que pedía un cambio de talla, delante de otras dos clientas.</div>
+          <div class="elegida"><b>Registró · nivel</b>Lucía Ramos · Amonestación escrita</div>
+          <div class="franja" id="do-estado">El caso lo lleva la líder. Si no te parece, tómalo: ella lo seguirá viendo pero no podrá modificarlo.</div>
+          <div class="campo" id="do-motivo-wrap" hidden><label for="do-motivo">¿Por qué lo tomas? Lo va a leer Lucía.</label><textarea class="input" id="do-motivo">El hecho fue en un día de inventario con la tienda cerrada; lo reviso con ella antes de seguir.</textarea></div>
+          <div class="pie-form"><button class="btn btn-sec" data-cerrar="cajon-do">Cerrar</button><button class="btn btn-primario" id="do-tomar">Tomar el caso</button></div>
+        </div>
+      </aside>
+    </div></div>
+  </section>
+
+  <footer class="fin">Prototipo para decidir la entrega 3. Personas y hechos ficticios; los textos de las faltas son los del RIT v4.0, art. 53.</footer>
+</div>
+
+<script>
+// Las 17 faltas que se registran a mano (RIT v4.0, art. 53). Los «cortos» solo
+// existen para la opción B de la decisión 2: son nuestros, no del Reglamento.
+const FALTAS = [
+  ["53.1","a","leve","Olvidó marcar","Omitir el registro de ingreso o de salida por olvido, cuando la jornada puede reconstruirse por otros medios, conforme al artículo 16."],
+  ["53.1","b","leve","Puesto desordenado","Descuido en el orden, la limpieza o la presentación del puesto de trabajo, del taller o de la sala de ventas."],
+  ["53.1","c","leve","Presentación personal","Presentarse a laborar sin observar el estándar de presentación personal del artículo 39."],
+  ["53.1","d","leve","Teléfono atendiendo","Usar el teléfono personal o las redes sociales durante la atención a una clienta, sin perjuicio para el servicio."],
+  ["53.1","e","leve","Datos sin actualizar","No mantener actualizados ante la Empresa los datos que esta necesita para la relación laboral: domicilio, teléfono, contacto de emergencia y cuenta de abono."],
+  ["53.1","f","leve","Se ausentó del puesto","Ausentarse del puesto dentro del centro de trabajo sin avisar a quien lidera el equipo, sin abandono del servicio."],
+  ["53.1","g","leve","Salió antes sin permiso","Retirarse antes de la hora de salida programada sin autorización, cuando el hecho no sea reiterado, en los términos del artículo 20."],
+  ["53.2","d","significativa","No marca, reiterado","Omitir de forma reiterada el registro de asistencia, o registrarlo de modo que impida medir la jornada efectivamente laborada."],
+  ["53.2","e","significativa","No siguió una instrucción","Incumplir sin causa razonable una instrucción lícita y expresa de quien lidera el equipo o de la encargada de sede, relacionada con el trabajo."],
+  ["53.2","f","significativa","Seguridad y salud","Incumplir las normas de seguridad y salud en el trabajo cuando no se produzca daño ni riesgo grave: no usar el equipo de protección personal, no reportar una condición insegura, no atender una instrucción de seguridad."],
+  ["53.2","g","significativa","Caja o inventario","Apartarse del procedimiento establecido para el manejo de caja, cobros, inventario, cierre de tienda o traslado de mercadería, incluido el faltante sin apropiación acreditada."],
+  ["53.2","h","significativa","Trato descortés","Tratar de forma descortés o desconsiderada a una clienta, a una compañera o a un tercero."],
+  ["53.2","i","significativa","Divulgó información","Divulgar dentro de la Empresa información reservada a quien no le corresponde conocerla, sin entregarla a terceros."],
+  ["53.2","j","significativa","Uso de bienes","Usar bienes, herramientas, sistemas o accesos de la Empresa para fines ajenos al trabajo, sin perjuicio económico."],
+  ["53.2","k","significativa","Faltó a capacitación","No asistir sin causa justificada a una capacitación obligatoria, en particular las de seguridad y salud en el trabajo y las de prevención del hostigamiento sexual."],
+  ["53.2","l","significativa","Conflicto de intereses","Omitir la comunicación de un conflicto de intereses, cuando no haya derivado en perjuicio ni en beneficio propio."],
+  ["53.2","m","significativa","No reportó un accidente","No comunicar un accidente o un incidente de trabajo del que se tuvo conocimiento."],
+];
+const sinTildes = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+// ── controles globales ──────────────────────────────────────────────────────
+$$("[data-dispositivo]").forEach(b => b.addEventListener("click", () => {
+  $$("[data-dispositivo]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  document.body.classList.toggle("celular", b.dataset.dispositivo === "celular");
+}));
+$$("[data-tema]").forEach(b => b.addEventListener("click", () => {
+  $$("[data-tema]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  if (b.dataset.tema) document.documentElement.dataset.theme = b.dataset.tema;
+  else delete document.documentElement.dataset.theme;
+}));
+
+// ── opciones de cada decisión ───────────────────────────────────────────────
+$$(".decision[data-decision]").forEach(sec => {
+  $$(".opcion", sec).forEach(op => op.addEventListener("click", () => {
+    $$(".opcion", sec).forEach(o => o.setAttribute("aria-selected", String(o === op)));
+    $$(".variante", sec).forEach(v => v.classList.toggle("activa", v.dataset.v === op.dataset.v));
+    $$("[data-gp]", sec).forEach(g => g.hidden = g.dataset.gp !== op.dataset.v);
+    if (sec.dataset.decision === "nivel") pintarNivel3();
+  }));
+});
+
+// ── cajones ─────────────────────────────────────────────────────────────────
+$$("[data-abrir]").forEach(b => b.addEventListener("click", () => $("#" + b.dataset.abrir).classList.add("abierto")));
+$$("[data-cerrar]").forEach(b => b.addEventListener("click", () => $("#" + b.dataset.cerrar).classList.remove("abierto")));
+
+// ── listas de faltas con buscador (decisión 2 A y formulario) ──────────────
+function pintarLista(id, alElegir) {
+  const cont = $("#" + id);
+  const grupos = [["leve", "Leves · 53.1 · como máximo amonestación"], ["significativa", "Significativas · 53.2"]];
+  cont.innerHTML = grupos.map(([g, rot]) => `
+    <div class="grupo-faltas" data-grupo="${g}"><h5>${rot}</h5>
+      ${FALTAS.filter(f => f[2] === g).map(f => `
+        <button type="button" class="falta" role="radio" aria-checked="false" data-k="${f[0]}.${f[1]}" data-busca="${sinTildes(f[4] + " " + f[3])}">
+          <span class="lit">${f[0]} ${f[1]})</span><span class="txt">${f[4]}</span></button>`).join("")}
+    </div>`).join("") + `<p class="vacio" hidden>Ninguna falta del Reglamento dice eso. Prueba con otra palabra — y si de verdad no está, no se puede sancionar (52.3).</p>`;
+  $$(".falta", cont).forEach(b => b.addEventListener("click", () => {
+    $$(".falta", cont).forEach(x => x.setAttribute("aria-checked", String(x === b)));
+    alElegir && alElegir(FALTAS.find(f => `${f[0]}.${f[1]}` === b.dataset.k));
+  }));
+}
+$$("[data-buscar]").forEach(inp => inp.addEventListener("input", () => {
+  const cont = $("#" + inp.dataset.buscar), q = sinTildes(inp.value.trim());
+  let visibles = 0;
+  $$(".falta", cont).forEach(b => { const ok = !q || b.dataset.busca.includes(q); b.hidden = !ok; if (ok) visibles++; });
+  $$(".grupo-faltas", cont).forEach(g => g.hidden = !$$(".falta", g).some(b => !b.hidden));
+  $(".vacio", cont).hidden = visibles > 0;
+}));
+pintarLista("lista-a");
+
+// ── decisión 2 B y C ────────────────────────────────────────────────────────
+function mostrarElegida(id, f) { $("#" + id).innerHTML = `<b>Lo que dirá el papel · ${f[0]} ${f[1]})</b>${f[4]}`; }
+[["chips-leve", "leve"], ["chips-sig", "significativa"]].forEach(([id, g]) => {
+  $("#" + id).innerHTML = FALTAS.filter(f => f[2] === g).map(f => `<button type="button" class="chip" role="radio" aria-checked="false" data-k="${f[0]}.${f[1]}">${f[3]}</button>`).join("");
+});
+$$(".chip").forEach(c => c.addEventListener("click", () => {
+  $$(".chip").forEach(x => x.setAttribute("aria-checked", String(x === c)));
+  mostrarElegida("elegida-b", FALTAS.find(f => `${f[0]}.${f[1]}` === c.dataset.k));
+}));
+$("#sel-c").insertAdjacentHTML("beforeend", FALTAS.map(f => `<option value="${f[0]}.${f[1]}">${f[0]} ${f[1]})</option>`).join(""));
+$("#sel-c").addEventListener("change", e => {
+  const f = FALTAS.find(x => `${x[0]}.${x[1]}` === e.target.value);
+  if (f) mostrarElegida("elegida-c", f); else $("#elegida-c").innerHTML = "<b>Lo que dirá el papel</b>Elige un literal.";
+});
+
+// ── lo que corresponde (misma lógica que fn_conducta_antecedentes, 0510) ───
+const NIVELES = [
+  ["verbal", "Llamada de atención verbal", "No es sanción y no agrava (54.2). Queda el acta en su legajo."],
+  ["amonestacion", "Amonestación escrita", "Queda 12 meses como antecedente desde que se le entrega (56.1)."],
+];
+function corresponde(gravedad, antecedente, leves) {
+  const items = [];
+  items.push(antecedente ? `<li>Tiene una <b>amonestación vigente por esta misma falta</b>, entregada el 14 de mayo.</li>` : `<li>Sin antecedentes vigentes por esta misma falta.</li>`);
+  items.push(`<li>Amonestaciones por faltas leves en los últimos 12 meses: <b>${leves} de 3</b>.</li>`);
+  let que, sugerido;
+  if (gravedad === "leve" && leves < 3) { que = "Falta leve: como máximo amonestación escrita. También puede bastar una llamada verbal, o ninguna medida (54.8)."; sugerido = "amonestacion"; }
+  else if (gravedad === "leve") { que = "Con tres amonestaciones leves en el año, esta cuenta como <b>falta significativa</b> (53.2 a): amonestación, o suspensión si DO la decide."; sugerido = "amonestacion"; }
+  else if (!antecedente) { que = "Falta significativa sin antecedente por la misma falta: amonestación escrita (54.8)."; sugerido = "amonestacion"; }
+  else { que = "Falta significativa con antecedente por la misma falta: amonestación escrita, o suspensión si DO la decide (54.8). La suspensión no la firma la líder."; sugerido = "amonestacion"; }
+  return { html: `<span class="tit">Lo que corresponde</span><ul>${items.join("")}</ul><span>${que}</span>`, sugerido };
+}
+function pintarNiveles(cont, marcado, sugerido, alElegir) {
+  cont.innerHTML = NIVELES.map(([v, t, d]) => `
+    <button type="button" class="nivel" role="radio" aria-checked="${v === marcado}" data-n="${v}">
+      ${v === sugerido && marcado === sugerido ? `<span class="pill pill-pizarra sugerido">Sugerido</span>` : ""}
+      <strong><span class="radio"></span>${t}</strong><span>${d}</span></button>`).join("");
+  $$(".nivel", cont).forEach(b => b.addEventListener("click", () => {
+    $$(".nivel", cont).forEach(x => x.setAttribute("aria-checked", String(x === b)));
+    alElegir && alElegir(b.dataset.n);
+  }));
+}
+
+// decisión 3
+const ESCENARIOS = { leve: ["leve", false, 1], sig: ["significativa", true, 0], cuarta: ["leve", false, 3] };
+let escenario = "leve";
+$$("[data-escenario]").forEach(b => b.addEventListener("click", () => {
+  $$("[data-escenario]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  escenario = b.dataset.escenario; pintarNivel3();
+}));
+function pintarNivel3() {
+  const v = $(".decision[data-decision=nivel] .opcion[aria-selected=true]").dataset.v;
+  const [g, a, l] = ESCENARIOS[escenario];
+  const c = corresponde(g, a, l);
+  $("#corresponde-3").innerHTML = c.html;
+  const marcado = v === "a" ? null : v === "b" ? c.sugerido : "verbal";
+  const btn = $("#guardar-3");
+  const actualizar = n => { btn.disabled = !n; $("#porque-3").textContent = n ? "" : "Elige qué vas a hacer para poder guardar."; };
+  pintarNiveles($("#niveles-3"), marcado, c.sugerido, actualizar);
+  actualizar(marcado);
+}
+pintarNivel3();
+
+// ── el formulario entero ────────────────────────────────────────────────────
+const hoy = new Date(Date.now() - 5 * 3600e3).toISOString().slice(0, 10); // Lima, para el prototipo
+$("#f-hecho").value = hoy; $("#f-supo").value = hoy; $("#f-hecho").max = hoy; $("#f-supo").max = hoy;
+const estado = { falta: null, nivel: null };
+const ANTECEDENTES = { andrea: [false, 1], camila: [true, 0], rocio: [false, 0], valeria: [false, 3] };
+function revisar() {
+  const relato = $("#f-relato").value.trim().length;
+  const faltan = Math.max(0, 20 - relato);
+  $("#f-contador").textContent = faltan ? `Faltan ${faltan} letras` : "✓";
+  const que = !estado.falta ? "Elige qué falta fue." : faltan ? "Cuenta qué pasó, con al menos una frase." : !estado.nivel ? "Elige qué vas a hacer." : "";
+  $("#f-porque").textContent = que;
+  $("#f-guardar").disabled = Boolean(que);
+}
+function repintarCorresponde() {
+  if (!estado.falta) return;
+  const [ant, leves] = ANTECEDENTES[$("#f-persona").value];
+  const c = corresponde(estado.falta[2], ant && estado.falta[2] === "significativa", leves);
+  $("#f-corresponde").innerHTML = c.html;
+}
+pintarLista("lista-f", f => { estado.falta = f; repintarCorresponde(); revisar(); });
+pintarNiveles($("#f-niveles"), null, null, n => { estado.nivel = n; revisar(); });
+$("#f-relato").addEventListener("input", revisar);
+$("#f-persona").addEventListener("change", e => { $("#f-constancia").hidden = e.target.value !== "rocio"; repintarCorresponde(); });
+revisar();
+
+// ── DO toma el caso ─────────────────────────────────────────────────────────
+// Un solo manejador y un estado: con la líder → escribiendo el motivo → tomado → devuelto.
+let pasoDO = "lider";
+$("#do-tomar").addEventListener("click", () => {
+  const wrap = $("#do-motivo-wrap"), btn = $("#do-tomar"), est = $("#do-estado");
+  if (pasoDO === "lider") { pasoDO = "motivo"; wrap.hidden = false; btn.textContent = "Confirmar: tomo el caso"; return; }
+  if (pasoDO === "motivo") {
+    pasoDO = "tomado"; wrap.hidden = true; btn.textContent = "Devolver a Lucía";
+    est.innerHTML = "<b>Tomaste el caso.</b> Lucía lo sigue viendo, con tu motivo, pero ya no puede modificarlo. Puedes devolvérselo cuando quieras.";
+    return;
+  }
+  if (pasoDO === "tomado") {
+    pasoDO = "devuelto"; btn.hidden = true;
+    est.textContent = "Le devolviste el caso a Lucía, con tu motivo. Vuelve a poder trabajarlo.";
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Normas › Constancias — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap">
+<!--
+  Prototipo (2026-10-20): cuatro retoques CHICOS a la parte de arriba de Normas › Constancias (la barra verde y las cifras por sede).
+  NO es código de la app ni toca ninguna base. Datos de la captura (17/17) y un caso con pendientes (14/19) para ver cómo se lee cuando falta gente.
+  Lo que NINGUNA variante cambia: el selector de documento, el buscador, los filtros de sede y estado, «Exportar CSV» y la tabla.
+  Qué se arregla: hoy la barra ocupa todo el ancho y no dice nada que no diga ya «17 / 17 recibidas»; y las cuatro cifras por sede son cajas
+  grandes y vacías que repiten lo mismo cuando todo está completo, sin distinguir entre «2/2» y «2/9».
+-->
+<style>
+  :root{--color-crema:#f5f0e8;--color-papel:#fbf8f2;--color-tinta:#1a1a18;--color-rojo:#b8412d;--color-rojo-profundo:#8b2a1f;--color-sand:#e8e0d0;--color-taupe:#805c4c;--color-hueso:#eae1d2;--color-pizarra:#4c5d6e;--color-verde:#48603f;--color-ambar:#74501a;--font-sans:'DM Sans',system-ui,sans-serif;--font-serif:'EB Garamond',Georgia,serif;color-scheme:light}
+  *{box-sizing:border-box} body{margin:0;background:var(--color-crema);color:var(--color-tinta);font:14.5px/1.5 var(--font-sans)}
+  h1,h2,h3{font-family:var(--font-serif);font-weight:500;margin:0} button,select{font:inherit;color:inherit;cursor:pointer} p{margin:0}
+  .proto{position:sticky;top:0;z-index:50;background:var(--color-papel);border-bottom:1px solid var(--color-sand);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+  .vbtn{border:1px solid var(--color-sand);background:var(--color-crema);border-radius:10px;padding:6px 11px;font-weight:600;font-size:.82rem;display:inline-flex;gap:7px;align-items:center}
+  .vbtn b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--color-hueso);color:var(--color-taupe);font-size:.76rem}
+  .vbtn[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}.vbtn[aria-pressed="true"] b{background:var(--color-crema);color:var(--color-tinta)}
+  .sub{display:flex;gap:6px;margin-left:12px;padding-left:12px;border-left:1px solid var(--color-sand)}
+  .lema{max-width:1180px;margin:10px auto 0;padding:0 16px;color:var(--color-taupe);font-size:.86rem}.lema strong{color:var(--color-tinta)}
+  .page{max-width:1180px;margin:0 auto;padding:14px 16px 80px}
+  .cab .sob{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-taupe);display:flex;gap:12px;align-items:center;margin-bottom:6px}.cab .sob::before{content:"";width:36px;height:1px;background:var(--color-taupe)}
+  .cab h1{font-size:1.75rem;line-height:1.15}.cab p{color:var(--color-taupe);font-size:.9rem;margin-top:3px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-sand);margin:14px 0}.tab{border:0;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 12px;color:var(--color-taupe)}.tab[aria-current]{border-color:var(--color-tinta);color:var(--color-tinta);font-weight:600}
+  .muted{color:var(--color-taupe);font-size:.8rem}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:999px;background:color-mix(in oklab,var(--c) 14%,var(--color-papel));color:var(--c)}.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+  .c-ok{--c:var(--color-verde)}.c-am{--c:var(--color-ambar)}.c-al{--c:var(--color-rojo-profundo)}
+  .campo{background:var(--color-hueso);border-radius:8px;padding:7px 12px;border:0}
+  .fil{border:1px solid var(--color-sand);background:var(--color-papel);border-radius:8px;padding:5px 11px;font-size:.8rem}
+  .card{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px}
+  .cifra{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;padding:10px 14px;text-align:left}.cifra.sel{background:var(--color-hueso);border-color:var(--color-taupe)}
+  .cifra .e{font-size:.75rem;color:var(--color-taupe);display:flex;gap:6px;align-items:center}.cifra .n{font-family:var(--font-serif);font-size:1.5rem;line-height:1.1}
+  .dot{width:8px;height:8px;border-radius:50%}.d-ok{background:var(--color-verde)}.d-am{background:var(--color-ambar)}.d-al{background:var(--color-rojo)}
+  .bar{height:6px;border-radius:4px;background:var(--color-sand);overflow:hidden;position:relative}.bar i{display:block;height:100%;background:var(--color-verde)}
+  .seg{display:flex;gap:3px;height:10px}.seg span{border-radius:3px;background:var(--color-sand);position:relative;overflow:hidden}.seg span i{position:absolute;inset:0 auto 0 0;background:var(--color-verde)}
+  .fila-k{display:grid;gap:10px}
+  table{width:100%;border-collapse:collapse;font-size:.86rem}th{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--color-taupe);text-align:left;padding:9px 14px;background:var(--color-hueso)}td{padding:8px 14px;border-top:1px solid var(--color-sand)}
+  .gris{opacity:.6}
+</style>
+</head>
+<body>
+<div class="proto">
+  <strong style="font-family:var(--font-serif);font-size:1rem">Constancias</strong>
+  <button class="vbtn" aria-pressed="true" data-v="0"><b>0</b>Hoy</button>
+  <button class="vbtn" aria-pressed="false" data-v="1"><b>A</b>Una barra por sedes</button>
+  <button class="vbtn" aria-pressed="false" data-v="2"><b>B</b>Cifras con barra</button>
+  <button class="vbtn" aria-pressed="false" data-v="3"><b>C</b>Total + sedes como filtros</button>
+  <button class="vbtn" aria-pressed="false" data-v="4"><b>D</b>Una línea</button>
+  <span class="sub"><button class="vbtn" aria-pressed="true" data-e="ok">Todo recibido · 17/17</button><button class="vbtn" aria-pressed="false" data-e="falta">Con pendientes · 14/19</button></span>
+</div>
+<p class="lema" id="lema"></p>
+<div class="page">
+  <header class="cab"><div class="sob">Publicaciones · Martes, 20 de octubre</div><h1>Normas</h1><p>Los documentos que rigen para todo el equipo. Aquí se leen, y aquí queda la constancia de que se recibieron.</p></header>
+  <div class="tabs"><button class="tab">Vigentes</button><button class="tab">Versiones</button><button class="tab" aria-current="page">Constancias</button></div>
+  <div class="muted" style="margin-bottom:4px">Documento</div>
+  <select class="campo" style="margin-bottom:14px"><option>REGLAMENTO INTERNO DE TRABAJO · 1.ª publicación en el sistema</option></select>
+  <div id="resumen"></div>
+  <div style="display:flex;gap:8px;margin:14px 0"><div class="campo" style="flex:1;color:var(--color-taupe)">🔍 Buscar persona…</div><select class="fil"><option>Sede · todas</option></select><select class="fil"><option>Estado · todos</option></select><button class="fil">Exportar CSV</button></div>
+  <div class="card" style="overflow:hidden"><table><thead><tr><th>Persona</th><th>Sede</th><th>Estado</th><th>Fecha</th></tr></thead><tbody id="filas"></tbody></table></div>
+</div>
+<script>
+const E={ok:{AQP:[2,2],CCO:[2,2],LIM:[2,2],TRU:[11,11]},falta:{AQP:[2,2],CCO:[1,2],LIM:[2,3],TRU:[9,12]}};
+const FILAS={ok:[["Elida Salinas","AQP","ok","10 de octubre de 2026, 10:03 a. m. · desde el sistema"],["Sandra Ramírez","AQP","ok","15 de agosto de 2026, 12:36 p. m. · desde el sistema"],["Felipe Alvarez","CCO","ok","11 de agosto de 2026, 07:17 p. m. · desde el sistema"],["Lizzelott Ramírez","CCO","ok","12 de agosto de 2026, 05:49 p. m. · desde el sistema"],["Joselyn Gavilan","LIM","ok","17 de agosto de 2026, 10:37 a. m. · desde el sistema"]],
+ falta:[["Lizzelott Ramírez","CCO","pen","—"],["Raquel Ticona","LIM","pen","—"],["Danitza Gutiérrez","TRU","pen","—"],["Elida Salinas","AQP","ok","10 de octubre de 2026, 10:03 a. m. · desde el sistema"],["Joselyn Gavilan","LIM","ok","17 de agosto de 2026, 10:37 a. m. · desde el sistema"]]};
+let v=0,e="ok",selS="";
+const tot=()=>Object.values(E[e]).reduce((a,[r,t])=>[a[0]+r,a[1]+t],[0,0]);
+const est=([r,t])=>r===t?"ok":r/t>=.75?"am":"al";
+function resumen(){
+ const [R,T]=tot(), pct=Math.round(R/T*100), S=E[e], faltan=T-R;
+ let h="";
+ if(v===0){ h=`<div style="font-size:.95rem;color:var(--color-taupe);margin-bottom:6px">${R} / ${T} recibidas</div><div style="height:10px;border-radius:6px;background:var(--color-sand);overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:var(--color-verde)"></i></div>
+   <div class="fila-k" style="grid-template-columns:repeat(4,1fr);margin-top:12px">${Object.entries(S).map(([k,[r,t]])=>`<div class="cifra"><div class="e">${k}</div><div class="n">${r}/${t}</div></div>`).join("")}</div>`; }
+ if(v===1){ h=`<div class="card" style="padding:14px 16px"><div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span class="n" style="font-family:var(--font-serif);font-size:2rem;line-height:1">${R}<span class="muted" style="font-family:var(--font-sans);font-size:1rem"> de ${T} recibidas</span></span>${faltan?`<span class="chip c-am">faltan ${faltan}</span>`:`<span class="chip c-ok">todo recibido</span>`}</div>
+   <div class="seg" style="margin-top:12px">${Object.entries(S).map(([k,[r,t]])=>`<span style="flex:${t}" title="${k} ${r}/${t}"><i style="width:${r/t*100}%"></i></span>`).join("")}</div>
+   <div style="display:flex;margin-top:6px;gap:3px">${Object.entries(S).map(([k,[r,t]])=>`<div style="flex:${t};min-width:0;font-size:.75rem" class="muted"><b style="color:var(--color-tinta)">${k}</b> ${r}/${t}</div>`).join("")}</div></div>`; }
+ if(v===2){ h=`<div class="fila-k" style="grid-template-columns:1.3fr repeat(4,1fr)"><div class="cifra" style="background:var(--color-hueso)"><div class="e">Recibidas</div><div class="n">${R}/${T}</div><div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div></div>
+   ${Object.entries(S).map(([k,[r,t]])=>{const s=est([r,t]);return `<div class="cifra"><div class="e"><span class="dot d-${s}"></span>${k}</div><div class="n">${r}/${t}</div><div class="bar" style="margin-top:6px"><i style="width:${r/t*100}%;${s!=="ok"?"background:var(--color-ambar)":""}"></i></div></div>`}).join("")}</div>`; }
+ if(v===3){ h=`<div class="fila-k" style="grid-template-columns:auto 1fr;align-items:center;gap:18px"><div class="card" style="display:flex;align-items:center;gap:14px;padding:12px 18px"><svg width="64" height="64" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--color-sand)" stroke-width="4"/><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--color-verde)" stroke-width="4" stroke-dasharray="${pct} ${100-pct}" stroke-dashoffset="25" stroke-linecap="round"/></svg><div><div class="n" style="font-family:var(--font-serif);font-size:1.7rem;line-height:1">${R}/${T}</div><div class="muted">recibidas · ${pct} %</div></div></div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="cifra ${selS===""?"sel":""}" data-s="" style="min-width:110px"><div class="e">Todas</div><div class="n">${T}</div></button>${Object.entries(S).map(([k,[r,t]])=>{const s=est([r,t]);return `<button class="cifra ${selS===k?"sel":""}" data-s="${k}" style="min-width:110px"><div class="e"><span class="dot d-${s}"></span>${k}</div><div class="n">${r}/${t}</div></button>`}).join("")}</div></div>`; }
+ if(v===4){ h=`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:10px 14px" class="card"><span style="font-family:var(--font-serif);font-size:1.5rem;line-height:1">${R}/${T}</span><span class="muted">recibidas</span><div class="bar" style="flex:1;min-width:140px;max-width:320px"><i style="width:${pct}%"></i></div><span style="display:flex;gap:6px;flex-wrap:wrap">${Object.entries(S).map(([k,[r,t]])=>{const s=est([r,t]);return `<span class="chip c-${s}">${k} ${r}/${t}</span>`}).join("")}</span></div>`; }
+ document.getElementById("resumen").innerHTML=h;
+ document.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{selS=b.dataset.s;pintar()});
+}
+function filas(){ document.getElementById("filas").innerHTML=FILAS[e].filter(f=>!selS||f[1]===selS).map(f=>`<tr><td>${f[0]}</td><td style="color:var(--color-taupe)">${f[1]}</td><td><span class="chip ${f[2]==="ok"?"c-ok":"c-am"}">${f[2]==="ok"?"Constancia registrada":"Pendiente"}</span></td><td class="muted">${f[3]}</td></tr>`).join(""); }
+const LEMAS=["<strong>Hoy</strong>: una barra de ancho completo que repite «17 / 17» y cuatro cajas grandes.","<strong>A · Una barra por sedes</strong>: la barra se parte en un tramo por sede (del ancho de su gente); se ve de un vistazo QUÉ sede falta, sin cajas aparte.","<strong>B · Cifras con barrita</strong>: las cuatro cajas se quedan pero más bajas, con una barrita propia y un punto de color: verde si está completa, ámbar si falta.","<strong>C · Total + sedes como filtros</strong>: un anillo con el total y las sedes como botones que filtran la tabla (como en Equipo y Horarios).","<strong>D · Una línea</strong>: todo en una sola franja baja; es lo que menos espacio ocupa."];
+function pintar(){ resumen(); filas(); document.getElementById("lema").innerHTML=LEMAS[v]; }
+document.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{v=+b.dataset.v;document.querySelectorAll("[data-v]").forEach(x=>x.setAttribute("aria-pressed",x===b));pintar()});
+document.querySelectorAll("[data-e]").forEach(b=>b.onclick=()=>{e=b.dataset.e;selS="";document.querySelectorAll("[data-e]").forEach(x=>x.setAttribute("aria-pressed",x===b));pintar()});
+pintar();
+</script>
+</body></html>

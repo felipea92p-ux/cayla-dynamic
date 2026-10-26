@@ -12,6 +12,13 @@ export interface RosterEntry {
   sedeNombre: string;
   /** Ruta en el bucket público «fotos-perfil» (0381), o ausente si nunca subió una. */
   fotoUrl?: string | null;
+  /**
+   * Días de prueba que lleva y cuánto dura la prueba (0539); ausentes o null si no está de prueba.
+   * Viajan en la misma fila para que se guarden en el dispositivo con el resto: sin red, la etiqueta
+   * «Prueba · 2 de 3» sale igual que con red (con los días de la última vez que hubo conexión).
+   */
+  pruebaDias?: number | null;
+  pruebaPlazo?: number | null;
 }
 
 export interface OutboxEntry {
@@ -148,11 +155,19 @@ export async function eliminarDeOutbox(clientUuid: string) {
   await db.delete("outbox", clientUuid);
 }
 
-export async function registrarIntentoFallido(clientUuid: string, error: string) {
+/**
+ * Anota un envío que falló. `cuentaParaElTope` es true solo si el servidor
+ * CONTESTÓ (`llego` de `enviarMarcaje`): el tope de seis apartaba marcas
+ * leyendo `intentos`, pero ese contador subía también con los cortes de red,
+ * así que cinco ticks sin internet dejaban la marca a un rechazo de ser
+ * apartada. Un fallo sin respuesta guarda el último error —para que Correcciones
+ * diga qué pasó— y no suma.
+ */
+export async function registrarIntentoFallido(clientUuid: string, error: string, cuentaParaElTope = true) {
   const db = await getDb();
   const entry = await db.get("outbox", clientUuid);
   if (entry) {
-    entry.intentos += 1;
+    if (cuentaParaElTope) entry.intentos += 1;
     entry.ultimoError = error;
     await db.put("outbox", entry);
   }

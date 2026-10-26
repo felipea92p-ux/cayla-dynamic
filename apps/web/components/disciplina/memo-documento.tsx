@@ -95,7 +95,8 @@ const INCISO_ART25: Record<string, string> = {
   conducta: "inciso a)",   // incumplimiento de obligaciones / buena fe laboral
 };
 
-export interface Hecho { fecha: string; minutos?: number }
+/** Un día citado. En la conducta (0510) hay uno solo, contado con palabras en `relato`. */
+export interface Hecho { fecha: string; minutos?: number; relato?: string }
 /** Una sanción anterior de la misma causal, para citarla en la imputación. */
 export interface Previa { correlativo: string | null; nivel: string; firmado_at: string | null; entregado_at: string | null }
 
@@ -107,6 +108,10 @@ export interface DocMemo {
   suspension_fechas: string[] | null;
   fecha_cese?: string | null;
   firmado_at: string | null; creado_at: string;
+  /** Conducta (0510): la falta del catálogo que se cita, con su texto del RIT,
+   *  y cuándo supo la empresa del hecho (52.6). */
+  falta?: { numeral: string; literal: string; texto: string; gravedad: string } | null;
+  conocido_el?: string | null;
 }
 /** Lo que el papel necesita de la persona. */
 export interface PersonaMemo { nombres: string; apellidos: string; documento: string | null; funcion: string }
@@ -118,8 +123,8 @@ function Cuerpo({ doc, previas }: { doc: DocMemo; previas: Previa[] }) {
     if (nivel === "amonestacion" && t === "tardanza") {
       return (
         <>
-          <p>El presente memorándum deja constancia de que, durante el mes de <strong>{mesDe(doc.periodo_desde)}</strong>, usted registró <strong>{n} tardanzas</strong>, superando el umbral b) del artículo 7 del Reglamento Interno de Trabajo de {EMPRESA.nombre} (tres o más tardanzas en un mismo mes calendario), según el detalle de las marcaciones que a continuación se indica.</p>
-          <p>Las tardanzas detalladas no han sido objeto de sanción disciplinaria previa. El descuento proporcional por el tiempo no laborado, de haberse aplicado en planilla, tiene naturaleza contraprestativa y es independiente de esta sanción; no la sustituye.</p>
+          <p>El presente memorándum deja constancia de que, durante el mes de <strong>{mesDe(doc.periodo_desde)}</strong>, usted registró <strong>{n} tardanzas</strong>, alcanzando el umbral del literal b) del numeral 19.2 del Reglamento Interno de Trabajo de {EMPRESA.nombre} (tres tardanzas en un mismo periodo mensual calendario, sin antecedente vigente por la misma causa), según el detalle de las marcaciones que a continuación se indica.</p>
+          <p>Las tardanzas reiteradas constituyen falta conforme al literal b) del numeral 53.2 del RIT. Las tardanzas detalladas no han sido objeto de sanción disciplinaria previa. El descuento proporcional por el tiempo no laborado, de haberse aplicado en planilla, tiene naturaleza contraprestativa y es independiente de esta sanción; no la sustituye.</p>
           <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, que se incorpora a su legajo como antecedente disciplinario con vigencia de doce (12) meses desde su notificación (numeral 56.1 del RIT). Se le exhorta a corregir su puntualidad. La reincidencia dará lugar a <strong>suspensión sin goce de haber</strong> conforme al literal c) del numeral 19.2 del RIT.</p>
         </>
       );
@@ -128,8 +133,8 @@ function Cuerpo({ doc, previas }: { doc: DocMemo; previas: Previa[] }) {
       return (
         <>
           <p>El presente memorándum deja constancia de que, correspondiéndole laborar en la(s) fecha(s) que se detalla(n), usted <strong>no concurrió al centro de trabajo ni registró marca alguna</strong> en el sistema de control de asistencia, sin que exista justificación aceptada dentro del plazo previsto en el numeral 20.4 del RIT.</p>
-          <p>La inasistencia injustificada constituye falta conforme al literal c) del numeral 53.2 del RIT y contraviene el deber de asistencia y puntualidad (artículo 20 del RIT). El descuento del día no laborado y de la parte proporcional del descanso semanal es independiente de esta sanción.</p>
-          <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, incorporada a su legajo por doce (12) meses (numeral 56.1 del RIT). Una nueva inasistencia injustificada dará lugar a <strong>suspensión sin goce de haber</strong> (artículo 8.3-b), y la acumulación de ausencias puede configurar causal de despido conforme al artículo 25-h de la LPCL.</p>
+          <p>La inasistencia injustificada constituye falta conforme al literal c) del numeral 53.2 del RIT, con la gradación del literal a) del numeral 21.2, y contraviene el deber de asistencia y puntualidad (artículo 20 del RIT). El descuento del día no laborado y de la parte proporcional del descanso semanal es independiente de esta sanción.</p>
+          <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, incorporada a su legajo por doce (12) meses (numeral 56.1 del RIT). Una nueva inasistencia injustificada dará lugar a <strong>suspensión sin goce de haber</strong> (literal b) del numeral 21.2 del RIT), y la acumulación de ausencias puede configurar causal de despido conforme al artículo 25-h de la LPCL.</p>
         </>
       );
     }
@@ -200,6 +205,42 @@ function Cuerpo({ doc, previas }: { doc: DocMemo; previas: Previa[] }) {
               ? <>, con fecha de cese el <strong>{fechaLarga(doc.fecha_cese)}</strong></>
               : <span className="text-rojo"> [FALTA LA FECHA DE CESE — el art. 32 la exige; fíjala en el borrador antes de firmar]</span>}
             . Se procederá a la liquidación de sus beneficios sociales y a la entrega del certificado de trabajo.
+          </p>
+        </>
+      );
+    }
+    // ── Conducta (0510): una falta del artículo 53, un hecho contado con
+    // palabras. Sigue los Modelos 1 y 4 del Manual de procedimiento
+    // disciplinario: hecho, fecha en que se supo (52.6), norma con numeral y
+    // literal (55.3) y, en el acta, que no es sanción (54.2).
+    if (t === "conducta" && (nivel === "amonestacion" || nivel === "verbal")) {
+      const hecho = doc.hechos?.[0];
+      const cuando = hecho ? <strong>{fechaLarga(hecho.fecha)}</strong> : "la fecha indicada";
+      const supo = doc.conocido_el ? <>, del que {EMPRESA.nombre} tomó conocimiento el {fechaLarga(doc.conocido_el)}</> : null;
+      // Sin artículo delante: cada frase pone el suyo («conforme AL literal…»,
+      // «previsto EN EL literal…»). El texto del RIT termina en punto; se cita
+      // sin él para no cerrar la frase dos veces.
+      const norma = doc.falta
+        ? <>literal {doc.falta.literal}) del numeral {doc.falta.numeral} del RIT</>
+        : null;
+      const textoRit = doc.falta ? <>: «{doc.falta.texto.replace(/\.\s*$/, "")}»</> : null;
+      if (nivel === "verbal") {
+        return (
+          <>
+            <p>Se deja constancia de la conversación sostenida con usted sobre el hecho del {cuando} que se describe a continuación{supo}.</p>
+            <p>El hecho se refiere a lo previsto en {norma ? <>el <strong>{norma}</strong>{textoRit}</> : "el Reglamento Interno de Trabajo, en los términos que constan en su expediente"}.</p>
+            <p>Conforme al numeral 54.2 del RIT, <strong>esta acta no es una sanción disciplinaria</strong>: no es escalón de la escala de sanciones, no produce efecto agravante y no es sanción previa para los efectos del inciso h) del artículo 25 de la LPCL. Se le entrega copia y se archiva en su legajo.</p>
+          </>
+        );
+      }
+      return (
+        <>
+          <p>El presente memorándum deja constancia de que el {cuando} usted incurrió en el hecho que se describe a continuación{supo}.</p>
+          <p>Este hecho constituye falta{doc.falta ? ` ${doc.falta.gravedad}` : ""} conforme {norma ? <>al <strong>{norma}</strong>{textoRit}</> : "al Reglamento Interno de Trabajo, en los términos que constan en su expediente"}.</p>
+          <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, que se incorpora a su legajo como antecedente disciplinario con vigencia de doce (12) meses desde su notificación (numeral 56.1 del RIT).{" "}
+            {doc.falta?.gravedad === "leve"
+              ? <>Se le advierte que, con tres amonestaciones escritas por faltas leves dentro de doce meses, la siguiente falta leve se califica como falta significativa (literal a) del numeral 53.2 del RIT).</>
+              : <>Se le advierte que, de reiterarse la misma conducta dentro de ese plazo, la sanción siguiente en la escala es la <strong>suspensión sin goce de haber</strong> (numeral 54.8 del RIT).</>}
           </p>
         </>
       );
@@ -284,7 +325,15 @@ export function MemoDocumento({
         <h2 className="font-serif">Asunto: {TITULO[doc.nivel]} por {CAUSAL[doc.tipo_causal]}</h2>
         <div className="mt-3"><Cuerpo doc={doc} previas={previas} /></div>
 
-        {n > 0 && (
+        {/* La conducta no tiene marcaciones: su hecho es el relato de quien lo vio. */}
+        {doc.tipo_causal === "conducta" ? (
+          doc.hechos?.[0]?.relato ? (
+            <div className="my-4 border-l-2 border-sand pl-3 text-[12px]">
+              <p className="text-taupe">Hecho · {fechaCorta(doc.hechos[0].fecha)}</p>
+              <p className="whitespace-pre-line">{doc.hechos[0].relato}</p>
+            </div>
+          ) : null
+        ) : n > 0 && (
           <table className="my-4 w-full border-collapse text-[12px]">
             <thead>
               <tr className="border-b text-left text-taupe">

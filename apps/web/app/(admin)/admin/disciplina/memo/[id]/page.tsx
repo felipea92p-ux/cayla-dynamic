@@ -50,6 +50,9 @@ interface Doc {
   /** Cómo se entregó y cuándo (0486): con `digital`, el papel lleva el recibido de la persona. */
   medio_entrega: string | null;
   entregado_at: string | null;
+  falta_rit_version?: number | null; falta_numeral?: string | null; falta_literal?: string | null;
+  conocido_el?: string | null;
+  falta?: { numeral: string; literal: string; texto: string; gravedad: string } | null;
 }
 interface Persona { nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; rol: string }
 
@@ -80,6 +83,7 @@ export default function MemoPage() {
   // El mapeo, verificado uno por uno contra docs/reglamento-interno-de-trabajo.md:
   //   14.4 → 56.1   vigencia de doce meses del antecedente
   //   14.2 → 54.5   límites de la suspensión sin goce
+  //    7 b) → 19.2 b)  umbral de la amonestación por tardanzas
   //    7 c) → 19.2 c)  primera suspensión por tardanzas
   //   8.3-a → 53.2 c)  la inasistencia injustificada como falta
   //   8.3-b → 21.2 b)  segundo umbral de inasistencias
@@ -87,6 +91,11 @@ export default function MemoPage() {
   //   13-c → art. 20  inasistencias
   //
   // Si mañana sale una versión 5.0, esto se revisa ANTES de emitir nada.
+  //
+  // Y esta tabla no bastó: el texto vive en `components/disciplina/memo-documento.tsx`
+  // y dos citas —7 b) y 8.3-b— siguieron impresas en la v3 hasta el 2026-10-06.
+  // Desde entonces lo vigila `tests/memo-citas-rit.test.ts`, que contrasta cada
+  // cita del memo con `docs/reglamento-interno-de-trabajo.md`.
 
   const [previas, setPrevias] = useState<Previa[]>([]);
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
@@ -121,10 +130,17 @@ export default function MemoPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const { data: d, error: eD } = await supabase.from("expediente_disciplinario")
-      .select("id, correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, firmante_id, firmado_at, creado_at, firma_sancionado, firma_sancionado_confirmada_at, sancionado_rechazo_firma_at, medio_entrega, entregado_at")
+      .select("id, correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, firmante_id, firmado_at, creado_at, firma_sancionado, firma_sancionado_confirmada_at, sancionado_rechazo_firma_at, medio_entrega, entregado_at, falta_rit_version, falta_numeral, falta_literal, conocido_el")
       .eq("id", id).maybeSingle();
     if (eD || !d) { setErr("No se encontró el documento (o no tienes permiso para verlo)."); setCargando(false); return; }
     const doc = d as unknown as Doc;
+    // Conducta (0510): el texto de la falta sale del catálogo, en la versión
+    // del RIT que el documento cita — no en la vigente hoy.
+    if (doc.tipo_causal === "conducta" && doc.falta_numeral && doc.falta_literal) {
+      const { data: f } = await supabase.from("faltas_catalogo").select("numeral, literal, texto, gravedad")
+        .eq("rit_version", doc.falta_rit_version ?? 0).eq("numeral", doc.falta_numeral).eq("literal", doc.falta_literal).maybeSingle();
+      doc.falta = (f as Doc["falta"]) ?? null;
+    }
     setDoc(doc);
     const ids = [doc.persona_id, doc.firmante_id].filter((x): x is string => Boolean(x));
     // Las áreas se piden a la BASE, no a una lista escrita acá: el catálogo se

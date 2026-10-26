@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   dowDe, horarioVigente, esperadoDelDia, fechasDelRango, estadoDelDia, esTurnoEspejoViejo,
+  esJornadaEnCurso, cuentaEnLoQueLeTocaba,
   diaDeLaSede, diaDeLaSedeDe, esFeriadoSinTurno, SEDE_SIN_TURNOS,
   type HorarioTramo, type Esperado, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
@@ -315,6 +316,62 @@ describe("estadoDelDia — los falsos positivos, que son el peor error", () => {
 
   it("marcó cero horas y no hay falta: queda sin marcar, no como jornada cumplida", () => {
     expect(dia({ jornada: { horas: 0, minutosTarde: 0, estado: "cerrada" } })).toBe("sin_marca");
+  });
+});
+
+// ----------------------------------------------------------------------------
+// HOY, mientras el día no termina. El 2026-09-26 a las 12:03 Desempeño decía
+// «Por revisar 6 — marcajes sin cerrar»: eran las seis personas de TRU que
+// estaban en su turno. Y a cada una le cargaba ya las horas de hoy en «lo que
+// le tocaba» contra cero horas trabajadas. Dos falsos positivos del mismo día.
+// ----------------------------------------------------------------------------
+describe("esJornadaEnCurso — hoy abierta es trabajar, ayer abierta es un marcaje roto", () => {
+  const HOY = "2026-09-26";
+
+  it("hoy, abierta o en pausa: está trabajando", () => {
+    expect(esJornadaEnCurso(HOY, HOY, "abierta")).toBe(true);
+    expect(esJornadaEnCurso(HOY, HOY, "en_pausa")).toBe(true);
+  });
+
+  it("ayer abierta sigue siendo un marcaje sin cerrar: se fue sin marcar la salida", () => {
+    expect(esJornadaEnCurso("2026-09-25", HOY, "abierta")).toBe(false);
+  });
+
+  it("hoy, pero ya cerrada o cerrada por el sistema: no está en curso", () => {
+    expect(esJornadaEnCurso(HOY, HOY, "cerrada")).toBe(false);
+    expect(esJornadaEnCurso(HOY, HOY, "auto_cerrada_pendiente")).toBe(false);
+    expect(esJornadaEnCurso(HOY, HOY, null)).toBe(false);
+  });
+
+  it("estadoDelDia la sigue llamando «revisar»: la excepción la aplica quien pinta, con esta función", () => {
+    const j = { horas: null, minutosTarde: 0, estado: "abierta" };
+    expect(dia({ fecha: HOY, hoy: HOY, jornada: j })).toBe("revisar");
+    expect(esJornadaEnCurso(HOY, HOY, j.estado)).toBe(true);
+  });
+});
+
+describe("cuentaEnLoQueLeTocaba — hoy entra a la vez que sus horas, no antes", () => {
+  const HOY = "2026-09-26";
+  const abierta = { horas: null, minutosTarde: 0, estado: "abierta" };
+  const cerrada = { horas: 7.5, minutosTarde: 0, estado: "cerrada" };
+
+  it("un día pasado siempre cuenta, haya marcado o no", () => {
+    expect(cuentaEnLoQueLeTocaba("2026-09-25", HOY, null)).toBe(true);
+    expect(cuentaEnLoQueLeTocaba("2026-09-25", HOY, abierta)).toBe(true);
+  });
+
+  it("un día futuro nunca", () => {
+    expect(cuentaEnLoQueLeTocaba("2026-09-27", HOY, null)).toBe(false);
+  });
+
+  it("hoy, todavía sin marcar o en su jornada: no — el caso de Pamela, «40.4 / 45.0» a mediodía", () => {
+    expect(cuentaEnLoQueLeTocaba(HOY, HOY, null)).toBe(false);
+    expect(cuentaEnLoQueLeTocaba(HOY, HOY, abierta)).toBe(false);
+    expect(cuentaEnLoQueLeTocaba(HOY, HOY, { ...abierta, estado: "en_pausa" })).toBe(false);
+  });
+
+  it("hoy, ya cerrada con horas: sí, porque sus horas ya entraron abajo", () => {
+    expect(cuentaEnLoQueLeTocaba(HOY, HOY, cerrada)).toBe(true);
   });
 });
 

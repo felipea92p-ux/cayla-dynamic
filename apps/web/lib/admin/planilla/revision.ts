@@ -64,6 +64,10 @@ export interface Totales {
   pago_base: number;
   feriados: number;
   asignacion: number;
+  /** Movilidad por asistencia y asignación por educación: conceptos propios del
+   *  total (0110 / 0120), que la tabla de Planilla muestra en su columna. */
+  movilidad: number;
+  educacion: number;
   bonos: number;
   descuentos: number;
   /** Lo que se transfiere a las personas. */
@@ -82,7 +86,8 @@ export interface Totales {
 
 export function sumarFilas(filas: Fila[]): Totales {
   const t: Totales = {
-    personas: filas.length, horas: 0, pago_base: 0, feriados: 0, asignacion: 0, bonos: 0, descuentos: 0,
+    personas: filas.length, horas: 0, pago_base: 0, feriados: 0, asignacion: 0, movilidad: 0, educacion: 0,
+    bonos: 0, descuentos: 0,
     total: 0, pension: 0, essalud: 0, retencion_4ta: 0, sale_del_banco: 0,
     provision_gratificacion: 0, provision_cts: 0, provision_vacaciones: 0, provision_total: 0,
   };
@@ -91,6 +96,10 @@ export function sumarFilas(filas: Fila[]): Totales {
     t.pago_base += f.pago_base;
     t.feriados += f.monto_feriados;
     t.asignacion += f.asignacion_familiar;
+    // Opcionales (`?? 0`) por lo mismo que pensión y EsSalud: una base sin la
+    // 0110 o la 0120 pegadas no manda la clave, y `undefined` sumaría «NaN».
+    t.movilidad += f.monto_movilidad ?? 0;
+    t.educacion += f.monto_educacion ?? 0;
     t.bonos += f.bonos;
     t.descuentos += f.descuentos;
     t.total += f.total;

@@ -1,0 +1,1158 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contratos — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<!--
+  Prototipo de «Contratos» (/admin/contratos), 2026-10-19. Tres formas de leer la misma pantalla.
+
+  NO es código de la app y no toca ninguna base. Datos ficticios (nombres y montos inventados; sin DNI).
+  «Hoy» es el lunes 19 de octubre de 2026.
+
+  Lo que NO cambia en ninguna variante (reglas de CLAUDE.md, de permisos.ts y de las migraciones):
+    · quién entra: solo DO y dirección (puedeGestionarContratos = admin + lider_do; RLS contratos_lectura);
+      la líder de equipo no ve esta pantalla, solo su propio contrato en «Lo mío»;
+    · el art. 77 (fn_contratos_desnaturalizados, 0231): quien marca DESPUÉS de la fecha de fin de su contrato
+      a plazo queda como indefinido por ley. Se detecta con los marcajes; el sistema avisa, nunca decide;
+    · «firmado» = fecha_firma (0430): la integrante confirma su firma en /mio/contrato, o DO sube el escaneo;
+      un escaneo posterior NO mueve la fecha de firma;
+    · un borrador se corrige en su sitio (fn_contrato_editar); uno firmado no se edita nunca: se anula o se
+      modifica con un adendum; anular exige motivo y no borra;
+    · un borrador por tipo y persona, y sin periodos que se pisen (0388): lo hace cumplir la base;
+    · la copia al colaborador (cláusula décima octava) se anota con fecha; el MTPE ya no es trámite (0470);
+    · el generador (5 pasos, ~25 candados, texto de contrato-texto.ts) queda tal cual: es otra pantalla.
+  Colores: tokens de globals.css, claro y oscuro. Ningún estado va solo en color: lleva ícono y palabra.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18;
+    --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f; --color-sand:#e8e0d0; --color-taupe:#805c4c;
+    --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-azul:#2f5f9e; --color-ceniza:#635f58;
+    --font-sans:'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-serif:'EB Garamond', ui-serif, Georgia, "Times New Roman", serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+      --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080;
+      --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+      --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+    --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080;
+    --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+    color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; max-width:100%; }
+  body{ background:var(--color-crema); color:var(--color-tinta); font-family:var(--font-sans); font-size:14.5px; line-height:1.5; }
+  h1,h2,h3,h4{ font-family:var(--font-serif); font-weight:600; margin:0; text-wrap:balance; }
+  p{ margin:0; }
+  button,input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
+  button{ cursor:pointer; }
+  :focus-visible{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+  .oculto{ display:none !important; }
+  .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  svg.i{ width:1em; height:1em; flex:none; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vertical-align:-.12em; }
+
+  /* ── barra del prototipo (no es parte de la pantalla) ── */
+  .proto{ position:sticky; top:0; z-index:50; background:var(--color-papel); border-bottom:1px solid var(--color-sand); padding:8px 16px; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
+  .proto .vars{ display:flex; flex-wrap:wrap; gap:6px; }
+  .vbtn{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:10px; padding:6px 11px; font-weight:600; font-size:.82rem; display:inline-flex; gap:7px; align-items:center; }
+  .vbtn b{ display:inline-grid; place-items:center; width:20px; height:20px; border-radius:6px; background:var(--color-hueso); color:var(--color-taupe); font-size:.76rem; }
+  .vbtn[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); border-color:var(--color-tinta); }
+  .vbtn[aria-pressed="true"] b{ background:var(--color-crema); color:var(--color-tinta); }
+  .vbtn small{ font-weight:500; opacity:.8; }
+  .ctlbox{ display:contents; }
+  .ctlbox > summary{ display:none; }
+  .proto .ctl{ display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; margin-left:auto; font-size:.78rem; color:var(--color-taupe); }
+  .proto label{ display:inline-flex; gap:6px; align-items:center; }
+  .proto select{ background:var(--color-hueso); border:1px solid var(--color-sand); border-radius:8px; padding:4px 8px; max-width:100%; }
+  .demo-badge{ font-size:.7rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-pizarra) 30%, transparent); border-radius:999px; padding:3px 10px; }
+  .lema{ padding:10px 16px 0; max-width:1240px; margin-inline:auto; color:var(--color-taupe); font-size:.84rem; }
+  .lema strong{ color:var(--color-tinta); }
+
+  /* ── la pantalla ── */
+  .page{ max-width:1240px; margin-inline:auto; padding:18px 16px 80px; display:flex; flex-direction:column; gap:14px; }
+  .cab{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px 18px; align-items:flex-start; }
+  .cab .sobre{ display:flex; align-items:center; gap:14px; font-size:.72rem; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--color-taupe); margin-bottom:6px; }
+  .cab .sobre::before{ content:""; width:36px; height:1px; background:var(--color-taupe); flex:none; }
+  .cab h1{ font-size:1.75rem; font-weight:500; line-height:1.15; letter-spacing:-.01em; }
+  .cab .desc{ color:var(--color-taupe); margin-top:4px; font-size:.9rem; max-width:44rem; }
+  .ayb{ margin:-6px 0 -6px 2px; width:32px; height:32px; flex:none; border:0; background:none; border-radius:999px; color:var(--color-taupe); display:inline-grid; place-items:center; font-size:1.25rem; vertical-align:middle; }
+  .ayb:hover{ background:color-mix(in oklab, var(--color-sand) 60%, transparent); color:var(--color-tinta); }
+  .acciones{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .btn{ border:1px solid var(--color-tinta); background:var(--color-tinta); color:var(--color-crema); border-radius:8px; padding:7px 13px; font-weight:600; font-size:.84rem; min-height:36px; display:inline-flex; align-items:center; justify-content:center; gap:6px; text-decoration:none; }
+  .btn.sec{ background:transparent; color:var(--color-tinta); border-color:var(--color-taupe); }
+  .btn.sutil{ background:transparent; border-color:transparent; color:var(--color-taupe); }
+  .btn.peligro{ background:transparent; color:var(--color-rojo-profundo); border-color:color-mix(in oklab, var(--color-rojo) 50%, var(--color-sand)); }
+  .btn.fino{ min-height:30px; padding:4px 10px; font-size:.78rem; }
+  .btn[disabled]{ opacity:.4; cursor:not-allowed; }
+  .bi{ width:32px; height:32px; border-radius:8px; border:1px solid var(--color-sand); background:var(--color-papel); color:var(--color-taupe); display:inline-grid; place-items:center; flex:none; }
+  .bi:hover{ border-color:var(--color-taupe); color:var(--color-tinta); }
+  .ins{ display:inline-flex; align-items:center; gap:5px; font-size:.7rem; font-weight:600; padding:2px 8px; border-radius:100px; white-space:nowrap; }
+  .ins.adv{ color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 15%, var(--color-papel)); }
+  .ins.alerta{ color:var(--color-rojo-profundo); background:color-mix(in oklab, var(--color-rojo) 10%, var(--color-papel)); }
+  .ins.neutro{ color:var(--color-ceniza); background:color-mix(in oklab, var(--color-ceniza) 12%, var(--color-papel)); }
+  .ins.ok{ color:var(--color-verde); background:color-mix(in oklab, var(--color-verde) 15%, var(--color-papel)); }
+  .ins.info{ color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 15%, var(--color-papel)); }
+  .muted{ color:var(--color-taupe); }
+  .dot{ display:inline-block; width:9px; height:9px; border-radius:50%; flex:none; }
+  .dot.ok{ background:var(--color-verde); } .dot.falta{ background:var(--color-rojo); } .dot.warn{ background:var(--color-ambar); } .dot.neutro{ background:var(--color-ceniza); } .dot.info{ background:var(--color-pizarra); }
+  .rel{ display:inline-flex; gap:6px; align-items:center; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  /* Para atender */
+  .atender{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .atender .rot{ font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--color-taupe); }
+  .atender .nada{ font-size:.86rem; color:var(--color-verde); display:inline-flex; gap:6px; align-items:center; }
+  .pa{ display:inline-flex; align-items:center; gap:6px; border-radius:999px; border:1px solid; padding:5px 12px; font-size:.78rem; font-weight:600; font-variant-numeric:tabular-nums; background:var(--color-papel); }
+  .pa.rojo{ border-color:color-mix(in oklab, var(--color-rojo) 30%, transparent); background:color-mix(in oklab, var(--color-rojo) 10%, var(--color-papel)); color:var(--color-rojo-profundo); }
+  .pa.ambar{ border-color:color-mix(in oklab, var(--color-ambar) 40%, transparent); background:color-mix(in oklab, var(--color-ambar) 15%, var(--color-papel)); color:var(--color-ambar); }
+  .pa.pizarra{ border-color:color-mix(in oklab, var(--color-pizarra) 40%, transparent); background:color-mix(in oklab, var(--color-pizarra) 12%, var(--color-papel)); color:var(--color-pizarra); }
+  .pa[aria-pressed="true"]{ box-shadow:0 0 0 2px var(--color-tinta); }
+
+  /* buscador, Filtros y pestañas */
+  .barra{ display:flex; gap:8px; align-items:center; position:relative; flex-wrap:wrap; }
+  .busca{ flex:1 1 220px; max-width:380px; display:flex; align-items:center; gap:8px; background:var(--color-hueso); border:1px solid var(--color-taupe); border-radius:8px; padding:0 10px; min-height:38px; color:var(--color-taupe); }
+  .busca input{ flex:1; min-width:0; border:0; background:none; outline:0; padding:8px 0; color:var(--color-tinta); }
+  .busca:focus-within{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+  .btn-filtros b{ background:var(--color-tinta); color:var(--color-crema); border-radius:100px; min-width:18px; height:18px; display:inline-grid; place-items:center; font-size:.7rem; padding:0 5px; }
+  .pop{ position:absolute; top:44px; left:0; z-index:20; width:min(320px,100%); background:var(--color-papel); border:1px solid var(--color-sand); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.18); padding:14px; display:flex; flex-direction:column; gap:12px; }
+  .pop label.f{ display:flex; flex-direction:column; gap:4px; font-size:.8rem; color:var(--color-taupe); }
+  .pop select, .fld select, .fld input, .fld textarea{ background:var(--color-papel); border:1px solid var(--color-taupe); border-radius:8px; padding:8px 10px; min-height:38px; color:var(--color-tinta); width:100%; }
+  .fld textarea{ resize:vertical; }
+  .tabs{ display:flex; gap:2px; border-bottom:1px solid var(--color-sand); overflow-x:auto; }
+  .tab{ border:0; background:none; border-bottom:2px solid transparent; padding:9px 12px; font-size:.88rem; color:var(--color-taupe); white-space:nowrap; margin-bottom:-1px; }
+  .tab b{ margin-left:6px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .tab:hover{ color:var(--color-tinta); }
+  .tab[aria-current="page"]{ color:var(--color-tinta); font-weight:600; border-bottom-color:var(--color-tinta); }
+  .conteo{ margin-left:auto; font-size:.78rem; color:var(--color-taupe); font-variant-numeric:tabular-nums; }
+
+  /* avisos, estados vacíos */
+  .aviso{ border-radius:12px; border:1px solid; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
+  .aviso.rojo{ border-color:color-mix(in oklab, var(--color-rojo) 30%, transparent); background:color-mix(in oklab, var(--color-rojo) 6%, var(--color-papel)); }
+  .aviso.ambar{ border-color:color-mix(in oklab, var(--color-ambar) 40%, transparent); background:color-mix(in oklab, var(--color-ambar) 7%, var(--color-papel)); }
+  .aviso .tit{ font-weight:700; display:flex; gap:7px; align-items:flex-start; }
+  .aviso .tit svg{ margin-top:.25em; }
+  .aviso.rojo .tit{ color:var(--color-rojo-profundo); } .aviso.ambar .tit{ color:var(--color-ambar); }
+  .aviso .acc{ display:flex; flex-wrap:wrap; gap:6px; }
+  .aviso ul{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:3px; }
+  .enlinea{ display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; border-radius:8px; border:1px solid color-mix(in oklab, var(--color-ambar) 40%, transparent); background:color-mix(in oklab, var(--color-ambar) 8%, var(--color-papel)); padding:7px 11px; font-size:.84rem; color:var(--color-ambar); }
+  .enlinea.info{ border-color:color-mix(in oklab, var(--color-pizarra) 40%, transparent); background:color-mix(in oklab, var(--color-pizarra) 8%, var(--color-papel)); color:var(--color-pizarra); }
+  .vacio{ border:1px dashed var(--color-taupe); border-radius:16px; padding:36px 20px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; background:var(--color-papel); }
+  .vacio h3{ font-size:1.2rem; } .vacio p{ color:var(--color-taupe); max-width:34rem; }
+  .esq{ border:1px solid var(--color-sand); border-radius:14px; background:var(--color-papel); }
+  .esq i{ display:block; height:48px; border-top:1px solid var(--color-sand); position:relative; overflow:hidden; }
+  .esq i:first-child{ border-top:0; }
+  .esq i::after{ content:""; position:absolute; left:16px; top:16px; height:14px; width:30%; border-radius:6px; background:var(--color-sand); }
+
+  /* avatar */
+  .av{ width:34px; height:34px; border-radius:50%; flex:none; display:grid; place-items:center; font-family:var(--font-serif); font-size:1.1rem; font-weight:600; color:var(--color-rojo-profundo); background:color-mix(in oklab, var(--color-rojo) 12%, var(--color-papel)); }
+  .av.g{ width:48px; height:48px; font-size:1.5rem; }
+
+  /* A · tabla */
+  .tabla-wrap{ border:1px solid var(--color-sand); border-radius:14px; background:var(--color-papel); overflow:hidden; }
+  table.tb{ width:100%; border-collapse:collapse; }
+  .tb th{ text-align:left; font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--color-taupe); background:var(--color-hueso); padding:9px 14px; }
+  .tb td{ border-top:1px solid var(--color-sand); padding:9px 14px; vertical-align:middle; }
+  .tb tbody tr{ cursor:pointer; }
+  .tb tbody tr:hover{ background:color-mix(in oklab, var(--color-hueso) 60%, var(--color-papel)); }
+  .tb .quien{ display:flex; align-items:center; gap:11px; min-width:0; }
+  .tb .quien .nm{ min-width:0; }
+  .nombre{ font-weight:600; background:none; border:0; padding:0; text-align:left; }
+  .nombre:hover{ text-decoration:underline; }
+  .sub{ display:block; font-size:.78rem; color:var(--color-taupe); }
+  .num{ font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .tb td.act{ text-align:right; white-space:nowrap; width:1%; }
+  .solo-cel, .solo-cel-b{ display:none; }
+
+  /* B/C · grupos */
+  .grupos{ display:flex; flex-direction:column; gap:12px; }
+  .grupo{ border:1px solid var(--color-sand); border-radius:14px; background:var(--color-papel); overflow:hidden; }
+  .gh{ width:100%; display:flex; align-items:center; gap:10px; padding:11px 14px; background:var(--color-hueso); border:0; text-align:left; min-height:48px; }
+  .gh .cod{ font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:.03em; }
+  .gh .nom{ color:var(--color-taupe); }
+  .gh .res{ margin-left:auto; display:inline-flex; align-items:center; gap:7px; font-size:.8rem; color:var(--color-taupe); text-align:right; }
+  .gh .res b{ color:var(--color-tinta); font-variant-numeric:tabular-nums; }
+  .gh .fl{ transition:transform .15s; }
+  .gh[aria-expanded="false"] .fl{ transform:rotate(-90deg); }
+  ul.lp{ list-style:none; margin:0; padding:0; }
+  .pl{ border-top:1px solid var(--color-sand); display:grid; align-items:center; gap:4px 14px; padding:10px 14px; cursor:pointer; }
+  .pl:hover{ background:color-mix(in oklab, var(--color-hueso) 60%, var(--color-papel)); }
+  .pl .nm{ display:flex; align-items:center; gap:11px; min-width:0; }
+  .pl .nm b{ font-weight:600; display:block; }
+  .pl .nm .t{ min-width:0; }
+  .pl .acc-c{ display:flex; justify-content:flex-end; gap:6px; align-items:center; }
+  /* B: barra de vigencia */
+  .vB .pl{ grid-template-columns:minmax(0,1.4fr) minmax(0,1.6fr) auto; grid-template-areas:"nm vig acc"; }
+  .vB .pl .nm{ grid-area:nm; } .vB .pl .vig{ grid-area:vig; } .vB .pl .acc-c{ grid-area:acc; }
+  .vig .lin{ display:flex; flex-wrap:wrap; gap:2px 10px; align-items:center; justify-content:space-between; font-size:.8rem; margin-bottom:5px; }
+  .vig .lin .tx{ color:var(--color-taupe); }
+  .barra-v{ display:flex; align-items:center; gap:3px; }
+  .bv{ position:relative; flex:1; height:8px; border-radius:99px; background:var(--color-sand); overflow:hidden; }
+  .bv > i{ position:absolute; left:0; top:0; bottom:0; border-radius:99px; background:var(--color-taupe); }
+  .bv > u{ position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--color-tinta); }
+  .bv.aviso-v > i{ background:var(--color-ambar); } .bv.mal > i{ background:var(--color-rojo); } .bv.bien > i{ background:var(--color-verde); }
+  .bv.sinfin{ background:repeating-linear-gradient(90deg, var(--color-sand) 0 6px, transparent 6px 10px); }
+  .bv.punteada{ background:none; border:1px dashed var(--color-taupe); }
+  .pasado{ width:38px; height:8px; border-radius:0 99px 99px 0; flex:none; background:repeating-linear-gradient(135deg, var(--color-rojo) 0 3px, transparent 3px 6px); }
+  /* C: bandas por urgencia */
+  .vC .pl{ grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 124px 124px; grid-template-areas:"nm tiempo insc acc"; }
+  .vC .pl .nm{ grid-area:nm; } .vC .pl .tiempo{ grid-area:tiempo; } .vC .pl .insc{ grid-area:insc; } .vC .pl .acc-c{ grid-area:acc; }
+  .vC .gh .tit-b{ font-weight:700; font-family:var(--font-serif); font-size:1.08rem; }
+  .vC .gh .cuenta{ background:var(--color-tinta); color:var(--color-crema); border-radius:100px; min-width:20px; height:20px; display:inline-grid; place-items:center; font-size:.72rem; font-weight:700; padding:0 6px; }
+  .racimo{ padding:7px 14px; border-top:1px solid var(--color-sand); background:color-mix(in oklab, var(--color-ambar) 9%, var(--color-papel)); color:var(--color-ambar); font-size:.82rem; display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+  .fechah{ padding:6px 14px; border-top:1px solid var(--color-sand); background:color-mix(in oklab, var(--color-hueso) 45%, var(--color-papel)); font-size:.74rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--color-taupe); display:flex; gap:8px; align-items:center; }
+
+  /* cajón / hoja */
+  .velo{ position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60; }
+  .cajon{ position:fixed; top:0; right:0; bottom:0; width:min(480px,100%); background:var(--color-papel); border-left:1px solid var(--color-sand); z-index:61; display:flex; flex-direction:column; box-shadow:-12px 0 40px rgba(0,0,0,.2); animation:entra .18s ease-out; }
+  @keyframes entra{ from{ transform:translateX(24px); opacity:.4; } to{ transform:none; opacity:1; } }
+  @keyframes sube{ from{ transform:translateY(24px); opacity:.4; } to{ transform:none; opacity:1; } }
+  .cajon.quieto{ animation:none !important; }
+  @media (prefers-reduced-motion: reduce){ .cajon{ animation:none !important; } }
+  .cajon > header{ padding:16px 18px 12px; border-bottom:1px solid var(--color-sand); display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .cajon > header .quien{ display:flex; gap:12px; align-items:center; min-width:0; }
+  .cajon > header h3{ font-size:1.35rem; line-height:1.15; }
+  .cajon > header small{ color:var(--color-taupe); font-size:.84rem; display:block; margin-top:2px; }
+  .cajon .cuerpo{ overflow:auto; padding:14px 18px; flex:1; display:flex; flex-direction:column; gap:16px; }
+  .cajon > footer{ border-top:1px solid var(--color-sand); padding:12px 18px; display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; background:var(--color-papel); }
+  .rot-b{ font-size:.78rem; font-weight:600; color:var(--color-taupe); margin-bottom:6px; }
+  dl.dd{ margin:0; display:grid; }
+  dl.dd > div{ display:grid; grid-template-columns:9.5rem 1fr; gap:2px 12px; padding:7px 0; border-top:1px solid var(--color-sand); font-size:.88rem; }
+  dl.dd > div:first-child{ border-top:0; }
+  dl.dd dt{ color:var(--color-taupe); } dl.dd dd{ margin:0; min-width:0; overflow-wrap:anywhere; }
+  .acciones-d{ display:flex; flex-direction:column; gap:6px; }
+  .acciones-d .btn{ justify-content:flex-start; }
+  .hist{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px; }
+  .hist li{ display:flex; gap:12px; font-size:.86rem; }
+  .hist .f{ width:5.2rem; flex:none; color:var(--color-taupe); font-size:.78rem; font-variant-numeric:tabular-nums; padding-top:1px; }
+  .hist li.mal span:last-child{ color:var(--color-rojo-profundo); font-weight:600; }
+  .otros details{ border:1px solid var(--color-sand); border-radius:10px; }
+  .otros summary{ cursor:pointer; padding:9px 12px; font-weight:600; font-size:.86rem; }
+  .otros ul{ list-style:none; margin:0; padding:0 12px 8px; }
+  .otros li{ display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; justify-content:space-between; padding:7px 0; border-top:1px solid var(--color-sand); font-size:.84rem; }
+  .fld{ display:flex; flex-direction:column; gap:4px; font-size:.84rem; }
+  .fld > span.l, .fld label > span.l{ font-weight:600; }
+  .fld .ay{ color:var(--color-taupe); font-size:.78rem; font-weight:400; }
+  .fld label.fld{ display:flex; flex-direction:column; gap:4px; }
+  .fld.dos{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .fld.dos > label{ display:flex; flex-direction:column; gap:4px; }
+  .nota-d{ background:var(--color-hueso); border-radius:10px; padding:9px 12px; font-size:.8rem; color:var(--color-taupe); }
+  .nota-d.ambar{ color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 10%, var(--color-papel)); }
+  .nota-d.rojo{ color:var(--color-rojo-profundo); background:color-mix(in oklab, var(--color-rojo) 8%, var(--color-papel)); }
+  .tipos{ display:grid; gap:6px; }
+  .tipo-op{ display:flex; gap:10px; align-items:flex-start; border:1px solid var(--color-sand); border-radius:10px; padding:9px 11px; cursor:pointer; background:var(--color-papel); text-align:left; }
+  .tipo-op[aria-pressed="true"]{ border-color:var(--color-tinta); box-shadow:0 0 0 1px var(--color-tinta); }
+  .tipo-op b{ display:block; font-size:.88rem; } .tipo-op span{ font-size:.78rem; color:var(--color-taupe); }
+  .bloqueos{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:3px; font-size:.82rem; }
+
+  /* modal (ayuda / visor) */
+  .modal{ position:fixed; z-index:62; left:50%; top:50%; transform:translate(-50%,-50%); width:min(560px, calc(100% - 24px)); max-height:calc(100dvh - 24px); overflow:auto; background:var(--color-papel); border:1px solid var(--color-sand); border-radius:20px; box-shadow:0 20px 60px rgba(0,0,0,.35); padding:20px; display:flex; flex-direction:column; gap:14px; }
+  .modal.visor{ width:min(720px, calc(100% - 24px)); z-index:64; }
+  .velo.v2{ z-index:63; }
+  .modal > header{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .modal > header h2{ font-size:1.35rem; line-height:1.2; font-weight:500; }
+  .modal dl{ margin:0; display:grid; gap:12px; font-size:.88rem; }
+  .modal dl > div{ display:grid; gap:2px 16px; border-top:1px solid var(--color-sand); padding-top:12px; grid-template-columns:8rem 1fr; }
+  .modal dt{ font-weight:600; } .modal dd{ margin:0; color:var(--color-taupe); }
+  .modal dd .ref{ display:block; font-size:.76rem; margin-top:2px; }
+  .modal .pie{ display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+  .hoja{ background:#fff; color:#1a1a18; border:1px solid #d8d0c0; padding:22px 26px; font-family:var(--font-serif); font-size:.98rem; line-height:1.55; border-radius:4px; }
+  .hoja h4{ font-size:1.05rem; text-align:center; margin-bottom:10px; } .hoja h5{ margin:10px 0 2px; font-family:var(--font-serif); font-size:.98rem; }
+  .hoja .firmas{ display:flex; justify-content:space-between; gap:20px; margin-top:22px; }
+  .hoja .firmas div{ flex:1; border-top:1px solid #1a1a18; padding-top:4px; text-align:center; font-size:.8rem; min-height:34px; }
+  #toast{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:80; background:var(--color-tinta); color:var(--color-crema); border-radius:10px; padding:10px 16px; font-size:.86rem; max-width:min(520px, calc(100% - 24px)); box-shadow:0 8px 24px rgba(0,0,0,.3); }
+
+  /* notas */
+  .notas{ display:flex; flex-direction:column; gap:10px; margin-top:8px; }
+  .notas details{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; }
+  .notas summary{ cursor:pointer; padding:12px 16px; font-weight:700; font-family:var(--font-serif); font-size:1.12rem; }
+  .notas .in{ padding:0 18px 16px; display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px 24px; }
+  .notas h4{ font-family:var(--font-sans); font-size:.72rem; letter-spacing:.07em; text-transform:uppercase; color:var(--color-taupe); margin-bottom:4px; }
+  .notas ul{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px; font-size:.86rem; }
+  .notas .ancho{ grid-column:1 / -1; }
+  .notas table{ border-collapse:collapse; width:100%; font-size:.82rem; }
+  .notas th{ text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--color-taupe); padding:6px 8px; border-bottom:1px solid var(--color-sand); }
+  .notas td{ border-top:1px solid var(--color-sand); padding:6px 8px; vertical-align:top; }
+  .notas .tw{ overflow-x:auto; max-width:100%; }
+  .notas code{ background:var(--color-hueso); padding:1px 5px; border-radius:5px; font-size:.82em; overflow-wrap:anywhere; }
+  .notas .dec{ display:grid; gap:8px; font-size:.86rem; }
+  .notas .dec b{ display:inline-block; min-width:6.4rem; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--color-taupe); }
+  .notas .num-t td:nth-child(n+2){ font-variant-numeric:tabular-nums; }
+
+  @media (max-width:720px){
+    .proto{ position:static; padding:8px 12px; }
+    .ctlbox{ display:block; width:100%; }
+    .ctlbox > summary{ display:list-item; cursor:pointer; font-weight:600; font-size:.82rem; color:var(--color-taupe); padding:4px 0; }
+    .proto .ctl{ margin-left:0; padding-top:6px; }
+    .vbtn small{ display:none; }
+    .page{ padding:14px 16px 70px; }
+    .cab h1{ font-size:1.55rem; }
+    .cajon{ top:auto; width:100%; max-height:92dvh; height:auto; border-left:0; border-top:1px solid var(--color-sand); border-radius:18px 18px 0 0; animation:sube .18s ease-out; box-shadow:0 -12px 40px rgba(0,0,0,.25); }
+    .cajon .cuerpo{ min-height:40dvh; }
+    dl.dd > div{ grid-template-columns:7.5rem 1fr; }
+    .modal dl > div{ grid-template-columns:1fr; }
+    .busca{ max-width:none; }
+    .gh{ flex-wrap:wrap; row-gap:2px; }
+    .gh .res{ flex-basis:100%; margin-left:0; padding-left:24px; text-align:left; }
+    .conteo{ margin-left:0; width:100%; }
+    /* A: la tabla pierde columnas, no ancho */
+    .tb .col-doc, .tb .col-est{ display:none; }
+    .tb th, .tb td{ padding:9px 10px; }
+    table.tb{ table-layout:fixed; }
+    .tb th:last-child, .tb td.act{ width:118px; }
+    .solo-cel-b .rel{ white-space:normal; }
+    .solo-cel{ display:inline; }
+    .solo-cel-b{ display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; margin-top:5px; }
+    /* B: barra debajo del nombre */
+    .vB .pl{ grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"nm acc" "vig vig"; }
+    .vB .pl .vig{ padding-left:45px; }
+    /* C: dos renglones */
+    .vC .pl{ grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"nm acc" "tiempo insc"; }
+    .vC .pl .tiempo{ padding-left:45px; font-size:.84rem; }
+    .vC .pl .insc{ justify-self:end; }
+    .notas .in{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-filtros" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-alerta" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-ok" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-der" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-abajo" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></symbol>
+    <symbol id="i-mas" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-lapiz" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+    <symbol id="i-vuelta" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-firma" viewBox="0 0 24 24"><path d="M3 16c3-6 5-9 7-9s0 8 2 8 2-5 4-5 1 3 3 3"/><path d="M3 21h18"/></symbol>
+    <symbol id="i-copia" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></symbol>
+    <symbol id="i-archivo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></symbol>
+    <symbol id="i-inf" viewBox="0 0 24 24"><path d="M6 12c0-2 1.5-3.500 3.300-3.500 3 0 3.400 7 6.400 7 1.800 0 3.300-1.500 3.300-3.500S17.500 8.500 15.700 8.500c-3 0-3.400 7-6.400 7C7.500 15.500 6 14 6 12Z"/></symbol>
+    <symbol id="i-imprimir" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7"/></symbol>
+    <symbol id="i-subir" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></symbol>
+    <symbol id="i-candado" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-sede" viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-4 7 4v13M9 21v-6h6v6"/></symbol>
+  </defs>
+</svg>
+
+<div class="proto" id="proto">
+  <span class="demo-badge">Prototipo · datos ficticios</span>
+  <div class="vars" role="group" aria-label="Variantes del prototipo">
+    <button class="vbtn" data-v="A" aria-pressed="true"><b>A</b>Lista compacta <small>tabla</small></button>
+    <button class="vbtn" data-v="B" aria-pressed="false"><b>B</b>Por sede, con línea de vigencia</button>
+    <button class="vbtn" data-v="C" aria-pressed="false"><b>C</b>Por urgencia <small>recomendada</small></button>
+  </div>
+  <details class="ctlbox" id="ctlbox"><summary>Controles del prototipo</summary><div class="ctl">
+    <label>Ver como
+      <select id="selRol">
+        <option value="do" selected>Desarrollo Organizacional (Diego)</option>
+        <option value="admin">Dirección (Franco)</option>
+        <option value="lider">Líder de equipo (Carla, TRU)</option>
+      </select>
+    </label>
+    <label>Datos
+      <select id="selDatos">
+        <option value="normal">Normales</option>
+        <option value="cargando">Cargando</option>
+        <option value="error">No se pudo consultar</option>
+        <option value="parcial">Parcial: sin historial</option>
+        <option value="vacio">Nadie registrado</option>
+        <option value="aldia">Todo al día</option>
+      </select>
+    </label>
+    <label>«Vence pronto»
+      <select id="selVent">
+        <option value="60" selected>60 días (la base y Equipo)</option>
+        <option value="30">30 días (lo que dice la tarjeta)</option>
+        <option value="90">90 días (Dashboard y ficha)</option>
+      </select>
+    </label>
+    <label>«En papel»
+      <select id="selPapel">
+        <option value="actual">Cuenta como atención (hoy)</option>
+        <option value="propuesta">Propuesta: cuenta como vigente</option>
+      </select>
+    </label>
+    <label>Tema
+      <select id="selTema"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Oscuro</option></select>
+    </label>
+    <button class="btn sec fino" id="btnLink" title="Simula llegar desde la Bandeja con ?persona=">Abrir con enlace a Gaby</button>
+    <button class="btn sec fino" id="btnReset">Reiniciar demo</button>
+  </div></details>
+</div>
+
+<div class="lema" id="lema"></div>
+<div class="page" id="app"></div>
+<div id="capa"></div>
+<div id="toast-capa"></div>
+
+<script>
+(() => {
+/* ═════════ utilidades ═════════ */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const ic = (n, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const sinTildes = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const ms = (iso) => { const [y, m, d] = iso.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+const isoDe = (t) => new Date(t).toISOString().slice(0, 10);
+const dias = (a, b) => Math.round((ms(b) - ms(a)) / 864e5);
+const sumar = (iso, n) => isoDe(ms(iso) + n * 864e5);
+const masMeses = (iso, n, restaDia) => { const [y, m, d] = iso.split('-').map(Number); return isoDe(Date.UTC(y, m - 1 + n, d - (restaDia ? 1 : 0))); };
+const fmtF = (iso) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
+const fmtC = (iso) => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
+const soles = (n) => 'S/ ' + Number(n).toLocaleString('es-PE');
+const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+
+/* ═════════ el mundo ficticio ═════════ */
+const HOY = '2026-10-19';
+const SEDES = [
+  { c: 'CCO', n: 'Central' }, { c: 'OTRU', n: 'Oficina Trujillo' }, { c: 'LIM', n: 'Taller Lima' },
+  { c: '003', n: 'Tienda Lima' }, { c: 'AQP', n: 'Tienda Arequipa' }, { c: 'TRU', n: 'Tienda Trujillo' },
+];
+const TIPO = { nuevo: 'Nuevo ingreso', renovacion: 'Renovación', indefinido: 'Indefinido', convenio_practicas: 'Convenio de prácticas', adendum: 'Adendum' };
+const TIPO_DESC = {
+  renovacion: 'Renueva las condiciones de una relación que ya vence.',
+  nuevo: 'El primer contrato de trabajo para esta persona.',
+  indefinido: 'A plazo indeterminado, sin fecha de fin ni causa objetiva.',
+  convenio_practicas: 'Formaliza la etapa formativa de una practicante.',
+  adendum: 'Modifica una cláusula puntual de un contrato ya firmado.',
+};
+const FIRMANTE = 'Franco Vidal · Gerente general';
+const ART77 = 'Si alguien sigue marcando asistencia después de vencido su contrato, el artículo 77 del D. Leg. 728 convierte su vínculo en indefinido por ley, sin que nadie lo decida.';
+let nDoc = 100;
+const doc = (tipo, ini, fin, gen, firma, copia, x = {}) => ({ id: 'd' + (++nDoc), tipo, ini, fin, gen, firma, copia, genPor: 'Diego Mendoza', dig: false, scan: false, anulado: null, ...x });
+const P0 = () => [
+  { id: 'diego', n: 'Diego', a: 'Mendoza', sede: 'CCO', cargo: 'Desarrollo Organizacional', ing: '2023-09-04', vinc: 'planilla', rem: 2000, fin: null, dm: 0, docs: [doc('indefinido', '2024-09-04', null, '2024-08-28', '2024-09-02', '2024-09-04', { dig: true })] },
+  { id: 'franco', n: 'Franco', a: 'Vidal', sede: 'CCO', cargo: 'Gerente general', ing: '2022-01-10', vinc: 'planilla', rem: 4500, fin: null, dm: 0, docs: [doc('indefinido', '2023-01-10', null, '2023-01-05', '2023-01-09', '2023-01-10', { scan: true })] },
+  { id: 'olga', n: 'Olga', a: 'Ríos', sede: 'CCO', cargo: 'Administración', ing: '2024-02-12', vinc: 'planilla', rem: 1500, fin: '2027-03-31', dm: 0, docs: [] },
+  { id: 'sofia', n: 'Sofía', a: 'Lara', sede: 'OTRU', cargo: 'Asistente de marca', ing: '2026-03-16', vinc: 'planilla', rem: 1400, fin: '2027-02-28', dm: 0, docs: [] },
+  { id: 'bruno', n: 'Bruno', a: 'Salas', sede: 'LIM', cargo: 'Operario de corte', ing: '2023-11-06', vinc: 'planilla', rem: 1500, fin: '2026-09-30', dm: 0, docs: [
+    doc('renovacion', '2026-04-01', '2026-09-30', '2026-03-27', '2026-04-01', '2026-04-03', { scan: true }),
+    doc('renovacion', '2026-04-01', '2026-09-30', '2026-03-25', null, null, { anulado: { f: '2026-03-26', m: 'Borrador de prueba' } }) ] },
+  { id: 'karen', n: 'Karen', a: 'Soto', sede: 'LIM', cargo: 'Costurera', ing: '2025-04-28', vinc: 'planilla', rem: 1300, fin: '2026-10-28', dm: 0, docs: [doc('renovacion', '2026-04-29', '2026-10-28', '2026-04-24', '2026-04-29', '2026-05-02', { dig: true })] },
+  { id: 'oscar', n: 'Óscar', a: 'Peña', sede: 'LIM', cargo: 'Operario de corte', ing: '2025-07-01', vinc: 'planilla', rem: 1500, fin: '2026-12-31', dm: 0, docs: [doc('renovacion', '2026-07-01', '2026-12-31', '2026-06-26', '2026-07-01', '2026-07-03', { dig: true })] },
+  { id: 'julia', n: 'Julia', a: 'Vega', sede: '003', cargo: 'Líder de tienda', ing: '2024-08-19', vinc: 'planilla', rem: 1800, fin: '2027-01-31', dm: 0, docs: [doc('renovacion', '2026-02-01', '2027-01-31', '2026-01-28', '2026-02-01', '2026-02-03', { scan: true })] },
+  { id: 'iris', n: 'Iris', a: 'Campos', sede: '003', cargo: 'Practicante de Diseño', ing: '2026-06-01', vinc: 'practicante', rem: 1130, fin: '2026-11-20', dm: 0, docs: [
+    doc('convenio_practicas', '2026-06-01', '2026-11-20', '2026-05-27', '2026-06-01', '2026-06-02', { scan: true }),
+    doc('convenio_practicas', '2026-06-01', '2026-11-20', '2026-05-27', null, null, { anulado: { f: '2026-05-27', m: 'Se generó dos veces el mismo día' } }) ] },
+  { id: 'marco', n: 'Marco', a: 'Luna', sede: '003', cargo: 'Asesor de ventas', ing: '2025-07-01', vinc: 'planilla', rem: 1400, fin: '2026-12-31', dm: 0, docs: [doc('renovacion', '2026-07-01', '2026-12-31', '2026-06-26', '2026-07-01', '2026-07-03', { dig: true })] },
+  { id: 'valeria', n: 'Valeria', a: 'Núñez', sede: '003', cargo: 'Asesora de ventas', ing: '2026-02-09', vinc: 'planilla', rem: 1400, fin: null, dm: 0, docs: [doc('nuevo', '2026-02-09', '2027-02-08', '2026-02-05', null, null)] },
+  { id: 'elena', n: 'Elena', a: 'Rojas', sede: 'AQP', cargo: 'Líder de tienda', ing: '2024-01-15', vinc: 'planilla', rem: 1800, fin: null, dm: 0, docs: [doc('indefinido', '2025-01-15', null, '2025-01-08', '2025-01-14', '2025-01-15', { scan: true })] },
+  { id: 'ana', n: 'Ana', a: 'Paredes', sede: 'AQP', cargo: 'Asesora de ventas', ing: '2026-10-12', vinc: 'planilla', rem: 1400, fin: null, dm: 0, docs: [],
+    falta: ['Carga el domicilio en Datos personales — el contrato debe consignar el domicilio del trabajador.', 'Carga el correo electrónico en Equipo — el Anexo III (Domicilio Electrónico) lo necesita para notificaciones válidas.'] },
+  { id: 'nico', n: 'Nico', a: 'Aguirre', sede: 'AQP', cargo: 'Asesor de ventas', ing: '2025-07-07', vinc: 'planilla', rem: 1400, fin: '2027-04-30', dm: 0, docs: [doc('renovacion', '2026-05-01', '2027-04-30', '2026-04-27', '2026-04-28', null, { dig: true })] },
+  { id: 'lucia', n: 'Lucía', a: 'Cano', sede: 'AQP', cargo: 'Asesora de ventas', ing: '2025-07-01', vinc: 'planilla', rem: 1400, fin: '2026-12-31', dm: 0, docs: [doc('renovacion', '2026-07-01', '2026-12-31', '2026-06-26', '2026-07-01', '2026-07-03', { dig: true })] },
+  { id: 'carla', n: 'Carla', a: 'Quispe', sede: 'TRU', cargo: 'Líder de tienda', ing: '2024-03-04', vinc: 'planilla', rem: 1800, fin: null, dm: 0, docs: [doc('indefinido', '2025-03-04', null, '2025-02-25', '2025-03-03', '2025-03-05', { dig: true })] },
+  { id: 'gaby', n: 'Gaby', a: 'Torres', sede: 'TRU', cargo: 'Asesora de ventas', ing: '2025-05-12', vinc: 'planilla', rem: 1400, fin: '2026-10-31', dm: 0, docs: [
+    doc('nuevo', '2025-05-12', '2026-05-11', '2025-05-09', '2025-05-12', '2025-05-14', { scan: true }),
+    doc('renovacion', '2026-05-12', '2026-10-31', '2026-05-08', '2026-05-12', '2026-05-14', { dig: true }),
+    doc('renovacion', '2026-11-01', '2027-10-31', '2026-10-14', null, null) ] },
+  { id: 'pablo', n: 'Pablo', a: 'Cruz', sede: 'TRU', cargo: 'Almacén', ing: '2025-01-20', vinc: 'planilla', rem: 1300, fin: '2026-10-10', dm: 6, docs: [
+    doc('nuevo', '2025-01-20', '2026-01-19', '2025-01-16', '2025-01-20', '2025-01-22', { scan: true }),
+    doc('renovacion', '2026-01-20', '2026-10-10', '2026-01-15', '2026-01-20', '2026-01-22', { scan: true }) ] },
+  { id: 'rosa', n: 'Rosa', a: 'Medina', sede: 'TRU', cargo: 'Asesora de ventas', ing: '2025-09-01', vinc: 'planilla', rem: 1400, fin: '2026-12-15', dm: 0, docs: [
+    doc('nuevo', '2025-09-01', '2026-06-15', '2025-08-28', '2025-09-01', '2025-09-03', { scan: true }),
+    doc('renovacion', '2026-06-16', '2026-12-15', '2026-06-11', '2026-06-16', '2026-06-18', { dig: true }),
+    doc('renovacion', '2026-06-16', '2026-12-15', '2026-06-10', null, null, { anulado: { f: '2026-06-11', m: 'Cargo mal escrito: se generó otro' } }) ] },
+  { id: 'tania', n: 'Tania', a: 'Ugarte', sede: 'TRU', cargo: 'Asesora de ventas', ing: '2025-07-01', vinc: 'planilla', rem: 1400, fin: '2026-12-31', dm: 0, docs: [doc('renovacion', '2026-07-01', '2026-12-31', '2026-06-26', '2026-07-01', '2026-07-03', { dig: true })] },
+];
+
+/* ═════════ estado de la pantalla ═════════ */
+const S = {
+  v: 'A', rol: 'do', tema: 'auto', datos: 'normal', vent: 60, papel: 'actual',
+  P: P0(), q: '', tab: 'atencion', pa: null, fSede: 'todas', fTipo: 'todos', filtros: false,
+  plegadas: { aldia: true }, drawer: null, visor: null, ayuda: false, toast: null,
+};
+const puede = () => S.rol !== 'lider';                 // puedeGestionarContratos
+const sedeNombre = (c) => SEDES.find((s) => s.c === c)?.n ?? c;
+const byId = (id) => S.P.find((p) => p.id === id);
+const nombre = (p) => `${p.n} ${p.a}`;
+const alcance = () => (S.datos === 'vacio' || !puede()) ? [] : S.P;
+const hayHistorial = () => S.datos !== 'parcial';
+
+/* ═════════ reglas (espejo de fn_contratos_tablero 0491 y del cliente) ═════════ */
+const vivos = (p) => p.docs.filter((d) => !d.anulado).sort((x, y) => (y.gen > x.gen ? 1 : y.gen < x.gen ? -1 : 0));
+const docVig = (p) => vivos(p)[0] ?? null;
+// La fecha que gobierna: para una practicante nunca pasa del tope de 12 meses desde que ingresó (0336).
+function finEf(p) {
+  if (p.vinc !== 'practicante') return p.fin;
+  const tope = masMeses(p.ing, 12);
+  return p.fin ? (p.fin < tope ? p.fin : tope) : tope;
+}
+function estado(p) {
+  if (S.datos === 'aldia') return 'ok';
+  const u = docVig(p), f = finEf(p);
+  if (p.dm > 0) return 'desnaturalizado';
+  if (!u) return 'sin_contrato';
+  if (!u.firma) return 'sin_firmar';
+  if (u.tipo === 'indefinido') return u.copia ? 'ok' : 'tramite_pendiente';
+  if (!f) return 'sin_vencimiento';
+  if (f < HOY) return 'vencido';
+  if (dias(HOY, f) <= S.vent) return 'por_vencer';
+  return u.copia ? 'ok' : 'tramite_pendiente';
+}
+const enPapel = (p) => estado(p) === 'sin_contrato' && !!p.fin;
+const cuentaAtencion = (p) => { const e = estado(p); if (e === 'ok') return false; if (S.papel === 'propuesta' && enPapel(p)) return false; return true; };
+const esVigente = (p) => { const e = estado(p); return e === 'ok' || e === 'sin_vencimiento' || (S.papel === 'propuesta' && enPapel(p)); };
+const grave = (p) => ['desnaturalizado', 'vencido'].includes(estado(p));
+const META = {
+  desnaturalizado: { cls: 'alerta', i: 'alerta', t: 'Riesgo art. 77' },
+  vencido: { cls: 'alerta', i: 'reloj', t: 'Vencido' },
+  por_vencer: { cls: 'adv', i: 'reloj', t: 'Vence pronto' },
+  sin_firmar: { cls: 'info', i: 'firma', t: 'Sin firmar' },
+  sin_contrato: { cls: 'info', i: 'doc', t: 'Sin registrar' },
+  papel: { cls: 'neutro', i: 'archivo', t: 'En papel' },
+  tramite_pendiente: { cls: 'adv', i: 'copia', t: 'Falta la copia' },
+  ok: { cls: 'ok', i: 'ok', t: 'Vigente' },
+  indef: { cls: 'ok', i: 'inf', t: 'Indefinido' },
+  sin_vencimiento: { cls: 'ok', i: 'ok', t: 'Sin fecha de fin' },
+};
+function meta(p) {
+  const e = estado(p);
+  if (enPapel(p)) return META.papel;
+  if (e === 'ok' && docVig(p)?.tipo === 'indefinido' && S.datos !== 'aldia') return META.indef;
+  return META[e];
+}
+const insignia = (p) => { const m = meta(p); return `<span class="ins ${m.cls}">${ic(m.i)}${m.t}</span>`; };
+// Tiempo hasta la fecha que gobierna: número en tinta, el significado en el punto.
+function rel(p) {
+  const f = finEf(p), u = docVig(p), e = estado(p);
+  if (e === 'sin_contrato' && !f) return { t: p.docs.length ? '—' : `ingresó el ${fmtC(p.ing)}`, d: 'neutro' };
+  if (e === 'sin_firmar' && !vivos(p).some((d) => d.firma)) { const n = dias(u.gen, HOY); return { t: `sin firmar hace ${plural(n, 'día', 'días')}`, d: n > 14 ? 'falta' : 'warn' }; }
+  if (u?.tipo === 'indefinido') return { t: 'sin fecha de fin', d: 'neutro' };
+  if (!f) return { t: 'sin fecha de fin', d: 'neutro' };
+  const n = dias(HOY, f);
+  if (n < 0) return { t: `venció hace ${plural(-n, 'día', 'días')}`, d: 'falta' };
+  if (n === 0) return { t: 'vence hoy', d: 'falta' };
+  return { t: `vence en ${plural(n, 'día', 'días')}`, d: n <= S.vent ? 'warn' : 'ok' };
+}
+const relHTML = (p) => { const r = rel(p); return `<span class="rel"><span class="dot ${r.d}" aria-hidden="true"></span>${esc(r.t)}</span>`; };
+function periodo(p) {
+  const u = docVig(p);
+  if (!u) return p.fin ? `en papel · hasta ${fmtF(p.fin)}` : '—';
+  return u.fin ? `${fmtC(u.ini)} → ${fmtF(u.fin)}` : `desde ${fmtF(u.ini)}`;
+}
+const tipoDe = (p) => { const u = docVig(p); return u ? TIPO[u.tipo] : (p.fin ? 'Contrato en papel' : '—'); };
+// La acción que le toca a cada fila. Nunca resuelve a ciegas: abre el cajón o el generador.
+function accion(p) {
+  const e = estado(p);
+  if (e === 'desnaturalizado') return { t: 'Ver caso', k: 'abrir', i: 'alerta' };
+  if (e === 'vencido' || e === 'por_vencer') return { t: 'Renovar', k: 'gen', i: 'vuelta' };
+  if (e === 'sin_firmar') return { t: 'Firmar', k: 'firmar', i: 'firma' };
+  if (e === 'sin_contrato') return { t: 'Generar', k: 'gen', i: 'mas' };
+  if (e === 'tramite_pendiente') return { t: 'Anotar copia', k: 'copia', i: 'copia' };
+  return null;
+}
+const accBtn = (p) => { const a = accion(p); return a ? `<button class="btn sec fino" data-act="${a.k}" data-id="${p.id}">${ic(a.i)}${a.t}</button>` : `<span class="chev muted">${ic('der')}</span>`; };
+
+/* ═════════ Para atender y pestañas ═════════ */
+const PA = [
+  { k: 'art77', f: (p) => estado(p) === 'desnaturalizado', t: (n) => `${n} con riesgo art. 77`, tono: 'rojo', i: 'alerta' },
+  { k: 'vencido', f: (p) => estado(p) === 'vencido', t: (n) => plural(n, 'vencido', 'vencidos'), tono: 'rojo', i: 'reloj' },
+  { k: 'pronto', f: (p) => estado(p) === 'por_vencer', t: (n) => `${n} ${n === 1 ? 'vence' : 'vencen'} en ${S.vent} días`, tono: 'ambar', i: 'reloj' },
+  { k: 'firmar', f: (p) => estado(p) === 'sin_firmar', t: (n) => `${n} por firmar`, tono: 'pizarra', i: 'firma' },
+  { k: 'sinreg', f: (p) => estado(p) === 'sin_contrato' && cuentaAtencion(p), t: (n) => `${n} sin registrar`, tono: 'pizarra', i: 'doc' },
+];
+function paHTML() {
+  const al = alcance();
+  const items = PA.map((x) => ({ ...x, n: al.filter(x.f).length })).filter((x) => x.n > 0 || x.k === S.pa);
+  return `<div class="atender"><span class="rot">Para atender</span>${items.length === 0
+    ? `<span class="nada">${ic('ok')}Nada pendiente</span>`
+    : items.map((x) => `<button class="pa ${x.tono}" aria-pressed="${S.pa === x.k}" data-act="pa" data-k="${x.k}">${ic(x.i)}${x.t(x.n)}</button>`).join('')}</div>`;
+}
+const archivadosLista = () => alcance().flatMap((p) => p.docs.filter((d) => d.anulado).map((d) => ({ p, d }))).sort((x, y) => (y.d.anulado.f > x.d.anulado.f ? 1 : -1));
+function tabsHTML() {
+  const al = alcance();
+  const T = [['atencion', 'Requieren atención', al.filter(cuentaAtencion).length], ['vigentes', 'Vigentes', al.filter(esVigente).length], ['todos', 'Todos', al.length], ['archivados', 'Archivados', archivadosLista().length]];
+  return `<div class="tabs" role="navigation" aria-label="Qué ver">${T.map(([k, l, n]) => `<button class="tab" ${S.tab === k ? 'aria-current="page"' : ''} data-act="tab" data-k="${k}">${l}<b>${n}</b></button>`).join('')}</div>`;
+}
+function visibles() {
+  const q = sinTildes(S.q.trim());
+  const pa = PA.find((x) => x.k === S.pa);
+  return alcance().filter((p) => {
+    if (S.tab === 'atencion' && !cuentaAtencion(p)) return false;
+    if (S.tab === 'vigentes' && !esVigente(p)) return false;
+    if (pa && !pa.f(p)) return false;
+    if (S.fSede !== 'todas' && p.sede !== S.fSede) return false;
+    if (S.fTipo !== 'todos' && docVig(p)?.tipo !== S.fTipo) return false;
+    if (q && !sinTildes(`${p.n} ${p.a} ${p.sede} ${sedeNombre(p.sede)}`).includes(q)) return false;
+    return true;
+  });
+}
+const nFiltros = () => (S.fSede !== 'todas' ? 1 : 0) + (S.fTipo !== 'todos' ? 1 : 0);
+function ordenA(arr) { // como hoy: lo grave arriba y después por cuántos días quedan
+  return arr.slice().sort((x, y) => {
+    const r = (q) => (estado(q) === 'desnaturalizado' ? 2 : grave(q) ? 1 : 0); // el art. 77 siempre primero
+    const g = r(y) - r(x); if (g) return g;
+    const dx = finEf(x) ? dias(HOY, finEf(x)) : 99999, dy = finEf(y) ? dias(HOY, finEf(y)) : 99999;
+    return dx - dy || x.a.localeCompare(y.a, 'es');
+  });
+}
+
+/* ═════════ piezas ═════════ */
+const ayb = () => `<button class="ayb" type="button" data-act="ayuda" aria-label="Cómo funciona Contratos" title="Cómo funciona Contratos" aria-haspopup="dialog">${ic('info')}</button>`;
+function cabecera() {
+  const desc = puede() ? 'Quién tiene contrato, hasta cuándo y qué falta firmar.' : 'Los contratos son de Desarrollo Organizacional.';
+  return `<header class="cab"><div style="min-width:0">
+    <p class="sobre">Personas · lunes, 19 de octubre</p>
+    <h1>Contratos</h1>
+    <div class="desc">${desc}${puede() ? ayb() : ''}</div></div>
+    <div class="acciones">${puede() && S.datos !== 'error' ? `<button class="btn" data-act="nuevo">${ic('mas')}Nuevo documento</button>` : ''}</div></header>`;
+}
+// El aviso del art. 77 es lo más visible cuando existe: con título, arriba de todo, con quién y qué hacer.
+function bannerArt77() {
+  const l = alcance().filter((p) => estado(p) === 'desnaturalizado');
+  if (!l.length) return '';
+  return `<div class="aviso rojo" role="alert"><div class="tit">${ic('alerta')}<span>${l.length === 1 ? '1 persona sigue marcando después de vencer su contrato' : `${l.length} personas siguen marcando después de vencer su contrato`}</span></div>
+    <p>Por el art. 77 del D. Leg. 728, su vínculo pasa a ser indefinido por ley, sin que nadie lo decida. Antes de actuar, confirma que no se renovó en papel: si fue así, solo falta anotarlo.</p>
+    <div class="acc">${l.map((p) => `<button class="btn peligro fino" data-act="abrir" data-id="${p.id}">${ic('alerta')}${esc(nombre(p))} · ${plural(p.dm, 'día', 'días')} después</button>`).join('')}</div></div>`;
+}
+function barraHTML() {
+  const n = nFiltros();
+  const tiposEn = [...new Set(alcance().map((p) => docVig(p)?.tipo).filter(Boolean))];
+  const opt = (arr, val, todas) => `<option value="${todas[0]}">${todas[1]}</option>` + arr.map((x) => `<option value="${x[0]}" ${val === x[0] ? 'selected' : ''}>${esc(x[1])}</option>`).join('');
+  const pop = S.filtros ? `<div class="pop" role="dialog" aria-label="Filtros">
+      <label class="f">Sede<select data-f="fSede">${opt(SEDES.map((s) => [s.c, `${s.c} · ${s.n}`]), S.fSede, ['todas', 'Todas'])}</select></label>
+      <label class="f">Tipo de documento<select data-f="fTipo">${opt(tiposEn.map((t) => [t, TIPO[t]]), S.fTipo, ['todos', 'Todos'])}</select></label>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn sutil fino" data-act="limpiar-f">Limpiar</button><button class="btn fino" data-act="filtros">Listo</button></div>
+    </div>` : '';
+  return `<div class="barra">
+    <label class="busca">${ic('buscar')}<input id="q" type="search" value="${esc(S.q)}" placeholder="Buscar por nombre o sede" aria-label="Buscar persona o sede"></label>
+    <button class="btn sec btn-filtros" data-act="filtros" aria-expanded="${S.filtros}" aria-haspopup="dialog">${ic('filtros')}Filtros${n ? ` <b>${n}</b>` : ''}</button>
+    ${pop}</div>`;
+}
+const avatar = (p, g = false) => `<span class="av ${g ? 'g' : ''}" aria-hidden="true">${esc(p.n[0])}</span>`;
+
+/* ═════════ estados de la lista ═════════ */
+function estadoEspecial() {
+  if (S.datos === 'cargando') return `<div class="esq" role="status" aria-label="Cargando los contratos">${'<i></i>'.repeat(7)}</div>`;
+  if (S.datos === 'error') return `<div class="aviso rojo" role="alert"><div class="tit">${ic('alerta')}<span>No se pudieron consultar los contratos</span></div>
+      <p>Esto <strong>no quiere decir que todos estén al día</strong>: la consulta no respondió. No se muestra ninguna lista para que no se lea como «nada pendiente». En particular, ahora no se puede saber si alguien está marcando después de vencer su contrato (art. 77): ese plazo corre igual.</p>
+      <div class="acc"><button class="btn sec fino" data-act="reintentar">${ic('vuelta')}Reintentar</button></div></div>`;
+  if (alcance().length === 0) return `<div class="vacio"><h3>Todavía no hay nadie por gestionar</h3>
+      <p>Aquí aparecen las personas en planilla y las practicantes, con su contrato o convenio. Cuando generes el primer documento lo verás en esta lista.</p>
+      <button class="btn" data-act="nuevo">${ic('mas')}Nuevo documento</button></div>`;
+  return null;
+}
+function sinCoincidencias() {
+  return `<div class="vacio"><h3>Nadie coincide con lo que buscas</h3><p>Prueba con otro nombre, quita los filtros o mira «Todos»: ${S.tab === 'atencion' ? 'esta pestaña solo muestra a quien necesita algo.' : 'puede que esa persona esté en otra pestaña.'}</p>
+    <button class="btn sec" data-act="limpiar-todo">Quitar filtros</button></div>`;
+}
+const avisoParcial = () => S.datos === 'parcial'
+  ? `<div class="enlinea" role="status">${ic('alerta')}<span>No se pudo leer el historial de documentos, así que no se pueden ver los archivados ni la historia de cada contrato. La lista de arriba sigue siendo correcta.</span><button class="btn sutil fino" data-act="reintentar">Reintentar</button></div>` : '';
+
+/* ═════════ archivados (compartido) ═════════ */
+function vistaArchivados() {
+  if (S.datos === 'parcial') return `<div class="aviso ambar" role="status"><div class="tit">${ic('alerta')}<span>No se pudieron leer los documentos archivados</span></div><p>Los documentos anulados no se borran: siguen guardados. Solo falló la consulta.</p><div class="acc"><button class="btn sec fino" data-act="reintentar">${ic('vuelta')}Reintentar</button></div></div>`;
+  const q = sinTildes(S.q.trim());
+  const l = archivadosLista().filter(({ p }) => (S.fSede === 'todas' || p.sede === S.fSede) && (!q || sinTildes(`${nombre(p)} ${p.sede}`).includes(q)));
+  if (!l.length) return `<div class="vacio"><h3>No hay documentos archivados</h3><p>Un documento anulado no se borra: aquí queda guardado con su motivo.</p></div>`;
+  return `<div class="tabla-wrap"><table class="tb"><thead><tr><th>Persona</th><th class="col-doc">Documento</th><th class="col-est">Anulado</th><th><span class="sr">Ver</span></th></tr></thead><tbody>${l.map(({ p, d }) => `
+    <tr data-open="${p.id}"><td><div class="quien">${avatar(p)}<div class="nm"><button class="nombre" data-open="${p.id}">${esc(nombre(p))}</button><span class="sub">${p.sede}</span>
+      <span class="solo-cel-b"><span class="ins neutro">${ic('archivo')}Anulado el ${fmtC(d.anulado.f)}</span></span></div></div></td>
+      <td class="col-doc">${TIPO[d.tipo]}<span class="sub">${fmtC(d.ini)} → ${d.fin ? fmtF(d.fin) : 'sin fin'}</span></td>
+      <td class="col-est"><span class="ins neutro">${ic('archivo')}Anulado el ${fmtF(d.anulado.f)}</span><span class="sub">${esc(d.anulado.m)}</span></td>
+      <td class="act"><button class="btn sec fino" data-act="ver" data-doc="${d.id}" data-id="${p.id}">${ic('doc')}Ver</button></td></tr>`).join('')}</tbody></table></div>`;
+}
+
+/* ═════════ A · lista compacta ═════════ */
+function vistaA() {
+  const esp = estadoEspecial(); if (esp) return esp;
+  if (S.tab === 'archivados') return vistaArchivados();
+  const v = ordenA(visibles()); if (!v.length) return sinCoincidencias();
+  const filas = v.map((p) => `<tr data-open="${p.id}">
+      <td><div class="quien">${avatar(p)}<div class="nm"><button class="nombre" data-open="${p.id}" aria-label="Abrir a ${esc(nombre(p))}">${esc(nombre(p))}</button>
+        <span class="sub">${sedeNombre(p.sede)} · ${p.sede}</span>
+        <div class="solo-cel-b">${insignia(p)}${relHTML(p)}</div></div></div></td>
+      <td class="col-doc">${tipoDe(p)}<span class="sub">${periodo(p)}</span><span class="sub" style="margin-top:2px">${relHTML(p)}</span></td>
+      <td class="col-est">${insignia(p)}</td>
+      <td class="act">${accBtn(p)}</td></tr>`).join('');
+  return `${avisoParcial()}<div class="tabla-wrap"><table class="tb"><thead><tr><th>Persona</th><th class="col-doc">Documento y vigencia</th><th class="col-est">Estado</th><th><span class="sr">Qué hacer</span></th></tr></thead><tbody>${filas}</tbody></table></div>`;
+}
+
+/* ═════════ B · por sede, con la línea de vigencia ═════════ */
+function lineaVigencia(p) {
+  const u = docVig(p), e = estado(p), f = finEf(p), m = meta(p);
+  if (!u && !p.fin) return `<div class="vig"><div class="lin"><span>${ic('doc')} Sin contrato en el sistema</span><span class="tx">ingresó el ${fmtF(p.ing)}</span></div><div class="barra-v"><div class="bv punteada" role="img" aria-label="Sin contrato registrado"></div></div></div>`;
+  if (!u) return `<div class="vig"><div class="lin"><span>${ic('archivo')} Sin documento en el sistema</span><span class="tx">su ficha dice: hasta ${fmtF(p.fin)}</span></div><div class="barra-v"><div class="bv punteada" role="img" aria-label="Contrato en papel, hasta ${fmtF(p.fin)}"></div></div></div>`;
+  if (u.tipo === 'indefinido') return `<div class="vig"><div class="lin"><span>${ic('inf')} Indefinido</span><span class="tx">desde ${fmtF(u.ini)}${u.firma ? '' : ' · sin firmar'}</span></div><div class="barra-v"><div class="bv sinfin" role="img" aria-label="Indefinido, sin fecha de fin"></div></div></div>`;
+  // Un borrador sin firmar todavía no corre: se dibuja el contrato que sigue vigente, o el propio borrador.
+  const ref = u.firma ? u : (vivos(p).find((d) => d.firma) || u);
+  const i0 = ref.ini, f0 = u.firma ? (f || ref.fin) : (ref.firma ? (ref.fin ?? f) : u.fin);
+  if (!f0) return '';
+  const total = Math.max(1, dias(i0, f0)), trans = dias(i0, HOY);
+  const pct = Math.max(0, Math.min(100, (trans / total) * 100));
+  const cls = e === 'desnaturalizado' || e === 'vencido' ? 'mal' : e === 'por_vencer' ? 'aviso-v' : (e === 'sin_firmar' ? '' : 'bien');
+  const pas = HOY > f0;
+  const texto = e === 'sin_firmar' ? `${plural(dias(u.gen, HOY), 'día', 'días')} sin firmar` : rel(p).t;
+  return `<div class="vig"><div class="lin"><span>${TIPO[ref.tipo]}${e === 'sin_firmar' && ref !== u ? ` · la siguiente, sin firmar (${plural(dias(u.gen, HOY), 'día', 'días')})` : ''}</span><span class="tx">${fmtC(i0)} → ${fmtF(f0)} · ${esc(e === 'sin_firmar' && ref !== u ? rel(p).t : texto)}</span></div>
+    <div class="barra-v"><div class="bv ${cls}" role="img" aria-label="${esc(`${TIPO[ref.tipo]} del ${fmtF(i0)} al ${fmtF(f0)}. ${texto}`)}"><i style="width:${pas ? 100 : pct}%"></i>${pas ? '' : `<u style="left:calc(${pct}% - 1px)" title="Hoy"></u>`}</div>${pas ? `<div class="pasado" title="Días después del vencimiento"></div>` : ''}</div></div>`;
+}
+function resumenSede(cod) {
+  const ps = alcance().filter((p) => p.sede === cod), aten = ps.filter(cuentaAtencion).length;
+  return `<span class="res"><span class="dot ${aten ? 'warn' : 'ok'}" aria-hidden="true"></span><b>${ps.length}</b> ${ps.length === 1 ? 'persona' : 'personas'} · ${aten ? `${aten} con avisos` : 'al día'}</span>`;
+}
+function ghead(k, titulo, sub, resumen, abierto) {
+  return `<button class="gh" aria-expanded="${abierto}" data-act="plegar" data-k="${k}">${ic('abajo', 'fl')}${titulo}${sub ? `<span class="nom">${sub}</span>` : ''}${resumen}</button>`;
+}
+function vistaB() {
+  const esp = estadoEspecial(); if (esp) return esp;
+  if (S.tab === 'archivados') return vistaArchivados();
+  const v = visibles(); if (!v.length) return sinCoincidencias();
+  const g = SEDES.map((s) => ({ s, ps: ordenA(v.filter((p) => p.sede === s.c)) })).filter((x) => x.ps.length);
+  return `${avisoParcial()}<div class="grupos vB">${g.map(({ s, ps }) => `<section class="grupo">${ghead(s.c, `<span class="cod">${s.c}</span>`, esc(s.n), resumenSede(s.c), !S.plegadas[s.c])}${S.plegadas[s.c] ? '' : `<ul class="lp">${ps.map((p) => `
+    <li class="pl" data-open="${p.id}"><div class="nm">${avatar(p)}<span class="t"><b>${esc(nombre(p))}</b><span class="sub">${insignia(p)}</span></span></div>
+      ${lineaVigencia(p)}
+      <div class="acc-c">${accBtn(p)}</div></li>`).join('')}</ul>`}</section>`).join('')}</div>`;
+}
+
+/* ═════════ C · por urgencia, con la acción al lado ═════════ */
+const BANDAS = [
+  { k: 'ya', t: 'Ya pasó el plazo', i: 'alerta', dot: 'falta', f: (e) => e === 'desnaturalizado' || e === 'vencido', hint: () => 'Cada día que pasa cuesta: se atienden primero' },
+  { k: 'pronto', t: 'Vence pronto', i: 'reloj', dot: 'warn', f: (e) => e === 'por_vencer', hint: () => `Hasta el ${fmtF(sumar(HOY, S.vent))} · se renueva con tiempo` },
+  { k: 'papel', t: 'Falta la firma o la copia', i: 'firma', dot: 'info', f: (e) => e === 'sin_firmar' || e === 'tramite_pendiente', hint: () => 'El documento existe; falta el papel firmado o entregarlo' },
+  { k: 'sinreg', t: 'Sin contrato en el sistema', i: 'doc', dot: 'neutro', f: (e) => e === 'sin_contrato', hint: () => 'No hay documento registrado aquí' },
+  { k: 'aldia', t: 'Al día', i: 'ok', dot: 'ok', f: (e) => e === 'ok' || e === 'sin_vencimiento', hint: () => 'Contrato firmado y copia entregada' },
+];
+function filaC(p) {
+  return `<li class="pl" data-open="${p.id}"><div class="nm">${avatar(p)}<span class="t"><b>${esc(nombre(p))}</b><span class="sub">${tipoDe(p)} · ${p.sede}</span></span></div>
+    <div class="tiempo">${relHTML(p)}</div><div class="insc">${insignia(p)}</div><div class="acc-c">${accBtn(p)}</div></li>`;
+}
+function filasPorFecha(ps) { // agrupa por fecha de fin y avisa cuando varias vencen el mismo día
+  const orden = ps.slice().sort((x, y) => (finEf(x) ?? '9999').localeCompare(finEf(y) ?? '9999') || x.a.localeCompare(y.a, 'es'));
+  const por = {}; orden.forEach((p) => (por[finEf(p) ?? 'sin'] ||= []).push(p));
+  return Object.entries(por).map(([f, l]) => (l.length > 1 && f !== 'sin'
+    ? `<li class="racimo" style="list-style:none">${ic('alerta')}<strong>${l.length} contratos vencen el ${fmtF(f)}</strong> · son ${l.length} decisiones el mismo día: conviene empezar antes</li>` : '') + l.map(filaC).join('')).join('');
+}
+function vistaC() {
+  const esp = estadoEspecial(); if (esp) return esp;
+  if (S.tab === 'archivados') return vistaArchivados();
+  const v = visibles(); if (!v.length) return sinCoincidencias();
+  const bandas = BANDAS.map((b) => ({ b, ps: v.filter((p) => b.f(estado(p)) && !(b.k === 'sinreg' && !cuentaAtencion(p) && S.tab !== 'todos' && false)) })).filter((x) => x.ps.length);
+  return `${avisoParcial()}<div class="grupos vC">${bandas.map(({ b, ps }) => {
+    const cerrada = S.plegadas[b.k] && !S.q.trim() && !S.pa;
+    const cuerpo = (b.k === 'ya') ? ordenA(ps).map(filaC).join('') : (b.k === 'pronto' || b.k === 'aldia') ? filasPorFecha(ps) : ordenA(ps).map(filaC).join('');
+    const res = `<span class="res"><span class="dot ${b.dot}" aria-hidden="true"></span>${b.hint()}</span>`;
+    return `<section class="grupo">${ghead(b.k, `${ic(b.i)}<span class="tit-b">${b.t}</span><span class="cuenta">${ps.length}</span>`, '', res, !cerrada)}${cerrada ? '' : `<ul class="lp">${cuerpo}</ul>`}</section>`;
+  }).join('')}</div>`;
+}
+
+/* ═════════ el cajón de una persona ═════════ */
+const dato = (l, v) => `<div><dt>${l}</dt><dd>${v}</dd></div>`;
+function cajonShell(titulo, sub, cuerpo, pie, p) {
+  return `<div class="velo" data-act="cerrar"></div>
+  <aside class="cajon" role="dialog" aria-modal="true" aria-label="${esc(titulo)}">
+    <header><div class="quien">${p ? avatar(p, true) : ''}<div style="min-width:0"><h3>${esc(titulo)}</h3><small>${sub}</small></div></div>
+      <button class="bi" data-act="cerrar" aria-label="Cerrar" title="Cerrar">${ic('x')}</button></header>
+    <div class="cuerpo">${cuerpo}</div>${pie ? `<footer>${pie}</footer>` : ''}</aside>`;
+}
+function hitos(d, p) {
+  const h = [{ f: d.gen, t: `Documento generado · ${d.genPor}` }];
+  if (d.edit) h.push({ f: d.edit, t: `Borrador corregido antes de firmarse · ${d.genPor}` });
+  if (d.firma) h.push({ f: d.firma, t: d.scan ? 'Escaneo subido, contrato activado' : 'Firmado digitalmente por la integrante' });
+  if (d.copia) h.push({ f: d.copia, t: 'Copia entregada' });
+  if (d.fin && d.fin < HOY && !d.anulado) h.push({ f: d.fin, t: p.dm > 0 ? `Venció · desde entonces marcó ${plural(p.dm, 'día', 'días')}` : 'Vencimiento detectado · sistema', mal: true });
+  if (d.anulado) h.push({ f: d.anulado.f, t: `Anulado: ${d.anulado.m}`, mal: true });
+  return h.sort((x, y) => (x.f < y.f ? 1 : x.f > y.f ? -1 : 0));
+}
+function bannerDe(p) {
+  const e = estado(p), u = docVig(p), f = finEf(p);
+  const gen = `<button class="btn fino" data-act="gen" data-id="${p.id}">${ic('vuelta')}Renovar</button>`;
+  if (e === 'desnaturalizado') return `<div class="aviso rojo"><div class="tit">${ic('alerta')}<span>Siguió marcando ${plural(p.dm, 'día', 'días')} después de vencer su contrato</span></div>
+      <p>${esc(ART77)}</p><p>Antes de actuar: confirma que no se renovó en papel. Si fue así, falta anotar la nueva fecha o generar el documento. Dynamic avisa; la decisión es de una persona.</p>
+      <div class="acc"><button class="btn fino" data-act="gen" data-id="${p.id}" data-tipo="renovacion">${ic('vuelta')}Generar renovación</button><button class="btn sec fino" data-act="gen" data-id="${p.id}" data-tipo="indefinido">${ic('inf')}Generar indefinido</button></div></div>`;
+  if (e === 'vencido') return `<div class="aviso ambar"><div class="tit">${ic('reloj')}<span>Su contrato venció hace ${plural(-dias(HOY, f), 'día', 'días')}</span></div><p>No ha marcado desde entonces. Si vuelve a marcar, pasa a «Riesgo art. 77».</p><div class="acc">${gen}</div></div>`;
+  if (e === 'por_vencer') return `<div class="enlinea">${ic('reloj')}<span>Vence el ${fmtF(f)} (${rel(p).t.replace('vence ', '')}). Renovar con tiempo evita el riesgo del art. 77.</span>${gen}</div>`;
+  if (e === 'sin_firmar') return `<div class="enlinea info">${ic('firma')}<span>Generado el ${fmtF(u.gen)} por ${esc(u.genPor)}, sin firmar. ${esc(p.n)} puede confirmar su firma en <b>Lo mío → Mi contrato</b>, o subes el escaneo firmado.</span></div>`;
+  if (e === 'tramite_pendiente') return `<div class="enlinea">${ic('copia')}<span>Firmado el ${fmtF(u.firma)}. Falta anotar que se entregó la copia a ${esc(p.n)}.</span></div>`;
+  if (e === 'sin_contrato') return enPapel(p)
+    ? `<div class="aviso ambar"><div class="tit">${ic('archivo')}<span>Su contrato está en papel, hasta el ${fmtF(p.fin)}</span></div><p>Se firmó antes de que existiera este generador: la fecha está anotada en su ficha, pero el sistema no tiene el documento.</p><p class="nota-d ambar">Hoy el sistema solo puede archivar un contrato firmado si antes se genera aquí. Cargar el papel que ya firmó pide una función nueva (decisión abierta).</p></div>`
+    : `<div class="aviso ambar"><div class="tit">${ic('doc')}<span>Sin contrato registrado en el sistema</span></div><p>Ingresó el ${fmtF(p.ing)} (hace ${plural(dias(p.ing, HOY), 'día', 'días')}) y no hay documento ni fecha de término anotada.</p></div>`;
+  return '';
+}
+function cajonDetalle(p) {
+  const d = docVig(p), e = estado(p);
+  const verTodos = vivos(p).length + p.docs.filter((x) => x.anulado).length;
+  const dd = d ? [
+    ...(!d.firma && vivos(p).find((x) => x.firma) ? (() => { const r = vivos(p).find((x) => x.firma); return [
+      dato('Vigente hoy', `${TIPO[r.tipo]} · ${fmtC(r.ini)} → ${fmtF(r.fin)}`),
+      dato('Vence', relHTML(p)),
+      dato('Documento nuevo', `${TIPO[d.tipo]} · ${fmtC(d.ini)} → ${d.fin ? fmtF(d.fin) : 'sin fin'}`)]; })() : [
+      dato('Documento', TIPO[d.tipo]),
+      dato('Vigencia', d.fin ? `${fmtF(d.ini)} → ${fmtF(d.fin)}` : `desde ${fmtF(d.ini)}, sin fecha de término`),
+      ...(d.tipo !== 'indefinido' ? [dato('Vence', relHTML(p))] : [])]),
+    dato('Cargo', esc(p.cargo)),
+    dato('Remuneración', soles(p.rem)),
+    dato('Firma', d.firma ? `Firmado el ${fmtF(d.firma)}${d.scan ? ' · con escaneo' : ' · digital, sin escaneo'}` : '<span class="muted">Sin firmar</span>'),
+    dato('Copia entregada', d.copia ? fmtF(d.copia) : (d.firma ? '<span class="ins adv">' + ic('copia') + 'Falta</span>' : '<span class="muted">—</span>')),
+    dato('Firma por CAYLA', esc(FIRMANTE)),
+  ].join('') : [dato('Sede', `${p.sede} · ${esc(sedeNombre(p.sede))}`), dato('Cargo', esc(p.cargo)), dato('Ingresó', fmtF(p.ing)), dato('Fin anotado', p.fin ? fmtF(p.fin) : '<span class="muted">—</span>')].join('');
+  const h = d && hayHistorial() ? `<div><p class="rot-b">Su historia</p><ul class="hist">${hitos(d, p).map((x) => `<li class="${x.mal ? 'mal' : ''}"><span class="f">${fmtF(x.f)}</span><span>${esc(x.t)}</span></li>`).join('')}</ul></div>`
+    : d ? `<div class="enlinea">${ic('alerta')}<span>No se pudo leer la historia de este documento.</span><button class="btn sutil fino" data-act="reintentar">Reintentar</button></div>` : '';
+  const otros = verTodos > 1 && hayHistorial() ? `<div class="otros"><details><summary>Todos sus documentos (${verTodos})</summary><ul>${p.docs.slice().sort((x, y) => (y.gen > x.gen ? 1 : -1)).map((x) => `<li><span>${TIPO[x.tipo]} · ${fmtC(x.ini)} → ${x.fin ? fmtF(x.fin) : 'sin fin'}<span class="sub">${x.anulado ? 'Anulado: ' + esc(x.anulado.m) : x.firma ? 'Firmado el ' + fmtF(x.firma) : 'Sin firmar'}</span></span><button class="btn sutil fino" data-act="ver" data-doc="${x.id}" data-id="${p.id}">${ic('doc')}Ver / imprimir</button></li>`).join('')}</ul></details></div>` : '';
+  const borrador = d && !d.firma;
+  const acciones = d ? `<div><p class="rot-b">Más acciones</p><div class="acciones-d">
+      ${borrador ? `<button class="btn sec" data-act="editar" data-id="${p.id}">${ic('lapiz')}Editar el borrador</button>` : ''}
+      ${!d.scan ? `<button class="btn sec" data-act="v-subir">${ic('subir')}${d.firma ? 'Adjuntar escaneo de respaldo' : 'Subir contrato firmado'}</button>` : `<button class="btn sec" data-act="verEscaneo">${ic('doc')}Ver el escaneo firmado</button>`}
+      ${d.firma && !d.copia ? `<button class="btn sec" data-act="copia" data-id="${p.id}">${ic('copia')}Marcar copia entregada</button>` : ''}
+      <button class="btn peligro" data-act="v-anular">${ic('x')}Anular este documento</button></div></div>` : '';
+  const prim = (() => {
+    if (e === 'sin_firmar') return `<button class="btn" data-act="v-subir">${ic('subir')}Subir firmado</button>`;
+    if (e === 'sin_contrato') return `<button class="btn" data-act="gen" data-id="${p.id}">${ic('mas')}Generar</button>`;
+    if (e === 'tramite_pendiente') return `<button class="btn" data-act="copia" data-id="${p.id}">${ic('copia')}Anotar copia entregada</button>`;
+    if (e === 'vencido' || e === 'por_vencer') return `<button class="btn" data-act="gen" data-id="${p.id}">${ic('vuelta')}Renovar</button>`;
+    return '';
+  })();
+  const pie = `${d ? `<button class="btn sec" data-act="ver" data-doc="${d.id}" data-id="${p.id}">${ic('imprimir')}Ver / imprimir</button>` : ''}${prim}`;
+  const cuerpo = `<div>${insignia(p)}</div>${bannerDe(p)}<dl class="dd">${dd}</dl>${h}${otros}${acciones}`;
+  return cajonShell(nombre(p), `${esc(p.cargo)} · ${p.sede}`, cuerpo, pie, p);
+}
+function cajonSubir(p) {
+  const d = docVig(p), f = S.drawer.form;
+  const err = !f.arch ? 'Falta el escaneo firmado.' : !f.fecha ? 'Indica en qué fecha se firmó.' : '';
+  const cuerpo = `${d.firma ? `<p class="nota-d">Este contrato ya está firmado —digitalmente, el ${fmtF(d.firma)}—. Esto solo guarda un escaneo de respaldo; la fecha de firma no cambia.</p>` : '<p class="nota-d">El PDF o la foto del contrato ya firmado por las dos partes. Hasta 50 MB.</p>'}
+    <div class="fld"><label class="fld"><span class="l">Archivo escaneado</span><input data-su="archivo" type="file" accept="image/*,application/pdf"></label><p class="sub" id="elegido">${f.arch ? `Elegido: ${esc(f.arch)}` : ''}</p></div>
+    <div class="fld"><label class="fld"><span class="l">Fecha de firma <span class="ay">(nace con la de hoy; se corrige en un clic)</span></span><input data-su="fecha" type="date" value="${f.fecha}" max="${HOY}"></label></div>`;
+  const pie = `<button class="btn sec" data-act="v-detalle">Cancelar</button><button class="btn" data-act="guardar-su" ${err ? 'disabled' : ''}>Guardar</button>`;
+  return cajonShell(d.firma ? 'Adjuntar escaneo de respaldo' : 'Subir contrato firmado', `${esc(nombre(p))} · ${TIPO[d.tipo]}`, cuerpo, `<span class="sub" id="err-su" style="margin-right:auto;align-self:center">${err}</span>${pie}`, p);
+}
+function cajonAnular(p) {
+  const d = docVig(p), f = S.drawer.form;
+  const cuerpo = `<p>¿Anular el ${TIPO[d.tipo].toLowerCase()} de ${esc(nombre(p))} (${fmtC(d.ini)} → ${d.fin ? fmtF(d.fin) : 'sin fin'})?</p>
+    <div class="fld"><label class="fld"><span class="l">Motivo <span class="ay">(mínimo 3 caracteres; queda guardado)</span></span><textarea data-an="motivo" rows="3" maxlength="250">${esc(f.motivo)}</textarea></label><p class="sub" style="text-align:right" id="cuenta-an">${f.motivo.length}/250</p></div>
+    <p class="nota-d">Anular no borra: el documento sigue guardado en «Archivados», con su motivo. ${d.firma ? 'Ojo: es un documento firmado. Si solo hay que corregir una cláusula, un adendum la modifica sin negarlo.' : ''}</p>`;
+  const pie = `<button class="btn sec" data-act="v-detalle">Cancelar</button><button class="btn peligro" data-act="guardar-an" ${f.motivo.trim().length < 3 ? 'disabled' : ''}>Confirmar anulación</button>`;
+  return cajonShell('Anular documento', esc(nombre(p)), cuerpo, pie, p);
+}
+function cajonGenerar() {
+  const f = S.drawer.form, p = byId(f.pid);
+  const bloqueos = p && p.falta ? p.falta : [];
+  const finCalc = (t, ini) => (t === 'indefinido' ? '' : masMeses(ini, t === 'convenio_practicas' ? 3 : 12, true));
+  const cuerpo = `<div class="fld"><label class="fld"><span class="l">Persona</span><select data-ge="pid"><option value="">— elegir —</option>${S.P.slice().sort((x, y) => x.a.localeCompare(y.a, 'es')).map((x) => `<option value="${x.id}" ${f.pid === x.id ? 'selected' : ''}>${esc(x.a)}, ${esc(x.n)}</option>`).join('')}</select></label></div>
+    ${p && bloqueos.length ? `<div class="aviso rojo"><div class="tit">${ic('alerta')}<span>Antes de generar, falta cargar</span></div><ul class="bloqueos">${bloqueos.map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div>` : ''}
+    ${p ? `<div class="fld"><span class="l">Tipo de documento</span><div class="tipos">${['renovacion', 'nuevo', 'indefinido', 'convenio_practicas', 'adendum'].map((t) => `<button type="button" class="tipo-op" aria-pressed="${f.tipo === t}" data-act="ge-tipo" data-t="${t}"><span style="flex:1"><b>${TIPO[t]}</b><span>${TIPO_DESC[t]}</span></span></button>`).join('')}</div></div>
+      ${f.tipo === 'renovacion' && !docVig(p) ? `<p class="nota-d">Ingresó el ${fmtF(p.ing)}: el sistema propone «Renovación» porque su ingreso ya pasó. Si es su primer contrato, el texto del período de prueba se adapta solo; cámbialo a «Nuevo ingreso» solo si corresponde.</p>` : ''}
+      <div class="fld dos"><label><span class="l">Inicio</span><input data-ge="ini" type="date" value="${f.ini}"></label><label><span class="l">Fin</span><input data-ge="fin" type="date" value="${f.fin}" ${f.tipo === 'indefinido' ? 'disabled' : ''}></label></div>
+      <p class="sub" style="margin-top:-8px">Propuestas: ${f.tipo === 'renovacion' && p.fin ? 'empieza el día siguiente al fin actual; ' : ''}${f.tipo === 'convenio_practicas' ? 'tres meses para un convenio' : f.tipo === 'indefinido' ? 'sin fecha de fin' : 'un año para un contrato a plazo'}.</p>
+      <p class="nota-d">El generador real tiene cinco pasos (Persona, Vigencia, Causa objetiva, Funciones y activos, Revisión) y unos 25 candados. Esta propuesta no lo cambia: solo decide desde dónde se entra y con qué ya elegido.</p>` : ''}`;
+  const pie = `<button class="btn sec" data-act="cerrar">Cancelar</button><button class="btn" data-act="guardar-ge" ${!p || bloqueos.length || !f.ini ? 'disabled' : ''}>Continuar al generador</button>`;
+  return cajonShell('Nuevo documento', p ? esc(nombre(p)) : 'Elige a la persona', cuerpo, pie, p);
+}
+function drawerHTML() {
+  const d = S.drawer; if (!d) return '';
+  if (d.vista === 'generar') return cajonGenerar();
+  const p = byId(d.id); if (!p) return '';
+  return ({ detalle: cajonDetalle, subir: cajonSubir, anular: cajonAnular })[d.vista](p);
+}
+function visorHTML() {
+  const v = S.visor; if (!v) return '';
+  const p = byId(v.pid), d = p.docs.find((x) => x.id === v.did);
+  return `<div class="velo v2" data-act="cerrar-visor"></div><div class="modal visor" role="dialog" aria-modal="true" aria-label="Documento">
+    <header><div><h2>${TIPO[d.tipo]} · ${esc(nombre(p))}</h2><p class="muted">${d.anulado ? 'Anulado: ' + esc(d.anulado.m) : d.firma ? 'Firmado el ' + fmtF(d.firma) : 'Borrador sin firmar'} · texto congelado al generarse</p></div>
+      <button class="bi" data-act="cerrar-visor" aria-label="Cerrar" title="Cerrar">${ic('x')}</button></header>
+    <div class="hoja"><h4>${d.tipo === 'convenio_practicas' ? 'CONVENIO DE MODALIDAD FORMATIVA' : 'CONTRATO DE TRABAJO'} — texto de ejemplo</h4>
+      <p>Conste por el presente documento el acuerdo que celebran, de una parte, CAYLA, y de la otra, ${esc(nombre(p))}, en el cargo de ${esc(p.cargo)}, documento «${TIPO[d.tipo]}», desde el ${fmtF(d.ini)}${d.fin ? ` hasta el ${fmtF(d.fin)}` : ' a plazo indeterminado'}.</p>
+      <h5>PRIMERA. OBJETO Y CAUSA OBJETIVA</h5><p>(El texto real lo arma <i>contrato-texto.ts</i> con los datos de la persona; aquí solo se ilustra el visor.)</p>
+      <div class="firmas"><div>${d.firma ? '<i>firma estampada</i><br>' : ''}Por CAYLA</div><div>${d.firma ? '<i>' + (d.dig ? 'firma digital confirmada' : 'firma en papel') + '</i><br>' : ''}${esc(nombre(p))}</div></div></div>
+    <div class="pie"><button class="btn sec" data-act="cerrar-visor">Cerrar</button><button class="btn" data-act="imprimir">${ic('imprimir')}Imprimir / Guardar como PDF</button></div></div>`;
+}
+
+/* ═════════ ayuda (ⓘ) ═════════ */
+function ayudaHTML() {
+  return `<div class="velo" data-act="cerrar-ayuda"></div><div class="modal" role="dialog" aria-modal="true" aria-label="Cómo funciona Contratos">
+    <header><h2>Cómo funciona Contratos</h2><button class="bi" data-act="cerrar-ayuda" aria-label="Cerrar" title="Cerrar">${ic('x')}</button></header>
+    <p class="muted">Una fila por persona en planilla o practicante, con su documento vigente. Toca una fila para ver el documento y su historia.</p>
+    <dl>
+      <div><dt>Quién ve qué</dt><dd>Solo Desarrollo Organizacional y dirección. Cada integrante ve su propio contrato en Lo mío.</dd></div>
+      <div><dt>Riesgo art. 77</dt><dd>${esc(ART77)}<span class="ref">Se detecta con los marcajes posteriores a la fecha de fin. Dynamic avisa; nunca decide por nadie.</span></dd></div>
+      <div><dt>Vence pronto</dt><dd>Contratos firmados que terminan dentro de ${S.vent} días. Un contrato vencido es otra cosa: ya pasó el plazo.</dd></div>
+      <div><dt>Sin registrar y en papel</dt><dd>«En papel»: se firmó antes del generador y la fecha está anotada en su ficha. «Sin registrar»: no hay documento ni fecha.</dd></div>
+      <div><dt>Cómo se firma</dt><dd>La integrante confirma su firma en Lo mío, o subes el escaneo firmado. Un escaneo posterior no cambia la fecha de firma.<span class="ref">Un documento firmado no se edita: se anula con motivo o se modifica con un adendum.</span></dd></div>
+      <div><dt>Copia entregada</dt><dd>La cláusula décima octava promete entregar copia dentro de 3 días hábiles. Aquí se anota cuándo se hizo.</dd></div>
+    </dl><div class="pie"><button class="btn" data-act="cerrar-ayuda">Entendido</button></div></div>`;
+}
+
+/* ═════════ notas ═════════ */
+const INVENTARIO = [
+  ['Ver quién tiene qué (una fila por persona activa en planilla o practicante)', '<code>fn_contratos_tablero</code> (0491 es la vigente): 8 estados — desnaturalizado, sin_contrato, sin_firmar, vencido, por_vencer, tramite_pendiente, sin_vencimiento, ok', '<code>puedeGestionarContratos</code> = admin + lider_do; la base repite <code>fn_es_admin_o_lider()</code>', 'Conserva'],
+  ['Historial de documentos', '<code>fn_contratos_listar</code> (0402) → tabla, «Archivados», «Su historia» y un bloque plegado «Historial completo por persona»', 'Igual', 'Conserva; fusiona los tres sitios que repiten lo mismo'],
+  ['Generar un documento (nuevo, renovación, indefinido, convenio de prácticas, adendum)', 'Arma el HTML en el navegador (<code>contrato-texto.ts</code>) y lo guarda con <code>fn_contrato_registrar</code> (0430). Lee personas, sedes, datos personales, sueldo vigente, parámetros (movilidad, bono, RMV), RIT y <code>firmante_empresa</code>', 'DO y dirección', 'Conserva sin tocar: es más de la mitad del archivo y se queda como está'],
+  ['Prellenar desde el documento anterior', '<code>contratos_generados.datos_formulario</code> (0388)', 'Igual', 'Conserva'],
+  ['Candados antes de generar', '~25 reglas en <code>bloqueos</code> (DNI, domicilio, correo, sueldo, tarifa de movilidad, Anexos, tope de 12 meses del convenio) + avisos del art. 57/74', 'Igual', 'Conserva (regla legal)'],
+  ['Un borrador por tipo y sin periodos que se pisen', 'Aviso en pantalla + <code>fn_contrato_registrar</code> y <code>fn_contrato_editar</code> (0388): la base manda', 'Igual', 'Conserva (regla de integridad)'],
+  ['Editar un borrador', '<code>fn_contrato_editar</code> (0430), solo mientras <code>fecha_firma is null</code>', 'Igual', 'Conserva'],
+  ['Firmar', '(a) digital: la integrante, en <code>/mio/contrato</code> (0402/0406/0430); (b) escaneo: bucket <code>contratos</code> + <code>fn_contrato_registrar(p_id, ruta, fecha)</code>; mueve <code>personas.fecha_fin_contrato</code> si es nuevo/renovación/adenda', 'Escaneo: DO. Digital: la integrante', 'Conserva (regla legal)'],
+  ['Anotar la copia entregada', '<code>fn_contrato_marcar_tramite(id, \'copia\', hoy)</code> (0287); plazo aproximado = inicio + 5 días', 'DO', 'Conserva; hoy no está en el menú «•••»'],
+  ['MTPE', 'Columna <code>comunicado_mtpe_at</code> que sigue en la base; ya no es trámite (0470, D. Leg. 1246)', '—', 'Descartado antes; solo se muestra si ya hay fecha'],
+  ['Anular', '<code>fn_contrato_anular(id, motivo)</code> (0312): motivo de 3+ caracteres, no borra, libera la fecha puesta', 'DO', 'Conserva; al final, en peligro'],
+  ['Ver / imprimir', 'Lee <code>documento_html</code> congelado y estampa la firma de la empresa (<code>fn_firma_empresa</code>, 0398) y la de la integrante si la confirmó; <code>window.print()</code>', 'DO y dirección (la firma la ve también la líder)', 'Conserva'],
+  ['Descargar el escaneo', '<code>abrirArchivoFirmado</code> sobre el bucket <code>contratos</code>', 'DO', 'Conserva'],
+  ['Riesgo art. 77', '<code>fn_contratos_desnaturalizados</code> (0231): marcajes no anulados posteriores a <code>fecha_fin_contrato</code>', 'DO', 'Conserva y lo vuelve lo más visible'],
+  ['Registrar el contrato en papel que ya está firmado', 'No existe: para archivar un escaneo hace falta una fila de <code>contratos_generados</code>, y la fila nace al generar', '—', 'FALTA (decisión abierta)'],
+  ['Fuera de esta pantalla que la usan', 'Bandeja (<code>fn_contratos_tablero</code> y <code>fn_contrato_revisiones_pedidas</code>, enlaza con <code>?persona=</code>); Dashboard «Contratos a plazo fijo» (<code>fn_contratos_por_vencer(90)</code>); ficha de la persona (90 días, enlace sin <code>?persona=</code>); Incidencias (convenios sobre tope → «Ver en Contratos»); correo diario a DO (<code>fn_generar_alertas_vencimiento</code>, 30 días); <code>/mio/contrato</code> (firma y «pedir revisión»); Equipo («fin de contrato próximo», 60 días)', '—', 'Ver «Pantallas conectadas»'],
+];
+function ventanasHTML() {
+  const sav = S.datos; S.datos = 'normal'; const sv = S.vent; S.vent = 60;
+  const act = S.P.filter((p) => true);
+  const equipo = act.filter((p) => p.fin && p.fin <= sumar(HOY, 60)).length;
+  const tarjeta = act.filter((p) => estado(p) === 'por_vencer').length;
+  S.vent = 30; const t30 = act.filter((p) => estado(p) === 'por_vencer').length; S.vent = 60;
+  const dash = act.filter((p) => p.fin && p.fin <= sumar(HOY, 90)).length;
+  const correo = act.filter((p) => p.fin && p.fin >= HOY && p.fin <= sumar(HOY, 30)).length;
+  S.datos = sav; S.vent = sv;
+  return `<table class="num-t"><thead><tr><th>Dónde</th><th>Ventana</th><th>Cuenta</th><th>Qué cuenta</th></tr></thead><tbody>
+    <tr><td>Contratos, tarjeta «Vencen en 30 días»</td><td>dice 30, calcula 60</td><td>${tarjeta}</td><td>Solo <code>por_vencer</code> (firmados, aún no vencidos). Con 30 de verdad serían ${t30}.</td></tr>
+    <tr><td>Equipo, «fin de contrato próximo»</td><td>60</td><td>${equipo}</td><td>Toda fecha anotada ≤ hoy + 60, incluidos vencidos, art. 77 y renovaciones sin firmar.</td></tr>
+    <tr><td>Dashboard y ficha (<code>fn_contratos_por_vencer</code>)</td><td>90</td><td>${dash}</td><td>Lo mismo que Equipo, a 90 días (decidido por el racimo del 31 de diciembre).</td></tr>
+    <tr><td>Correo diario a DO (0356)</td><td>30</td><td>${correo}</td><td>Solo no vencidos, una vez por fecha anotada.</td></tr></tbody></table>`;
+}
+const NOTAS = {
+  A: {
+    t: 'A · Lista compacta',
+    gana: ['La tabla que DO ya conoce, de 6 columnas (Persona, Documento, Vigencia, Sede, Estado, «Generar»/«•••») a 4: la vigencia deja de cortarse en «hasta 31 de dic…» porque pasa a una línea con fecha corta y la cuenta regresiva con punto.', 'La fila dice qué hacer: «Renovar», «Firmar», «Generar», «Anotar copia» o «Ver caso». Hoy es «Generar» o un «•••» igual para todos.', 'Cuatro casillas grandes + un select de estado con 12 opciones + cinco pestañas (tres controles para un solo filtro) pasan a una línea de «Para atender», cuatro pestañas y UN botón «Filtros».', 'El art. 77 deja de explicarse con un <code>title</code> nativo (no se ve al tocar en celular ni con teclado): sale un aviso con título y el ⓘ de la pantalla abre una explicación real.'],
+    paga: ['La sede pierde su columna: «¿cómo está TRU?» exige abrir Filtros.', 'Las 20 renovaciones del 31 de diciembre se ven como 20 filas iguales: no hay racimo.', 'Cada fila tiene dos clics posibles (abrir y la acción): hay que cuidar que el botón no dispare la fila.'],
+    rompe: ['DO usa a diario el «•••» de la fila para Anular o Ver escaneo: pasa al cajón, un toque más.', 'En 375 px la columna «Documento» desaparece y el período se lee debajo del nombre: si DO compara fechas desde el celular, abre cada fila.', 'Si «Renovar» dispara el generador sin que se vea a quién renueva, es una renovación equivocada con firma.'],
+    conserva: ['Todas las RPC y todos los candados del generador; el cajón agrupa lo que hoy está en «•••», el visor y el historial plegado.', 'Búsqueda sin tildes (ahora también por sede), «Archivados», estados cargando/error/vacío/parcial.'],
+    fusiona: ['Casillas + select de estado + pestañas → «Para atender» + pestañas.', 'Visor «Su historia» + «Historial completo por persona» + menú «•••» → un solo cajón.', 'Sede + Tipo + Estado (3 selects) → un botón «Filtros» con sede y tipo.'],
+    descarta: ['La columna Sede y la columna Vigencia como columnas sueltas; el select «Estado» (sus dos opciones centinela «Vigentes» y «Archivados» eran para que no mintiera).', 'La pestaña «Pendientes de firma»: pasa a ser una pastilla.', 'El bloque plegado «Historial completo por persona».'],
+    afecta: ['<b>Bandeja</b>: <code>?persona=</code> abre además el cajón (hoy solo busca y pasa a «Todos»).', '<b>Ficha de la persona</b> e <b>Incidencias</b>: pueden enlazar con <code>?persona=</code>; hoy van a la lista entera.', '<b>Equipo, Dashboard, correo</b>: no cambian, pero ver «Cuatro ventanas».'],
+  },
+  B: {
+    t: 'B · Por sede, con la línea de vigencia',
+    gana: ['Lee como Equipo: la sede es la unidad, con su resumen («5 personas · 2 con avisos»). Es la forma natural de una líder de sede, si algún día se le abre una vista de solo lectura.', 'La vigencia se ve, no se calcula: una línea del inicio al fin con la marca de «hoy». Un contrato casi acabado se reconoce sin leer fechas; el vencido muestra una franja rayada con los días de más.', 'Cada fila lleva texto además de la línea: ninguna señal va solo en color ni en forma.'],
+    paga: ['El tiempo es lo que gobierna este módulo, no el lugar. En B lo urgente queda repartido en seis grupos y hay que abrir cada sede para encontrarlo.', 'Son 3 columnas por fila y la línea ocupa ancho: en celular pasa a segundo renglón.', 'El art. 77 solo destaca por su aviso de arriba, no por su posición en la lista.'],
+    rompe: ['Una sede tiene 15+ personas y el grupo deja de ser un resumen.', 'DO busca «los que vencen esta semana» y tiene que sumar mentalmente seis grupos.', 'Una línea de vigencia sin firma real (el borrador) se lee como un contrato corriendo si no se lee el texto.'],
+    conserva: ['Todo lo que A conserva; el cajón y las acciones por fila son los mismos.'],
+    fusiona: ['Estado + vigencia + cuenta regresiva en una sola pieza (la línea) en lugar de tres columnas.'],
+    descarta: ['La tabla y sus columnas; el orden global por urgencia (dentro de cada sede se conserva).'],
+    afecta: ['Las mismas que A. Además, si algún día la líder de sede ve su sede, es la vista natural para ella (hoy la RLS no la deja: <code>contratos_lectura</code> es de DO o del propio dueño).'],
+  },
+  C: {
+    t: 'C · Por urgencia, con la acción al lado',
+    gana: ['Reproduce el orden que la base ya decide y la pantalla escondía: primero lo que ya pasó, luego lo que vence, luego lo que falta firmar, luego lo que no está. Es el <code>ORDER BY</code> de <code>fn_contratos_tablero</code> hecho visible, con una cabecera por grupo.', 'Cada grupo dice por qué está ahí y la acción va al lado de cada persona: el aviso y lo que lo resuelve dejan de estar en pantallas distintas.', 'Agrupa por fecha y avisa los racimos: «4 contratos vencen el 31/12». Es el caso real que el Dashboard ya midió (20 de 21 vencen el mismo día).', '«Al día» arranca plegado: ver 9 personas sin nada que hacer enseña a ignorar la pantalla.'],
+    paga: ['Es la más distinta de lo que hay: bandas con cabecera, filas de dos modos (con y sin fecha) y racimos. Más piezas nuevas que A.', 'La sede es solo una etiqueta pequeña; ver «cómo está una sede» exige Filtros.', 'Una persona cambia de banda al firmar, anular o pasar el día: la lista se mueve mientras se mira.'],
+    rompe: ['Alguien espera una sola tabla alfabética para recorrer a todo el equipo: está en «Todos» con las mismas bandas, no ordenada por nombre.', 'Si los 20 del 31/12 entran a «Vence pronto» el mismo día (ventana de 90), la banda se llena y vuelve a ser una lista larga: ahí hace falta el flujo por tanda (decisión abierta).', 'Si «Renovar» se cablea a «un clic y listo», un contrato mal redactado queda firmado sin leer. La acción abre el generador; no resuelve.'],
+    conserva: ['Todo lo que A y B conservan.', 'El aviso con título del art. 77 arriba de las pastillas cuando existe.'],
+    fusiona: ['Los cuatro contadores y los estados → cinco pastillas y cinco bandas con el mismo vocabulario.', '«Riesgo de continuidad», «Riesgo art. 77» y «marcó después del vencimiento» → un solo nombre: «Riesgo art. 77».'],
+    descarta: ['La tabla de seis columnas; el orden por días que recalculaba el cliente (la banda lo hace).'],
+    afecta: ['<b>Bandeja</b>: usa los mismos estados; sus textos («Plazo vence», «Riesgo art. 77») ya coinciden con las bandas.', '<b>Dashboard</b> «Contratos a plazo fijo» ya agrupa por fecha: sería la misma pieza, con otra ventana.', '<b>Equipo, ficha, correo</b>: no cambian, pero hay que decidir la ventana (ver «Cuatro ventanas»).'],
+    decision: { dec: 'C: ordenar por urgencia y mostrar la acción al lado; tomar de B la idea de que la vigencia se lea de un vistazo, pero como texto con punto («vence en 9 días») y no como barra.', desc: 'A como regla única, porque deja la sede y la fecha como columnas y obliga a ordenar a mano lo que el servidor ya ordena; B como regla única, porque el tiempo manda en este módulo y no el lugar, y porque agruparía lo más urgente en seis sitios.', rompe: 'Alguien pega 20 renovaciones del 31/12 en la misma banda y nadie las abre una por una: ahí C se parece a una lista larga y hace falta el flujo «siguiente persona».' },
+  },
+};
+const L = (a) => `<ul>${a.map((x) => `<li>${x}</li>`).join('')}</ul>`;
+function notasHTML() {
+  const n = NOTAS[S.v];
+  return `<section class="notas" aria-label="Notas">
+    <details><summary>Notas de la variante ${S.v}: qué gana, qué paga, qué se rompe</summary><div class="in">
+      <div><h4>Qué gana</h4>${L(n.gana)}</div><div><h4>Qué paga</h4>${L(n.paga)}</div><div><h4>Se rompe si</h4>${L(n.rompe)}</div>
+      <div><h4>Funciones que conserva</h4>${L(n.conserva)}</div><div><h4>Funciones que fusiona</h4>${L(n.fusiona)}</div><div><h4>Funciones que descarta</h4>${L(n.descarta)}</div>
+      <div class="ancho"><h4>Pantallas conectadas que toca</h4>${L(n.afecta)}</div>
+      ${n.decision ? `<div class="ancho"><h4>Decisión</h4><div class="dec"><p><b>Decidí</b>${n.decision.dec}</p><p><b>Descarté</b>${n.decision.desc}</p><p><b>Se rompe si</b>${n.decision.rompe}</p></div></div>` : ''}
+    </div></details>
+    <details><summary>Inventario del código actual: qué hace hoy la pantalla</summary><div class="in"><div class="ancho tw"><table>
+      <thead><tr><th>Función</th><th>Qué usa</th><th>Quién</th><th>Veredicto</th></tr></thead><tbody>${INVENTARIO.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table></div>
+      <div><h4>Lo visual (se cambia libremente)</h4>${L(['Casillas, pestañas, selects, tabla, insignias, cajón del visor, textos de los avisos, orden de la lista, ⓘ.', 'Dónde vive cada acción (fila, cajón, menú).', 'Los nombres: «Riesgo de continuidad», «Riesgo art. 77» y «marcó después del vencimiento» son hoy tres nombres para el mismo estado.'])}</div>
+      <div><h4>Las reglas (no se tocan)</h4>${L(['Art. 77: qué cuenta como «marcó después» y que solo avisa.', 'Qué es «firmado» (<code>fecha_firma</code>) y que un escaneo posterior no la mueve.', 'Un borrador se edita; uno firmado se anula o se modifica por adendum. Anular no borra.', 'Un borrador por tipo, sin periodos que se pisen; la copia con fecha; la subvención ≥ RMV proporcional del convenio (Ley 28518); el tope de 12 meses.'])}</div>
+      <div><h4>Qué significan hoy los nombres</h4>${L(['<b>Riesgo de continuidad / art. 77</b>: ya marcó días después de la fecha de fin de su contrato a plazo.', '<b>Sin registrar</b>: el sistema no tiene documento ni fecha de fin de esa persona.', '<b>En papel</b>: no hay documento, pero su ficha tiene fecha de fin: se firmó antes del generador (agosto de 2026).', '<b>Requieren atención</b>: todo estado distinto de «ok». Incluye «en papel», que es historia, no urgencia.'])}</div>
+      <div><h4>Quién ve qué</h4>${L(['<b>DO y dirección</b>: pantalla idéntica (<code>puedeGestionarContratos</code> = <code>admin</code> + <code>lider_do</code>). La diferencia es solo quién firma por CAYLA (<code>configuracion.firmante_empresa</code>, hoy dirección).', '<b>Líder de equipo</b>: no ve la entrada del menú; por URL recibe «Solo administradores y líderes pueden generar contratos», que se lee como si ella pudiera.', '<b>Integrante</b>: su propio contrato en <code>/mio/contrato</code>.'])}</div>
+    </div></details>
+    <details><summary>Cuatro ventanas para «vence pronto»: lo que contaría cada pantalla con esta demo</summary><div class="in"><div class="ancho tw">${ventanasHTML()}</div>
+      <div class="ancho"><p style="font-size:.86rem">La base de Contratos usa 60 días desde la 0287; Equipo decidió 60 el 2026-10-19; el Dashboard usa 90 (por el racimo del 31 de diciembre); el correo diario, 30. La tarjeta actual dice «30 días» sobre un cálculo de 60. <b>No se unifica en esta propuesta</b>: el selector de arriba solo deja ver cómo cambiaría la pantalla.</p></div></div></details>
+    <details><summary>Hallazgos del código que no son de diseño</summary><div class="in"><div class="ancho">${L([
+      '<b>Etiqueta falsa.</b> «Vencen en 30 días» cuenta el estado <code>por_vencer</code>, que en la base es ≤ 60 días (0287 a 0491).',
+      '<b>Un fallo se ve como «nada pendiente».</b> <code>cargar()</code> descarta el <code>error</code> de sus 11 consultas: si <code>fn_contratos_tablero</code> falla, la lista, los contadores y el aviso del art. 77 desaparecen sin una palabra. El Dashboard ya resolvió esto (<code>contratosNoRespondio</code>).',
+      '<b>«Limpiar filtros» no se va.</b> Deja el estado en «todos» y el botón se muestra mientras el estado sea distinto de «pendientes».',
+      '<b>«Cerca del tope» puede no ser el tope.</b> Para una practicante, la fecha que gobierna es el menor entre el fin del convenio y los 12 meses; la etiqueta asume siempre lo segundo.',
+      '<b>Mensaje de acceso confuso.</b> «Solo administradores y líderes…» deja entender que una líder de equipo puede.',
+      '<b>Enlaces sin destino.</b> La ficha y Incidencias enlazan a <code>/admin/contratos</code> sin <code>?persona=</code>. La Bandeja sí lo usa, pero «Pidió revisar su contrato» llega a una pantalla que no muestra esa revisión (en el panel, <code>fn_contrato_revisiones_pedidas</code> solo la lee la Bandeja).',
+      '<b>Código muerto.</b> <code>NECESITA_CONTRATO</code> y <code>graves</code> se calculan y no se usan.',
+      '<b>Un archivo de 3 900 líneas</b> con el generador adentro: antes de migrar la pantalla conviene sacar el generador a su propio componente (primer commit, sin cambios), y recién después cambiar la lista.',
+      '<b>Sin salida para el papel que ya existe.</b> Las personas «en papel» solo pueden salir de ese estado generando un documento nuevo; no se puede cargar el firmado.',
+    ])}</div></div></details>
+    <details><summary>Decisiones abiertas para Felipe</summary><div class="in"><div class="ancho">${L([
+      '¿Qué ventana vale para «vence pronto» en Contratos? Hoy la base dice 60. El Dashboard dice 90 y el correo 30. (El selector «Vence pronto» de arriba lo simula.)',
+      '¿«En papel» es atención o es historia? Hoy cuenta como atención; la propuesta lo manda a «Vigentes» (selector «En papel» arriba). Cambia qué número ve DO al entrar.',
+      '¿Se agrega «cargar el contrato firmado en papel» sin generar? Pide una función nueva en la base (migración).',
+      '¿Se quiere un flujo por tanda para el 31 de diciembre (renovar de a uno y pasar a «siguiente»)? No se propone «renovar todos de golpe».',
+      '¿La líder de sede ve algo de contratos de su sede (solo lectura)? Hoy la RLS no la deja.',
+      '¿Un solo nombre para el art. 77? Esta propuesta usa «Riesgo art. 77» en pastillas, banner y fila.',
+      '¿Se abre el cajón al llegar con <code>?persona=</code>? Hoy solo se busca el nombre y se pasa a «Todos».',
+    ])}</div></div></details>
+  </section>`;
+}
+
+/* ═════════ render ═════════ */
+const app = $('#app'), capa = $('#capa');
+function lemaHTML() {
+  return ({
+    lider: '<strong>Líder de equipo (Carla, TRU)</strong>: no tiene esta pantalla (no sale en su menú). Su propio contrato está en Lo mío.',
+    do: '<strong>Desarrollo Organizacional (Diego)</strong>: ve a las ' + S.P.length + ' personas, genera, sube firmas, anota copias y anula. Misma pantalla que dirección.',
+    admin: '<strong>Dirección (Franco)</strong>: idéntica a DO en esta pantalla; además es quien firma por CAYLA.',
+  })[S.rol];
+}
+function sinAcceso() {
+  return `<div class="vacio">${ic('candado')}<h3>Los contratos son de Desarrollo Organizacional</h3>
+    <p>Aquí se generan, se firman y se archivan los contratos de todo el equipo, con sueldo y datos personales. Tu propio contrato lo ves en <b>Lo mío → Mi contrato</b>, y ahí mismo puedes pedir que lo revisen.</p>
+    <button class="btn sec" data-act="toast" data-t="Abriría Lo mío → Mi contrato (otra pantalla).">Ir a Mi contrato</button></div>`;
+}
+function render() {
+  const enfoca = document.activeElement && document.activeElement.id === 'q';
+  const pos = enfoca ? document.activeElement.selectionStart : 0;
+  $('#lema').innerHTML = lemaHTML();
+  let cuerpo;
+  if (!puede()) cuerpo = cabecera() + sinAcceso();
+  else {
+    const hayLista = S.datos !== 'error' && S.datos !== 'cargando' && S.datos !== 'vacio';
+    const vista = ({ A: vistaA, B: vistaB, C: vistaC })[S.v]();
+    const conteo = hayLista && S.tab !== 'archivados' ? `<p class="conteo" role="status">${visibles().length} de ${alcance().length} personas${S.pa ? ' · filtrando por «Para atender»' : ''}</p>` : '';
+    cuerpo = cabecera() + (hayLista ? bannerArt77() + paHTML() + barraHTML() + tabsHTML() + conteo : '') + vista;
+  }
+  app.innerHTML = cuerpo + notasHTML();
+  const cuerpoAntes = $('#capa .cuerpo'), scrollAntes = cuerpoAntes ? cuerpoAntes.scrollTop : 0;
+  const llave = S.drawer ? `${S.drawer.id || S.drawer.form?.pid}|${S.drawer.vista}` : '';
+  const mismo = llave && llave === render.llave;
+  render.llave = llave;
+  capa.innerHTML = (S.drawer ? drawerHTML() : '') + (S.visor ? visorHTML() : '') + (S.ayuda ? ayudaHTML() : '');
+  if (mismo) { const c = $('#capa .cajon'); if (c) c.classList.add('quieto'); const cu = $('#capa .cuerpo'); if (cu) cu.scrollTop = scrollAntes; }
+  $('#toast-capa').innerHTML = S.toast ? `<div id="toast" role="status">${esc(S.toast)}</div>` : '';
+  $$('.vbtn').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === S.v)));
+  if (enfoca) { const q = $('#q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }
+  else if (S.drawer || S.ayuda || S.visor) { const f = $('#capa .bi'); if (f && !capa.contains(document.activeElement)) f.focus(); }
+}
+let tt;
+function avisar(t) { S.toast = t; clearTimeout(tt); tt = setTimeout(() => { S.toast = null; render(); }, 4500); }
+
+/* ═════════ acciones ═════════ */
+function abrir(id, vista = 'detalle') {
+  const p = byId(id); if (!p) return;
+  S.drawer = { id, vista };
+  if (vista === 'subir') S.drawer.form = { arch: '', fecha: HOY };
+  if (vista === 'anular') S.drawer.form = { motivo: '' };
+}
+function nuevoGenerar(id, tipo) {
+  const p = id ? byId(id) : null;
+  let t = tipo || (p ? (p.vinc === 'practicante' ? 'convenio_practicas' : (p.ing > HOY ? 'nuevo' : 'renovacion')) : 'renovacion');
+  const ini = p && t === 'renovacion' && p.fin && p.fin >= HOY ? sumar(p.fin, 1) : HOY;
+  S.drawer = { vista: 'generar', form: { pid: p ? p.id : '', tipo: t, ini, fin: t === 'indefinido' ? '' : masMeses(ini, t === 'convenio_practicas' ? 3 : 12, true) } };
+}
+function recalcular(f) { f.fin = f.tipo === 'indefinido' ? '' : masMeses(f.ini || HOY, f.tipo === 'convenio_practicas' ? 3 : 12, true); }
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-act],[data-open],[data-v]');
+  if (!t) { if (S.filtros && !e.target.closest('.pop')) { S.filtros = false; render(); } return; }
+  const a = t.dataset.act;
+  if (t.dataset.v && !a) { S.v = t.dataset.v; S.drawer = null; render(); return; }
+  if (t.dataset.open && !a) { abrir(t.dataset.open); render(); return; }
+  e.stopPropagation();
+  switch (a) {
+    case 'ayuda': S.ayuda = true; break;
+    case 'cerrar-ayuda': S.ayuda = false; break;
+    case 'cerrar': S.drawer = null; break;
+    case 'cerrar-visor': S.visor = null; break;
+    case 'filtros': S.filtros = !S.filtros; break;
+    case 'limpiar-f': S.fSede = 'todas'; S.fTipo = 'todos'; break;
+    case 'limpiar-todo': S.q = ''; S.fSede = 'todas'; S.fTipo = 'todos'; S.pa = null; S.tab = 'atencion'; break;
+    case 'tab': S.tab = t.dataset.k; S.pa = null; break;
+    case 'pa': S.pa = S.pa === t.dataset.k ? null : t.dataset.k; if (S.pa && (S.tab === 'vigentes' || S.tab === 'archivados')) S.tab = 'atencion'; break;
+    case 'plegar': S.plegadas[t.dataset.k] = !S.plegadas[t.dataset.k]; break;
+    case 'reintentar': S.datos = 'normal'; $('#selDatos').value = 'normal'; break;
+    case 'nuevo': nuevoGenerar(null); break;
+    case 'abrir': abrir(t.dataset.id); break;
+    case 'gen': nuevoGenerar(t.dataset.id, t.dataset.tipo); break;
+    case 'firmar': abrir(t.dataset.id); break;
+    case 'copia': {
+      const p = byId(t.dataset.id), d = docVig(p); d.copia = HOY;
+      avisar(`Anotada la entrega de copia a ${p.n}.`); break;
+    }
+    case 'editar': S.drawer = null; avisar('Abriría el generador con el borrador de ' + byId(t.dataset.id).n + ' para corregirlo en su sitio (no se crea otro).'); break;
+    case 'ver': S.visor = { pid: t.dataset.id, did: t.dataset.doc }; break;
+    case 'verEscaneo': avisar('Abriría el escaneo firmado en otra pestaña.'); break;
+    case 'imprimir': avisar('Imprimiría la hoja o la guardaría como PDF, con el nombre «Nombre Apellido — Contrato de trabajo».'); break;
+    case 'toast': avisar(t.dataset.t); break;
+    case 'v-detalle': S.drawer = { id: S.drawer.id, vista: 'detalle' }; break;
+    case 'v-subir': abrir(S.drawer.id, 'subir'); break;
+    case 'v-anular': abrir(S.drawer.id, 'anular'); break;
+    case 'ge-tipo': S.drawer.form.tipo = t.dataset.t; recalcular(S.drawer.form); break;
+    case 'guardar-su': {
+      const p = byId(S.drawer.id), d = docVig(p), f = S.drawer.form;
+      if (f.fecha < sumar(d.ini, -30)) { avisar(`La fecha de firma (${fmtF(f.fecha)}) es más de un mes anterior al inicio del documento (${fmtF(d.ini)}). Revisa que sea la correcta.`); break; }
+      if (d.fin && f.fecha > d.fin) { avisar(`La fecha de firma (${fmtF(f.fecha)}) es posterior al término del documento (${fmtF(d.fin)}). Revisa que sea la correcta.`); break; }
+      const yaFirmado = !!d.firma;
+      d.scan = true; if (!yaFirmado) d.firma = f.fecha;
+      if (!yaFirmado && d.tipo !== 'adendum') p.fin = d.fin; // el vencimiento de la persona se actualiza (0287)
+      S.drawer = { id: p.id, vista: 'detalle' };
+      avisar(yaFirmado ? 'Escaneo de respaldo guardado. La fecha de firma sigue siendo la de la firma digital.' : 'Contrato firmado registrado. La fecha de vencimiento de la persona se actualizó.'); break;
+    }
+    case 'guardar-an': {
+      const p = byId(S.drawer.id), d = docVig(p), f = S.drawer.form;
+      d.anulado = { f: HOY, m: f.motivo.trim() }; S.drawer = { id: p.id, vista: 'detalle' };
+      avisar('Contrato anulado. Sigue guardado en «Archivados».'); break;
+    }
+    case 'guardar-ge': {
+      const f = S.drawer.form, p = byId(f.pid); S.drawer = null;
+      avisar(`Abriría el generador (paso 1 de 5) con ${nombre(p)}, «${TIPO[f.tipo]}», del ${fmtF(f.ini)}${f.fin ? ' al ' + fmtF(f.fin) : ''}. Esa pantalla no cambia.`); break;
+    }
+    default: return;
+  }
+  render();
+});
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.id === 'q') { S.q = t.value; render(); return; }
+  const d = S.drawer; if (!d || !d.form) return;
+  const f = d.form;
+  if (t.dataset.su) { if (t.dataset.su === 'archivo') { f.arch = t.files[0] ? t.files[0].name : ''; const el = $('#elegido'); if (el) el.textContent = f.arch ? `Elegido: ${f.arch}` : ''; } else f[t.dataset.su] = t.value; actualizarBotones(); return; }
+  if (t.dataset.an) { f.motivo = t.value; const c = $('#cuenta-an'); if (c) c.textContent = `${t.value.length}/250`; actualizarBotones(); return; }
+  if (t.dataset.ge) { f[t.dataset.ge] = t.value; if (t.dataset.ge === 'pid') { const p = byId(t.value); if (p) nuevoGenerar(p.id); } if (t.dataset.ge === 'ini') recalcular(f); render(); }
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset.f) { S[t.dataset.f] = t.value; render(); }
+});
+function actualizarBotones() {
+  const d = S.drawer; if (!d) return;
+  const f = d.form;
+  const set = (act, off) => { const b = $(`#capa [data-act="${act}"]`); if (b) b.disabled = off; };
+  if (d.vista === 'subir') { set('guardar-su', !(f.arch && f.fecha)); const e = $('#err-su'); if (e) e.textContent = !f.arch ? 'Falta el escaneo firmado.' : !f.fecha ? 'Indica en qué fecha se firmó.' : ''; }
+  if (d.vista === 'anular') set('guardar-an', f.motivo.trim().length < 3);
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { if (S.visor) S.visor = null; else if (S.ayuda) S.ayuda = false; else if (S.drawer) S.drawer = null; else if (S.filtros) S.filtros = false; else return; render(); }
+});
+
+/* barra del prototipo */
+$('#selRol').addEventListener('change', (e) => { S.rol = e.target.value; S.drawer = null; S.pa = null; render(); });
+$('#selDatos').addEventListener('change', (e) => { S.datos = e.target.value; S.drawer = null; render(); });
+$('#selVent').addEventListener('change', (e) => { S.vent = Number(e.target.value); render(); });
+$('#selPapel').addEventListener('change', (e) => { S.papel = e.target.value; render(); });
+$('#selTema').addEventListener('change', (e) => { S.tema = e.target.value; if (S.tema === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', S.tema); });
+$('#btnReset').addEventListener('click', () => { nDoc = 100; Object.assign(S, { P: P0(), q: '', tab: 'atencion', pa: null, fSede: 'todas', fTipo: 'todos', filtros: false, plegadas: { aldia: true }, drawer: null, visor: null, ayuda: false, toast: null }); render(); });
+$('#btnLink').addEventListener('click', () => {
+  if (S.rol === 'lider') { S.rol = 'do'; $('#selRol').value = 'do'; }
+  S.q = 'Gaby Torres'; S.tab = 'todos'; S.pa = null; abrir('gaby'); render();
+  avisar('Como hoy: busca el nombre y pasa a «Todos». En esta propuesta además abre el cajón.');
+});
+const ajusta = () => { $('#ctlbox').open = window.innerWidth > 720 || $('#ctlbox').open; };
+window.addEventListener('resize', ajusta); ajusta();
+render();
+})();
+</script>
+</body>
+</html>

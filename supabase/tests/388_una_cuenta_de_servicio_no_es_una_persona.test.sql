@@ -20,7 +20,7 @@
 -- estaría apagado (lección de la 232 y la 271).
 -- ============================================================================
 begin;
-select plan(17);
+select plan(18);
 
 insert into sedes (id, codigo, nombre, activa) values
   ('00000000-0000-0000-0000-000000038801', 'ZZ388', 'Sede de laboratorio 388', true);
@@ -61,11 +61,26 @@ select throws_ok(
   $$ update personas set cuenta_de_servicio = true where id = '00000000-0000-0000-0000-000000038813' $$,
   'La cuenta de servicio se cambia con fn_set_cuenta_de_servicio, no con un update directo.',
   'BLOQUEADO · el update directo no marca, aunque lo pida un líder de DO');
+-- Desde la 0507 `authenticated` ya no tiene INSERT sobre `personas`: el insert
+-- directo muere en el privilegio, ANTES de llegar al trigger de esta migración.
+-- La aserción sigue defendiendo lo mismo (una fila no nace marcada), con un
+-- cerrojo más temprano; lo que cambió es el error.
+select throws_ok(
+  $$ insert into personas (nombres, apellidos, sede_base_id, pin_hash, cuenta_de_servicio)
+     values ('Nace', 'Marcada', '00000000-0000-0000-0000-000000038801', 'x', true) $$,
+  '42501', 'permission denied for table personas',
+  'BLOQUEADO · una fila no puede nacer marcada: el insert directo ni llega al trigger (0507)');
+reset role;
+
+-- 2b · La mitad INSERT del trigger de la 0490 sigue viva para quien todavía
+-- puede insertar directo: la llave de servicio. Sin esta aserción esa mitad
+-- quedaría sin ninguna prueba desde la 0507.
+set role service_role;
 select throws_ok(
   $$ insert into personas (nombres, apellidos, sede_base_id, pin_hash, cuenta_de_servicio)
      values ('Nace', 'Marcada', '00000000-0000-0000-0000-000000038801', 'x', true) $$,
   'Una persona nace como persona. Para marcarla como cuenta de servicio usa fn_set_cuenta_de_servicio.',
-  'BLOQUEADO · una fila no puede nacer marcada y saltarse las comprobaciones');
+  'BLOQUEADO · ni con la llave de servicio una fila nace marcada y se salta las comprobaciones');
 reset role;
 
 -- ── 3 · Solo admin o líder DO ──────────────────────────────────────────────
@@ -134,19 +149,19 @@ select ok(
   position('cuenta_de_servicio' in pg_get_viewdef('public.terminal_roster'::regclass, true)) > 0,
   'TERMINAL · el roster de marcaje excluye las cuentas de servicio en su definición');
 
--- ── 12-13 · Desmarcar no tiene condiciones, y la devuelve ──────────────────
+-- ── 12-13 · Desmarcar no tiene condiciones, y la devuelve al cálculo ───────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000003881a', true);
 set role authenticated;
 select lives_ok(
   $$ select fn_set_cuenta_de_servicio('00000000-0000-0000-0000-000000038813', false, 'Era una persona') $$,
-  'PERMITIDO · desmarcar siempre se puede: devolver a alguien a la planilla no esconde nada');
+  'PERMITIDO · desmarcar siempre se puede: devolver a alguien a las listas no esconde nada');
 reset role;
 select is(
   (select count(*)::int
      from jsonb_array_elements(fn_planilla_calcular('2026-08-29'::date, '2026-09-28'::date)->'filas') f
     where f->>'persona_id' = '00000000-0000-0000-0000-000000038813'),
   1,
-  'CONTROL · desmarcada, vuelve a la planilla — la exclusión venía de la columna y de nada más');
+  'CONTROL · desmarcada, vuelve a tener fila en el cálculo — la exclusión venía de la columna (desde la 0544 su vínculo ya no vuelve solo: ver la 436)');
 
 -- ── 14 · El motivo escrito a mano queda en el rastro ───────────────────────
 select is(

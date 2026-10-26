@@ -11,9 +11,32 @@ import {
   puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos,
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
-  puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo,
-  ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
+  puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada, recibeAvisoDeLecturaPendiente,
+  puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo, puedeGestionarSeguros,
+  puedeExportarListaDeAsegurados, puedeEstamparFirmaDeEmpresa, puedeDecidirPrueba,
+  ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS,
 } from "@cayla-dynamic/shared";
+
+describe("la firma de quien firma por CAYLA se estampa por defecto, a quien abre el panel", () => {
+  it("Gerencia, DO y la líder de equipo: exactamente los roles con panel", () => {
+    for (const rol of ROLES) {
+      expect(puedeEstamparFirmaDeEmpresa(rol)).toBe((ROLES_CON_PANEL as readonly string[]).includes(rol));
+    }
+    expect(puedeEstamparFirmaDeEmpresa("admin")).toBe(true);
+    expect(puedeEstamparFirmaDeEmpresa("lider_do")).toBe(true);
+    expect(puedeEstamparFirmaDeEmpresa("supervisor_sede")).toBe(true);
+  });
+
+  it("quien solo marca no la ve estampada", () => {
+    expect(puedeEstamparFirmaDeEmpresa("integrante")).toBe(false);
+  });
+
+  it("sin rol, vacío o desconocido: null nunca pasa", () => {
+    for (const rol of [null, undefined, "", "contador"]) {
+      expect(puedeEstamparFirmaDeEmpresa(rol)).toBe(false);
+    }
+  });
+});
 
 describe("las novedades del sistema le llegan a quien las puede usar", () => {
   it("«panel» sigue exactamente la lista de quienes ven el panel — si esa cambia, esta cae", () => {
@@ -70,6 +93,34 @@ describe("anular un documento disciplinario es de DO, aunque la encargada lo tra
   });
 });
 
+describe("disciplina: mirar, tramitar y recibir el aviso son tres preguntas (0510, 0515)", () => {
+  it("tramitar: DO siempre; la líder solo con contrato de trabajo (RIT 2.9)", () => {
+    expect(puedeTramitarDisciplina("lider_do", false)).toBe(true);
+    expect(puedeTramitarDisciplina("admin", false)).toBe(true);
+    expect(puedeTramitarDisciplina("supervisor_sede", true)).toBe(true);
+    expect(puedeTramitarDisciplina("supervisor_sede", false)).toBe(false);
+    expect(puedeTramitarDisciplina("supervisor_sede", null)).toBe(false);
+    expect(puedeTramitarDisciplina("integrante", true)).toBe(false);
+  });
+  it("el aviso de una falta registrada es solo para la líder DO: los admin lo ven en Disciplina, no se les empuja", () => {
+    expect(recibeAvisoDeConductaRegistrada("lider_do")).toBe(true);
+    expect(recibeAvisoDeConductaRegistrada("admin")).toBe(false);
+    expect(recibeAvisoDeConductaRegistrada("supervisor_sede")).toBe(false);
+    expect(recibeAvisoDeConductaRegistrada(null)).toBe(false);
+  });
+  it("el aviso de «nadie leyó lo que se le entregó» también es solo de la líder DO", () => {
+    expect(recibeAvisoDeLecturaPendiente("lider_do")).toBe(true);
+    expect(recibeAvisoDeLecturaPendiente("admin")).toBe(false);
+    expect(recibeAvisoDeLecturaPendiente("supervisor_sede")).toBe(false);
+    expect(recibeAvisoDeLecturaPendiente("integrante")).toBe(false);
+    expect(recibeAvisoDeLecturaPendiente(undefined)).toBe(false);
+  });
+  it("y tomar el caso (DO y admin) es más ancho que recibir el aviso: si alguien los iguala, esto cae", () => {
+    expect(puedeAnularDocumentoDisciplinario("admin")).toBe(true);
+    expect(recibeAvisoDeConductaRegistrada("admin")).toBe(false);
+  });
+});
+
 describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
   it("no ve planilla, ni provisiones, ni costos", () => {
     expect(puedeVerPlanilla("supervisor_sede")).toBe(false);
@@ -82,6 +133,9 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
   });
   it("no ve el Archivo de la empresa: la constancia de un banco de datos lleva el DNI del representante (0503)", () => {
     expect(puedeGestionarArchivo("supervisor_sede")).toBe(false);
+  });
+  it("no ve los seguros del equipo: el PDF de cada póliza lleva DNI y fecha de nacimiento (0528)", () => {
+    expect(puedeGestionarSeguros("supervisor_sede")).toBe(false);
   });
   it("no crea sedes, áreas ni feriados — eso cambia el pago de las cuatro sedes", () => {
     expect(puedeGestionarCatalogos("supervisor_sede")).toBe(false);
@@ -101,7 +155,7 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
 });
 
 describe("quien solo marca no entra al panel", () => {
-  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeGestionarBoletas, puedeGestionarArchivo]) {
+  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeGestionarBoletas, puedeGestionarArchivo, puedeGestionarSeguros]) {
     it(`integrante: ${permiso.name} = false`, () => {
       expect(permiso("integrante")).toBe(false);
     });
@@ -129,6 +183,9 @@ describe("DO ve todo", () => {
     it(`${rol} custodia el Archivo de la empresa (0503)`, () => {
       expect(puedeGestionarArchivo(rol)).toBe(true);
     });
+    it(`${rol} lleva los seguros del equipo (0528)`, () => {
+      expect(puedeGestionarSeguros(rol)).toBe(true);
+    });
   }
 });
 
@@ -144,6 +201,7 @@ describe("null no pasa como autorizado", () => {
       expect(puedeExportarAsistencia(raro)).toBe(false);
       expect(puedeGestionarBoletas(raro)).toBe(false);
       expect(puedeGestionarArchivo(raro)).toBe(false);
+      expect(puedeGestionarSeguros(raro)).toBe(false);
     });
   }
 });
@@ -172,6 +230,18 @@ describe("las listas para filtrar en la base coinciden con las funciones", () =>
     for (const r of ROLES) {
       expect(puedeExportarAsistencia(r)).toBe(ROLES_EXPORTAN_ASISTENCIA.includes(r));
     }
+  });
+
+  // Mismo molde para «Boletas» (2026-10-16): el renglón del menú sale de
+  // ROLES_GESTIONAN_BOLETAS y la pantalla decide con `puedeGestionarBoletas`.
+  // La que importa es la líder de equipo: si la lista se ensanchara sin la
+  // función, vería un renglón que lleva a lo que cobra su equipo.
+  it("ROLES_GESTIONAN_BOLETAS son exactamente los que entregan las boletas oficiales", () => {
+    expect([...ROLES_GESTIONAN_BOLETAS].sort()).toEqual(["admin", "lider_do"]);
+    for (const r of ROLES) {
+      expect(puedeGestionarBoletas(r)).toBe(ROLES_GESTIONAN_BOLETAS.includes(r));
+    }
+    expect(ROLES_GESTIONAN_BOLETAS.includes("supervisor_sede")).toBe(false);
   });
 });
 
@@ -220,5 +290,61 @@ describe("el padrón completo solo se lo lleva la dirección", () => {
     const baja = roles.filter((r) => puedeExportarPadron(r));
     expect(baja.length).toBeLessThan(ve.length);
     expect(ve).toEqual(expect.arrayContaining(baja));
+  });
+});
+
+// La lista de asegurados de un seguro lleva documento y fecha de nacimiento. Se le preguntó a Felipe
+// (2026-10-17) si el archivo era solo de la dirección, como el padrón, o también de DO, y eligió que
+// DO también: es quien trata con la aseguradora y el contador. Lo que NO se abrió es el padrón completo.
+describe("la lista de asegurados la descargan DO y la dirección (0528)", () => {
+  it("la dirección y quien lleva DO pueden descargarla", () => {
+    expect(puedeExportarListaDeAsegurados("admin")).toBe(true);
+    expect(puedeExportarListaDeAsegurados("lider_do")).toBe(true);
+  });
+
+  it("ni la líder de equipo ni una integrante", () => {
+    expect(puedeExportarListaDeAsegurados("supervisor_sede")).toBe(false);
+    expect(puedeExportarListaDeAsegurados("integrante")).toBe(false);
+  });
+
+  it("y un rol vacío, nulo o desconocido tampoco — null nunca pasa", () => {
+    for (const raro of [null, undefined, "", "contador"]) {
+      expect(puedeExportarListaDeAsegurados(raro)).toBe(false);
+    }
+  });
+
+  it("hoy dice lo mismo que gestionar los seguros: quien no ve la pantalla no se lleva el archivo", () => {
+    for (const rol of [...ROLES, null, undefined, "", "contador"]) {
+      expect(puedeExportarListaDeAsegurados(rol)).toBe(puedeGestionarSeguros(rol));
+    }
+  });
+
+  it("abrirla a DO NO abre el padrón completo: ese sigue solo para la dirección", () => {
+    expect(puedeExportarListaDeAsegurados("lider_do")).toBe(true);
+    expect(puedeExportarPadron("lider_do")).toBe(false);
+    expect(puedeExportarPadron("admin")).toBe(true);
+  });
+});
+
+// Decide DO, administración o la líder de equipo — sola. El alcance por sede lo
+// aplica la base; aquí solo se decide si se DIBUJAN los botones.
+describe("cerrar la prueba de tres días (0536)", () => {
+  it("la dirección, quien lleva DO y la líder de equipo pueden", () => {
+    expect(puedeDecidirPrueba("admin")).toBe(true);
+    expect(puedeDecidirPrueba("lider_do")).toBe(true);
+    expect(puedeDecidirPrueba("supervisor_sede")).toBe(true);
+  });
+
+  it("una integrante no, ni un rol vacío, nulo o desconocido — null nunca pasa", () => {
+    expect(puedeDecidirPrueba("integrante")).toBe(false);
+    for (const raro of [null, undefined, "", "contador"]) {
+      expect(puedeDecidirPrueba(raro)).toBe(false);
+    }
+  });
+
+  it("hoy coincide con quien opera el equipo, pero es otra pregunta: decidir deja a alguien sin pago", () => {
+    for (const rol of [...ROLES, null, undefined, "", "contador"]) {
+      expect(puedeDecidirPrueba(rol)).toBe(puedeOperarEquipo(rol));
+    }
   });
 });

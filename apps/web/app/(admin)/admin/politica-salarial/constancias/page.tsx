@@ -4,11 +4,13 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { EMPRESA, ROLES_DO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { EMPRESA, ROLES_DO, TZ_LIMA, avisoNombresDelDni, hoyLima, usaNombreDelDni } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { SubnavPoliticaSalarial } from "../_subnav";
 
@@ -44,11 +46,47 @@ interface Fila {
   persona_id: string;
   nombre: string;
   dni: string | null;
+  // El nombre completo tal como consta en el DNI (`datos_personales.nombre_dni`).
+  // `nombre` es el de nómina («Apellidos, Nombres», del nombre corto): sirve para
+  // ordenar y cruzar la lista. Éste identifica a la persona ante quien lea el papel.
+  nombre_dni: string | null;
   sede: string | null;
   acusado_at: string | null;
   nombre_declarado: string | null;
   fecha_fin_contrato: string | null;
   fecha_cese: string | null;
+}
+
+// Constancias que SÍ existen en la base pero que la hoja no cuenta: la persona no
+// es de la población comprendida (`fn_poblacion_obligada`: activa y de planilla).
+// Se muestran solo en pantalla, aparte del cuadro y del total. Por qué no en el
+// papel: esta hoja es la prueba del numeral 25.23 para quien SÍ está obligada, y
+// poner a una locadora (rxh) en un papel laboral firmado por DO es justo la señal
+// de subordinación que la 0191 evita.
+interface FilaFuera {
+  persona_id: string;
+  nombre: string;
+  dni: string | null;
+  vinculo: string | null;
+  estado: string | null;
+  acusado_at: string | null;
+  nombre_declarado: string | null;
+}
+
+// Etiquetas de `personas.tipo_vinculo` solo para decir por qué la hoja no cuenta
+// a alguien. La verdad está en la tabla: un valor que no esté aquí se muestra tal
+// cual en vez de ocultarse.
+const VINCULO_LABEL: Record<string, string> = {
+  planilla: "Planilla",
+  prueba: "Días de selección",
+  practicante: "Practicante",
+  rxh: "Recibo por honorarios",
+  no_trabajador: "No trabajador",
+};
+
+function motivoFuera(f: FilaFuera): string {
+  if (f.estado && f.estado !== "activo") return `no está activa (${f.estado})`;
+  return `vínculo: ${f.vinculo ? VINCULO_LABEL[f.vinculo] ?? f.vinculo : "sin dato"}`;
 }
 
 function selloLima(iso: string | null): string {
@@ -91,6 +129,8 @@ function ConstanciasPoliticaSalarialContenido() {
   const [versionesDisponibles, setVersionesDisponibles] = useState<number[]>([]);
   const [publicadaAt, setPublicadaAt] = useState<string | null>(null);
   const [filas, setFilas] = useState<Fila[]>([]);
+  const [fuera, setFuera] = useState<FilaFuera[]>([]);
+  const [fueraFallo, setFueraFallo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   // Si `personas`, `sedes` o `politica_salarial` fallan, la fila se sigue
@@ -142,6 +182,16 @@ function ConstanciasPoliticaSalarialContenido() {
           .in("id", ids)
       : { data: [] as never[], error: null };
 
+    // El nombre completo del DNI vive en `datos_personales`, no en `personas`.
+    // Si falla se NOMBRA (abajo) y se apaga «Imprimir»: sin esto la hoja saldría
+    // con el corto en todas las filas, y eso se lee igual que «nadie lo tiene».
+    const { data: fichas, error: errFichas } = ids.length
+      ? await supabase.from("datos_personales").select("persona_id, nombre_dni").in("persona_id", ids)
+      : { data: [] as never[], error: null };
+    const nombreDniPorPersona = new Map(
+      (fichas ?? []).map((r: Record<string, unknown>) => [r.persona_id as string, r.nombre_dni as string | null]),
+    );
+
     const sedeIds = Array.from(
       new Set((pers ?? []).map((p: Record<string, unknown>) => p.sede_base_id as string).filter(Boolean))
     );
@@ -160,8 +210,38 @@ function ConstanciasPoliticaSalarialContenido() {
         { error: errPol, que: "la fecha de publicación" },
         { error: errPers, que: "el DNI, la sede y el motivo de los pendientes" },
         { error: errSedes, que: "el código de sede" },
+        { error: errFichas, que: "el nombre completo del DNI" },
       ]),
     );
+
+    // Quien dejó constancia pero no es de la población comprendida. La función
+    // `fn_acuses_politica_salarial` solo devuelve a la comprendida, así que se
+    // lee la tabla de acuses (admin y líder la ven completa por RLS) y se
+    // descuenta lo que la hoja ya muestra.
+    const { data: todosAcuses, error: errTodos } = await supabase
+      .from("politica_salarial_acuses").select("persona_id, acusado_at, nombre_declarado").eq("version", v);
+    const enHoja = new Set(ids);
+    const sobrantes = (todosAcuses ?? []).filter((a) => !enHoja.has(a.persona_id as string));
+    const { data: persFuera, error: errFuera } = sobrantes.length
+      ? await supabase.from("personas")
+          .select("id, nombres, apellidos, documento, tipo_vinculo, estado")
+          .in("id", sobrantes.map((a) => a.persona_id as string))
+      : { data: [] as never[], error: null };
+    const fueraPorId = new Map((persFuera ?? []).map((p: Record<string, unknown>) => [p.id as string, p]));
+    const armadasFuera: FilaFuera[] = sobrantes.map((a) => {
+      const p = fueraPorId.get(a.persona_id as string) as Record<string, unknown> | undefined;
+      const apellidos = p?.apellidos as string | undefined;
+      const nombres = p?.nombres as string | undefined;
+      return {
+        persona_id: a.persona_id as string,
+        nombre: apellidos && nombres ? `${apellidos}, ${nombres}` : "(sin ficha)",
+        dni: (p?.documento as string | null) ?? null,
+        vinculo: (p?.tipo_vinculo as string | null) ?? null,
+        estado: (p?.estado as string | null) ?? null,
+        acusado_at: (a.acusado_at as string | null) ?? null,
+        nombre_declarado: (a.nombre_declarado as string | null) ?? null,
+      };
+    }).sort((x, y) => (x.acusado_at ?? "").localeCompare(y.acusado_at ?? ""));
 
     const porId = new Map((pers ?? []).map((p: Record<string, unknown>) => [p.id as string, p]));
 
@@ -174,6 +254,7 @@ function ConstanciasPoliticaSalarialContenido() {
         persona_id: b.persona_id,
         nombre: apellidos && nombres ? `${apellidos}, ${nombres}` : b.nombre,
         dni: (p?.documento as string | null) ?? null,
+        nombre_dni: nombreDniPorPersona.get(b.persona_id) ?? null,
         sede: sedeId ? codigoPorSede.get(sedeId) ?? null : null,
         acusado_at: b.acusado_at,
         nombre_declarado: b.nombre_declarado,
@@ -193,6 +274,8 @@ function ConstanciasPoliticaSalarialContenido() {
     setVersion(v);
     setPublicadaAt((pol?.publicada_at as string | undefined) ?? null);
     setFilas(armadas);
+    setFuera(armadasFuera);
+    setFueraFallo(Boolean(errTodos || errFuera));
     setCargando(false);
     })();
     return () => { cancelado.actual = true; };
@@ -203,9 +286,9 @@ function ConstanciasPoliticaSalarialContenido() {
   if (error || version === null) {
     return (
       <main className="mx-auto max-w-2xl p-6">
-        <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+        <EstadoVacio>
           {error ?? "No se pudo abrir la política salarial."}
-        </p>
+        </EstadoVacio>
         <Boton variante="secundario" tamano="sm" className="mt-3" onClick={() => router.push("/admin/politica-salarial")}>
           Volver a Política salarial
         </Boton>
@@ -216,11 +299,14 @@ function ConstanciasPoliticaSalarialContenido() {
   const constan = filas.filter((f) => f.acusado_at !== null);
   const pendientes = filas.filter((f) => f.acusado_at === null);
   const total = filas.length;
+  // Solo en pantalla, y solo si la lectura contestó: si falló, faltarían todas
+  // y este aviso mentiría — ya lo dice el aviso rojo de «no se pudo traer».
+  const avisoNombres = noSePudo.length === 0 ? avisoNombresDelDni(filas.map((f) => f.nombre_dni)) : null;
   const esDO = persona !== null && ROLES_DO.includes(persona.rol);
   const esVigente = versionesDisponibles.length === 0 || version === versionesDisponibles[0];
 
   return (
-    <main className="hoja mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
+    <main className="hoja w-full p-6 print:max-w-none print:p-0">
       <div className="print:hidden">
         {esDO && <SubnavPoliticaSalarial />}
         {versionesDisponibles.length > 1 && (
@@ -265,10 +351,16 @@ function ConstanciasPoliticaSalarialContenido() {
           ⌘P saltándose el botón deshabilitado: el papel tiene que decir por
           escrito que está incompleto, no salir en blanco y silencio. */}
       {noSePudo.length > 0 && (
-        <p className="mb-5 rounded-control border border-rojo/40 bg-rojo/10 px-4 py-3 text-xs text-rojo">
+        <BannerAviso enLinea variante="alerta" role="alert" className="mb-5 text-xs">
           No se pudo traer {noSePudo.join(", ")}. Esta hoja no prueba nada mientras falte ese
           dato: recarga la página, y si sigue igual avisa a Felipe.
-        </p>
+        </BannerAviso>
+      )}
+
+      {avisoNombres && (
+        <BannerAviso enLinea variante="advertencia" className="mb-5 text-xs print:hidden">
+          {avisoNombres}
+        </BannerAviso>
       )}
 
       <header className="mb-5 border-b border-sand pb-4">
@@ -323,7 +415,12 @@ function ConstanciasPoliticaSalarialContenido() {
           {constan.map((f, i) => (
             <tr key={f.persona_id} className="break-inside-avoid border-b border-sand align-top">
               <td className="py-1.5 pr-2 text-taupe">{i + 1}</td>
-              <td className="py-1.5 pr-2">{f.nombre}</td>
+              <td className="py-1.5 pr-2">
+                {f.nombre}
+                {usaNombreDelDni(f.nombre_dni) && (
+                  <span className="block text-[11px] text-taupe">{f.nombre_dni?.trim()}</span>
+                )}
+              </td>
               <td className="py-1.5 pr-2">{f.dni ?? "—"}</td>
               <td className="py-1.5 pr-2">{f.sede ?? "—"}</td>
               <td className="py-1.5 pr-2 whitespace-nowrap">{selloLima(f.acusado_at)}</td>
@@ -340,7 +437,8 @@ function ConstanciasPoliticaSalarialContenido() {
 
       <p className="mt-2 text-[11px] text-taupe">
         La constancia la deja la propia integrante desde el panel, escribiendo su nombre — no hay vía
-        en papel para este documento. Las horas son de Lima.
+        en papel para este documento. Bajo cada nombre de la lista figura el nombre completo tal como
+        consta en su DNI. Las horas son de Lima.
       </p>
 
       {pendientes.length > 0 && (
@@ -353,11 +451,47 @@ function ConstanciasPoliticaSalarialContenido() {
               const motivo = motivoPendiente(f);
               return (
                 <li key={f.persona_id} className="flex flex-wrap justify-between gap-2 py-1.5">
-                  <span>{f.nombre} <span className="text-taupe">· {f.sede ?? "—"}{f.dni ? ` · DNI ${f.dni}` : ""}</span></span>
+                  <span>
+                    {f.nombre} <span className="text-taupe">· {f.sede ?? "—"}{f.dni ? ` · DNI ${f.dni}` : ""}</span>
+                    {usaNombreDelDni(f.nombre_dni) && (
+                      <span className="block text-taupe">{f.nombre_dni?.trim()}</span>
+                    )}
+                  </span>
                   {motivo && <span className="text-taupe">{motivo}</span>}
                 </li>
               );
             })}
+          </ul>
+        </section>
+      )}
+
+      {/* Solo en pantalla: ver el comentario de `FilaFuera`. */}
+      {fueraFallo && (
+        <BannerAviso enLinea variante="advertencia" className="mt-5 text-xs print:hidden">
+          No se pudieron traer las constancias de quienes no están en la población comprendida.
+          Puede haber más constancias de las que se ven: recarga la página.
+        </BannerAviso>
+      )}
+      {fuera.length > 0 && (
+        <section className="mt-5 rounded-superficie border border-sand px-4 py-3 text-xs print:hidden">
+          <h2 className="mb-1 font-medium text-tinta">
+            También dejaron constancia · {fuera.length}
+          </h2>
+          <p className="mb-2 text-taupe">
+            Existen en el sistema pero esta hoja no las cuenta, porque la población comprendida es solo
+            personal activo y de planilla. No suman al total de arriba ni salen en el papel impreso.
+          </p>
+          <ul className="divide-y divide-sand">
+            {fuera.map((f) => (
+              <li key={f.persona_id} className="flex flex-wrap justify-between gap-2 py-1.5">
+                <span>
+                  {f.nombre} <span className="text-taupe">{f.dni ? `· DNI ${f.dni}` : ""}</span>
+                  <span className="block text-taupe">
+                    {motivoFuera(f)} · {selloLima(f.acusado_at)} · declaró «{f.nombre_declarado ?? "—"}»
+                  </span>
+                </span>
+              </li>
+            ))}
           </ul>
         </section>
       )}
@@ -373,7 +507,7 @@ function ConstanciasPoliticaSalarialContenido() {
 
 export default function ConstanciasPoliticaSalarialPage() {
   return (
-    <Suspense fallback={<main className="p-6"><p className="text-sm text-taupe">Cargando…</p></main>}>
+    <Suspense fallback={<main className="p-6"><Cargando /></main>}>
       <ConstanciasPoliticaSalarialContenido />
     </Suspense>
   );

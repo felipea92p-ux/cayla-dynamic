@@ -135,7 +135,7 @@ export function ModalHistorialBoleta({
                   <p className="text-xs text-taupe">
                     {v.vista_at ? `La abrió ${fechaHoraLima(v.vista_at)}` : "Sin abrir"}
                     {" · "}
-                    {v.recibida_at ? `Confirmó ${fechaHoraLima(v.recibida_at)}` : "Sin confirmar"}
+                    {v.recibida_at ? `La dio por recibida ${fechaHoraLima(v.recibida_at)}` : "Sin firmar"}
                   </p>
                 </div>
                 <Boton tamano="sm" className={`shrink-0 ${TACTIL}`} onClick={() => onVer(v)}>Ver</Boton>

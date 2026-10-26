@@ -121,6 +121,30 @@ export function puedeGestionarContratos(rol: RolPosible): boolean {
 }
 
 /**
+ * ¿Ve estampada, por defecto, la firma de quien firma por CAYLA
+ * (`configuracion.firmante_empresa`, hoy Felipe) en los documentos de la
+ * empresa? La Gerencia, DO y la líder de equipo: quienes abren el panel.
+ *
+ * Es PREDETERMINADA y no depende de quién tenga la sesión abierta. Antes cada
+ * pantalla comparaba «¿soy el firmante?» y, si no, dejaba la raya en blanco:
+ * con cuatro cuentas con panel, el documento salía firmado solo cuando Felipe
+ * lo abría. La firma que se estampa es SIEMPRE la del firmante configurado
+ * (`fn_firma_empresa()`, sin parámetros), nunca la de quien mira, así que el
+ * nombre impreso y la rúbrica salen de la misma fila — el defecto que la 0147
+ * cerró (la firma de una persona bajo el nombre de otra) no puede volver por
+ * aquí.
+ *
+ * Es solo qué se DIBUJA: no abre ninguna pantalla. Contratos, Documentación y
+ * Liquidaciones siguen siendo de DO por su propia regla; la líder de equipo la
+ * ve donde ya podía entrar (la política salarial, los memos de su sede). La
+ * firma la lee `fn_firma_empresa()`, que cualquier sesión puede llamar desde la
+ * 0398 — la integrante la ve en su propio contrato.
+ */
+export function puedeEstamparFirmaDeEmpresa(rol: RolPosible): boolean {
+  return tiene(DO_Y_ENCARGADA, rol);
+}
+
+/**
  * Marcar o desmarcar una ficha como cuenta de servicio (0490): una estación
  * de retail, no una persona. Marcarla la saca de la planilla, así que es de
  * DO — la misma lista que `fn_set_cuenta_de_servicio` exige en la base con
@@ -175,6 +199,25 @@ export function puedeGestionarBoletas(rol: RolPosible): boolean {
  * las políticas del bucket); esto solo decide si se DIBUJA la pantalla.
  */
 export function puedeGestionarArchivo(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
+ * Ver y llevar los seguros del equipo (`/admin/seguros`, migración 0528): en qué
+ * seguro está cada colaborador, las pólizas de los que llevan póliza (FOLA para los
+ * practicantes, y los que DO agregue) con su vigencia, su prima, sus pasos de
+ * papeleo y sus PDF, y los cambios de seguro por cerrar. Solo DO: el PDF de cada
+ * póliza lleva DNI y fecha de nacimiento del asegurado.
+ *
+ * Se nombra aparte de `puedeGestionarArchivo` porque es otra pregunta: aquello
+ * es papel DE LA EMPRESA ante una autoridad, esto es el seguro de CADA PERSONA.
+ * Cada colaborador lee SU seguro y SUS pólizas en «Lo mío → Mi seguro» (0530);
+ * esa lectura no pasa por acá, que es solo la de quien administra.
+ *
+ * La base decide de verdad (`fn_es_admin_o_lider()` en cada `fn_seguro_*` y en
+ * las políticas del bucket); esto solo decide si se DIBUJA la pantalla.
+ */
+export function puedeGestionarSeguros(rol: RolPosible): boolean {
   return tiene(DO, rol);
 }
 
@@ -246,6 +289,26 @@ export function puedeAnularDocumentoDisciplinario(rol: RolPosible): boolean {
   return tiene(DO, rol);
 }
 
+/**
+ * Cerrar la prueba de tres días de alguien —«no apto» o «se retiró»— y darlo de
+ * baja en el mismo acto (`fn_prueba_cerrar`, 0536).
+ *
+ * DO y administración sobre cualquiera, y la líder de equipo (decidido con
+ * Felipe el 2026-10-19): sola, sin confirmación de DO. Es la misma lista que
+ * `puedeOperarEquipo` pero se nombra aparte porque es otra pregunta —no «quién
+ * abre la pantalla de Equipo» sino «quién deja a una persona sin pago»— y el día
+ * que se ajuste una no debe moverse la otra.
+ *
+ * Que la líder esté acá NO significa que decida sobre cualquiera: solo sobre la
+ * gente de SU sede. Esa regla de alcance la aplica la base
+ * (`fn_prueba_puede_actuar`: `sede_base_id` igual al de ella) y nadie decide
+ * sobre su propia prueba. Si se desincronizan gana la base, y la pantalla
+ * muestra un error en vez de un botón: el lado seguro.
+ */
+export function puedeDecidirPrueba(rol: RolPosible): boolean {
+  return tiene(DO_Y_ENCARGADA, rol);
+}
+
 /** Solo la encargada de sede — no DO. Ver `esRolEncargada` más abajo. */
 const SOLO_ENCARGADA: readonly Rol[] = ["supervisor_sede"];
 
@@ -256,6 +319,58 @@ const SOLO_ENCARGADA: readonly Rol[] = ["supervisor_sede"];
  */
 export function esRolEncargada(rol: RolPosible): boolean {
   return tiene(SOLO_ENCARGADA, rol);
+}
+
+/**
+ * ¿Puede TRAMITAR disciplina —registrar una falta, comunicar cargos, firmar,
+ * entregar— y no solo mirarla?
+ *
+ * DO siempre: tramitar no es imponer. La practicante de DO prepara y toma
+ * casos; la firma la exige la base aparte (`fn_expediente_firmante_motivo`,
+ * 0510). La líder de equipo, solo con contrato de trabajo: una líder por
+ * honorarios o en prácticas ve la pantalla, pero no ejerce poder
+ * disciplinario (RIT 2.9). Decidido el 2026-10-06.
+ *
+ * Es la única función de este archivo que pregunta algo más que el rol, y por
+ * eso recibe el vínculo aparte: el rol dice qué se abre; el vínculo, si la
+ * persona puede ejercer poder de dirección. Espeja la rama de la líder de
+ * `fn_expediente_puede_actuar` (0510). Si se desincronizan gana la base, y la
+ * pantalla muestra un error en vez de un botón — el lado seguro.
+ */
+export function puedeTramitarDisciplina(rol: RolPosible, enPlanilla: boolean | null | undefined): boolean {
+  return tiene(DO, rol) || (tiene(SOLO_ENCARGADA, rol) && enPlanilla === true);
+}
+
+/** Solo la líder DO — no Gerencia ni otros admin. Ver `recibeAvisoDeConductaRegistrada`. */
+const SOLO_LIDER_DO: readonly Rol[] = ["lider_do"];
+
+/**
+ * ¿Le llega a la Bandeja cada falta de conducta que registra una líder de
+ * equipo (0515)? Solo a la líder DO, decidido el 2026-10-06: el aviso es para
+ * quien hace Desarrollo Organizacional. Los admin —tres de ellos externos, por
+ * honorarios— lo ven en Disciplina, pero no se les empuja un aviso
+ * disciplinario de personas con las que no trabajan.
+ *
+ * Tomar el caso es otra pregunta, más ancha: `puedeAnularDocumentoDisciplinario`
+ * (DO y admin), la misma regla con la que hoy se anula un documento.
+ */
+export function recibeAvisoDeConductaRegistrada(rol: RolPosible): boolean {
+  return tiene(SOLO_LIDER_DO, rol);
+}
+
+/**
+ * ¿Le llega a la Bandeja el aviso de que nadie dejó constancia de haber leído un
+ * documento entregado en papel hace más de una semana (0516)? Solo a la líder
+ * DO, por la misma razón que `recibeAvisoDeConductaRegistrada`: es el aviso de
+ * quien hace Desarrollo Organizacional, y no se le empuja a los admin externos
+ * por honorarios un aviso disciplinario de personas con las que no trabajan.
+ *
+ * Es una función aparte y no un reuso de aquella porque la pregunta es otra: si
+ * mañana la líder de equipo también debe perseguir a quien no leyó, se cambia
+ * esta y no la otra.
+ */
+export function recibeAvisoDeLecturaPendiente(rol: RolPosible): boolean {
+  return tiene(SOLO_LIDER_DO, rol);
 }
 
 /**
@@ -305,6 +420,26 @@ export function puedeVerTodasLasSedes(rol: RolPosible): boolean {
  */
 export function puedeExportarPadron(rol: RolPosible): boolean {
   return tiene(SOLO_DIRECCION, rol);
+}
+
+/**
+ * Sacar del sistema, en un archivo, la lista de quiénes están asegurados en un seguro
+ * (`/admin/seguros` → «Lista de asegurados», migración 0528): apellidos y nombres, documento,
+ * fecha de nacimiento y de ingreso, y —si se pide— la remuneración asegurable. Es lo que el
+ * contador y la aseguradora piden para emitir el certificado de cada persona.
+ *
+ * Quien lleva DO y la dirección. Es de Felipe (2026-10-17): se le preguntó si solo la dirección,
+ * como el padrón, o también DO, y eligió que DO también —es quien trata con la aseguradora y con
+ * el contador en el día a día, y la lista es justo lo que ellos piden—. Ver y llevarse un dato
+ * siguen siendo dos permisos distintos (por eso esto existe aparte de `puedeGestionarSeguros`),
+ * pero para ESTA lista hoy tienen la misma respuesta: un CSV con documento y fecha de nacimiento
+ * sale del sistema, y quien lo baja avisa a dónde lo manda (la pantalla se lo recuerda).
+ *
+ * NO abre `puedeExportarPadron`: el padrón completo (cuentas bancarias, direcciones, celulares)
+ * sigue siendo solo de la dirección, y `tests/permisos.test.ts` lo vigila.
+ */
+export function puedeExportarListaDeAsegurados(rol: RolPosible): boolean {
+  return tiene(DO, rol);
 }
 
 /** Solo la dirección. Ver arriba por qué esto no es lo mismo que DO. */
@@ -366,6 +501,16 @@ export const ROLES_CON_PANEL: readonly Rol[] = DO_Y_ENCARGADA;
  * función dejan de decir lo mismo.
  */
 export const ROLES_EXPORTAN_ASISTENCIA: readonly Rol[] = DO_Y_ENCARGADA;
+
+/**
+ * Quiénes ven el renglón «Boletas» del menú (2026-10-16). Es la lista de
+ * `puedeGestionarBoletas`, por la misma razón que `ROLES_EXPORTAN_ASISTENCIA`:
+ * el menú filtra por lista y la pantalla decide con la función. Hoy es DO, igual
+ * que `ROLES_DO`, pero se nombra aparte para que el día que la entrega de
+ * boletas se abra o se cierre a otro rol, el renglón se mueva con ella y no con
+ * Planilla. `tests/permisos.test.ts` se pone rojo si las dos dejan de coincidir.
+ */
+export const ROLES_GESTIONAN_BOLETAS: readonly Rol[] = DO;
 
 /** Los roles de DO, para filtrar listas (p. ej. "a quién puedo corregirle el marcaje"). */
 export const ROLES_DO: readonly string[] = DO;

@@ -1,5 +1,6 @@
-import { fechaLima, hoyLima } from "@cayla-dynamic/shared";
+import { esPagoUnicoAprobadoSinFecha, fechaLima, hoyLima } from "@cayla-dynamic/shared";
 import { diasEntre, diaYMes } from "../bandeja-mia";
+import { situacionDe, type CierrePrueba, type FilaPrueba } from "./pruebas";
 
 /**
  * EN QUÉ GRUPO DE URGENCIA CAE CADA PENDIENTE DE LA BANDEJA DEL PANEL.
@@ -76,6 +77,10 @@ const EMPIEZAN = { futuro: "Empiezan", pasado: "Empezaron" };
  */
 export interface EstudioEducacion {
   estado_constancia: string;
+  /** Solo para las palabras (0549): quién entra a la Bandeja lo decide la base, no esto. */
+  frecuencia_pago?: string | null;
+  /** Las constancias aprobadas del estudio. Solo para las palabras (0549). */
+  aprobadas?: number | null;
   vigencia: string;
   plazo: string | null;
   fecha_pago_constancia: string | null;
@@ -113,6 +118,14 @@ export function urgenciaEducacion(f: EstudioEducacion, hoy: string = hoyLima()):
       orden: d,
     };
   }
+  // Un pago único tiene UNA fecha, no un calendario (0549): solo cambia la palabra. Si ya tiene su
+  // constancia aprobada (la base de antes de la 0549 todavía lo cuenta aquí), no «falta» nada que poner.
+  if (f.frecuencia_pago === "unico") {
+    if (esPagoUnicoAprobadoSinFecha(f.estado_constancia, f.frecuencia_pago, f.aprobadas)) {
+      return { grupo: "sin_plazo", plazo: "Sin plazo", nota: "no hace falta una fecha", orden: 0 };
+    }
+    return { grupo: "sin_plazo", plazo: "Sin fecha de pago", nota: "falta la fecha del pago", orden: 0 };
+  }
   return { grupo: "sin_plazo", plazo: "Sin calendario", nota: "falta saber cuándo paga", orden: 0 };
 }
 
@@ -120,6 +133,13 @@ export function urgenciaEducacion(f: EstudioEducacion, hoy: string = hoyLima()):
 export function documentoEducacion(f: EstudioEducacion): { titulo: string; accion: string } {
   if (f.estado_constancia === "vencida") return { titulo: "Constancia de estudios vencida", accion: "Pedir constancia" };
   if (f.pago_proximo) return { titulo: "Pago de estudios en camino", accion: "Ver estudio" };
+  if (f.frecuencia_pago === "unico") {
+    // Con constancia aprobada, «poner la fecha» EMPEORARÍA el estudio (la pediría de nuevo): se avisa sin aconsejarlo.
+    if (esPagoUnicoAprobadoSinFecha(f.estado_constancia, f.frecuencia_pago, f.aprobadas)) {
+      return { titulo: "Pago único con constancia aprobada", accion: "Ver estudio" };
+    }
+    return { titulo: "Pago único sin fecha de pago", accion: "Poner la fecha" };
+  }
   return { titulo: "Estudio sin calendario de pagos", accion: "Fijar calendario" };
 }
 
@@ -199,6 +219,98 @@ export function urgenciaLiquidacionVencida(l: LiquidacionVencida): Urgencia {
     plazo: `Venció hace ${dias} día${dias === 1 ? "" : "s"}`,
     nota: `el ${diaYMes(l.vence_el)}`,
     orden: l.dias_restantes,
+  };
+}
+
+// ── Seguros (0528) ──────────────────────────────────────────────────────────
+// Los números salen de `lib/admin/seguros.ts` (la regla de quién tiene hueco, de
+// qué es «por vencer» y de qué cambios de seguro siguen pendientes vive allí, con
+// su prueba); acá solo se ordenan.
+
+// Textos CORTOS a propósito: la columna del plazo mide 11 rem, y «Se queda sin
+// seguro en 20 días» se pisaba con el botón de la fila (visto en el navegador).
+const SIN_SEGURO = { futuro: "Sin seguro", pasado: "Sin seguro" };
+const PRIMA_VENCE = { futuro: "Prima vence", pasado: "Prima venció" };
+
+/**
+ * Alguien cuyo seguro lleva póliza y no tiene ninguna que cubra hoy. El riesgo YA
+ * corre —no hay «hoy» ni «próximo» posible—, así que va a «Vencido»: una persona sin
+ * ningún seguro es infracción por sí sola (para los practicantes, Ley 28518,
+ * art. 52.5). Entre dos huecos manda el más largo: quien nunca tuvo póliza antes que
+ * quien la perdió ayer.
+ */
+export function urgenciaSeguroSinPoliza(
+  /** null = no se pudieron leer sus pólizas: el hueco es real, la razón no se sabe. */
+  motivo: "nunca" | "vencida" | "aun_no_empieza" | null,
+  diasDesdeQueVencio: number | null,
+): Urgencia {
+  if (motivo === "vencida" && diasDesdeQueVencio !== null) {
+    return {
+      grupo: "vencido",
+      plazo: diasDesdeQueVencio === 0 ? "Sin seguro desde hoy" : `Sin seguro hace ${diasDesdeQueVencio} día${diasDesdeQueVencio === 1 ? "" : "s"}`,
+      nota: "su póliza ya no cubre",
+      orden: -diasDesdeQueVencio,
+    };
+  }
+  if (motivo === "aun_no_empieza") {
+    return { grupo: "vencido", plazo: "Sin seguro hoy", nota: "la póliza registrada todavía no empieza", orden: 0 };
+  }
+  if (motivo === "nunca") {
+    return { grupo: "vencido", plazo: "Sin póliza", nota: "nunca tuvo una registrada", orden: -10_000 };
+  }
+  // Sin la lista de pólizas no se sabe hace cuánto: tan arriba como «nunca», que es el caso más grave.
+  return { grupo: "vencido", plazo: "Sin póliza vigente", nota: "no se leyeron sus pólizas", orden: -10_000 };
+}
+
+/** Cubierta hoy, pero se queda sin seguro en `dias` y nada empalma. `hasta` es la fecha EXCLUSIVA. */
+export function urgenciaSeguroPorVencer(dias: number, hasta: string): Urgencia {
+  return {
+    grupo: dias <= 0 ? "hoy" : "proximo",
+    plazo: enDias(dias, SIN_SEGURO),
+    nota: `el ${diaYMes(hasta)}`,
+    orden: dias,
+  };
+}
+
+/**
+ * El papeleo de una póliza (prima, firma, factura). Manda la prima, que es lo
+ * único con plazo: con mora la cobertura se suspende sola a los 30 días
+ * (convenio de pago, cláusula quinta). Firma y factura no tienen fecha límite.
+ */
+export function urgenciaSeguroPapeleo(
+  prima: { estado: string; dias: number | null; venceEl: string | null } | null,
+  pasos: readonly string[],
+): Urgencia {
+  if (prima && pasos.includes("pagada")) {
+    const d = prima.dias ?? 0;
+    if (prima.estado === "suspendida") {
+      return { grupo: "vencido", plazo: "Cobertura suspendida", nota: "por más de 30 días de mora", orden: d };
+    }
+    if (prima.estado === "en_mora") {
+      const mora = -d;
+      return { grupo: "vencido", plazo: `En mora hace ${mora} día${mora === 1 ? "" : "s"}`, nota: "la cobertura se suspende a los 30 días de mora", orden: d };
+    }
+    if (prima.estado === "por_vencer") {
+      return { grupo: d === 0 ? "hoy" : "proximo", plazo: enDias(d, PRIMA_VENCE), nota: prima.venceEl ? `el ${diaYMes(prima.venceEl)}` : null, orden: d };
+    }
+    return { grupo: "sin_plazo", plazo: "Prima por pagar", nota: prima.venceEl ? `vence el ${diaYMes(prima.venceEl)}` : "sin fecha de vencimiento", orden: 0 };
+  }
+  return { grupo: "sin_plazo", plazo: pasos.includes("firmada") ? "Sin firmar" : "Sin factura", nota: null, orden: 0 };
+}
+
+/**
+ * Un paso de un cambio de seguro (la baja del anterior, el alta del nuevo). No tiene
+ * una fecha límite que Dynamic conozca —el plazo de dar de alta o de baja depende de
+ * cada aseguradora y del contador, y no se inventa—, así que va a «Sin plazo», con lo
+ * que lleva esperando: el que lleva más días sale primero. `dias` es cuántos pasaron
+ * desde que la persona cambió de seguro (cero si fue hoy).
+ */
+export function urgenciaSeguroCambio(paso: "baja" | "alta", dias: number): Urgencia {
+  return {
+    grupo: "sin_plazo",
+    plazo: paso === "baja" ? "Pedir la baja" : "Dar de alta",
+    nota: dias === 0 ? "cambió hoy" : dias === 1 ? "cambió ayer" : `cambió hace ${dias} días`,
+    orden: -dias,
   };
 }
 
@@ -407,4 +519,46 @@ export const EVENTO_CAMBIO_BANDEJA = "dynamic:bandeja-cambio";
 
 export function avisarCambioEnBandeja(): void {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(EVENTO_CAMBIO_BANDEJA));
+}
+
+// ── La prueba de tres días (0536–0538) ───────────────────────────────────────
+
+/**
+ * Una prueba abierta. Se mide por lo que pasó con sus DÍAS, no por una fecha:
+ * los tres días son de jornada cerrada, así que no hay un «vence el» que decir.
+ *
+ *   · vencida  → «Vencido»: trabajó más de lo que dura la prueba y nadie decidió.
+ *                El riesgo ya corre: es alguien trabajando sin contrato.
+ *   · cumplida → «Hoy»: completó el plazo; lo que toca es decidir.
+ *   · en curso → «Próximos»: faltan días, y se puede decidir antes.
+ */
+export function urgenciaPrueba(f: FilaPrueba): Urgencia {
+  const s = situacionDe(f);
+  if (s === "vencida") {
+    const exceso = f.dias_trabajados - f.dias_plazo;
+    return { grupo: "vencido", plazo: "Pasó el plazo", nota: `${f.dias_trabajados} días trabajados`, orden: -exceso };
+  }
+  if (s === "cumplida") {
+    return { grupo: "hoy", plazo: "Toca decidir", nota: `ya trabajó sus ${f.dias_plazo} días`, orden: 0 };
+  }
+  const faltan = f.dias_plazo - f.dias_trabajados;
+  return {
+    grupo: "proximo",
+    plazo: faltan === 1 ? "Falta 1 día" : `Faltan ${faltan} días`,
+    nota: `lleva ${f.dias_trabajados} de ${f.dias_plazo}`,
+    orden: faltan,
+  };
+}
+
+/**
+ * Una prueba que se cerró hace poco. No tiene plazo: es para enterarse (DO ve lo
+ * que una líder decidió sola). Lo más reciente va primero.
+ */
+export function urgenciaCierrePrueba(c: CierrePrueba): Urgencia {
+  return {
+    grupo: "sin_plazo",
+    plazo: c.resultado === "retirado" ? "Se retiró" : "No fue apto",
+    nota: c.decidida_por ? `decidió ${c.decidida_por}` : null,
+    orden: -Date.parse(c.cerrada_at) / 60_000,
+  };
 }

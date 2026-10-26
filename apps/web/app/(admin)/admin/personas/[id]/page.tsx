@@ -7,8 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, TIPO_VINCULO_LABEL, etiquetaDeCatalogo, hoyLima, puedeMarcarCuentaDeServicio, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, type CaraDni } from "@/lib/foto-dni";
-import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
+import { BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, urlFirmadaSolicitudPerfil, type CaraDni } from "@/lib/foto-dni";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
@@ -17,11 +16,15 @@ import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
+import { Cifra } from "@/components/ui/cifra";
 import { Insignia } from "@/components/ui/insignia";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { FirmaEditor } from "./FirmaEditor";
+import { ModalRegistrarFalta } from "@/components/disciplina/registrar-falta";
+import { puedeRegistrarleConducta } from "@/lib/admin/conducta";
 
 const META_DIA = 7.5; // horas objetivo por día (45h/semana)
 
@@ -91,7 +94,7 @@ const CAMPO_LABEL: Record<string, string> = {
   funcion: "Área",
 };
 
-interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean; tipo_vinculo: string }
+interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean; tipo_vinculo: string; rol: string }
 interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; genero: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null; foto_dni_anverso_ruta: string | null; foto_dni_reverso_ruta: string | null }
 interface Salario { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null }
 interface TramoSalarioHist { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null; asignado_por: string | null; nota: string | null }
@@ -201,8 +204,8 @@ export default function PerfilPersonaPage() {
     setGuardandoServicio(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
     avisar("ok", cuentaServicio
-      ? "Vuelve a ser una persona: entra otra vez a la planilla y a las listas del equipo."
-      : "Marcada como cuenta de servicio: sale de la planilla, del terminal y de las listas del equipo.");
+      ? "Deja de ser cuenta de servicio y vuelve a las listas del equipo. Su vínculo sigue en «Sin vínculo laboral»: cámbialo en Equipo si va a trabajar y cobrar."
+      : "Marcada como cuenta de servicio: su vínculo pasa a «Sin vínculo laboral» y sale de la planilla, del terminal y de las listas del equipo.");
     setCuentaServicio(!cuentaServicio);
     setCambiandoServicio(false);
     setMotivoServicio("");
@@ -288,20 +291,31 @@ export default function PerfilPersonaPage() {
     }
   }
   /**
-   * Abre una cara del DNI YA APROBADO. Hasta aquí la foto solo se podía mirar
-   * en /admin/bandeja mientras estaba pendiente: una vez aprobada, la ficha
-   * decía «Cargadas y aprobadas» y el único botón al lado era «Cancelar
-   * documento» — que borra y no se deshace. Quien entraba a mirar el DNI solo
-   * encontraba la acción destructiva.
+   * Muestra una cara del DNI YA APROBADO dentro de un modal, sin abrir pestaña.
+   * Hasta aquí la foto solo se podía mirar en /admin/bandeja mientras estaba
+   * pendiente: una vez aprobada, la ficha decía «Cargadas y aprobadas» y el
+   * único botón al lado era «Cancelar documento» — que borra y no se deshace.
    *
-   * Pasa por `abrirArchivoFirmado` y no por `window.open` tras la firma: el
-   * navegador bloquea a ratos la pestaña si la firma tarda (ver ese archivo).
-   * 60 segundos alcanzan para que cargue; el enlace no queda vivo dando vueltas.
-   * Quién puede leerla lo decide la política del bucket (0403), no esta pantalla.
+   * Antes se abría con `abrirArchivoFirmado` (pestaña nueva) y había
+   * navegadores donde SIEMPRE salía «El navegador bloqueó la ventana»
+   * (2026-10-20, dos clics, dos avisos): una pestaña emergente depende de un
+   * permiso del navegador que esta pantalla no controla. Una imagen no
+   * necesita pestaña — /mio ya la muestra en un modal —, así que no se vuelve a
+   * pedir ese permiso. Quién puede leerla lo decide la política del bucket
+   * (0403), no esta pantalla.
    */
-  async function verCaraDni(ruta: string) {
-    const fallo = await abrirArchivoFirmado(supabase, BUCKET_SOLICITUDES_PERFIL, ruta);
-    if (fallo) avisar("error", fallo);
+  const [dniAmpliado, setDniAmpliado] = useState<{ titulo: string; url: string } | null>(null);
+  const [abriendoDni, setAbriendoDni] = useState<CaraDni | null>(null);
+  async function verCaraDni(cara: CaraDni, etiqueta: string, ruta: string) {
+    if (abriendoDni) return;
+    setAbriendoDni(cara);
+    try {
+      const url = await urlFirmadaSolicitudPerfil(supabase, ruta);
+      if (!url) { avisar("error", "No se pudo abrir la foto. Revisa tu conexión y vuelve a intentarlo."); return; }
+      setDniAmpliado({ titulo: `DNI — ${etiqueta.toLowerCase()}`, url });
+    } finally {
+      setAbriendoDni(null);
+    }
   }
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
   const [vacas, setVacas] = useState<VacacionesSaldo | null>(null);
@@ -314,7 +328,7 @@ export default function PerfilPersonaPage() {
       const { data: sesion } = await supabase.auth.getSession();
       if (!sesion.session) { router.replace("/admin/login"); return; }
       const { data: p, error: eP } = await supabase.from("personas")
-        .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion, tipo_vinculo")
+        .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion, tipo_vinculo, rol")
         .eq("id", id).maybeSingle();
       // La consulta que MANDA en esta pantalla tampoco funde error con vacío.
       // `eP` (la consulta falló) y `!p` (respondió y no hay fila) llevaban el
@@ -551,6 +565,16 @@ export default function PerfilPersonaPage() {
   // "Mi firma": solo en TU propio perfil, si puedes firmar (admin/líder).
   const esMiPerfil = !!yo && yo.id === id;
 
+  // La segunda puerta a «Registrar una falta» (la otra está en Disciplina,
+  // decidido el 2026-10-06): llega con esta persona ya elegida. Solo se ofrece
+  // si la base la va a aceptar — a quién se le puede registrar, 0510.
+  const [registrandoFalta, setRegistrandoFalta] = useState(false);
+  const yoRegistra = useMemo(
+    () => (yo ? { id: yo.id, rol: yo.rol, sedeBaseId: yo.sedeBaseId, enPlanilla: yo.enPlanilla } : null), [yo]);
+  const personaFija = useMemo(
+    () => (persona ? { id: persona.id, nombre: `${persona.nombres} ${persona.apellidos}` } : undefined), [persona]);
+  const puedeRegistrarFalta = !!yoRegistra && !!persona && puedeRegistrarleConducta(yoRegistra, persona);
+
   // Alertas del resumen (0428): solo lo que de verdad exige mirar, no un
   // resumen de todo. Vacaciones vencidas o por vencer en 60 días (mismo
   // umbral que ya pintaba ámbar la sección de abajo) y contrato vencido o por
@@ -613,7 +637,8 @@ export default function PerfilPersonaPage() {
                   {CARAS_DNI.map((cara) => {
                     const ruta = rutaCaraDni(cara.clave);
                     return ruta ? (
-                      <Boton key={cara.clave} variante="secundario" tamano="sm" onClick={() => void verCaraDni(ruta)}>
+                      <Boton key={cara.clave} variante="secundario" tamano="sm" cargando={abriendoDni === cara.clave}
+                        onClick={() => void verCaraDni(cara.clave, cara.etiqueta, ruta)}>
                         Ver {cara.etiqueta.toLowerCase()}
                       </Boton>
                     ) : null;
@@ -696,6 +721,19 @@ export default function PerfilPersonaPage() {
   }
 
   function bloqueLegajo() {
+    return (
+      <>
+        {puedeRegistrarFalta && (
+          <div className="mb-3">
+            <Boton tamano="sm" onClick={() => setRegistrandoFalta(true)}>Registrar una falta</Boton>
+          </div>
+        )}
+        {listaLegajo()}
+      </>
+    );
+  }
+
+  function listaLegajo() {
     return errDocs ? (
       <AvisoNoSeCargo que="el legajo disciplinario" motivo={errDocs} noSignifica="no tenga antecedentes" reintentar={reintentar} />
     ) : docs.length === 0 ? (
@@ -846,52 +884,34 @@ export default function PerfilPersonaPage() {
 
             {tab === "resumen" && (
               <div className="no-print grid gap-5 lg:grid-cols-2">
-                <section className="rounded-2xl border border-sand bg-papel p-5">
-                  <h2 className="mb-2 font-serif text-lg">Situación laboral</h2>
+                <TarjetaInfo como="section" titulo="Situación laboral">
                   <Dato label="Rol / cargo" valor={persona.funcion} />
                   <Dato label="Sede" valor={errSede ? <span className="text-rojo">no se pudo cargar</span> : sede || "—"} />
                   <Dato label="Tipo de vínculo" valor={TIPO_VINCULO_LABEL[persona.tipo_vinculo as keyof typeof TIPO_VINCULO_LABEL] ?? persona.tipo_vinculo} />
                   <Dato label="Ingreso" valor={fechaCorta(persona.fecha_ingreso)} />
                   <Dato label="En planilla" valor={persona.en_planilla ? "Sí" : "No"} />
-                </section>
+                </TarjetaInfo>
 
-                <section className="rounded-2xl border border-sand bg-papel p-5">
-                  <div className="mb-2 flex items-baseline justify-between">
-                    <h2 className="font-serif text-lg">Contacto</h2>
-                    <Link href="/admin/datos-personales" className="text-xs text-tinta hover:underline">Editar →</Link>
-                  </div>
+                <TarjetaInfo como="section" titulo="Contacto" accion={<Link href="/admin/datos-personales" className="text-xs text-tinta hover:underline">Editar →</Link>}>
                   {bloqueDatosPersonales(false)}
-                </section>
+                </TarjetaInfo>
 
-                <section className="rounded-2xl border border-sand bg-papel p-5">
-                  <div className="mb-2 flex items-baseline justify-between">
-                    <h2 className="font-serif text-lg">Contrato y vacaciones</h2>
-                    <Link href="/admin/contratos" className="text-xs text-tinta hover:underline">Contratos →</Link>
-                  </div>
+                <TarjetaInfo como="section" titulo="Contrato y vacaciones" accion={<Link href="/admin/contratos" className="text-xs text-tinta hover:underline">Contratos →</Link>}>
                   {bloqueVacacionesContrato()}
-                </section>
+                </TarjetaInfo>
 
                 {puedeSalario && (
-                  <section className="rounded-2xl border border-sand bg-papel p-5">
-                    <div className="mb-2 flex items-baseline justify-between">
-                      <h2 className="font-serif text-lg">Compensación</h2>
-                      <Boton variante="enlace" onClick={() => setTab("compensacion")}>Ver más →</Boton>
-                    </div>
+                  <TarjetaInfo como="section" titulo="Compensación" accion={<Boton variante="enlace" onClick={() => setTab("compensacion")}>Ver más →</Boton>}>
                     {bloqueCompensacion()}
-                  </section>
+                  </TarjetaInfo>
                 )}
 
-                <section className="rounded-2xl border border-sand bg-papel p-5">
-                  <div className="mb-2 flex items-baseline justify-between">
-                    <h2 className="font-serif text-lg">Documentación</h2>
-                    <Boton variante="enlace" onClick={() => setTab("documentos")}>Ver más →</Boton>
-                  </div>
+                <TarjetaInfo como="section" titulo="Documentación" accion={<Boton variante="enlace" onClick={() => setTab("documentos")}>Ver más →</Boton>}>
                   <Dato label="Legajo disciplinario" valor={errDocs ? <span className="text-rojo">no se pudo cargar</span> : docs.length === 0 ? "Sin antecedentes" : `${docs.length} registro${docs.length === 1 ? "" : "s"}`} />
                   {puedeIdentidad && <Dato label="Fotos del DNI" valor={tieneFotosDni ? "Cargadas y aprobadas" : "—"} />}
-                </section>
+                </TarjetaInfo>
 
-                <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
-                  <h2 className="mb-2 font-serif text-lg">Alertas</h2>
+                <TarjetaInfo como="section" titulo="Alertas" className="lg:col-span-2">
                   {alertas.length === 0 ? (
                     <p className="text-sm text-taupe">Sin alertas relevantes.</p>
                   ) : (
@@ -901,7 +921,7 @@ export default function PerfilPersonaPage() {
                       ))}
                     </ul>
                   )}
-                </section>
+                </TarjetaInfo>
               </div>
             )}
 
@@ -943,10 +963,7 @@ export default function PerfilPersonaPage() {
                         { label: "Tardanzas", valor: `${stats.tardanzas} de ${stats.diasTardeMedidos} medidos` },
                         { label: "Tiempo adicional", valor: stats.horasExtra > 0 ? `+${fmtHoras(stats.horasExtra)}` : "—" },
                       ].map((c) => (
-                        <div key={c.label} className="rounded-2xl border border-sand bg-papel px-4 py-3 transition-all hover:-translate-y-0.5 hover:border-taupe">
-                          <div className="etiqueta text-taupe">{c.label}</div>
-                          <div className="mt-1 font-serif text-2xl">{c.valor}</div>
-                        </div>
+                        <Cifra key={c.label} etiqueta={c.label} valor={c.valor} />
                       ))}
                     </div>
                     <div className="mb-6 flex flex-wrap gap-x-6 gap-y-1 text-sm text-taupe">
@@ -964,10 +981,9 @@ export default function PerfilPersonaPage() {
                       </p>
                     )}
 
-                    <div className="mb-8 rounded-2xl border border-sand bg-papel p-5">
-                      <h2 className="mb-3 font-serif text-lg">Horas por día</h2>
+                    <TarjetaInfo titulo="Horas por día" className="mb-8">
                       <GraficoHoras dias={stats.datosGrafico} meta={META_DIA} />
-                    </div>
+                    </TarjetaInfo>
 
                     <Tabla>
                       <TablaEncabezado>
@@ -1047,9 +1063,9 @@ export default function PerfilPersonaPage() {
                 {!desCargado && cargandoDes && <Cargando texto="Cargando sus objetivos…" />}
                 {desCargado && (
                   objetivos.length > 0 ? (
-                    <div className="max-w-3xl rounded-2xl border border-sand bg-papel p-5">
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                        <h2 className="font-serif text-lg">Objetivos de {objMesLabel.toLowerCase()}</h2>
+                    <TarjetaInfo
+                      titulo={`Objetivos de ${objMesLabel.toLowerCase()}`}
+                      accion={
                         <span className="flex items-center gap-2 text-sm">
                           <span className="text-taupe">{objCumplidos}/{objetivos.length} cumplidos</span>
                           {/* Antes esto pintaba «Plus 21%» en verde. Desde la
@@ -1057,7 +1073,9 @@ export default function PerfilPersonaPage() {
                               porcentaje cumplido y el color ya no premia. */}
                           <Insignia punto={false}>{objNivel.etiqueta}</Insignia>
                         </span>
-                      </div>
+                      }
+                      className="max-w-3xl"
+                    >
                       <div className="mb-3 h-2 overflow-hidden rounded-full bg-sand">
                         <div className={`h-full rounded-full ${objPct >= 60 ? "bg-verde" : objPct >= 30 ? "bg-ambar" : "bg-rojo"}`} style={{ width: `${objPct}%` }} />
                       </div>
@@ -1072,7 +1090,7 @@ export default function PerfilPersonaPage() {
                         ))}
                       </ul>
                       <p className="mt-3 text-xs text-taupe">Cambia el mes desde la pestaña Asistencia (el rango «Hasta» decide el mes que se lee acá).</p>
-                    </div>
+                    </TarjetaInfo>
                   ) : (
                     <p className="text-sm text-taupe">
                       Sin objetivos cargados para {objMesLabel.toLowerCase()}. Evaluaciones, competencias y feedback
@@ -1085,13 +1103,9 @@ export default function PerfilPersonaPage() {
 
             {tab === "compensacion" && puedeSalario && (
               <div className="no-print max-w-xl">
-                <section className="rounded-2xl border border-sand bg-papel p-5">
-                  <div className="mb-2 flex items-baseline justify-between">
-                    <h2 className="font-serif text-lg">Compensación vigente</h2>
-                    <Link href="/admin/planilla" className="text-xs text-tinta hover:underline">Planilla →</Link>
-                  </div>
+                <TarjetaInfo como="section" titulo="Compensación vigente" accion={<Link href="/admin/planilla" className="text-xs text-tinta hover:underline">Planilla →</Link>}>
                   {bloqueCompensacion()}
-                </section>
+                </TarjetaInfo>
                 <p className="mt-3 text-sm text-taupe">
                   El historial completo de tramos —con quién lo asignó y por qué— está en la pestaña <Boton variante="enlace" onClick={() => irATab("historial")}>Historial</Boton>.
                 </p>
@@ -1100,37 +1114,32 @@ export default function PerfilPersonaPage() {
 
             {tab === "documentos" && (
               <div className="no-print grid gap-5 lg:grid-cols-2">
-                <section className="rounded-2xl border border-sand bg-papel p-5">
-                  <div className="mb-2 flex items-baseline justify-between">
-                    <h2 className="font-serif text-lg">Datos personales y DNI</h2>
-                    <Link href="/admin/datos-personales" className="text-xs text-tinta hover:underline">Editar →</Link>
-                  </div>
+                <TarjetaInfo como="section" titulo="Datos personales y DNI" accion={<Link href="/admin/datos-personales" className="text-xs text-tinta hover:underline">Editar →</Link>}>
                   {bloqueDatosPersonales(true)}
-                </section>
+                </TarjetaInfo>
 
-                <section className="rounded-2xl border border-sand bg-papel p-5">
-                  <h2 className="mb-2 font-serif text-lg">Otros documentos</h2>
+                <TarjetaInfo como="section" titulo="Otros documentos">
                   <p className="text-sm text-taupe">
                     Declaración de movilidad, política firmada y cargo del bono de cumpleaños se archivan y
                     revisan desde el tablero de Documentación, junto al resto del equipo.
                   </p>
                   <Link href="/admin/documentacion" className="mt-2 inline-block text-sm text-tinta hover:underline">Ir a Documentación →</Link>
-                </section>
+                </TarjetaInfo>
 
-                <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
-                  <div className="mb-2 flex items-baseline justify-between">
-                    <h2 className="font-serif text-lg">Legajo disciplinario {docs.length > 0 && <span className="text-sm font-normal text-taupe">· {docs.length}</span>}</h2>
-                    <Link href="/admin/disciplina" className="text-xs text-tinta hover:underline">Disciplina →</Link>
-                  </div>
+                <TarjetaInfo
+                  como="section"
+                  titulo={<>Legajo disciplinario {docs.length > 0 && <span className="text-sm font-normal text-taupe">· {docs.length}</span>}</>}
+                  accion={<Link href="/admin/disciplina" className="text-xs text-tinta hover:underline">Disciplina →</Link>}
+                  className="lg:col-span-2"
+                >
                   {bloqueLegajo()}
-                </section>
+                </TarjetaInfo>
 
                 {esMiPerfil && puedeSalario && (
-                  <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
-                    <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
+                  <TarjetaInfo como="section" titulo="Mi firma" className="lg:col-span-2">
                     <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes, y en los contratos de trabajo si eres quien firma por la empresa. Despido/imputación van con firma a mano o digital certificada.</p>
                     <FirmaEditor supabase={supabase} nombreOficial={ficha?.nombre_dni || nombre} avisar={avisar} />
-                  </section>
+                  </TarjetaInfo>
                 )}
               </div>
             )}
@@ -1177,29 +1186,40 @@ export default function PerfilPersonaPage() {
                 parada la persona que hace clic en Descargar PDF. */}
             <div className="imprimible">
               <div className="grid gap-5 lg:grid-cols-2">
-                <section className="rounded-2xl border border-sand bg-papel p-5">
-                  <h2 className="mb-2 font-serif text-lg">Datos personales</h2>
+                <TarjetaInfo como="section" titulo="Datos personales">
                   {bloqueDatosPersonales(false)}
-                </section>
+                </TarjetaInfo>
                 {puedeSalario && incluirSueldo && (
-                  <section className="rounded-2xl border border-sand bg-papel p-5">
-                    <h2 className="mb-2 font-serif text-lg">Compensación</h2>
+                  <TarjetaInfo como="section" titulo="Compensación">
                     {bloqueCompensacion()}
-                  </section>
+                  </TarjetaInfo>
                 )}
-                <section className="rounded-2xl border border-sand bg-papel p-5">
-                  <h2 className="mb-2 font-serif text-lg">Vacaciones y contrato</h2>
+                <TarjetaInfo como="section" titulo="Vacaciones y contrato">
                   {bloqueVacacionesContrato()}
-                </section>
-                <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
-                  <h2 className="mb-2 font-serif text-lg">Legajo disciplinario {docs.length > 0 && <span className="text-sm font-normal text-taupe">· {docs.length}</span>}</h2>
+                </TarjetaInfo>
+                <TarjetaInfo
+                  como="section"
+                  titulo={<>Legajo disciplinario {docs.length > 0 && <span className="text-sm font-normal text-taupe">· {docs.length}</span>}</>}
+                  className="lg:col-span-2"
+                >
                   {bloqueLegajo()}
-                </section>
+                </TarjetaInfo>
               </div>
             </div>
           </>
         )}
       </main>
+
+      <ModalRegistrarFalta
+        abierto={registrandoFalta}
+        onCerrar={() => setRegistrandoFalta(false)}
+        supabase={supabase}
+        yo={yoRegistra}
+        personaFija={personaFija}
+        // El trámite sigue en Disciplina: se aterriza en el borrador recién
+        // creado, abierto en su caso (`#doc-ID`).
+        onRegistrado={(docId) => router.push(`/admin/disciplina#doc-${docId}`)}
+      />
 
       <Modal
         abierto={mostrandoCancelarDni}
@@ -1234,6 +1254,14 @@ export default function PerfilPersonaPage() {
         </div>
       </Modal>
 
+      {/* Foto del DNI ya aprobado, ampliada. Imagen de un bucket privado con URL firmada de 5 min. */}
+      <Modal abierto={dniAmpliado !== null} onCerrar={() => setDniAmpliado(null)} titulo={dniAmpliado?.titulo} ancho="xl">
+        {dniAmpliado && (
+          // eslint-disable-next-line @next/next/no-img-element -- imagen de un bucket privado, no un asset local
+          <img src={dniAmpliado.url} alt={dniAmpliado.titulo} className="mx-auto w-auto max-w-full rounded-lg" />
+        )}
+      </Modal>
+
       {/* Cuenta de servicio (0490). Marcar saca de la planilla: por eso se
           confirma, y por eso la base se niega si esta ficha tiene marcajes. */}
       <Modal
@@ -1244,8 +1272,8 @@ export default function PerfilPersonaPage() {
       >
         <p className="text-sm text-taupe">
           {cuentaServicio
-            ? "Esta ficha vuelve a tratarse como una persona: entra otra vez a la planilla, al terminal de marcaje de su sede y a todas las listas del equipo."
-            : "Úsalo solo para una estación de Retail (una caja o un almacén compartido), nunca para una persona: deja de pagarse, sale del terminal de marcaje y de todas las listas del equipo. Su acceso a Retail no cambia; a Dynamic ya no podrá entrar."}
+            ? "Esta ficha vuelve a tratarse como una persona en el terminal de marcaje de su sede y en las listas del equipo. Su vínculo sigue en «Sin vínculo laboral»: no entra a la planilla ni cobra hasta que lo cambies en Equipo."
+            : "Úsalo solo para una estación de Retail (una caja o un almacén compartido), nunca para una persona: su vínculo pasa a «Sin vínculo laboral», deja de pagarse, sale del terminal de marcaje y de todas las listas del equipo. Su acceso a Retail no cambia; a Dynamic ya no podrá entrar."}
         </p>
         <div className="mt-3">
           <Campo

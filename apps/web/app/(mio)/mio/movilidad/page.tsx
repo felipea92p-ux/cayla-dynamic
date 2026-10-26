@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { EMPRESA, hoyLima } from "@cayla-dynamic/shared";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
@@ -193,8 +194,9 @@ function MiMovilidadContenido() {
       router.replace("/mio");
       return;
     }
-    const { data: sesionAuth } = await supabase.auth.getUser();
-    const uid = sesionAuth.user?.id;
+    // Del almacén de la sesión, sin viajar a la red: `getUser()` es una ronda al servidor de
+    // autenticación por cada pantalla, y la base ya valida el token en cada consulta.
+    const uid = sesion.session.user.id;
     if (!uid) {
       setCargando(false);
       setError("No se pudo leer tu sesión. Vuelve a entrar.");
@@ -362,9 +364,9 @@ function MiMovilidadContenido() {
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
           {error} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -379,15 +381,14 @@ function MiMovilidadContenido() {
   const gasto = gastoDiario(mediosIda, mediosVuelta, costoPasaje);
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <Link href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+    <main className="mx-auto w-full min-w-0 max-w-2xl px-4 py-6 sm:p-6">
+      <EnlaceVolver href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">
         ← Volver a Info
-      </Link>
-      <h1 className="mb-1 font-serif text-xl">Declaración de ruta y gasto de transporte</h1>
-      <p className="mb-6 text-sm text-taupe">
-        Es el papel que sostiene que tu movilidad no paga impuestos ni descuentos (D.S. 001-97-TR, art. 19 e).
-        Firmarla acá la reemplaza por completo: no hace falta imprimir, firmar a mano ni escanear nada.
-      </p>
+      </EnlaceVolver>
+      <CabeceraPagina
+        titulo="Declaración de ruta y gasto de transporte"
+        descripcion="Es el papel que sostiene que tu movilidad no paga impuestos ni descuentos (D.S. 001-97-TR, art. 19 e). Firmarla acá la reemplaza por completo: no hace falta imprimir, firmar a mano ni escanear nada."
+      />
 
       {declaracion === null ? (
         <p className="rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">

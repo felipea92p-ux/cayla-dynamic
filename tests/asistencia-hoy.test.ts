@@ -24,16 +24,20 @@ import {
   fechaCorta,
   fueraDeHorarioDeHoy,
   horaCortaLima,
+  llegaronTarde,
+  llegoTarde,
   loQueFalta,
   diaDeLaSemanaEnPlural,
   metaDelDiaTexto,
   marcaronSinHorario,
+  metaOperativasSinMedir,
   minutosDesde,
   motivoDePausa,
   OPCIONES_FILTRO_ESTADO,
   pausaAbiertaDe,
   porPausaMasLarga,
   sinMarcarYaLeTocaba,
+  sustantivoMetaOp,
   subEstadoSinMarcar,
   textoDesglose,
   textoEquipoDelDia,
@@ -51,24 +55,30 @@ import {
 } from "@/lib/admin/asistencia-hoy";
 
 // Una persona de hoy con valores neutros: sin marcar, le tocaba entrar a las 8.
-const fila = (o: Partial<FilaPersona> = {}): FilaPersona => ({
-  personaId: "p",
-  nombre: "Persona",
-  sede: "TRU",
-  sedeId: "s1",
-  estado: "sin_marcar",
-  entrada: null,
-  salidaFinal: null,
-  minutosTarde: null,
-  salidaTemprana: null,
-  enPausaSinRetorno: false,
-  esOperativa: true,
-  esEncargada: false,
-  ausenciaHoy: null,
-  entradaEsperadaHoy: "08:00",
-  origenEsperadoHoy: "turno",
-  ...o,
-});
+const fila = (o: Partial<FilaPersona> = {}): FilaPersona => {
+  const base: FilaPersona = {
+    personaId: "p",
+    nombre: "Persona",
+    sede: "TRU",
+    sedeId: "s1",
+    estado: "sin_marcar",
+    entrada: null,
+    salidaFinal: null,
+    minutosTarde: null,
+    salidaTemprana: null,
+    enPausaSinRetorno: false,
+    esOperativa: true,
+    cuentaEnMetaOp: true,
+    esEncargada: false,
+    ausenciaHoy: null,
+    entradaEsperadaHoy: "08:00",
+    origenEsperadoHoy: "turno",
+    ...o,
+  };
+  // Fuera de una central cuenta contra la meta quien es operativo: si la prueba no dice otra
+  // cosa, el segundo campo sigue al primero. Las pruebas de una central lo fijan a mano.
+  return { ...base, cuentaEnMetaOp: o.cuentaEnMetaOp ?? base.esOperativa };
+};
 
 const META_0 = { man: 0, tar: 0, enc: 0 };
 
@@ -598,6 +608,109 @@ describe("causaMetaImposible — por qué una meta no se cumple aunque vengan to
   it("una sola persona que cuenta, concordancia en singular", () => {
     expect(causaMetaImposible("operativas", 2, 1)!.detalle)
       .toBe("La meta (2) es mayor que la única persona del equipo que cuenta: aunque venga, no se cumple.");
+  });
+});
+
+// ----------------------------------------------------------------------------
+// El error de la captura de 2026-10-21: Oficina TRU decía «0 / 4 operativas» con
+// cinco personas trabajando. Su equipo es administrativo, así que nadie cuenta
+// como operativo y la meta de 4 no tiene a quién contar: no es «faltan 4».
+// ----------------------------------------------------------------------------
+describe("metaOperativasSinMedir — «0 / 4» con cinco personas en piso", () => {
+  it("una sede que NO es central, con cinco en piso, ninguna de área operativa y meta de 4", () => {
+    const equipo = ["a", "b", "c", "d", "e"].map((id) =>
+      fila({ personaId: id, esOperativa: false, estado: "abierta", entrada: "x" }));
+    const cob = calcularCoberturaSede(equipo, { man: 4, tar: 4, enc: 0 }, false, 10);
+    expect(cob.trabajando).toHaveLength(5);
+    expect(cob.opPiso).toBe(0); // el 0 de «0 / 4» es cierto…
+    expect(metaOperativasSinMedir(cob.metaOp, cob.equipoOperativas)).toBe(true); // …y por eso no se muestra
+  });
+
+  it("una tienda con operativas contra su meta SÍ se mide, aunque no alcance (LIM: 3 de 4)", () => {
+    expect(metaOperativasSinMedir(4, 3)).toBe(false);
+    expect(metaOperativasSinMedir(4, 1)).toBe(false);
+  });
+
+  it("sin meta no hay nada que no se pueda medir", () => {
+    expect(metaOperativasSinMedir(0, 0)).toBe(false);
+  });
+
+  it("el equipo operativo se cuenta aunque hoy nadie haya llegado", () => {
+    const equipo = [fila({ personaId: "a", esOperativa: true }), fila({ personaId: "b", esOperativa: true })];
+    const cob = calcularCoberturaSede(equipo, { man: 4, tar: 4, enc: 0 }, false, 6);
+    expect(metaOperativasSinMedir(cob.metaOp, cob.equipoOperativas)).toBe(false);
+  });
+});
+
+// ----------------------------------------------------------------------------
+// La misma captura de 2026-10-21, un paso después. Oficina TRU salía «5 trabajando
+// ahora · meta por revisar» en ámbar todos los días: su meta de 4 se medía contra
+// gente de áreas operativas, y en una oficina no existe. Decisión de Felipe: la meta
+// de una central es cuántos integrantes hay en la sede, y con ellos en piso sale verde.
+// Aquí la sede es de TIPO central: cada fila ya trae `cuentaEnMetaOp` resuelto, que es lo
+// que hace `cuentaEnCobertura` (ver tests/cobertura-equipo.test.ts).
+// ----------------------------------------------------------------------------
+describe("una central mide su meta en integrantes en la sede (Oficina TRU, 2026-10-21)", () => {
+  // Cuatro practicantes en áreas de oficina y una líder: ninguno es «operativo», todos cuentan.
+  const oficina = (estados: string[]) =>
+    estados.map((estado, i) => fila({
+      personaId: `p${i}`, esOperativa: false, cuentaEnMetaOp: true, esEncargada: i === 4,
+      estado, entrada: estado === "sin_marcar" ? null : "x",
+    }));
+
+  it("cinco en piso contra una meta de 4: verde, sin «meta por revisar», dicho en integrantes", () => {
+    const cob = calcularCoberturaSede(oficina(Array(5).fill("abierta")), { man: 4, tar: 4, enc: 0 }, false, 10, true, "central");
+    expect(cob.opPiso).toBe(5);
+    expect(cob.equipoOperativas).toBe(5); // el equipo que PUEDE cubrir la meta, no cero
+    expect(cob.faltanOp).toBe(false);
+    expect(cob.metaOpImposible).toBe(false);
+    expect(cob.gravedad).toBeNull();
+    expect(cob.metaEnIntegrantes).toBe(true);
+    expect(metaOperativasSinMedir(cob.metaOp, cob.equipoOperativas)).toBe(false); // ya no hay «por revisar» que decir
+  });
+
+  it("si falta gente, falta de verdad: 3 de 4 es rojo y se dice «1 integrante»", () => {
+    const cob = calcularCoberturaSede(oficina(["abierta", "abierta", "abierta", "sin_marcar", "sin_marcar"]), { man: 4, tar: 4, enc: 0 }, false, 10, true, "central");
+    expect(cob.opPiso).toBe(3);
+    expect(cob.faltanOp).toBe(true);
+    expect(cob.gravedad).toBe("alerta");
+    expect(loQueFalta(cob)).toBe("1 integrante");
+  });
+
+  it("quien está en pausa no está en la sede en ese momento: no cuenta, igual que en una tienda", () => {
+    const cob = calcularCoberturaSede(oficina(["abierta", "abierta", "abierta", "abierta", "en_pausa"]), { man: 5, tar: 5, enc: 0 }, false, 10, true, "central");
+    expect(cob.opPiso).toBe(4);
+    expect(cob.faltanOp).toBe(true);
+  });
+
+  it("una tienda sigue diciendo «operativas»: la palabra y la regla no cambian fuera de una central", () => {
+    const cob = calcularCoberturaSede([fila({ estado: "sin_marcar" })], { man: 2, tar: 2, enc: 0 }, false, 10, true, "tienda");
+    expect(cob.metaEnIntegrantes).toBe(false);
+    expect(loQueFalta(cob)).toBe("2 operativas");
+  });
+
+  it("una líder cuenta en las dos metas también aquí: es una persona, y cuenta una vez en cada meta", () => {
+    const cob = calcularCoberturaSede(oficina(Array(5).fill("abierta")), { man: 4, tar: 4, enc: 1 }, false, 10, true, "central");
+    expect(cob.encPiso).toBe(1);
+    expect(cob.lideresEnAmbasMetas).toBe(1);
+  });
+
+  it("sustantivoMetaOp: integrante(s) en una central, operativa(s) en el resto, con su concordancia", () => {
+    expect(sustantivoMetaOp(true, 1)).toBe("integrante");
+    expect(sustantivoMetaOp(true, 4)).toBe("integrantes");
+    expect(sustantivoMetaOp(false, 1)).toBe("operativa");
+    expect(sustantivoMetaOp(false, 3)).toBe("operativas");
+    expect(sustantivoMetaOp(undefined, 3)).toBe("operativas");
+    expect(metaDelDiaTexto({ metaOpDelDia: 4, metaEnc: 1, metaEnIntegrantes: true })).toBe("4 integrantes y 1 líder");
+    expect(textoLiderEnLasDosMetas(1, true)).toBe("1 líder de equipo cuenta en las dos metas: integrantes y líderes.");
+    expect(textoLiderEnLasDosMetas(2)).toBe("2 líderes de equipo cuentan en las dos metas: personal operativo y líderes.");
+  });
+
+  it("quien marcó sin horario sigue avisándose solo para operativos y líderes: ser «integrante» de una central no lo cambia", () => {
+    // Un administrador de Central sin horario es normal (ver `marcaronSinHorario`): el aviso diario
+    // de «marcó sin horario» enseñaría a ignorarlo. Por eso `esOperativa` NO se funde con `cuentaEnMetaOp`.
+    const sinHorario = fila({ personaId: "adm", esOperativa: false, cuentaEnMetaOp: true, esEncargada: false, origenEsperadoHoy: "sin_horario", entradaEsperadaHoy: null, entrada: "x", estado: "abierta" });
+    expect(marcaronSinHorario([sinHorario])).toEqual([]);
   });
 });
 
@@ -1344,5 +1457,62 @@ describe("textoEquipoDelDia en un feriado sin confirmar — «por horario», no 
       expect(textoEquipoDelDia(p, e, false)).toBe(textoEquipoDelDia(p, e));
     }
     expect(textoEquipoDelDia(3, 3)).toBe("Hoy les tocaba trabajar a las 3 personas del equipo.");
+  });
+});
+
+describe("llegoTarde: una tardanza levantada ya no es tardanza", () => {
+  it("llegó 30 min tarde y nadie la levantó: cuenta", () => {
+    expect(llegoTarde(fila({ minutosTarde: 30 }))).toBe(true);
+  });
+
+  it("llegó 30 min tarde pero DO la levantó (fuerza mayor): NO cuenta, aunque los minutos sigan guardados", () => {
+    expect(llegoTarde(fila({ minutosTarde: 30, tardanzaLevantada: true }))).toBe(false);
+  });
+
+  it("sin minutos de tardanza no cuenta, levantada o no", () => {
+    expect(llegoTarde(fila({ minutosTarde: 0 }))).toBe(false);
+    expect(llegoTarde(fila({ minutosTarde: null, tardanzaLevantada: true }))).toBe(false);
+  });
+
+  it("una fila que nunca trae el dato (ausente) se comporta como siempre", () => {
+    expect(llegoTarde(fila({ minutosTarde: 5 }))).toBe(true);
+  });
+});
+
+describe("llegaronTarde: la lista que abre el «1 tarde» de la sede", () => {
+  it("trae solo a quien llegó tarde, y la más tarde primero", () => {
+    const lista = llegaronTarde([
+      fila({ personaId: "a", nombre: "Ana", minutosTarde: 5 }),
+      fila({ personaId: "b", nombre: "Beto", minutosTarde: 0 }),
+      fila({ personaId: "c", nombre: "Carla", minutosTarde: 40 }),
+      fila({ personaId: "d", nombre: "Dora", minutosTarde: null }),
+    ]);
+    expect(lista.map((f) => f.personaId)).toEqual(["c", "a"]);
+  });
+
+  it("quien tiene la tardanza levantada no aparece: la lista y el «N tarde» de la fila no pueden discrepar", () => {
+    const filas = [
+      fila({ personaId: "a", nombre: "Ana", minutosTarde: 30, tardanzaLevantada: true }),
+      fila({ personaId: "b", nombre: "Beto", minutosTarde: 3 }),
+    ];
+    expect(llegaronTarde(filas).map((f) => f.personaId)).toEqual(["b"]);
+    expect(llegaronTarde(filas)).toHaveLength(filas.filter(llegoTarde).length);
+  });
+
+  it("a igual de minutos desempata por nombre, para que el refresco de 30 s no baraje la lista", () => {
+    const lista = llegaronTarde([
+      fila({ personaId: "z", nombre: "Zoila", minutosTarde: 10 }),
+      fila({ personaId: "a", nombre: "Ángela", minutosTarde: 10 }),
+      fila({ personaId: "m", nombre: "Marta", minutosTarde: 10 }),
+    ]);
+    expect(lista.map((f) => f.nombre)).toEqual(["Ángela", "Marta", "Zoila"]);
+  });
+
+  it("no toca el arreglo que recibe y sin tardanzas devuelve vacío", () => {
+    const entrada = [fila({ personaId: "a", minutosTarde: 5 }), fila({ personaId: "b", minutosTarde: 20 })];
+    const copia = [...entrada];
+    llegaronTarde(entrada);
+    expect(entrada).toEqual(copia);
+    expect(llegaronTarde([fila({ minutosTarde: 0 })])).toEqual([]);
   });
 });

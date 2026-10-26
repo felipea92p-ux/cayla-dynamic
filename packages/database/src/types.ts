@@ -34,6 +34,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      aceptaciones_terminos: {
+        Row: {
+          aceptado_at: string
+          id: string
+          modulo: string
+          persona_id: string
+          texto: string
+          version: number
+        }
+        Insert: {
+          aceptado_at?: string
+          id?: string
+          modulo: string
+          persona_id: string
+          texto: string
+          version: number
+        }
+        Update: {
+          aceptado_at?: string
+          id?: string
+          modulo?: string
+          persona_id?: string
+          texto?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aceptaciones_terminos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aceptaciones_terminos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       actas_descanso_sustitutorio: {
         Row: {
           archivo_base64: string | null
@@ -780,6 +822,7 @@ export type Database = {
           creada_at: string
           creada_por: string
           estado: string
+          estado_previo: string | null
           id: string
           periodo_id: string
           persona_id: string
@@ -793,6 +836,7 @@ export type Database = {
           creada_at?: string
           creada_por: string
           estado?: string
+          estado_previo?: string | null
           id?: string
           periodo_id: string
           persona_id: string
@@ -806,6 +850,7 @@ export type Database = {
           creada_at?: string
           creada_por?: string
           estado?: string
+          estado_previo?: string | null
           id?: string
           periodo_id?: string
           persona_id?: string
@@ -813,6 +858,34 @@ export type Database = {
           publicada_por?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "boletas_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "boletas_periodo_id_fkey"
             columns: ["periodo_id"]
@@ -828,10 +901,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "boletas_creada_por_fkey"
-            columns: ["creada_por"]
+            foreignKeyName: "boletas_persona_id_fkey"
+            columns: ["persona_id"]
             isOneToOne: false
-            referencedRelation: "personas"
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -842,26 +915,29 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "boletas_anulada_por_fkey"
-            columns: ["anulada_por"]
+            foreignKeyName: "boletas_publicada_por_fkey"
+            columns: ["publicada_por"]
             isOneToOne: false
-            referencedRelation: "personas"
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
       }
       boletas_acuses: {
         Row: {
+          firma: string | null
           recibida_at: string | null
           version_id: string
           vista_at: string | null
         }
         Insert: {
+          firma?: string | null
           recibida_at?: string | null
           version_id: string
           vista_at?: string | null
         }
         Update: {
+          firma?: string | null
           recibida_at?: string | null
           version_id?: string
           vista_at?: string | null
@@ -870,8 +946,77 @@ export type Database = {
           {
             foreignKeyName: "boletas_acuses_version_id_fkey"
             columns: ["version_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "boletas_versiones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      boletas_anulaciones: {
+        Row: {
+          anulada_at: string
+          anulada_por: string
+          boleta_id: string
+          estado_previo: string | null
+          id: string
+          motivo: string
+          restablecida_at: string | null
+          restablecida_por: string | null
+        }
+        Insert: {
+          anulada_at?: string
+          anulada_por: string
+          boleta_id: string
+          estado_previo?: string | null
+          id?: string
+          motivo: string
+          restablecida_at?: string | null
+          restablecida_por?: string | null
+        }
+        Update: {
+          anulada_at?: string
+          anulada_por?: string
+          boleta_id?: string
+          estado_previo?: string | null
+          id?: string
+          motivo?: string
+          restablecida_at?: string | null
+          restablecida_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boletas_anulaciones_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_anulaciones_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_anulaciones_boleta_id_fkey"
+            columns: ["boleta_id"]
+            isOneToOne: false
+            referencedRelation: "boletas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_anulaciones_restablecida_por_fkey"
+            columns: ["restablecida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_anulaciones_restablecida_por_fkey"
+            columns: ["restablecida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -907,10 +1052,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "boletas_partes_version_id_tipo_fkey"
-            columns: ["version_id"]
+            columns: ["version_id", "tipo"]
             isOneToOne: false
             referencedRelation: "boletas_versiones"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "tipo"]
           },
         ]
       }
@@ -958,6 +1103,13 @@ export type Database = {
             columns: ["creada_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_versiones_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -1824,6 +1976,7 @@ export type Database = {
           anulado_motivo: string | null
           anulado_por: string | null
           created_at: string
+          documento_html: string | null
           entrega_confirmada_at: string | null
           entrega_confirmada_el: string | null
           entrega_confirmada_por: string | null
@@ -1833,6 +1986,7 @@ export type Database = {
           firma_persona_confirmada_at: string | null
           firma_persona_ip: string | null
           firma_persona_user_agent: string | null
+          firmante_empresa_id: string | null
           id: string
           monto_declarado: number | null
           movimiento_id: string | null
@@ -1858,6 +2012,7 @@ export type Database = {
           anulado_motivo?: string | null
           anulado_por?: string | null
           created_at?: string
+          documento_html?: string | null
           entrega_confirmada_at?: string | null
           entrega_confirmada_el?: string | null
           entrega_confirmada_por?: string | null
@@ -1867,6 +2022,7 @@ export type Database = {
           firma_persona_confirmada_at?: string | null
           firma_persona_ip?: string | null
           firma_persona_user_agent?: string | null
+          firmante_empresa_id?: string | null
           id?: string
           monto_declarado?: number | null
           movimiento_id?: string | null
@@ -1892,6 +2048,7 @@ export type Database = {
           anulado_motivo?: string | null
           anulado_por?: string | null
           created_at?: string
+          documento_html?: string | null
           entrega_confirmada_at?: string | null
           entrega_confirmada_el?: string | null
           entrega_confirmada_por?: string | null
@@ -1901,6 +2058,7 @@ export type Database = {
           firma_persona_confirmada_at?: string | null
           firma_persona_ip?: string | null
           firma_persona_user_agent?: string | null
+          firmante_empresa_id?: string | null
           id?: string
           monto_declarado?: number | null
           movimiento_id?: string | null
@@ -1930,6 +2088,34 @@ export type Database = {
           {
             foreignKeyName: "documentos_firmados_anulado_por_fkey"
             columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_entrega_confirmada_por_fkey"
+            columns: ["entrega_confirmada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_entrega_confirmada_por_fkey"
+            columns: ["entrega_confirmada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_firmante_empresa_id_fkey"
+            columns: ["firmante_empresa_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_firmante_empresa_id_fkey"
+            columns: ["firmante_empresa_id"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
@@ -2221,9 +2407,47 @@ export type Database = {
           },
         ]
       }
+      educacion_entrega_meses: {
+        Row: {
+          entrega_id: string
+          mes: string
+          monto: number
+          motivo: string | null
+          origen: string
+        }
+        Insert: {
+          entrega_id: string
+          mes: string
+          monto: number
+          motivo?: string | null
+          origen: string
+        }
+        Update: {
+          entrega_id?: string
+          mes?: string
+          monto?: number
+          motivo?: string | null
+          origen?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "educacion_entrega_meses_entrega_id_fkey"
+            columns: ["entrega_id"]
+            isOneToOne: false
+            referencedRelation: "educacion_entregas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       educacion_entregas: {
         Row: {
+          aprobacion_revertida_at: string | null
+          aprobacion_revertida_por: string | null
+          aprobada_at: string | null
+          aprobada_por: string | null
           asignacion_id: string
+          cubre_desde: string | null
+          cubre_hasta: string | null
           enviada_at: string
           enviada_por: string | null
           estado: string
@@ -2241,7 +2465,13 @@ export type Database = {
           tipo: string
         }
         Insert: {
+          aprobacion_revertida_at?: string | null
+          aprobacion_revertida_por?: string | null
+          aprobada_at?: string | null
+          aprobada_por?: string | null
           asignacion_id: string
+          cubre_desde?: string | null
+          cubre_hasta?: string | null
           enviada_at?: string
           enviada_por?: string | null
           estado?: string
@@ -2259,7 +2489,13 @@ export type Database = {
           tipo: string
         }
         Update: {
+          aprobacion_revertida_at?: string | null
+          aprobacion_revertida_por?: string | null
+          aprobada_at?: string | null
+          aprobada_por?: string | null
           asignacion_id?: string
+          cubre_desde?: string | null
+          cubre_hasta?: string | null
           enviada_at?: string
           enviada_por?: string | null
           estado?: string
@@ -2277,6 +2513,34 @@ export type Database = {
           tipo?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "educacion_entregas_aprobacion_revertida_por_fkey"
+            columns: ["aprobacion_revertida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_entregas_aprobacion_revertida_por_fkey"
+            columns: ["aprobacion_revertida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_entregas_aprobada_por_fkey"
+            columns: ["aprobada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_entregas_aprobada_por_fkey"
+            columns: ["aprobada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "educacion_entregas_asignacion_id_fkey"
             columns: ["asignacion_id"]
@@ -2517,6 +2781,7 @@ export type Database = {
       expediente_disciplinario: {
         Row: {
           cargos_comunicados_at: string | null
+          conocido_el: string | null
           correlativo: string | null
           creado_at: string
           creado_por: string
@@ -2531,6 +2796,9 @@ export type Database = {
           enviado_a_info_at: string | null
           enviado_a_info_por: string | null
           estado: string
+          falta_literal: string | null
+          falta_numeral: string | null
+          falta_rit_version: number | null
           fecha_cese: string | null
           firma_sancionado: string | null
           firma_sancionado_confirmada_at: string | null
@@ -2554,9 +2822,12 @@ export type Database = {
           suspension_fechas: string[] | null
           suspension_hasta: string | null
           tipo_causal: string
+          tomado_at: string | null
+          tomado_por: string | null
         }
         Insert: {
           cargos_comunicados_at?: string | null
+          conocido_el?: string | null
           correlativo?: string | null
           creado_at?: string
           creado_por: string
@@ -2571,6 +2842,9 @@ export type Database = {
           enviado_a_info_at?: string | null
           enviado_a_info_por?: string | null
           estado?: string
+          falta_literal?: string | null
+          falta_numeral?: string | null
+          falta_rit_version?: number | null
           fecha_cese?: string | null
           firma_sancionado?: string | null
           firma_sancionado_confirmada_at?: string | null
@@ -2594,9 +2868,12 @@ export type Database = {
           suspension_fechas?: string[] | null
           suspension_hasta?: string | null
           tipo_causal: string
+          tomado_at?: string | null
+          tomado_por?: string | null
         }
         Update: {
           cargos_comunicados_at?: string | null
+          conocido_el?: string | null
           correlativo?: string | null
           creado_at?: string
           creado_por?: string
@@ -2611,6 +2888,9 @@ export type Database = {
           enviado_a_info_at?: string | null
           enviado_a_info_por?: string | null
           estado?: string
+          falta_literal?: string | null
+          falta_numeral?: string | null
+          falta_rit_version?: number | null
           fecha_cese?: string | null
           firma_sancionado?: string | null
           firma_sancionado_confirmada_at?: string | null
@@ -2634,6 +2914,8 @@ export type Database = {
           suspension_fechas?: string[] | null
           suspension_hasta?: string | null
           tipo_causal?: string
+          tomado_at?: string | null
+          tomado_por?: string | null
         }
         Relationships: [
           {
@@ -2741,6 +3023,76 @@ export type Database = {
             referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "expediente_disciplinario_tomado_por_fkey"
+            columns: ["tomado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_tomado_por_fkey"
+            columns: ["tomado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_expediente_falta_catalogo"
+            columns: ["falta_rit_version", "falta_numeral", "falta_literal"]
+            isOneToOne: false
+            referencedRelation: "faltas_catalogo"
+            referencedColumns: ["rit_version", "numeral", "literal"]
+          },
+        ]
+      }
+      expediente_traspasos: {
+        Row: {
+          accion: string
+          expediente_id: string
+          hecho_at: string
+          id: string
+          motivo: string
+          por: string
+        }
+        Insert: {
+          accion: string
+          expediente_id: string
+          hecho_at?: string
+          id?: string
+          motivo: string
+          por: string
+        }
+        Update: {
+          accion?: string
+          expediente_id?: string
+          hecho_at?: string
+          id?: string
+          motivo?: string
+          por?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expediente_traspasos_expediente_id_fkey"
+            columns: ["expediente_id"]
+            isOneToOne: false
+            referencedRelation: "expediente_disciplinario"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_traspasos_por_fkey"
+            columns: ["por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_traspasos_por_fkey"
+            columns: ["por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
       }
       factores_categoria: {
@@ -2769,6 +3121,62 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "categorias_laborales"
             referencedColumns: ["rango"]
+          },
+        ]
+      }
+      faltas_catalogo: {
+        Row: {
+          gravedad: string
+          literal: string
+          numeral: string
+          rit_version: number
+          se_registra_a_mano: boolean
+          texto: string
+        }
+        Insert: {
+          gravedad: string
+          literal: string
+          numeral: string
+          rit_version: number
+          se_registra_a_mano: boolean
+          texto: string
+        }
+        Update: {
+          gravedad?: string
+          literal?: string
+          numeral?: string
+          rit_version?: number
+          se_registra_a_mano?: boolean
+          texto?: string
+        }
+        Relationships: []
+      }
+      faltas_rotulos: {
+        Row: {
+          literal: string
+          numeral: string
+          rit_version: number
+          rotulo: string
+        }
+        Insert: {
+          literal: string
+          numeral: string
+          rit_version: number
+          rotulo: string
+        }
+        Update: {
+          literal?: string
+          numeral?: string
+          rit_version?: number
+          rotulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_rotulo_falta"
+            columns: ["rit_version", "numeral", "literal"]
+            isOneToOne: true
+            referencedRelation: "faltas_catalogo"
+            referencedColumns: ["rit_version", "numeral", "literal"]
           },
         ]
       }
@@ -3083,6 +3491,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "incidencias_aceptadas_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidencias_aceptadas_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "incidencias_aceptadas_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
@@ -3167,6 +3589,109 @@ export type Database = {
             columns: ["sede_id"]
             isOneToOne: false
             referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lecturas_memo: {
+        Row: {
+          abierto_at: string
+          expediente_id: string
+          leido_at: string | null
+        }
+        Insert: {
+          abierto_at?: string
+          expediente_id: string
+          leido_at?: string | null
+        }
+        Update: {
+          abierto_at?: string
+          expediente_id?: string
+          leido_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lecturas_memo_expediente_id_fkey"
+            columns: ["expediente_id"]
+            isOneToOne: true
+            referencedRelation: "expediente_disciplinario"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      liquidacion_constancias: {
+        Row: {
+          apoyo: string | null
+          constatada_at: string
+          constatada_por: string
+          decision: string
+          diferencias: Json
+          huella: string
+          id: string
+          motivo: string
+          orden: number
+          persona_id: string
+          reemplaza_id: string | null
+          sentido: string
+          version: number
+        }
+        Insert: {
+          apoyo?: string | null
+          constatada_at?: string
+          constatada_por: string
+          decision: string
+          diferencias: Json
+          huella: string
+          id?: string
+          motivo: string
+          orden?: never
+          persona_id: string
+          reemplaza_id?: string | null
+          sentido: string
+          version: number
+        }
+        Update: {
+          apoyo?: string | null
+          constatada_at?: string
+          constatada_por?: string
+          decision?: string
+          diferencias?: Json
+          huella?: string
+          id?: string
+          motivo?: string
+          orden?: never
+          persona_id?: string
+          reemplaza_id?: string | null
+          sentido?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "constancia_cadena"
+            columns: ["reemplaza_id", "persona_id", "version", "huella"]
+            isOneToOne: false
+            referencedRelation: "liquidacion_constancias"
+            referencedColumns: ["id", "persona_id", "version", "huella"]
+          },
+          {
+            foreignKeyName: "constancia_version_existe"
+            columns: ["persona_id", "version"]
+            isOneToOne: false
+            referencedRelation: "liquidacion_pagada"
+            referencedColumns: ["persona_id", "version"]
+          },
+          {
+            foreignKeyName: "liquidacion_constancias_constatada_por_fkey"
+            columns: ["constatada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidacion_constancias_constatada_por_fkey"
+            columns: ["constatada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -3741,10 +4266,14 @@ export type Database = {
       }
       objetivos_items: {
         Row: {
+          actualizado_por: string | null
           anio: number
+          creado_por: string | null
           created_at: string
           cumplido: boolean
           descripcion: string
+          eliminado_at: string | null
+          eliminado_por: string | null
           id: string
           indicaciones: string | null
           mes: number
@@ -3753,10 +4282,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          actualizado_por?: string | null
           anio: number
+          creado_por?: string | null
           created_at?: string
           cumplido?: boolean
           descripcion: string
+          eliminado_at?: string | null
+          eliminado_por?: string | null
           id?: string
           indicaciones?: string | null
           mes: number
@@ -3765,10 +4298,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          actualizado_por?: string | null
           anio?: number
+          creado_por?: string | null
           created_at?: string
           cumplido?: boolean
           descripcion?: string
+          eliminado_at?: string | null
+          eliminado_por?: string | null
           id?: string
           indicaciones?: string | null
           mes?: number
@@ -3777,6 +4314,48 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "objetivos_items_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objetivos_items_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objetivos_items_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objetivos_items_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objetivos_items_eliminado_por_fkey"
+            columns: ["eliminado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objetivos_items_eliminado_por_fkey"
+            columns: ["eliminado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "objetivos_items_persona_id_fkey"
             columns: ["persona_id"]
@@ -3831,6 +4410,61 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organos_titulo_x: {
+        Row: {
+          acta: string | null
+          creado_at: string
+          desde: string
+          hasta: string | null
+          id: string
+          papel: string
+          persona_id: string
+          sede_id: string
+        }
+        Insert: {
+          acta?: string | null
+          creado_at?: string
+          desde: string
+          hasta?: string | null
+          id?: string
+          papel: string
+          persona_id: string
+          sede_id: string
+        }
+        Update: {
+          acta?: string | null
+          creado_at?: string
+          desde?: string
+          hasta?: string | null
+          id?: string
+          papel?: string
+          persona_id?: string
+          sede_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organos_titulo_x_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organos_titulo_x_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organos_titulo_x_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
             referencedColumns: ["id"]
           },
         ]
@@ -3910,6 +4544,57 @@ export type Database = {
             columns: ["periodo_id"]
             isOneToOne: false
             referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      periodos_eliminados: {
+        Row: {
+          eliminado_at: string
+          eliminado_por: string | null
+          estado: string
+          fecha_fin: string
+          fecha_ini: string
+          id: string
+          movimientos: Json
+          periodo_id: string
+          reversas: Json
+        }
+        Insert: {
+          eliminado_at?: string
+          eliminado_por?: string | null
+          estado: string
+          fecha_fin: string
+          fecha_ini: string
+          id?: string
+          movimientos?: Json
+          periodo_id: string
+          reversas?: Json
+        }
+        Update: {
+          eliminado_at?: string
+          eliminado_por?: string | null
+          estado?: string
+          fecha_fin?: string
+          fecha_ini?: string
+          id?: string
+          movimientos?: Json
+          periodo_id?: string
+          reversas?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "periodos_eliminados_eliminado_por_fkey"
+            columns: ["eliminado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "periodos_eliminados_eliminado_por_fkey"
+            columns: ["eliminado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -3999,6 +4684,7 @@ export type Database = {
           sede_fisica_id: string | null
           sueldo_base_legal: number | null
           sueldo_fijo: boolean
+          tipo_documento: string | null
           tipo_vinculo: string
           updated_at: string
           visible_todas_sedes: boolean
@@ -4042,6 +4728,7 @@ export type Database = {
           sede_fisica_id?: string | null
           sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
+          tipo_documento?: string | null
           tipo_vinculo?: string
           updated_at?: string
           visible_todas_sedes?: boolean
@@ -4085,6 +4772,7 @@ export type Database = {
           sede_fisica_id?: string | null
           sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
+          tipo_documento?: string | null
           tipo_vinculo?: string
           updated_at?: string
           visible_todas_sedes?: boolean
@@ -4348,6 +5036,329 @@ export type Database = {
           },
         ]
       }
+      polizas_seguro: {
+        Row: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          aseguradora: string
+          beneficio_accidente: number | null
+          beneficio_enfermedad: number | null
+          creada_at: string
+          creada_por: string
+          factura_recibida_el: string | null
+          firmada_el: string | null
+          id: string
+          nota: string | null
+          numero_poliza: string
+          pagada_el: string | null
+          persona_id: string
+          plan: string | null
+          prima_total: number
+          prima_vence_el: string | null
+          producto: string
+          renueva_sola: boolean | null
+          vigente_desde: string
+          vigente_hasta: string
+        }
+        Insert: {
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          aseguradora: string
+          beneficio_accidente?: number | null
+          beneficio_enfermedad?: number | null
+          creada_at?: string
+          creada_por: string
+          factura_recibida_el?: string | null
+          firmada_el?: string | null
+          id?: string
+          nota?: string | null
+          numero_poliza: string
+          pagada_el?: string | null
+          persona_id: string
+          plan?: string | null
+          prima_total: number
+          prima_vence_el?: string | null
+          producto: string
+          renueva_sola?: boolean | null
+          vigente_desde: string
+          vigente_hasta: string
+        }
+        Update: {
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          aseguradora?: string
+          beneficio_accidente?: number | null
+          beneficio_enfermedad?: number | null
+          creada_at?: string
+          creada_por?: string
+          factura_recibida_el?: string | null
+          firmada_el?: string | null
+          id?: string
+          nota?: string | null
+          numero_poliza?: string
+          pagada_el?: string | null
+          persona_id?: string
+          plan?: string | null
+          prima_total?: number
+          prima_vence_el?: string | null
+          producto?: string
+          renueva_sola?: boolean | null
+          vigente_desde?: string
+          vigente_hasta?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polizas_seguro_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_producto_fkey"
+            columns: ["producto"]
+            isOneToOne: false
+            referencedRelation: "seguros_tipos"
+            referencedColumns: ["clave"]
+          },
+        ]
+      }
+      polizas_seguro_archivos: {
+        Row: {
+          bytes: number
+          id: string
+          mime: string
+          nombre_archivo: string
+          poliza_id: string
+          retirado_at: string | null
+          retirado_motivo: string | null
+          retirado_por: string | null
+          storage_path: string
+          subido_at: string
+          subido_por: string
+          tipo: string
+        }
+        Insert: {
+          bytes: number
+          id?: string
+          mime: string
+          nombre_archivo: string
+          poliza_id: string
+          retirado_at?: string | null
+          retirado_motivo?: string | null
+          retirado_por?: string | null
+          storage_path: string
+          subido_at?: string
+          subido_por: string
+          tipo: string
+        }
+        Update: {
+          bytes?: number
+          id?: string
+          mime?: string
+          nombre_archivo?: string
+          poliza_id?: string
+          retirado_at?: string | null
+          retirado_motivo?: string | null
+          retirado_por?: string | null
+          storage_path?: string
+          subido_at?: string
+          subido_por?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polizas_seguro_archivos_poliza_id_fkey"
+            columns: ["poliza_id"]
+            isOneToOne: false
+            referencedRelation: "polizas_seguro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_archivos_retirado_por_fkey"
+            columns: ["retirado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_archivos_retirado_por_fkey"
+            columns: ["retirado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_archivos_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_archivos_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      polizas_seguro_eventos: {
+        Row: {
+          detalle: string
+          evento: string
+          hecho_at: string
+          hecho_por: string
+          id: string
+          motivo: string | null
+          poliza_id: string
+        }
+        Insert: {
+          detalle: string
+          evento: string
+          hecho_at?: string
+          hecho_por: string
+          id?: string
+          motivo?: string | null
+          poliza_id: string
+        }
+        Update: {
+          detalle?: string
+          evento?: string
+          hecho_at?: string
+          hecho_por?: string
+          id?: string
+          motivo?: string | null
+          poliza_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polizas_seguro_eventos_hecho_por_fkey"
+            columns: ["hecho_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_eventos_hecho_por_fkey"
+            columns: ["hecho_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_eventos_poliza_id_fkey"
+            columns: ["poliza_id"]
+            isOneToOne: false
+            referencedRelation: "polizas_seguro"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pruebas: {
+        Row: {
+          cerrada_at: string | null
+          cerrada_fecha: string | null
+          cerrada_por: string | null
+          creada_at: string
+          id: string
+          inicio: string
+          motivo: string | null
+          persona_id: string
+          resultado: string
+        }
+        Insert: {
+          cerrada_at?: string | null
+          cerrada_fecha?: string | null
+          cerrada_por?: string | null
+          creada_at?: string
+          id?: string
+          inicio: string
+          motivo?: string | null
+          persona_id: string
+          resultado?: string
+        }
+        Update: {
+          cerrada_at?: string | null
+          cerrada_fecha?: string | null
+          cerrada_por?: string | null
+          creada_at?: string
+          id?: string
+          inicio?: string
+          motivo?: string | null
+          persona_id?: string
+          resultado?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pruebas_cerrada_por_fkey"
+            columns: ["cerrada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pruebas_cerrada_por_fkey"
+            columns: ["cerrada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pruebas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pruebas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           activo: boolean
@@ -4458,6 +5469,448 @@ export type Database = {
             columns: ["puesto_por"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reporte_adjuntos: {
+        Row: {
+          bytes: number | null
+          creado_at: string
+          id: string
+          interno: boolean
+          mimetype: string | null
+          reporte_id: string
+          storage_path: string
+          subido_por: string
+        }
+        Insert: {
+          bytes?: number | null
+          creado_at?: string
+          id?: string
+          interno?: boolean
+          mimetype?: string | null
+          reporte_id: string
+          storage_path: string
+          subido_por: string
+        }
+        Update: {
+          bytes?: number | null
+          creado_at?: string
+          id?: string
+          interno?: boolean
+          mimetype?: string | null
+          reporte_id?: string
+          storage_path?: string
+          subido_por?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reporte_adjuntos_reporte_id_fkey"
+            columns: ["reporte_id"]
+            isOneToOne: false
+            referencedRelation: "reportes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_adjuntos_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_adjuntos_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reporte_eventos: {
+        Row: {
+          at: string
+          detalle: Json
+          id: string
+          por: string | null
+          reporte_id: string
+          tipo: string
+        }
+        Insert: {
+          at?: string
+          detalle?: Json
+          id?: string
+          por?: string | null
+          reporte_id: string
+          tipo: string
+        }
+        Update: {
+          at?: string
+          detalle?: Json
+          id?: string
+          por?: string | null
+          reporte_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reporte_eventos_por_fkey"
+            columns: ["por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_eventos_por_fkey"
+            columns: ["por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_eventos_reporte_id_fkey"
+            columns: ["reporte_id"]
+            isOneToOne: false
+            referencedRelation: "reportes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reporte_medidas: {
+        Row: {
+          creada_por: string
+          creado_at: string
+          cumplida_at: string | null
+          id: string
+          instruccion: string
+          para_persona_id: string
+          reporte_id: string
+          vigente_hasta: string | null
+        }
+        Insert: {
+          creada_por: string
+          creado_at?: string
+          cumplida_at?: string | null
+          id?: string
+          instruccion: string
+          para_persona_id: string
+          reporte_id: string
+          vigente_hasta?: string | null
+        }
+        Update: {
+          creada_por?: string
+          creado_at?: string
+          cumplida_at?: string | null
+          id?: string
+          instruccion?: string
+          para_persona_id?: string
+          reporte_id?: string
+          vigente_hasta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reporte_medidas_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_medidas_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_medidas_para_persona_id_fkey"
+            columns: ["para_persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_medidas_para_persona_id_fkey"
+            columns: ["para_persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_medidas_reporte_id_fkey"
+            columns: ["reporte_id"]
+            isOneToOne: false
+            referencedRelation: "reportes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reporte_mensajes: {
+        Row: {
+          autor_id: string
+          creado_at: string
+          id: string
+          interno: boolean
+          reporte_id: string
+          texto: string
+        }
+        Insert: {
+          autor_id: string
+          creado_at?: string
+          id?: string
+          interno?: boolean
+          reporte_id: string
+          texto: string
+        }
+        Update: {
+          autor_id?: string
+          creado_at?: string
+          id?: string
+          interno?: boolean
+          reporte_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reporte_mensajes_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_mensajes_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_mensajes_reporte_id_fkey"
+            columns: ["reporte_id"]
+            isOneToOne: false
+            referencedRelation: "reportes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reporte_personas: {
+        Row: {
+          creado_at: string
+          nivel: number
+          papel: string
+          persona_id: string
+          reporte_id: string
+          rol: Database["public"]["Enums"]["rol_usuario"] | null
+        }
+        Insert: {
+          creado_at?: string
+          nivel?: number
+          papel: string
+          persona_id: string
+          reporte_id: string
+          rol?: Database["public"]["Enums"]["rol_usuario"] | null
+        }
+        Update: {
+          creado_at?: string
+          nivel?: number
+          papel?: string
+          persona_id?: string
+          reporte_id?: string
+          rol?: Database["public"]["Enums"]["rol_usuario"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reporte_personas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_personas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_personas_reporte_id_fkey"
+            columns: ["reporte_id"]
+            isOneToOne: false
+            referencedRelation: "reportes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reporte_plazos: {
+        Row: {
+          anulado_at: string | null
+          clave: string
+          creado_at: string
+          cumplido_at: string | null
+          cumplido_por: string | null
+          descripcion: string
+          desde: string
+          duena: string
+          id: string
+          norma: string
+          nota: string | null
+          reporte_id: string
+          vence_at: string
+        }
+        Insert: {
+          anulado_at?: string | null
+          clave: string
+          creado_at?: string
+          cumplido_at?: string | null
+          cumplido_por?: string | null
+          descripcion: string
+          desde: string
+          duena: string
+          id?: string
+          norma: string
+          nota?: string | null
+          reporte_id: string
+          vence_at: string
+        }
+        Update: {
+          anulado_at?: string | null
+          clave?: string
+          creado_at?: string
+          cumplido_at?: string | null
+          cumplido_por?: string | null
+          descripcion?: string
+          desde?: string
+          duena?: string
+          id?: string
+          norma?: string
+          nota?: string | null
+          reporte_id?: string
+          vence_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reporte_plazos_cumplido_por_fkey"
+            columns: ["cumplido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_plazos_cumplido_por_fkey"
+            columns: ["cumplido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reporte_plazos_reporte_id_fkey"
+            columns: ["reporte_id"]
+            isOneToOne: false
+            referencedRelation: "reportes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reportes: {
+        Row: {
+          autor_id: string
+          cerrado_at: string | null
+          cierre_resultado: string | null
+          cierre_texto: string | null
+          codigo: string
+          creado_at: string
+          espera: string | null
+          estado: string
+          expediente_id: string | null
+          fecha_hecho: string
+          gestiona: string | null
+          id: string
+          nivel: number
+          primera_vez: boolean | null
+          relato: string
+          sede_id: string
+          ticket: string | null
+          tipo: string
+          urgente: boolean
+          via: string
+          ya_conversado: string | null
+        }
+        Insert: {
+          autor_id: string
+          cerrado_at?: string | null
+          cierre_resultado?: string | null
+          cierre_texto?: string | null
+          codigo?: string
+          creado_at?: string
+          espera?: string | null
+          estado?: string
+          expediente_id?: string | null
+          fecha_hecho: string
+          gestiona?: string | null
+          id?: string
+          nivel?: number
+          primera_vez?: boolean | null
+          relato: string
+          sede_id: string
+          ticket?: string | null
+          tipo: string
+          urgente?: boolean
+          via: string
+          ya_conversado?: string | null
+        }
+        Update: {
+          autor_id?: string
+          cerrado_at?: string | null
+          cierre_resultado?: string | null
+          cierre_texto?: string | null
+          codigo?: string
+          creado_at?: string
+          espera?: string | null
+          estado?: string
+          expediente_id?: string | null
+          fecha_hecho?: string
+          gestiona?: string | null
+          id?: string
+          nivel?: number
+          primera_vez?: boolean | null
+          relato?: string
+          sede_id?: string
+          ticket?: string | null
+          tipo?: string
+          urgente?: boolean
+          via?: string
+          ya_conversado?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reportes_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reportes_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reportes_expediente_id_fkey"
+            columns: ["expediente_id"]
+            isOneToOne: false
+            referencedRelation: "expediente_disciplinario"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reportes_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
             referencedColumns: ["id"]
           },
         ]
@@ -4677,6 +6130,292 @@ export type Database = {
             columns: ["solicitud_id"]
             isOneToOne: true
             referencedRelation: "solicitudes_cambio_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seguros_asignaciones: {
+        Row: {
+          cerrada_motivo: string | null
+          cerrada_por: string | null
+          creada_at: string
+          creada_por: string
+          desde: string
+          hasta: string | null
+          id: string
+          motivo: string
+          persona_id: string
+          tipo: string
+        }
+        Insert: {
+          cerrada_motivo?: string | null
+          cerrada_por?: string | null
+          creada_at?: string
+          creada_por: string
+          desde: string
+          hasta?: string | null
+          id?: string
+          motivo: string
+          persona_id: string
+          tipo: string
+        }
+        Update: {
+          cerrada_motivo?: string | null
+          cerrada_por?: string | null
+          creada_at?: string
+          creada_por?: string
+          desde?: string
+          hasta?: string | null
+          id?: string
+          motivo?: string
+          persona_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seguros_asignaciones_cerrada_por_fkey"
+            columns: ["cerrada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_cerrada_por_fkey"
+            columns: ["cerrada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_tipo_fkey"
+            columns: ["tipo"]
+            isOneToOne: false
+            referencedRelation: "seguros_tipos"
+            referencedColumns: ["clave"]
+          },
+        ]
+      }
+      seguros_cambios: {
+        Row: {
+          a_tipo: string | null
+          alta_hecha_el: string | null
+          alta_hecha_por: string | null
+          alta_nota: string | null
+          baja_hecha_el: string | null
+          baja_hecha_por: string | null
+          baja_nota: string | null
+          creado_at: string
+          de_tipo: string | null
+          detalle: string | null
+          fecha: string
+          id: string
+          origen: string
+          persona_id: string
+          vinculo_antes: string | null
+          vinculo_despues: string | null
+        }
+        Insert: {
+          a_tipo?: string | null
+          alta_hecha_el?: string | null
+          alta_hecha_por?: string | null
+          alta_nota?: string | null
+          baja_hecha_el?: string | null
+          baja_hecha_por?: string | null
+          baja_nota?: string | null
+          creado_at?: string
+          de_tipo?: string | null
+          detalle?: string | null
+          fecha: string
+          id?: string
+          origen: string
+          persona_id: string
+          vinculo_antes?: string | null
+          vinculo_despues?: string | null
+        }
+        Update: {
+          a_tipo?: string | null
+          alta_hecha_el?: string | null
+          alta_hecha_por?: string | null
+          alta_nota?: string | null
+          baja_hecha_el?: string | null
+          baja_hecha_por?: string | null
+          baja_nota?: string | null
+          creado_at?: string
+          de_tipo?: string | null
+          detalle?: string | null
+          fecha?: string
+          id?: string
+          origen?: string
+          persona_id?: string
+          vinculo_antes?: string | null
+          vinculo_despues?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seguros_cambios_a_tipo_fkey"
+            columns: ["a_tipo"]
+            isOneToOne: false
+            referencedRelation: "seguros_tipos"
+            referencedColumns: ["clave"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_alta_hecha_por_fkey"
+            columns: ["alta_hecha_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_alta_hecha_por_fkey"
+            columns: ["alta_hecha_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_baja_hecha_por_fkey"
+            columns: ["baja_hecha_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_baja_hecha_por_fkey"
+            columns: ["baja_hecha_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_de_tipo_fkey"
+            columns: ["de_tipo"]
+            isOneToOne: false
+            referencedRelation: "seguros_tipos"
+            referencedColumns: ["clave"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seguros_tipos: {
+        Row: {
+          activo: boolean
+          aplica_a_vinculos: string[]
+          archivado_at: string | null
+          archivado_motivo: string | null
+          archivado_por: string | null
+          clave: string
+          con_poliza: boolean
+          creado_at: string
+          creado_por: string | null
+          de_sistema: boolean
+          descripcion: string | null
+          nombre: string
+          principal: boolean
+          texto_alta: string | null
+          texto_baja: string | null
+        }
+        Insert: {
+          activo?: boolean
+          aplica_a_vinculos?: string[]
+          archivado_at?: string | null
+          archivado_motivo?: string | null
+          archivado_por?: string | null
+          clave: string
+          con_poliza: boolean
+          creado_at?: string
+          creado_por?: string | null
+          de_sistema?: boolean
+          descripcion?: string | null
+          nombre: string
+          principal: boolean
+          texto_alta?: string | null
+          texto_baja?: string | null
+        }
+        Update: {
+          activo?: boolean
+          aplica_a_vinculos?: string[]
+          archivado_at?: string | null
+          archivado_motivo?: string | null
+          archivado_por?: string | null
+          clave?: string
+          con_poliza?: boolean
+          creado_at?: string
+          creado_por?: string | null
+          de_sistema?: boolean
+          descripcion?: string | null
+          nombre?: string
+          principal?: boolean
+          texto_alta?: string | null
+          texto_baja?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seguros_tipos_archivado_por_fkey"
+            columns: ["archivado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_tipos_archivado_por_fkey"
+            columns: ["archivado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_tipos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_tipos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -5230,6 +6969,8 @@ export type Database = {
           foto_url: string | null
           id: string | null
           nombres: string | null
+          prueba_dias: number | null
+          prueba_plazo: number | null
           sede_codigo: string | null
           sede_nombre: string | null
         }
@@ -5456,6 +7197,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_aceptar_terminos: {
+        Args: { p_modulo: string | null; p_texto: string | null; p_version: number | null }
+        Returns: boolean
+      }
       fn_acta_descanso: { Args: { p_referencia: string | null }; Returns: string }
       fn_acta_descanso_ubicacion: {
         Args: { p_referencia: string | null }
@@ -5570,6 +7315,10 @@ export type Database = {
         }[]
       }
       fn_alertas_reservar: { Args: { p_id: string | null }; Returns: boolean }
+      fn_alertas_resolver_fallidas: {
+        Args: { p_ejecutar?: boolean | null }
+        Returns: Json
+      }
       fn_anular_anuncio: { Args: { p_id: string | null }; Returns: undefined }
       fn_anular_ausencia: {
         Args: { p_id: string | null; p_motivo: string | null }
@@ -5632,20 +7381,20 @@ export type Database = {
           id: string
           mime: string
           nombre_archivo: string
-          nota: string | null
-          numero: string | null
-          reemplaza_a: string | null
-          reemplazada_por: string | null
-          retirado_at: string | null
-          retirado_motivo: string | null
-          retirado_por_nombre: string | null
-          sede_id: string | null
-          sede_nombre: string | null
+          nota: string
+          numero: string
+          reemplaza_a: string
+          reemplazada_por: string
+          retirado_at: string
+          retirado_motivo: string
+          retirado_por_nombre: string
+          sede_id: string
+          sede_nombre: string
           storage_path: string
           subido_at: string
-          subido_por_nombre: string | null
+          subido_por_nombre: string
           titulo: string
-          vence_el: string | null
+          vence_el: string
         }[]
       }
       fn_archivo_libre: { Args: { p_path: string | null }; Returns: boolean }
@@ -5684,6 +7433,17 @@ export type Database = {
       fn_atender_revision_movilidad: {
         Args: { p_id: string | null; p_respuesta: string | null }
         Returns: undefined
+      }
+      fn_asistencia_serie: {
+        Args: { p_desde: string | null; p_hasta: string | null; p_sede_id?: string | null }
+        Returns: {
+          dia_semana: number
+          dias_trabajados: number
+          faltas: number
+          offsets: number[]
+          sede_codigo: string
+          semana: string
+        }[]
       }
       fn_ausencia_adjuntar_certificado: {
         Args: { p_ausencia_id: string | null; p_storage_path: string | null }
@@ -5786,6 +7546,19 @@ export type Database = {
         Args: { p_anio: number | null; p_persona_id: string | null; p_ventana: string | null }
         Returns: number
       }
+      fn_boleta_anulaciones: {
+        Args: { p_boleta_id: string | null }
+        Returns: {
+          anulada_at: string
+          anulada_por: string
+          estado_previo: string
+          id: string
+          motivo: string
+          restablecible_hasta: string
+          restablecida_at: string
+          restablecida_por: string
+        }[]
+      }
       fn_boleta_anular: {
         Args: { p_boleta_id: string | null; p_motivo: string | null }
         Returns: undefined
@@ -5795,6 +7568,28 @@ export type Database = {
         Args: { p_version_id: string | null }
         Returns: undefined
       }
+      fn_boleta_constancia: {
+        Args: { p_version_id: string | null }
+        Returns: {
+          firma: string
+          recibida_at: string
+          version_id: string
+          vista_at: string
+        }[]
+      }
+      fn_boleta_datos_de_constancia: {
+        Args: { p_version_id: string | null }
+        Returns: {
+          cargo: string
+          documento: string
+          nombre: string
+          nombre_dni: string
+          pagado_at: string
+          sede_codigo: string
+          tipo_documento: string
+        }[]
+      }
+      fn_boleta_firmar: { Args: { p_version_id: string | null }; Returns: undefined }
       fn_boleta_guardar_version: {
         Args: {
           p_avisar?: boolean | null
@@ -5820,6 +7615,10 @@ export type Database = {
         }[]
       }
       fn_boleta_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
+      fn_boleta_restablecer: {
+        Args: { p_boleta_id: string | null }
+        Returns: undefined
+      }
       fn_boleta_versiones: {
         Args: { p_boleta_id: string | null }
         Returns: {
@@ -5829,12 +7628,12 @@ export type Database = {
           creada_por: string
           n: number
           n_partes: number
-          nota: string | null
-          recibida_at: string | null
+          nota: string
+          recibida_at: string
           tipo: string
           version_id: string
           vigente: boolean
-          vista_at: string | null
+          vista_at: string
         }[]
       }
       fn_boletas_publicar: {
@@ -5845,26 +7644,34 @@ export type Database = {
         Args: { p_periodo_id: string | null }
         Returns: {
           actualizada: boolean
-          boleta_id: string | null
+          anulada_at: string
+          anulada_motivo: string
+          boleta_id: string
           bytes: number
-          cargo: string | null
+          cargo: string
           estado: string
+          firmada: boolean
           grupo_pagado: boolean
           n_partes: number
           nombre: string
           persona_id: string
-          publicada_at: string | null
-          recibida_at: string | null
+          publicada_at: string
+          recibida_at: string
+          restablecible_hasta: string
           sede_codigo: string
           tiene_cuenta: boolean
-          tipo: string | null
+          tipo: string
           tipo_vinculo: string
-          version_id: string | null
-          version_n: number | null
-          vista_at: string | null
+          version_id: string
+          version_n: number
+          vista_at: string
         }[]
       }
       fn_bono_monto_vigente: { Args: never; Returns: number }
+      fn_bono_pasar_pedidos_de_practicantes_a_boleta: {
+        Args: never
+        Returns: number
+      }
       fn_bonos_por_transferir: {
         Args: never
         Returns: {
@@ -5945,7 +7752,26 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_cese_aplicar: {
+        Args: {
+          p_actor: string | null
+          p_fecha_cese: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_tipo_vinculo: string | null
+        }
+        Returns: undefined
+      }
       fn_cierre_lima: { Args: { p_fecha: string | null }; Returns: string }
+      fn_conducta_antecedentes: {
+        Args: {
+          p_fecha_hecho?: string | null
+          p_literal: string | null
+          p_numeral: string | null
+          p_persona_id: string | null
+        }
+        Returns: Json
+      }
       fn_confirmar_auto_cierre: {
         Args: { p_marcaje_id: string | null; p_motivo?: string | null }
         Returns: {
@@ -6238,12 +8064,16 @@ export type Database = {
       fn_crear_persona: {
         Args: {
           p_apellidos: string | null
+          p_confirmo_distinta?: boolean | null
+          p_documento?: string | null
           p_email: string | null
+          p_es_estacion?: boolean | null
           p_funcion: string | null
           p_nombres: string | null
           p_pin_hash: string | null
           p_rol: string | null
           p_sede_base_id: string | null
+          p_tipo_documento?: string | null
         }
         Returns: Json
       }
@@ -6274,6 +8104,10 @@ export type Database = {
       }
       fn_devenga_algo: { Args: { p_persona_id: string | null }; Returns: boolean }
       fn_devenga_beneficios: { Args: { p_tipo: string | null }; Returns: boolean }
+      fn_dia_con_expediente_formal: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
       fn_dia_incoherente: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: boolean
@@ -6303,6 +8137,14 @@ export type Database = {
       fn_documento_anular: {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
+      }
+      fn_documento_error: {
+        Args: { p_numero: string | null; p_tipo: string | null }
+        Returns: string
+      }
+      fn_documento_forma_valida: {
+        Args: { p_numero: string | null; p_tipo: string | null }
+        Returns: boolean
       }
       fn_documento_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
       fn_documento_registrar: {
@@ -6411,6 +8253,35 @@ export type Database = {
         }
         Returns: string
       }
+      fn_educacion_apoyo_pagado: {
+        Args: { p_desde: string | null }
+        Returns: {
+          mes: string
+          monto: number
+          persona_id: string
+        }[]
+      }
+      fn_educacion_aprobadas_del_periodo: {
+        Args: { p_periodo_id: string | null }
+        Returns: {
+          apaga_pago: boolean
+          aprobada_at: string
+          aprobada_por: string
+          archivos: Json
+          aviso: string
+          beneficiario_nombre: string
+          bloqueada: boolean
+          entrega_id: string
+          familia_id: string
+          fecha_pago: string
+          institucion: string
+          origen: string
+          persona: string
+          persona_id: string
+          sede: string
+          tipo: string
+        }[]
+      }
       fn_educacion_atender_aviso_fin: {
         Args: { p_id: string | null; p_respuesta?: string | null }
         Returns: undefined
@@ -6456,6 +8327,21 @@ export type Database = {
         Args: { p_hasta: string | null; p_id: string | null; p_motivo?: string | null }
         Returns: undefined
       }
+      fn_educacion_cobertura_mover_calendario: {
+        Args: { p_entrega_id: string | null }
+        Returns: undefined
+      }
+      fn_educacion_coberturas: {
+        Args: never
+        Returns: {
+          entrega_id: string
+          familia_id: string
+          mes: string
+          monto: number
+          motivo: string
+          origen: string
+        }[]
+      }
       fn_educacion_configurar: {
         Args: {
           p_dias_aviso_colab: number | null
@@ -6469,6 +8355,8 @@ export type Database = {
       fn_educacion_entregas: {
         Args: { p_familia_id: string | null }
         Returns: {
+          aprobada_at: string
+          aprobada_por: string
           archivos: Json
           asignacion_id: string
           enviada_at: string
@@ -6483,6 +8371,8 @@ export type Database = {
           proxima_fecha_pago: string
           reemplaza_a: string
           retirada_at: string
+          revertida_at: string
+          revertida_por: string
           revisada_at: string
           revisada_por: string
           tipo: string
@@ -6503,6 +8393,19 @@ export type Database = {
           sede: string
           tipo: string
         }[]
+      }
+      fn_educacion_enviar_adelantado: {
+        Args: {
+          p_archivos: Json | null
+          p_asignacion_id: string | null
+          p_fecha_pago: string | null
+          p_id: string | null
+          p_meses: Json | null
+          p_nota?: string | null
+          p_reemplaza_a?: string | null
+          p_tipo: string | null
+        }
+        Returns: string
       }
       fn_educacion_enviar_entrega: {
         Args: {
@@ -6528,6 +8431,24 @@ export type Database = {
           p_proxima: string | null
         }
         Returns: undefined
+      }
+      fn_educacion_historial: {
+        Args: { p_desde?: string | null; p_hasta?: string | null; p_persona_id?: string | null }
+        Returns: {
+          campo: string
+          cubre_desde: string
+          cubre_hasta: string
+          entrega_id: string
+          fuente: string
+          motivo: string
+          ocurrio_at: string
+          persona: string
+          persona_id: string
+          quien: string
+          sede: string
+          valor_anterior: string
+          valor_nuevo: string
+        }[]
       }
       fn_educacion_limite_comprobante: {
         Args: never
@@ -6659,6 +8580,18 @@ export type Database = {
         Args: { p_id: string | null }
         Returns: undefined
       }
+      fn_educacion_revertir_aprobacion: {
+        Args: { p_categoria: string | null; p_comentario: string | null; p_id: string | null }
+        Returns: undefined
+      }
+      fn_educacion_revertir_efecto: {
+        Args: { p_id: string | null }
+        Returns: {
+          apaga_pago: boolean
+          bloqueada: boolean
+          mensaje: string
+        }[]
+      }
       fn_educacion_ruta_congelada: {
         Args: { p_path: string | null }
         Returns: boolean
@@ -6721,10 +8654,14 @@ export type Database = {
         }
         Returns: string
       }
+      fn_educacion_solicitud_adjuntar: {
+        Args: { p_id: string | null; p_ruta: string | null }
+        Returns: undefined
+      }
       fn_educacion_solicitudes_pendientes: {
         Args: never
         Returns: {
-          comprobante_url: string | null
+          comprobante_url: string
           costo_declarado: number
           enviada_at: string
           id: string
@@ -6800,6 +8737,18 @@ export type Database = {
         }
         Returns: string
       }
+      fn_expediente_crear_conducta: {
+        Args: {
+          p_conocido_el: string | null
+          p_fecha_hecho: string | null
+          p_literal: string | null
+          p_nivel: string | null
+          p_numeral: string | null
+          p_persona_id: string | null
+          p_relato: string | null
+        }
+        Returns: string
+      }
       fn_expediente_declarar_cargos_comunicados: {
         Args: {
           p_constancia: string | null
@@ -6808,6 +8757,10 @@ export type Database = {
           p_id: string | null
         }
         Returns: string
+      }
+      fn_expediente_devolver_caso: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
       }
       fn_expediente_doc_code: {
         Args: { p_nivel: string | null; p_tipo: string | null }
@@ -6835,6 +8788,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_expediente_enviar_a_info: {
+        Args: { p_id: string | null }
+        Returns: undefined
+      }
+      fn_expediente_firmante_motivo: {
+        Args: { p_firmante: string | null; p_nivel: string | null; p_persona: string | null }
+        Returns: string
+      }
       fn_expediente_firmantes: {
         Args: { p_id: string | null }
         Returns: {
@@ -6843,10 +8804,6 @@ export type Database = {
           persona_id: string
           tiene_firma: boolean
         }[]
-      }
-      fn_expediente_enviar_a_info: {
-        Args: { p_id: string | null }
-        Returns: undefined
       }
       fn_expediente_firmar: {
         Args: { p_firmante_id?: string | null; p_id: string | null }
@@ -6890,6 +8847,10 @@ export type Database = {
         Returns: {
           fecha: string
         }[]
+      }
+      fn_expediente_tomar_caso: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
       }
       fn_expediente_valorar_descargo: {
         Args: { p_acogido: string | null; p_id: string | null; p_valoracion: string | null }
@@ -7023,6 +8984,7 @@ export type Database = {
         Returns: boolean
       }
       fn_generar_alertas_vencimiento: { Args: never; Returns: number }
+      fn_gerencia_general_id: { Args: never; Returns: string }
       fn_grati_cts_agregar_pendientes: {
         Args: { p_periodo_id: string | null }
         Returns: Json
@@ -7118,6 +9080,33 @@ export type Database = {
         Args: { p_motivo: string | null; p_persona_id: string | null }
         Returns: Json
       }
+      fn_liquidacion_constancia_estado: {
+        Args: { p_persona_id: string | null }
+        Returns: {
+          anterior: Json
+          cabeza_id: string
+          filas: Json
+          hay_real: boolean
+          huella: string
+          motivo_no: string
+          puede_constatar: boolean
+          sentido: string
+          version: number
+          vigente: Json
+        }[]
+      }
+      fn_liquidacion_constatar: {
+        Args: {
+          p_apoyo: string | null
+          p_decision: string | null
+          p_huella: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_reemplaza_id?: string | null
+          p_version: number | null
+        }
+        Returns: Json
+      }
       fn_liquidacion_descuentos_del_cese: {
         Args: { p_persona_id: string | null }
         Returns: {
@@ -7140,12 +9129,12 @@ export type Database = {
           pagado: number
         }[]
       }
+      fn_liquidacion_huella: {
+        Args: { p_real: Json | null }
+        Returns: string
+      }
       fn_liquidacion_pagar: {
-        Args: {
-          p_fecha_pago?: string | null
-          p_nota?: string | null
-          p_persona_id: string | null
-        }
+        Args: { p_fecha_pago?: string | null; p_nota?: string | null; p_persona_id: string | null }
         Returns: Json
       }
       fn_liquidaciones_del_periodo: {
@@ -7204,7 +9193,11 @@ export type Database = {
         Returns: undefined
       }
       fn_marcar_anuncio_leido: { Args: { p_id: string | null }; Returns: undefined }
-      fn_marcar_novedad_vista: { Args: { p_novedad_id: string | null }; Returns: undefined }
+      fn_marcar_memo_leido: { Args: { p_id: string | null }; Returns: string }
+      fn_marcar_novedad_vista: {
+        Args: { p_novedad_id: string | null }
+        Returns: undefined
+      }
       fn_marcas_apartadas: {
         Args: never
         Returns: {
@@ -7261,6 +9254,8 @@ export type Database = {
           via: string
         }[]
       }
+      fn_mi_cuenta_de_tardanzas: { Args: { p_al?: string | null }; Returns: Json }
+      fn_mi_disciplina: { Args: never; Returns: Json }
       fn_mi_firma: { Args: never; Returns: string }
       fn_mi_firma_config: {
         Args: never
@@ -7272,33 +9267,51 @@ export type Database = {
       }
       fn_mi_memo: { Args: { p_id: string | null }; Returns: Json }
       fn_mi_rango_actual: { Args: never; Returns: string }
+      fn_mi_seguro: {
+        Args: never
+        Returns: {
+          con_poliza: boolean
+          cubre_hoy: boolean
+          tipo: string
+          tipo_nombre: string
+        }[]
+      }
+      fn_mis_aceptaciones_terminos: {
+        Args: never
+        Returns: {
+          aceptado_at: string
+          modulo: string
+          version: number
+        }[]
+      }
       fn_mis_boletas: {
         Args: never
         Returns: {
           actualizada: boolean
-          boleta_id: string | null
+          boleta_id: string
           bytes: number
-          estado: string | null
+          estado: string
           fecha_fin: string
           fecha_ini: string
+          firmada: boolean
           n_partes: number
           periodo_id: string
-          publicada_at: string | null
-          recibida_at: string | null
-          tipo: string | null
-          version_id: string | null
-          version_n: number | null
-          vista_at: string | null
+          publicada_at: string
+          recibida_at: string
+          tipo: string
+          version_id: string
+          version_n: number
+          vista_at: string
         }[]
       }
       fn_mis_medidas: {
         Args: never
         Returns: {
           creado_at: string
-          cumplida_at: string | null
+          cumplida_at: string
           id: string
           instruccion: string
-          vigente_hasta: string | null
+          vigente_hasta: string
         }[]
       }
       fn_mis_memos: {
@@ -7321,6 +9334,23 @@ export type Database = {
           id: string
         }[]
       }
+      fn_mis_polizas: {
+        Args: never
+        Returns: {
+          archivos: Json
+          aseguradora: string
+          beneficio_accidente: number
+          beneficio_enfermedad: number
+          cubre_hoy: boolean
+          numero_poliza: string
+          plan: string
+          poliza_id: string
+          producto: string
+          producto_nombre: string
+          vigente_desde: string
+          vigente_hasta: string
+        }[]
+      }
       fn_mis_solicitudes_perfil: {
         Args: never
         Returns: {
@@ -7335,9 +9365,41 @@ export type Database = {
           valor_propuesto: Json
         }[]
       }
+      fn_mis_subvenciones_practicante: {
+        Args: never
+        Returns: {
+          descanso_cumple: string
+          descanso_devengado: number
+          descanso_ganado: boolean
+          descanso_pagado: number
+          descanso_saldo: number
+          media_sub_devengado: number
+          media_sub_pagado: number
+          media_sub_saldo: number
+          semestre_desde: string
+          semestre_hasta: string
+          semestres_cumplidos: number
+          sin_subvencion: boolean
+          subvencion_mensual: number
+        }[]
+      }
       fn_movilidad_revisiones_pedidas: {
         Args: { p_solo_pendientes?: boolean | null }
         Returns: Json
+      }
+      fn_nombre_clave: { Args: { p_texto: string | null }; Returns: string[] }
+      fn_nombres_compatibles: {
+        Args: { g1: string[] | null; g2: string[] | null; s1: string[] | null; s2: string[] | null }
+        Returns: boolean
+      }
+      fn_nombres_parecidos: {
+        Args: {
+          p_apellidos_a: string | null
+          p_apellidos_b: string | null
+          p_nombres_a: string | null
+          p_nombres_b: string | null
+        }
+        Returns: boolean
       }
       fn_objetivo_agregar: {
         Args: {
@@ -7388,11 +9450,7 @@ export type Database = {
         Returns: undefined
       }
       fn_organo_titulo_x_cerrar: {
-        Args: {
-          p_hasta: string | null
-          p_id: string | null
-          p_motivo: string | null
-        }
+        Args: { p_hasta: string | null; p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
       fn_organo_titulo_x_guardar: {
@@ -7408,9 +9466,9 @@ export type Database = {
       fn_organos_titulo_x: {
         Args: never
         Returns: {
-          acta: string | null
+          acta: string
           desde: string
-          hasta: string | null
+          hasta: string
           id: string
           nombre: string
           papel: string
@@ -7467,6 +9525,10 @@ export type Database = {
         Args: { p_persona_id: string | null }
         Returns: boolean
       }
+      fn_persona_le_corresponde_bono: {
+        Args: { p_persona_id: string | null }
+        Returns: boolean
+      }
       fn_persona_le_corresponde_movilidad: {
         Args: { p_persona_id: string | null }
         Returns: boolean
@@ -7477,6 +9539,18 @@ export type Database = {
         Returns: boolean
       }
       fn_personas_funciones: { Args: never; Returns: Json }
+      fn_personas_parecidas: {
+        Args: { p_apellidos: string | null; p_nombres: string | null }
+        Returns: {
+          apellidos: string
+          estado: string
+          fecha_cese: string
+          fecha_ingreso: string
+          nombres: string
+          persona_id: string
+          sede_codigo: string
+        }[]
+      }
       fn_personas_sin_horario_vigente: {
         Args: { p_dias?: number | null }
         Returns: {
@@ -7526,6 +9600,14 @@ export type Database = {
         Returns: Json
       }
       fn_poblacion_obligada: { Args: never; Returns: string[] }
+      fn_politica_firmar_con_firma_empresa: {
+        Args: {
+          p_documento_html: string | null
+          p_fecha_firma: string | null
+          p_nota?: string | null
+        }
+        Returns: string
+      }
       fn_politica_salarial_vigente: { Args: never; Returns: Json }
       fn_provisiones: {
         Args: { p_as_of?: string | null; p_salario_asof?: string | null }
@@ -7535,6 +9617,64 @@ export type Database = {
       fn_proyeccion_planilla: {
         Args: { p_anio: number | null; p_mes: number | null }
         Returns: Json
+      }
+      fn_prueba_cargar_dni: {
+        Args: { p_anverso: string | null; p_consentimiento: string | null; p_persona_id: string | null; p_reverso: string | null }
+        Returns: string
+      }
+      fn_prueba_cerrar: {
+        Args: {
+          p_fecha_cese?: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_resultado: string | null
+        }
+        Returns: string
+      }
+      fn_prueba_dias_plazo: { Args: never; Returns: number }
+      fn_prueba_dias_trabajados: {
+        Args: { p_desde: string | null; p_hasta?: string | null; p_persona_id: string | null }
+        Returns: number
+      }
+      fn_prueba_puede_actuar: {
+        Args: { p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_pruebas_abiertas: {
+        Args: never
+        Returns: {
+          apellidos: string
+          dias_plazo: number
+          dias_trabajados: number
+          dni_cargado: boolean
+          horas_marcadas: number
+          inicio: string
+          nombres: string
+          persona_id: string
+          prueba_id: string
+          registrada: boolean
+          sede_codigo: string
+          sede_id: string
+          situacion: string
+          ultima_jornada: string
+        }[]
+      }
+      fn_pruebas_cierres_recientes: {
+        Args: { p_horas?: number | null }
+        Returns: {
+          apellidos: string
+          cerrada_at: string
+          cerrada_fecha: string
+          decidida_por: string
+          dias_trabajados: number
+          horas_marcadas: number
+          motivo: string
+          nombres: string
+          persona_id: string
+          prueba_id: string
+          resultado: string
+          sede_codigo: string
+        }[]
       }
       fn_publicar_anuncio: {
         Args: { p_cuerpo: string | null; p_sede_id?: string | null; p_titulo: string | null }
@@ -7665,6 +9805,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_registrar_apertura_memo: { Args: { p_id: string | null }; Returns: undefined }
       fn_registrar_ausencia: {
         Args: {
           p_doc_colegiatura?: string | null
@@ -7748,40 +9889,41 @@ export type Database = {
         Returns: Json
       }
       fn_reporte_abrir: { Args: { p_reporte: string | null }; Returns: string }
-      fn_reporte_adjuntar: {
+      fn_reporte_acceso: {
         Args: {
-          p_interno?: boolean | null
-          p_path: string | null
-          p_reporte: string | null
+          p_autor: string | null
+          p_contra_do: boolean | null
+          p_mencionadas: string[] | null
+          p_nivel: number | null
+          p_sede: string | null
+          p_via: string | null
+          p_viewer: string | null
         }
+        Returns: string
+      }
+      fn_reporte_adjuntar: {
+        Args: { p_interno?: boolean | null; p_path: string | null; p_reporte: string | null }
         Returns: string
       }
       fn_reporte_adjuntos: {
         Args: { p_reporte: string | null }
         Returns: {
-          bytes: number | null
+          bytes: number
           creado_at: string
           es_mio: boolean
           id: string
           interno: boolean
-          mimetype: string | null
+          mimetype: string
           storage_path: string
         }[]
       }
       fn_reporte_anotar_accion: {
-        Args: {
-          p_accion: string | null
-          p_nota: string | null
-          p_reporte: string | null
-        }
+        Args: { p_accion: string | null; p_nota: string | null; p_reporte: string | null }
         Returns: undefined
       }
+      fn_reporte_archivo_libre: { Args: { p_path: string | null }; Returns: boolean }
       fn_reporte_cerrar: {
-        Args: {
-          p_reporte: string | null
-          p_resultado: string | null
-          p_texto: string | null
-        }
+        Args: { p_reporte: string | null; p_resultado: string | null; p_texto: string | null }
         Returns: undefined
       }
       fn_reporte_crear: {
@@ -7804,6 +9946,7 @@ export type Database = {
           id: string
         }[]
       }
+      fn_reporte_de_ruta: { Args: { p_path: string | null }; Returns: string }
       fn_reporte_derivar: {
         Args: { p_expediente: string | null; p_reporte: string | null }
         Returns: undefined
@@ -7811,20 +9954,20 @@ export type Database = {
       fn_reporte_detalle: {
         Args: { p_reporte: string | null }
         Returns: {
-          autora: string | null
-          cerrado_at: string | null
-          cierre_resultado: string | null
-          cierre_texto: string | null
+          autora: string
+          cerrado_at: string
+          cierre_resultado: string
+          cierre_texto: string
           codigo: string
           creado_at: string
-          espera: string | null
+          espera: string
           estado: string
           fecha_hecho: string
-          gestiona: string | null
+          gestiona: string
           id: string
           mi_papel: string
           relato: string
-          respuesta_vence_at: string | null
+          respuesta_vence_at: string
           sede_codigo: string
           tipo: string
           urgente: boolean
@@ -7835,8 +9978,13 @@ export type Database = {
         Args: { p_reporte: string | null }
         Returns: undefined
       }
+      fn_reporte_es_autor: { Args: { p_reporte: string | null }; Returns: boolean }
       fn_reporte_escalar: {
         Args: { p_motivo: string | null; p_reporte: string | null }
+        Returns: undefined
+      }
+      fn_reporte_evento: {
+        Args: { p_detalle?: Json | null; p_reporte: string | null; p_tipo: string | null }
         Returns: undefined
       }
       fn_reporte_eventos: {
@@ -7852,13 +10000,21 @@ export type Database = {
       fn_reporte_expedientes: {
         Args: { p_reporte: string | null }
         Returns: {
-          correlativo: string | null
+          correlativo: string
           creado_at: string
           estado: string
           id: string
           nivel: string
           persona: string
         }[]
+      }
+      fn_reporte_gestora_inicial: {
+        Args: { p_reporte: string | null }
+        Returns: string
+      }
+      fn_reporte_hay_quien: {
+        Args: { p_motivo: string | null; p_reporte: string | null }
+        Returns: boolean
       }
       fn_reporte_hilo: {
         Args: { p_reporte: string | null }
@@ -7880,7 +10036,7 @@ export type Database = {
         Returns: {
           id: string
           nombre: string
-          sede_codigo: string | null
+          sede_codigo: string
         }[]
       }
       fn_reporte_medida: {
@@ -7900,11 +10056,11 @@ export type Database = {
         Args: { p_reporte: string | null }
         Returns: {
           creado_at: string
-          cumplida_at: string | null
+          cumplida_at: string
           id: string
           instruccion: string
           para: string
-          vigente_hasta: string | null
+          vigente_hasta: string
         }[]
       }
       fn_reporte_mensaje: {
@@ -7916,13 +10072,19 @@ export type Database = {
         }
         Returns: string
       }
+      fn_reporte_motivo: { Args: { p_reporte: string | null }; Returns: string }
+      fn_reporte_motivo_de: {
+        Args: { p_reporte: string | null; p_viewer: string | null }
+        Returns: string
+      }
+      fn_reporte_nivel_persona: { Args: { p_persona: string | null }; Returns: number }
       fn_reporte_padron: {
         Args: never
         Returns: {
-          cargo: string | null
+          cargo: string
           id: string
           nombre: string
-          sede_codigo: string | null
+          sede_codigo: string
         }[]
       }
       fn_reporte_personas: {
@@ -7933,26 +10095,44 @@ export type Database = {
           persona_id: string
         }[]
       }
-      fn_reporte_plazo_cumplir: {
+      fn_reporte_plazo_abrir: {
         Args: {
           p_clave: string | null
-          p_nota: string | null
+          p_desde: string | null
           p_reporte: string | null
+          p_vence?: string | null
         }
+        Returns: string
+      }
+      fn_reporte_plazo_cumplir: {
+        Args: { p_clave: string | null; p_nota: string | null; p_reporte: string | null }
         Returns: undefined
       }
       fn_reporte_plazos: {
         Args: { p_reporte: string | null }
         Returns: {
-          anulado_at: string | null
+          anulado_at: string
           clave: string
-          cumplido_at: string | null
+          cumplido_at: string
           descripcion: string
           duena: string
           norma: string
-          nota: string | null
+          nota: string
           vence_at: string
         }[]
+      }
+      fn_reporte_plazos_de_via: {
+        Args: { p_reporte: string | null }
+        Returns: undefined
+      }
+      fn_reporte_puede_gestionar: {
+        Args: { p_reporte: string | null }
+        Returns: boolean
+      }
+      fn_reporte_puede_ver: { Args: { p_reporte: string | null }; Returns: boolean }
+      fn_reporte_puede_ver_archivo: {
+        Args: { p_path: string | null }
+        Returns: boolean
       }
       fn_reporte_quien_lo_leera: {
         Args: {
@@ -7966,11 +10146,7 @@ export type Database = {
         }[]
       }
       fn_reporte_reclasificar: {
-        Args: {
-          p_motivo: string | null
-          p_reporte: string | null
-          p_via: string | null
-        }
+        Args: { p_motivo: string | null; p_reporte: string | null; p_via: string | null }
         Returns: undefined
       }
       fn_reportes_bandeja: {
@@ -7980,15 +10156,15 @@ export type Database = {
           codigo: string
           creado_at: string
           estado: string
-          gestiona: string | null
+          gestiona: string
           id: string
           mi_motivo: string
           plazos_vencidos: number
-          proximo_norma: string | null
-          proximo_plazo: string | null
-          proximo_vence_at: string | null
+          proximo_norma: string
+          proximo_plazo: string
+          proximo_vence_at: string
           sede_codigo: string
-          semaforo: string | null
+          semaforo: string
           tipo: string
           urgente: boolean
           via: string
@@ -7997,17 +10173,17 @@ export type Database = {
       fn_reportes_mios: {
         Args: never
         Returns: {
-          cerrado_at: string | null
-          cierre_texto: string | null
+          cerrado_at: string
+          cierre_texto: string
           codigo: string
           creado_at: string
           estado: string
           id: string
           mensajes: number
-          respuesta_vence_at: string | null
+          respuesta_vence_at: string
           sin_leer: number
           tipo: string
-          ultimo_mensaje_at: string | null
+          ultimo_mensaje_at: string
           via: string
         }[]
       }
@@ -8031,6 +10207,10 @@ export type Database = {
         Args: { p_id: string | null; p_respuesta: string | null }
         Returns: undefined
       }
+      fn_restaurar_documento: {
+        Args: { p_documento_id: string | null }
+        Returns: number
+      }
       fn_revertir_pago: {
         Args: { p_grupo?: string | null; p_motivo: string | null; p_periodo_id: string | null }
         Returns: undefined
@@ -8042,6 +10222,15 @@ export type Database = {
       fn_rol_actual: {
         Args: never
         Returns: Database["public"]["Enums"]["rol_usuario"]
+      }
+      fn_ruta_por_renovar: {
+        Args: {
+          p_costo_pasaje: number | null
+          p_es_negativa: boolean | null
+          p_fecha_firma: string | null
+          p_firma_digital_at: string | null
+        }
+        Returns: string
       }
       fn_salarios_vigentes: {
         Args: never
@@ -8058,6 +10247,303 @@ export type Database = {
       }
       fn_sede_actual_persona: { Args: never; Returns: string }
       fn_sede_actual_terminal: { Args: never; Returns: string }
+      fn_seguro_adjuntar: {
+        Args: {
+          p_nombre_archivo: string | null
+          p_poliza_id: string | null
+          p_storage_path: string | null
+          p_tipo: string | null
+        }
+        Returns: string
+      }
+      fn_seguro_anular: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_seguro_archivo_es_mio: { Args: { p_path: string | null }; Returns: boolean }
+      fn_seguro_archivo_libre: { Args: { p_path: string | null }; Returns: boolean }
+      fn_seguro_archivos: {
+        Args: { p_poliza_id: string | null }
+        Returns: {
+          bytes: number
+          id: string
+          mime: string
+          nombre_archivo: string
+          retirado_at: string
+          retirado_motivo: string
+          retirado_por_nombre: string
+          storage_path: string
+          subido_at: string
+          subido_por_nombre: string
+          tipo: string
+        }[]
+      }
+      fn_seguro_asegurados: {
+        Args: { p_con_remuneracion?: boolean | null; p_producto: string | null }
+        Returns: {
+          activa: boolean
+          apellidos: string
+          aseguradora: string
+          documento: string
+          fecha_ingreso: string
+          fecha_nacimiento: string
+          nombre_segun_dni: string
+          nombres: string
+          numero_poliza: string
+          persona_id: string
+          poliza_id: string
+          remuneracion: number
+          sede: string
+          tipo_documento: string
+          tipo_vinculo: string
+          vigente_desde: string
+          vigente_hasta: string
+        }[]
+      }
+      fn_seguro_asignar: {
+        Args: {
+          p_desde: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_tipo: string | null
+        }
+        Returns: string
+      }
+      fn_seguro_cambio_marcar: {
+        Args: { p_fecha: string | null; p_id: string | null; p_nota?: string | null; p_paso: string | null }
+        Returns: undefined
+      }
+      fn_seguro_corregir: {
+        Args: {
+          p_aseguradora: string | null
+          p_beneficio_accidente: number | null
+          p_beneficio_enfermedad: number | null
+          p_id: string | null
+          p_motivo: string | null
+          p_nota: string | null
+          p_numero_poliza: string | null
+          p_plan: string | null
+          p_prima_total: number | null
+          p_prima_vence_el: string | null
+          p_renueva_sola: boolean | null
+          p_vigente_desde: string | null
+          p_vigente_hasta: string | null
+        }
+        Returns: undefined
+      }
+      fn_seguro_datos_validos: {
+        Args: {
+          p_aseguradora: string | null
+          p_beneficio_accidente: number | null
+          p_beneficio_enfermedad: number | null
+          p_nota: string | null
+          p_numero_poliza: string | null
+          p_plan: string | null
+          p_prima_total: number | null
+          p_prima_vence_el: string | null
+          p_vigente_desde: string | null
+          p_vigente_hasta: string | null
+        }
+        Returns: undefined
+      }
+      fn_seguro_historial: {
+        Args: { p_id: string | null }
+        Returns: {
+          detalle: string
+          evento: string
+          hecho_at: string
+          hecho_por: string
+          motivo: string
+        }[]
+      }
+      fn_seguro_marcar_paso: {
+        Args: {
+          p_fecha: string | null
+          p_id: string | null
+          p_motivo?: string | null
+          p_paso: string | null
+        }
+        Returns: undefined
+      }
+      fn_seguro_registrar: {
+        Args: {
+          p_aseguradora: string | null
+          p_beneficio_accidente: number | null
+          p_beneficio_enfermedad: number | null
+          p_nota: string | null
+          p_numero_poliza: string | null
+          p_persona_id: string | null
+          p_plan: string | null
+          p_prima_total: number | null
+          p_prima_vence_el: string | null
+          p_producto: string | null
+          p_renueva_sola: boolean | null
+          p_vigente_desde: string | null
+          p_vigente_hasta: string | null
+        }
+        Returns: string
+      }
+      fn_seguro_registrar_varias: {
+        Args: {
+          p_aseguradora: string | null
+          p_beneficio_accidente: number | null
+          p_beneficio_enfermedad: number | null
+          p_nota: string | null
+          p_numero_poliza: string | null
+          p_personas: string[] | null
+          p_plan: string | null
+          p_prima_total: number | null
+          p_prima_vence_el: string | null
+          p_producto: string | null
+          p_renueva_sola: boolean | null
+          p_vigente_desde: string | null
+          p_vigente_hasta: string | null
+        }
+        Returns: {
+          persona_id: string
+          poliza_id: string
+        }[]
+      }
+      fn_seguro_retirar_archivo: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_seguro_tipo_activar: {
+        Args: { p_activo: boolean | null; p_clave: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_seguro_tipo_crear: {
+        Args: {
+          p_con_poliza: boolean | null
+          p_descripcion: string | null
+          p_nombre: string | null
+          p_principal: boolean | null
+          p_texto_alta: string | null
+          p_texto_baja: string | null
+        }
+        Returns: string
+      }
+      fn_seguro_tipo_editar: {
+        Args: {
+          p_clave: string | null
+          p_descripcion: string | null
+          p_nombre: string | null
+          p_texto_alta: string | null
+          p_texto_baja: string | null
+        }
+        Returns: undefined
+      }
+      fn_seguro_tipo_por_vinculo: {
+        Args: { p_vinculo: string | null }
+        Returns: string
+      }
+      fn_seguro_tipo_principal: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: string
+      }
+      fn_seguro_volver_al_automatico: {
+        Args: { p_asignacion_id: string | null; p_hasta: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_seguros_cambios: {
+        Args: { p_persona_id?: string | null; p_solo_pendientes?: boolean | null }
+        Returns: {
+          a_nombre: string
+          a_tipo: string
+          alta_hecha_el: string
+          alta_nota: string
+          alta_pendiente: boolean
+          alta_texto: string
+          baja_hecha_el: string
+          baja_nota: string
+          baja_pendiente: boolean
+          baja_texto: string
+          creado_at: string
+          de_nombre: string
+          de_tipo: string
+          detalle: string
+          fecha: string
+          id: string
+          origen: string
+          persona: string
+          persona_activa: boolean
+          persona_id: string
+          sede: string
+          vinculo_antes: string
+          vinculo_despues: string
+        }[]
+      }
+      fn_seguros_equipo: {
+        Args: never
+        Returns: {
+          activa: boolean
+          asignacion_desde: string
+          asignacion_id: string
+          asignacion_motivo: string
+          con_poliza: boolean
+          cubre_hoy: boolean
+          en_planilla: boolean
+          hueco: boolean
+          origen: string
+          persona: string
+          persona_id: string
+          practicante_modalidad: string
+          sede: string
+          tipo: string
+          tipo_automatico: string
+          tipo_automatico_nombre: string
+          tipo_nombre: string
+          tipo_vinculo: string
+        }[]
+      }
+      fn_seguros_tablero: {
+        Args: never
+        Returns: {
+          archivos: number
+          aseguradora: string
+          beneficio_accidente: number
+          beneficio_enfermedad: number
+          creada_at: string
+          cubre_hoy: boolean
+          factura_recibida_el: string
+          firmada_el: string
+          nota: string
+          numero_poliza: string
+          pagada_el: string
+          persona: string
+          persona_activa: boolean
+          persona_id: string
+          plan: string
+          poliza_id: string
+          prima_total: number
+          prima_vence_el: string
+          producto: string
+          producto_nombre: string
+          producto_principal: boolean
+          renueva_sola: boolean
+          sede: string
+          vigente_desde: string
+          vigente_hasta: string
+        }[]
+      }
+      fn_seguros_tipos: {
+        Args: never
+        Returns: {
+          activo: boolean
+          aplica_a_vinculos: string[]
+          archivado_motivo: string
+          clave: string
+          con_poliza: boolean
+          de_sistema: boolean
+          descripcion: string
+          nombre: string
+          personas: number
+          polizas_vigentes: number
+          principal: boolean
+          texto_alta: string
+          texto_baja: string
+        }[]
+      }
       fn_set_cargo: {
         Args: { p_cargo: string | null; p_persona_id: string | null }
         Returns: undefined
@@ -8134,7 +10620,12 @@ export type Database = {
         Returns: undefined
       }
       fn_set_documento: {
-        Args: { p_documento: string | null; p_motivo: string | null; p_persona_id: string | null }
+        Args: {
+          p_documento: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_tipo_documento?: string | null
+        }
         Returns: undefined
       }
       fn_set_email: {
@@ -8369,6 +10860,7 @@ export type Database = {
         Args: { p_dataurl: string | null; p_nombre?: string | null; p_referencia: string | null }
         Returns: string
       }
+      fn_subvenciones_practicante: { Args: { p_as_of?: string | null }; Returns: Json }
       fn_sumar_dias_habiles: {
         Args: { p_desde: string | null; p_dias: number | null }
         Returns: string
@@ -8413,6 +10905,14 @@ export type Database = {
           ultima_fecha: string
           umbral: string
         }[]
+      }
+      fn_terminal_prueba_dias: {
+        Args: { p_persona_id: string | null }
+        Returns: number
+      }
+      fn_tipeo_de_una_letra: {
+        Args: { p_a: string | null; p_b: string | null }
+        Returns: boolean
       }
       fn_tipos_ausencia: {
         Args: never

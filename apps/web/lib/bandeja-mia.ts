@@ -4,13 +4,15 @@ import {
   type EstadoConstancia, type MotivoRechazo,
 } from "@cayla-dynamic/shared";
 import { loQueNoSePudo } from "./admin/lo-que-no-se-pudo";
+import { esJornadaEnCurso } from "./admin/jornada-esperada";
 import { traerAcusesPendientes, type AcusePendiente } from "./acuses-pendientes";
 import { ordenarContratoVigente } from "./mi-contrato";
 import { puedePedirBono, traerMiBono, type MiBono } from "./mi-bono";
 import { formatSoles } from "./rangos";
-import { esBoletaNueva } from "./boletas";
+import { esBoletaPorFirmar } from "./boletas";
 import { nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "./mis-boletas";
 import { fechaEnPalabras, traerMisReportes, tituloDeReporte, type FilaMiReporte } from "./reportes";
+import { compartirMientrasVuela } from "./compartir-mientras-vuela";
 
 /**
  * La Bandeja de cada persona — «qué te respondieron».
@@ -38,7 +40,7 @@ import { fechaEnPalabras, traerMisReportes, tituloDeReporte, type FilaMiReporte 
  *     · un memo que le enviaron a su Info y aún no recibió  (fn_mis_memos_por_recibir, 0486)
  *     · la política salarial y el RIT sin acusar     (Ley 30709)
  *     · días con el marcaje incompleto del periodo que se le va a pagar
- *     · su boleta oficial publicada y todavía sin abrir  (fn_mis_boletas, 0482)
+ *     · su boleta oficial publicada y todavía sin firmar (fn_mis_boletas, 0482/0532)
  *
  *   RESPUESTAS — lo que pidió y alguien le contestó. Eso sí caduca a los
  *   DIAS_NOVEDAD, porque no hay nada que hacer con ello:
@@ -110,7 +112,7 @@ export type OrigenBandeja =
   | "educacion"
   // Lo que depende de ti. No caduca.
   | "contrato" | "memo" | "acuse" | "marcaje" | "ruta" | "bono"
-  // Su boleta oficial publicada, sin abrir (0482). Deja de contar cuando la abre.
+  // Su boleta oficial publicada, sin firmar (0482/0532). Deja de contar cuando la firma.
   | "boleta"
   // Te lo hicieron a ti — no lo pediste, así que no hay nada "esperando" para
   // este origen — pero caduca igual que una respuesta: un turno ya guardado
@@ -317,7 +319,7 @@ export interface FilaEducacionSituacion {
  * hecho que la base ya guarda (`vista_at`), así que no hay tabla de «vistos»
  * para esto, igual que con un contrato sin firmar.
  */
-export type FilaBoletaBandeja = Pick<FilaMiBoleta, "boleta_id" | "fecha_fin" | "estado" | "vista_at" | "publicada_at">;
+export type FilaBoletaBandeja = Pick<FilaMiBoleta, "boleta_id" | "fecha_fin" | "estado" | "vista_at" | "recibida_at" | "publicada_at">;
 
 export interface FuentesBandeja {
   perfil: FilaPerfil[];
@@ -342,11 +344,17 @@ export interface FuentesBandeja {
   turnos: FilaTurno[];
   /**
    * Su bono de cumpleaños (0478), de `fn_mi_bono_cumpleanos`. NO del
-   * `bono_estado` del tablero: ese no sabe que el bono es de planilla y le
-   * pediría a una practicante algo que la base le niega. Opcional: sin él no
-   * se dice nada del bono.
+   * `bono_estado` del tablero: ese no distingue un pedido ya hecho pero todavía
+   * sin pagar de uno entregado (0478/0479). Opcional: sin él no se dice nada
+   * del bono.
    */
   bono?: MiBono | null;
+  /**
+   * Está en modalidad formativa (`tipo_vinculo = 'practicante'`). Solo cambia la
+   * palabra con la que se nombra lo que cobra: su boleta paga una «subvención»,
+   * no una planilla (0521). Opcional: sin él se asume que no.
+   */
+  practicante?: boolean;
   /** Sus boletas oficiales (0482). Opcional: sin ellas, no se dice nada de boletas. */
   boletas?: FilaBoletaBandeja[];
   /** Sus reportes (0488), de `fn_reportes_mios`. Opcional: sin ellos, no se dice nada de reportes. */
@@ -574,7 +582,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         respuesta: null,
         detalle: b.estado === "vencido"
           ? `${monto}Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo.`
-          : `${monto}Es el mes de tu cumpleaños. Lo pides firmando tu constancia y se suma a tu boleta.`,
+          : `${monto}Es el mes de tu cumpleaños. Lo pides firmando tu constancia.`,
         nuevo: true,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,
@@ -664,7 +672,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
       // sin horas o cerrada por el sistema es un día que hay que revisar.
       .filter((j) => j.estado === "auto_cerrada_pendiente" || j.horas_trabajadas === null)
       // Su jornada de HOY todavía abierta no es un día roto: está trabajando.
-      .filter((j) => !(j.fecha === hoy && (j.estado === "abierta" || j.estado === "en_pausa")))
+      .filter((j) => !esJornadaEnCurso(j.fecha, hoy, j.estado))
       .map((j) => j.fecha)
       .sort();
 
@@ -684,20 +692,24 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     }
   }
 
-  // Su boleta oficial publicada y sin abrir (0482). Cuenta hasta que la abre —
-  // `vista_at` ya está guardado—, y NO caduca a los DIAS_NOVEDAD: una boleta sin
-  // abrir a los 20 días es justo la que más hay que seguir avisando. Una por
-  // periodo, con el mes en el título: dos boletas sin abrir son dos avisos.
+  // Su boleta oficial publicada y sin firmar (0482/0532). Cuenta hasta que la
+  // firma —`recibida_at` ya está guardado—, y NO caduca a los DIAS_NOVEDAD: una
+  // boleta sin firmar a los 20 días es justo la que más hay que seguir avisando.
+  // Una por periodo, con el mes en el título: dos boletas sin firmar son dos avisos.
   for (const b of fuentes.boletas ?? []) {
-    if (!esBoletaNueva(b) || !b.boleta_id) continue;
+    if (!esBoletaPorFirmar(b) || !b.boleta_id) continue;
     pendientes.push({
       instante: b.publicada_at ? Date.parse(b.publicada_at) : 0,
       m: {
         clave: `boleta:${b.boleta_id}`, origen: "boleta", estado: "por_ver",
         fecha: b.publicada_at ? fechaLima(b.publicada_at) : hoy,
-        titulo: `Tu boleta de ${nombreDelPeriodo(b.fecha_fin, { conAnio: false, minuscula: true })} ya está disponible`,
+        titulo: b.vista_at
+          ? `Tu boleta de ${nombreDelPeriodo(b.fecha_fin, { conAnio: false, minuscula: true })} espera tu firma`
+          : `Tu boleta de ${nombreDelPeriodo(b.fecha_fin, { conAnio: false, minuscula: true })} ya está disponible`,
         respuesta: null,
-        detalle: "Es la boleta oficial que entregó el contador. Ábrela en «Boletas»; seguirá acá hasta que la abras.",
+        detalle: b.vista_at
+          ? "Ya la abriste. Fírmala en «Boletas» para darla por recibida; seguirá acá hasta que la firmes."
+          : "Es la boleta oficial que entregó el contador. Ábrela en «Boletas» y fírmala; seguirá acá hasta que la firmes.",
         nuevo: true,
         ir: "/mio?tab=boletas",
         marcarVistoComo: null,
@@ -942,7 +954,8 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         titulo: "Tu bono de cumpleaños va en tu boleta",
         respuesta: null,
         detalle: `Lo pediste ${haceCuanto(pedidoEl, hoy)}. ${b.monto !== null ? `${formatSoles(b.monto)} ya ` : "Ya "}está en tu boleta${
-          b.periodo_fin ? ` del periodo que cierra el ${diaYMes(b.periodo_fin)}` : ""} y se paga junto con tu planilla.`,
+          b.periodo_fin ? ` del periodo que cierra el ${diaYMes(b.periodo_fin)}` : ""} y se paga junto con ${
+          fuentes.practicante ? "tu subvención" : "tu planilla"}.`,
         nuevo: false,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,
@@ -957,7 +970,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
       instante: Date.parse(`${periodoFin}T00:00:00Z`),
       m: {
         clave: `bono:${b.documento_id}`, origen: "bono", estado: "atendido", fecha: periodoFin,
-        titulo: "Tu bono de cumpleaños se pagó con tu planilla",
+        titulo: `Tu bono de cumpleaños se pagó con ${fuentes.practicante ? "tu subvención" : "tu planilla"}`,
         respuesta: null,
         detalle: `${b.monto !== null ? `${formatSoles(b.monto)} · ` : ""}en tu boleta del periodo que cerró el ${diaYMes(periodoFin)}.`,
         nuevo: false,
@@ -1148,7 +1161,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes] =
+    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes, ficha] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -1187,7 +1200,8 @@ export async function traerBandeja(
     // hace seguro reusar la función del tablero admin: sin ese argumento,
     // alguien con rol admin o líder que abra su PROPIA bandeja vería la fila
     // de cualquier compañera (la primera que devuelva el orden), no la suya.
-    supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }),
+    // Compartida con la pantalla de /mio, que pide la misma fila al abrir (compartir-mientras-vuela.ts).
+    compartirMientrasVuela("fn_documentos_tablero:mi_fila", async () => await supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true })),
     // Sus propios pedidos de revisión de esa declaración (0425). Sin admin de
     // por medio, esta misma RPC ya devuelve solo lo suyo — mismo criterio que
     // fn_documentos_tablero con p_solo_mi_fila.
@@ -1234,6 +1248,10 @@ export async function traerBandeja(
     supabase.rpc("fn_mis_memos_por_recibir"),
     // Sus reportes (0488). Igual: `fn_reportes_mios` contesta solo por quien pregunta.
     traerMisReportes(supabase),
+    // Su vínculo (0521): solo para nombrar bien lo que cobra. Falla suave: sin él
+    // se dice «planilla», que es lo que decía antes — y NO entra en `noSePudo`,
+    // por lo mismo que las etiquetas del catálogo.
+    supabase.from("personas").select("tipo_vinculo").eq("id", personaId).maybeSingle(),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -1274,6 +1292,7 @@ export async function traerBandeja(
     educacionSituacion: ((educacionSituacion.data ?? []) as unknown as FilaEducacionSituacion[])
       .filter((s) => s.persona_id === personaId),
     bono: bono.bono,
+    practicante: (ficha.data as { tipo_vinculo?: string } | null)?.tipo_vinculo === "practicante",
     boletas: boletas.filas,
     reportes: reportes.filas,
     vistos: new Set(

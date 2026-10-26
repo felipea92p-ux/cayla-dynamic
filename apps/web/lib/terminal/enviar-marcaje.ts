@@ -55,11 +55,35 @@ export interface ResultadoEnvio {
    * apartaría marcas reales. Aquí `llego: false` significa que no hubo
    * respuesta, y esos intentos no cuentan para el tope.
    *
-   * No es perfecto y conviene saberlo: supabase-js devuelve algunos fallos de
-   * red como `error` en vez de lanzarlos, y esos siguen contando. Cubre el caso
-   * identificable —el corte por tiempo—, que es el que este módulo introduce.
+   * supabase-js devuelve los fallos de red como `error` en vez de lanzarlos, así
+   * que además del corte por tiempo `esFalloDeRed` reconoce esos textos. Hasta
+   * el 2026-10-06 no lo hacía y contaban como respuesta del servidor: seis
+   * ticks de «TypeError: Load failed» —minuto y medio sin internet en la sede—
+   * apartaban la marca.
    */
   llego: boolean;
+}
+
+/**
+ * ¿Este «error» es en realidad que la petición no llegó al servidor?
+ *
+ * postgrest-js no lanza cuando `fetch` falla: arma el error con
+ * `${nombre}: ${mensaje}` de la excepción. Lo que se ve según el navegador:
+ *   · «TypeError: Load failed»                           Safari (las Mac mini)
+ *   · «TypeError: Failed to fetch»                       Chrome
+ *   · «TypeError: NetworkError when attempting to fetch» Firefox
+ *   · «TimeoutError: signal timed out»                   nuestro `AbortSignal.timeout`
+ *   · «AbortError: …» / «FetchError: …»                  corte a mitad de envío
+ * Medido en producción el 2026-10-06: las seis marcas de almuerzo de Oficina
+ * TRU (tres personas, salida y regreso) se apartaron con «TypeError: Load
+ * failed», y las cinco de TRU del 24-sep con «TimeoutError: signal timed out».
+ *
+ * Los rechazos de la base nunca empiezan así: son texto en español de
+ * `fn_registrar_marcaje` o mensajes de Postgres/PostgREST.
+ */
+export function esFalloDeRed(error: string | undefined): boolean {
+  if (!error) return false;
+  return /^(TypeError|FetchError|AbortError|TimeoutError): /.test(error);
 }
 
 /**
@@ -86,6 +110,50 @@ export interface ResultadoEnvio {
 export function esRechazoDeEstado(error: string | undefined): boolean {
   if (!error) return false;
   return error.includes("no válido");
+}
+
+/**
+ * ¿La base rechazó la marca porque la SESIÓN de este navegador no es la del
+ * terminal que la marca declara? (`fn_registrar_marcaje`: «el terminal
+ * autenticado no coincide con p_terminal_id».)
+ *
+ * No es un rechazo de la marca: es un desajuste de ESTA Mac —su sesión y la
+ * ficha de terminal guardada en el navegador dicen cosas distintas—, y se
+ * resuelve solo cuando alguien la vuelve a vincular. Medido en producción el
+ * 2026-10-03: 110 marcas apartadas por esto (89 solo de TRU, desde julio), todas
+ * de personas que sí marcaron. Por eso la cola NO las aparta: las deja en cola
+ * y las sube sola cuando la sesión vuelve a ser la del terminal.
+ */
+export function esRechazoDeSesion(error: string | undefined): boolean {
+  if (!error) return false;
+  return error.includes("no coincide con p_terminal_id") || esSesionPerdida(error);
+}
+
+/**
+ * ¿La Mac llamó a la base SIN SESIÓN? Postgres lo dice así:
+ * «permission denied for function fn_registrar_marcaje».
+ *
+ * `fn_registrar_marcaje` solo le da EXECUTE a `authenticated` (migraciones 0353
+ * y 0366 le quitan `public` y `anon`). Cuando la sesión de la Mac se pierde —el
+ * refresh token fue rechazado y auth-js borró las credenciales— supabase-js
+ * sigue enviando la llamada, ahora con la llave anónima, y ese es el texto que
+ * vuelve. Medido en producción el 2026-10-06: `has_function_privilege` daba
+ * authenticated = true y anon = false, o sea que el permiso estaba bien y lo
+ * que faltaba era la sesión. Había 20 marcas apartadas así desde el 12-ago
+ * (AQP, TRU, Oficina TRU), la última ese mismo día en Oficina TRU, a las 13:23.
+ *
+ * Es el mismo caso que «no coincide con p_terminal_id» con otro texto: la marca
+ * está bien y el que está mal es el vínculo de ESTA Mac. Por eso `esRechazoDeSesion`
+ * lo incluye —la cola la deja esperando en vez de apartarla— y por eso hay una
+ * franja fija en pantalla (marcar/page.tsx) para que alguien vuelva a vincularla.
+ *
+ * Si algún día una migración le quita el permiso a `authenticated` por error, el
+ * síntoma sería este mismo texto: las marcas esperarían en cola —ninguna se
+ * pierde— y la franja avisaría; el diagnóstico, a la vista, es `has_function_privilege`.
+ */
+export function esSesionPerdida(error: string | undefined): boolean {
+  if (!error) return false;
+  return error.includes("permission denied for function fn_registrar_marcaje");
 }
 
 /**
@@ -131,8 +199,11 @@ export async function enviarMarcaje(
       return { ok: false, error: "el envío no obtuvo respuesta a tiempo", llego: false };
     }
 
+    // `llego` solo es true si el servidor CONTESTÓ. postgrest-js no lanza cuando
+    // el fetch falla: lo devuelve como `error` con el texto «TypeError: Load
+    // failed» (Safari), y sin esta comprobación se tomaba por un rechazo.
     return resultado.error
-      ? { ok: false, error: resultado.error.message, llego: true }
+      ? { ok: false, error: resultado.error.message, llego: !esFalloDeRed(resultado.error.message) }
       : { ok: true, llego: true };
   } catch (e) {
     // Aquí cae el corte por tiempo, y también una red que se va a mitad de

@@ -2,17 +2,27 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { Menu, MenuItem } from "@/components/ui/menu";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { Filtro } from "@/components/ui/filtro";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
+import { BuscadorPersona } from "@/components/ui/buscador-persona";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Insignia } from "@/components/ui/insignia";
+import { EtiquetaPrueba, usePruebasPorPersona } from "@/components/pruebas/etiqueta-prueba";
 import { Drawer } from "@/components/ui/drawer";
 // Drawer y Modal son hermanos, no uno el reemplazo del otro (lo dice la
 // cabecera de modal.tsx). El drawer de 460px es el sitio correcto para editar
@@ -28,6 +38,7 @@ import { ROLES_DO, etiquetaDeSede, hoyLima, puedeOperarEquipo, maximoSemanalPrac
 // vez de las ocho reales, escondiendo el aviso de exceso legal semanal de
 // una practicante.
 import { horasEntre as horasDia, esTurnoEspejoViejo, type HorarioTramo } from "@/lib/admin/jornada-esperada";
+import { opcionesRefrigerio, etiquetaRefrigerio, yaLlegaAlmorzada, diasQueYaLlegaAlmorzada } from "@/lib/admin/refrigerio";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
 // El 2026-09-14 se pidió un mínimo de 250 caracteres para forzar un motivo
@@ -128,21 +139,6 @@ interface FilaPreview {
 const DIAS = [{ v: 1, l: "L" }, { v: 2, l: "M" }, { v: 3, l: "X" }, { v: 4, l: "J" }, { v: 5, l: "V" }, { v: 6, l: "S" }, { v: 0, l: "D" }];
 const NOMBRE_DIA: Record<number, string> = { 0: "domingo", 1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves", 5: "viernes", 6: "sábado" };
 
-// El refrigerio real de CAYLA es 60 o 75 minutos, nunca otro número — un campo
-// libre dejaba pasar un "6" en vez de un "60" sin que nada lo detectara, y eso
-// se cuela directo al cálculo de jornada. Auditoría 2026-09-14.
-const REFRIGERIOS_MIN = [60, 75];
-
-// Datos viejos pueden traer un refrigerio fuera de {60, 75} (el schema
-// permite 45-75, el legacy por defecto era 45). En vez de esconderlo -el
-// selector no puede mostrar "seleccionado" un valor que no está en sus
-// opciones sin que el estado real quede desincronizado de lo que se ve- se
-// agrega como una tercera opción visible, para no pisarlo sin que quien
-// edita lo note.
-function opcionesRefrigerio(actual: number): number[] {
-  return REFRIGERIOS_MIN.includes(actual) ? REFRIGERIOS_MIN : [...REFRIGERIOS_MIN, actual].sort((a, b) => a - b);
-}
-
 // Buscar «Ramirez» tiene que encontrar a «Ramírez». Mismo normalizador que
 // /admin/contratos, /admin/horas y el buscador global.
 function sinTildes(t: string): string {
@@ -206,7 +202,7 @@ function useFormularioHorario() {
     setPorDia((prev) => {
       const next = { ...prev };
       if (next[d]) delete next[d];
-      else next[d] = { e: entrada || "08:00", s: salida || "18:00", r: refri || 60 };
+      else next[d] = { e: entrada || "08:00", s: salida || "18:00", r: refri };
       return next;
     });
   }
@@ -243,13 +239,53 @@ function useFormularioHorario() {
     ? Object.values(porDia).reduce((acc, v) => acc + horasDia(v.e, v.s, v.r), 0)
     : horasDia(entrada, salida, refri) * dias.length;
 
+  // Quien entra pasada la hora de almuerzo ya suele llegar almorzada, y un
+  // refrigerio puesto de más le resta una hora que nunca tomó. Es una SUGERENCIA
+  // que se aplica con un clic, nunca un cambio solo: quitar el refrigerio
+  // cambia cómo se miden las horas de esa persona. Cada caso se mira en su
+  // propio modo — en "misma hora" es una sola pregunta; por día, una por día.
+  const diasSinRefrigerioSugerido = modoPorDia
+    ? diasQueYaLlegaAlmorzada(porDia)
+    : yaLlegaAlmorzada({ e: entrada, s: salida, r: refri }) ? dias : [];
+  function ponerSinRefrigerio() {
+    if (modoPorDia) {
+      setPorDia((prev) => {
+        const next = { ...prev };
+        for (const d of diasQueYaLlegaAlmorzada(prev)) next[d] = { ...next[d], r: 0 };
+        return next;
+      });
+    } else {
+      setRefri(0);
+    }
+  }
+
   return {
-    modoPorDia, entrada, salida, refri, dias, porDia, totalSemana,
+    modoPorDia, entrada, salida, refri, dias, porDia, totalSemana, diasSinRefrigerioSugerido,
     setEntrada, setSalida, setRefri,
     aplicarAnalisis, toggleDia, toggleDiaPorDia, setCampoPorDia, setRefriPorDia, cambiarModo, construirHorario,
+    ponerSinRefrigerio,
   };
 }
 type FormularioHorario = ReturnType<typeof useFormularioHorario>;
+
+// El aviso de «¿ya llega almorzada?». No aparece si el refrigerio ya está en 0
+// ni si nadie entra después de las 13:00, así que quien trabaja de mañana nunca
+// lo ve. El botón es el único camino: la pantalla propone, no decide.
+function SugerenciaSinRefrigerio({ f }: { f: FormularioHorario }) {
+  const dias = f.diasSinRefrigerioSugerido;
+  if (dias.length === 0) return null;
+  const texto = f.modoPorDia
+    ? `${dias.map((d) => NOMBRE_DIA[d]).join(", ").replace(/^./, (c) => c.toUpperCase())} ${dias.length === 1 ? "entra" : "entran"} después de las 13:00.`
+    : `Entra a las ${f.entrada}, ya pasada la hora de almuerzo.`;
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-control bg-hueso px-3 py-2">
+      <p className="min-w-0 flex-1 text-xs text-taupe">
+        {texto} Si llega almorzada, no le toca refrigerio: esas horas sí cuentan en su jornada.
+      </p>
+      <Boton variante="secundario" tamano="sm" onClick={f.ponerSinRefrigerio}>Poner sin refrigerio</Boton>
+    </div>
+  );
+}
 
 // La grilla de días — toggle "misma hora todos los días" + modo rápido o por
 // día. Vive fuera del componente porque las dos instancias del formulario
@@ -275,20 +311,20 @@ function GrillaHorario({ f }: { f: FormularioHorario }) {
             <Campo etiqueta="Entrada" type="time" value={f.entrada} onChange={(e) => f.setEntrada(e.target.value)} />
             <Campo etiqueta="Salida" type="time" value={f.salida} onChange={(e) => f.setSalida(e.target.value)} />
             <CampoSelect etiqueta="Refrigerio" value={f.refri} onChange={(e) => f.setRefri(Number(e.target.value))}>
-              {opcionesRefrigerio(f.refri).map((m) => <option key={m} value={m}>{m} min</option>)}
+              {opcionesRefrigerio(f.refri).map((m) => <option key={m} value={m}>{etiquetaRefrigerio(m)}</option>)}
             </CampoSelect>
           </div>
           <p className="mt-2 text-xs text-taupe">Cada día: <span className="text-tinta">{fmtH(horasDia(f.entrada, f.salida, f.refri))}</span></p>
+          <SugerenciaSinRefrigerio f={f} />
           <div className="mt-3">
             <p className="mb-1.5 text-sm">Días de trabajo <span className="text-taupe">(los que no marcas son descanso)</span></p>
             <div className="flex gap-1.5">
               {DIAS.map((d) => {
                 const on = f.dias.includes(d.v);
                 return (
-                  <button key={d.v} type="button" onClick={() => f.toggleDia(d.v)}
-                    className={`h-9 w-9 rounded-control border text-sm ${on ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
+                  <Filtro key={d.v} activo={on} onClick={() => f.toggleDia(d.v)} className="size-9 px-0 py-0">
                     {d.l}
-                  </button>
+                  </Filtro>
                 );
               })}
             </div>
@@ -304,17 +340,16 @@ function GrillaHorario({ f }: { f: FormularioHorario }) {
               const activo = dd !== undefined;
               return (
                 <div key={d.v} className="flex flex-wrap items-center gap-1.5">
-                  <button type="button" onClick={() => f.toggleDiaPorDia(d.v)}
-                    className={`h-8 w-14 shrink-0 rounded-control border text-xs capitalize ${activo ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
+                  <Filtro tamano="sm" activo={activo} onClick={() => f.toggleDiaPorDia(d.v)} className="h-8 w-14 px-0 py-0 capitalize">
                     {NOMBRE_DIA[d.v].slice(0, 3)}
-                  </button>
+                  </Filtro>
                   {activo ? (
                     <>
                       <input type="time" value={dd.e} onChange={(e) => f.setCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
                       <span className="text-taupe">–</span>
                       <input type="time" value={dd.s} onChange={(e) => f.setCampoPorDia(d.v, "s", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
-                      <select value={dd.r} onChange={(e) => f.setRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-16 rounded-control border border-sand bg-hueso px-1 py-1 text-sm">
-                        {opcionesRefrigerio(dd.r).map((m) => <option key={m} value={m}>{m}</option>)}
+                      <select value={dd.r} onChange={(e) => f.setRefriPorDia(d.v, e.target.value)} title="refrigerio (min) — 0 = sin refrigerio" className="w-16 rounded-control border border-sand bg-hueso px-1 py-1 text-sm">
+                        {opcionesRefrigerio(dd.r).map((m) => <option key={m} value={m}>{etiquetaRefrigerio(m, true)}</option>)}
                       </select>
                       <span className="w-14 text-right text-xs text-tinta">{fmtH(horasDia(dd.e, dd.s, dd.r))}</span>
                     </>
@@ -323,7 +358,8 @@ function GrillaHorario({ f }: { f: FormularioHorario }) {
               );
             })}
           </div>
-          <p className="mt-1.5 text-xs text-taupe">La columna angosta es el refrigerio en minutos.</p>
+          <p className="mt-1.5 text-xs text-taupe">La columna angosta es el refrigerio en minutos (0 = sin refrigerio).</p>
+          <SugerenciaSinRefrigerio f={f} />
         </div>
       )}
     </>
@@ -349,11 +385,9 @@ function SemanaMini({ a }: { a: ReturnType<typeof analizar> }) {
   );
 }
 
-const TILE_CLASE = (activo: boolean) =>
-  `rounded-2xl border p-3 text-left transition-colors ${activo ? "border-taupe bg-hueso" : "border-sand bg-papel hover:bg-hueso"}`;
-
 export default function HorariosPage() {
   const router = useRouter();
+  const pruebas = usePruebasPorPersona();
   const { avisar } = useToast();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
@@ -810,82 +844,69 @@ export default function HorariosPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <h1 className="mb-1 font-serif text-2xl">Horarios base</h1>
-        <div className="mb-5 flex max-w-2xl items-start gap-1.5">
-          <p className="text-sm text-taupe">
-            Define la jornada semanal y los descansos de cada integrante. Los cambios conservan el historial y pueden
-            aplicarse desde una fecha determinada.
-          </p>
-          <button
-            type="button"
-            title="El horario de cada persona puede tener una hora distinta por día (martes 8:00, miércoles 14:00…), con su refrigerio, y se repite cada semana. La hora de entrada define la tardanza."
-            aria-label="Más información sobre cómo funciona el horario"
-            className="mt-0.5 shrink-0 text-taupe hover:text-tinta"
-          >
-            ⓘ
-          </button>
-        </div>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Asistencia")}
+          titulo="Horarios base"
+          descripcion="Jornada semanal y descansos de cada integrante. Un cambio conserva el historial."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funcionan los horarios base"
+              intro="El horario base es lo que le toca a cada persona una semana normal. Un turno puntual de la pantalla Turnos manda sobre él, solo ese día."
+              secciones={[
+                { titulo: "Cada día", texto: "Puede tener una hora distinta (martes 8:00, miércoles 14:00…), con su refrigerio, y se repite cada semana." },
+                { titulo: "Tardanza", texto: "La hora de entrada define la tardanza: sin horario no hay contra qué medir y ese día no cuenta tardanza ni falta." },
+                { titulo: "Cambiar", texto: "Un cambio puede aplicarse desde una fecha determinada y conserva el historial. «Corregir días ya trabajados» reabre lo que se midió con el horario anterior." },
+                { titulo: "Sin horario", texto: "Quien lo necesita sale arriba en rojo. No lo requieren quienes cobran por recibo o son personal de dirección." },
+              ]}
+            />
+          }
+        />
 
         {!cargando && personas.length > 0 && (
           <>
-            {/* ── Resumen: sirve para actuar, cada tile es también un filtro ── */}
-            <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <button type="button" onClick={limpiarFiltros} className={TILE_CLASE(sinFiltrosDeEstado)}>
-                <span className="block text-xs text-taupe">Total</span>
-                <span className="block font-serif text-2xl tabular-nums text-tinta">{totalPersonas}</span>
-              </button>
-              <button type="button" onClick={() => toggleEstado("con_horario")} className={TILE_CLASE(filtroEstado === "con_horario")}>
-                <span className="block text-xs text-taupe">Con horario</span>
-                <span className="block font-serif text-2xl tabular-nums text-verde">{conHorarioHoy}</span>
-              </button>
-              <button type="button" onClick={() => toggleEstado("sin_horario")} className={TILE_CLASE(filtroEstado === "sin_horario")}>
-                <span className="block text-xs text-taupe">Sin horario</span>
-                <span className="block font-serif text-2xl tabular-nums text-rojo">{sinHorarioHoy}</span>
-                {noRequierenHorario > 0 && (
-                  <span className="block text-xs text-taupe">{noRequierenHorario} no lo requiere{noRequierenHorario === 1 ? "" : "n"}</span>
-                )}
-              </button>
-              <button type="button" onClick={() => setSoloProgramados((v) => !v)} className={TILE_CLASE(soloProgramados)}>
-                <span className="block text-xs text-taupe">Programados</span>
-                <span className="block font-serif text-2xl tabular-nums text-pizarra">{programadosCount}</span>
-              </button>
-            </div>
+            {/* ── Para atender: lo pendiente en una línea; cada pastilla filtra la lista. Con «sin horario» activo
+                aparece «Asignar horario a las N», que arma la selección y abre el cajón masivo de siempre. ── */}
+            <ParaAtender
+              items={[
+                { clave: "sin", texto: `${sinHorarioHoy} sin horario`, n: sinHorarioHoy, tono: "rojo" },
+                { clave: "prog", texto: `${programadosCount} programado${programadosCount === 1 ? "" : "s"}`, n: programadosCount, tono: "pizarra" },
+              ]}
+              activa={filtroEstado === "sin_horario" ? "sin" : soloProgramados ? "prog" : null}
+              alTocar={(clave) => {
+                if (clave === "sin") { setSoloProgramados(false); toggleEstado("sin_horario"); }
+                else { setFiltroEstado(""); setSoloProgramados((v) => !v); }
+              }}
+              extra={filtroEstado === "sin_horario" && sinHorarioLista.length > 0 ? (
+                <Boton variante="primario" tamano="sm"
+                  onClick={(e) => { setSeleccionados(new Set(sinHorarioLista.map((p) => p.id))); abrirMasivo(e.currentTarget); }}>
+                  Asignar horario a {sinHorarioLista.length === 1 ? "esta persona" : `las ${sinHorarioLista.length}`} →
+                </Boton>
+              ) : undefined}
+            />
 
-            {/* ── Buscador y filtros ── */}
-            <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center">
-              <div className="relative">
-                <Search size={15} strokeWidth={1.8} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-taupe" />
-                <input
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Buscar persona…"
-                  aria-label="Buscar persona"
-                  className="w-full rounded-lg border border-sand bg-hueso py-2 pl-9 pr-9 text-sm placeholder:text-taupe/60"
-                />
-                {busca && (
-                  <button onClick={() => setBusca("")} aria-label="Limpiar búsqueda" className="absolute right-2 top-1/2 -translate-y-1/2 px-1 leading-none text-taupe hover:text-tinta">
-                    ×
-                  </button>
-                )}
+            {/* ── Buscador y filtros, compactos ── */}
+            <TarjetaInfo className="mb-4 flex flex-wrap items-center gap-2 p-3 sm:p-3">
+              <div className="min-w-48 flex-1">
+                <Campo tamano="sm" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar persona" aria-label="Buscar persona" />
               </div>
-              <CampoSelect value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
-                <option value="">Todas las sedes</option>
-                {todasLasSedes.map((sd) => <option key={sd} value={sd}>{etiquetas.get(sd)?.texto ?? sd}</option>)}
-              </CampoSelect>
-              <CampoSelect value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)} aria-label="Filtrar por estado">
-                <option value="">Cualquier estado</option>
-                <option value="con_horario">Con horario</option>
-                <option value="sin_horario">Sin horario</option>
-              </CampoSelect>
-              <CampoSelect value={filtroTipoHorario} onChange={(e) => setFiltroTipoHorario(e.target.value as typeof filtroTipoHorario)} aria-label="Filtrar por tipo de horario">
-                <option value="">Cualquier tipo</option>
-                <option value="fijo">Rango fijo</option>
-                <option value="varia">Varía por día</option>
-              </CampoSelect>
-              {hayFiltrosActivos && (
-                <Boton variante="secundario" tamano="sm" onClick={limpiarFiltros}>Limpiar filtros</Boton>
+              <div className="w-full sm:w-44">
+                <CampoSelect tamano="sm" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
+                  <option value="">Todas las sedes</option>
+                  {todasLasSedes.map((sd) => <option key={sd} value={sd}>{etiquetas.get(sd)?.texto ?? sd}</option>)}
+                </CampoSelect>
+              </div>
+              <div className="w-full sm:w-44">
+                <CampoSelect tamano="sm" value={filtroTipoHorario} onChange={(e) => setFiltroTipoHorario(e.target.value as typeof filtroTipoHorario)} aria-label="Filtrar por tipo de horario">
+                  <option value="">Cualquier tipo</option>
+                  <option value="fijo">Rango fijo</option>
+                  <option value="varia">Varía por día</option>
+                </CampoSelect>
+              </div>
+              {hayFiltrosActivos && <Boton variante="enlace" className="text-xs text-taupe" onClick={limpiarFiltros}>Limpiar</Boton>}
+              {noRequierenHorario > 0 && (
+                <span className="ml-auto text-xs text-taupe">{noRequierenHorario} no requiere{noRequierenHorario === 1 ? "" : "n"} horario (dirección o recibo)</span>
               )}
-            </div>
+            </TarjetaInfo>
           </>
         )}
 
@@ -895,28 +916,6 @@ export default function HorariosPage() {
             <span className="font-medium text-tinta">{seleccionados.size} seleccionada{seleccionados.size === 1 ? "" : "s"}</span>
             <Boton variante="primario" tamano="sm" onClick={(e) => abrirMasivo(e.currentTarget)}>Asignar horario →</Boton>
             <Boton variante="secundario" tamano="sm" onClick={() => setSeleccionados(new Set())}>Cancelar selección</Boton>
-          </div>
-        )}
-
-        {/* Cruza las 4 sedes: sin esto, alguien "sin horario" se pierde bajando
-            entre AQP/CCO/LIM/TRU y puede marcar días sin que ninguna tardanza
-            se calcule (auditoría 2026-09-14). Compacta: nombres clicables en
-            vez de un botón "Asignar" por persona. */}
-        {!cargando && sinHorarioLista.length > 0 && (
-          <div className="mb-6 rounded-control border border-rojo/30 bg-rojo/10 px-4 py-3">
-            <p className="mb-1.5 text-sm font-medium text-rojo-profundo">
-              ⚠ {sinHorarioLista.length} persona{sinHorarioLista.length === 1 ? "" : "s"} necesita{sinHorarioLista.length === 1 ? "" : "n"} horario
-            </p>
-            <div className="flex flex-wrap gap-x-1 gap-y-1 text-sm">
-              {sinHorarioLista.map((p, i) => (
-                <span key={p.id}>
-                  <button type="button" onClick={(e) => abrirEdicion(p, e.currentTarget)} className="text-tinta underline decoration-rojo/40 underline-offset-2 hover:text-rojo-profundo">
-                    {p.nombres} {p.apellidos}
-                  </button>
-                  {i < sinHorarioLista.length - 1 && <span className="text-taupe">, </span>}
-                </span>
-              ))}
-            </div>
           </div>
         )}
 
@@ -940,20 +939,17 @@ export default function HorariosPage() {
                 {/* table-fixed con los mismos anchos en todas las sedes: cada
                     sede es su propia tabla, y con el ancho automático cada una
                     repartía las columnas a su manera — «Horario» caía en un
-                    sitio distinto en AQP, CCO, LIM y TRU. Descanso se queda
-                    con lo que sobra: los fijos están medidos para que la
-                    fecha y el enlace de corrección quepan en una línea, y
-                    Nombre lleva un porcentaje para no quedar en 70 px —y un
-                    nombre en cinco renglones— cuando la ventana es angosta. */}
+                    sitio distinto en cada sede. Horario se queda con lo que
+                    sobra; Nombre lleva un porcentaje para no quedar en 70 px
+                    cuando la ventana es angosta. */}
                 <Tabla className="[font-variant-numeric:tabular-nums] [&>table]:table-fixed" alturaMaxima="60vh">
                   <TablaEncabezado>
                     <Th className="w-9">{null}</Th>
-                    <Th className="w-[19%]">Nombre</Th>
-                    <Th className="w-[16%]">Horario</Th>
+                    <Th className="w-[26%]">Nombre</Th>
+                    <Th>Horario</Th>
                     <Th className="w-24">Horas semanales</Th>
-                    <Th>Descanso</Th>
                     <Th className="w-[7.5rem]">Vigente desde</Th>
-                    <Th className="w-48">{null}</Th>
+                    <Th className="w-40">{null}</Th>
                   </TablaEncabezado>
                   <tbody>
                     {deSede.map((p) => {
@@ -984,7 +980,7 @@ export default function HorariosPage() {
                                 aria-label={`Seleccionar a ${p.nombres} ${p.apellidos}`}
                               />
                             </td>
-                            <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
+                            <td className="px-4 py-2">{p.nombres} {p.apellidos}<EtiquetaPrueba fila={pruebas.get(p.id)} className="ml-2" /></td>
                             <td className="px-4 py-2">
                               {(!a || a.dias.length === 0) && !leCorresponde(p) ? (
                                 <span className="text-taupe" title="RxH o personal de dirección: no le corresponde horario">no requiere horario</span>
@@ -996,10 +992,13 @@ export default function HorariosPage() {
                                 <button
                                   type="button"
                                   onClick={() => setSemanaExpandida((x) => (x === p.id ? null : p.id))}
-                                  className="text-left text-pizarra hover:text-tinta"
+                                  className="text-pizarra hover:text-tinta"
                                 >
                                   varía por día · {expandida ? "Ocultar" : "Ver semana →"}
                                 </button>
+                              )}
+                              {a && a.dias.length > 0 && (
+                                <p className="mt-0.5 text-xs text-taupe">{textoDescanso(a.dias) === "sin descanso" ? "sin descanso" : `descansa ${textoDescanso(a.dias)}`}</p>
                               )}
                               {programado && (
                                 <p className="mt-1 flex items-center gap-1.5 text-xs text-taupe">
@@ -1024,36 +1023,36 @@ export default function HorariosPage() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-2 text-taupe">{a ? textoDescanso(a.dias) : "—"}</td>
                             <td className="whitespace-nowrap px-4 py-2 text-taupe">{h ? fechaCorta(h.vigente_desde) : "—"}</td>
                             <td className="px-4 py-2">
-                              {/* Uno debajo del otro y el enlace en una sola línea:
-                                  lado a lado no cabían, y «Corregir días ya
-                                  trabajados» se partía en tres renglones que
-                                  hacían cada fila el triple de alta. «Cambiar»
-                                  arriba porque es lo de todos los días. */}
-                              <div className="flex flex-col items-end gap-1">
-                                {/* «corregir pasado» hasta el 2026-09-15: no decía que
-                                    vuelve a medir días ya pagados. Al lado de «Cambiar»
-                                    (de hoy en adelante), el nombre tiene que marcar la
-                                    diferencia sin que nadie la explique. */}
-                                <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
+                              <div className="flex items-center justify-end gap-2">
+                                {/* Un solo botón visible: Asignar (si no tiene) o Cambiar. «Corregir días ya trabajados» —que
+                                    vuelve a medir días ya pagados— vive en «•••», con el nombre que dice la diferencia con
+                                    «Cambiar» (de hoy en adelante). */}
+                                <Boton variante={abierto ? "secundario" : "primario"} tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
                                   {abierto ? "Cambiar" : "Asignar"}
                                 </Boton>
                                 {h && (
-                                  <Boton variante="enlace" tamano="sm" className="whitespace-nowrap text-xs" onClick={() => abrirRetro(p)}>
-                                    Corregir días ya trabajados
-                                  </Boton>
+                                  <Menu trigger={({ alternar }) => (
+                                    <BotonIcono etiqueta={`Más acciones para ${p.nombres} ${p.apellidos}`} icono={<MoreHorizontal aria-hidden />} onClick={alternar} />
+                                  )}>
+                                    {a && !a.uniforme && a.dias.length > 0 && (
+                                      <MenuItem onClick={() => setSemanaExpandida((x) => (x === p.id ? null : p.id))}>
+                                        {expandida ? "Ocultar la semana" : "Ver la semana"}
+                                      </MenuItem>
+                                    )}
+                                    <MenuItem onClick={() => abrirRetro(p)}>Corregir días ya trabajados…</MenuItem>
+                                  </Menu>
                                 )}
                               </div>
                             </td>
                           </Fila>
                           {expandida && a && (
-                            <tr className="border-t border-sand bg-hueso/50">
-                              <td colSpan={7} className="px-4 py-3">
+                            <Fila className="bg-hueso/50 hover:bg-hueso/50">
+                              <td colSpan={6} className="px-4 py-3">
                                 <SemanaMini a={a} />
                               </td>
-                            </tr>
+                            </Fila>
                           )}
                         </Fragment>
                       );
@@ -1088,7 +1087,7 @@ export default function HorariosPage() {
                             aria-label={`Seleccionar a ${p.nombres} ${p.apellidos}`}
                           />
                           <span>
-                            <span className="block text-sm font-medium text-tinta">{p.nombres} {p.apellidos}</span>
+                            <span className="block text-sm font-medium text-tinta">{p.nombres} {p.apellidos}<EtiquetaPrueba fila={pruebas.get(p.id)} className="ml-2" /></span>
                             <span className="block text-xs text-taupe">{rotuloDeSede(sede)}</span>
                           </span>
                         </label>
@@ -1150,14 +1149,14 @@ export default function HorariosPage() {
 
           <div className="grid grid-cols-1 gap-3">
             <Campo etiqueta="Vigente desde" type="date" min={hoy} value={desde} onChange={(e) => setDesde(e.target.value)} />
-            <CampoSelect etiqueta="Copiar horario de →" value={copiarDeId} onChange={(e) => copiarDe(e.target.value)}>
-              <option value="">(elegir a alguien)</option>
-              {editables
+            <BuscadorPersona
+              etiqueta="Copiar horario de →"
+              opciones={editables
                 .filter((x) => x.id !== editando?.id && horarios.has(x.id))
-                .map((x) => (
-                  <option key={x.id} value={x.id}>{x.nombres} {x.apellidos}</option>
-                ))}
-            </CampoSelect>
+                .map((x) => ({ id: x.id, nombre: `${x.nombres} ${x.apellidos}`, sede: sedes[x.sede_base_id] ?? null }))}
+              value={copiarDeId}
+              onChange={copiarDe}
+            />
           </div>
 
           <p className="mt-2 text-xs text-taupe">

@@ -42,8 +42,8 @@ set session_replication_role = origin;
 -- 12 y no los 11 que agregó esta migración: la 0401 sumó `foto_dni`. El número
 -- se actualiza cuando una migración agrega un campo — que es justo lo que esta
 -- aserción existe para obligar a notar.
-select is((select count(*)::int from catalogo_campos_perfil), 12,
-  'DE PARTIDA · el catálogo tiene sus 12 campos (11 de la 0399 + foto_dni de la 0401)');
+select is((select count(*)::int from catalogo_campos_perfil), 13,
+  'DE PARTIDA · el catálogo tiene sus 13 campos (11 de la 0399 + foto_dni de la 0401 + documento de la 0513)');
 
 -- ── 1 · Celular: propone, no cambia hasta aprobar ───────────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000cbbb', true);

@@ -36,6 +36,7 @@ export function useFocoAtrapado<C extends HTMLElement, D extends HTMLElement>({
   onCerrar,
   caja,
   volverElFocoA,
+  enfocarPrimero = true,
 }: {
   abierto: boolean;
   onCerrar: () => void;
@@ -43,6 +44,13 @@ export function useFocoAtrapado<C extends HTMLElement, D extends HTMLElement>({
   caja: React.RefObject<C | null>;
   /** Lo que lo abrió, para devolverle el foco al cerrar. */
   volverElFocoA: React.RefObject<D | null>;
+  /**
+   * Al abrir, poner el foco en el primer elemento enfocable de adentro (lo normal en un cajón de
+   * menú). `false` deja el foco donde lo ponga quien llama —<Modal> lo deja en el propio diálogo,
+   * porque su primer enfocable puede ser «Anular» o «Eliminar» y un Enter distraído no debe
+   * ejecutarlo—; la trampa de Tab y el regreso del foco funcionan igual.
+   */
+  enfocarPrimero?: boolean;
 }): void {
   // `onCerrar` casi siempre llega como una función nueva en cada render de
   // quien usa el hook (acá mismo, Drawer la envuelve en `() => { if
@@ -66,8 +74,7 @@ export function useFocoAtrapado<C extends HTMLElement, D extends HTMLElement>({
     const disparador = volverElFocoA.current;
     // El primer enlace, no el contenedor: quien abre el menú con el teclado
     // espera estar YA sobre algo que pueda pulsar.
-    const primero = caja.current?.querySelector<HTMLElement>(FOCUSABLES);
-    primero?.focus();
+    if (enfocarPrimero) caja.current?.querySelector<HTMLElement>(FOCUSABLES)?.focus();
 
     function alPresionar(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -85,7 +92,10 @@ export function useFocoAtrapado<C extends HTMLElement, D extends HTMLElement>({
       const inicio = focusables[0];
       const fin = focusables[focusables.length - 1];
 
-      if (e.shiftKey && document.activeElement === inicio) {
+      // El propio contenedor (tabIndex -1) también cuenta como «el principio»: un diálogo que
+      // recibe el foco en su caja, o alguien que hace clic en su fondo, y presiona Shift+Tab se
+      // iba hacia atrás, a la página de abajo, porque la caja no está en la lista de enfocables.
+      if (e.shiftKey && (document.activeElement === inicio || document.activeElement === caja.current)) {
         e.preventDefault();
         fin.focus();
       } else if (!e.shiftKey && document.activeElement === fin) {
@@ -102,5 +112,5 @@ export function useFocoAtrapado<C extends HTMLElement, D extends HTMLElement>({
       disparador?.focus();
     };
     // onCerrar NO va acá a propósito — ver el comentario de onCerrarRef arriba.
-  }, [abierto, caja, volverElFocoA]);
+  }, [abierto, caja, volverElFocoA, enfocarPrimero]);
 }

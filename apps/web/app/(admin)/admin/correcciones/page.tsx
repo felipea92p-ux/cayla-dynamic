@@ -6,7 +6,7 @@ import { Search, ChevronRight, ChevronLeft, Calendar, ArrowUpRight, PanelLeftClo
 import {
   CAMPOS_DE_MARCAJE, JORNADA_ESTADO_LABELS, MINUTOS_MAXIMOS_TARDANZA_MEDIBLE, ORIGEN_MARCA_LABELS,
   ROLES_DO, TEMA_AUDITORIA_LABELS, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, esCampoDeMarcaje, esRolEncargada,
-  fechaLima, formatoMinutos, hoyLima, leCorrespondeHorario, puedeOperarEquipo, rangoDelDiaLima, temaDeCampo,
+  fechaLima, formatoMinutos, horaLima, hoyLima, leCorrespondeHorario, puedeOperarEquipo, rangoDelDiaLima, temaDeCampo,
   type TipoMarca,
 } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -14,15 +14,27 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { esperadoDelDia, esTurnoEspejoViejo, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { describirCambio, horaTextoLima, type Auditoria } from "@/lib/admin/historial-correcciones";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
+import { horaDelHorario, tipoQueFalta } from "@/lib/admin/marcaje-faltante";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { addDias } from "@/lib/admin/incidencias";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { Filtro } from "@/components/ui/filtro";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Rotulo } from "@/components/ui/rotulo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { SemanaDePersona } from "./semana-persona";
 
 
 // "HH:MM" en hora Lima para el input de tipo time
@@ -95,6 +107,13 @@ function leTocaHorario(p: Persona | undefined): boolean {
   return leCorrespondeHorario(p.tipo_vinculo, p.personal_direccion);
 }
 interface Sede { id: string; nombre: string }
+/** «lun 19 oct»: una FECHA (no un instante), por eso se formatea en UTC para que la zona no la corra un día. */
+function diaCorto(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, d))).replace(/\.$/, "");
+}
+
 /** Cuántos días por revisar se piden. Si llegan tantos, puede haber más atrás. */
 const LIMITE_DIAS_POR_REVISAR = 50;
 interface Marcaje {
@@ -166,14 +185,14 @@ type Accion =
  *  hace falta una quinta, no hay que copiar la envoltura otra vez. */
 function TarjetaResumen({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-superficie border border-sand bg-papel p-4">
-      <p className="etiqueta mb-1.5 text-taupe">{etiqueta}</p>
+    <TarjetaInfo>
+      <Rotulo className="mb-1.5">{etiqueta}</Rotulo>
       {/* break-words: jornada.estado llega crudo de la base ("auto_cerrada_pendiente",
           sin espacios) y desbordaba el ancho fijo de la tarjeta en vez de
           envolver — un `<strong>` suelto en el layout de antes no tenía este
           problema porque fluía en un párrafo, no en una tarjeta angosta. */}
       <div className="break-words text-base font-medium text-tinta">{children}</div>
-    </div>
+    </TarjetaInfo>
   );
 }
 
@@ -240,6 +259,7 @@ export default function CorreccionesPage() {
   // Días sellados por el sistema (secuencia imposible). Sin esta lista el sello
   // sería inútil: nadie va a revisar persona por persona adivinando cuál quedó mal.
   const [porRevisar, setPorRevisar] = useState<DiaPorRevisar[]>([]);
+  const [atencionElegida, setAtencionElegida] = useState<string | undefined>(undefined);
   // Marcas que el terminal no logró enviar y apartó (0304). Hasta esa migración
   // vivían en el IndexedDB de una Mac mini y nadie podía verlas desde acá.
   const [apartadas, setApartadas] = useState<MarcaApartada[]>([]);
@@ -251,6 +271,9 @@ export default function CorreccionesPage() {
   // el modal está abierto; el motivo se escribe en `apartadaMotivo`.
   const [apartadaAccion, setApartadaAccion] = useState<{ marca: MarcaApartada; resolucion: "repuesta" | "improcedente" } | null>(null);
   const [apartadaMotivo, setApartadaMotivo] = useState("");
+  // Reponer TODAS las apartadas de una vez: una caída del vínculo del terminal
+  // deja decenas, y resolverlas una a una cuesta lo mismo que el error original.
+  const [masivaAbierta, setMasivaAbierta] = useState(false);
   // ¿La secuencia de ESTE día sigue siendo imposible? Se pregunta en vivo a la
   // base en cada carga, no se deduce del sello guardado en las marcas: el sello
   // dice que el día estuvo roto alguna vez, no que lo siga estando.
@@ -267,9 +290,11 @@ export default function CorreccionesPage() {
   // sobra (el caso real: un regreso que nunca ocurrió y el auto-cierre). El
   // sistema las propone marcadas, pero no las anula sin que se vean primero.
   const [anularPosteriores, setAnularPosteriores] = useState<Record<string, boolean>>({});
-  // formulario "agregar marcaje"
-  const [agregarTipo, setAgregarTipo] = useState<TipoMarca>("entrada");
-  const [agregarHora, setAgregarHora] = useState("08:00");
+  // formulario "agregar marcaje". Tipo y hora arrancan en lo que le falta al día
+  // y en la hora de su horario (marcaje-faltante.ts); aquí solo se guarda lo que
+  // la persona del panel ELIGIÓ encima. Va atado a persona y fecha (`clave`): al
+  // cambiar de día vuelve a la sugerencia sin un efecto que lo resetee.
+  const [agregarElegido, setAgregarElegido] = useState<{ clave: string; tipo?: TipoMarca; hora?: string }>({ clave: "" });
   const [agregarMotivoOtro, setAgregarMotivoOtro] = useState("");
 
   // Todo lo que se pide al abrir la pantalla. Es una función y no el cuerpo de
@@ -355,6 +380,38 @@ export default function CorreccionesPage() {
         : `Declarada improcedente. No se registró ningún marcaje, y queda el motivo en el historial.`,
     );
     if (m.persona_id === personaId) void refrescar();
+  }
+
+  // Una por una y en orden de hora: la máquina de estados del marcaje exige
+  // entrada antes que salida, y repuestas al revés se rechazarían entre sí. Cada
+  // una pasa por la misma `fn_marca_apartada_resolver` que el botón individual,
+  // con sus mismas validaciones; la que la base rechace se queda en la lista y
+  // se informa, no se oculta.
+  async function resolverTodasApartadas() {
+    if (apartadaMotivo.trim().length < 3) {
+      avisar("error", "Escribe el motivo: esto decide si un día de trabajo queda registrado o no.");
+      return;
+    }
+    setResolviendo("todas");
+    const supabase = createAdminSupabaseClient();
+    const orden = [...apartadas].sort((a, b) => a.timestamp_cliente.localeCompare(b.timestamp_cliente));
+    let repuestas = 0;
+    const fallos: string[] = [];
+    for (const m of orden) {
+      const { error } = await supabase.rpc("fn_marca_apartada_resolver", {
+        p_id: m.id, p_resolucion: "repuesta", p_motivo: apartadaMotivo.trim(),
+      });
+      if (error) fallos.push(`${m.persona} ${m.fecha} ${horaTextoLima(m.timestamp_cliente)}: ${mensajeDeError(error, "resolver la marca apartada")}`);
+      else repuestas++;
+    }
+    setResolviendo(null);
+    setMasivaAbierta(false);
+    setApartadaMotivo("");
+    const { data: ap } = await supabase.rpc("fn_marcas_apartadas");
+    setApartadas((ap as unknown as MarcaApartada[]) ?? []);
+    if (fallos.length === 0) avisar("ok", `${repuestas} marcas registradas con su hora original.`);
+    else avisar("error", `${repuestas} registradas, ${fallos.length} no se pudieron: ${fallos.slice(0, 3).join(" · ")}${fallos.length > 3 ? " …" : ""} Revísalas una a una.`);
+    void refrescar();
   }
 
   const auditoriaLimite = auditoriaMas[personaId] ?? 30;
@@ -591,6 +648,8 @@ export default function CorreccionesPage() {
     setAccion(null);
     setMotivo("");
     setAnularPosteriores({});
+    // Agregado el marcaje, el formulario vuelve a proponer lo que falte ahora.
+    if (accion.modo === "agregar") setAgregarElegido({ clave: "" });
     await refrescar();
     avisar("ok", anuladas > 0
       ? `Corrección guardada y ${anuladas} ${anuladas === 1 ? "marca anulada" : "marcas anuladas"}. Todo queda en la auditoría.`
@@ -606,6 +665,21 @@ export default function CorreccionesPage() {
     if (esperado?.origen !== "turno" || !turnoDelDia) return false;
     return esTurnoEspejoViejo(fecha, turnoDelDia, tramosHistoricos);
   }, [esperado, turnoDelDia, tramosHistoricos, fecha]);
+  // Con qué arranca «Agregar un marcaje faltante». Lo que se muestra y lo que se
+  // manda es este mismo valor derivado, nunca dos estados que puedan separarse
+  // (la lección del campo de fecha de Safari, CLAUDE.md, 2026-08-26). Sin
+  // sugerencia, el mismo arranque de siempre: «Entrada» a las 08:00.
+  const agregarClave = `${personaId}|${fecha}`;
+  const agregarYaElegido = agregarElegido.clave === agregarClave ? agregarElegido : { clave: agregarClave };
+  const momentoAgregar = { fecha, hoy: hoyLima(), ahora: horaLima() };
+  const agregarTipo = agregarYaElegido.tipo
+    ?? tipoQueFalta(
+      marcajes.filter((m) => m.anulada_at === null).map((m) => ({ tipo: m.tipo, timestamp: m.timestamp_marca })),
+      esperado, momentoAgregar,
+    )
+    ?? "entrada";
+  const agregarHoraDelHorario = horaDelHorario(agregarTipo, esperado, momentoAgregar);
+  const agregarHora = agregarYaElegido.hora ?? agregarHoraDelHorario ?? "08:00";
   // Nombre de quién hizo cada corrección, resuelto desde la lista ya cargada
   // (evita depender de un embed de PostgREST que el schema cache puede no exponer).
   const nombrePorId = useMemo(() => new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos}`])), [personas]);
@@ -661,44 +735,93 @@ export default function CorreccionesPage() {
     );
   }
 
-  return (
-    <div className="flex flex-1 flex-col">
-      <div className="border-b border-sand px-4 py-5 md:px-6">
-        <h1 className="font-serif text-2xl">Corregir marcajes</h1>
-        <p className="mt-1 max-w-2xl text-sm text-taupe">
-          Ajusta la hora de entrada/salida, agrega un marcaje olvidado o elimina un duplicado.
-          Cada cambio pide un motivo y queda registrado (quién, qué y cuándo).
-        </p>
-      </div>
+  // Tres bandas, no una — y esta es la razón (mig. 0384).
+  //
+  // Hasta hoy había una sola, titulada "quedó con una secuencia
+  // imposible", y se pintaba para CUALQUIER día que la base devolviera.
+  // Pero `fn_dias_por_revisar` devuelve todo día con una marca en
+  // 'pendiente_revision', y a esa columna la escriben tres cosas que no
+  // se parecen en nada. La consecuencia real, vista en producción el
+  // 2026-09-06: un día cuya única pendiente era confirmar la hora del
+  // auto-cierre se anunciaba como secuencia imposible, y al abrirlo la
+  // MISMA pantalla decía lo contrario dos centímetros más abajo.
+  //
+  // Y como el auto-cierre corre todas las noches, esa banda se llenaba
+  // sola de días sanos bajo un titular de alarma. El daño no es el
+  // texto: es que el día que una marca llegue de verdad fuera de orden
+  // va a estar enterrada entre ellos y se leerá como más de lo mismo.
+  //
+  // Un día de un periodo ya pagado no tiene acción posible
+  // (fn_anular_marcaje lo rechaza), así que no entra a ninguna banda:
+  // Felipe pidió que dejara de estorbar la vista. Sigue existiendo en
+  // fn_dias_por_revisar por si algún día hace falta un historial.
+  const accionables = porRevisar.filter((d) => !d.periodo_pagado);
+  // `motivo` null = base sin la 0384 todavía. Se trata como el caso
+  // grave, que es el único que no se puede dejar de avisar.
+  const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
+  const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
+  const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");
 
-      <div className="px-4 pt-5 md:px-6">
-        {/* Lo que no se pudo traer al abrir. Va primero: si la lista de marcas
-            apartadas no llegó, «no hay nada que revisar» sería falso. */}
-        {baseFalla.length > 0 && (
-          <div role="alert" className="mb-6 max-w-3xl rounded-xl border border-rojo/40 bg-rojo/5 p-4">
-            <p className="text-sm font-medium text-tinta">No se pudo traer: {baseFalla.join(", ")}.</p>
-            <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
-              Lo que ves abajo puede estar incompleto: que una lista salga vacía no quiere decir que no haya nada pendiente.
-            </p>
-            <Boton variante="secundario" tamano="sm" className="min-h-11 md:min-h-0" onClick={() => void cargarBase()}>Reintentar</Boton>
-          </div>
-        )}
+  // Abre el día de verdad. El efecto de arriba se encarga de cargarlo.
+  const abrir = (d: DiaPorRevisar) => {
+    setPersonaId(d.persona_id);
+    setFecha(d.fecha);
+    setCargado(false);
+  };
+  const lista = (dias: DiaPorRevisar[], hover: string) => (
+    <ul className="grid gap-2 @2xl:grid-cols-2">
+      {dias.map((d) => (
+        <li key={`${d.persona_id}-${d.fecha}`}>
+          <button
+            onClick={() => abrir(d)}
+            className={`flex w-full items-center justify-between gap-3 rounded-control border border-sand bg-papel px-3 py-2 text-left text-sm transition-colors ${hover}`}
+          >
+            <span className="min-w-0">
+              <span className="block truncate font-medium text-tinta">{d.nombre}</span>
+              <span className="block text-xs text-taupe">{d.sede} · {diaCorto(d.fecha)}</span>
+            </span>
+            <span className="shrink-0 text-xs font-medium text-tinta">Abrir →</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
 
+  // Qué lista está abierta bajo «Para atender». `undefined` = nadie eligió todavía: se abre la más
+  // grave que tenga algo. `""` = quien usa la pantalla la cerró a propósito.
+  const primeraConAlgo = apartadas.length > 0 ? "apartadas" : rotos.length > 0 ? "rotos" : cerrados.length > 0 ? "cerrados" : sellados.length > 0 ? "sellados" : "";
+  const atencion = atencionElegida ?? primeraConAlgo;
+
+  // «Para atender» se lee a la derecha, como en Datos personales: con nadie elegido, la lista de lo que hay que
+  // corregir ocupa la ventana; elegir a alguien abre su día en el mismo sitio.
+  const hayPanelDeAtencion =
+    (atencion === "apartadas" && apartadas.length > 0) || (atencion === "rotos" && rotos.length > 0) ||
+    (atencion === "cerrados" && cerrados.length > 0) || (atencion === "sellados" && sellados.length > 0);
+  const panelDeAtencion = (
+    <div className="@container">
         {/* Va ARRIBA de los días por revisar: aquellos son días que existen y
             están desordenados; estas son marcas que NO existen todavía. Si nadie
             las repone, ese día se paga como si la persona no hubiera venido. */}
-        {apartadas.length > 0 && (
-          <div className="mb-6 max-w-3xl rounded-xl border border-rojo/40 bg-rojo/5 p-4">
-            <p className="text-sm font-medium text-tinta">
-              {apartadas.length === 1
-                ? "1 marca no llegó a registrarse"
-                : `${apartadas.length} marcas no llegaron a registrarse`}
-            </p>
-            <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
+        {atencion === "apartadas" && apartadas.length > 0 && (
+          <BannerAviso
+            variante="alerta"
+            
+            titulo={apartadas.length === 1
+              ? "1 marca no llegó a registrarse"
+              : `${apartadas.length} marcas no llegaron a registrarse`}
+          >
+            <p className="mb-3 text-taupe">
               El terminal las intentó seis veces y las apartó para no perderlas. La persona sí marcó:
               mientras no se repongan, ese día se paga como si no hubiera venido.
             </p>
-            <ul className="flex flex-col gap-2">
+            {apartadas.length > 1 && (
+              <div className="mb-3">
+                <Boton variante="primario" tamano="sm" onClick={() => { setApartadaMotivo(""); setMasivaAbierta(true); }} disabled={resolviendo !== null}>
+                  Registrar todas con su hora ({apartadas.length})
+                </Boton>
+              </div>
+            )}
+            <ul className="grid gap-2 @2xl:grid-cols-2">
               {apartadas.map((m) => (
                 <li key={m.id} className="rounded-lg bg-papel px-3 py-2 text-sm">
                   <div>
@@ -731,120 +854,120 @@ export default function CorreccionesPage() {
                 </li>
               ))}
             </ul>
-          </div>
+          </BannerAviso>
         )}
 
-        {(() => {
-          // Tres bandas, no una — y esta es la razón (mig. 0384).
-          //
-          // Hasta hoy había una sola, titulada "quedó con una secuencia
-          // imposible", y se pintaba para CUALQUIER día que la base devolviera.
-          // Pero `fn_dias_por_revisar` devuelve todo día con una marca en
-          // 'pendiente_revision', y a esa columna la escriben tres cosas que no
-          // se parecen en nada. La consecuencia real, vista en producción el
-          // 2026-09-06: un día cuya única pendiente era confirmar la hora del
-          // auto-cierre se anunciaba como secuencia imposible, y al abrirlo la
-          // MISMA pantalla decía lo contrario dos centímetros más abajo.
-          //
-          // Y como el auto-cierre corre todas las noches, esa banda se llenaba
-          // sola de días sanos bajo un titular de alarma. El daño no es el
-          // texto: es que el día que una marca llegue de verdad fuera de orden
-          // va a estar enterrada entre ellos y se leerá como más de lo mismo.
-          //
-          // Un día de un periodo ya pagado no tiene acción posible
-          // (fn_anular_marcaje lo rechaza), así que no entra a ninguna banda:
-          // Felipe pidió que dejara de estorbar la vista. Sigue existiendo en
-          // fn_dias_por_revisar por si algún día hace falta un historial.
-          const accionables = porRevisar.filter((d) => !d.periodo_pagado);
-          // `motivo` null = base sin la 0384 todavía. Se trata como el caso
-          // grave, que es el único que no se puede dejar de avisar.
-          const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
-          const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
-          const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");
+        {porRevisar.length >= LIMITE_DIAS_POR_REVISAR && atencion !== "apartadas" && (
+          <p className="mb-3 text-xs text-taupe">
+            Se muestran los {LIMITE_DIAS_POR_REVISAR} días más recientes: puede haber más atrás. Al resolver estos, aparecen los siguientes.
+          </p>
+        )}
+        
+        {/* 1 · El día está roto de verdad. Es el único que pide trabajo. */}
+        {atencion === "rotos" && rotos.length > 0 && (
+          <BannerAviso
+            variante="advertencia"
+            
+            titulo={rotos.length === 1
+              ? "1 día quedó con una secuencia imposible"
+              : `${rotos.length} días quedaron con una secuencia imposible`}
+          >
+            <p className="mb-3 text-taupe">
+              Por ejemplo, dos salidas seguidas sin retorno entre medio. Ocurre cuando la
+              terminal pierde señal y una marca llega tarde. No se perdió nada: solo hay que
+              ordenar el día. Toca uno para abrirlo.
+            </p>
+            {lista(rotos, "hover:bg-ambar/10")}
+          </BannerAviso>
+        )}
 
-          // Abre el día de verdad. El efecto de arriba se encarga de cargarlo.
-          const abrir = (d: DiaPorRevisar) => {
-            setPersonaId(d.persona_id);
-            setFecha(d.fecha);
-            setCargado(false);
-          };
-          const lista = (dias: DiaPorRevisar[], hover: string) => (
-            <ul className="flex flex-col">
-              {dias.map((d) => (
-                <li key={`${d.persona_id}-${d.fecha}`}>
-                  <button
-                    onClick={() => abrir(d)}
-                    className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${hover}`}
-                  >
-                    <span className="font-medium text-tinta">{d.nombre}</span>
-                    <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          );
+        {/* 2 · El día cuadra; falta decir si la hora que inventó el robot vale. */}
+        {atencion === "cerrados" && cerrados.length > 0 && (
+          <BannerAviso
+            variante="informativo"
+            
+            titulo={cerrados.length === 1
+              ? "1 día espera que confirmes la hora de salida"
+              : `${cerrados.length} días esperan que confirmes la hora de salida`}
+          >
+            <p className="mb-3 text-taupe">
+              Nadie marcó la salida y el auto-cierre nocturno puso una hora. La secuencia de
+              esos días está bien; lo único pendiente es decir si esa hora es la buena.
+              Mientras siga sin confirmar, el día no mide salida anticipada ni tiempo
+              adicional. Toca uno para abrirlo.
+            </p>
+            {lista(cerrados, "hover:bg-pizarra/10")}
+          </BannerAviso>
+        )}
 
-          return (
-            <>
-              {porRevisar.length >= LIMITE_DIAS_POR_REVISAR && (
-                <p className="mb-4 max-w-3xl text-xs text-taupe">
-                  Se muestran los {LIMITE_DIAS_POR_REVISAR} días más recientes: puede haber más atrás. Al resolver estos, aparecen los siguientes.
-                </p>
-              )}
-              {/* 1 · El día está roto de verdad. Es el único que pide trabajo. */}
-              {rotos.length > 0 && (
-                <div className="mb-6 max-w-3xl rounded-xl border border-ambar/40 bg-ambar/5 p-4">
-                  <p className="text-sm font-medium text-tinta">
-                    {rotos.length === 1
-                      ? "1 día quedó con una secuencia imposible"
-                      : `${rotos.length} días quedaron con una secuencia imposible`}
-                  </p>
-                  <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
-                    Por ejemplo, dos salidas seguidas sin retorno entre medio. Ocurre cuando la
-                    terminal pierde señal y una marca llega tarde. No se perdió nada: solo hay que
-                    ordenar el día. Toca uno para abrirlo.
-                  </p>
-                  {lista(rotos, "hover:bg-ambar/10")}
-                </div>
-              )}
+        {/* 3 · Ya no hay nada que hacer, y aun así siguen marcados. */}
+        {atencion === "sellados" && sellados.length > 0 && (
+          <BannerAviso
+            variante="neutral"
+            
+            titulo={sellados.length === 1
+              ? "1 día quedó marcado y ya cuadra"
+              : `${sellados.length} días quedaron marcados y ya cuadran`}
+          >
+            <p className="mb-3 text-taupe">
+              No hay nada que corregir: su secuencia es correcta. La marca quedó señalada
+              cuando el día estuvo roto, y la marca que llegó después a arreglarlo no levantó
+              esa señal. Sale de la lista en cuanto se corrija cualquier cosa de ese día.
+            </p>
+            {lista(sellados, "hover:bg-sand/40")}
+          </BannerAviso>
+        )}
+    </div>
+  );
 
-              {/* 2 · El día cuadra; falta decir si la hora que inventó el robot vale. */}
-              {cerrados.length > 0 && (
-                <div className="mb-6 max-w-3xl rounded-xl border border-pizarra/40 bg-pizarra/5 p-4">
-                  <p className="text-sm font-medium text-tinta">
-                    {cerrados.length === 1
-                      ? "1 día espera que confirmes la hora de salida"
-                      : `${cerrados.length} días esperan que confirmes la hora de salida`}
-                  </p>
-                  <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
-                    Nadie marcó la salida y el auto-cierre nocturno puso una hora. La secuencia de
-                    esos días está bien; lo único pendiente es decir si esa hora es la buena.
-                    Mientras siga sin confirmar, el día no mide salida anticipada ni tiempo
-                    adicional. Toca uno para abrirlo.
-                  </p>
-                  {lista(cerrados, "hover:bg-pizarra/10")}
-                </div>
-              )}
+  return (
+    <div className="flex flex-1 flex-col">
+      <div className="px-4 pt-6 md:px-6">
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Asistencia")}
+          titulo="Corregir marcajes"
+          descripcion="Corrige una hora, agrega una marca olvidada o anula un duplicado. Cada cambio pide un motivo."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funciona Corregir marcajes"
+              intro="Aquí se arregla lo que el terminal no pudo resolver solo. Nada se borra: toda corrección queda con quién, qué y cuándo."
+              secciones={[
+                { titulo: "Elegir el día", texto: "Busca a la persona en la lista de la izquierda y abre el día. Si llegaste desde Incidencias o Desempeño, el día ya viene abierto." },
+                { titulo: "Qué puedes hacer", texto: "Cambiar la hora o el tipo de una marca, agregar una marca olvidada, anular una que sobra (se puede deshacer) y confirmar la salida que puso el sistema." },
+                { titulo: "Para atender", texto: "Las pastillas de arriba son lo que pide una decisión: marcas que el terminal apartó sin registrar, días con la secuencia desordenada y salidas puestas por el cierre nocturno que nadie confirmó. Toca una para ver su lista." },
+                { titulo: "Marcas sin registrar", texto: "La persona sí marcó pero la marca no llegó. Mientras no se repone, ese día se paga como si no hubiera venido: es lo primero que conviene mirar." },
+                { titulo: "Periodo pagado", texto: "Un día de un periodo ya pagado no se puede corregir sin reabrirlo primero." },
+              ]}
+            />
+          }
+        />
+      </div>
 
-              {/* 3 · Ya no hay nada que hacer, y aun así siguen marcados. */}
-              {sellados.length > 0 && (
-                <div className="mb-6 max-w-3xl rounded-xl border border-sand bg-sand/20 p-4">
-                  <p className="text-sm font-medium text-tinta">
-                    {sellados.length === 1
-                      ? "1 día quedó marcado y ya cuadra"
-                      : `${sellados.length} días quedaron marcados y ya cuadran`}
-                  </p>
-                  <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
-                    No hay nada que corregir: su secuencia es correcta. La marca quedó señalada
-                    cuando el día estuvo roto, y la marca que llegó después a arreglarlo no levantó
-                    esa señal. Sale de la lista en cuanto se corrija cualquier cosa de ese día.
-                  </p>
-                  {lista(sellados, "hover:bg-sand/40")}
-                </div>
-              )}
-            </>
-          );
-        })()}
+      <div className="px-4 md:px-6">
+        {/* Lo que no se pudo traer al abrir. Va primero: si la lista de marcas
+            apartadas no llegó, «no hay nada que revisar» sería falso. */}
+        {baseFalla.length > 0 && (
+          <BannerAviso role="alert" variante="alerta" titulo={<>No se pudo traer: {baseFalla.join(", ")}.</>} className="mb-6 max-w-3xl">
+            <p className="mb-3 text-taupe">
+              Lo que ves abajo puede estar incompleto: que una lista salga vacía no quiere decir que no haya nada pendiente.
+            </p>
+            <Boton variante="secundario" tamano="sm" className="min-h-11 md:min-h-0" onClick={() => void cargarBase()}>Reintentar</Boton>
+          </BannerAviso>
+        )}
+
+        {/* «Para atender» (como Educación): lo que pide una decisión, en una línea. Tocar una pastilla abre
+            su lista debajo. Si hay algo, se abre solo el más grave: nadie debería tener que adivinar que
+            hay marcas que no llegaron a registrarse. */}
+        <ParaAtender
+          items={[
+            { clave: "apartadas", texto: `${apartadas.length} marca${apartadas.length === 1 ? "" : "s"} sin registrar`, n: apartadas.length, tono: "rojo" },
+            { clave: "rotos", texto: `${rotos.length} día${rotos.length === 1 ? "" : "s"} desordenado${rotos.length === 1 ? "" : "s"}`, n: rotos.length, tono: "ambar" },
+            { clave: "cerrados", texto: `${cerrados.length} salida${cerrados.length === 1 ? "" : "s"} por confirmar`, n: cerrados.length, tono: "pizarra" },
+            { clave: "sellados", texto: `${sellados.length} ya cuadra${sellados.length === 1 ? "" : "n"}`, n: sellados.length, tono: "neutro" },
+          ]}
+          activa={atencion || null}
+          alTocar={(clave) => { setAtencionElegida(personaId || atencion !== clave ? clave : ""); setPersonaId(""); setCargado(false); }}
+        />
       </div>
 
       {/* Split view: filtro + lista de personas a la izquierda, el día abierto a
@@ -852,7 +975,7 @@ export default function CorreccionesPage() {
           en 4 sedes, elegir a alguien pedía abrir un <select> larguísimo; acá
           se filtra por sede y se busca por nombre, y el número junto a cada
           fila dice de entrada quién tiene algo por revisar. */}
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* Igual que en Datos personales: se oculta del todo (no solo
             visualmente) para que el día abierto —a la derecha, `flex-1`—
             recupere el ancho de verdad. Acá no hace falta tocar ninguna
@@ -896,9 +1019,9 @@ export default function CorreccionesPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-2">
-            <p className="etiqueta px-2 py-1.5 text-taupe">
+            <Rotulo className="px-2 py-1.5">
               {personasListadas.length} {personasListadas.length === 1 ? "colaborador" : "colaboradores"}
-            </p>
+            </Rotulo>
             {personasListadas.length === 0 ? (
               <p className="px-2 py-6 text-center text-sm text-taupe">
                 {personas.length === 0 && baseFalla.length > 0 ? "No se pudo traer la lista del equipo." : "Nadie coincide con este filtro."}
@@ -943,10 +1066,10 @@ export default function CorreccionesPage() {
           </div>
         </aside>
 
-        <div className={`${personaId ? "block" : "hidden md:block"} min-w-0 flex-1 overflow-y-auto p-4 md:p-6`}>
+        <div className={`${personaId ? "flex-1 overflow-y-auto" : "order-first md:order-none md:flex-1 md:overflow-y-auto"} block min-w-0 p-4 md:p-6`}>
           <button
             onClick={() => { setPersonaId(""); setCargado(false); }}
-            className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-pildora px-2 text-sm font-medium text-rojo md:hidden"
+            className={`${personaId ? "inline-flex" : "hidden"} mb-4 min-h-11 items-center gap-1 rounded-pildora px-2 text-sm font-medium text-rojo md:hidden`}
           >
             <ChevronLeft size={16} strokeWidth={1.8} aria-hidden /> Equipo
           </button>
@@ -959,40 +1082,73 @@ export default function CorreccionesPage() {
             </button>
           )}
           {!personaId || !personaSel ? (
-            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-              <p className="text-sm text-taupe">Elige a alguien de la lista para ver y corregir sus marcajes.</p>
-            </div>
+            hayPanelDeAtencion ? (
+              <>
+                {panelDeAtencion}
+                <p className="mt-4 text-xs text-taupe">O elige a cualquiera de la lista para ver y corregir sus marcajes.</p>
+              </>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+                <p className="text-sm text-taupe">Elige a alguien de la lista para ver y corregir sus marcajes.</p>
+              </div>
+            )
           ) : (
-            <div className="max-w-3xl">
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            // `@container`: lo que cabe lo decide el ancho de ESTA columna, no el de la ventana. Con el equipo abierto
+            // el día tiene ~1000 px y el historial cabe al lado; con poco espacio baja, como siempre.
+            <div className="@container">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-serif text-xl text-tinta">
                   {personaSel.nombres} {personaSel.apellidos}
                 </h2>
-                <label className="flex items-center gap-2 rounded-control border border-borde-control bg-papel px-3 py-1.5">
-                  <Calendar size={15} strokeWidth={1.8} className="text-rojo" aria-hidden />
-                  <input
-                    type="date"
-                    value={fecha}
-                    onChange={(e) => { setFecha(e.target.value); setCargado(false); }}
-                    className="bg-transparent text-sm font-medium text-tinta focus:outline-none"
+                {/* Las flechas pasan de día en día; el calendario queda para saltar de mes. */}
+                <div className="flex items-center gap-1.5">
+                  <BotonIcono
+                    tamano="md"
+                    etiqueta="Día anterior"
+                    icono={<ChevronLeft size={16} strokeWidth={1.8} aria-hidden />}
+                    onClick={() => { setFecha(addDias(fecha, -1)); setCargado(false); }}
                   />
-                </label>
+                  <BotonIcono
+                    tamano="md"
+                    etiqueta="Día siguiente"
+                    icono={<ChevronRight size={16} strokeWidth={1.8} aria-hidden />}
+                    disabled={fecha >= hoyLima()}
+                    className="disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => { setFecha(addDias(fecha, 1)); setCargado(false); }}
+                  />
+                  <label className="flex items-center gap-2 rounded-control border border-borde-control bg-papel px-3 py-1.5">
+                    <Calendar size={15} strokeWidth={1.8} className="text-rojo" aria-hidden />
+                    <input
+                      type="date"
+                      value={fecha}
+                      onChange={(e) => { setFecha(e.target.value); setCargado(false); }}
+                      className="bg-transparent text-sm font-medium text-tinta focus:outline-none"
+                    />
+                  </label>
+                </div>
               </div>
+
+              <SemanaDePersona
+                personaId={personaId}
+                fecha={fecha}
+                hoy={hoyLima()}
+                refresco={`${jornada?.horas_trabajadas ?? ""}|${jornada?.minutos_tarde ?? ""}|${levTardanza ? 1 : 0}|${marcajes.length}`}
+                onElegir={(iso) => { setFecha(iso); setCargado(false); }}
+              />
 
               {!cargado ? (
                 diaError ? (
-                  <div role="alert" className="rounded-lg border border-rojo/40 bg-rojo/5 px-4 py-3 text-sm">
+                  <BannerAviso role="alert" variante="alerta" enLinea>
                     <p className="text-tinta">{diaError}</p>
                     <Boton variante="secundario" tamano="sm" className="mt-2 min-h-11 md:min-h-0" onClick={() => void cargarDia()}>Reintentar</Boton>
-                  </div>
+                  </BannerAviso>
                 ) : (
                   <p className="text-sm text-taupe">{cargando ? "Cargando…" : "—"}</p>
                 )
               ) : (
                 <>
                   {(diaFallas.esperado || diaFallas.levantamiento || diaFallas.secuencia) && (
-                    <div role="alert" className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
-                      <strong className="text-tinta">No se pudo consultar todo.</strong>{" "}
+                    <BannerAviso role="alert" enLinea titulo="No se pudo consultar todo." className="mb-4 leading-relaxed">
                       <span className="text-taupe">
                         Falta: {[
                           diaFallas.esperado && "el horario que le tocaba ese día",
@@ -1001,7 +1157,7 @@ export default function CorreccionesPage() {
                         ].filter(Boolean).join(", ")}. Lo que no aparece no quiere decir que no exista.{" "}
                       </span>
                       <Boton variante="enlace" className="font-medium" onClick={() => void cargarDia()}>Reintentar</Boton>
-                    </div>
+                    </BannerAviso>
                   )}
                   {/* Dos avisos distintos, no uno.
                       Antes había uno solo, que se mostraba cuando CUALQUIER marca del día
@@ -1012,24 +1168,22 @@ export default function CorreccionesPage() {
                       "secuencia imposible" aunque el motivo real fuera un auto-cierre,
                       que es otra cosa. Ahora se pregunta en vivo y cada caso dice lo suyo. */}
                   {diaIncoherente && (
-                    <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
-                      <strong className="text-tinta">La secuencia de marcas de este día no es posible.</strong>{" "}
+                    <BannerAviso enLinea titulo="La secuencia de marcas de este día no es posible." className="mb-4 leading-relaxed">
                       <span className="text-taupe">
                         Por ejemplo, dos salidas seguidas sin retorno entre medio. Suele pasar cuando una
                         marca llega tarde tras un corte de señal. Corrige el tipo o la hora de lo que esté
                         mal, o anula lo que sobre — el aviso desaparece solo en cuanto el día cuadre.
                       </span>
-                    </div>
+                    </BannerAviso>
                   )}
                   {marcajes.some((m) => m.anulada_at === null && m.origen === "auto_cierre" && m.estado_revision === "pendiente_revision") && (
-                    <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
-                      <strong className="text-tinta">Este día lo cerró el sistema.</strong>{" "}
+                    <BannerAviso enLinea titulo="Este día lo cerró el sistema." className="mb-4 leading-relaxed">
                       <span className="text-taupe">
                         Nadie marcó la salida, así que el auto-cierre nocturno puso una hora. Mientras
                         siga sin revisar, ese día no mide salida anticipada ni tiempo adicional. Pulsa
                         <em> Confirmar</em> si esa hora es la buena, o corrígela.
                       </span>
-                    </div>
+                    </BannerAviso>
                   )}
 
                   {/* Caso Diana (set-2026): el turno del día manda sobre el horario
@@ -1040,18 +1194,25 @@ export default function CorreccionesPage() {
                       esperada, este dice que esa fuente puede estar desactualizada.
                       Solo señala: la corrección sigue siendo manual, en Turnos. */}
                   {esperado?.origen === "turno" && esEspejoViejo && (
-                    <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
-                      <strong className="text-tinta">Ojo: este turno coincide con un horario que esta persona ya no tiene.</strong>{" "}
+                    <BannerAviso enLinea titulo="Ojo: este turno coincide con un horario que esta persona ya no tiene." className="mb-4 leading-relaxed">
                       <span className="text-taupe">
                         Puede ser un espejo viejo que quedó desactualizado cuando cambió su horario base. Revísalo en Turnos.
                       </span>
-                    </div>
+                    </BannerAviso>
                   )}
 
+                  {/* DOS COLUMNAS cuando el día tiene ancho (≥ 56 rem): el día a la izquierda y su historial a la derecha,
+                      fijo al bajar. Sin ese ancho —equipo abierto en una pantalla chica, o celular— el historial queda
+                      debajo, como siempre. */}
+                  <div className="grid gap-4 @4xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,1fr)] @4xl:items-start">
+                  <div className="@container min-w-0">
                   {/* Cuatro tarjetas de resumen — Estado, Horas, Tardanza (con su
                       levantar/quitar intacto) y Entrada esperada (con su enlace a
                       Turnos, aprobado en la auditoría del 2026-09-14). */}
-                  <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {/* Cuatro tarjetas de resumen — Estado, Horas, Tardanza (con su
+                      levantar/quitar intacto) y Entrada esperada (con su enlace a
+                      Turnos, aprobado en la auditoría del 2026-09-14). */}
+                  <div className="mb-5 grid grid-cols-2 gap-3 @2xl:grid-cols-4">
                     <TarjetaResumen etiqueta="Estado">
                       {jornada ? (JORNADA_ESTADO_LABELS[jornada.estado] ?? jornada.estado) : "Sin jornada"}
                     </TarjetaResumen>
@@ -1188,14 +1349,13 @@ export default function CorreccionesPage() {
                       de las cuatro tarjetas que necesita una explicación completa,
                       y meterla dentro de la tarjeta la habría desbordado. */}
                   {esperado?.origen === "sin_horario" && leTocaHorario(personaSel) && (
-                    <div className="mb-5 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-2.5 text-sm text-taupe">
-                      <strong className="text-tinta">Esta persona no tiene horario vigente para esa fecha.</strong>{" "}
+                    <BannerAviso enLinea titulo="Esta persona no tiene horario vigente para esa fecha." className="mb-5 text-taupe">
                       Sin horario no hay contra qué medir: ese día no cuenta tardanza, ni salida
                       anticipada, ni tiempo adicional, aunque tenga horas marcadas. Se carga en Horarios.
-                    </div>
+                    </BannerAviso>
                   )}
 
-                  <div className="overflow-hidden rounded-superficie border border-sand bg-papel">
+                  <TarjetaInfo className="overflow-hidden p-0 sm:p-0">
                     <h3 className="border-b border-sand px-4 py-2.5 text-sm font-medium">Marcajes del día</h3>
                     {marcajes.length === 0 ? (
                       <p className="px-4 py-4 text-sm text-taupe">No hay marcajes ese día. Puedes agregar uno abajo.</p>
@@ -1303,16 +1463,22 @@ export default function CorreccionesPage() {
                         </tbody>
                       </Tabla>
                     )}
-                  </div>
+                  </TarjetaInfo>
 
                   {/* Agregar marcaje faltante */}
-                  <div className="mt-4 rounded-superficie border border-sand bg-papel p-4">
-                    <h3 className="mb-3 text-sm font-medium">Agregar un marcaje faltante</h3>
+                  <TarjetaInfo className="mt-4" titulo="Agregar un marcaje faltante">
                     <div className="flex flex-wrap items-end gap-3">
-                      <CampoSelect etiqueta="Tipo" value={agregarTipo} onChange={(e) => setAgregarTipo(e.target.value as TipoMarca)}>
+                      <CampoSelect
+                        etiqueta="Tipo" value={agregarTipo}
+                        onChange={(e) => setAgregarElegido({ ...agregarYaElegido, tipo: e.target.value as TipoMarca })}>
                         {TIPOS_AGREGABLES.map((t) => <option key={t} value={t}>{TIPO_MARCA_LABELS[t]}</option>)}
                       </CampoSelect>
-                      <Campo etiqueta="Hora" type="time" value={agregarHora} onChange={(e) => setAgregarHora(e.target.value)} />
+                      {/* La etiqueta dice de dónde salió la hora mientras nadie la
+                          haya tocado: un valor que llega solo tiene que decirlo. */}
+                      <Campo
+                        etiqueta={agregarYaElegido.hora === undefined && agregarHoraDelHorario ? "Hora · según su horario" : "Hora"}
+                        type="time" value={agregarHora}
+                        onChange={(e) => setAgregarElegido({ ...agregarYaElegido, hora: e.target.value })} />
                       {agregarTipo === "salida_otro" && (
                         <Campo
                           etiqueta="Motivo de la salida"
@@ -1327,28 +1493,30 @@ export default function CorreccionesPage() {
                         Agregar
                       </Boton>
                     </div>
-                  </div>
+                  </TarjetaInfo>
 
+                  </div>
+                  <div className="min-w-0 @4xl:sticky @4xl:top-0 @4xl:max-h-[calc(100vh-7rem)] @4xl:overflow-y-auto">
                   {/* Historial de correcciones: el motivo de cada cambio, quién y cuándo.
                       Es donde se LEE la auditoría que cada corrección va guardando.
                       Lo que NO viene de una RPC de esta pantalla (hoy, cambios de
                       turno hechos desde Turnos) lleva su propia insignia "otro
                       sistema": responde "qué le tocaba trabajar", no "qué marcó" —
                       aprobado en la segunda ronda de la auditoría, 2026-09-14. */}
-                  <div className="mt-4 overflow-hidden rounded-superficie border border-sand bg-papel">
+                  <TarjetaInfo className="mt-4 overflow-hidden p-0 sm:p-0 @4xl:mt-0">
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sand px-4 py-2.5">
                       <h3 className="text-sm font-medium">
                         Historial de correcciones · {personaSel.nombres} {personaSel.apellidos}
                       </h3>
                       <div className="flex gap-1" role="group" aria-label="Qué cambios ver">
                         {([["marcajes", "Marcajes"], ["todo", "Todo"]] as const).map(([v, etiqueta]) => (
-                          <Boton
+                          <Filtro
                             key={v} tamano="sm" className="min-h-11 md:min-h-0"
-                            variante={auditoriaVista === v ? "primario" : "secundario"}
+                            activo={auditoriaVista === v}
                             onClick={() => setAuditoriaVista(v)}
                           >
                             {etiqueta}
-                          </Boton>
+                          </Filtro>
                         ))}
                       </div>
                     </div>
@@ -1405,6 +1573,8 @@ export default function CorreccionesPage() {
                         </Boton>
                       </div>
                     )}
+                  </TarjetaInfo>
+                  </div>
                   </div>
                 </>
               )}
@@ -1471,7 +1641,7 @@ export default function CorreccionesPage() {
               {accion.modo === "agregar" && `${TIPO_MARCA_LABELS[accion.tipo]} a las ${accion.hora}, para ${personaSel?.nombres} ${personaSel?.apellidos}.`}
             </p>
             {accion.modo === "editar" && accion.posteriores.length > 0 && (
-              <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-3 py-3 text-sm">
+              <BannerAviso enLinea className="mb-4">
                 <p className="mb-2 text-taupe">
                   Después de esa salida final quedan {accion.posteriores.length}{" "}
                   {accion.posteriores.length === 1 ? "marca" : "marcas"}. Se anularán con el mismo
@@ -1493,7 +1663,7 @@ export default function CorreccionesPage() {
                     </span>
                   </label>
                 ))}
-              </div>
+              </BannerAviso>
             )}
             <label className="mb-4 flex flex-col gap-1 text-sm">
               Motivo (obligatorio)
@@ -1505,6 +1675,27 @@ export default function CorreccionesPage() {
             </div>
           </>
         )}
+      </Modal>
+
+      <Modal
+        abierto={masivaAbierta}
+        onCerrar={() => setMasivaAbierta(false)}
+        bloqueado={resolviendo !== null}
+        titulo="Registrar todas las marcas apartadas"
+        ancho="sm"
+      >
+        <p className="mb-4 text-sm text-taupe">
+          Vas a registrar <strong className="text-tinta">{apartadas.length} marcas</strong> con su hora original, en orden.
+          Si alguna no corresponde (por ejemplo, ya se corrigió a mano), la base la rechaza y queda en la lista.
+        </p>
+        <label className="mb-4 flex flex-col gap-1 text-sm">
+          Motivo (obligatorio, queda en el historial)
+          <AreaTexto value={apartadaMotivo} onChange={(e) => setApartadaMotivo(e.target.value)} rows={2} autoFocus placeholder="ej. el terminal estaba mal vinculado" />
+        </label>
+        <div className="flex justify-end gap-3">
+          <Boton onClick={() => setMasivaAbierta(false)} disabled={resolviendo !== null}>Cancelar</Boton>
+          <Boton variante="primario" onClick={() => void resolverTodasApartadas()} cargando={resolviendo !== null}>Registrar todas</Boton>
+        </div>
       </Modal>
 
       {/* Modal: motivo para resolver una marca apartada. Reemplaza el

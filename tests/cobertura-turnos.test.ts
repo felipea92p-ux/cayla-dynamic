@@ -11,7 +11,7 @@
 // vez, en gris. Con cualquier meta puesta se queda la alerta roja de siempre.
 // ============================================================================
 import { describe, expect, it } from "vitest";
-import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos } from "@/lib/admin/cobertura-turnos";
+import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos } from "@/lib/admin/cobertura-turnos";
 import { SEDE_SIN_TURNOS, diaDeLaSedeDe, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 
 const base = { quien: "operativas" as const, hayGente: true, sinMeta: false, hayMeta: true, pct: 75 };
@@ -62,28 +62,37 @@ describe("etiquetaCobertura — líderes de equipo", () => {
   });
 });
 
-describe("colorCobertura — de qué color se pinta una hora", () => {
+describe("estiloDeHora — de qué color se pinta una hora", () => {
   it("sin meta y sin nadie: arena tenue, no un bloque sólido que parezca «todo cubierto»", () => {
-    const c = colorCobertura(0, 0);
-    expect(c).toContain("--color-sand");
-    expect(c).not.toBe("var(--color-taupe)");
+    const e = estiloDeHora(0, 0);
+    expect(e.estado).toBe("vacio");
+    expect(e.fondo).toContain("--color-sand");
   });
 
-  it("sin meta pero con gente: taupe neutro (hay gente, no hay contra qué medirla)", () => {
-    expect(colorCobertura(3, 0)).toBe("var(--color-taupe)");
+  it("sin meta pero con gente: taupe neutro, nunca rojo (hay gente, no hay contra qué medirla)", () => {
+    const e = estiloDeHora(3, 0);
+    expect(e.estado).toBe("sin_meta");
+    expect(e.fondo).toContain("--color-taupe");
+    expect(e.fondo).not.toContain("--color-rojo");
   });
 
-  it("con meta y nadie: el rojo entero", () => {
-    expect(colorCobertura(0, 2)).toContain("--color-verde) 0%");
+  it("con meta y nadie: falta, y más fuerte que con alguien", () => {
+    expect(estiloDeHora(0, 2).estado).toBe("falta");
+    expect(estiloDeHora(1, 2).estado).toBe("falta");
+    expect(estiloDeHora(0, 2).fondo).not.toBe(estiloDeHora(1, 2).fondo);
   });
 
-  it("con la meta cubierta o pasada: el verde entero, sin pasarse", () => {
-    expect(colorCobertura(2, 2)).toContain("--color-verde) 100%");
-    expect(colorCobertura(9, 2)).toContain("--color-verde) 100%");
+  it("la meta cubierta justa: verde; pasada: ámbar (sobra), no verde", () => {
+    expect(estiloDeHora(2, 2)).toMatchObject({ estado: "ok" });
+    expect(estiloDeHora(2, 2).fondo).toContain("--color-verde");
+    expect(estiloDeHora(9, 2)).toMatchObject({ estado: "sobra" });
+    expect(estiloDeHora(9, 2).fondo).toContain("--color-ambar");
   });
 
-  it("a medias: la proporción exacta", () => {
-    expect(colorCobertura(1, 2)).toContain("--color-verde) 50%");
+  it("el texto siempre es tinta o taupe (legible sobre el tono claro), nunca crema sobre un degradado", () => {
+    for (const [n, m] of [[0, 0], [3, 0], [0, 2], [1, 2], [2, 2], [5, 2]]) {
+      expect(estiloDeHora(n, m).texto).toMatch(/--color-(tinta|taupe)/);
+    }
   });
 });
 

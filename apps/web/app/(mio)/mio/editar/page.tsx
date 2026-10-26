@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
@@ -15,6 +17,8 @@ import {
   GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION,
   REGIMEN_PENSION_LABELS, siNoSinDato,
   VINCULO_DERECHOHABIENTE_LABELS,
+  TIPOS_DOCUMENTO, TIPO_DOCUMENTO_LABEL, AYUDA_DOCUMENTO, errorDeDocumento, normalizarDocumento,
+  esTipoDocumento, type TipoDocumento,
 } from "@cayla-dynamic/shared";
 
 /**
@@ -31,6 +35,11 @@ import {
  * discapacidad, familiares) se ve pero no se toca desde acá: para eso sigue
  * existiendo Desarrollo Organizacional en /admin/datos-personales.
  *
+ * Y UN OCTAVO, SOLO SI FALTA (0513): el documento. Quien no tiene ninguno
+ * cargado lo propone —tipo y número— y lo aprueba DO; quien ya lo tiene lo ve
+ * fijo, como antes. Corregir uno existente sigue siendo de DO. Decidido con
+ * Felipe el 2026-10-06.
+ *
  * EL VALOR REAL NO CAMBIA ACÁ: cada campo que cambió se manda como una
  * propuesta separada con `fn_crear_solicitud_perfil` (0399) — el catálogo
  * sigue siendo la única fuente de qué exige documento, nunca una lista
@@ -40,6 +49,7 @@ import {
 
 interface Yo {
   id: string; nombres: string; apellidos: string; documento: string | null;
+  tipoDocumento: string | null;   // 0513
   email: string | null; regimenPension: string | null; sede: string | null;
 }
 interface Ficha {
@@ -70,6 +80,7 @@ interface SolicitudPerfil {
 const CAMPOS_EDITABLES = [
   "celular", "direccion", "contacto_emergencia",
   "estado_civil", "grado_instruccion", "hijos_menores", "cuenta_bancaria",
+  "documento",   // 0513 — solo cuenta como cambio si no tiene documento (ver `cambios`)
 ] as const;
 type CampoEditable = (typeof CAMPOS_EDITABLES)[number];
 
@@ -78,6 +89,8 @@ interface FormEdit {
   emergencia_nombre: string; emergencia_vinculo: string; emergencia_telefono: string;
   estado_civil: string; grado_instruccion: string; hijos_menores: "" | "si" | "no";
   entidad_bancaria: string; numero_cuenta: string;
+  // 0513 — el tipo arranca en DNI, el caso de casi todo el equipo.
+  tipo_documento: TipoDocumento; documento: string;
 }
 
 function formDeFicha(f: Ficha | null): FormEdit {
@@ -88,6 +101,7 @@ function formDeFicha(f: Ficha | null): FormEdit {
     estado_civil: f?.estado_civil ?? "", grado_instruccion: f?.grado_instruccion ?? "",
     hijos_menores: f?.hijos_menores === true ? "si" : f?.hijos_menores === false ? "no" : "",
     entidad_bancaria: f?.entidad_bancaria ?? "", numero_cuenta: f?.numero_cuenta ?? "",
+    tipo_documento: "dni", documento: "",
   };
 }
 
@@ -125,13 +139,14 @@ function MiEditarContenido() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/mio"); return; }
 
-    const { data: sesionAuth } = await supabase.auth.getUser();
-    const uid = sesionAuth.user?.id;
+    // Del almacén de la sesión, sin viajar a la red: `getUser()` es una ronda al servidor de
+    // autenticación por cada pantalla, y la base ya valida el token en cada consulta.
+    const uid = sesion.session.user.id;
     if (!uid) { setCargando(false); setError("No se pudo leer tu sesión. Vuelve a entrar."); return; }
 
     const { data: p } = await supabase
       .from("personas")
-      .select("id, nombres, apellidos, documento, email, regimen_pension, sedes!personas_sede_base_id_fkey(nombre)")
+      .select("id, nombres, apellidos, documento, tipo_documento, email, regimen_pension, sedes!personas_sede_base_id_fkey(nombre)")
       .eq("auth_user_id", uid).maybeSingle();
     if (!p) {
       setCargando(false);
@@ -141,6 +156,7 @@ function MiEditarContenido() {
     const yoActual: Yo = {
       id: p.id as string, nombres: p.nombres as string, apellidos: p.apellidos as string,
       documento: (p.documento as string | null) ?? null, email: (p.email as string | null) ?? null,
+      tipoDocumento: (p.tipo_documento as string | null) ?? null,
       regimenPension: (p.regimen_pension as string | null) ?? null,
       sede: ((p.sedes as { nombre: string } | null) ?? null)?.nombre ?? null,
     };
@@ -197,6 +213,9 @@ function MiEditarContenido() {
     cuenta_bancaria:
       form.entidad_bancaria.trim() !== (ficha?.entidad_bancaria ?? "")
       || form.numero_cuenta.trim() !== (ficha?.numero_cuenta ?? ""),
+    // Solo quien NO tiene documento puede proponerlo; si ya tiene, no cuenta
+    // como cambio aunque el estado del formulario diga otra cosa.
+    documento: !yo?.documento && form.documento.trim() !== "",
   };
   const hayAlgunCambio = CAMPOS_EDITABLES.some((c) => cambios[c]);
 
@@ -214,6 +233,9 @@ function MiEditarContenido() {
       case "hijos_menores": return { hijos_menores: form.hijos_menores === "si" };
       case "cuenta_bancaria": return {
         entidad_bancaria: form.entidad_bancaria.trim(), numero_cuenta: form.numero_cuenta.trim(),
+      };
+      case "documento": return {
+        tipo_documento: form.tipo_documento, documento: normalizarDocumento(form.documento),
       };
     }
   }
@@ -237,6 +259,11 @@ function MiEditarContenido() {
     if (porEnviar.length === 0) {
       setAviso({ tipo: "error", texto: "No cambiaste ningún dato." });
       return;
+    }
+    // 0513 · el número, con la misma regla que la base, antes de mandar nada.
+    if (cambios.documento) {
+      const errorDoc = errorDeDocumento(form.tipo_documento, form.documento);
+      if (errorDoc) { setAviso({ tipo: "error", texto: errorDoc }); return; }
     }
     // Se valida el documento de TODOS antes de mandar el primero: mejor
     // avisar antes que dejar la mitad de los pedidos enviados por culpa del
@@ -300,9 +327,9 @@ function MiEditarContenido() {
     return (
       <main className="p-6">
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{error}</p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -334,6 +361,37 @@ function MiEditarContenido() {
           {label}<span className="ml-1 text-[11px]">· {nota}</span>
         </span>
         <Campo aria-labelledby={idLabel} value={valor} disabled className="disabled:bg-sand/30 disabled:text-taupe" />
+      </div>
+    );
+  }
+
+  /** 0513 · quien no tiene documento lo propone aquí; lo aprueba DO. Con uno
+   *  pendiente se dice que está en revisión, y no se vuelve a pedir. */
+  function campoDocumentoNuevo() {
+    const pendiente = hayPendiente("documento");
+    if (pendiente || !editando) {
+      return campoFijo("Documento de identidad",
+        pendiente ? "Enviado: lo está revisando Desarrollo Organizacional" : "Sin cargar",
+        pendiente ? "pendiente de aprobación" : "puedes cargarlo con «Editar»");
+    }
+    return (
+      <div className="flex flex-col gap-1 sm:col-span-2">
+        <span id="campo-documento-nuevo" className="text-sm text-taupe">
+          Documento de identidad<span className="ml-1 text-[11px]">· todavía no está cargado</span>
+        </span>
+        <div className="flex gap-2">
+          <CampoSelect aria-label="Tipo de documento" value={form.tipo_documento}
+            onChange={(e) => setForm({ ...form, tipo_documento: e.target.value as TipoDocumento })}>
+            {TIPOS_DOCUMENTO.map((t) => <option key={t} value={t}>{TIPO_DOCUMENTO_LABEL[t]}</option>)}
+          </CampoSelect>
+          <Campo aria-labelledby="campo-documento-nuevo" value={form.documento} autoComplete="off"
+            inputMode={form.tipo_documento === "dni" ? "numeric" : "text"}
+            onChange={(e) => setForm({ ...form, documento: e.target.value })} className="min-w-0 flex-1" />
+        </div>
+        <span className="text-[11px] text-taupe">
+          {AYUDA_DOCUMENTO[form.tipo_documento]} Lo revisa Desarrollo Organizacional antes de guardarse:
+          es el número que va en tu contrato. Una vez cargado, solo DO lo puede corregir.
+        </span>
       </div>
     );
   }
@@ -374,33 +432,37 @@ function MiEditarContenido() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-3xl bg-crema px-5 py-8 text-tinta">
-      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
-            ← Volver a Info
-          </Link>
-          <h1 className="mt-1 font-serif text-2xl">{yo.nombres} {yo.apellidos}</h1>
-          {yo.sede && <p className="text-xs text-taupe">{yo.sede}</p>}
-        </div>
-        {editando ? (
-          <div className="flex items-center gap-3">
-            <Boton variante="secundario" onClick={cancelarEdicion} disabled={guardando}>
-              Cancelar
+      <EnlaceVolver href="/mio" className="mb-2 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        ← Volver a Info
+      </EnlaceVolver>
+      <CabeceraPagina
+        titulo={`${yo.nombres} ${yo.apellidos}`}
+        descripcion={
+          <>
+            {yo.sede && <p className="text-xs">{yo.sede}</p>}
+            <p className="mt-1 max-w-lg">
+              Los cambios se piden, no se aplican solos: los revisa {yo.sede ? "tu líder de equipo o " : ""}Desarrollo Organizacional
+              antes de que se apliquen.
+            </p>
+          </>
+        }
+        accion={
+          editando ? (
+            <div className="flex items-center gap-3">
+              <Boton variante="secundario" onClick={cancelarEdicion} disabled={guardando}>
+                Cancelar
+              </Boton>
+              <Boton variante="primario" onClick={() => void guardarCambios()} disabled={guardando || !hayAlgunCambio}>
+                {guardando ? "Guardando…" : "Guardar cambios"}
+              </Boton>
+            </div>
+          ) : (
+            <Boton variante="secundario" tamano="sm" onClick={entrarAEditar}>
+              Editar
             </Boton>
-            <Boton variante="primario" onClick={() => void guardarCambios()} disabled={guardando || !hayAlgunCambio}>
-              {guardando ? "Guardando…" : "Guardar cambios"}
-            </Boton>
-          </div>
-        ) : (
-          <Boton variante="secundario" tamano="sm" onClick={entrarAEditar}>
-            Editar
-          </Boton>
-        )}
-      </div>
-      <p className="mb-5 text-sm text-taupe">
-        Los cambios se piden, no se aplican solos: los revisa {yo.sede ? "tu líder de equipo o " : ""}Desarrollo Organizacional
-        antes de que se apliquen.
-      </p>
+          )
+        }
+      />
 
       {aviso && (
         <p className={`mb-4 rounded-lg px-4 py-3 text-sm ${aviso.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>
@@ -408,11 +470,15 @@ function MiEditarContenido() {
         </p>
       )}
 
-      <div className="space-y-4 rounded-2xl border border-sand bg-papel p-5">
+      <TarjetaInfo className="space-y-4">
         <section>
           <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            {campoFijo("Número de DNI", yo.documento ?? "—", "solo Desarrollo Organizacional")}
+            {yo.documento
+              ? campoFijo(
+                  esTipoDocumento(yo.tipoDocumento) ? TIPO_DOCUMENTO_LABEL[yo.tipoDocumento] : "Documento",
+                  yo.documento, "solo Desarrollo Organizacional")
+              : campoDocumentoNuevo()}
             {campoFijo("Nombre completo (como en el DNI)", ficha?.nombre_dni ?? "—")}
             {campoFijo("Fecha de nacimiento", ficha?.fecha_nacimiento ?? "—")}
             {campoFijo("Género", ficha?.genero ? (GENERO_LABELS[ficha.genero as keyof typeof GENERO_LABELS] ?? ficha.genero) : "—")}
@@ -591,11 +657,10 @@ function MiEditarContenido() {
             {ficha?.discapacidad && campoFijo("N.° de certificado CONADIS", ficha.discapacidad_conadis ?? "—")}
           </div>
         </section>
-      </div>
+      </TarjetaInfo>
 
       {misSolicitudesPerfil.length > 0 && (
-        <section className="mt-5 rounded-2xl border border-sand bg-papel p-5 text-sm">
-          <h2 className="mb-3 font-serif text-lg">Tus pedidos de cambio</h2>
+        <TarjetaInfo como="section" titulo="Tus pedidos de cambio" className="mt-5 text-sm">
           <ul className="space-y-2 text-xs">
             {misSolicitudesPerfil.map((s) => (
               <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-2 border-t border-sand pt-2 first:border-t-0 first:pt-0">
@@ -615,7 +680,7 @@ function MiEditarContenido() {
               </li>
             ))}
           </ul>
-        </section>
+        </TarjetaInfo>
       )}
     </main>
   );

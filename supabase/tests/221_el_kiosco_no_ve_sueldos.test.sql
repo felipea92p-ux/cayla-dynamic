@@ -36,29 +36,29 @@ insert into terminales (id, sede_id, nombre_dispositivo, activo, auth_user_id) v
 
 -- Datos INVENTADOS: ni un DNI ni un sueldo real entra en una prueba.
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso,
-                      documento, sueldo_base_legal, cobra_movilidad, tipo_vinculo,
+                      documento, tipo_documento, sueldo_base_legal, cobra_movilidad, tipo_vinculo,
                       estado, visible_todas_sedes, auth_user_id) values
   ('00000000-0000-0000-0000-000000022101', 'DeLaSede',  'Kiosco221',
-   '00000000-0000-0000-0000-000000022100', 'x', '2024-01-01', '00000000', 1130.00,
+   '00000000-0000-0000-0000-000000022100', 'x', '2024-01-01', '00000000', 'dni', 1130.00,
    true, 'planilla', 'activo', false, '00000000-0000-0000-0000-0000000221af'),
   ('00000000-0000-0000-0000-000000022102', 'DeAlLado',  'Kiosco221',
-   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000001', 1130.00,
+   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000001', 'dni', 1130.00,
    true, 'planilla', 'activo', false, null),
   ('00000000-0000-0000-0000-000000022103', 'Volante',   'Kiosco221',
-   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000002', 1130.00,
+   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000002', 'dni', 1130.00,
    true, 'planilla', 'activo', true,  null),
   ('00000000-0000-0000-0000-000000022105', 'Sobrante', 'Kiosco221',
-   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000004', 1130.00,
+   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000004', 'dni', 1130.00,
    true, 'planilla', 'activo', false, null);
 
 -- Quien ya cesó va aparte: `personas_cese_coherente` exige que el estado
 -- inactivo y la fecha de cese entren en la MISMA fila, no en dos pasos.
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso,
-                      documento, sueldo_base_legal, cobra_movilidad, tipo_vinculo,
+                      documento, tipo_documento, sueldo_base_legal, cobra_movilidad, tipo_vinculo,
                       estado, visible_todas_sedes, auth_user_id,
                       fecha_cese, motivo_cese)
 values ('00000000-0000-0000-0000-000000022104', 'YaNoEsta', 'Kiosco221',
-        '00000000-0000-0000-0000-000000022100', 'x', '2024-01-01', '00000003', 1130.00,
+        '00000000-0000-0000-0000-000000022100', 'x', '2024-01-01', '00000003', 'dni', 1130.00,
         true, 'planilla', 'inactivo', false, null, '2025-01-01', 'renuncia');
 set session_replication_role = origin;
 
@@ -76,10 +76,15 @@ select is_empty(
 -- número se actualiza, pero lo que esta aserción defiende no cambia — sigue
 -- siendo «las que hacen falta para pintar la lista y ni una más», y la
 -- aserción de arriba es la que impide que entre nada sensible.
+-- OCHO desde la 0539, que le agregó `prueba_dias` y `prueba_plazo`: dos NÚMEROS para pintar
+-- «Prueba · 2 de 3» junto a la foto (lo pidió Felipe, 2026-10-19: quien marca tiene que ver que
+-- esa persona está de prueba). No es identidad ni plata: la aserción de arriba —que no haya DNI,
+-- sueldo, correo ni régimen de pensión— es la que sigue impidiendo que entre algo sensible, y
+-- por eso no se tocó. Cada columna que se agregue a esta vista tiene que decir aquí por qué.
 select ok(
   (select count(*) from information_schema.columns
-    where table_name = 'terminal_roster') = 6,
-  'SEIS COLUMNAS · las que hacen falta para pintar la lista y ni una más');
+    where table_name = 'terminal_roster') = 8,
+  'OCHO COLUMNAS · las que hacen falta para pintar la lista (y la etiqueta de prueba) y ni una más');
 
 -- La sexta era `pin_hash`, y se fue con la 0375: el terminal dejó de pedir PIN,
 -- así que descargarle a cada Mac mini el hash de toda su sede era regalar un

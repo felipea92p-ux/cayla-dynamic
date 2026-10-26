@@ -56,6 +56,32 @@ describe("urgenciaEducacion", () => {
     expect(urgenciaEducacion({ ...base, estado_constancia: "sin_calendario" }, hoy).grupo).toBe("sin_plazo");
   });
 
+  it("un pago ÚNICO sin fecha dice «Sin fecha de pago», no «calendario» (0549); mensual no cambia", () => {
+    const u = urgenciaEducacion({ ...base, estado_constancia: "sin_calendario", frecuencia_pago: "unico" }, hoy);
+    expect(u).toMatchObject({ grupo: "sin_plazo", plazo: "Sin fecha de pago", nota: "falta la fecha del pago" });
+    expect(urgenciaEducacion({ ...base, estado_constancia: "sin_calendario", frecuencia_pago: "mensual" }, hoy))
+      .toMatchObject({ plazo: "Sin calendario", nota: "falta saber cuándo paga" });
+  });
+
+  // Base de ANTES de la 0549: el pago único con constancia aprobada sigue llegando «sin calendario».
+  // «Falta la fecha» sería falso y ponerla lo empeoraría (pide constancia de un pago ya sustentado).
+  it("un pago ÚNICO sin calendario pero CON constancia aprobada no dice que falte una fecha", () => {
+    const u = urgenciaEducacion({ ...base, estado_constancia: "sin_calendario", frecuencia_pago: "unico", aprobadas: 1 }, hoy);
+    expect(u).toMatchObject({ grupo: "sin_plazo", plazo: "Sin plazo", nota: "no hace falta una fecha" });
+    // Sin aprobadas (o sin el dato) falta de verdad, antes y después de pegar la 0549.
+    for (const aprobadas of [0, null, undefined]) {
+      expect(urgenciaEducacion({ ...base, estado_constancia: "sin_calendario", frecuencia_pago: "unico", aprobadas }, hoy))
+        .toMatchObject({ plazo: "Sin fecha de pago", nota: "falta la fecha del pago" });
+    }
+  });
+
+  it("mensual, ciclo y otra con constancias aprobadas: IDÉNTICO a hoy", () => {
+    for (const frecuencia_pago of ["mensual", "ciclo", "otra", null]) {
+      expect(urgenciaEducacion({ ...base, estado_constancia: "sin_calendario", frecuencia_pago, aprobadas: 3 }, hoy))
+        .toEqual({ grupo: "sin_plazo", plazo: "Sin calendario", nota: "falta saber cuándo paga", orden: 0 });
+    }
+  });
+
   it("vencida manda sobre un pago cercano: lo que falta pesa más que lo que viene", () => {
     const u = urgenciaEducacion({ ...base, estado_constancia: "vencida", plazo: "2026-09-10", pago_proximo: true, dias_para_pago: 2 }, hoy);
     expect(u.grupo).toBe("vencido");
@@ -72,6 +98,20 @@ describe("documentoEducacion", () => {
       .toEqual({ titulo: "Constancia de estudios vencida", accion: "Pedir constancia" });
     expect(documentoEducacion({ ...base, pago_proximo: true }).accion).toBe("Ver estudio");
     expect(documentoEducacion({ ...base, estado_constancia: "sin_calendario" }).accion).toBe("Fijar calendario");
+  });
+  it("un pago único sin fecha pide «la fecha», no un calendario (0549)", () => {
+    expect(documentoEducacion({ ...base, estado_constancia: "sin_calendario", frecuencia_pago: "unico" }))
+      .toEqual({ titulo: "Pago único sin fecha de pago", accion: "Poner la fecha" });
+    expect(documentoEducacion({ ...base, estado_constancia: "sin_calendario", frecuencia_pago: "unico", aprobadas: 0 }))
+      .toEqual({ titulo: "Pago único sin fecha de pago", accion: "Poner la fecha" });
+  });
+  it("un pago único con constancia aprobada (base de antes de la 0549) NO ofrece «Poner la fecha»: empeoraría el estudio", () => {
+    expect(documentoEducacion({ ...base, estado_constancia: "sin_calendario", frecuencia_pago: "unico", aprobadas: 1 }))
+      .toEqual({ titulo: "Pago único con constancia aprobada", accion: "Ver estudio" });
+  });
+  it("mensual con constancias aprobadas sigue pidiendo fijar el calendario", () => {
+    expect(documentoEducacion({ ...base, estado_constancia: "sin_calendario", frecuencia_pago: "mensual", aprobadas: 3 }))
+      .toEqual({ titulo: "Estudio sin calendario de pagos", accion: "Fijar calendario" });
   });
 });
 

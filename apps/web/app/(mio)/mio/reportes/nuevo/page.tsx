@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, Paperclip, X } from "lucide-react";
 import { hoyLima } from "@cayla-dynamic/shared";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Cargando } from "@/components/cargando";
@@ -163,15 +164,15 @@ export default function NuevoReporte() {
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-8 text-sm text-tinta">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="etiqueta text-taupe">Reportes · Nuevo</p>
-          <h1 className="mt-0.5 font-serif text-3xl leading-tight">Contar algo</h1>
-        </div>
-        <Link href="/mio?tab=reportes" className="rounded-control border border-sand px-4 py-2 text-taupe hover:text-tinta">
-          Cancelar
-        </Link>
-      </div>
+      <CabeceraPagina
+        sobretitulo="Reportes · Nuevo"
+        titulo="Contar algo"
+        accion={
+          <EnlaceVolver href="/mio?tab=reportes" className="rounded-control border border-sand px-4 py-2 text-taupe hover:text-tinta">
+            Cancelar
+          </EnlaceVolver>
+        }
+      />
 
       {errorCarga && <p className="mb-4 rounded-control bg-rojo/10 px-3 py-2 text-rojo-profundo">{errorCarga}</p>}
 

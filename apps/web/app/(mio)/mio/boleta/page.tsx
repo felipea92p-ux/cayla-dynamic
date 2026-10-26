@@ -1,16 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { BoletaHoja } from "@/components/boleta-hoja";
 import { MESES_LARGO } from "@/lib/admin/planilla/formato";
 import type { Fila, Proyeccion, SubvencionPracticante } from "@/lib/admin/planilla/tipos";
-import { hoyLima } from "@cayla-dynamic/shared";
+import { hoyLima, nombreOficial } from "@cayla-dynamic/shared";
 
 // Tu boleta, en autoservicio (0339) — SOLO el periodo actual, nunca uno pasado.
 //
@@ -39,6 +39,9 @@ function MiBoletaContenido() {
   const [yo, setYo] = useState<{
     id: string;
     nombre: string;
+    // El nombre completo del DNI (`datos_personales.nombre_dni`); `nombre` es
+    // el corto. La boleta imprime el primero y cae al segundo si falta.
+    nombreDni: string | null;
     documento: string | null;
     fechaIngreso: string | null;
     sueldoBaseLegal: number | null;
@@ -60,8 +63,9 @@ function MiBoletaContenido() {
       return;
     }
 
-    const { data: sesionAuth } = await supabase.auth.getUser();
-    const uid = sesionAuth.user?.id;
+    // Del almacén de la sesión, sin viajar a la red: `getUser()` es una ronda al servidor de
+    // autenticación por cada pantalla, y la base ya valida el token en cada consulta.
+    const uid = sesion.session.user.id;
     if (!uid) {
       setCargando(false);
       setError("No se pudo leer tu sesión. Vuelve a entrar.");
@@ -86,9 +90,15 @@ function MiBoletaContenido() {
       setError("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
       return;
     }
+    // Sin bloquear la boleta si esta lectura falla: el nombre completo es la
+    // identificación del papel, no un requisito para ver el pago. Cada persona
+    // lee su propia ficha (`dp_select_propia`, 0061).
+    const { data: ficha } = await supabase
+      .from("datos_personales").select("nombre_dni").eq("persona_id", p.id as string).maybeSingle();
     const yoActual = {
       id: p.id as string,
       nombre: `${p.nombres as string} ${p.apellidos as string}`,
+      nombreDni: (ficha?.nombre_dni as string | null | undefined) ?? null,
       documento: (p.documento as string | null) ?? null,
       fechaIngreso: (p.fecha_ingreso as string | null) ?? null,
       sueldoBaseLegal: (p.sueldo_base_legal as number | null) ?? null,
@@ -177,7 +187,7 @@ function MiBoletaContenido() {
 
   useTituloDocumento(
     yo && periodo && fila && !sinDatos
-      ? `${yo.nombre} — Boleta interna ${MESES_LARGO[Number(periodo.fecha_fin.slice(5, 7)) - 1]} ${periodo.fecha_fin.slice(0, 4)}`
+      ? `${nombreOficial(yo.nombreDni, yo.nombre)} — Boleta interna ${MESES_LARGO[Number(periodo.fecha_fin.slice(5, 7)) - 1]} ${periodo.fecha_fin.slice(0, 4)}`
       : null,
   );
 
@@ -198,9 +208,9 @@ function MiBoletaContenido() {
             Reintentar
           </Boton>
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -212,9 +222,9 @@ function MiBoletaContenido() {
           Todavía no hay datos de tu planilla para este periodo. Si ya deberías tener marcajes, avisa a
           Desarrollo Organizacional.
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -248,11 +258,11 @@ function MiBoletaContenido() {
   };
 
   return (
-    <main className="mx-auto max-w-2xl p-6 print:p-0">
+    <main className="mx-auto w-full min-w-0 max-w-2xl px-4 py-6 sm:p-6 print:p-0">
       <div className="mb-6 flex items-center justify-between print:hidden">
-        <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
         <Boton variante="primario" onClick={() => window.print()}>
           Imprimir / Guardar como PDF
         </Boton>
@@ -264,6 +274,7 @@ function MiBoletaContenido() {
         baseLegal={yo.sueldoBaseLegal}
         documento={yo.documento}
         fechaIngreso={yo.fechaIngreso}
+        nombreDni={yo.nombreDni}
         subvencionPracticante={subvencionPracticante}
       />
     </main>

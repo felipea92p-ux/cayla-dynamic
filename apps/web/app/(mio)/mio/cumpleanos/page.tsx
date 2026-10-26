@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { EMPRESA } from "@cayla-dynamic/shared";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
-import { Marca } from "@/components/marca";
+import { PapelBono } from "@/components/papel-bono";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { nombreDelMes } from "@/lib/bandeja-mia";
@@ -23,7 +24,11 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * queda como una línea de su boleta del periodo que corre y se paga junto con
  * su planilla: no hay nadie a quien esperar. Solo si no había un periodo de
  * planilla abierto —o alguien quitó la línea— queda «pedido», y ahí sí DO lo
- * transfiere y confirma la fecha (el respaldo de la 0478). Qué le toca (y si
+ * transfiere y confirma la fecha (el respaldo de la 0478). UN PRACTICANTE
+ * entra a la boleta igual (0521): entre la 0519 y la 0520 se le transfería a
+ * mano, y Felipe lo revirtió el 2026-10-13 —«no transferir a cada rato, sino
+ * pagar al fin del periodo»—. Lo que cambia para él es la constancia, que lleva
+ * su propio texto, y que su boleta paga una «subvención», no una planilla. Qué le toca (y si
  * el botón aparece) lo contesta `fn_mi_bono_cumpleanos`, la misma función que
  * el servidor usa de puerta: la pantalla no puede ofrecer un pedido que la
  * base después rechace.
@@ -38,8 +43,9 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * bono se paga por transferencia (confirmado con Felipe, 2026-09-16), así
  * que no hay ningún paso previo de un admin que desbloquee esta pantalla —
  * la persona firma en cuanto le corresponde, exactamente como ya hace con
- * su declaración de ruta. La única puerta es la de siempre: en planilla,
- * activa, y sin una constancia vigente todavía este año.
+ * su declaración de ruta. La única puerta es la de siempre: en planilla (o
+ * practicante, desde la 0519), activa, y sin una constancia vigente todavía
+ * este año.
  *
  * EL MONTO NUNCA SE PIDE ACÁ. Lo calcula el servidor con el bono_onomastico
  * vigente — nunca una cifra que la persona escriba.
@@ -55,6 +61,8 @@ interface Yo {
   id: string;
   nombreOficial: string;
   documento: string | null;
+  /** Modalidad formativa (0519): otro texto en la constancia, y su bono nunca va a la boleta. */
+  practicante: boolean;
 }
 
 function fechaLarga(iso: string): string {
@@ -93,8 +101,9 @@ function MiCumpleanosContenido() {
       router.replace("/mio");
       return;
     }
-    const { data: sesionAuth } = await supabase.auth.getUser();
-    const uid = sesionAuth.user?.id;
+    // Del almacén de la sesión, sin viajar a la red: `getUser()` es una ronda al servidor de
+    // autenticación por cada pantalla, y la base ya valida el token en cada consulta.
+    const uid = sesion.session.user.id;
     if (!uid) {
       setCargando(false);
       setError("No se pudo leer tu sesión. Vuelve a entrar.");
@@ -102,7 +111,7 @@ function MiCumpleanosContenido() {
     }
 
     const { data: p } = await supabase
-      .from("personas").select("id, nombres, apellidos, documento").eq("auth_user_id", uid).maybeSingle();
+      .from("personas").select("id, nombres, apellidos, documento, tipo_vinculo").eq("auth_user_id", uid).maybeSingle();
     if (!p) {
       setCargando(false);
       setError("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
@@ -115,6 +124,7 @@ function MiCumpleanosContenido() {
       id: p.id as string,
       nombreOficial: (ficha?.nombre_dni as string | null) || nombre,
       documento: (p.documento as string | null) ?? null,
+      practicante: p.tipo_vinculo === "practicante",
     });
 
     const { data: cfgFirmante } = await supabase
@@ -195,24 +205,28 @@ function MiCumpleanosContenido() {
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
           {error} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <Link href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+    <main className="mx-auto w-full min-w-0 max-w-2xl px-4 py-6 sm:p-6">
+      <EnlaceVolver href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">
         ← Volver a Info
-      </Link>
-      <h1 className="mb-1 font-serif text-xl">Tu bono de cumpleaños</h1>
-      <p className="mb-6 text-sm text-taupe">
-        Una asignación de {bono?.monto != null ? formatSoles(bono.monto) : "la empresa"} en el mes de tu
-        cumpleaños. Se pide firmando tu constancia aquí —sin imprimir ni escanear nada— y se suma a tu
-        boleta.
-      </p>
+      </EnlaceVolver>
+      <CabeceraPagina
+        titulo="Tu bono de cumpleaños"
+        descripcion={
+          <>
+            Una asignación de {bono?.monto != null ? formatSoles(bono.monto) : "la empresa"} en el mes de tu
+            cumpleaños. Se pide firmando tu constancia aquí —sin imprimir ni escanear nada—{" "}
+            y se suma a tu boleta.
+          </>
+        }
+      />
 
       {aviso && (
         <p className={`mb-4 rounded-lg px-4 py-3 text-sm ${
@@ -225,7 +239,8 @@ function MiCumpleanosContenido() {
       {/* Lo que todavía no se puede pedir: se dice por qué y qué hacer, nunca un botón que va a fallar. */}
       {(!bono || bono.estado === "no_aplica") && (
         <p className="rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
-          Este año no te corresponde el bono de cumpleaños: es para quien está en planilla, y rige desde que
+          Este año no te corresponde el bono de cumpleaños: es para quien está en planilla o hace prácticas en
+          CAYLA —no durante el periodo de prueba ni con un contrato de menos de una semana—, y rige desde que
           existe o desde tu ingreso. Si crees que es un error, avisa a Desarrollo Organizacional.
         </p>
       )}
@@ -250,7 +265,7 @@ function MiCumpleanosContenido() {
               Lo pediste el {bono.pedido_el ? fechaLarga(bono.pedido_el) : "—"}
               {bono.monto != null && <> por {formatSoles(bono.monto)}</>}. Ya está en tu boleta
               {bono.periodo_fin ? <> del periodo que cierra el {fechaLarga(bono.periodo_fin)}</> : null} y se
-              paga junto con tu planilla.{" "}
+              paga junto con {yo?.practicante ? "tu subvención" : "tu planilla"}.{" "}
               <Link href="/mio/boleta" className="underline underline-offset-2 hover:text-rojo-profundo">
                 Ver mi boleta →
               </Link>
@@ -258,14 +273,15 @@ function MiCumpleanosContenido() {
           ) : bono.estado === "pedido" ? (
             <p className="text-tinta">
               Lo pediste el {bono.pedido_el ? fechaLarga(bono.pedido_el) : "—"}
-              {bono.monto != null && <> por {formatSoles(bono.monto)}</>}. Todavía no está en ninguna boleta, así
-              que Desarrollo Organizacional te lo transfiere: cuando lo confirme, aquí verás la fecha.
+              {bono.monto != null && <> por {formatSoles(bono.monto)}</>}.{" "}
+              Todavía no está en ninguna boleta, así que Desarrollo Organizacional te lo transfiere:
+              cuando lo confirme, aquí verás la fecha.
             </p>
           ) : bono.via === "boleta" ? (
             // No hay «día en que se transfirió»: la planilla no lo guarda por
             // persona. Se dice el periodo, que es un hecho.
             <p className="text-verde">
-              Pagado con tu planilla{bono.periodo_fin ? <> del periodo que cerró el {fechaLarga(bono.periodo_fin)}</> : null}
+              Pagado con {yo?.practicante ? "tu subvención" : "tu planilla"}{bono.periodo_fin ? <> del periodo que cerró el {fechaLarga(bono.periodo_fin)}</> : null}
               {bono.monto != null && <>: {formatSoles(bono.monto)}</>}.
             </p>
           ) : (
@@ -294,10 +310,13 @@ function MiCumpleanosContenido() {
             </div>
           </div>
           <PapelBono
+            practicante={yo?.practicante ?? false}
             monto={miDocumento.monto_declarado}
             fecha={miDocumento.fecha_firma}
-            transferidoEl={bono.estado === "entregado" && bono.via !== "boleta" ? bono.entregado_el : null}
-            enBoleta={bono.via === "boleta"}
+            estadoPago={{
+              transferidoEl: bono.estado === "entregado" && bono.via !== "boleta" ? bono.entregado_el : null,
+              enBoleta: bono.via === "boleta",
+            }}
             nombreOficial={yo?.nombreOficial ?? null}
             documento={yo?.documento ?? null}
             firmaPersona={miDocumento.firma}
@@ -324,13 +343,13 @@ function MiCumpleanosContenido() {
           )}
           <p className="mb-4 text-sm text-taupe">
             Al pedirlo firmas esta constancia. Léela: es lo que acredita que el bono es por tu cumpleaños y no
-            parte de tu sueldo.
+            parte de {yo?.practicante ? "tu subvención" : "tu sueldo"}.
           </p>
           <PapelBono
+            practicante={yo?.practicante ?? false}
             monto={bono.monto}
             fecha={null}
-            transferidoEl={null}
-            enBoleta={false}
+            estadoPago={{ transferidoEl: null, enBoleta: false }}
             nombreOficial={yo?.nombreOficial ?? null}
             documento={yo?.documento ?? null}
             firmaPersona={miFirma}
@@ -361,79 +380,6 @@ function MiCumpleanosContenido() {
         </div>
       )}
     </main>
-  );
-}
-
-/** La hoja de la constancia — mismo texto legal que imprime admin/documentacion,
- *  para que autoservicio y escaneo acrediten exactamente la misma causa. */
-function PapelBono({ monto, fecha, transferidoEl, enBoleta, nombreOficial, documento, firmaPersona, firmaEmpresa, firmanteNombre, firmanteCargo }: {
-  monto: number | null;
-  /** Cuándo la firmó (= cuándo pidió el bono). Null mientras todavía no la firma. */
-  fecha: string | null;
-  /** Cuándo DO confirmó la transferencia (0478). Null mientras no la confirma. */
-  transferidoEl: string | null;
-  /** Va en su boleta de planilla (0479): entonces no hay transferencia aparte que confirmar. */
-  enBoleta: boolean;
-  nombreOficial: string | null;
-  documento: string | null;
-  firmaPersona: string | null;
-  firmaEmpresa: string | null;
-  firmanteNombre: string | null;
-  firmanteCargo: string | null;
-}) {
-  return (
-    <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
-      <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
-        <Marca tono="tinta" isotipo="rojo" />
-        <div className="text-right text-xs text-taupe">
-          <p>{EMPRESA.nombre}</p>
-          <p>RUC {EMPRESA.ruc}</p>
-        </div>
-      </div>
-
-      <h2 className="mb-6 text-center font-serif text-xl">Asignación por cumpleaños</h2>
-
-      <p className="mb-4">
-        {EMPRESA.nombre}, con RUC {EMPRESA.ruc}, hace entrega a <strong>{nombreOficial ?? "—"}</strong>
-        {documento ? `, con documento de identidad ${documento},` : ","} de la suma de{" "}
-        <strong>{monto != null ? `S/ ${monto.toFixed(2)}` : "S/ —"}</strong> con ocasión de su onomástico.
-      </p>
-
-      <p className="mb-4 border-l-2 border-sand pl-4">
-        Esta asignación se otorga con ocasión del onomástico del trabajador, conforme al literal g) del artículo
-        19 del Texto Único Ordenado del Decreto Legislativo N° 650, aprobado por Decreto Supremo N° 001-97-TR. En
-        consecuencia, <strong>no constituye remuneración computable para ningún efecto legal</strong>, de acuerdo
-        con el artículo 7 del Decreto Supremo N° 003-97-TR.
-      </p>
-
-      <p className="mb-10 text-sm text-taupe">
-        La presente constancia acredita la entrega y su causa.{" "}
-        {/* Dos fechas, no una: firmarla es PEDIR el bono (0478), y la
-            transferencia llega después. Decir «recibida» el día del pedido
-            afirmaría una entrega que todavía no pasó. */}
-        {fecha ? `Firmada desde el sistema el ${fechaLarga(fecha)}.` : "Se firma desde el sistema."}
-        {enBoleta
-          ? " Se paga junto con su planilla, en la boleta del periodo."
-          : transferidoEl ? ` Transferida el ${fechaLarga(transferidoEl)}.` : fecha ? " Transferencia pendiente de confirmar." : ""}
-      </p>
-
-      <div className="grid grid-cols-2 gap-10 pt-6">
-        <div className="text-center">
-          <div className="flex h-24 items-end justify-center">
-            {firmaPersona && <img src={firmaPersona} alt="" aria-hidden className="block h-24 w-auto max-w-full" />}
-          </div>
-          <div className="mb-1 border-t border-tinta pt-2 text-xs">{nombreOficial ?? " "}</div>
-          <p className="text-xs text-taupe">Recibí conforme</p>
-        </div>
-        <div className="text-center">
-          <div className="flex h-24 items-end justify-center">
-            {firmaEmpresa && <img src={firmaEmpresa} alt="" aria-hidden className="block h-24 w-auto max-w-full" />}
-          </div>
-          <div className="mb-1 border-t border-tinta pt-2 text-xs">{firmanteNombre ?? "—"}</div>
-          <p className="text-xs text-taupe">{firmanteCargo ?? "—"} · {EMPRESA.nombre}</p>
-        </div>
-      </div>
-    </div>
   );
 }
 

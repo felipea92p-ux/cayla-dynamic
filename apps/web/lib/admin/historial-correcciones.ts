@@ -121,6 +121,94 @@ function cambioDeHora(accion: string, tsAntes: string | null, tsDespues: string 
   };
 }
 
+// ── El horario, dicho como lo diría una persona ──────────────────────────────
+// `horarios_asignados` lo escriben dos puertas, y entre las dos dejan CINCO
+// formas de valor — se leen en las migraciones, no se suponen:
+//  · fn_set_horario_semanal (0440): «vigente desde AAAA-MM-DD: {json}», o con
+//    la forma vieja «… : días {1,2,3} 08:00:00–17:00:00», o «sin horario previo».
+//  · fn_corregir_horario_pasado (0447): el nuevo es el json a secas, y el
+//    anterior un arreglo de tramos {vigente_desde, vigente_hasta,
+//    horario_por_dia} o «(sin horario previo en ese rango)».
+// Antes caían al último `return` y salían crudos —en /mio, media pantalla de
+// {"1": {"e": "08:30", "r": 60, …}} en el celular de la persona— o, en el
+// panel, como «el detalle técnico no se muestra aquí»: un cambio de horario
+// decide qué se le cuenta como tardanza o falta, y no decía cuál.
+const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+
+type Tramo = { e?: string; s?: string; r?: number | string };
+
+// «2026-09-26» → «26 set.». Es una FECHA, no un instante: se formatea en UTC
+// para que ponerle zona no la corra al día anterior (pasarla por
+// `diaTextoLima` la leería como medianoche UTC = 25 en Lima).
+function fechaCorta(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const formato: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", timeZone: "UTC" };
+  if (y !== anioLima()) formato.year = "numeric";
+  return new Intl.DateTimeFormat("es-PE", formato).format(new Date(Date.UTC(y, m - 1, d)));
+}
+
+const hhmm = (t?: string) => (t ?? "").slice(0, 5);
+
+// {"1": {...}, "2": {...}, "6": {...}} → «lun a vie 08:30–14:00 · sáb 08:30–14:30».
+// Agrupa días SEGUIDOS con el mismo horario; el refrigerio se dice una vez si
+// es igual para todos, y por grupo si no — si no, un cambio que solo toca el
+// refrigerio se leería «X → X», igual antes que después.
+export function horarioSemanalEnPalabras(porDia: Record<string, Tramo>): string {
+  const dias = Object.keys(porDia).map(Number).filter((n) => n >= 0 && n <= 6);
+  // Lunes primero: la semana de CAYLA se piensa de lunes a domingo.
+  dias.sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
+  if (dias.length === 0) return "sin días de trabajo";
+  const refri = (t: Tramo) => (t.r === undefined || t.r === null || t.r === "" ? null : Number(t.r));
+  const refris = new Set(dias.map((d) => refri(porDia[d])));
+  const refriComun = refris.size === 1;
+
+  const grupos: { desde: number; hasta: number; clave: string; tramo: Tramo }[] = [];
+  for (const d of dias) {
+    const t = porDia[d];
+    const clave = `${hhmm(t.e)}|${hhmm(t.s)}|${refriComun ? "" : refri(t)}`;
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.clave === clave && (ultimo.hasta + 1) % 7 === d) ultimo.hasta = d;
+    else grupos.push({ desde: d, hasta: d, clave, tramo: t });
+  }
+  const partes = grupos.map(({ desde, hasta, tramo }) => {
+    const nombre = desde === hasta ? DIAS_CORTOS[desde]
+      : (hasta - desde + 7) % 7 === 1 ? `${DIAS_CORTOS[desde]} y ${DIAS_CORTOS[hasta]}`
+      : `${DIAS_CORTOS[desde]} a ${DIAS_CORTOS[hasta]}`;
+    const horas = tramo.s ? `${hhmm(tramo.e)}–${hhmm(tramo.s)}` : `desde ${hhmm(tramo.e)}`;
+    const r = refri(tramo);
+    return `${nombre} ${horas}${!refriComun && r ? ` (${r} min de refrigerio)` : ""}`;
+  });
+  const r = refriComun ? refri(porDia[dias[0]]) : null;
+  return partes.join(" · ") + (r ? `, ${r} min de refrigerio` : "");
+}
+
+export function horarioEnPalabras(valor: string | null): string {
+  if (!valor || /sin horario previo/i.test(valor)) return "sin horario";
+  const conFecha = valor.match(/^vigente desde (\d{4}-\d{2}-\d{2}):\s*([\s\S]*)$/);
+  const desde = conFecha ? `desde el ${fechaCorta(conFecha[1])}: ` : "";
+  const cuerpo = (conFecha ? conFecha[2] : valor).trim();
+  // La forma vieja (sin horario_por_dia): «días {1,2,3} 08:00:00–17:00:00».
+  const vieja = cuerpo.match(/^días \{([\d,]*)\} (\S+)–(\S+)$/);
+  if (vieja) {
+    const porDia = Object.fromEntries(vieja[1].split(",").filter(Boolean).map((d) => [d, { e: vieja[2], s: vieja[3] }]));
+    return desde + horarioSemanalEnPalabras(porDia);
+  }
+  try {
+    const json: unknown = JSON.parse(cuerpo);
+    if (Array.isArray(json)) {
+      const tramos = json as { vigente_desde?: string; horario_por_dia?: Record<string, Tramo> | null }[];
+      return tramos
+        .map((t) => `${t.vigente_desde ? `desde el ${fechaCorta(t.vigente_desde)}: ` : ""}${t.horario_por_dia ? horarioSemanalEnPalabras(t.horario_por_dia) : "horario anterior"}`)
+        .join(" / ") || "sin horario";
+    }
+    if (json && typeof json === "object") return desde + horarioSemanalEnPalabras(json as Record<string, Tramo>);
+  } catch {
+    // No es JSON: cae abajo.
+  }
+  // Una forma que nadie escribe hoy. Mejor no mostrar nada que mostrar llaves.
+  return desde + "otro horario";
+}
+
 export function describirCambio(row: Auditoria): { accion: string; cuando: string | null; detalle: string } {
   const lblTipo = (t?: string | null) => (t && TIPO_MARCA_LABELS[t as TipoMarca]) || t || "marcaje";
   const tsDe = (v: string | null) => (v ?? "").split(" @ ")[1] ?? null;
@@ -197,6 +285,35 @@ export function describirCambio(row: Auditoria): { accion: string; cuando: strin
   if (row.campo_modificado === "marca_apartada") {
     return { accion: "Marca apartada", cuando: diaTextoLima(row.valor_nuevo) ?? diaTextoLima(row.valor_anterior), detalle: "no se pudo registrar sola; quedó pendiente de revisión manual" };
   }
+  // Perdonar una tardanza (0541): `valor_anterior` es el DÍA perdonado (AAAA-MM-DD, una
+  // fecha y no un instante) y `valor_nuevo` el motivo. La hora real no se toca, y el
+  // detalle lo dice para que no se lea como una corrección de hora.
+  if (row.campo_modificado === "tardanza_levantada" || row.campo_modificado === "tardanza_levantamiento_quitado") {
+    const dia = /^\d{4}-\d{2}-\d{2}$/.test(row.valor_anterior ?? "") ? fechaCorta(row.valor_anterior!) : null;
+    const motivo = (row.valor_nuevo ?? "").replaceAll("_", " ");
+    return {
+      accion: rotuloDeCampo(row.campo_modificado),
+      cuando: dia,
+      detalle: row.campo_modificado === "tardanza_levantada"
+        ? `${motivo ? `por ${motivo}; ` : ""}la hora real no se tocó`
+        : `${motivo ? `tenía motivo ${motivo}; ` : ""}la tardanza vuelve a contar`,
+    };
+  }
+  if (row.campo_modificado === "horarios_asignados") {
+    const antes = horarioEnPalabras(row.valor_anterior);
+    const despues = horarioEnPalabras(row.valor_nuevo);
+    // La 0440 escribe la MISMA vigencia en los dos lados; dicha dos veces,
+    // la frase se volvía un trabalenguas en el celular. Se dice una vez.
+    const vigencia = despues.match(/^desde el [^:]+: /)?.[0];
+    if (vigencia && antes.startsWith(vigencia)) {
+      return {
+        accion: rotuloDeCampo("horarios_asignados"),
+        cuando: null,
+        detalle: `${vigencia.slice(0, -2).replace(/^d/, "D")} pasa de ${antes.slice(vigencia.length)} a ${despues.slice(vigencia.length)}`,
+      };
+    }
+    return { accion: rotuloDeCampo("horarios_asignados"), cuando: null, detalle: `${antes} → ${despues}` };
+  }
   // Cualquier otro campo desconocido, o uno cuyo valor es un mensaje técnico
   // (un error de Postgres) en vez de un dato de negocio: se muestra el nombre
   // del campo, nunca el contenido crudo — este historial es para Cayla, no
@@ -206,8 +323,11 @@ export function describirCambio(row: Auditoria): { accion: string; cuando: strin
   const esTexto = (v: string | null) => !!v && v.length < 80 && !/[{}();]|=>|public\./.test(v);
   const antes = esTexto(row.valor_anterior) ? row.valor_anterior : null;
   const despues = esTexto(row.valor_nuevo) ? row.valor_nuevo : null;
-  const detalle = antes || despues
-    ? `${antes ?? "—"} → ${despues ?? "—"}`
+  // Un valor que NACE (una firma, un documento) no tiene «antes»: «— → firmado»
+  // se leía como si algo se hubiera borrado. Se dice solo lo nuevo.
+  const detalle = antes && despues ? `${antes} → ${despues}`
+    : despues ? despues
+    : antes ? `${antes} → —`
     : "el detalle técnico no se muestra aquí; queda guardado en la auditoría";
   return { accion: rotuloDeCampo(row.campo_modificado), cuando: null, detalle };
 }

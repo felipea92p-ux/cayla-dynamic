@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
 import { MemoDocumento, TITULO, fechaLarga, horaLima, type Hecho } from "@/components/disciplina/memo-documento";
 import { useToast } from "@/components/toast";
@@ -42,6 +42,9 @@ interface MemoDigital {
   firma_sancionado_confirmada_at: string | null;
   sancionado_rechazo_firma_at: string | null;
   persona: { nombres: string; apellidos: string; documento: string | null; funcion: string; sede_codigo: string | null };
+  /** Conducta: la falta citada y cuándo se supo (los trae `fn_mi_memo` desde la 0514). */
+  falta?: { numeral: string; literal: string; texto: string; gravedad: string } | null;
+  conocido_el?: string | null;
   firmante: { nombre: string; cargo: string | null } | null;
   firma_emisor: string | null;
 }
@@ -138,9 +141,9 @@ function MiMemoContenido() {
         <p className="max-w-md rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
           {error ?? "No se encontró este documento. Si crees que deberías verlo, avisa a tu líder de equipo o a Desarrollo Organizacional."}
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -149,9 +152,9 @@ function MiMemoContenido() {
   const entregado = memo.estado === "entregado";
 
   return (
-    <main className="mx-auto max-w-[760px] p-6 print:p-0">
+    <main className="mx-auto w-full min-w-0 max-w-[760px] px-4 py-6 sm:p-6 print:p-0">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</Link>
+        <EnlaceVolver href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</EnlaceVolver>
         <Boton variante="secundario" tamano="sm" onClick={() => window.print()}>
           Guardar una copia (PDF) o imprimir
         </Boton>
@@ -250,6 +253,7 @@ function MiMemoContenido() {
           suspension_dias: memo.suspension_dias, suspension_desde: memo.suspension_desde,
           suspension_hasta: memo.suspension_hasta, suspension_fechas: memo.suspension_fechas,
           firmado_at: memo.firmado_at, creado_at: memo.creado_at,
+          falta: memo.falta ?? null, conocido_el: memo.conocido_el ?? null,
         }}
         persona={memo.persona}
         sede={memo.persona.sede_codigo ?? ""}

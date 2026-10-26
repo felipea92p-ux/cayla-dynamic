@@ -87,6 +87,22 @@ describe("la lista real de novedades: lo que no debe existir", () => {
   });
 });
 
+describe("la novedad de Vida Ley en «Mi seguro»", () => {
+  const n = NOVEDADES.find((x) => x.id === "2026-10-22-ya-puedes-ver-tu-seguro-de-vida-ley-en-mi-seguro");
+
+  it("existe, es para todo el equipo y su primer párrafo cuenta lo que SÍ se ve", () => {
+    expect(n).toBeDefined();
+    expect(n!.audiencia).toBe("todos");
+    expect(primerParrafo(n!)).toMatch(/Vida Ley/);
+    expect(primerParrafo(n!)).toMatch(/PDF de tu certificado/);
+  });
+
+  it("no dice que la persona esté cubierta ni habla de la prima, de montos o de beneficiarios", () => {
+    const texto = `${n!.titulo} ${n!.queMejoro}`;
+    expect(texto).not.toMatch(/cubr|cubiert|cobertura|\bprima\b|beneficiari|reclam/i);
+  });
+});
+
 describe("novedadesPara: cada rol ve lo suyo, lo más reciente primero", () => {
   const lista: Novedad[] = [
     nov({ id: "2026-09-10-a", fecha: "2026-09-10", audiencia: "todos" }),
