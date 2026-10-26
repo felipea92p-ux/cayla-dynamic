@@ -25,9 +25,9 @@
 -- trabaja unos días es ese piso, y la defensa es no dejar trabajar a nadie que
 -- no se vaya a quedar (la evaluación de selección, sin vínculo).
 --
--- Y la parte que NO arregla la 0554: quien ya quedó cerrado como «se retiró»
--- (0537) sigue sin entrar a la planilla. Se fija abajo para que nadie crea que
--- se resolvió: quitarlo exige reescribir fn_planilla_calcular_nucleo.
+-- Y la parte que NO arreglaba la 0554: quien ya quedó cerrado como «se retiró»
+-- (0537) seguía sin entrar a la planilla. Lo arregla la 0555, que reescribe
+-- fn_planilla_calcular_nucleo; esta prueba la ejecuta ya con las dos puestas.
 --
 -- La sentencia de abajo es la misma de la 0554; si una cambia, cambia la otra.
 -- ============================================================================
@@ -136,9 +136,9 @@ select ok((select (e->>'aporte_essalud')::numeric from _despues where pid = '000
           > (select (e->>'pago_base')::numeric from _despues where pid = '00000000-0000-0000-0000-000000446b02'),
   'COSTO · con dos días de trabajo el aporte de EsSalud es MAYOR que lo pagado por sus horas: es el costo de registrar a quien se va a ir');
 
--- ── 5 · Lo que la 0554 NO arregla ───────────────────────────────────────────
-select is((select count(*)::int from _despues where pid = '00000000-0000-0000-0000-000000446b04'), 0,
-  'PENDIENTE · quien se retiró (0537) sigue sin entrar a la planilla: quitarlo exige reescribir el núcleo');
+-- ── 5 · Lo que la 0554 sola NO arreglaba, y la 0555 sí ──────────────────────
+select is((select count(*)::int from _despues where pid = '00000000-0000-0000-0000-000000446b04'), 1,
+  'SE RETIRÓ · desde la 0555 entra a la planilla: se le paga lo que trabajó');
 
 select * from finish();
 rollback;

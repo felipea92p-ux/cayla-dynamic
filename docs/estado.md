@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553 y 0554 · SQL PEGADO (2026-10-26) · EN PR #606 · rama `claude/nifty-knuth-n789e7`
+## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553, 0554 (pegadas 2026-10-26) y 0555 (SIN PEGAR) · EN PR #606 · rama `claude/nifty-knuth-n789e7`
 
 **Qué es.** Felipe lo dijo así (2026-10-26): tener a alguien «de prueba», o que empiece a trabajar, sin contrato y sin alta es
 prácticamente ilegal. «Prueba» (tres días trabajados sin contrato, y «si pasa, recién ahí se hace el contrato») no existe en la ley
@@ -59,8 +59,18 @@ periodo: si ese periodo no está pagado, hoy no cobra lo que trabajó. Quitar es
 abierta. **Lo medido antes de pegar la 0554 y que sigue abierto:** dos personas cerradas como «se retiró» —**Mariel Sarmiento** (prueba
 16/10 → 21/10) y **Noelia Ibarcena** (19/10)— con el periodo 28/09–28/10 todavía **abierto**: la exclusión de la 0537 las deja fuera de la
 planilla, o sea que **no se les paga lo que trabajaron** y el periodo cierra el 28/10. Se arregla con la 0555 (reescribe
-`fn_planilla_calcular_nucleo` quitando el bloque «CAMBIO 0537»), que exige el **md5 de PRODUCCIÓN justo antes de escribirla**: se pidió.
-Hasta que esté pegada, la salida de emergencia es pagarles aparte, fuera del cierre, y dejarlo anotado.
+`fn_planilla_calcular_nucleo` quitando el bloque «CAMBIO 0537»), que exige el **md5 de PRODUCCIÓN justo antes de escribirla**.
+
+**0555 · quien se retiró en prueba cobra lo que trabajó · SQL SIN PEGAR · MUEVE PLATA.** Producción medida el 2026-10-26: 122 157
+caracteres, 0 retornos de carro, una versión, con «CAMBIO 0537», md5 `4e25d9fd99e5e6a4e8f82952207c0652` — idéntico al cuerpo del archivo
+de la 0537. La 0555 parte de ese cuerpo y **solo quita el bloque de la exclusión** (26 líneas de diferencia, todas dentro de él; el cuerpo
+nuevo queda en 121 868 caracteres, md5 de la función `aad8a0f00628539f27a4d789a4c1ac04`); su guardia se niega a pegar sobre cualquier otra
+versión y acepta las variantes CRLF y sin comentarios. La función **ya no lee `pruebas`**. Quien se retiró se paga **como quien no fue apto**:
+lo que trabajó, **sin asignación familiar y sin EsSalud** (su vínculo sigue siendo «prueba», 0484/0537) — comprobado campo por campo contra
+un control «no apto» con las mismas horas. **Pregunta para el contador:** las personas que se fueron en prueba (estas dos y las anteriores)
+no generaron EsSalud; la 0555 no lo decide. Pruebas: **447 → 14/14** (puesta en rojo devolviendo la función de producción: 8 fallas),
+430 (21/21) y 446 (17/17) actualizadas porque afirmaban justo la conducta derogada; **suite completa 348 de 352**, los mismos 4 que fallan
+igual en la 0552. Hasta que esté pegada, la salida de emergencia es pagarles aparte, fuera del cierre, y dejarlo anotado.
 
 **Orden para pegar.** (1) 0553 (no mueve plata). (2) Correr las consultas (1) y (2) del encabezado de la 0554 y devolverlas. (3) 0554,
 solo con OK explícito a las cifras de arriba. (4) Recién entonces fusionar el PR: **fusionar ES publicar**. Si el código llega antes que
