@@ -6,6 +6,65 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0551 · SQL SIN PEGAR · rama `claude/stoic-archimedes-8h71yn`
+
+**Qué es.** Felipe pidió un módulo donde DO cambie sin código los números que mueven el sistema (días de prueba, escalera
+disciplinaria, porcentajes, sueldo base, provisiones), con historial de quién y cuándo, y con la lista de a quién le afecta antes
+de confirmar. Se acordó construirlo **por rebanadas**; esta es la primera. Tres decisiones suyas (2026-10-26): (a) el líder de DO
+opera lo operativo y lo de plata, y **solo la dirección (admin) toca lo normativo**; (b) **la escalera disciplinaria no es editable**
+en esta entrega —es del RIT— y entra después atada a una versión del RIT; (c) nombre «Parámetros», dentro de Configuración.
+
+**El censo (medido leyendo el repo; no exhaustivo).** Los números que mandan viven en cuatro sitios y ninguno deja rastro de quién
+los movió: `configuracion` (jsonb sin autor, fecha ni vigencia; la RLS deja escribir a admin/líder de DO directo desde el navegador),
+`parametros_laborales` (versionada, «se escribe por migración»: RMV, EsSalud, movilidad, asignación familiar, bonificación
+extraordinaria, bono de cumpleaños), constantes dentro de funciones (la prueba de 3 días, la escalera 3→2→1 de tardanzas y sus 12
+meses, recargos 25 %/35 %, 48 h) y constantes en TypeScript (`rangos.ts`; subir la RMV obliga a mover **cuatro** sitios a la vez).
+`descanso_medico_aviso_dias` guarda **dos** números en una clave: `avisar_desde` (15, operativo) y `umbral_essalud` (20, el tope del
+RIT art. 31 f, que usa la planilla): el catálogo apunta a un campo y no a la clave entera.
+
+**Lo que cambia para quien la usa.**
+- **Pantalla `/admin/parametros`** (solo DO y admin). Tres parámetros se pueden cambiar: días de prueba antes del contrato (1–15,
+  hoy 3), horas de espera del auto-cierre (1–12, hoy 3) y desde cuántos días de descanso médico se avisa a DO (1–20, hoy 15). El
+  tope de 20 días del RIT se muestra aparte y sin botón. Cambiar pide un motivo y pasa por dos pasos: valor → **a quién afecta**
+  (las personas de prueba cuya situación cambia; las personas a las que se empezaría o dejaría de avisar) → confirmar.
+- **Historial** con quién, cuándo, de qué a qué y por qué, y un «Volver a este valor» que es un cambio nuevo, no un borrado.
+- **«Días de prueba» ya no está clavado**: `fn_prueba_dias_plazo()` lee `configuracion.prueba_dias` (parte en 3, el de siempre). Las
+  pantallas ya recibían el número como columna (`dias_plazo`), así que ninguna cambia.
+- **Un cambio hecho a mano en el SQL Editor también deja rastro**, marcado «A mano en la base» y sin autor; antes no dejaba nada.
+- **Un UPDATE/DELETE directo desde el navegador** sobre una de esas claves ya se rechaza. Apariencia, Educación y la firma de la empresa
+  no están en el catálogo y se escriben como siempre.
+
+**Antes de pegar (en el mismo mensaje en que se entrega el SQL; un md5 es una foto y caduca).** La 0551 reescribe UNA función,
+`fn_prueba_dias_plazo()` (la de la 0536, `select 3;`). Su cuerpo no tiene saltos de línea, así que ni el CRLF de Windows lo cambia.
+**md5 de PRODUCCIÓN pendiente**: la consulta (1) del encabezado debe dar `2645ded8d962eebe8104370a3d5ac219`, 11 caracteres, `i` y
+`false`; la guardia de la migración compara el cuerpo sin espacios y **PARA** ante cualquier otra versión (y acepta la ya
+reescrita, así que repegar no falla). La consulta (2) debe volver sin funciones **no** `SECURITY DEFINER` que escriban esas claves
+(esas dejarían de poder); la (3) trae los valores de partida: `auto_cierre_horas` entre 1 y 12 y `avisar_desde` entre 1 y 20, porque
+el trigger exige esos límites cuando alguien cambie el valor. **No toca la planilla**: `fn_planilla_calcular` lee las mismas claves con
+la misma forma de siempre; por eso no hay md5 de la planilla.
+
+**Si el código llega antes que el SQL.** `main` se publica sola. La pantalla lo detecta (PGRST202, la función no existe) y dice «Falta
+pegar la migración 0551» en vez de romperse; nada más depende de la 0551 hasta que se pegue. El renglón «Parámetros» y la novedad
+(solo para DO) sí aparecen.
+
+**Probado.** Typecheck limpio en los tres paquetes; **2 907 pruebas vitest verdes** (32 nuevas en `tests/parametros.test.ts`, más el
+contador y el permiso del menú); ESLint limpio sobre lo nuevo. En un **Postgres 16 propio con las 524 migraciones de `main`** (solo
+fallaron `pg_cron` y una columna de storage de mi imitación de Supabase; ninguna toca esto): la **prueba 443 da 52 de 52**, y
+rompiéndola a propósito de **14 maneras** (sin trigger, trigger `SECURITY DEFINER`, sin límites, sin gate normativo, autor pegado a la
+transacción, historial editable, tabla legible directo, días de prueba clavados…) **se pone roja las 14 veces**; la migración se repegó
+dos veces y quedó igual (idempotente). En TypeScript, 6 mutaciones atrapadas, una de ellas (el borde de `>=` en el aviso) solo después
+de agregar el caso que la dejaba pasar.
+
+**No probado.** pgTAP real ni el CI `db-tests` (el banco local usa un sustituto mínimo: lo fiable es `db-tests` de GitHub); nada
+contra producción (la consulta (1)–(3) la corre Felipe); los grants reales de Supabase (la migración revoca y concede explícito para no
+depender de los de por defecto); y los límites 1–15 / 1–12 / 1–20 son una **propuesta** para atajar errores de tecla, no una norma:
+Felipe los puede mover con una migración.
+
+**Siguiente.** Rebanada 2: plata ya versionada (`parametros_laborales`: RMV, asignación, movilidad, tasas, bonos) y sueldo base por
+rango envolviendo `fn_fijar_base_declarada`, con **vigencia y vista previa de a quién le cambia**. Rebanada 3: provisiones, que viven en
+`configuracion` **sin fecha** (cambiarlas reescribiría el historial) y necesitan vigencia antes de ser editables: eso reescribe
+`fn_planilla_calcular`, con su protocolo de md5. Rebanada 4: la escalera disciplinaria, atada a una versión del RIT.
+
 ## 2026-10-25 — La Bandeja cuenta 33 y no 96 · los 61 correos tienen salida · un pago único ya sustentado no pide calendario · migraciones 0548 y 0549 · SQL PEGADO (2026-10-25) · SIN FUSIONAR (PR #597, borrador) · rama `claude/notifications-calendar-errors-2e8886`
 
 **Qué es.** Felipe preguntó tres cosas con tres capturas: «si es pago único, ¿para qué me pide calendario?», «la mayoría

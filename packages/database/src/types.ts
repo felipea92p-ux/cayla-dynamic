@@ -9489,6 +9489,52 @@ export type Database = {
         Returns: string
       }
       fn_papeles_cese: { Args: { p_persona_id: string | null }; Returns: Json }
+      fn_parametro_cambiar: {
+        Args: { p_motivo: string | null; p_parametro: string | null; p_valor: number | null }
+        Returns: undefined
+      }
+      fn_parametro_numero_en: {
+        Args: { p_ruta: string[] | null; p_valor: Json | null }
+        Returns: number
+      }
+      fn_parametros_historial: {
+        Args: { p_limite?: number | null; p_parametro?: string | null }
+        Returns: {
+          cambiado_at: string
+          cambiado_por: string
+          editable: boolean
+          id: string
+          motivo: string
+          nombre: string
+          origen: string
+          parametro: string
+          unidad: string
+          valor_anterior: number
+          valor_nuevo: number
+        }[]
+      }
+      fn_parametros_listar: {
+        Args: never
+        Returns: {
+          base: string
+          clase: string
+          descripcion: string
+          editable: boolean
+          es_defecto: boolean
+          nombre: string
+          parametro: string
+          tipo_valor: string
+          ultimo_cambio_at: string
+          ultimo_cambio_por: string
+          ultimo_motivo: string
+          ultimo_origen: string
+          unidad: string
+          valor_actual: number
+          valor_defecto: number
+          valor_max: number
+          valor_min: number
+        }[]
+      }
       fn_pedir_revision: {
         Args: { p_comentario: string | null; p_fecha: string | null }
         Returns: undefined

@@ -603,6 +603,17 @@ cuesta más que dejar pasar una falta real. Por eso las exclusiones
 (`en_planilla`, `sueldo_fijo`, vacaciones, feriados, sin horario) se aplican antes
 de contar, no después.
 
+**Un número que DO debería poder cambiar va al catálogo de parámetros, no a una constante** (0551, oct-2026). `parametros_catalogo`
+dice qué se puede mirar y cambiar desde `/admin/parametros` (nombre, unidad, mínimo, máximo, clase) y el valor sigue viviendo donde ya
+vivía (`configuracion`). Se cambia por UNA puerta, `fn_parametro_cambiar`, que exige motivo y respeta los límites; un trigger sobre
+`configuracion` rechaza la escritura directa de esas claves y **escribe `parametros_historial` por cualquier camino**, también el
+SQL Editor (marcado «base», sin autor). Para sumar uno: una migración que inserta su fila del catálogo (con mínimo y máximo: un
+editable sin tope no se acepta), y el código lee el valor de la tabla, no lo repite. Tres clases, tres cuidados: *operativo* (lo decide DO),
+*plata* (exige **vigencia** y vista previa de a quién le cambia —un valor sin fecha reescribe los periodos ya pagados, como pasó con
+`tasa_afp`—; entra en la rebanada 2) y *normativo* (ley o RIT; solo la dirección, y nada hoy es editable). **La escalera disciplinaria
+no es un parámetro libre**: es del RIT y solo se mueve atada a una versión del RIT, porque aplicar una escalera distinta a la que la
+persona recibió firmada vuelve impugnable la sanción. El trigger no es `SECURITY DEFINER` y no debe serlo (el mismo motivo de la 0550).
+
 **Guards `SECURITY DEFINER` null-safe.** Siempre `if fn_es_admin_o_lider() is not true`,
 nunca `if not fn_es_admin_o_lider()` — un `null` no debe pasar como autorizado.
 Desde la 0078 los booleanos de permiso ya no devuelven `null`, pero la forma

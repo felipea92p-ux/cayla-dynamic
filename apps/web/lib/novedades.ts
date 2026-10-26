@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-26-parametros-los-numeros-del-sistema-se-cambian-desde-una-pantalla",
+    fecha: "2026-10-26",
+    titulo: "Parámetros: los números del sistema se cambian desde una pantalla, con su historial",
+    queMejoro:
+      "Hay una pantalla nueva, «Parámetros», en Configuración. Ahí se ven y se cambian, sin pedirle código a nadie, los días de " +
+      "prueba antes del contrato, las horas de espera del auto-cierre de una jornada y desde cuántos días de descanso médico se " +
+      "avisa a DO. Cada cambio pide un motivo y queda escrito con quién lo hizo, cuándo y de qué valor a cuál.\n\n" +
+      "Antes de confirmar, el sistema dice a quién le cambia algo: por ejemplo, qué personas de prueba pasarían a estar «en curso» " +
+      "o dejarían de estar «vencidas». Y si un cambio fue un error, en el historial hay un «Volver a este valor». Lo que fija el " +
+      "reglamento o la ley se muestra aparte y no se cambia desde ahí.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-25-bandeja-cuenta-lo-que-le-toca-a-una-persona-y-explica-los-correos",
     fecha: "2026-10-25",
     titulo: "La Bandeja cuenta lo que le toca a una persona y explica los correos que no salieron",
