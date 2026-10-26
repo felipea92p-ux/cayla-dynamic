@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-25 — La Bandeja cuenta 33 y no 96 · los 61 correos tienen salida · un pago único ya sustentado no pide calendario · migraciones 0548 y 0549 · SQL SIN PEGAR · rama `claude/notifications-calendar-errors-2e8886`
+## 2026-10-25 — La Bandeja cuenta 33 y no 96 · los 61 correos tienen salida · un pago único ya sustentado no pide calendario · migraciones 0548 y 0549 · SQL PEGADO (2026-10-25) · SIN FUSIONAR (PR #597, borrador) · rama `claude/notifications-calendar-errors-2e8886`
 
 **Qué es.** Felipe preguntó tres cosas con tres capturas: «si es pago único, ¿para qué me pide calendario?», «la mayoría
 de las notificaciones son ruido» y «¿61 fallaron?». Medido, no opinado: la insignia del menú decía **96 = 31 filas + 61
@@ -39,6 +39,12 @@ está verificado», y por «sin líder de equipo con correo»: la primera es con
    en el orden contrario, la 0526 **revierte en silencio** la 0549.
 4. Las dos se pegan **antes** de fusionar el PR. Si el frontend llega antes: nada se rompe (la tarjeta sin botón, los textos de
    pago único con constancia dicen la verdad), pero el número rojo de Educación no baja hasta pegar la 0549.
+
+**Pegado el 2026-10-25** (Felipe devolvió las filas de comprobación). Antes de pegar, `fn_educacion_situacion` en producción medía
+4 006 caracteres, md5 `f0ddaf5b…`, 0 retornos y 0 marcadores: la 0450 sin retoques, así que la 0526 no estaba pegada y la guardia de
+la 0549 pasó. **0548:** las nueve columnas de la comprobación en lo esperado y `sin_salida_hoy = 61`, igual a los 61 de la tarjeta.
+**0549:** `registradas` = 548 · 549 · 550 y la función en 4 959 caracteres, md5 `faba3345…`, el de llegada declarado en su encabezado.
+Con las dos pegadas, el PR se puede fusionar **solo con OK de Felipe**; mientras no se fusione, el botón no existe en pantalla.
 
 **Pendiente de Felipe (a mano, no lo hace el código).** Verificar el dominio de envío en resend.com/domains con `RESEND_FROM`
 exactamente en ese dominio y comprobar `RESEND_API_KEY` y el redeploy; cargar en Equipo el correo de las líderes de las sedes
