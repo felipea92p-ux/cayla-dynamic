@@ -62,7 +62,7 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value"> & {
 // la vuelva a achicar). Un <textarea> dispara ese zoom igual que un <input>, y
 // «Lo mío → Responder» se escribe sobre todo desde el teléfono.
 const CHROME_BASE =
-  "w-full resize-none overflow-hidden rounded-control border border-sand bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 placeholder:text-taupe/60 focus-visible:outline-offset-0 sm:text-sm";
+  "w-full resize-none overflow-hidden rounded-control border bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 placeholder:text-taupe/60 focus-visible:outline-offset-0 sm:text-sm";
 
 function ajustarAltura(el: HTMLTextAreaElement) {
   // "auto" primero, para que al BORRAR texto la altura también baje: si no,
@@ -104,7 +104,7 @@ export function AreaTexto({ value, rows = 2, etiqueta, error, id, className, ...
       id={id}
       rows={rows}
       value={value}
-      className={cx(CHROME_BASE, error && "border-rojo", className)}
+      className={cx(CHROME_BASE, error ? "border-rojo" : "border-borde-control", className)}
       {...rest}
     />
   );
@@ -115,7 +115,7 @@ export function AreaTexto({ value, rows = 2, etiqueta, error, id, className, ...
     <label className="flex flex-col gap-1">
       {etiqueta && <span className="text-sm text-taupe">{etiqueta}</span>}
       {campo}
-      {error && <span className="text-xs text-rojo">{error}</span>}
+      {error && <span className="text-xs text-rojo-profundo">{error}</span>}
     </label>
   );
 }

@@ -141,6 +141,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-10-25-campos-y-botones-mas-marcados-y-ventanas-que-no-sueltan-el-teclado",
+    fecha: "2026-10-25",
+    titulo: "Campos y botones con el borde más marcado, y ventanas que no sueltan el teclado",
+    queMejoro:
+      "Los campos donde escribes —y los botones de acción secundaria, como «Cancelar»— ahora tienen un borde más marcado, para que se " +
+      "reconozca de un vistazo dónde escribir o tocar, en modo claro y en oscuro. Los mensajes de error bajo un campo también se leen " +
+      "mejor en modo oscuro.\n\n" +
+      "En las ventanas que se abren encima de la pantalla —confirmar una anulación, por ejemplo—, Tab y Mayús+Tab ya no se escapan " +
+      "hacia la pantalla de atrás: se quedan dentro de la ventana, y al cerrarla el cursor vuelve al botón que la abrió.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-24-cuentas-lista-a-las-integrantes-y-constancias-muestra-todas",
     fecha: "2026-10-24",
     titulo: "Cuentas lista a las integrantes con acceso, y Constancias muestra todas las que existen",
