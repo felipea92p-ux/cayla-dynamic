@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · SIN PEGAR · SIN FUSIONAR (PR borrador) · rama `claude/epic-ramanujan-rr0p0u`
+## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · **SQL SIN PEGAR EN PRODUCCIÓN** · AUTOMERGE ARMADO (PR #601) · rama `claude/epic-ramanujan-rr0p0u`
 
 **Qué es.** Felipe, con la captura de Normas → Constancias: «en normas también deberían aparecerme los practicantes, deben
 aparecer todos incluyendo los que cuenten con su correo dentro del sistema y los que fueron invitados». Medido, no supuesto:
@@ -38,8 +38,11 @@ Ninguna constancia ya registrada se toca. `fn_reglamento_no_acusado` (el freno p
    CRLF, sin comentarios, repegado: pasan). Partida medida sobre el repositorio: `fn_poblacion_obligada` 195 car. `1b69c217…`;
    `fn_acuses_politica_salarial` 1 309 car. `e7e56114…`. Si el hook renumera, hay que volver a medir los md5 de llegada (los
    marcadores `CAMBIO 0551` cambian con el número).
-2. **Pegarla ANTES de fusionar el PR** (fusionar es publicar). Si el frontend llega antes no se rompe nada: solo la frase del papel
-   se adelanta a la lista.
+2. **Pegarla ANTES de fusionar el PR** (fusionar es publicar). **Pero el orden no se va a cumplir:** Felipe pidió el automerge
+   (2026-10-26) y la sesión no puede pegar el SQL —el conector de Supabase de la sesión solo ve los proyectos Fructus, FastFruit y
+   vonatur, no el de CAYLA—, así que el PR se fusiona solo cuando `db-tests` y `ui-tests` den verde y **el frontend sale antes que el
+   SQL**. Es seguro: no llama a nada nuevo; solo se adelantan la frase del papel imprimible y la novedad (que dice «ya aparecen» y
+   hasta pegar no es cierto). **Hasta que Felipe pegue la 0551, Normas sigue sin mostrar a los practicantes**: pegarla cuanto antes.
 3. Para ver de antemano cuánto va a subir el contador (solo lectura, en el SQL Editor):
    `select count(*) filter (where auth_user_id is not null) as con_cuenta, count(*) filter (where auth_user_id is null) as sin_cuenta
    from personas where tipo_vinculo = 'practicante' and estado = 'activo' and not cuenta_de_servicio;`
