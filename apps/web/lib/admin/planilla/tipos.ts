@@ -97,6 +97,9 @@ export interface FeriadoDetalle {
   horas_trabajadas: number;
   proporcional_horas: number;
   antes_ingreso: boolean;
+  /** Desde la 0505 · el feriado cae después de su cese: no corresponde, igual
+   *  que uno anterior al ingreso. Opcional porque sin la 0505 pegada no llega. */
+  despues_cese?: boolean;
   /** Desde la 0276 · lo que ese feriado devengó, SIN redondear. Quien lo
    *  muestre redondea: la boleta lo mete crudo en la base de provisión. */
   monto?: number;
@@ -262,6 +265,22 @@ export interface FactoresProvision {
   gratificacion: number;
   cts: number;
   vacaciones: number;
+}
+// Lo que una practicante lleva devengado de los dos beneficios propios de la
+// Ley 28518 art. 42 — media subvención por cada 6 meses continuos, y 15 días
+// de descanso al cumplir 12 (0465/0467). VIVEN FUERA de `Fila` a propósito:
+// no salen de fn_proyeccion_periodo/fn_planilla_calcular_persona (el cálculo
+// del pago del periodo) sino de una función APARTE, `fn_subvenciones_
+// practicante` (admin) / `fn_mis_subvenciones_practicante` (autoservicio,
+// 0485) — mezclarlo en `Fila` sugeriría que es parte del mismo cálculo, y no
+// lo es: son dos relojes distintos que nunca se suman entre sí.
+export interface SubvencionPracticante {
+  sinSubvencion: boolean;
+  mediaSubSaldo: number;
+  semestreHasta: string;
+  descansoSaldo: number;
+  descansoGanado: boolean;
+  descansoCumple: string;
 }
 // El estado de pago de UN grupo (tipo_vinculo) dentro del periodo — 0323.
 // Sale de fn_proyeccion_periodo (clave 'grupos'), siempre las 5 aunque un

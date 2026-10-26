@@ -6,6 +6,3182 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-25 — La Bandeja cuenta 33 y no 96 · los 61 correos tienen salida · un pago único ya sustentado no pide calendario · migraciones 0548 y 0549 · SQL PEGADO (2026-10-25) · SIN FUSIONAR (PR #597, borrador) · rama `claude/notifications-calendar-errors-2e8886`
+
+**Qué es.** Felipe preguntó tres cosas con tres capturas: «si es pago único, ¿para qué me pide calendario?», «la mayoría
+de las notificaciones son ruido» y «¿61 fallaron?». Medido, no opinado: la insignia del menú decía **96 = 31 filas + 61
+correos fallidos (un solo problema contado 61 veces) + 4 de Normas**; el chip «Todo» decía 31 y el Dashboard habría dicho 92
+(tres cuentas para una pregunta). De las 31 filas casi todas son plazo legal, dinero o una persona esperando: **no se
+construyó un botón «descartar» general** (ver «Decisión abierta»). Los 61 fallan por un 403 de Resend, «el dominio cayla.pe no
+está verificado», y por «sin líder de equipo con correo»: la primera es configuración externa que solo Felipe arregla.
+
+**Lo que cambia para quien la usa.**
+- **Una sola cuenta** (`cuentaDeLaBandeja`): filas + 1 si hay correos que no salieron + 1 si hay constancias de Normas. Menú y
+  Dashboard dan el mismo número (33 con los datos de la captura). Las «atascadas» se reintentan solas y ya no cuentan.
+- **Tarjeta «Sistema»** plegada a una línea (52 px, antes 228) con la causa en palabras y, al abrir, qué hacer. Botón
+  «Revisar y resolver estos avisos» (solo DO): primero una vista previa, y solo al confirmar reencola lo que aún es cierto y da
+  por cerrado lo que ya no. **Antes de pulsarlo hay que arreglar Resend**, o lo reencolado vuelve a fallar.
+- **Ruta de correo** (`/api/alertas-encargadas`): ante una avería del canal corta el lote en vez de gastar el intento de todas
+  las filas (así 3 días de 403 mataron 61); clasifica el fallo por su causa (un mismo 403 ya no sale dos veces); los días de
+  «vence en N» se calculan al enviar y no al generar; si el correo sale tarde, lo dice.
+- **Educación:** un pago único con una constancia aprobada ya no cae en «sin calendario»; el campo se llama «Fecha del pago»
+  y, si ya está sustentado, no se muestra. Mensual, ciclo y otra quedan idénticos.
+
+**Antes de pegar (en el mismo mensaje en que se entrega el SQL; un md5 es una foto y caduca).**
+1. **0548 — no reescribe ninguna función, no hay md5 de partida.** Corre las tres consultas de SOLO LECTURA del encabezado
+   (la que cuenta los 61 por destino y causa, el `pg_get_constraintdef` de `alertas_estado_check` y los estados presentes) y
+   manda las filas. La fila «2 · REENCOLAR CON VENTANA RENOVADA» dice cuántos contratos y vacaciones vigentes se salvan.
+2. **0549 — SÍ reescribe `fn_educacion_situacion`.** md5 de PRODUCCIÓN pendiente: la consulta está en su encabezado; se
+   espera 4 006 caracteres y `f0ddaf5b…` con 0 marcadores (4 094 con 88 retornos si se pegó desde Windows). Su guardia por md5
+   **PARA** ante cualquier otro cuerpo. Corre también las consultas de impacto y de residuo del encabezado.
+3. **ORDEN CON LA 0526** (borrador sin pegar, rama `agitated-nightingale-7e118e`, reescribe la misma función): pegar la 0549
+   primero; la 0526 se rehace después sobre su cuerpo y con su propia guardia (la fusión de tres vías dio 0 conflictos). Pegada
+   en el orden contrario, la 0526 **revierte en silencio** la 0549.
+4. Las dos se pegan **antes** de fusionar el PR. Si el frontend llega antes: nada se rompe (la tarjeta sin botón, los textos de
+   pago único con constancia dicen la verdad), pero el número rojo de Educación no baja hasta pegar la 0549.
+
+**Pegado el 2026-10-25** (Felipe devolvió las filas de comprobación). Antes de pegar, `fn_educacion_situacion` en producción medía
+4 006 caracteres, md5 `f0ddaf5b…`, 0 retornos y 0 marcadores: la 0450 sin retoques, así que la 0526 no estaba pegada y la guardia de
+la 0549 pasó. **0548:** las nueve columnas de la comprobación en lo esperado y `sin_salida_hoy = 61`, igual a los 61 de la tarjeta.
+**0549:** `registradas` = 548 · 549 · 550 y la función en 4 959 caracteres, md5 `faba3345…`, el de llegada declarado en su encabezado.
+Con las dos pegadas, el PR se puede fusionar **solo con OK de Felipe**; mientras no se fusione, el botón no existe en pantalla.
+
+**Pendiente de Felipe (a mano, no lo hace el código).** Verificar el dominio de envío en resend.com/domains con `RESEND_FROM`
+exactamente en ese dominio y comprobar `RESEND_API_KEY` y el redeploy; cargar en Equipo el correo de las líderes de las sedes
+que salgan en la consulta de causas. Sandra Ramírez (Pop in colors): si su frecuencia está en blanco, un clic —elegir «Pago
+único» y guardar con la fecha vacía— la deja al día; **no guardar «Pago único» + 25/10 antes de pegar la 0549**: la pasaría a
+«falta enviar».
+
+**Decisiones abiertas de Felipe.** (a) Pago único con fecha futura y constancia aprobada queda callado para siempre: ¿el
+comprobante inicial prueba el pago o puede ser una proforma? (b) Mensual/ciclo/otra con «último pago» siguen en «sin
+calendario»: hace falta una columna `es_ultimo_pago`. (c) ¿Botón «descartar» general? Se recomienda que no: casi todos los
+tipos de fila son plazo legal, dinero o una persona esperando respuesta, y el único candidato real (`educacion` sin calendario) se arregló en la fuente.
+(d) «Normas» dice «N constancias pendientes» (la suma es de pares persona-documento) y pesa 1 en el menú. (e) ¿El proyecto de
+Vercel tiene fluid compute? Decide si `maxDuration` sube de 60 a 300 s.
+
+**Probado.** Typecheck limpio y 2 851 pruebas vitest verdes. **440: 94/94 y 441: 29/29** en un Postgres 17 nativo con las
+migraciones 0001–0544 (el Docker de esta Mac estaba colgado); sin sus migraciones se ponen rojas, con 18 mutaciones de la
+0548 y 54 de la ruta en rojo; las 18 pruebas que tocan `alertas` y las 355/226/421/365 dan lo mismo con y sin ellas; el
+caso de Sandra y el de un contrato con aviso de hace 10 días se reprodujeron de punta a punta con las funciones reales; el
+barrido de 1 080 estudios solo cambia los pagos únicos con constancia aprobada. La pantalla se midió en el navegador con un
+simulador de la API (1440 y 390 px; el modo oscuro solo antes de plegar la tarjeta). **No probado:** pgTAP real ni el CI `db-tests` de GitHub, los grants
+reales de Supabase, Resend vivo, y nada contra datos de producción. La 440 original abortaba contra el esquema real
+(fixtures); lo cazó un revisor y quedó corregido.
+
+**Hueco preexistente, cerrado aparte.** La política `alertas_marcar_leida_propia` (0003) dejaba a la dueña de una fila
+cambiar `estado` e `intentos` por PostgREST. Lo cierra la 0550 (entrada de abajo, PR #598, ya fusionado y con el SQL
+pegado): un trigger que solo deja cambiar `leido_at`. Las funciones de la 0548 son `SECURITY DEFINER` y corren como
+`postgres`, así que el trigger no las toca; el CI de este PR lo comprueba con la 0550 ya en main.
+
+## 2026-10-25 — Una alerta solo se marca leída: se cierra el hueco de la política de `alertas` · migración 0550 · SQL PEGADO (2026-10-25) · SIN FUSIONAR (PR #598, borrador) · rama `claude/sad-chandrasekhar-10f114`
+
+**Qué es.** El revisor de la 0548 midió un hueco que viene de la 0003: la política `alertas_marcar_leida_propia` deja a la
+dueña de una fila hacer UPDATE, y una política filtra filas, no columnas. Medido otra vez contra el esquema real
+(`authenticated`, sesión de una integrante): `update alertas set estado = 'enviado', intentos = 0, … where persona_id =
+<la suya>` da UPDATE 1 y deja **once columnas** reescritas —no las cinco del hallazgo; entran `tipo`, `canal`, `payload`,
+`created_at`, `ultimo_intento_at` e `id`—. El `payload` pesa: `/api/alertas-encargadas` arma el correo con él, así que una
+integrante podía fabricar un aviso con el texto que quisiera y el despacho lo mandaba a su encargada o a DO desde el
+remitente verificado de Dynamic. La brecha creció sola con cada `add column` (0354: `nota_fallo`; 0362: tres más). La
+0550 pone un trigger BEFORE UPDATE con **lista permitida** —solo `leido_at` puede cambiar— que aborta si `current_user <>
+'postgres'`, el molde de `fn_bloquear_rol_directo` (0296) y `fn_bloquear_sede_directa` (0342). Una columna que se agregue
+mañana nace cerrada.
+
+**Lo que cambia para quien la usa.** Nada visible: ninguna pantalla ni ruta escribe `alertas` directo (el despacho usa la
+llave de servicio solo para llamar a las funciones por `rpc`), y `leido_at` no lo escribe nadie hoy. Lo que sí cambia: un
+`PATCH /rest/v1/alertas` armado a mano deja de poder mover cualquier cosa que no sea `leido_at`.
+
+**Antes de pegar.** Dos consultas, escritas en el encabezado de la migración (sección «ANTES DE PEGAR»). La primera debe
+volver SIN FILAS: nombra cualquier función de producción, pegada a mano y fuera del repo, que haga `update alertas` sin ser
+`SECURITY DEFINER` de `postgres` — esa dejaría de poder escribir. La segunda trae `registro_550` en `null` y los triggers
+que ya tiene `alertas` (hoy ninguno). **No depende de la 0548** y se puede pegar antes o después; no reescribe ninguna
+función, así que no hay md5 de partida. Como toda migración: se pega ANTES de fusionar, aunque aquí no hay código nuevo que
+dependa de ella. **Pegada el 2026-10-25** (Felipe devolvió la fila de comprobación): el freno está puesto y activo, no es
+`SECURITY DEFINER`, ningún escritor de `alertas` queda fuera (`escritores_que_el_freno_dejaria_fuera = 0`) y el registro dice
+`550 · una_alerta_solo_se_marca_leida`. Con eso la consulta previa ya no hace falta: la tercera columna decía lo mismo.
+Con la migración ya pegada, el PR se puede fusionar **solo con OK de Felipe** (fusionar es publicar) y con el comentario
+`<!-- cayla:fusion-sesion -->` que pide el hook.
+
+**Una decisión que quedó escrita y es de Felipe.** El freno rechaza también a `service_role` escribiendo DIRECTO
+(`.from("alertas").update(…)` con la llave de servicio): solo pasan las funciones `SECURITY DEFINER`. Hoy nadie lo hace.
+Si algún día se quiere dejar pasar a `service_role`, es cambiar una condición en `fn_bloquear_alertas_directo`, y la
+prueba 442 tiene una aserción que lo fija hoy.
+
+**Probado.** En un Postgres 17 nativo (sin Docker; Docker Desktop sigue colgado) con las 544 migraciones de `main`: la
+prueba nueva **442, 33 de 33 con la migración y 22 en rojo sin ella** (las 11 que siguen verdes sin ella son los caminos
+permitidos y los que ya cerraba RLS, que deben darse igual en los dos mundos). Suite entera (345 archivos) con y sin la 0550:
+**la única diferencia es la 442**, aserción por aserción; los 39 archivos que fallan en ese banco fallan igual en los dos
+estados (mini-pgTAP y `auth.users` incompleto). Las ocho pruebas que escriben `alertas` (179, 281–285, 288, 294) pasan
+completas. Con la 0548 de `claude/notifications-calendar-errors-2e8886` dentro: su prueba 440 da 94 de 94 con y sin la
+0550, y la 442 da 33 de 33. Concurrencia medida con dos sesiones: el despacho reserva y retiene la fila 4 s; la dueña marca
+leída al mismo tiempo, espera, no falla y no le pisa `estado` ni `intentos`.
+
+**No probado.** Contra producción (nada se aplicó); con pgTAP real (el banco usa un sustituto que difiere en `throws_ok`;
+`db-tests` de GitHub es la señal fiable); por PostgREST de verdad (se simula con `set role authenticated` y
+`request.jwt.claim.sub`, como las demás pruebas de la casa).
+
+**Visto de paso, sin tocar.** `authenticated` conserva `TRUNCATE` sobre `alertas` por los grants por defecto, pero PostgREST
+no lo expone. Y `grant select, insert, update, delete on all tables in schema public to authenticated` (0004) es la
+línea que reabriría cualquier cierre hecho con grants: por eso esta migración no depende de ellos.
+
+---
+
+## 2026-10-21 — Una estación de retail deja de figurar en planilla · migración 0544 · SQL PEGADO (2026-10-22) · FUSIONADO (PR #578, 2026-10-22) · rama `claude/intelligent-elbakyan-cafd3f`
+
+**Qué es.** Al cruzar el Seguro de Vida Ley contra quién está en planilla, «ESTACIÓN — Producción» salió como una
+persona a asegurar (21 «a cubrir» cuando eran 20). Nació con los defaults de la tabla —vínculo `planilla`, en planilla,
+S/ 1230— y solo después se marcó como cuenta de servicio; las seis anteriores estaban en «Sin vínculo laboral» porque
+alguien las cambió a mano. La 0544 hace que `fn_set_cuenta_de_servicio`, al marcar, deje el vínculo en «Sin vínculo
+laboral» (por `fn_set_tipo_vinculo`, con su rastro). Las dos entradas pasan por esa puerta: el alta de Equipo y el
+interruptor de la ficha. Elegida por Felipe el 2026-10-21 entre tres (solo el alta · la puerta · la puerta + candado).
+
+**Lo que cambia para quien la usa.** Desmarcar ya NO devuelve a la planilla: el vínculo se decide en Equipo, y la
+ficha lo dice en el aviso. Una ficha cesada con otro vínculo ya no se puede marcar. Las consultas del Seguro de Vida
+Ley ya filtran `cuenta_de_servicio` (las cuatro), pero eso llegó por el PR #579 (`main`), no por este.
+
+**Antes de pegar.** md5 de producción medido el 2026-10-21 (Felipe devolvió las filas): `fn_set_cuenta_de_servicio`
+da `2ef42078…` con 2571 caracteres y 59 `\r` — es la 0490 pegada desde Windows (el cuerpo del archivo con `\r\n` da
+exactamente ese md5; `b9b3eb85…` es el del archivo con `\n`). Mismo código, nada roto. `fn_set_tipo_vinculo` y
+`fn_crear_persona` coinciden byte a byte con el repositorio; la 490, la 504 y la 513 están registradas. El freno de la
+0544 pasa contra esa variante. **Pegada el 2026-10-22** (Felipe devolvió la fila de comprobación): una sola versión nueva de la función, `anon` no
+puede marcar, registro `544 · una_cuenta_de_servicio_no_queda_en_planilla`, y md5 de llegada `50c00bbd…` —el esperado,
+pegada con saltos de línea normales—. La única estación en planilla seguía siendo «ESTACIÓN — Producción Lima», como se
+esperaba. Con la migración ya pegada, el PR se puede fusionar **solo con OK de Felipe** (fusionar es publicar).
+
+**Pendiente de Felipe (a mano, no lo hace la migración).** «ESTACIÓN — Producción» sigue en `planilla` hasta que la
+pase a «Sin vínculo laboral» desde Equipo. La comprobación final de la 0544 la nombra mientras siga así. El candado
+en la tabla (`check (not cuenta_de_servicio or tipo_vinculo = 'no_trabajador')`) queda para después, cuando esa fila
+ya esté bien.
+
+**Probado.** En un Postgres desechable con las 520 migraciones de `main`: la prueba nueva 436, 23 de 23; **sin la
+migración 12 de sus aserciones se ponen en rojo**. Toda la suite (344 archivos), con y sin la 0544: la ÚNICA
+diferencia es la 436 (los 19 archivos que fallan en ese banco fallan igual en los dos estados). Repegar la 0544 no
+cambia nada; el freno se detiene ante una versión posterior, dos firmas o sin `fn_set_tipo_vinculo`. **No probado:**
+la ficha en el navegador (solo cambiaron dos textos) ni contra la base real.
+
+## 2026-10-21 — Seguro de Vida Ley: la póliza existe (Pacífico, Nº 143720), cuesta S/70 al mes y dos personas siguen sin certificado en mano · sin SQL nuevo · FUSIONADO Y PUBLICADO (PR #579, 2026-10-21) · corregido con las liquidaciones de prima en un PR nuevo, SIN FUSIONAR · rama `claude/vida-ley-liquidaciones`
+
+**Qué cambió respecto de lo que decía este archivo.** Hasta hoy `estado.md` y el Reglamento decían «cotizado en La
+Positiva, sin firmar». Felipe pasó quince certificados individuales y el seguro **está contratado con Pacífico
+Seguros**: póliza colectiva **Nº 143720** (código SBS VI2007310027), contratante CAYLA S.A.C. La cotización de La
+Positiva (S/170 al mes por 19 personas) ya no es la referencia. Este repo no dice por qué se eligió Pacífico; la
+prima real y el inicio de la póliza salen de tres liquidaciones de prima (sección que sigue a los certificados).
+
+**Lo que dicen los certificados** (leídos con `pdftotext`; sin nombres ni DNI aquí):
+- 16 remuneraciones por muerte natural y 32 por muerte accidental o invalidez total y permanente por accidente, sin
+  exclusiones (D. Leg. 688).
+- **La cobertura de cada persona empieza a las cero horas del día 1 del mes en que Pacífico la declara por primera
+  vez**, y dura mientras siga en la declaración de planilla y la prima esté pagada. Sin declaración no hay
+  certificado ni cobertura: declarar tarde es un hueco sin seguro, y no se recupera.
+- Si la prima no se paga y pasan 90 días desde la fecha fijada en las condiciones particulares, la póliza se
+  extingue y terminan las coberturas de **todos**.
+- Cada persona debe entregar a CAYLA una declaración jurada con firma legalizada que nombre a sus beneficiarios;
+  sin ella se paga a los herederos tras una sucesión intestada. Al cesar, puede pedir continuar el seguro dentro de
+  los 60 días siguientes (numeral 59.6 del Reglamento).
+- **No traen** la fecha de inicio de la póliza, la prima, las condiciones particulares ni si se contrató la
+  cláusula de «Cobertura Adicional a la Remuneración Máxima Asegurable». El inicio y la prima sí salen de las
+  liquidaciones, abajo.
+
+**Lo que dicen las liquidaciones de prima** (tres PDF que Felipe pasó el 2026-10-21; también sin nombres):
+- Póliza 143720, plan «Vida Ley Empleados (D.L. 688)», **sin intermediación** (sin corredor, como confirmó Dante),
+  pago al contado, una liquidación por mes. **Inicio de la póliza: 01/08/2026.** El fin no consta en ningún papel;
+  el certificado dice «anual renovable».
+- **Prima: S/70.00 al mes** (59.32 + 10.68 de IGV), **la misma en septiembre y en octubre** aunque la masa declarada
+  subió de S/20,160 a S/22,420: entre esas dos liquidaciones no subió con la planilla. Es menos de la mitad de los
+  S/170 de La Positiva (0.31 % de la masa de octubre). Más **S/5.00** (4.24 + 0.76) por una inclusión en octubre.
+
+  | Documento | Cubre | Se emitió | Vence |
+  |---|---|---|---|
+  | Liquidación 3210083 | 01/09 al 01/10 | 31/08 | 30/09 |
+  | Liquidación 3242885 | 01/10 al 01/11 | 06/10 | 31/10 |
+  | Ajuste 3244429 (una inclusión) | 01/10 al 31/10 | 12/10 | 31/10 |
+
+- **«La cobertura, por la vigencia indicada, se inicia con el pago de la prima.»** En ningún papel consta que se
+  hayan pagado.
+- Traen totales de remuneraciones y **no nombres**: no dicen a quién se declaró cada mes.
+
+**El cruce (2026-10-21, consultas de Felipe en producción).**
+- **Quince certificados en mano; los números son correlativos y la serie tiene dieciocho.** Faltan tres. No se sabe a
+  quién corresponden.
+- **Probablemente Pacífico declaró a 18 personas en octubre.** Los S/22,420 de esa liquidación entre 18 dan unos
+  S/1,245 por persona, que cuadra con un sueldo base de S/1,230, y la serie tiene 18 números. **Es deducción, no un
+  papel:** los tres certificados que faltan podrían ser de las dos personas de abajo.
+- En planilla hoy, con vínculo `planilla`: **17 personas, masa de base legal S/21,400**. Quince tienen certificado
+  en mano y **dos no**: una de TRU (ingresó el 2026-09-03) y una de AQP (ingresó el 2026-10-02), las dos con la
+  ficha completa. Los nombres viven en la salida de la consulta, no en git.
+- **La de TRU puede tener un hueco.** Su ingreso es posterior a la liquidación de septiembre (emitida el 31/08): si
+  Pacífico la declaró por primera vez en octubre, la cobertura empieza el 1 de octubre y del 3 al 30 de septiembre
+  estuvo sin seguro. Solo se salva si hubo una inclusión de septiembre, y ese papel no lo tenemos. La de AQP no
+  tiene hueco si entró en la declaración de octubre.
+- Nadie con certificado quedó fuera de planilla: los quince siguen en planilla.
+
+**Decidido por Felipe (2026-10-21): el seguro se cuenta solo sobre `tipo_vinculo = 'planilla'`.** Quedan fuera
+las personas de prueba (la prueba de tres días, 0536) y las estaciones. **Objeción registrada:** la consulta las
+incluía a propósito porque la obligación nace con el trabajo efectivo y no con el contrato; mientras dura la
+prueba esas personas no tienen seguro de vida (ni EsSalud, 0484). El riesgo es corto y chico, no cero. Cuando
+alguien de prueba pase a contrato hay que declararla a Pacífico **ese mismo mes**, y nada en el sistema lo avisa.
+
+**Lo que se corrigió en las cifras.** La consulta 4 dio «21 a cubrir» y S/26,320 de masa. Eran 20 personas más una
+estación de retail (Lima, Producción): marcada `cuenta_de_servicio` —por eso la planilla (0491) no le paga—, pero
+con vínculo `planilla`, en planilla y S/1,230, a diferencia de las otras seis estaciones (`no_trabajador`, S/1,130).
+La causa es que el alta de una estación en Equipo (`fn_crear_persona`, 0513) inserta con los valores por defecto de
+la tabla y la marca después. El 0.646 % que daba la consulta era S/170 de La Positiva sobre esa masa: **no es el
+costo de Pacífico y no sirve para decidir**. La prima real es S/70 al mes (liquidaciones), 0.31 % de los S/22,420
+declarados en octubre.
+
+**Pendiente, en este orden.**
+1. **Confirmar que se pagaron las liquidaciones (Felipe).** La cobertura «se inicia con el pago de la prima»:
+   septiembre (S/70, venció el 30/09), octubre (S/70) y la inclusión (S/5); las dos últimas **vencen el 31/10**. En
+   ningún papel consta el pago. Con 90 días de mora la póliza se extingue para todos.
+2. **Pacífico o la corredora (Felipe):** pedir por su número los tres certificados que faltan y confirmar si son de
+   las dos personas sin certificado; si no, declararlas en octubre (cubre desde el día 1 si se declara dentro del
+   mes: preguntar hasta qué día). Preguntar también si la de TRU entró en una inclusión de septiembre, a quién
+   corresponde la inclusión de octubre, cuándo termina la póliza y las condiciones particulares.
+3. **Registrar la póliza en el MTPE** dentro de los 30 días de firmada. No consta en este repo que se haya hecho.
+4. **Las declaraciones juradas de beneficiarios**, una por persona, con firma legalizada. No consta que se hayan pedido.
+5. **Cambiar el vínculo de la estación de Producción** a «Sin vínculo laboral», desde Equipo (Felipe). Se hace por
+   `fn_set_tipo_vinculo`; desde el SQL Editor esa función se niega porque no sabe quién la llama. No se verificó que
+   Equipo deje cambiarlo desde el bloque de estaciones. La causa de fondo —el alta de una estación no fija el
+   vínculo— está en otra sesión, rama `claude/intelligent-elbakyan-cafd3f` (PR #578, migración 0544, «Estaciones de
+   retail nacen como "Sin vínculo laboral"»); su estado vive en su propia sección.
+6. **Cargar la póliza en el módulo Seguros**, cuando se decida la prima y esté el fin de la póliza. El selector ya
+   muestra «Vida Ley (va además del principal)» (captura de Felipe, 2026-10-22), así que el tipo existe. Datos: número
+   143720, Pacífico Seguros, **inicio 01/08/2026**; el fin no consta (anual renovable) y **la prima es mensual y de
+   grupo (S/70, S/75 con la inclusión)**, mientras el formulario la pide por persona y por todo el periodo: cómo
+   anotarla es una decisión abierta de Felipe y DO. **No usar el atajo «Las de planilla»**: marcaría a las 17,
+   también a quien aún no tiene certificado, y la lista de asegurados la daría por cubierta. **El lector de PDF no
+   entiende estos certificados** (probado con `leerPolizas` el 2026-10-21: lee 0 pólizas de los quince): no traen
+   vigencia ni prima ni el formato «Asegurado: nombre documento» que espera, así que todo se teclea y cada PDF se
+   sube a la póliza de su persona, con la casilla de copiar a las demás sin marcar.
+7. **Reglamento:** los tres puntos que esto bloqueaba (27.1 d, 59.6 y el anuncio al ingreso) dejan de depender de que
+   exista la póliza. Revisarlos cuando se confirme que todas las personas de planilla están declaradas (ver
+   `reglamento-pendientes-de-construir.md`, punto 26).
+8. **El indicador del umbral de 20 trabajadores** sigue acordado para después de cerrar Vida Ley (tabla de «lo que
+   no bloquea», más abajo). El conteo correcto hoy es 20 personas: 17 de planilla y 3 de prueba, sin estaciones.
+
+**Qué se tocó en el repo.** Solo documentos y la consulta [`quienes_van_al_seguro_de_vida_ley.sql`](../scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql):
+ahora excluye las cuentas de servicio, cuenta solo `planilla`, ya no calcula el porcentaje contra los S/170 de La
+Positiva y suma una consulta 5 (cruce contra los certificados, con una fila de ejemplo en vez de DNI reales).
+**No probado:** nada se pegó ni se corrió en producción desde esta sesión; las cifras salen de lo que Felipe pegó del
+SQL Editor. La consulta nueva se comprobó solo de sintaxis, contra una copia temporal de `personas`.
+
+**Corrección con las liquidaciones (PR nuevo, solo documentos).** La primera versión de esta sección decía «dos por
+declarar» y «no consta la prima»: con las liquidaciones, la prima es S/70 al mes, la póliza empezó el 01/08/2026 y
+lo más probable es que Pacífico ya haya declarado a 18 personas, de modo que las dos sin certificado en mano pueden
+estar declaradas (deducción, sin confirmar). Se agregó además lo que no estaba a la vista: la cobertura depende del
+pago de cada liquidación. El comentario de la consulta de Vida Ley que decía que la prima no estaba en el repo se
+actualizó. **No probado:** que las liquidaciones estén pagadas, y a quién corresponden los tres números de la serie.
+
+## 2026-10-21 — Vida Ley entra a los tipos de seguro como seguro del sistema · migración 0543 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/seguro-vida-ley-tipo-9df9ee`
+
+**Qué es.** Felipe vio «Tipos de seguro» con solo EsSalud y FOLA y preguntó si se agregaba Vida Ley. La 0528 ya
+la daba por hecha como algo que DO agregaría con «+ Agregar un seguro»; ahora viene sembrada: una fila en
+`seguros_tipos` con clave `vida_ley`, **complementaria** (va además del principal), con póliza, sin vínculos
+automáticos y **del sistema** (no se archiva ni cambia de nombre por un clic). Con ella ya se puede registrar la póliza
+colectiva a todas de una vez, leer el PDF y bajar la lista de asegurados. La descripción lleva lo que el
+repositorio ya decía (D. Leg. 688 modificado por el D.U. 044-2019 y la Ley 31408; 16 y 32 remuneraciones; MTPE
+en 30 días) y se puede editar desde la pantalla si el contador corrige algo.
+
+**Por qué sembrada y no «que la agregue DO».** La clave. El día que se construya el aviso «persona en planilla
+sin Vida Ley» tiene que apuntar a un tipo que existe con un nombre estable; agregada a mano habría podido
+salir `seguro_de_vida` y habría que adivinar cuál es la buena.
+
+**Lo que NO se hizo, y sigue decidido así.** No hay aviso de quién está en planilla y fuera de la póliza: Felipe
+decidió el 2026-10-19 que espera la respuesta del contador (y qué vínculos obligan, ¿entra quien está de prueba?).
+Para un complementario, «estar en él» sigue siendo tener su póliza vigente. Tampoco se registró ninguna póliza:
+la de La Positiva no está firmada. **[Corregido el 2026-10-21, en la sección de arriba: lo contratado es Pacífico,
+póliza Nº 143720, con quince certificados emitidos. Y sobre «¿entra quien está de prueba?»: Felipe decidió ese mismo
+día que el seguro se cuenta solo sobre `planilla`.]**
+
+**Antes de pegar.** La consulta de solo lectura está en la cabecera de la 0543 (esperado: tipos de hoy = FOLA y
+EsSalud, cero pólizas de `vida_ley`). Si DO ya la agregó a mano con esa clave, la migración solo la marca «del
+sistema» sin tocar su descripción; si la dejó como principal por error, no la toca y la comprobación final lo
+muestra. **El PR no se fusiona hasta que esté pegada** (CLAUDE.md: la migración va antes).
+
+**Probado.** En un Postgres desechable con las 519 migraciones de `main`: la prueba 422 pasó de 308 a 312
+aserciones, 312 verdes (había que editarla: creaba «Vida Ley» ella misma y ahora chocaría); la 423, 116 de 116;
+repegar la 0543 no duplica nada; su propio bloque de revertir la quita; **sin la migración las aserciones nuevas
+se ponen en rojo** (37, 39, 40, 41, 42), con ella en verde. Probados los dos estados previos que podría tener
+producción (ya agregada bien, o agregada como principal). **No probado:** la pantalla con la fila nueva (no
+cambió código de pantalla) ni contra la base real: el estado actual de `seguros_tipos` en producción solo lo
+ve Felipe.
+
+## 2026-10-21 — Una oficina mide su meta en integrantes en la sede · SIN SQL · PR #576 ABIERTO, SIN FUSIONAR · rama `claude/problema-con-el-5-ca9a30`
+
+**Qué es.** Oficina TRU (sede de tipo `central`) salía en ámbar «5 trabajando ahora · meta por revisar» todos
+los días: su meta de 4 se medía contra personal de áreas operativas, y en una oficina no hay. Decisión de
+Felipe: la meta de una central es cuántos integrantes hay en la sede, y con ellos en piso sale verde
+(«5 / 4 integrantes · Cobertura correcta»). Sigue al #574, que solo había cambiado el titular de la fila.
+
+**Cómo.** Una sola regla, en `cuentaEnCobertura` (`packages/shared/src/cobertura-equipo.ts`): `cuentaEnMetaOp`
+= la persona operativa y, en una central, cualquiera del equipo menos quien está de prueba. `operativa` NO
+cambia —sigue diciendo «su área es operativa»— porque la usa el aviso de «marcó sin horario», que en una
+oficina sería ruido diario. Dashboard, Turnos y Reporte de sede leen el campo nuevo; la palabra pasa a
+«integrantes» solo en una central. Tienda y taller: nada cambia.
+
+**Lo que NO se hizo.** Turnos y Reporte de sede cuentan igual, pero Turnos todavía escribe «operativas» en sus
+rótulos aunque la sede sea central. Y la meta de 4 sigue guardada tal cual en Turnos: si Oficina TRU crece,
+se sube ahí. La salida de marcar sus áreas como operativas en Áreas (la que dejó escrita el 2026-10-20) ya no
+hace falta para una central.
+
+**Probado.** 2 527 pruebas verdes; se rompió la regla a propósito y la prueba nueva se puso en rojo. Visto en
+el navegador contra un simulador de la API con datos inventados (oficina central de 6 con 5 en piso y meta 4,
+y una tienda de 3 con 2 en piso y meta 3): la oficina sale verde con «5 / 4 integrantes», no aparece en
+«Requiere atención», y la tienda sigue en rojo con «2 / 3 operativas». **No probado:** contra datos reales de
+producción (esta sesión no los consulta) ni el Reporte de sede ni Turnos en pantalla.
+
+## 2026-10-21 — La diferencia real de una liquidación pagada se cierra con una constancia · migración 0542 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/remover-pago-duplicado-8c818a`
+
+**Qué es.** La pantalla de Liquidaciones decía «pagarla, compensarla o dejar constancia», y «dejar constancia»
+nunca existió: una diferencia real en una liquidación ya pagada no se podía cerrar, así que «3 con
+diferencias» no bajaba jamás y acabó leyéndose como ruido. Felipe pidió quitarlo (2026-10-21) y se hizo en dos
+pasos, en commits separados:
+
+1. **La lista deja de marcar «Cálculo cambió»** (sin SQL): se fueron la pastilla, la casilla y la insignia por
+   fila. El aviso rojo sigue dentro del desglose y la columna «Cálculo cambió» sigue en el CSV.
+2. **Registrar qué pasó con la diferencia** (0542 + pantalla): un libro de constancias que solo se agrega, una
+   sola puerta de escritura (`fn_liquidacion_constatar`) y una lectura de un solo instante
+   (`fn_liquidacion_constancia_estado`). **No toca ninguna función ni tabla existente**, por eso no lleva md5
+   de partida. Detalle de diseño en la cabecera de la migración.
+
+**Decidido (Felipe, 2026-10-21): opción 1, la constancia mínima.** El servidor calcula el SENTIDO de la
+diferencia (`ahora − pagado`) y la decisión depende de él: a favor de la persona → «lo pagado era lo correcto»
+con un apoyo obligatorio; a favor de CAYLA → «no se reclama» o «devolución acordada» (Reglamento 29.6); y
+«retirar», que reabre. Una diferencia mixta no se puede constatar: queda abierta. **No hay «ya se pagó por
+fuera»** (ese camino es «Volver a marcarla como pagada», que guarda la fecha real de pago) ni «compensada»
+(choca con 29.6). Vale mientras la «huella» del cálculo coincida: si cambia, el aviso vuelve solo.
+
+**Pendiente, en este orden.**
+1. **Pegar la 0542 ANTES de fusionar** (`./scripts/dame-el-sql.sh 542`). Si el código llega primero no se
+   rompe nada: sin poder leer el estado la pantalla se comporta como antes (`queDibujarDeLaConstancia`, con
+   su prueba). La consulta del final de la migración tiene que dar: tabla con RLS, `authenticated` sin
+   insert/update/delete/truncate, tres funciones y el registro `542 · la_diferencia_de_una_liquidacion_pagada…`.
+2. **Las tres diferencias reales de producción** (Felipe las pasa aparte). Con ellas se ve si el catálogo
+   alcanza: concepto, signo, y si alguna es mixta. Ninguna sesión pudo leerlas: producción no está a su alcance.
+3. **Una pregunta nueva al laboralista**, que no está en ninguna consulta abierta: ¿puede CAYLA dejar sin
+   pagar una diferencia a favor de alguien que ya cesó? De la respuesta sale el texto de «lo pagado era lo
+   correcto». Una constancia así es un registro con nombre y fecha de que CAYLA vio el número y decidió.
+4. **Cerrar `liquidacion_pagada`** (propuesto, NO escrito): ninguna migración ni prueba revoca sus privilegios;
+   el trigger frena UPDATE y DELETE pero no TRUNCATE. Se llegaría solo con una conexión directa, no por la API.
+   (La 0542 agrega una FK hacia esa tabla, así que `truncate liquidacion_pagada` ya exige `cascade`; eso no la cierra.)
+   Primero confirmarlo en producción con `has_table_privilege('authenticated', 'liquidacion_pagada', 'truncate')`.
+5. **La pastilla «N con diferencias» NO vuelve a la lista** y no se decidió que vuelva. Exigiría reescribir
+   `fn_liquidaciones_pendientes` (0475; otro ritual de md5) y los números que se estimaron («~0.5 s hoy») salían
+   del Postgres local; producción ya canceló esa misma consulta por tiempo (0474). Medir primero en el SQL Editor
+   —con el claim de un admin puesto, o devuelve cero filas— el tiempo de la lista.
+6. **El CSV** sigue diciendo «Cálculo cambió: sí» aunque ya haya un registro, porque la lista no sabe de
+   constancias. Decidir si la columna pasa a «abierta / resuelta».
+
+**Lo que encontró la revisión independiente (tres revisores, 2026-10-21) y ya está corregido en la 0542.**
+La más seria: si la diferencia real está en «Sueldo del periodo» y el periodo ya tiene registrado el descuento
+del cierre, esa fila pasa a ser Δ − D y puede cambiar de SIGNO (+11.54 a favor de la persona se volvía −488.46
+«a favor de CAYLA»), y la base dejaba registrar «devolución acordada» sobre una cifra que nunca existió. Esta
+sesión lo había dado por benigno; no lo era. Ahora, mientras haya un descuento de cierre registrado y esa fila
+esté entre las reales, **no se puede constatar**; al cerrar el mes la fila pasa a «esperada por el cierre» y el
+aviso desaparece solo. Además: una versión NULL ya no se salta la comprobación de versión; un motivo de solo
+saltos de línea o tabuladores ya no cuenta; **retirar** ya no depende de poder registrar algo nuevo (quien se
+equivocó puede reabrir aunque la persona se haya reactivado); «anterior» no se devuelve junto a una vigente;
+la guardia de la migración para si `fn_persona_liquidada` es la 0421 (sin la 0499 una constancia podría cerrar
+el aviso de un cese que ya no es el de la persona); `huella_formula` (cambiar la fórmula de la huella ya no
+reabre todas las constancias por accidente); la secuencia de `orden` y el TRUNCATE quedaron cerrados.
+
+**Probado.** La 0542 aplicada dos veces sobre un Postgres desechable con las 518 migraciones de la rama, y su
+guardia comprobada (aborta si `fn_persona_liquidada` es la 0421). Prueba 435 con 118 aserciones en verde, que
+incluye 30 que escribió un revisor tras ejecutar 35 mutaciones nuevas (la prueba de entonces cazaba 6 y dejaba
+pasar 29). **39 mutaciones de la migración (26 de funciones y 13 de esquema), todas puestas en rojo.** Dos
+revisores ejecutaron además dos sesiones concurrentes reales: el candado por persona sí serializa, y la
+carrera con «Volver a marcarla como pagada» es inerte. Suite pgTAP completa con y sin la 0542 —quitándola con
+su propio bloque «cómo se revierte», que así también quedó probado—: mismas aserciones en los 342 archivos
+restantes. Fallan 28 archivos con o sin la 0542, no 20: los 8 de más cuentan filas globales (personas, periodos)
+y los alteran los datos de prueba que se dejaron en el banco para ver la pantalla; no tienen que ver con esto.
+Pantalla probada en el navegador contra las funciones SQL REALES (no un simulador): registrar, corregir,
+retirar y las cuatro situaciones (a favor de la persona, a favor de CAYLA, mixta, la que cuadra). `vitest`
+2 525 en verde, typecheck limpio. **No probado:** `db-tests` de GitHub, producción, dos personas pulsando a la
+vez desde el navegador (sí desde SQL), la pantalla en móvil, y la ventana «descuento registrado, mes abierto»
+en el navegador (sí en SQL, prueba 435).
+
+## 2026-10-19 — Términos primero, guía después, en «Lo mío» · migración 0540 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #561, 2026-10-19) · rama `claude/dynamic-terms-conditions-modules-44a3d3`
+
+**Qué es.** La guía de primera vez (driver.js) arrancaba sola, sin condiciones, y antes o a la vez que
+cualquier otra cosa que se le pide a la persona. Ahora una sola función (`capaActiva`, en
+`packages/shared`) decide qué le toca a la persona al abrir un módulo —términos de uso, términos del
+módulo o guía— y **nunca dos a la vez**. Las dieciséis secciones de «Lo mío» tienen su guía: aro suave,
+dos o tres pasos, «Omitir», y «Ver guía de esta pantalla» en la cabecera de Info.
+
+**Lo que ya se ve hoy:** las guías (con su novedad en `novedades.ts`). **Lo que NO se ve todavía, a
+propósito:** los términos. Los diecisiete textos de `packages/shared/src/terminos.ts` están en
+`borrador`, y un borrador es invisible para la pantalla: no se muestra y no bloquea nada. Para que uno
+salga hay que cambiar su `estado` a «aprobado» con quién y cuándo, y pegar su huella en
+`tests/terminos.test.ts`.
+
+**Decidido (Felipe, 2026-10-19):** bloquean solo los términos de uso y los módulos con casilla. Cinco
+piden casilla (términos de uso, Vacaciones y permisos, Firma, Mis datos, Reportes); cuatro ya tienen su
+propia constancia y solo apuntan a ella (Boletas, Mi DNI, Movilidad, Disciplina); el resto es un aviso.
+
+**Pendiente, en este orden.**
+1. **DO y el laboralista leen los textos.** Se corrigieron seis que prometían lo que su pantalla no hace
+   (Vacaciones y permisos, Disciplina, Movilidad, Educación, Mis datos, Objetivos), pero ninguno lo ha leído
+   un humano de DO. Ojo con dos: el de Movilidad ya no dice «carácter no remunerativo conforme al pacto»
+   (no se pudo comprobar contra la pantalla) y puede que el laboralista lo quiera de vuelta; y Disciplina no
+   menciona un descargo porque la pantalla no tiene dónde presentarlo.
+2. ~~**Pegar la 0540**~~ **HECHO el 2026-10-19.** Se pegó DESPUÉS de fusionar el PR —el orden de CLAUDE.md es
+   el contrario—, y no pasó nada porque con todos los textos en borrador el código no consulta la base. El SQL
+   Editor devolvió «Success», y la consulta de control dio: registro «540 · las_aceptaciones_de_terminos_por_modulo»,
+   las tres funciones (`fn_aceptaciones_terminos_inmutable`, `fn_aceptar_terminos`,
+   `fn_mis_aceptaciones_terminos`), 1 trigger de inmutabilidad, 2 políticas y 0 filas; `authenticated` no puede
+   insertar directo y `anon` no puede ni leer la tabla. El script la copió con el md5 del archivo y GitHub
+   coincidentes, y el portapapeles se comparó aparte con el locale UTF-8 (136 acentos intactos).
+3. **Aprobar los textos de a uno, empezando por «general».** Hasta entonces nadie ve ni acepta nada.
+
+**Probado.** La 0540 con su prueba 433 (28 aserciones) en un clon desechable, con ocho sesiones aceptando
+la misma versión a la vez (una dice true, siete false, una fila); `types.ts` comparado contra los tipos
+generados de verdad con la 0540 aplicada. La prueba 433 también dio verde en `db-tests` de GitHub, sobre
+una base construida desde cero. **No probado:** el flujo completo de aceptar un texto contra la 0540 en
+producción (nadie ha aceptado nada: no hay texto aprobado), «Tus últimos periodos» de Historial, y el panel
+de vista previa de la app no dispara `requestAnimationFrame` (las guías se vieron con esa función
+sustituida; en un navegador normal debería verse igual).
+
+## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #555, 2026-10-19) · rama `claude/seguros-module-analysis-redesign-70bbe4` (rescató `claude/seguros-etapa-2-mi-seguro`, antes `elegant-mayer-3e584e`)
+
+**Qué es.** Cada colaborador ve SU seguro en `/mio` → Documentos → «Mi seguro»: en cuál está hoy;
+si lleva póliza, su número, la aseguradora, hasta cuándo es vigente, el plan y el máximo anual **solo
+si el corredor ya los confirmó**, y el PDF de su póliza y de su convenio de pago para **abrir o
+descargar**. Quien está en EsSalud ve el nombre y que **se paga por planilla y no lleva póliza**;
+quien no tiene seguro principal (honorarios) ve que no tiene uno asignado. Se ven las pólizas de
+CUALQUIER seguro, también las del que tenía antes de cambiar. El «Cómo usar tu seguro» sale solo
+para el seguro que lo tiene (hoy FOLA) y solo mientras su póliza está vigente. Las secciones de Lo
+mío pasan a dieciséis.
+
+**Rediseño y guía corregida (2026-10-19, esta rama).** Sin SQL nuevo: la 0530 es la misma.
+- **La póliza vigente va primero.** Se midió en 375 px con una practicante de prueba: el número iba en 14 px dentro de
+  una frase, el primer botón de PDF quedaba en y=803 de 812 y el resumen repetía la vigencia de la tarjeta. Ahora es
+  una tarjeta con el número en 24 px y botón «Copiar», «Abrir» como botón principal (y=630), los teléfonos de la
+  aseguradora con su uso, y debajo «Cómo usar». Sin póliza vigente (EsSalud, hueco, sin seguro) queda el resumen de
+  siempre. `resumenSoloRepite` (`lib/mi-seguro.ts`) decide cuándo el resumen se omite. La tarjeta con la foto y el
+  nombre de «Lo mío» ocupa ~250 px arriba y no se tocó (otra rama reordena `/mio`).
+- **La guía de FOLA se cotejó con el PDF de una póliza** y se corrigió: la emergencia va primero con el plazo de
+  24 horas para avisar a Pacífico (p.25 del PDF); la atención en la red lleva deducible y coaseguro (ya no dice «basta
+  con el DNI»; NO se escriben montos porque no sabemos en qué red está cada clínica); el reembolso es para lo de fuera
+  de la red y se liquida por el tarifario; el seguro dura lo que el convenio de prácticas; los dos teléfonos se rotulan.
+  La póliza sigue sin decir el plan ni el máximo anual: la pantalla no los muestra.
+- **Por confirmar con la corredora:** que «Pacífico Asiste» sea la Central de Emergencias y Asistencia (415-1515); lo
+  dedujo la sesión, el resumen de la póliza no trae el número.
+- **El texto para quien está en EsSalud** quedó en borrador con la fuente de cada frase (la mayoría de las páginas de
+  EsSalud se leyeron por resumen y hay que cotejarlas; `gob.pe` bloquea el lector). **No está en el código**: lo validan
+  Felipe y el contador. Además guarda una pregunta para el contador: si todas las personas de planilla y de prueba
+  figuran activas en EsSalud.
+- **Decidido por Felipe (2026-10-19):** rescatar esta rama en vez de rehacerla; la mora se mantiene neutral (la persona
+  no ve «suspendida»); el texto de EsSalud sale de fuentes oficiales y lo valida él con el contador; la alerta de
+  Vida Ley / SCTR espera la respuesta del contador.
+
+**FUSIONADO Y PUBLICADO el 2026-10-19 (PR #555).** Felipe pidió fusionar («fusiona») después de que la sesión le preguntara
+sí o no. La fusión se hizo a las 12:43 (hora de Lima), commit `cfbd009f`, con `--merge` y sin `--auto`; `db-tests` y
+`ui-tests` estaban en verde sobre el último commit (`f6b46ea3`) y `main` no se había movido. Vercel marcó el despliegue
+de producción de ese commit como `success` a las 12:44. **No se abrió «Mi seguro» con una cuenta real en producción:**
+que `/admin/seguros` y `/mio` respondan 200 no lo prueba, porque ya existían.
+- **Por qué se fusionó antes de que DO cargue las pólizas.** DO las sube por el sistema, y con la 0530 pegada la
+  pantalla de producción de ese momento decía «solo los ve Desarrollo Organizacional» (ya falso: la póliza y el
+  convenio los ve también la persona), dejaba la casilla «guardarlo también en las otras pólizas» marcada por defecto
+  y no pedía confirmar. Con un número tecleado dos veces en dos pólizas FOLA, un PDF con DNI se habría copiado a la
+  póliza de otra persona. La pantalla de este PR trae los avisos, la casilla sin marcar y la confirmación.
+- **Lo que ve el equipo desde ya:** cada practicante lee «Todavía no tienes una póliza registrada» hasta que DO cargue la
+  suya (no es una alarma); quien está en EsSalud lee que se paga por planilla y no lleva póliza. El texto «Cómo usar
+  EsSalud» NO está publicado.
+- **Quién lo ve y lo carga:** solo `admin` y `lider_do` (DO y sus superiores); los líderes de equipo no ven nada de
+  seguros. Todo lo que se agrega o se edita pasa por el sistema, no por SQL.
+
+**Su historia, para que nadie la repita.** Se construyó primero acotada a los practicantes, sobre
+la primera 0528 (solo FOLA). Cuando Felipe hizo general el módulo, esa versión se descartó entera
+—nunca se pegó— y se rehízo sobre la 0528 nueva. Lo que cambió, y por qué importa: la puerta pasó
+de «hoy soy practicante» a **«es MI póliza»**. Con «hoy soy practicante», quien pasa de FOLA a
+EsSalud perdería el PDF de una póliza que sigue vigente hasta que la aseguradora procese la baja.
+
+**Traída la etapa 1 YA PUBLICADA (2026-10-17, por la tarde).** La rama se rehízo sobre `main` —la 0528
+final está pegada en producción y fusionada, PR #551— trayendo la rama de esta etapa encima: tres
+conflictos y ninguno de fondo.
+- `archivos-poliza.tsx`: se juntan los imports. Y se reconcilian dos textos que se contradecían: la
+  etapa 1 dejó una casilla «guardarlo también en las otras pólizas» que decía que el papel es uno y que
+  cada persona lo tiene en su ficha, y esta etapa hace que cada persona abra en «Lo mío» la póliza y el
+  convenio de SU póliza. **Cruce que importa:** en una póliza colectiva, copiar el PDF a todas las
+  pólizas lo pone al alcance de todas las personas aseguradas. Por eso ahora, en una póliza colectiva,
+  el aviso dice que cada persona verá lo que se suba como póliza o convenio de pago (todas, si se
+  copia a las demás) y que no lleve listas con el DNI o el sueldo de otras personas; y la casilla dice,
+  según el tipo, si cada persona lo abrirá o solo DO. «Otro papel» sigue sin copiarse.
+- La 422: gana la de `main` (la misma aserción #2, con su descripción al día). La #226, que fallaba en
+  esta Mac mientras la base local compartida tuviera los PDF de la demo en el bucket, ya no falla: la
+  422 de `main` cuenta solo sus propios archivos, y así se corrió.
+- `estado.md`: queda esta entrada arriba y la de la etapa 1 debajo; se quita el párrafo que decía que
+  esta etapa vivía en otra rama.
+Después se trajo `main` otra vez (PR #554: el freno de la «receta suelta»), que frenó el push por un
+«Cargando…» escrito a mano en `mi-seguro.tsx`; ahora usa `<Cargando />`.
+**Con la 0528 FINAL, la 0530 y las migraciones nuevas de `main` (0527, 0531, 0532 y 0533) aplicadas
+desde cero, en una transacción que se revierte: 422 = 308/308 y 423 = 108/108**, sin errores; `tsc` y
+las 2210 pruebas de `vitest` en verde; y los frenos del push, todos. «Mi seguro» se vio otra vez en el
+navegador contra la 0528 final (practicante con póliza vigente y una futura, EsSalud sin póliza,
+planilla con una póliza FOLA que le quedó; «Descargar» firma y baja `Poliza-FOLA-<número>.pdf`).
+
+**Antes, con la punta de entonces (`112bfcb3`, merge `91d9c583`, también 2026-10-17).** La
+revisión independiente de la etapa 1 movió dos cosas que me tocan, y ninguna cambió una firma:
+- **El número de una póliza ya no identifica a una persona.** El índice único lleva ahora
+  `persona_id`: una póliza colectiva (vida, EPS) puede repetir aseguradora, número y vigencia entre
+  personas distintas. `fn_mi_seguro` y `fn_mis_polizas` nunca emparejaron por número —todo es por
+  `poliza_id` y `persona_id`—, y ahora la **423 lo prueba** (sección I, 17 aserciones): dos personas
+  con la MISMA póliza ven una cada una, con solo su archivo, en las tres lecturas. Tres mutaciones
+  que emparejan por número la rompen. (Una renovación que conserva el número también repite
+  número dentro de una persona; tampoco se confunde.)
+- **La cobertura puede estar «suspendida»** (póliza vigente por fechas, prima sin pagar más de 30
+  días). La calcula la pantalla de DO con `estadoPrima`; la base no lo sabe. Por eso la tarjeta de
+  «Mi seguro» ya no dice «cubierto» (ver abajo).
+- El resto (bloqueos `for no key update`, límites de largo, la política de UPDATE de Storage) no me
+  toca. Mi única edición a un archivo de la etapa 1 sigue siendo la aserción #2 de la 422.
+
+**Qué toca.**
+- **0530**: `fn_mi_seguro()` (UNA fila: su seguro principal de hoy, llamando a
+  `fn_seguro_tipo_principal` de la 0528, sin repetir la regla), `fn_mis_polizas()` (sus pólizas con
+  los archivos que puede ver) y `fn_seguro_archivo_es_mio(text)` con UNA política de lectura en
+  Storage (`polizas_seguro_select_propia`). Las cuatro políticas de DO y `fn_seguro_archivo_libre` no
+  se tocan. No reescribe ninguna función: no hay md5 de partida. Se detiene sola, antes de tocar
+  nada, si la 0528 no está pegada. **No devuelve** la descripción del seguro (DO la edita y puede
+  llevar notas), ni la prima, ni el papeleo, ni la nota, ni el historial, ni los cambios de seguro,
+  ni el nombre con que DO subió cada archivo.
+- La pantalla (`app/(mio)/mio/seguro/mi-seguro.tsx`) y su lógica (`lib/mi-seguro.ts`).
+- **En la etapa 1:** el panel de archivos de DO decía «solo los ve Desarrollo Organizacional» sobre
+  los PDF, y con la 0530 dejó de ser cierto; ahora dice qué ve la persona, avisa al elegir el tipo
+  de archivo y pide subir a cada póliza solo el PDF de esa persona. Y una aserción de la 422 (la
+  que contaba «todo lo que empieza con `polizas_seguro_`», 4) nombra ahora las cuatro de DO.
+
+**Lo que decidió Felipe (2026-10-17):** los cuatro practicantes tienen cuenta y entran a Lo mío;
+pueden **abrir y descargar** su PDF; el módulo es de todo el equipo. **Decide él y está pendiente:**
+qué se le dice a quien está en EsSalud (ver abajo).
+
+**Lo que decidí sin preguntar, y es de Felipe cambiar:**
+- **Para EsSalud la pantalla dice solo lo que la base sabe:** «Tu seguro es EsSalud. Se paga por
+  planilla y no lleva póliza.» No se inventó ninguna explicación de EsSalud. **Texto provisional:
+  lo decide Felipe.**
+- **La tarjeta habla de la PÓLIZA, no de que la persona «esté cubierta».** Dice «Vigente», «Tu póliza
+  va hasta el… a las 12 M» y cierra con «Si la aseguradora te dice otra cosa, avisa a Desarrollo
+  Organizacional». Motivo: la cobertura puede estar suspendida por mora (la prima lleva más de 30 días
+  sin pagarse; convenio de pago, cláusula quinta) y eso la persona no lo ve —no sale la prima ni el
+  papeleo de DO—, ni la base lo sabe (`cubre_hoy` es solo de fechas). Decirle «tu póliza cubre» a
+  quien la tiene suspendida es mandarla a una clínica a que se lo nieguen; decirle «suspendida» por un
+  pago que DO todavía no marcó sería una falsa alarma sobre su salud. El cierre sirve para los dos
+  casos sin acusar a nadie. `tests/mi-seguro.test.ts` fija que DO dice «suspendida» y la persona
+  «vigente», y que ningún texto de la tarjeta contiene «cubre», «cubierto» ni «cobertura». **Si
+  Felipe prefiere avisarle de la suspensión:** una columna más en `fn_mi_seguro` y repetir en SQL la
+  regla de los 30 días, que hoy vive solo en TypeScript (`estadoPrima`); la 423 fija las listas de
+  columnas a propósito.
+- **El plan y el máximo anual aparecen en cuanto DO los carga** («Corregir datos»); mientras estén
+  vacíos no se pinta ni un «pendiente».
+- Ve el **convenio de pago** además de la póliza; la factura y «otro papel» son solo de DO.
+- **El texto de «Cómo usar tu seguro» salió del resumen que pasó la sesión de la etapa 1, no del
+  PDF** (esta sesión no lo tuvo). **Revisarlo contra las páginas 2 a 5 antes de que lo lean:** sobre
+  todo la carta de garantía («3 días útiles, salvo emergencia») y el reembolso («dentro de 90 días»,
+  sin decir desde cuándo). Va por la clave del seguro (`salud_practicantes`) en `lib/mi-seguro.ts`; el
+  día que haga falta una segunda guía, lo sano es una columna en `seguros_tipos`.
+- El archivo que se baja se llama `Poliza-FOLA-<número>.pdf` (el nombre del seguro y el número, sin
+  el nombre de la persona). En pantalla se rotula por su tipo, no por el nombre con que DO lo subió.
+
+**Pendiente, en este orden (Felipe).**
+1. ~~**Pegar la 0530 ANTES de fusionar el PR**~~ **HECHO el 2026-10-19:** Felipe la pegó y el SQL Editor devolvió lo esperado (3 funciones, 1 política de lectura, 5 de Storage, `authenticated` la llama, `anon` no, registro «530 · mi_seguro_cada_colaborador_ve_su_seguro_y_abre_sus_pdf»). Antes se volvió a mirar `main` y la numeración, y el md5 del portapapeles coincidió con el archivo y con GitHub. (La 0528 ya estaba pegada y fusionada, PR #551.)
+   `./scripts/dame-el-sql.sh 530` (el número libre y `main` se vuelven a pedir en el mensaje que entrega
+   el SQL; la 0530 es el hueco entre la 0529 y la 0531, y la prueba 423 estaba libre). La consulta de
+   «ANTES DE PEGAR» de la cabecera espera la 0528 presente y nada de la 0530; **Retail vive en el mismo
+   proyecto (esquema `retail`)**, así que cualquier conteo de `pg_proc` por nombre puede traer una fila de más.
+2. **DO sube las pólizas por el sistema, un PDF por persona** (la casilla de copiar a las otras pólizas, sin marcar). Si el
+   archivo junta varias pólizas, cada persona vería el DNI y la fecha de nacimiento de las otras, y la base no puede
+   comprobarlo. **Al terminar, la consulta de control** (la de «ANTES DE PEGAR» de la 0530): la columna
+   `pdf_iguales_en_polizas_de_distinto_numero` debe dar 0. Esto sigue pendiente.
+3. **El texto de EsSalud** (en borrador, validado por Felipe y el contador; ver arriba). La guía de FOLA ya se revisó contra el PDF; falta que la corredora confirme el nombre «Pacífico Asiste».
+4. Con una cuenta real (de preferencia una practicante, ya con su póliza cargada), apretar «Abrir» y «Copiar» en un iPhone y en un navegador de verdad. Tampoco se probó en producción.
+5. ~~La novedad lleva fecha 2026-10-19~~ Se fusionó ese mismo día: la fecha es la correcta.
+   Otros pendientes que no bloquean: la alerta de Vida Ley / SCTR espera al contador; y los números reales de las cuatro
+   pólizas siguen escritos en la cabecera de la 0504, en pruebas y en comentarios (datos de personas con nombre; el repo pide
+   dejarlos fuera de git, y no se tocó).
+6. La etapa 1 ya no se mueve (está fusionada y publicada): la 0530 se probó contra la 0528 que de
+   verdad está en producción. Lo que sí puede moverse es `main`: antes de entregar el SQL, volver a mirar
+   `git fetch` y la numeración, como siempre.
+
+**Qué se comprobó.** La 0530 aplicada en una transacción sobre el Postgres local y la prueba **423**
+(108 aserciones) en verde dentro de ella: practicante, otra practicante, planilla, honorarios, DO, una
+asignación de DO, un seguro complementario, quien ya cambió de seguro (conserva su póliza y su PDF),
+la cuenta de servicio y las sesiones sin ficha o sin identidad. Fija las dos listas de columnas,
+compara **archivo por archivo** lo que lista `fn_mis_polizas` con lo que Storage deja abrir, y
+compara «en qué seguro está», «si lo cubre hoy» y «cubre hoy» de cada póliza con lo que lee DO
+(`fn_seguros_equipo`, `fn_seguros_tablero`), y —sección I— que dos personas con la misma póliza
+colectiva no se mezclan. Se probó que SABE fallar con veinte mutaciones de la migración, las tres de
+emparejar por número incluidas —factura, archivo retirado, archivo de otra persona o póliza anulada visibles; la puerta de
+«hoy soy practicante» vuelta a poner en Storage o en `fn_mis_polizas`; todas las pólizas en vez de las
+propias; una columna de más en cada función; el convenio antes que la póliza; el último día inclusivo
+en las dos; «cubre» de una póliza de otro seguro; la cuenta de servicio con fila; `cubre_hoy` para
+EsSalud; el seguro automático escrito a mano en vez de `fn_seguro_tipo_principal`—: las veinte la
+rompen. La migración se puede aplicar dos veces. Las pruebas 250, 92 y 108 siguen en verde. (Con la
+punta de entonces la **422** tenía 252 aserciones y pasaba con la 0530 aplicada salvo la #226; con la
+etapa 1 final, arriba, pasan las 308.) `vitest` (dieciséis mutaciones de `lib/mi-seguro.ts` las
+rompen; hoy 2210 pruebas en 95 archivos), `tsc` y `eslint` de lo tocado en verde (`page.tsx` conserva dos
+errores `set-state-in-effect` que ya tenía `main`).
+Los guardias del push (numeración, reglas de la casa, nombre del PDF, fechas vacías, linter) corridos
+a mano sobre lo que esta rama agrega encima de la etapa 1: todos en 0.
+
+**En el navegador** (2026-10-17, contra la base local con la 0530 aplicada y datos «ZZMiSeguro» con
+ids `…0000fc…`, que se borraron al terminar junto con la migración; la demo de la sesión madre
+quedó intacta):
+- *Practicante en FOLA:* «Vigente — Tu póliza está vigente», su póliza con sus dos PDF (no la
+  factura), la guía de uso.
+- *Dani, de planilla con una póliza FOLA que le quedó:* «Por planilla — Tu seguro es EsSalud», su
+  póliza FOLA en «Tus pólizas» con su PDF, y la guía de FOLA porque esa póliza cubre hoy. «Descargar»
+  baja `Poliza-FOLA-<número>.pdf`.
+- *Practicante sin póliza FOLA pero con una de otro seguro:* «Todavía no tienes una póliza
+  registrada», la póliza de vida en «Tus pólizas» y NINGUNA guía de FOLA.
+- *Honorarios:* «No tienes un seguro asignado en el sistema».
+- *Segunda vuelta, ya con la punta nueva de la etapa 1 y el texto «vigente»:* la misma practicante con
+  su póliza a 76 días («Vigente»), a 20 días («Vence en 20 días — Tu póliza va hasta el 06/11/2026…») y
+  terminada hace 9 días («Sin póliza vigente — … terminó el 08/10/2026 (hace 9 días)», sin la guía de
+  FOLA). `fn_mi_seguro` y `fn_mis_polizas` contestan 200; el servidor, sin errores. En la consola salió
+  UN «429 Too Many Requests» de un recurso que no es de esta sección (ni esas dos llamadas ni Storage);
+  no se identificó cuál es.
+- A 375 px sin desborde horizontal y con botones de 44 px; consola y servidor sin errores.
+- *Como DO:* el panel de archivos con el texto nuevo y el aviso que cambia con el tipo.
+- *Contra el Storage real, con `curl`:* cada persona firma solo los archivos de SUS pólizas de tipo
+  póliza o convenio (200); la factura, lo de otra persona, uno que no existe, y quien no inició
+  sesión, 400. Dani, ya en EsSalud, firma su póliza FOLA; quien está en planilla sin pólizas, nada.
+
+**Lo que NO se comprobó.** El botón **«Abrir»**: el navegador integrado de la app bloquea
+`window.open` (devuelve `null` con cualquier página), así que ahí sale el aviso de ventanas
+emergentes, igual que en las demás pantallas que abren un PDF; lo que sí se vio es que la firma del
+archivo propio sale 200. Un iPhone real; `db-tests` de GitHub (la señal fiable de las pgTAP, no esta
+Mac); nada contra datos reales de producción; ningún PDF real (los de prueba pesaban ~600 bytes). En
+esta Mac la 422 falla en la #226 («DO ve los cuatro») mientras la base local compartida tenga los PDF
+de la demo en el mismo bucket; falla igual sin la 0530 (se corrió el control) y en CI el bucket está
+vacío.
+
+**Un límite pequeño que se dejó:** una renovación que conserva el número de la póliza (la etapa 1 lo
+permite) se baja con el mismo nombre, `Poliza-FOLA-<número>.pdf`, y el navegador le pone «(1)» a la
+segunda. No pierde nada; si molesta, el nombre puede llevar el año de inicio de la vigencia.
+
+**Cómo se generaron los tipos.** Igual que en la etapa 1: una base desechable con el esquema `public`
+de la local, la 0530 aplicada allí, `supabase gen types --db-url` y pegadas SOLO las tres funciones
+nuevas (`fn_mi_seguro`, `fn_mis_polizas`, `fn_seguro_archivo_es_mio`). La base desechable se borró.
+
+---
+
+## 2026-10-19 — La prueba de tres días · base, planilla, pantallas y terminal · migraciones 0535–0539 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #557, 2026-10-19) — con la 0537–0539 pegadas DESPUÉS de fusionar · rama `claude/trial-period-contract-flow-3b095c`
+
+**Qué es.** Quien está de prueba no tiene contrato: trabaja **tres días** (de jornada cerrada, no de
+calendario) y recién después se le hace contrato. Durante la prueba se marca **«no apto»** (se le
+paga lo trabajado) o **«se retiró»** (no se le paga); si pasan los tres días y nadie decide, alerta a
+DO y la persona sigue marcando. Decide DO, administración o la líder de equipo **sola**, sin
+confirmación de DO, y solo sobre la gente de su sede. Fecha de baja = el último día trabajado.
+
+**Lo que decidió Felipe (2026-10-19, con preguntas):** reusar el vínculo «Prueba» que ya existe;
+«si se retira, no se le paga» (objeción dicha: es una deuda remunerativa reclamable y sin hoja
+firmada no hay prueba de que la conocía — se decidió igual); aviso del plazo con alerta a DO y
+etiqueta en el terminal, **sin** hoja firmada; el pase a Planilla es al **firmarse el contrato**;
+**la asignación familiar solo se paga cuando hay contrato** (objeción dicha: derecho del trabajador
+con hijos, Ley 25129); la líder decide en la **Bandeja** (Contratos solo lo abre DO); el pase a
+Planilla es una **casilla marcada** al registrar la firma; **Equipo** pide «no apto / se retiró» al
+registrar la salida de alguien de prueba; y «DO, líder o los que tienen más cargo pueden subir el DNI».
+
+**Qué hay en esta rama (el refactor va primero a propósito).**
+- **0535 — refactor sin cambio de comportamiento.** `fn_cesar_persona` queda como guardia (admin y
+  líder DO) y delega en `fn_cese_aplicar`, interna. Hace falta porque `fn_es_admin_o_lider()` solo
+  reconoce `admin` y `lider_do`: una líder de equipo siempre rebotaría. La prueba 135 se mudó al núcleo.
+- **0536 — la prueba.** Tabla `pruebas` (los días se **derivan**, no se guardan), `fn_prueba_cerrar` (única
+  puerta: resultado + motivo + quién + baja, todo o nada; «se retiró» cierra como `renuncia` y «no apto»
+  como `fin_periodo_prueba`), `fn_pruebas_abiertas` (días, situación, horas marcadas y si ya tiene el DNI),
+  `fn_prueba_puede_actuar` y un trigger sobre `personas` que abre/cierra la prueba al cambiar vínculo o estado.
+- **0537 — la planilla.** Reescribe `fn_planilla_calcular_nucleo` (copia de la **0524**, con marcas
+  `CAMBIO 0537`): quien se retiró en prueba **no entra a la lista de personas** (solo mientras siga inactiva) y
+  la asignación familiar la lee una columna `cobra_asignacion` (`con_hijos` y vínculo distinto de «prueba»).
+  Guardia: se niega a pegar si falta la 0536 o si la función de esa base no es la de la 0524 (md5).
+- **0538 — el DNI de quien está de prueba.** `fn_prueba_cargar_dni` crea la solicitud `foto_dni` a nombre
+  de esa persona (sin cuenta) y la aprueba en el acto con `fn_resolver_solicitud_perfil`; **guarda además la
+  constancia de consentimiento (Ley 29733)** a nombre de la persona, diciendo quién la declaró y con qué texto;
+  `fn_solicitud_perfil_puede_escribir` (0399) gana una rama para quien puede actuar sobre esa prueba (la lectura
+  no se toca); `fn_pruebas_cierres_recientes` (los cierres de las últimas 48 h, para que DO se entere).
+- **0539 — el terminal.** `terminal_roster` gana `prueba_dias` y `prueba_plazo` (NULL para el resto) a través
+  de `fn_terminal_prueba_dias`, que solo contesta por la gente de la sede de ese terminal (**una vista ejecuta
+  las funciones con los permisos de quien consulta**: darle al terminal `fn_prueba_dias_trabajados` le habría
+  dejado contar jornadas de cualquiera). Las pruebas 221 y 302 —que fijaban «seis columnas y ni una más»— se
+  actualizaron a ocho a propósito; la aserción de «nada sensible» no se tocó.
+- **Pantallas.** Bandeja: módulo «Pruebas» (DO y líder) con el panel para decidir y el DNI; el «sin contrato»
+  de Contratos se calla para quien está de prueba. Contratos: Nuevo documento muestra la prueba en vez de las
+  tarjetas de tipo, el tablero la rotula «Prueba · 2 de 3», y «Subir contrato firmado» trae «Pasar a Planilla»
+  marcada. Equipo: etiqueta y «Registrar salida» por el panel. Etiqueta también en Horas, Horarios y Planilla.
+  Terminal: «Prueba · 1 de 3» junto al nombre. Novedad en `novedades.ts` (sin reglas de pago).
+- **Código compartido:** `puedeDecidirPrueba` (`permisos.ts`), `situacionDePrueba` y `etiquetaDePrueba`
+  (`packages/shared/src/pruebas.ts`, las usa también el kiosco), `lib/admin/pruebas.ts`, `components/pruebas/*`.
+- **Pruebas:** pgTAP 429 (52), 430 (19), 431 (33), 432 (14); vitest `pruebas`, `bandeja-pruebas`, `roster-prueba`,
+  `permisos`. Todas verificadas con roturas provocadas.
+
+**Lo que se midió.** Antes de la 0537, una persona de prueba con hijos y UN día de 6,5 h cobraba S/ 41,00 de
+horas + S/ 123,00 de asignación; con tres días, S/ 123,00 + S/ 123,00. Con la 0537, viejo contra nuevo fila por
+fila: «no apto» pasa de neto S/ 215,32 a S/ 108,31 y «prueba abierta» de S/ 179,22 a S/ 72,21; quien se retiró
+desaparece; planilla, quien pasó a planilla y quien no tiene hijos **no se mueven**; y siete ventanas 29..28 sobre
+los datos de la base dan JSON **idéntico**.
+
+**Cómo se pegó — y el orden se rompió (2026-10-19, horas de Lima).**
+1. **0524, 0535 y 0536** se pegaron a las 15:07, 15:11 y 15:16 (`migraciones_aplicadas`).
+2. **El PR #557 se fusionó a las 15:28 con la 0537, la 0538 y la 0539 SIN pegar**, aunque su descripción
+   abría con «⛔ No fusionar todavía». No tiene el comentario `cayla:fusion-sesion`: no pasó por el freno de
+   `comentar-antes-de-fusionar.sh`, y no queda dicho quién lo pidió.
+3. **Lo que se vio en producción** durante esa ventana: la Bandeja de DO mostraba el aviso rojo «No se pudo
+   cargar los cierres de pruebas: El sistema no encontró esta función» y el módulo Pruebas en «No se pudo
+   cargar» (`fn_pruebas_cierres_recientes`, 0538, contestaba `PGRST202`). Subir el DNI de quien está de prueba
+   también habría fallado (`fn_prueba_cargar_dni`, 0538). **El terminal siguió marcando**: `roster.ts` vuelve a
+   pedir la lista sin `prueba_dias`/`prueba_plazo` cuando la vista no las tiene. Y la planilla calculaba **sin**
+   la 0537 —quien se retira en prueba habría cobrado—; no se cerró ningún periodo en esa ventana.
+4. **Antes de pegar lo que faltaba**, una consulta de Felipe que repite las tres guardias dio todo en verde:
+   `fn_planilla_calcular_nucleo` con md5 `11425cad…` (la 0524 tal cual, 119 895 caracteres, una sola versión),
+   `fn_solicitud_perfil_puede_escribir` con `f1a28aac…` (la 0399 con `\r\n`), `terminal_roster` con las seis
+   columnas de la 0490, `security_invoker = false`, delegando en `fn_persona_marca_en_sede` y excluyendo las
+   cuentas de servicio; y la 0536 presente. Ninguna rama redefine esas funciones después de la 0537–0539.
+5. **0537, 0538 y 0539 pegadas esa misma tarde, de a una**, cada una con `dame-el-sql.sh` (portapapeles idéntico
+   al archivo y a `origin/main`, locale UTF-8). Controles: 0537 → `CAMBIO 0537` presente, 1 versión, registro con
+   su nombre; 0538 → `fn_pruebas_cierres_recientes` y `fn_prueba_cargar_dni` existen, `CAMBIO 0538` en el permiso
+   del bucket, registro con su nombre, y **el aviso de la Bandeja dejó de salir**; 0539 → `true, true, true`
+   (ocho columnas, `authenticated` la lee, `anon` no). `migraciones_aplicadas` tiene de la 535 a la 540 con sus nombres.
+
+**Qué NO está hecho (y por qué).**
+- **«Se retiró» y quien ya figura en Planilla:** quien se retira desaparece de la pantalla de Planilla (a propósito:
+  sin fila no hay nada que pagar); DO lo ve en la Bandeja 48 h y en el módulo Pruebas. Un aviso fijo en Planilla
+  («se retiró · N h no pagadas») queda para después.
+- **El pase a Planilla son dos llamadas** (registrar la firma y `fn_set_tipo_vinculo`), no una: si la segunda falla
+  la firma queda y se dice claro; no se tocó `fn_contrato_registrar` (13 argumentos). La Bandeja sigue mostrando
+  la prueba como «toca decidir», así que no se pierde.
+- **Cerrar una prueba con la jornada abierta** (la persona sigue adentro): el cese ocurre igual y la jornada la
+  cierra el auto-cierre de siempre; no se agregó una regla nueva.
+- **La constancia de consentimiento es una DECLARACIÓN** de quien registra, no la firma de la persona.
+- **Hoja de condiciones firmada** (que la persona conozca la regla de retiro): Felipe eligió no tenerla.
+
+**Cómo se probó (y un aviso).** El Postgres local de esta Mac está **18 migraciones atrasado** y el md5 que imprime
+`donde-vive.sh` es el de esa base, no el del repo; producción coincide con los ARCHIVOS. No se tocó la base
+compartida: se probó en **clones desechables** (`docker run` de la misma imagen, esquema y datos copiados con
+`pg_dump` de solo lectura). La suite completa (335 archivos) da las mismas 66 pruebas en rojo con y sin estas
+migraciones —artefactos del clon—; las únicas diferencias son las pruebas que se actualizaron o añadieron. Las
+pantallas se verificaron en el navegador contra un clon (PostgREST apuntando al clon + sesiones fabricadas), con DO
+y con una líder de equipo.
+
+---
+
+## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-17) · FUSIONADO Y PUBLICADO (PR #551, 2026-10-17) · rama `claude/fola-dynamic-implementation-252f99`
+
+**Qué es.** La pantalla `/admin/seguros` (grupo Personas, solo DO) y un módulo «Seguros» en la
+Bandeja, **para todo el equipo y no solo para los practicantes**. Cada colaborador está en un
+seguro: el que le toca por su vínculo (practicante → FOLA; planilla y prueba → EsSalud;
+honorarios y sin vínculo laboral → ninguno) o el que DO le asignó. Cuando ese seguro lleva póliza,
+la pantalla muestra su vigencia, su prima, los tres pasos del papeleo (prima pagada, póliza y
+convenio de pago firmados, factura recibida), los PDF y un historial de quién hizo qué. Lo que
+nadie miraba y ahora salta: **quién lleva póliza y hoy no tiene ninguna que cubra** (la 0504 quitó
+EsSalud a todos los practicantes de una vez y la póliza FOLA es nominal), a quién se le vence
+pronto, y **qué cambios de seguro quedan por cerrar**. **Solo alerta**: no toca la planilla, no
+cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue como estaba.
+
+**Lo que decidió Felipe (2026-10-17, con preguntas), en el orden en que lo fue diciendo:**
+1. Control para DO, vista del practicante, PDF dentro del sistema y avisos en la Bandeja;
+   pantalla «Seguros» en Personas; «Mi seguro» en Documentos de Lo mío; entrega por etapas, DO
+   primero. **Esta es la etapa 1.**
+2. «El seguro es para todos los colaboradores; FOLA es exclusivo de practicantes» y «el seguro
+   actual que tienen los empleados déjalos como está». El resumen de la póliza confirma lo primero:
+   cubre al asegurado «en su calidad de practicante del contratante» (p. 4).
+3. «Deberíamos modificar todo el módulo para que sea de seguro general y por cada colaborador
+   que cambie, ahí recién se ve en qué están: los practicantes en FOLA y los otros colaboradores
+   pueden estar ubicados en otro lado». **Eso rehízo la migración**: la primera versión era solo de
+   FOLA y se descartó entera (nunca se pegó).
+4. Qué otros seguros hay: «no se sabe con exactitud, revisar; en caso no haya uno, dejar que DO
+   agregue un seguro o tipo». → el catálogo vive en una tabla (`seguros_tipos`) y DO agrega los que
+   falten desde «Tipos de seguro». **Hoy trae dos: FOLA y EsSalud.**
+5. A quién le toca cada uno: «Automático por vínculo; DO lo cambia por persona».
+6. Cuando alguien cambia: «Lo muestra y deja dos pendientes» → la baja del seguro anterior y el
+   alta del nuevo.
+7. Con la pantalla ya hecha: «¿cómo sé qué colaboradores sí cuentan con seguro, para que el propio
+   sistema lo jale y no se tenga que rellenar los datos de nuevo?» A la pregunta de qué jalar solo,
+   marcó las cuatro opciones: una póliza para varias personas, la lista de asegurados, leer el PDF
+   de la póliza y «dejarlo así». **Las cuatro a la vez se contradicen en la última**; lo que se hizo
+   fue construir las tres primeras como ayudas AGREGADAS (el formulario de una póliza por persona
+   sigue igual, por si «dejarlo así» era lo que valía). Si en realidad no querías alguna, es quitar
+   su botón de la cabecera; ninguna toca lo que ya existía.
+8. Preguntado si el CSV de la lista de asegurados lo baja solo la dirección (como el padrón) o también DO,
+   eligió: **DO también** (`puedeExportarListaDeAsegurados`). El padrón completo sigue solo para la
+   dirección.
+
+**Cómo funciona.**
+- **`seguros_tipos`**: el catálogo. Cada seguro es *principal* (uno a la vez: FOLA, EsSalud) o va
+  *además* (una póliza adicional), y *lleva póliza* o no (EsSalud: «por planilla», nada que
+  registrar). FOLA y EsSalud son «del sistema»: no se archivan ni cambian de nombre. Un seguro que
+  agrega DO no le toca a nadie por su vínculo: se asigna persona por persona (si es principal) o se
+  le registra su póliza (si va además).
+- **El seguro principal de cada persona**: una asignación de DO vigente (`seguros_asignaciones`); si
+  no hay, el que cae sobre su vínculo; si tampoco, ninguno. La regla vive en
+  `fn_seguro_tipo_principal` y en ninguna otra parte: la pantalla pregunta (`fn_seguros_equipo`
+  trae también el que le tocaría por vínculo) y no la repite.
+- **El hueco** (quién tiene que tener póliza), escrito una vez en `fn_seguros_equipo`: la persona
+  está activa, su seguro principal lleva póliza y no tiene ninguna de ese seguro que cubra hoy.
+  EsSalud no lleva póliza: nunca es un hueco. Un seguro adicional no tapa el hueco del principal.
+- **Los cambios**: un disparador sobre `personas.tipo_vinculo` deja el cambio escrito cuando
+  cambia el seguro que le toca por su vínculo, y `fn_seguro_asignar` / `fn_seguro_volver_al_automatico`
+  cuando lo cambia DO. **No reescribe `fn_set_tipo_vinculo` ni `fn_cesar_persona`**: escucha la
+  columna, y nunca frena el cambio de vínculo (un error suyo es un aviso, no un fallo: ese cambio
+  mueve la planilla de una persona real). No registra nada de quien ya no está activa ni de quien
+  tiene una asignación vigente. Los dos pasos **se calculan al leer**: uno queda pendiente solo si la
+  persona sigue activa, nadie lo marcó y todavía tiene sentido (la baja, mientras quede una póliza
+  vigente del seguro anterior; el alta, mientras no se haya registrado la del nuevo), así que se
+  cierran solos cuando la póliza termina o se registra.
+- **En la Bandeja**: sin póliza, por vencer, papeleo (UNA fila por póliza, no tres), baja de quien se
+  fue y los dos pasos de cada cambio. El alta hacia un seguro con póliza que ya figura como «sin
+  póliza» no se repite: se funde en esa fila, que cuenta de dónde viene la persona.
+- **Para no teclear lo mismo dos veces** (punto 7). Tres botones en la cabecera, y ninguno guarda nada
+  que DO no haya revisado:
+  - **Leer PDF de póliza.** Se eligen uno o varios PDF (el corredor manda uno por persona) y pdf.js los
+    lee EN EL NAVEGADOR —el documento y la fecha de nacimiento del asegurado no salen de la
+    computadora hasta que se registra—. Cada póliza es una tarjeta editable con número, vigencia,
+    prima con IGV, cuándo vence el pago y a quién asegura; se registra con `fn_seguro_registrar` (las
+    mismas reglas del formulario) y el PDF se guarda en cada póliza. **Lo que dice el papel es una
+    PROPUESTA**: una tarjeta solo nace marcada si trae número, vigencia y prima, una persona clara,
+    NINGÚN aviso del lector y el documento del papel igual al de la ficha de esa persona. El nombre
+    propone (por palabras, sin importar el orden, con umbral de 0.85 y un margen sobre la segunda
+    candidata) y el documento comprueba: si no es el de la ficha, la tarjeta no se puede registrar; si
+    falta (en el papel, en la ficha, o la consulta falló) nace sin marcar y lo dice, pero DO puede
+    marcarla. Se adelantan los rechazos de la base —la persona no está en ese seguro, la póliza se cruza
+    con otra, un año mal tecleado—, la que ya existe sale «Ya estaba registrada», y una foto escaneada o
+    un PDF ilegible se dicen por su nombre. **La fecha final solo se da por probada cuando el papel dice
+    «AL 01/01/2027 … A LAS 12 M» (las condiciones particulares), NO el 31/12 del aviso de cobranza ni
+    del convenio**: ese es el último día cubierto y el sistema cuenta el final EXCLUSIVO; se midió sobre
+    la póliza real de FOLA. La portada y el resumen del seguro valen solo de respaldo, con un aviso que
+    dice de dónde salió la fecha. Una página que nombra dos pólizas no se le presta a ninguna, y solo se
+    reconoce a Pacífico (de otra aseguradora se lee con aviso). **Un PDF con las pólizas de varias
+    personas no se guarda en ninguna** (llevaría el documento y el nacimiento de las otras): se registran
+    y la tarjeta lo dice. Cerrar el diálogo, o elegir otros PDF, con pólizas marcadas sin registrar
+    pregunta antes.
+  - **Una póliza para varias personas** (`fn_seguro_registrar_varias`). En «Registrar una póliza»,
+    «A varias, la misma póliza»: una lista con casillas, el atajo «Las de planilla» (sale de
+    `personas.en_planilla`, no de una lista de vínculos en el navegador) y la prima POR PERSONA, con
+    «N × prima = total» a la vista. TODO O NADA: si a una no se le puede registrar, no se registra a nadie y
+    el mensaje dice con quién falló (hasta 100 por vez; el seguro y lo común a todas —aseguradora,
+    fechas, prima— se comprueban ANTES de recorrer la lista, para no culpar a la primera persona de algo que
+    es de todas); quien ya tiene una póliza de ese seguro que se cruza se deja fuera con el motivo. El PDF de una póliza colectiva se COPIA dentro del almacén a las pólizas de las demás
+    personas (cada fila tiene su propio objeto: un índice lo exige).
+  - **Lista de asegurados** (`fn_seguro_asegurados`). Quiénes están en un seguro HOY con documento,
+    nacimiento, ingreso, sede y póliza, y quién tiene datos por completar (sin documento o sin fecha de
+    nacimiento la aseguradora no emite el certificado). Reemplaza la consulta a mano de Vida Ley
+    (`scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql`). **El CSV lo bajan DO y la dirección**
+    (`puedeExportarListaDeAsegurados`, punto 8); lleva documento y fecha de nacimiento, y la pantalla
+    recuerda compartirlo por un canal que se pueda revocar.
+
+**Lo que decidí sin preguntar, y es de Felipe cambiar:**
+- **La remuneración asegurable** —la que pide el seguro de vida— solo viaja al descargar el CSV y solo
+  si se marca la casilla: ninguna otra pantalla de seguros la lleva al navegador. (Quién baja el CSV
+  lo decidió Felipe, punto 8; la cuestión se planteó porque `puedeExportarPadron` ya distingue ver de
+  llevarse un dato con documento, y el padrón sigue solo para la dirección.)
+- **La prima de una póliza colectiva es la de cada persona** (una fila por persona): copiar el total en
+  cada fila haría que cualquier suma de primas contara la póliza diecinueve veces. El formulario muestra
+  «N × prima = total» y avisa que, si solo se tiene el total, se divida.
+- **No hay alerta de «persona en planilla sin Vida Ley».** El Seguro de Vida Ley es obligatorio para toda
+  la planilla desde el primer día (D. Leg. 688), pero `aplica_a_vinculos` solo manda en los seguros
+  principales, así que el sistema no sabe quién DEBERÍA tener un seguro que va además. Lo más cerca son
+  el atajo «Las de planilla» al registrar la póliza y la lista de asegurados. Convertirlo en un hueco
+  es una decisión de producto —¿para qué vínculos es obligatorio cada seguro?—, no de esta migración.
+- **Aviso de renovación a 45 días** (`DIAS_AVISO_RENOVACION`, `lib/admin/seguros.ts`). Número
+  elegido, no de ley: el corredor necesita días y la prima de contado de la póliza de hoy venció
+  17 días después de emitirse.
+- **`vigente_hasta` es EXCLUSIVO**: el papel dice «del 01/10/2026 al 01/01/2027, 92 días, a las
+  12 M». El 1/1 ya cuenta como sin cubrir (lado cauteloso). Una renovación que empieza ese mismo
+  día no se cruza ni deja hueco.
+- **El historial vive en su propia tabla** (`polizas_seguro_eventos`) y no en
+  `correcciones_auditoria`: esas filas las leen la ficha, Lo mío, Correcciones y el CSV, y las
+  cuatro tendrían que aprender a rotular «seguro.pagada_el».
+- **«Hasta» nace a 3 meses de «Desde»** (la póliza de hoy) y se puede mover a 6 meses o 1 año.
+- **Los avisos de un cambio no inventan un plazo**: el de dar de alta o de baja depende de cada
+  aseguradora y del contador. Van a «Sin plazo», con los días que lleva esperando.
+- **Quien se fue y ya no tiene una póliza que corra es historia**, aunque `fn_seguros_equipo` la
+  traiga: son dos consultas, y a medianoche una póliza puede vencer entre la una y la otra.
+- **«Cobertura suspendida» es una situación aparte.** Una póliza vigente por fechas cuya prima lleva
+  más de 30 días sin pagarse ya no cubre (convenio de pago, cláusula quinta), pero la base solo sabe de
+  fechas: sin esto la pantalla decía «Cubierto» de alguien que no lo está. Lo decide `estadoPrima`, no
+  SQL; va arriba de la lista, justo después de quien no tiene póliza.
+- **Una vigencia de más de diez años, o que termina a más de diez años de hoy, se rechaza** (y un
+  vencimiento de la prima a más de un año de la vigencia): un año mal tecleado (20277 por 2027) dejaba a
+  todo un lote «cubierto por siglos» y apagaba el aviso de hueco. El diez es un número elegido, no de ley.
+- **El CSV de asegurados escribe las fechas en ISO** (`2026-10-17`), como el padrón y el resto de las
+  exportaciones, y no `17/10/2026`: un `05/10/2026` se lee como 10 de mayo en un Excel en inglés, y aquí
+  cada fecha decide si alguien está cubierto.
+- **Un «otro papel» no se copia a las demás pólizas de una póliza colectiva** (la póliza, el convenio de
+  pago y la factura sí): puede ser de una sola persona. Si una copia falla se ofrece repetir solo esas.
+- **Las estaciones de Retail no entran a seguros**: `fn_seguro_registrar` y `fn_seguro_asignar` las rechazan.
+- **Una póliza colectiva se registra a cada persona con el mismo número** (un seguro de vida o una EPS
+  es una póliza de la empresa con un solo número). El índice único lleva `persona_id`: la MISMA póliza
+  a la misma persona sigue frenada. Si FOLA repitiera un número entre dos practicantes, la base ya no
+  lo frena: se vería en las dos tarjetas.
+
+**Pendiente, en este orden (Felipe).**
+1. **HECHO — la 0528 está PEGADA y VERIFICADA en producción (Felipe, 2026-10-17).** Se entregó con
+   `./scripts/dame-el-sql.sh 528` (2365 líneas, 119 302 bytes, md5 `8ccbdbfb…`, comparado con el archivo
+   de GitHub), después de volver a mirar `main` y la numeración. La consulta de «ANTES DE PEGAR» dio 0 tablas,
+   0 funciones, 0 disparadores, 0 buckets y ningún registro 528 (había 525, 527, 529, 531 y 532); y la de
+   comprobación con que termina la migración dio **6 tablas, 25 funciones, 1 disparador, 4 políticas de
+   Storage, el bucket privado, RLS en las 6, los tipos de sistema `essalud,salud_practicantes` y el registro
+   `528 · los_seguros_del_equipo_entran_al_sistema`**. No reescribe ninguna función, así que no hubo md5 de
+   partida. Lo único que toca fuera de sus tablas es **un disparador en `personas`** (después de cambiar
+   `tipo_vinculo`), y no puede frenar un cambio de vínculo.
+   **Un número que no cuadró, y por qué no importa:** `apoyo_de_3` dio 4, no 3. La consulta cuenta `pg_proc`
+   por nombre en TODOS los esquemas, y `retail.fn_hoy_lima()` vive en el mismo proyecto de Supabase. Se
+   confirmó listando las cuatro: las tres de `public` (sin argumentos) y la de `retail`. Las 25 funciones de
+   la 0528 fijan `search_path = public`, así que `fn_hoy_lima()` resuelve siempre a la de `public`. La
+   cabecera de la 0528 no se tocó después de pegarla: su consulta de «antes» solo sirve para la primera pegada.
+   Lo que falta es el PR (ver abajo) y los pasos 2 a 5.
+2. **Averiguar qué seguros tiene el resto del equipo** («revisar», dijo Felipe) y agregar los que
+   falten desde «Tipos de seguro». Mientras tanto, planilla y prueba quedan en EsSalud (por
+   planilla) y nadie recibe un aviso por ellos.
+3. **Registrar las cuatro pólizas FOLA** (N.º 24043264 a 24043267): lo más corto es «Leer PDF de póliza»
+   eligiendo los cuatro PDF a la vez (el de 24043267 se leyó entero sin avisos). Cada tarjeta nace marcada
+   solo si el documento del papel es el de la ficha de ese practicante: a quien le falte el DNI en su
+   ficha se le marca a mano, y a quien tenga otro, la tarjeta no lo deja registrar. Si alguno no se
+   entiende, el formulario de siempre. Falta adjuntar el convenio de pago y, cuando lleguen, las
+   facturas. Los papeles llevan DNI y fecha de nacimiento: no entran al repo.
+4. **Marcar los pasos que ya se hicieron**: la prima está pagada (Felipe, 15/10/2026); falta
+   firmar y devolver la póliza y el convenio de pago, y pedir las facturas.
+5. **Renovar antes del 01/01/2027.** Desde el 17/11/2026 la Bandeja avisa; la tabla de beneficios
+   dice «Renovación automática: Aplica» y esta pantalla guarda `renueva_sola` como «sin
+   confirmar» hasta que el corredor conteste.
+
+**Abierto con el corredor, y la pantalla lo deja visible.** Las condiciones particulares traen
+VACÍOS el plan y el «Beneficio máximo anual». Por precio, la póliza parece el Plan 1
+administrativo (S/ 179.97 ÷ 3 meses = S/ 60 al mes, pp. 21, 36 y 37 del PDF): S/ 16,800 por
+enfermedad y S/ 36,000 por accidente, con tope de remuneración de S/ 1,200. **Es una inferencia,
+no un dato del papel.** Con la subvención de S/ 1,230, 14 y 30 subvenciones son S/ 17,220 y
+S/ 36,900: ese plan se quedaría corto por S/ 420 y S/ 900 frente a lo que el convenio ya
+promete. Pedir por escrito el plan y el beneficio máximo, y cargarlos con «Corregir datos».
+**Lo que la pantalla NO hace** es comparar el beneficio con 14 y 30 subvenciones: pide la
+subvención de cada quien (`asignaciones_salario`) y la 0528 no la lee.
+
+**Qué se comprobó.** La 0528 aplicada **desde cero** por `supabase start` junto con todas las
+demás migraciones, sin error, y pegada otra vez encima (idempotente); y la prueba **422**
+(308 aserciones: 252 de la lógica de los seguros y 56 de «una póliza para varias personas», la lista
+de asegurados y lo que halló la segunda revisión) en verde dentro de una transacción, también partiendo de una base SIN los objetos
+de la 0528 (corriendo antes la receta de reversión de su cabecera, que así quedó probada de nuevo).
+Se probó que la prueba SABE fallar con veintidós mutaciones; las ocho últimas son de las dos funciones
+nuevas (tragarse el error del lote, quitar el `distinct`, el tope de 100, el último día inclusivo en la lista,
+la remuneración que sale aunque no se pida, la cuenta de servicio y el estado activo en la lista, y
+`en_planilla` en falso): las ocho las rompen. De las catorce primeras, las diez primeras
+mutaciones de las reglas (último día inclusivo, EsSalud como hueco, el alta que no se cierra sola,
+la baja que no se revierte, el disparador que ignora el estado o una asignación vigente o que deja
+escapar su propio error, registrar una póliza sin comprobar el seguro principal, asignar lo que
+ya toca por vínculo, y devolver el seguro efectivo como automático) y las cuatro de la revisión
+(índice sin `persona_id`, UPDATE de Storage sin la forma del nombre, sin tope de aseguradora, sin
+validar los textos de los avisos): las catorce la rompen. La segunda revisión sumó quince mutaciones
+más, entre ellas las siete que mostró que sobrevivían: todas las detecta la suite.
+`vitest` (2041 pruebas en 90 archivos, antes 1896: las nuevas son el lector de pólizas —con un texto
+sintético con la forma de la de Pacífico, de 30 pruebas a 50, con once mutaciones: diez las detecta la suite y
+la otra era código muerto—, las reglas de cada tarjeta de PDF y su cotejo de documento, la lista de asegurados y su CSV,
+la subida y la copia de archivos, el cruce de fechas y las hermanas de una póliza colectiva y el permiso de
+exportar; más las 83 de la lógica de la pantalla y las 33 de la Bandeja, incluida la que cuida que cargar una
+consulta no pise el objeto compartido de `FUENTES_VACIAS`), `tsc` y `eslint` en verde, y los frenos del push (numeración, reglas de la casa, nombre del PDF, fechas vacías,
+linter) corridos a mano sobre lo que la rama agrega: todos en 0.
+
+**Revisión independiente (dos agentes que no vieron mis conclusiones, uno para el SQL y otro para la
+pantalla; 2026-10-17).** Ninguno halló nada de gravedad alta: la lectura y la escritura están cerradas a
+quien no es DO (probado con cinco sesiones distintas —líder de equipo, integrante, DO cesada con su cuenta viva, usuario sin ficha y anónimo—, contra las seis tablas, las 23 funciones y el bucket), el disparador sobrevive
+a tres fallos inyectados, y un fuzz de 2000 escenarios y dos corridas de 1500 operaciones al azar no
+rompieron ninguna invariante. Lo que sí hallaron, y **ya está arreglado**: una póliza colectiva (vida,
+EPS) no se podía registrar a más de una persona; el disparador podía esperar por una pantalla de DO
+(ahora las funciones de tipos bloquean con `for no key update`) y las funciones de DO bloquean en un
+solo orden; la política de UPDATE de Storage dejaba renombrar un huérfano a un nombre con DNI; varios
+topes salían como un CHECK crudo; una póliza con la prima suspendida figuraba «Cubierto»; el formulario
+de póliza perdía el error del servidor si se cerraba a mitad de guardar; una asignación puesta a alguien
+de honorarios no se podía terminar; y unos conteos, un orden y unos textos que no cuadraban.
+
+**Segunda revisión, sobre las tres ayudas (otra vez dos agentes sin mis conclusiones, uno para el SQL y
+otro para la pantalla y el lector; 2026-10-17).** Del SQL: sin hallazgos altos (no hay deadlock, lote a
+medias, fuga ni pérdida de permisos al repegar). Lo que sí, y ya está arreglado: el año mal tecleado que
+dejaba a un lote «cubierto por siglos» (tope de diez años); «Con Ana falló: escribe la aseguradora» culpaba
+a la primera del lote de algo que es de todas (se comprueba antes); una estación de Retail aceptaba póliza
+y asignación y quedaba invisible; y `fn_seguros_equipo` perdía su permiso con el `drop` (ahora va junto al
+`create`). De la pantalla y el lector: la fecha final se daba por buena sin la frase que la prueba («A LAS
+12 M»), y «hasta el 31 de enero» pasaba por exclusivo; una página que nombra dos pólizas le prestaba sus
+datos a la equivocada; dos expresiones regulares con backtracking cúbico (20 000 saltos de línea tardaban
+segundos); un monto con punto de oración («179.97.») leía 17 997 soles; los nombres se comparaban por
+palabras sueltas («Rosa Díaz» se tomaba por «Díaz Rosa María»); una tarjeta con avisos nacía marcada y solo
+el nombre elegía a la persona (ahora lo comprueba el documento); un PDF con varias pólizas se guardaba en
+cada una; cerrar el diálogo perdía lo leído sin preguntar; una copia fallida de un archivo de póliza
+colectiva no se podía repetir; la lista de asegurados sin ningún seguro quedaba «Cargando» para siempre, y
+el CSV escribía `dd/mm/aaaa`. Todo está corregido y probado.
+
+**Lo que se dejó, a propósito** (cabecera de la 0528, «LÍMITES CONOCIDOS»): los pasos de un cambio
+guardan solo el último estado, sin historial de marcas como las pólizas; un cambio y su inverso el mismo
+día dejan un alta pendiente en EsSalud que DO marca y ya; y `fn_seguro_archivo_libre` la puede llamar
+cualquier sesión autenticada (solo dice si una ruta uuid está en uso). **Hallazgo ajeno, sin tocar:**
+`fn_cesar_persona` con un vínculo nuevo falla para un PRACTICANTE (no limpia `practicante_modalidad`,
+`personas_practicante_modalidad_coherente`); sin cambiar de vínculo, el cese funciona. La pantalla de
+Equipo nunca manda un vínculo nuevo al cesar, así que hoy solo se alcanza llamando a la función a mano:
+es un defecto latente, no uno que alguien esté pisando. Arreglarlo es reescribir una función con cinco
+versiones (pide `donde-vive.sh` y el md5 de producción antes de escribir): de otra migración y de otra
+sesión, y sin urgencia.
+
+**En el navegador** (2026-10-17, contra la base local con la 0528 aplicada y trece personas de
+prueba marcadas «ZZ Demo»: practicantes con y sin póliza, planilla, prueba, honorarios, dos que
+cambiaron de vínculo —el disparador dejó el cambio solo—, una a la que DO le asignó un seguro que él
+mismo agregó, y una que ya no está activa con su póliza vigente): la lista en el orden de atención,
+el catálogo de «Tipos de seguro» (agregar un seguro con sus validaciones, archivarlo con motivo),
+«Cambiar su seguro» ofreciendo solo lo que corresponde y volviendo al automático sin crear una
+asignación, cerrar un paso de un cambio con la fecha de hoy ya puesta, el formulario de póliza
+ofreciendo solo los seguros que llevan póliza y, si es el principal, solo a quien lo tiene, el
+historial, y la Bandeja con las filas de seguros y su enlace a `/admin/seguros?persona=…`.
+Escritorio, teléfono (375 px, sin desborde horizontal) y modo oscuro; las llamadas a la base
+contestaron todas 200. **A pedido de Felipe**, después: los números de arriba pasaron de tarjetas a
+botones de filtro, y estos a un solo botón «Filtros» junto al buscador (con la cuenta de los puestos)
+que abre un panel con las dos listas de opciones —situación y seguro, cada número es el de filas que
+deja ver—; lo puesto queda a la vista como chips que se quitan con un toque, y la pantalla abre limpia.
+La descripción larga de la cabecera pasó a una línea corta con un ícono ⓘ que abre «Cómo funciona
+Seguros», que además es la leyenda de cada filtro. Visto en escritorio, teléfono y oscuro.
+
+**Lo nuevo (las tres ayudas), en el navegador** (2026-10-17, misma base local):
+- **Leer PDF de póliza, con el PDF REAL de la póliza FOLA 24043267** (89 páginas, 1.7 MB): pdf.js lo leyó en el
+  navegador y la tarjeta salió completa y sin avisos —seguro FOLA propuesto, persona emparejada por su nombre,
+  vigencia 01/10/2026 → 01/01/2027 (92 días), prima 179.97, el pago vence el 31/10/2026, Pacífico Seguros,
+  nota «Emitida el 14/10/2026»—; se registró y su PDF (1 779 531 bytes) quedó en la póliza. Con cuatro PDF a
+  la vez: uno escaneado (sin texto) se dijo por su nombre, el que ya estaba registrado salió «Ya estaba
+  registrada» y no se duplicó, una persona que se cruzaba con una póliza vigente quedó en rojo y frenó el
+  botón hasta corregirla, y las dos que sí se podían se registraron con su PDF. **Probado con datos de
+  una persona real sin tocar el repo**: el texto y el PDF viven solo en el scratchpad de la sesión, y la
+  prueba del repo usa un texto sintético con la misma forma.
+- **Una póliza para varias personas**: cinco personas de la demo con una sola póliza («Seguro de vida
+  (ejemplo)», prima por persona, «5 × S/ 9.50 = S/ 47.50»); el atajo «Las de planilla» marcó las ocho de
+  planilla y prueba; quien ya tenía una póliza que se cruzaba salió deshabilitado con el motivo; y el PDF
+  subido una vez quedó en las cinco pólizas (cinco objetos distintos en el almacén, copiados dentro).
+- **Lista de asegurados**: con la cuenta de dirección, la vista previa, la casilla de remuneración y el
+  CSV (documento protegido para Excel, REVISAR con lo que falta, la remuneración solo cuando se marcó);
+  y con la cuenta convertida por un momento en líder DO, lo mismo: el botón y la casilla están, y el
+  archivo sale completo (13 filas, las 16 columnas). Antes de la decisión 8 esa vista no llevaba botón
+  y explicaba por qué; ese texto queda para quien algún día no pueda descargar.
+- **Teléfono (375 px) y modo oscuro** de las tres pantallas. Aquí apareció un defecto: con cuatro botones
+  en la cabecera, la página se salía del teléfono (680 px de ancho de contenido). Es de `CabeceraPagina`
+  (su acción es `shrink-0` y no le daba un ancho contra el cual envolver); se arregló ahí con `max-w-full`
+  y se midió de nuevo: 375.
+
+**El botón «Abrir» de un PDF**, comprobado en dos mitades: contra la API de Storage con la sesión
+de DO, la URL firmada se genera y baja el PDF (HTTP 200, `application/pdf`), y la misma petición
+sin sesión se niega. El clic mismo no se pudo probar en el navegador integrado de la app, que
+bloquea las ventanas emergentes (sale el aviso propio de la pantalla: «El navegador bloqueó la
+ventana del archivo…»); es el mismo camino que usa «Abrir» en Archivo.
+
+**Lo que NO se comprobó.** Una póliza de otra aseguradora ni de otro seguro que no sea FOLA: el lector se
+midió sobre la de Pacífico, y de otra solo se sabe que se lee con aviso. El cotejo de documento, la pregunta
+de descartar, el PDF compartido y el reintento de copias se vieron en el navegador con PDF sintéticos (datos
+inventados, ya borrados) contra la demo. Un iPhone real, ni la pantalla contra datos reales de producción: la
+0528 ya está pegada, pero el código del PR todavía no se publicó, así que nadie ha abierto `/admin/seguros`
+con datos de verdad. (`db-tests` de GitHub, la señal fiable de las pgTAP porque construye la base desde cero,
+pasó sobre el commit `0a14c028`, igual que `ui-tests`.) El
+disparador se probó con las dos funciones que de verdad cambian el vínculo —`fn_set_tipo_vinculo`
+y `fn_cesar_persona`, incluido un cese con vínculo nuevo en el mismo acto—: lo que no mueve el
+seguro no deja nada, lo que sí lo mueve deja su cambio, y quien ya no está activa no deja cambio.
+La numeración deja huecos frente a `main` (0523, 0526 y 0530): ninguno es de esta rama (la 0530 es
+la etapa 2) y se llenan cuando las suyas se fusionen. `main` ya se fusionó dentro de la rama el
+2026-10-17: la prueba 422 corrió con sus migraciones nuevas (0527, 0531, 0532, 0533) aplicadas antes, y
+en `types.ts` ganó la versión de esta rama, porque el de `main` traía una VIEJA (solo FOLA) de las
+tablas de Seguros, arrastrada por una regeneración de tipos desde la base local compartida.
+
+**FUSIONADO Y PUBLICADO el 2026-10-17 (PR #551).** Felipe lo pidió con la 0528 ya pegada y sabiendo que
+fusionar publica: una sesión sacó el PR de borrador, dejó el comentario `<!-- cayla:fusion-sesion -->` y armó
+la fusión con `--merge --auto`; GitHub la hizo a las 18:15 (hora de Lima), commit de fusión `48bedb5a`, justo
+cuando terminó `db-tests` (✓ 5 min 22 s, igual que `ui-tests` ✓ 1 min 7 s sobre `5ac6a396`). Vercel publicó a
+las 18:16 y `/admin/seguros` existe en producción (200; una ruta inexistente da 404). **Lo que ve DO desde
+entonces:** `/admin/seguros` abre sobre las tablas vacías, así que **cada practicante sale como hueco** (su
+seguro es FOLA y no tiene póliza registrada) hasta que se registren las pólizas (paso 3 de arriba). Eso es lo
+que la pantalla viene a mostrar. Cuando se fusionó, `main` traía 8 commits de interfaz (PR #552, sin SQL) que
+la rama no tenía: se probó la mezcla antes (limpia, `tsc` y las 2125 pruebas en verde). Si una de las tres
+consultas de Seguros fallara en producción, por cómo está escrito `pedir` en `lib/admin/bandeja-fuentes.ts` la
+fuente se marca «fallida» y solo ese módulo se queda sin datos, no la Bandeja entera (leído en el código, no
+probado con un fallo real en producción).
+
+**La etapa 2 («Mi seguro»)** está rehecha sobre esta, en la entrada de arriba (0530): cada
+colaborador lee SU seguro y SUS pólizas —de cualquier seguro— y, si está en EsSalud, que se paga por
+planilla. Felipe confirmó que los cuatro practicantes tienen cuenta y entran a Lo mío.
+
+**Cómo se generaron los tipos.** La base local es compartida y trae migraciones de otras ramas
+(la etapa 2 ya aplicó la suya), así que `gen-types` habría arrastrado cambios ajenos. Los 28 bloques de la
+primera versión salieron del generador de entonces; los dos de las funciones nuevas
+(`fn_seguro_registrar_varias`, `fn_seguro_asegurados`) y la columna `en_planilla` de `fn_seguros_equipo` se
+agregaron a mano. **⚠️ Trampa para quien regenere `types.ts`:** el `supabase` que hay hoy (CLI 2.113.0, el que
+pide `package.json`) escribe los argumentos de TODAS las funciones sin `| null` (`p_id: string`), y el archivo
+del repo los lleva con él (`p_id: string | null`, más de 500 argumentos). Los bloques nuevos siguen el estilo del
+archivo, no el del generador de hoy: regenerar el archivo entero cambia cientos de líneas ajenas a esta
+rama y conviene hacerlo aparte, en su propio PR. El resto del archivo tampoco coincide con la base (por
+ejemplo, claves foráneas de `boletas` que `types.ts` no tiene): deriva que ya traía la rama y no se tocó.
+
+---
+
+## 2026-10-17 — La política de movilidad se firma con la firma del sistema (0531) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · FUSIONADO (#542) · rama `claude/politica-firma-del-sistema`
+
+**Qué cambia.** En Documentación, el panel de la política ofrece «Con la firma guardada
+de …» (por defecto, si quien firma por CAYLA tiene firma en `firmas_escaneadas`) o
+«Subir el papel firmado a mano» (lo de siempre). La firma desde el sistema congela la
+hoja tal como se imprime —tarifas, cláusulas, fecha y firma— en
+`documentos_firmados.documento_html`, y «Ver documento» la muestra tal cual. La
+función `fn_politica_firmar_con_firma_empresa` no recibe ni persona ni imagen: lee la
+firma del firmante configurado y exige que sea exactamente la estampada en el HTML.
+
+**Probado.** pgTAP 425 (18/18) dentro de `begin … rollback` con la 0531 y control sin
+ella (falla). En el navegador, contra el Postgres local: firmar, ver, reemplazar (la
+anterior queda en «Versiones anteriores» con su «Ver»). Los datos de prueba se
+borraron; la 0531 quedó aplicada en el Postgres local.
+
+**Pegada.** La 0531 se pegó en producción el 2026-10-17 y su comprobación salió con
+las tres columnas en true (`columnas_puestas`, `constraint_puesto`, `funcion_creada`).
+No reescribe ninguna función: no hubo md5 de partida. El PR #542 se fusionó el
+2026-10-17 a las 15:22 (hora de Lima), con db-tests y ui-tests en verde. Se decidió que
+cualquier admin/líder DO puede firmar la política con la firma de quien firma por
+CAYLA —igual que hoy puede subir el escaneo—; si eso tiene que quedar solo para el
+firmante, es un `if v_yo <> v_firmante` en la función.
+
+---
+
+## 2026-10-17 — Educación: pagar antes de la fecha declarada también corre el calendario (0527) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · PR ABIERTO, SIN FUSIONAR · rama `claude/clever-nobel-3cdc5c`
+
+**Solo alerta; no cambia lo que cobra nadie.** Defecto desde la 0450, medido con las
+funciones de verdad: un mensual que vence el 15 de mayo, paga el 3 y declara el próximo
+el 3 de junio. DO aprueba y el calendario **se queda en el 15**; el 24 de mayo figura
+«vencida» por un mes ya aprobado. `fn_educacion_avanzar_calendario` comparaba la fecha
+de pago contra la fecha declarada (`e.fecha_pago >= a.proxima_fecha_pago`), así que
+pagar antes nunca la alcanzaba. Pasa con todas las frecuencias.
+
+**Decisión de Felipe (2026-10-17): criterio A.** Avanza también cuando el pago cae
+desde el día 1 del MES de la fecha vigente y lo declarado es posterior (o es «último
+pago», que sigue poniendo null). Para toda frecuencia. Se descartó «solo hacia
+adelante» a secas porque pisaría la fecha que DO fijó a mano.
+`fn_educacion_fijar_calendario` no se toca. **Residuo conocido:** pagar en un mes
+ANTERIOR al de la fecha vigente (vence el 3/nov, paga el 28/oct) sigue sin mover el
+calendario; lo fija DO a mano.
+
+**Medido.** pgTAP **421**, 34 aserciones: 34 verdes con la 0527; **15 rojas** en el
+control sin ella (justo las de pagar antes y las de la vida real). Cuatro variantes
+equivocadas de la regla (solo adelante, sin exigir `N > P`, solo mensual, ventana de
+40 días) la rompen cada una por al menos una aserción. md5 de partida en **producción**
+`bd2c70bb…` · 354 caracteres, idéntico a la 0450 (medido por Felipe el 2026-10-17;
+**se vuelve a pedir justo antes de entregar**). Llegada, local: `51570d94…` · 727.
+La sección 0 de la migración frena si la función no es esa versión.
+
+**Pegada y verificada el 2026-10-17.** Felipe la pegó («Success. No rows returned») y la
+consulta de comprobación devolvió, en producción: 727 caracteres · md5
+`51570d948d13c3fe079ff78e2a6905e2` · marca «CAMBIO 0527» en la posición 376 · 0 retornos de
+carro · 1 sola copia de la función · registro `527 · pagar_antes_de_la_fecha_tambien_corre_el_calendario`.
+Coincide con el md5 de llegada medido en local. Falta fusionar el PR, que solo trae el
+archivo ya pegado, la prueba 421 y este texto: ningún cambio de pantalla, y ya no hay orden
+de pegado que respetar. Fusionar es publicar: se pide el OK aparte.
+
+**Medido otra vez con `main` ya movido** (PR #541: 0525 y 0529 pegadas): la prueba 421 da 34
+verdes contra el esquema con 0525, 0526 y 0529 puestas, y 15 rojas en el control con la
+función de la 0450. La 0529 mueve el calendario de un pago adelantado con su propio trigger y
+no reescribe esta función; las dos se llevan bien.
+
+**Pendiente.** (1) ~~Pegar la 0527~~ hecho; es independiente de la 0526 (reescribe otra
+función). (2) Felipe corre la consulta del final de la migración para saber cuántos estudios
+**ya** quedaron atrasados: esta migración no los repara (solo actúa al aprobar); DO los fija a
+mano con `fn_educacion_fijar_calendario`. (3) Con la 0525 ya en producción, revertir la
+aprobación de un pago hecho antes de la fecha deja el calendario en la fecha de PAGO y no en
+la de vencimiento (un pago del 3 con vencimiento el 15 revierte al 3). Es lo que la 0525 hace
+con toda reversión; con la 0527 solo cambia que el pago puede ser anterior al vencimiento, y
+lo único que se adelanta es el plazo. Solo alerta; no se tocó. (4) Sin entrada en
+`novedades.ts`; decide Felipe.
+
+---
+
+## 2026-10-17 — Las boletas se firman, DO las ve firmadas y puede anular y restablecer en 48 horas · migración 0532 · PEGADA Y VERIFICADA EN PRODUCCIÓN · FUSIONADA Y PUBLICADA (PR #543, 2026-10-17)
+
+**Pegada y verificada el 2026-10-17, DESPUÉS de fusionar.** El PR #543 se fusionó a las 19:59 UTC
+(14:59 en Lima) **antes de pegar la 0532**, que es justo el orden que este archivo manda no
+seguir. Mientras `main` ya estaba publicada y la migración no, firmar una boleta en producción
+respondía «El sistema no encontró esta función», y lo vio una integrante real en «Lo mío». Se
+pegó desde otra sesión con `./scripts/dame-el-sql.sh 532` (portapapeles idéntico al archivo de
+`main`), el freno de md5 pasó y la comprobación devolvió
+`funciones_nuevas_de_4=4 | columna_firma=1 | columna_estado_previo=1 | historial_con_rls=1 |
+tablero_nuevo=1 | mis_boletas_nuevo=1 | guardar_version_nuevo=1` y el registro
+`532 · las_boletas_se_firman_y_una_anulacion_se_restablece`. Duró de la fusión al pegado; no se
+reportó daño más allá de ese error en pantalla. Lo que queda por comprobar en producción es el
+recorrido real de punta a punta (una boleta propia de Felipe). No consta quién fusionó: GitHub
+muestra la cuenta de Felipe, igual que cuando lo hace una sesión; la sesión que escribió esto
+había dicho que no fusionaba y que avisaba antes.
+
+**(Lo que sigue se escribió antes de pegar y fusionar; el «sin pegar» de abajo ya no es cierto.)**
+
+**Hay SQL: la [0532](../supabase/migrations/0532_las_boletas_se_firman_y_una_anulacion_se_restablece.sql).**
+**Se pegaba ANTES de fusionar:** el código nuevo llama a `fn_boleta_firmar`, `fn_boleta_restablecer`,
+`fn_boleta_constancia` y `fn_boleta_anulaciones`, que no existen en producción hasta pegarla; con el
+código primero, «Firmar» y «Anular» devolverían un error.
+
+**Qué pidió Felipe (2026-10-17, tras ver el prototipo `docs/boletas-firma-prototipo-2026-10-17.html`).**
+Que las colaboradoras firmen su boleta desde Dynamic cuando DO la sube; que DO vea la boleta con su
+firma; y que DO pueda anular una boleta ya aprobada —viendo el nombre, la constancia y los datos para
+saber si es la correcta— y restablecerla durante 48 horas. Decidido por él: firma con la guardada en Mi
+perfil, **firmar es obligatorio** (la salida es «Entregada en papel»), carga persona por persona.
+
+**Qué hace.**
+- **Firmar:** `fn_boleta_firmar` copia en el acuse de esa versión la firma que la persona tiene guardada
+  (`firmas_escaneadas`), con fecha y hora. Exige haberla abierto. Dos pasos en pantalla, y si no tiene
+  firma la crea ahí mismo con `FirmaEditor`. «Confirmar que la recibí» se **retira**: la función sigue
+  existiendo y contesta «recarga y usa Firmar» (así una pantalla vieja no ve «función inexistente»).
+- **Recibida exige firma, y lo dice un trigger** (no un CHECK: un CHECK `not valid` se reevalúa cuando
+  `fn_boleta_partes` actualiza una fila vieja y rompería a quien ya había confirmado). Quien confirmó
+  antes queda «Confirmada», sin firma, y no se le agrega una después.
+- **DO ve la firma:** `fn_boleta_constancia`; «Ver boleta firmada» muestra la boleta y la firma copiada.
+- **Anular guarda cómo estaba** (`boletas.estado_previo`) y escribe en `boletas_anulaciones` (historial
+  que solo se agrega). `fn_boleta_restablecer` devuelve la boleta exacta, con su firma —el acuse cuelga de
+  la versión y anular no lo toca—, solo dentro de 48 horas desde `anulada_at` y solo si el grupo sigue
+  pagado. Pasado el plazo, solo «Subir boleta nueva».
+- **La persona ve «En revisión»** (`fn_mis_boletas` ahora devuelve las anuladas, sin versión ni
+  archivos) y **no se le avisa** que se anuló, ni el motivo. Supuestos míos, no decididos por Felipe:
+  que restablecer conserve la firma (no firma otra vez) y que no se le avise.
+- **El globito de «Boletas» y la Bandeja ahora cuentan lo que espera firma**, no solo lo que no se abrió.
+
+**Reescribe seis funciones y lleva su freno de md5.** `fn_boleta_guardar_version`, `fn_boleta_anular`,
+`fn_boleta_confirmar_recibo`, `fn_boletas_acuses_guardian`, `fn_boletas_tablero` (la vigente es la de la
+0491, con su `not cuenta_de_servicio`) y `fn_mis_boletas`. El bloque `0 · EL FRENO` aborta sin tocar nada
+si alguna no coincide con lo que se copió (probado: se rompió una a propósito y la migración paró). **No se
+pidió el md5 a producción antes de escribir**, como manda CLAUDE.md: el freno lo reemplaza al pegar, pero si
+el PR #450 (que modifica la propia 0482) se fusiona antes, hay que volver a medir con `donde-vive.sh`.
+Los md5 de partida son los de la base local construida de `supabase/migrations`; si producción tiene
+comentarios de menos o `\r`, el freno lo acepta (mismos desenlaces que la 0491).
+
+**Cómo se verificó.**
+- pgTAP: la nueva **426** (53 aserciones: firma, guardián, constancia, anular, restablecer, plazo de 48 h,
+  historial) y la **380** adaptada (87; «confirmar» pasó a «firmar») pasan. Se repegó la migración y es
+  idempotente. La suite completa local dio 82 de 330 archivos en rojo, **todos por datos del Postgres local**
+  (periodos `dead0c…` que chocan con `periodos_sin_solape` y con una llave foránea; 41 de los errores son
+  esa misma colisión); ninguno es de boletas y **no se corrió el control** (la misma suite sin la 0532): la
+  señal fiable es `db-tests` en CI.
+- vitest completo (1 824, 87 archivos), `tsc` y eslint de lo tocado en verde. Los tipos de `database` se
+  regeneraron con `gen-types` (el diff es grande porque el archivo llevaba atraso).
+- **En el navegador, contra el Supabase local**, con DO y una integrante de prueba: DO sube una foto, la
+  publica; la integrante la abre (el botón «Firmar» estaba apagado hasta entonces), crea su firma, firma en dos
+  pasos; DO ve «Firmada» y «Ver boleta firmada» con la firma; DO anula con motivo (el botón se enciende solo
+  con motivo y casilla del nombre; «Otro» pide 5 letras); «Ver anulación»; «Restablecer» la devuelve
+  firmada; la integrante ve «En revisión» mientras está anulada. Datos de prueba borrados al terminar.
+
+**Lo que NO se comprobó.**
+- Un celular real (la pantalla de la persona y los modales se vieron solo en el navegador de escritorio).
+- El plazo vencido en pantalla (se prueba a nivel de base y de reglas, no moviendo el reloj en el navegador).
+- «Descargar con firma»: el prototipo la mostraba y **no se construyó** (haría falta generar un PDF).
+- La entrada «Boletas» en el menú: la trae el PR #535, que la pone en **Pago, debajo de Planilla**; la
+  jefa pidió **Personas**. Pendiente de decidir cuál queda.
+- La consulta al laboralista y al contador (PR #450, `docs/consulta-boletas-de-pago.md`) sigue sin contestar:
+  esto es una constancia de recepción, no firma digital certificada.
+
+---
+
+## 2026-10-16 — Educación: un estudio ya no tapa a otro (0524) · SQL PEGADO EN PRODUCCIÓN (2026-10-19, 15:07) · EN `main` · rama `claude/hungry-mirzakhani-1438df`
+
+**Hoy no cuesta nada.** Medido en producción con la regla nueva contra la de hoy sobre
+los tres últimos periodos: a nadie le cambia el pago. Es una regla frágil que se
+endereza antes del próximo caso, no una plata mal pagada.
+
+**El defecto.** La regla de la 0233 usaba UN día de referencia por persona. Si el
+único estudio vigente el primer día del periodo se acababa ahí, todo lo que empezaba
+después quedaba sin pagar (Duolingo hasta 28/09, Pop in colors e Italo desde 10/10:
+boleta de S/104.25 donde tocaban S/165). **0524** da a cada estudio su propio día de
+referencia. Mismo estudio = misma `familia_id`, o mismo beneficiario (y mismo hijo) con
+la misma institución o con ciclos contiguos. El cuerpo vive en
+`fn_planilla_calcular_nucleo` (la vigente era la **0504**, no la 0397: el envoltorio de
+786 caracteres no paga nada).
+
+**Decisión de negocio que revierte la 0233:** un estudio que empieza a mitad de periodo
+cobra el mes completo ese periodo aunque la persona ya tuviera otro. Límite conocido
+(documentado en la cabecera): dos ciclos del mismo beneficiario con instituciones
+distintas, no contiguos y en un mismo periodo, se cobran los dos; en producción no hay
+ninguno hoy.
+
+**Pendiente.** ~~Pegar la 0524~~ **HECHO el 2026-10-19 a las 15:07**, como paso previo de la prueba de tres
+días (la 0537 la exige): el 19 por la tarde producción devolvió `11425cad…`, el md5 de la 0524 tal cual. Queda,
+aparte, medir en la boleta congelada de septiembre qué se pagó de educación a esa
+integrante (Duolingo tenía dos tramos; las filas de hoy no se suman entre sí).
+`donde-vive.sh` busca el primer contenedor `supabase_db_*` y con `cayla-retail`
+levantado contesta «no existe en el Postgres local»: no es que falte, mira otra base.
+
+---
+
+## 2026-10-17 — Educación rediseñada: pago adelantado, historial y cuadrícula de íconos · 0525 Y 0529 PEGADAS Y VERIFICADAS · PR #541 SIN FUSIONAR · rama `claude/educacion-rediseno`
+
+**0525 pegada y verificada en producción el 2026-10-17.** La comprobación devolvió
+`525 · una_aprobacion_de_constancia_se_puede_revertir | 4 | 3 | true | true` (registro con número y nombre,
+las 4 columnas, las 3 funciones y la marca «CAMBIO 0525» en las dos funciones reescritas). Su guarda aceptaba
+el cuerpo de la 0450 tal cual o pegado desde Windows, y pasó: producción tenía la versión esperada.
+
+**0529 pegada y verificada en producción el 2026-10-17.** La comprobación devolvió
+`529 · un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion | 7 | true | 2 | 3` (registro con número
+y nombre, las 7 funciones, la tabla de meses, las 2 columnas de cobertura y los 3 triggers). Con las dos pegadas,
+**ya se puede fusionar el PR #541** —que es publicar—, con OK de Felipe.
+
+**Hay SQL, en este orden y ANTES de fusionar:** (1) la [0525](../supabase/migrations/0525_una_aprobacion_de_constancia_se_puede_revertir.sql)
+(revertir una aprobación; ver la entrada de abajo: le falta el md5 de PRODUCCIÓN de dos funciones); (2) la
+[0529](../supabase/migrations/0529_un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion.sql) (no
+reescribe nada: solo comprobar antes que sus nombres no existan; la consulta va al final del archivo). La
+0526 (día 1) y la 0527 (calendario) son de otras ramas y no dependen de estas.
+
+**Qué pidió Felipe y qué quedó (2026-10-17).**
+- **Pago adelantado.** Quien pagó, p. ej., agosto a diciembre de una vez sube UNA constancia: desde/hasta en meses
+  calendario (ambos incluidos), el total o el monto de cada mes; el sistema reparte y ella corrige un mes con
+  motivo (≥ 3 letras; el resto del total se reparte entre los demás). DO la aprueba una vez; el calendario salta
+  al pago siguiente al último mes cubierto y no se pide constancia de esos meses. En enero se paga como siempre y
+  se pide la nueva («solo alerta»). Si el monto de un mes es menor que el costo declarado, el visor de DO avisa;
+  si un mes está mal, se rechaza la constancia entera. La constancia sola no crea el apoyo ni enciende el pago.
+- **Cuadrícula.** Un ícono por mes (aprobada, por revisar, rechazada, falta) y una raya para el apoyo (pagado
+  —de la foto de planilla, `monto_educacion`—, este mes, se pagará). Detalle con la miniatura del comprobante al
+  pasar encima; el visor al tocar. Un adelantado es una franja que une sus meses. El mes en curso va sombreado
+  («hoy»), y el rótulo de la sede queda fijo al desplazar.
+- **Pantalla de DO.** Cuatro pestañas (Constancias · Aprobadas del ciclo · Historial · Cómo funciona), «Para
+  atender» en una línea y filtros en dos filas. Se abre en **«Solicitaron»**; **«Todos»** es todo, sin excepción
+  (también terminados y personas liquidadas) y suma a quienes no pidieron como filas de su sede en la misma
+  cuadrícula. «Estado del apoyo» arranca en «Todos».
+- **Historial.** General (filtros por sede, persona, tipo y fechas; CSV), individual dentro de cada estudio, y
+  «Tu historial» en Lo mío sin nombres de DO ni sus motivos internos.
+
+**Cómo se verificó.** pgTAP [424](../supabase/tests/424_un_pago_adelantado_cubre_varios_meses.test.sql) (44; el encabezado de la 0529, ya pegada, dice 50 por un conteo mal hecho y no se toca) y
+[419](../supabase/tests/419_una_aprobacion_de_constancia_se_puede_revertir.test.sql) (53) en el Postgres local
+dentro de `BEGIN … ROLLBACK`; la 424 sin la 0529 falla (control). `tsc`, eslint y las 1 807+ pruebas de vitest en
+verde (nuevas: `educacion-adelantado`, `educacion-historial`, `educacion-ciclo`). En el navegador, contra la base
+local, como DO y como integrante: enviar el adelantado (reparto y corrección con motivo), revisarlo con el aviso de
+monto menor, aprobarlo (el calendario saltó), la cuadrícula, los filtros, el historial con sede y el celular.
+
+**Lo que NO se verificó.** Nada contra producción. La subida real de un archivo desde el celular (el navegador
+automático no elige archivos). **Límite conocido:** la fila de un estudio puede decir «Rechazada» aunque un
+adelantado aprobado cubra ese mes, porque `fn_educacion_situacion` elige la constancia por fecha de pago; se
+arregla al reescribir esa función, que es la que reescribe la 0526 (otra rama).
+
+**Limpieza (solo local).** La base local tiene personas «Demo», periodos y fotos de planilla de prueba, y dos
+cuentas de prueba (anotadas en `apps/web/.env.local`, que no va a git).
+
+---
+
+## 2026-10-17 — Educación: una aprobación de constancia se puede revertir, y «Aprobadas en el ciclo de pago» · migración 0525 · SIN PEGAR · SIN FUSIONAR · rama `claude/educacion-revertir-aprobacion-constancia`
+
+**Hay SQL: la [0525](../supabase/migrations/0525_una_aprobacion_de_constancia_se_puede_revertir.sql), SIN PEGAR.
+Debe pegarse ANTES de fusionar** (el botón nuevo llama funciones que todavía no existen en producción). Antes de
+entregarla hay que pedirle a producción el md5 de las dos funciones que reescribe (consulta abajo) y declararlo en su
+encabezado, que hoy dice `__PENDIENTE__`.
+
+**Qué pidió Felipe.** Alguien tenía una constancia aprobada que no debió aprobarse y no había dónde corregirlo (desde la
+0450 lo revisado no se toca: un trigger lo impide). Pidió un apartado en Educación para ver a quién se aprobó en el
+ciclo de pago, ver su constancia y rechazarla con motivos predeterminados u «otro» (mínimo 3 caracteres, sin máximo), y
+que esos rechazos salgan en el historial de Educación. Decidió (2026-10-17): revertir **apaga el pago** si era la única
+constancia aprobada del estudio y **se bloquea** si el pago ya salió con ella; el ciclo es el **periodo de planilla**
+(29 → 28), no el mes calendario.
+
+**Cómo está hecho.**
+- `fn_educacion_revertir_aprobacion(id, categoría, comentario)`: la constancia pasa de aprobada a rechazada y conserva
+  en columnas nuevas quién la aprobó y cuándo (`aprobada_*`) y quién la revirtió y cuándo (`aprobacion_revertida_*`);
+  deja su fila en `correcciones_auditoria`. Nadie revierte su propia constancia. El pago NO se toca desde ahí: el espejo
+  de la 0450 ya deja o quita el `comprobante_url` según haya o no otra constancia aprobada.
+- **La única puerta** es esa función: el trigger de la 0450 (`fn_educacion_entrega_inmutable`, reescrito) deja pasar
+  aprobada → rechazada solo si vienen juntos `current_user = 'postgres'` y la marca de reversión. Un `UPDATE` directo,
+  de quien sea, sigue negado.
+- `fn_educacion_revertir_efecto(id)` dice, antes de confirmar, si apagaría el pago y si está bloqueado; la pantalla
+  solo lo muestra. **Bloqueado = no queda otra aprobada y el grupo de la persona (`tipo_vinculo`) tiene un periodo
+  pagado DESPUÉS de aprobar esa constancia** («Reabre el periodo primero»).
+- El calendario retrocede (a la fecha de ese pago) solo si esa aprobación fue la que lo avanzó y no hay otra más
+  reciente; si no, no se mueve.
+- `fn_educacion_aprobadas_del_periodo(periodo)`: lo aprobado EN el periodo, por el día en que DO aprobó (no por el del
+  pago). `fn_educacion_entregas` gana cuatro columnas (aprobada/revertida, con nombre solo para DO).
+- Pantalla: sección «Aprobadas en el ciclo de pago» en `/admin/educacion` (plegada, carga al abrirla), con selector de
+  ciclo, «Ver constancia» en la misma fila, «Rechazar…» con el aviso del efecto sobre el pago. La constancia revertida
+  se ve en la cuadrícula (rechazada), en el visor («Aprobación revertida») y en el historial del estudio. Los campos
+  del rechazo se sacaron a `components/educacion/campos-de-rechazo.tsx` y los usan los dos rechazos (una sola copia).
+  Novedad de DO en `novedades.ts`.
+
+**Qué se comprobó.** Prueba pgTAP [419](../supabase/tests/419_una_aprobacion_de_constancia_se_puede_revertir.test.sql)
+(53 aserciones) contra el Postgres local, dentro de `BEGIN … ROLLBACK`, con la 0525 puesta: 53 verdes; **el control sin
+la 0525: rojo** en lo que debe. La migración se pega dos veces sin error (idempotente). `tsc`, eslint y las 1785
+pruebas de vitest en verde. En el navegador, con la base local y datos de prueba (Ana con otra aprobada, Bea con una
+sola, Carla con el pago ya salido): la sección carga y cambia de ciclo, «Ver constancia» muestra el papel, el botón se
+apaga con menos de 3 letras, rechazar a Ana la dejó «Rechazada» con su motivo (tarjeta, cuadrícula, visor y auditoría),
+y el caso de Carla muestra el bloqueo en rojo sin campos. También en un celular de 375 px, sin desbordes.
+
+**Qué NO se comprobó.** Nada contra producción ni contra datos reales; el caso «el grupo pagó después de aprobar» está
+medido solo con filas de prueba. La Bandeja de la integrante (que el rechazo le llegue y se lo diga bien) no se abrió en
+el navegador. No se midió cuántas constancias aprobadas hoy en producción quedarían **bloqueadas** al intentar
+revertirlas (todas las de una persona cuyo grupo ya pagó después de aprobarlas y que no tiene otra): conviene medirlo
+antes de prometer que «siempre se puede corregir».
+
+**Para Felipe, en este orden.** (1) Pegar en el SQL Editor y mandar el resultado:
+`select p.proname, md5(p.prosrc), length(p.prosrc) from pg_proc p where p.pronamespace = 'public'::regnamespace and
+p.proname in ('fn_educacion_entrega_inmutable', 'fn_educacion_entregas');` — locales (= repositorio):
+`dc4ba3e1…` · 1045 y `d4c4fe5b…` · 1126. Si producción devuelve otros (comentarios perdidos, o `\r` por Windows), se
+declaran los de producción y se agrega a la guarda de la sección 0; si no coincide ninguno, se para. (2) Pegar la 0525.
+(3) Fusionar el PR. **La regla «la constancia se pide el día 1 de cada mes»** (mensuales; plazo como hoy) quedó
+propuesta como sesión aparte: reescribe `fn_educacion_situacion`; no depende de esta migración.
+
+**Limpieza pendiente (solo local).** Para ver la pantalla se cargaron en el Postgres local de `cayla-dynamic` cuatro
+personas «Demo», tres estudios, cuatro constancias, dos periodos y una cuenta de prueba (`do-prueba@cayla.dev`);
+borrarlas exige `set session_replication_role = replica` porque las entregas no se borran.
+
+---
+
+## 2026-10-16 — Educación: cuadrícula de constancias por mes, visor sin descargar, sede y filtros · SIN SQL · COMMITEADO, SIN PR TODAVÍA · rama `claude/constancias-filtros-sede-a4201b`
+
+**No hay migración que pegar.** Todo sale de las dos funciones que ya existen
+(`fn_educacion_situacion`, `fn_educacion_entregas`). Está commiteado en la rama
+(`b1e7378a` y un segundo commit con los arreglos de la revisión de abajo); no se ha
+subido ni abierto PR.
+
+**Qué pidió Felipe y qué quedó.** «Ver las constancias sin descargar, los meses
+anteriores, el filtro y todo por sede». Decidido por él en 16 preguntas el 2026-10-16:
+visor grande sobre la misma pantalla (foto o PDF con todas sus hojas, datos y
+Aprobar/Rechazar al lado, ← → entre constancias), cuadrícula persona × mes con seis
+meses y «ver más», mes = calendario del pago, **un mes sin constancia es un guion y
+nunca una falta**, una fila por persona e institución (el Duolingo registrado dos
+veces es una línea), las cinco tarjetas siguen la sede y el mes elegidos, sin
+aprobación en lote, CSV de lo que se ve y ZIP del mes. La sede y el diseño los dejó
+a criterio de quien construyó. Quién ve la pantalla **no cambió**: solo DO y admin.
+
+**Dónde vive.** Lógica pura en `apps/web/lib/admin/educacion-meses.ts` (con
+`tests/educacion-meses.test.ts`) y `zip-constancias.ts`; piezas en
+`apps/web/components/educacion/`. El PDF se **dibuja** con pdf.js (`legacy`) y no se
+incrusta: Safari de iPhone solo mostraría la primera hoja de un PDF incrustado.
+Dependencias nuevas: `pdfjs-dist` y `fflate`. La aprobación/rechazo salió del panel a
+`AccionesRevision`, que usan el panel y el visor.
+
+**Los decodificadores de pdf.js viven en `apps/web/public/pdfjs/wasm/`.** Sin ellos,
+un PDF escaneado en blanco y negro (JBIG2) o con JPEG 2000 sale EN BLANCO en el visor,
+sin error. Se midió el 2026-10-16 con un PDF de prueba JPEG 2000: hoja en blanco antes,
+legible después. **Si se sube `pdfjs-dist`, hay que volver a copiarlos** (`cp
+apps/web/node_modules/pdfjs-dist/wasm/{jbig2,openjpeg,qcms_bg}.wasm apps/web/public/pdfjs/wasm/`):
+`tests/pdfjs-wasm.test.ts` falla en CI si no coinciden byte por byte.
+
+**Revisión independiente (2026-10-16).** Cinco revisores con lentes distintos leyeron el
+commit y 78 verificadores intentaron refutar o reproducir cada hallazgo: de 39 candidatos,
+35 confirmados, 2 discutidos y 2 descartados. Lo confirmado se arregló. Lo que más pesó:
+(1) el PDF escaneado en blanco de arriba; (2) una consulta de constancias que fallaba se
+dibujaba y se exportaba como «sin constancia» —ahora se marca «?», no esconde al estudio
+de ningún filtro y el CSV/ZIP se niegan hasta reintentar—; (3) el CSV y el ZIP de un mes
+omitían en silencio los apoyos terminados y las personas liquidadas —ya no—; (4) una
+constancia por revisar de un tramo terminado o de una persona liquidada no se veía en
+ninguna tarjeta ni pestaña —ahora **lo que espera revisión no se esconde por un filtro
+que nadie eligió**—; (5) dos dibujados a la vez sobre el mismo canvas dejaban la hoja
+mal pintada.
+
+**Qué se comprobó.** `tsc`, eslint, las pruebas y `next build` en verde. En el
+navegador, con datos simulados y archivos reales en el Storage local (la base local no
+tiene la 0450, así que NO se probó contra la base): miniaturas de foto y de PDF, el
+visor en escritorio y en celular (las dos hojas del PDF se ven), aprobar desde el
+visor con la confirmación encima, Esc que cierra solo la confirmación, el panel de
+estudio con su historial, el filtro por sede y por mes y la dirección que los guarda.
+
+**Lo que NO se comprobó.** Un iPhone real; el clic en «Descargar» (CSV y ZIP): se
+probaron los nombres de archivo, las extensiones y los repetidos, no la descarga misma;
+y los datos reales de producción.
+
+**Deuda a la vista.** Al entrar se hace una consulta por estudio (de a seis): con ~30
+personas no se nota; si la lista crece, conviene UNA función SQL que devuelva todo, y
+esa sí exigiría pegar antes de fusionar. El panel «Estudio» de una fila con varios
+tramos abre el tramo que habla por la fila; las constancias de los otros se ven en la
+cuadrícula y en el visor.
+
+---
+
+## 2026-10-15 — Los practicantes pasan de EsSalud al seguro FOLA · migración 0504 · PEGADA Y VERIFICADA EN PRODUCCIÓN · FUSIONADA Y PUBLICADA (PR #532, 2026-10-15)
+
+**Pegada y verificada el 2026-10-15.** El SQL Editor devolvió el registro
+`504 · los_practicantes_pasan_de_essalud_a_seguro_privado`, y una consulta aparte,
+escrita ANTES con los valores esperados calculados sobre el archivo, dio `true` en
+las once filas: `fn_planilla_calcular_nucleo` con md5 `f1781d68…` y 116749
+caracteres, `fn_set_tipo_vinculo` con md5 `da6490ac…` y 2624 caracteres, una sola
+versión de cada una, 0 retornos de carro, y el marcador «CAMBIO 0504» en la
+planilla. Lo que eso garantiza es el texto de las dos funciones; que un practicante
+dé EsSalud 0.00 en el cálculo en vivo lo prueba la 398 en CI, y **no se midió contra
+una planilla real de producción**. Los periodos ya congelados no se recalculan.
+
+**Fusionado y publicado el 2026-10-15 a las 14:58 (Lima)**, después de pegar la SQL,
+como manda el orden. Fusión armada con `--auto --merge` a pedido de Felipe, sin
+`--admin`; `db-tests` y `ui-tests` en verde sobre el commit de la fusión
+(`2d73c1b0`), y ese commit publicado en producción. Desde entonces el convenio de
+prácticas que genera Contratos dice «seguro privado» (14 / 30 subvenciones, alcanza
+los accidentes de la práctica).
+
+**Hoy no cuesta nada, y queda abierto.** Felipe decidió fusionar **sin** la
+confirmación escrita del corredor, asumiendo el riesgo: el convenio ya promete lo de
+arriba, y ni el «Beneficio máximo anual» ni la cobertura de la modalidad
+preprofesional están comprobados (ver la tabla). Solo pesa si un practicante se
+enferma o se accidenta y la póliza no alcanza lo que el convenio dice: esa diferencia
+la debería LA EMPRESA.
+
+**Los cuatro firman el convenio nuevo, no una adenda** (decidido por Felipe el
+2026-10-16). Ninguno tiene un convenio firmado que diga EsSalud que haya que
+corregir, así que la rama `claude/adenda-convenio-en-info` (2026-10-02, sin PR) no
+hace falta para esto.
+
+**Qué es.** La planilla deja de calcular `aporte_essalud` para los practicantes
+(una línea de `fn_planilla_calcular_nucleo`), el motivo que `fn_set_tipo_vinculo`
+guarda al pasar a alguien a practicante deja de prometer EsSalud, y el convenio de
+prácticas dice «seguro privado» (Ley 28518, art. 42.8). Nada más cambia para un
+practicante: movilidad y educación siguen igual (0397 no se toca).
+
+**La póliza ya existe.** Cuatro pólizas individuales de «Seguro de Salud
+Practicantes» de Pacífico (N.º 24043264 a 24043267), emitidas el 14/10/2026, con
+vigencia **01/10/2026 → 01/01/2027** (92 días). Prima S/ 179.97 con IGV por póliza,
+unos S/ 60 al mes contra S/ 110.70 de EsSalud. Los papeles no se guardan en el
+repo (llevan nombres): viven en el correo de Felipe y con el corredor.
+
+**Lo que Felipe tiene que hacer, y no es el SQL.**
+
+| Qué | Cuándo | Si no |
+|---|---|---|
+| ~~**Pagar las cuatro primas** (S/ 719.88 en total, contado)~~ | ✅ **pagadas** — lo informó Felipe el 15/10/2026 (vencían el 31/10) | Con 30 días de mora la cobertura se suspende. Queda pedir las facturas, que Pacífico emite al pagar: Dante las va a necesitar |
+| ~~**Enviar a cada practicante su póliza**~~ | ✅ **enviadas** — lo informó Felipe el 16/10/2026 | Ese correo es la constancia de entrega: no borrarlo. No hace falta un cargo aparte: el convenio no promete entregar la póliza, y la firma del convenio nuevo prueba que cada uno sabe que tiene seguro |
+| **Pedir las facturas de las cuatro primas** | cuanto antes | Dante las va a necesitar |
+| **Firmar y devolver póliza y convenio de pago** | cuanto antes | Pacífico los pide firmados; la casilla del asegurado/contratante está en blanco en los cuatro |
+| **Que los cuatro firmen el convenio nuevo** | cuanto antes | Se genera desde Contratos; ya dice «seguro privado» |
+| **Renovar la póliza** | **antes del 01/01/2027** | Desde ese día los practicantes quedan sin seguro, y la planilla ya no calcula EsSalud al que volver |
+| **Confirmar con el corredor el «Beneficio máximo anual»** | **abierto — el convenio ya lo promete** | La casilla está VACÍA en las cuatro pólizas y la Tabla de Beneficios no viene adjunta: el mínimo de 14 / 30 subvenciones que el convenio nuevo promete no se puede comprobar con estos papeles |
+| **Preguntarle si la póliza alcanza a la modalidad preprofesional** | **abierto — el convenio ya lo promete** | El resumen dice que cubre a quien esté en un convenio de «Formación Laboral Juvenil o Prácticas Profesionales», y **dos de los cuatro asegurados son preprofesionales** (los otros dos, profesionales). Pedirlo por escrito |
+
+**Antes de pegar la 0504 (en este orden).**
+1. ✅ **Hecho el 15/10/2026.** [`antes_de_pegar_la_0504.sql`](../scripts/sql-manual/antes_de_pegar_la_0504.sql)
+   corrido en producción: `fn_planilla_calcular_nucleo` md5 `27dda408…`, 116375
+   caracteres, 0 retornos de carro (igual a la 0495 del repo); `fn_set_tipo_vinculo`
+   md5 `547088d9…`, 2610 caracteres, una sola versión (la 0324). Y los practicantes
+   no cesados son exactamente cuatro, las cuatro personas de las pólizas: la
+   migración quita el EsSalud a todos de una vez y la póliza es nominal.
+2. ✅ **Hecho el 15/10/2026.** Entregada con `./scripts/dame-el-sql.sh 504`,
+   mirando `main` en ese mismo mensaje (no se había movido).
+3. ✅ **Pegada ANTES de fusionar el PR**, como manda el orden: el PR trae el texto
+   nuevo del convenio.
+
+**Un choque que se vio y quedó frenado.** La rama
+`claude/youthful-joliot-8dd9cb` (pasar a planilla pregunta desde cuándo empieza el
+vínculo laboral, SIN PR) también reescribe `fn_set_tipo_vinculo`, y le cambia la
+firma. Si cualquiera de las dos se pega primero y la otra no se rehace, la segunda
+pisaría a la primera o dejaría dos versiones con los mismos dos argumentos
+(«function is not unique», la forma de la 0297/0299). La 0504 ahora lo comprueba
+antes de tocar nada y se detiene si esa función no es la de la 0324; se probó con
+funciones de mentira dentro de `begin … rollback`: pasa con la 0324 real y frena
+con una de cinco argumentos, con una sobrecarga extra y con una de dos argumentos
+sin el marcador. La rama de «pasar a planilla» ya traía su propio freno por md5
+de la 0324, así que si la 0504 entra primero ella se detiene en vez de pisar: tendrá
+que rehacerse partiendo del cuerpo de la 0504.
+
+**Y la 0504 ya entró primero.** Producción tiene desde el 15/10/2026
+`fn_set_tipo_vinculo` con md5 `da6490ac5d12722e38fcba0a2d47dea9` y 2624 caracteres.
+Quien retome la 0518 de «pasar a planilla» (`claude/youthful-joliot-8dd9cb`) tiene
+que partir de ESE cuerpo —el de la 0504, ya en `main`—, no del de la
+0324, y cambiar su md5 de partida (hoy declara `547088d9…`, 2610 caracteres): su
+freno se detendrá, que es lo que se quiere. La única diferencia con la 0324 es la
+frase del motivo de auditoría que se guarda al pasar a alguien a practicante.
+
+**Lo que no se midió en esta Mac.** El Postgres local está en la migración 338 y
+no tiene `fn_planilla_calcular_nucleo`, así que la parte de planilla de la 0504 se
+audita con `db-tests` de GitHub Actions (construye la base desde cero y corre la
+prueba 398). Auditoría anterior, del 2026-10-02 en un Postgres desechable con
+control: 398 daba 6/8 sin la migración y 8/8 con ella, y el resto de la suite era
+idéntico con y sin 0504. `fn_planilla_calcular_nucleo` sigue siendo la 0495 en
+`main`, o sea que el cuerpo del que parte no cambió.
+
+**Lo que dijo `db-tests` en el primer intento (commit `d675dba8`).** Falló UNA
+aserción, la 41 de la prueba **396** (la de la 0502): afirmaba que el practicante
+genera S/ 110.70 de EsSalud, que es justo lo que la 0504 quita a propósito. Esa
+prueba entró a `main` después de que se escribió la 0504, así que la rama vieja no
+podía verla. Se ajustó a 0.00 y se dice por qué en la propia prueba. La **398**
+pasó, o sea que la migración entera se aplicó sobre una base armada desde cero,
+freno nuevo incluido.
+
+---
+
+## 2026-10-13 — Easter eggs y el colibrí sin internet · SIN SQL · SIN FUSIONAR
+
+**Qué es.** Cinco secretos pasivos y una página para cuando no hay internet,
+con el juego del colibrí (tres juegos en uno: 50 % vuelo, 40 % salto, 10 %
+flappy). El catálogo y cómo activar cada uno está en
+[`easter-eggs.md`](easter-eggs.md); allí se anotan los que vengan.
+
+**No hay migración:** todo es frontend y archivos estáticos. Fusionar el PR ES
+publicar, como siempre.
+
+**Lo que conviene saber antes de fusionar.**
+- Es el primer service worker con alcance `/` (el del terminal sigue siendo
+  `/terminal/`, y este lo ignora a propósito). **No guarda ninguna página del
+  panel**: solo tres archivos sin datos. Está probado ejecutándolo (no leyéndolo)
+  en `tests/sin-conexion.test.ts`, y se comprobó en un navegador real cortando el
+  servidor: el panel muestra el aviso, el terminal NO.
+- **Solo funciona en dispositivos que ya abrieron Dynamic una vez con internet**
+  después de este despliegue. La primera visita sin red ve el error normal.
+- Se registra solo en producción. En `pnpm dev` no hace nada, para no dejar un
+  service worker pegado a `localhost:3000`.
+
+**Pendiente.** El toque del **aniversario de CAYLA**: falta el día exacto (en
+Retail es una campaña con ventana editable, no un día). Ver el final de
+`easter-eggs.md`.
+
+---
+
+## 2026-10-13 — El bono del practicante vuelve a la boleta, y se paga al cierre del periodo · migración 0521 · PEGADA Y VERIFICADA EN PRODUCCIÓN (2026-10-16) · PR #539 PENDIENTE DE FUSIONAR
+
+**Decisión de Felipe, el mismo día, al ver funcionando la 0520:** el pedido de
+Daniel Ruiz salió en la Bandeja «S/ 180.00 por transferir» y lo rechazó —«no
+transferir a cada rato, sino pagar al fin del periodo»—. Revierte la regla de la
+0519/0520 (el practicante nunca va a la boleta). La 0518 y la 0520 siguen
+pegadas; esto va ENCIMA de la 0520.
+
+**Antes de escribir, se midió** (planilla vigente, un practicante y un integrante
+de planilla en las mismas condiciones, bono de S/ 180 en cada boleta; repetido el
+2026-10-16 con la 0504 ya en la base): el total del practicante sube de 714.64 a
+894.64, exactamente S/ 180, igual que el de planilla; su EsSalud queda en 0.00
+antes y después (la 0504 se lo quitó; antes de ella eran 110.70 y tampoco se
+movía) y AFP no cambia; la **retención de 4.ª sigue en 0** (su guarda es `rxh`).
+Lo único que se mueve es el campo informativo `retencion_4ta_base`, y se mueve
+IGUAL en el de planilla: es un número que se muestra, no un descuento. El temor de la 0520 («la planilla le
+arma base de retención de cuarta con el bono dentro») es cierto como campo y no
+tiene efecto sobre lo que cobra. Prueba **415**.
+
+**Qué hace la 0521:** `fn_confirmar_mi_bono_cumpleanos` pierde la excepción del
+practicante (un bloque, marca `CAMBIO 0521`), y
+`fn_bono_pasar_pedidos_de_practicantes_a_boleta()` —no concedida a nadie, la corre
+la migración— pasa a la boleta del periodo abierto lo que la 0520 dejó «por
+transferir»: solo practicantes activos, sin transferencia ya confirmada, con
+periodo no pagado; idempotente. No toca el respaldo legítimo de los de planilla.
+No toca `fn_planilla_calcular`.
+
+**Pruebas (cada una en `begin … rollback` sobre el esquema completo):** 415 nueva
+(26; sin la 0521 fallan 4), 414 y 413 ajustadas (decían «nunca por la boleta»),
+y 335, 377, 378 sin cambios y en verde. Frontend: la pantalla del practicante
+(Info, /mio/cumpleanos y la Bandeja mía) vuelve a decir «se suma a tu boleta» y
+«tu subvención» donde decía «planilla»;
+la constancia de practicante lleva «se abona en la boleta del periodo, como
+concepto aparte de la subvención».
+
+**PEGADA el 2026-10-16, ANTES de fusionar el PR** (la regla general). El frontend
+del PR promete «se suma a tu boleta» al practicante y trae una novedad que corrige
+la anterior; por eso va después de pegar. Con el freno de la propia migración (que
+comprobó el md5 de partida y abortaba sin tocar nada si no coincidía), la respuesta
+del SQL Editor fue `firma_sin_excepcion = t`, `sin_sobrecarga = t`,
+**`practicantes_con_bono_en_boleta = 1`**, `practicantes_aun_por_transferir = 0` y el
+registro `521 · el_bono_del_practicante_vuelve_a_la_boleta`.
+
+**Verificada en producción** con una consulta de ocho filas, todas iguales a lo
+calculado antes en local: `fn_confirmar_mi_bono_cumpleanos` `b7a826e9…` tal cual /
+`e796c2b3…` sin comentarios (el mismo código que la 0479, sin la excepción: solo
+cambiaron los comentarios) / 5236 caracteres / 0 retornos; lleva `CAMBIO 0521` y no
+tiene `v_practicante`; `authenticated` puede ejecutar la firma y NO la reparación;
+`fn_mi_bono_cumpleanos` (`d35c7d75…`, 4726) y `fn_documento_registrar` (`2d78559a…`,
+5567) no cambiaron. **Daniel Ruiz tiene su línea «Asignación por cumpleaños» de
+S/ 180.00 en la boleta del periodo que cierra el 2026-10-28, atada a su constancia, y
+ningún practicante tiene dos líneas en el mismo periodo.**
+
+**NO REPEGAR la 0518 ni la 0520 después de la 0521:** la 0520 recrearía
+`fn_confirmar_mi_bono_cumpleanos` con la excepción del practicante y revertiría
+esta migración en silencio (su freno salta con el registro 520 y el resto del
+archivo corre). El traslado de la 0521 sí se protege solo: corre únicamente la
+primera pegada (medido: pegar dos veces, con una línea quitada por DO en el
+medio, no la reinserta).
+
+**md5 de partida de producción:** `fn_confirmar_mi_bono_cumpleanos` (0520) era
+`4c1ce380…` tal cual / `7d430c38…` sin comentarios, 5440 caracteres. No se pidió antes
+de entregar —Felipe pidió el SQL directamente—; lo comprobó el freno de la migración
+al pegar, y habría abortado sin tocar nada si no coincidía.
+
+**Límite conocido, HEREDADO de la 0479 y de cualquiera que esté en boleta (revisión
+adversarial, 2026-10-16):** anular una constancia de bono desde Documentación solo marca
+`anulado_at`; **no retira la línea de la boleta**, y como el índice único por año
+excluye las anuladas, quien firmó puede volver a firmar y quedar con DOS líneas de S/ 180
+en el mismo periodo. Hoy exige dos pasos deliberados (DO anula una firma digital y la
+persona firma otra vez), y la línea duplicada se ve en Planilla antes del cierre. **Hasta
+que se arregle en una migración aparte —que `fn_documento_anular` retire la línea cuando
+el periodo no esté pagado—, al anular un bono que ya va en boleta, DO tiene que quitar
+también la línea desde Planilla.**
+
+**Sigue abierto, y no depende de esto:** las tres preguntas al contador (Ley
+28518: ¿puede darse un monto por cumpleaños a un practicante sin que cuente como
+subvención?, ¿qué texto y cómo consta?, ¿deducible?). El texto de `TextoBono` para
+practicantes es **provisional**. Y el límite de que la constancia se pinta con el
+vínculo ACTUAL, no con el de cuando se firmó (necesita una columna).
+
+---
+
+## 2026-10-13 — Info saluda en el mes de cumpleaños, y el bono es para todo el equipo salvo prueba y contratos cortos · 0518 y 0520 PEGADAS EN PRODUCCIÓN (2026-10-13) · 0519 NEUTRALIZADA · SIN FUSIONAR
+
+**El caso.** Daniel Ruiz, practicante, cumple en octubre, y el 13 no tenía nada
+en su Info ni en su Bandeja mientras DO lo veía como «Bono de cumpleaños sin
+constancia firmada». Reproducido en local con un perfil igual: el tablero decía
+`este_mes` y `fn_mi_bono_cumpleanos` decía `no_aplica` — dos funciones
+contestando distinto sobre la misma persona (era el pendiente anotado abajo en
+la sección de la 0478, ahora cerrado).
+
+**Decidido por Cayla ese día:** todos firman —planilla y practicantes— salvo
+quien está en periodo de prueba (`tipo_vinculo = 'prueba'`) o tiene un
+contrato de menos de una semana (7 días con los dos extremos incluidos, leído
+de `personas.fecha_fin_contrato - fecha_ingreso + 1`; sin fecha de fin es
+indefinido y le toca). RxH y `no_trabajador` siguen fuera.
+
+**Lo que hace la 0518.** Una función nueva, `fn_persona_le_corresponde_bono_cumpleanos`,
+dice a quién le toca; la leen las TRES puertas, cada una con un `CAMBIO 0518`
+marcado sobre su versión vigente: `fn_mi_bono_cumpleanos` (0479 → Info, Bandeja
+mía, /mio/cumpleanos y la firma), `fn_documento_registrar` (0448 → el cargo en
+papel de DO) y `fn_documentos_tablero` (0492 → lo que DO ve en Documentación y
+en su Bandeja). A quien no le toca, el tablero ya no le pide nada.
+
+**Sin SQL, en el frontend:** el saludo de cumpleaños en Info
+(`app/(mio)/mio/saludo-cumpleanos.tsx`, mensajes en `lib/saludos-cumpleanos.ts`):
+aparece del día 1 al último del mes, arriba de todo —solo el acuse va antes—,
+para TODO el mundo, con 16 mensajes que rotan cada 9 s (se paran al pasar el
+mouse y con «reducir movimiento»). El botón «Firmar mi bono» solo sale cuando
+la base dice que puede (`puedePedirBono`): nunca un botón que va a fallar. La
+novedad del equipo va en el mismo PR (`2026-10-13-cumpleanos-en-info`; su
+`fecha` se corrige al día de la fusión).
+
+**Auditado.** En `BEGIN … ROLLBACK` con el Postgres local devuelto a su punto
+de partida (los tres md5 coincidían con los vigentes): con la 0518 pasan las 12
+pruebas que tocan bono o tablero (413 nueva con 19 aserciones, 377, 335, 376,
+378, 123, 129, 131, 132, 307, 334, 389); sin ella fallan solo 413, 377 y 335,
+las tres que codifican la regla nueva. La planilla de la practicante suma el
+bono y EsSalud no se mueve (para practicantes la base es siempre el piso RMV).
+Vitest de saludos y novedades en verde, typecheck en verde. Probado en el
+navegador con cuentas locales: practicante → saludo + «Firmar mi bono de
+cumpleaños · S/ 180.00»; en prueba → saludo sin botón. **La 0518 quedó
+aplicada en el Postgres local compartido.**
+
+**Pegada en producción el 2026-10-13**, con la comprobación entera en `true`
+y el registro `518 · a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez`.
+Antes de pegar se pidieron los tres md5 a producción: `fn_mi_bono_cumpleanos`
+y `fn_documento_registrar` coincidieron exactos con la partida, y
+`fn_documentos_tablero` **no coincidió con ninguno de los dos** que imprime
+`donde-vive.sh` (`56aff7b1…` / `d138aae9…`). Se pegó igual, y DESPUÉS se midió
+en el Postgres local con la 0492 dentro de `begin … rollback`:
+`md5(replace(prosrc, chr(10), chr(13)||chr(10)))` da `56aff7b1…` y la misma
+expresión «sin comentarios» sobre ese texto da `d138aae9…` — al carácter. Era
+la 0492 pegada desde Windows (la causa de la 0401, ver CLAUDE.md): **mismo
+código, nada revertido**. Lo que hay que aprender: ese desenlace no está entre
+los tres que imprime el script, y por eso parece «otra versión»; queda pedido
+que `donde-vive.sh` imprima también las dos variantes CRLF.
+
+**La colisión, y la 0520 que la cierra.** Mientras esta rama se construía, otra
+sesión (con Felipe) arregló el MISMO caso con la **0519** (PR #524, fusionado
+el 2026-10-13 a las 17:30 UTC): practicante sí, pero **nunca a la boleta** (DO
+le transfiere; su subvención no es remuneración, Ley 28518 art. 47) y sin
+excluir prueba ni contratos cortos. Medido en local con las dos pruebas (413 y
+414) en cada orden de pegado: **la 0519 no se puede pegar después de la 0518**
+—su freno de md5 la rechaza—, y la foto de producción (`CAMBIO 0518` en las
+tres puertas, nada en la firma) confirmó que **solo la 0518 está pegada**. Su
+frontend sí se publicó: hoy la pantalla le dice al practicante «DO te lo
+transfiere» mientras la base lo manda a la boleta.
+
+Cayla decidió **unir las dos**. La **0520** es esa unión: una sola función
+(`fn_persona_le_corresponde_bono`, el nombre de la 0519, el cuerpo de la 0518),
+las tres puertas de la 0518 apuntando a ella, la `fn_confirmar` de la 0519 (el
+practicante queda «pedido» y DO transfiere), y la función de la 0518 retirada.
+Su freno exige exactamente el estado actual de producción. La 0519 queda en
+`scripts/hooks/no-se-pegan.txt`; **la 0518 no se vuelve a pegar** (sus
+`create or replace` devolverían las puertas a la función vieja).
+
+**La 0520, auditada y pegada.** En `BEGIN … ROLLBACK` sobre el estado real de
+producción (la 0518): con la 0520 pasan las 13 pruebas que tocan bono o tablero
+(413 con 20 aserciones, 414 de main con 27, 377, 335, 376, 378, 123, 129, 131,
+132, 307, 334, 389); sin ella fallan solo la 413 y la 414 (la función unida no
+existe). Pegada dos veces: la segunda solo avisa. Sobre una base sin la 0518:
+su freno para sin tocar nada. **Pegada en producción el 2026-10-13** con la
+comprobación entera en `true` y el registro
+`520 · el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia`.
+
+**La 0519, neutralizada.** Al subir la rama, `db-tests` cayó: una base desde
+cero corre 0518 → 0519 → 0520, y el freno de la 0519 abortaba la construcción
+entera («PARA. Producción no tiene el cuerpo…») — nadie habría podido levantar
+una base local con esto en `main`. La 0519 conserva su encabezado (la decisión
+de Felipe) y su fila (la prueba 122 la exige) y ya no ejecuta nada; su código
+vive en git y lo que decidía lo trae la 0520. Reproducido en local dentro de una
+transacción: 0518 → 0519 → 0520 deja exactamente el estado de producción, y las
+pruebas 413, 414, 377, 335, 376 y 378 pasan encima.
+
+**Queda:**
+1. `db-tests` y `ui-tests` en verde en el PR #526, y fusionar (fusionar es
+   publicar). Sin `--admin`.
+2. Correr `scripts/sql-manual/diagnostico_bono_cumpleanos_daniel.sql` (solo
+   lee): Daniel en `este_mes`, con firma guardada.
+3. Si alguna practicante firmó entre la 0518 y la 0520, su bono está en una
+   boleta: `select p.nombres, d.fecha_firma from documentos_firmados d join
+   personas p on p.id = d.persona_id where d.tipo = 'bono' and
+   p.tipo_vinculo = 'practicante' and d.movimiento_id is not null;` — y DO
+   decide si lo deja ahí o lo quita de Planilla (vuelve a «pedido», 0479).
+
+**Pendientes que esto dejó a la vista, sin tocar:**
+- Los practicantes no tienen ningún documento con acuse que diga que les
+  corresponde el bono: la Política salarial los excluye a propósito (Ley
+  30709 no les alcanza, decidido el 2026-08-31) y el convenio de prácticas no
+  lo menciona. El bono es una liberalidad y no exige papel, pero hoy la regla
+  solo vive en el código. Si Cayla quiere dejarlo escrito, va en una adenda al
+  convenio o en Normas, no en una novedad.
+- Quien cumple años en prueba y pasa a planilla antes de fin de año queda en
+  `vencido` y puede pedirlo entonces (comportamiento de la 0478, no de esta
+  migración). Si debe perderse, es otra decisión.
+- El tablero no lista a quien termina contrato este mes (0161), así que esa
+  persona sigue sin poder pedir el bono desde Info aunque la regla nueva se lo
+  dé: lo registra DO en papel, como hasta hoy.
+
+---
+
+> **Nota del mismo día, después:** esta 0519 **NO se pegó y ya no se puede pegar** — su freno de md5 la
+> rechaza porque la 0518 llegó antes a producción (medido en local, y confirmado con los marcadores en
+> producción). La sustituye la **0520** (sección de arriba), que une las dos decisiones. Está en
+> `scripts/hooks/no-se-pegan.txt`. Lo que sigue vigente de esta sección: el frontend (publicado) y las
+> preguntas legales abiertas.
+
+---
+
+## 2026-10-06 — El alta pide el documento, y cada documento dice de qué tipo es · migración 0513 · PEGADA Y VERIFICADA EN PRODUCCIÓN · SIN FUSIONAR (PR #508)
+
+**Origen:** el alta no pedía el DNI, así que el índice único de documento (0125), el único freno exacto contra
+registrar dos veces a la misma persona, nunca actuaba sobre un alta, y alguien llegó a escribir un DNI en el
+apellido (0512). Decidido con Felipe: obligatorio en el alta y exigido por la base; tres tipos —DNI 8 dígitos,
+carné de extranjería 9 a 12, pasaporte/PTP 6 a 12—; un documento repetido se niega diciendo quién lo tiene; el
+aviso de nombre parecido (0506) se queda como segunda red; quien no tiene documento lo propone desde «Lo mío» y lo
+aprueba DO (sin adjunto; si está repetido, no se le dice de quién).
+
+**Hecho (en la rama):** `personas.tipo_documento` + `fn_documento_forma_valida` + candado
+`personas_documento_coherente`; `fn_crear_persona` (11 args, `p_es_estacion` marca por `fn_set_cuenta_de_servicio`);
+`fn_set_documento` con el tipo OPCIONAL AL FINAL —`fn_aplicar_cambio_perfil` la llama con 3—. Pantallas: Equipo,
+Datos personales, «Lo mío › Editar», Bandeja. md5 de partida pedidos a producción: `fn_crear_persona` 50c42522…,
+`fn_set_documento` 5f0863e0…, idénticos al repo. Prueba **407** (35) y 235/400/401/221/227/317/322 ajustadas.
+
+**«Lo mío», dentro de la misma 0513:** fila `documento` en `catalogo_campos_perfil` (`solo_do`, sin adjunto),
+`fn_crear_solicitud_perfil` (valida tipo y forma; «ya tienes uno» → es de DO; un número que ya es de otra persona se
+rechaza SIN nombrarla) y `fn_aplicar_cambio_perfil` (aplica por `fn_set_documento`; si DO ya se lo cargó, la propuesta
+quedó vieja y no se aplica). Prueba **410** (16). La 322 pasa de «un solo campo solo-DO» a «exactamente esos dos».
+md5 de partida de producción: `fn_aplicar_cambio_perfil` fbcf2ac8… (6553) y `fn_crear_solicitud_perfil` 7a2f1dfe…
+(2941) — **con `\r`: 119 y 68 retornos = su número de líneas**, medido que el repo con `\r\n` da ese md5 exacto
+(la 0401 se pegó desde Windows). Benigno, pero la 0513 pegada desde la misma máquina los volverá a dejar con `\r`.
+
+**Pegada el 2026-10-06 y verificada** en el SQL Editor. md5 de partida pedidos justo antes de entregar, los cuatro
+idénticos a lo esperado (`fn_crear_persona` 50c42522… · `fn_set_documento` 5f0863e0… · `fn_crear_solicitud_perfil`
+7a2f1dfe… y `fn_aplicar_cambio_perfil` fbcf2ac8…, estas dos con sus `\r`), 1 versión de cada una, `tipo_documento`
+inexistente, 0405 y 0512 registradas. De llegada: las ocho comprobaciones en `true` y `513 · el_alta_pide_el_documento`.
+Llegada (con `\r` en las dos de «Lo mío», por pegar desde Windows): `fn_crear_persona` dbabb62a… · `fn_set_documento`
+6d70abe6… · `fn_crear_solicitud_perfil` 9d473d27… · `fn_aplicar_cambio_perfil` 4265b073….
+
+**Ojo, hasta fusionar el PR #508:** Equipo ya no puede dar de alta con la pantalla vieja (la base exige el documento y
+la pantalla vieja no lo manda): falla sin escribir nada. Fusionar publica; son dos pasos seguidos.
+
+**CI:** `db-tests` falló en las pruebas 316 y 318, que contaban 12 campos en el catálogo y ahora son 13. Las dos pasan
+con la 0513 y fallan sin ella. Lección: al sumar una fila a un catálogo, buscar TODAS las pruebas que lo cuentan, no
+solo la que uno sabe que lo toca (se había ajustado la 322 y se escapó esto).
+
+**Lo que enseñó medir:** (1) el candado dejaba pasar un tipo sin número: un `null` da «no sé» y un CHECK lo deja
+pasar → `coalesce(…, false)`. (2) Quitarle a `authenticated` el permiso de la regla habría roto TODO update directo
+a `personas` (el CHECK se evalúa con los permisos de quien escribe; desde la 0076 las funciones nacen cerradas) →
+se abre a authenticated y service_role. Los dos los cazaron pruebas antes de pegar. (3) Al medir encadenando
+migraciones, la 0501 y la 0502 traen su propio `begin/commit` y anulan el `rollback`: la base local compartida quedó
+con datos de prueba y la 0513 aplicada; se limpió y se revirtió a mano.
+
+---
+
+## 2026-10-06 — El DNI no va en el nombre · migración 0512 · PEGADA Y VERIFICADA · FUSIONADO (#503)
+
+**Origen:** una integrante apareció en todas las listas (y en el terminal de su sede) con su DNI pegado al apellido
+corto. Ningún código lo pegó: se tecleó a mano en el alta. El alta no tiene campo para el DNI, y desde la 0506 un
+nombre parecido pide confirmación; escribir el número es la forma «natural» de diferenciar a alguien. Tampoco servía
+para frenar duplicados: el índice único mira `personas.documento`, no el apellido.
+
+**Qué es:** la 0512 quita de `nombres`/`apellidos` toda secuencia de 6+ dígitos (NOTICE con a quién tocó y si tiene
+el DNI cargado aparte) y agrega el CHECK `personas_nombre_sin_documento`. Se detiene sin tocar nada si a alguien le
+quedaría el nombre vacío. Equipo frena lo mismo antes de escribir (alta y edición) con `avisoDocumentoEnNombre`
+(`packages/shared/src/nombres.ts`, misma regla), y el aviso de parecidos dice que no hace falta agregar el DNI.
+
+**Medido:** prueba **406** (8) en verde con la migración; sin ella falla 5 de 8. Siembra con un DNI inventado →
+queda «Inventada Apellido»; repegada → 0 filas. Apellido = solo el número → se detiene. `tests/nombres.test.ts` con
+los mismos casos.
+
+**Cómo quedó:** el PR se fusionó ANTES de pegar (sin daño: la pantalla frena sola). La primera pegada se detuvo
+sola —«le quedaría el apellido vacío»—: el número no iba pegado al apellido, ocupaba el campo entero (el apellido
+estaba escrito en el del nombre). Se corrigió a mano en Equipo → Editar y la segunda pegada dio
+`true | true | 512 · el_dni_no_va_en_el_nombre`. El freno de «nombre vacío» era justo para este caso: la suposición
+de dónde estaba el número era falsa y la migración no la adivinó.
+
+**Abierto:** el alta sigue sin pedir el DNI, que es el único freno determinista contra duplicados.
+
+---
+
+## 2026-10-05 — El filtro del terminal ilumina en vez de ocultar, y la pantalla se vuelve más quieta · SIN SQL · ESCRITO Y PROBADO · SIN COMMITEAR
+
+**Qué cambia (sobre el PR #495, ya publicado).** Viendo el diseño en producción se
+pidió algo más limpio: en una sede de 4 personas la leyenda era una fila de seis
+botones casi toda en cero.
+- La leyenda de botones sobre las tarjetas **se va**; en su lugar, una **píldora
+  única** fina bajo el selector de sede (`PildoraDeEstados`). Los estados con cero
+  personas no se dibujan.
+- Tocar un estado **ilumina** (borde y tono del estado) a quienes lo tienen y
+  **atenúa** al resto; ya **no oculta**. Se apaga a los 20 s (`SEGUNDOS_RESALTADO`)
+  y al tocar un nombre o cambiar de sede. Al no ocultar, desaparece todo el
+  andamiaje de «alto fijo para que el reloj no salte» y la línea «Mostrando N de M».
+- Las tarjetas son **todas iguales** (papel, borde fino); el estado vive en el
+  círculo de color de la esquina de la foto y en una línea gris con la hora.
+- **El ícono de la foto solo informa**: no filtra, y tocarlo marca como tocar
+  cualquier parte de la tarjeta (volvió a ser un solo botón). Se probó primero como
+  control y se retiró a pedido.
+- **Al pasar el mouse** por un ícono —el de la foto o el de la píldora— sale su
+  significado (`ConEtiqueta`). Solo con mouse: en una pantalla táctil el toque
+  dispara el mismo evento de «entrar» y la etiqueta quedaría pegada.
+
+**Por qué la etiqueta vive en un portal.** Una tarjeta atenuada lleva `opacity-30`
+y todo lo que cuelga de ella se atenúa con ella: justo la etiqueta del ícono de
+quien NO está iluminado es la que más falta hace leer. Medido en el navegador:
+opacidad 1 sobre una tarjeta atenuada.
+
+**Lo que se probó, y lo que NO.** Pruebas nuevas de `contarPresencias` y del orden de
+la píldora (`tests/presencia-casilla.test.ts`). En el navegador, con los
+componentes reales: la píldora ilumina, tocar el ícono de la foto abre la
+confirmación de marcar y no cambia el resaltado, la etiqueta sale con el mouse real
+(`pointerType: mouse`) y no queda pegada tras tocar. **No** se probó en una
+pantalla táctil real ni en el terminal de verdad (pide sesión de Supabase).
+
+**Deuda anotada.** Los tokens `--color-azul` y `--color-ceniza` siguen en uso (pausa
+y turno terminado) — se evaluó quitarlos con una versión «sin color» y se decidió
+dejar el color.
+
+---
+
+## 2026-10-05 — El terminal muestra en qué punto del día está cada integrante · SIN SQL · ESCRITO Y PROBADO · FUSIONADO (PR #495) Y PUBLICADO
+
+**Qué es.** En la pantalla de marcar, cada casilla dice si la persona está
+*laborando*, *en refrigerio*, *en pausa* (trámite, médico, personal, otro),
+con el *turno terminado* o *sin entrada*: ícono sobre la foto, tono de la
+casilla y una línea con la hora. Bajo el reloj hay una leyenda con el conteo de
+cada estado que también FILTRA (oculta a los demás; se quita sola a los 20 s y
+al tocar un nombre). El reloj no se tocó.
+
+**No hay migración.** El estado se DERIVA de los marcajes que el terminal ya
+cargaba, y «entra 14:00» / «Libre hoy» salen de los `horarios_asignados` que
+`sugerencias.ts` ya traía. Al ser solo frontend, **fusionar = desplegar**
+(main se publica sola): no hay nada que pegar antes.
+
+**Dónde vive.**
+- `packages/shared/src/attendance-state-machine.ts` → `estadoPresencia()`. Misma
+  lógica, rama por rama, que `determinarSiguienteAccion`; la prueba
+  `tests/estado-presencia.test.ts` las cruza sobre ~22 000 secuencias de marcas y
+  se comprobó que SÍ falla si una diverge (se rompió a propósito).
+- `apps/web/lib/terminal/presencia.ts` → `presenciaDeLaCasilla()`: lo que dice la
+  línea de cada casilla (función pura, probada en `tests/presencia-casilla.test.ts`).
+- `apps/web/app/(terminal)/terminal/marcar/presencia-visual.tsx` → colores,
+  íconos y la leyenda; `components.tsx` (casilla) y `page.tsx` (cableado).
+- `globals.css`: dos tokens nuevos, `--color-azul` y `--color-ceniza` (ver CLAUDE.md).
+
+**Tres decisiones que importan.**
+1. **Sin estado confirmado, no se pinta nada.** Si el terminal no pudo leer las
+   marcas de hoy (arranque sin red), un mapa vacío no significa «nadie entró»:
+   las casillas se ven como siempre y no hay leyenda. Pintar a todos «sin
+   entrada» sería acusar de más.
+2. **La casilla dice la hora de la ENTRADA, no la del regreso.** «Desde 13:45»
+   tras volver del refrigerio se leía como una llegada tardía. Ahora dice «entró
+   08:02» y, aparte, «salió 13:00 · volvió 13:45» (el regreso se empareja con SU
+   salida: con varias, la del trámite de la tarde y no la del refrigerio). Lo detectó quien probó el prototipo.
+3. **Pasada su hora de entrada, la casilla NO dice «debía entrar».** Dice «aún sin
+   entrada», igual que quien no tiene horario: la tardanza se mide en su reporte,
+   no en una pantalla que ve todo el equipo.
+
+**Para ver en la tienda.** Que el azul (en pausa) y el gris (turno terminado) se
+distingan bien en la pantalla real, y que 20 s de filtro sea el tiempo justo (con
+la tienda llena quizá convenga 10-15 s: es la constante `SEGUNDOS_FILTRO` de
+`page.tsx`). La pantalla de marcar ya NO tiene ningún texto de instrucción.
+
+---
+
+## 2026-10-04 — El rastro de correcciones solo lo escriben las funciones · migración 0508 · PEGADA EN PRODUCCIÓN (registro 508, sin políticas de INSERT) · PR #491 (BORRADOR) SIN FUSIONAR
+
+**LO QUE HAY QUE SABER PRIMERO (2026-10-04, medido en producción):** la 0508 **ya está pegada en producción**:
+`migraciones_aplicadas` trae **508 · `0508_el_rastro_de_correcciones_solo_lo_escriben_las_funciones`** (número Y nombre) y de
+la tabla solo quedan las tres políticas de lectura (`auditoria_select_admin_lider`, `_propia`, `_supervisor`); las dos de
+INSERT ya no existen. Por eso todo lo medido antes allí sobre esta tabla —`anon` y `authenticated` sin INSERT, UPDATE, DELETE
+ni TRUNCATE— es el estado POSTERIOR a la migración, y **no dice si el hueco existió en producción antes**: es desconocido. Dos
+versiones de esta entrada lo leyeron como «producción ya venía cerrada, probablemente por un revoke manual»; era una lectura
+sin respaldo, la misma trampa que dejó anotada la 0507 (una comprobación sin la fila del registro no distingue «antes» de
+«después»), y yo no sabía que se había pegado. Lo mismo vale para `personas` y la 0507. El hueco SÍ existe en el repo y en
+toda base construida de él (CI, local) hasta esta migración. Todo lo medido con `set role` más abajo es sobre la base
+desechable.
+
+**Origen:** al medir la 0507 (alta de personas solo por `fn_crear_persona`) salió un hueco hermano y más grave:
+`correcciones_auditoria` —el rastro de toda edición manual, del que cuelgan el expediente disciplinario y el rastro de
+planilla— aceptaba INSERT directo de cualquier admin, líder DO **o líder de equipo** (sobre alguien de su sede), con
+`corregido_por` de OTRA persona y `corregido_at` de hace semanas. **Medido** (Postgres desechable con las 483 migraciones
+de `main`, `begin … rollback`, `set role authenticated` + jwt): un `lider_do` inserta una fila a nombre de un admin y con
+fecha de hace 40 días, y pasa. UPDATE y DELETE dan 0 filas (RLS sin política: única cerradura). Y **TRUNCATE como
+`authenticated` vació la tabla entera**: RLS no gobierna TRUNCATE y los privilegios por defecto de Supabase se lo dan a 63
+de las 91 tablas de `public` (entre ellas `marcajes`, `jornadas`, `periodos_planilla`). PostgREST no expone TRUNCATE, así
+que por la API no se llega: es latente, no explotable hoy.
+
+**Qué es:** `0508_el_rastro_de_correcciones_solo_lo_escriben_las_funciones.sql` borra las dos políticas de INSERT y
+revoca INSERT, UPDATE, DELETE y TRUNCATE a `public`/`anon`/`authenticated` sobre la tabla. Solo lectura para toda sesión
+de usuario. **No reescribe ninguna función**: no hay md5 de partida y no puede revertir el trabajo de otra sesión.
+Idempotente (se repegó encima de sí misma en el desechable, sin error).
+
+**La advertencia que NO se confirmó.** Se dio por cierto que revocar el INSERT rompería el cese de quien tiene educación
+vigente, porque `fn_educacion_cerrar_al_cesar` (trigger AFTER UPDATE sobre `personas`) es la única de las 60 funciones que
+escriben la auditoría que NO es SECURITY DEFINER. Medido, no rompe nada, por dos razones independientes: (a) el trigger solo
+llega a su insert cuando cambian `estado`/`fecha_cese`, y eso solo lo puede hacer `postgres` (`fn_bloquear_cese_directo`,
+0432, lo niega a cualquier otro) — los ceses reales pasan por `fn_cesar_persona`, DEFINER, y dentro de ella el trigger
+corre como `postgres`; (b) aun con ese guardián apagado, el trigger ya moría antes, en su `update asignaciones_educacion`
+(«permission denied»: `authenticated` solo tiene SELECT ahí), con y sin la 0508. Medido de punta a punta con la migración
+puesta y la función SIN tocar: la asignación se cierra al cese y queda `educacion_cierre_por_cese`. Convertirla en DEFINER
+«por si acaso» le habría dado a su `update` el poder de saltarse RLS, para cubrir un camino que no existe.
+
+**Probado.** Prueba **402** (27 aserciones: estado, ataque desde lider_do / líder de equipo / admin / anon, UPDATE / DELETE /
+TRUNCATE, `fn_set_rol` y el cese con educación vigente siguen vivos con `corregido_por` = quien actuó, y un CONTROL que
+reabre a propósito). Sin la 0508 caen 14 (las cerraduras y el ataque) y pasan las 7 puertas oficiales; con ella, 27/27.
+**Suite pgTAP entera, A/B en el mismo desechable** (control = la 0508 revertida con SU PROPIO bloque «cómo se revierte», y
+la ACL y las 5 políticas comprobadas idénticas a `main`): 309 archivos; CON 3 520 ok / 55 not ok / 106 errores, SIN 3 506 /
+69 / 106; **0 de 308 archivos difieren aserción por aserción** (el único que cambia es el 402). 19 archivos fallan en los dos
+estados (línea base del desechable: `schema_migrations`, jwt/actas/configuración de documentos…); de esos, solo la **353**
+toca la auditoría y solo para LEERLA (cuenta filas que escriben `fn_set_horario_semanal` y `fn_corregir_horario_retroactivo`,
+ambas DEFINER de `postgres`): se rompe antes por el entorno, así que ese tramo queda cubierto por estructura y no por
+medición. En el desechable se añadió `auth.users.email_confirmed_at` y un `storage` mínimo (receta de la memoria).
+
+**Antes de pegar** (histórico: ya se pegó; el orden «pegar antes de fusionar» se cumple): tres consultas de solo lectura a producción,
+escritas en el encabezado, con su resultado esperado — (1) las DOS políticas de INSERT y los privilegios de la tabla; (2)
+que la ÚNICA función INVOKER que escribe la auditoría sea `fn_educacion_cerrar_al_cesar` y que NINGUNA actualice ni borre;
+(3) que `trg_personas_cese_solo_por_rpc` exista y esté activo (`tgenabled = 'O'`) y que `authenticated` NO pueda hacer
+UPDATE sobre `asignaciones_educacion`. Si la (2) devuelve algo más, parar: esa función dejaría de funcionar. No depende de
+la 0506 (ya en `main`, #489; su `fn_crear_persona` es DEFINER y no toca la auditoría) ni de la 0507 (ya pegada en
+producción y fusionada, #490): no toca sus funciones ni sus tablas; se probó sobre `main` + 0507 + 0508 (402, 401 y 388 pasan; suite entera con los mismos 19 archivos
+rotos de la línea base). Commiteada y subida (PR #491, borrador). **Como ya está pegada, el PR puede fusionarse cuando Felipe quiera**: no cambia
+pantallas (solo SQL, pruebas y notas), pero fusionar es publicar `main`.
+
+**Resultado en producción (2026-10-04) — TODO medido DESPUÉS de pegar la 0508.** Registro: 507 y 508 con sus nombres exactos.
+1a: la tabla tiene solo las tres políticas de lectura. B (privilegios autoritativos, con columnas): `anon` y `authenticated`
+en falso para INSERT, UPDATE, DELETE, TRUNCATE e INSERT por columna. 3a: `trg_personas_cese_solo_por_rpc` activo
+(`tgenabled = 'O'`). 3b: `authenticated` no actualiza `asignaciones_educacion`. 2a: UNA fila, `fn_educacion_cerrar_al_cesar`.
+O sea: la migración hizo en producción lo que decía, y las premisas con que se escribió (el cese con educación no depende
+del INSERT de `authenticated`) siguen cumpliéndose. **2b: vacía** (producción, 2026-10-04, captura del SQL Editor: «Success. No rows returned»): ninguna función, definer o no,
+actualiza, borra ni vacía la auditoría, así que nada dependía de esos privilegios que la 0508 revocó. No se ejercitó un cese
+real con educación vigente en producción: la evidencia es el catálogo y la prueba 402, no el uso.
+
+**Lo que ese resultado NO dice, y una divergencia menor.** La primera consulta de privilegios (`authenticated = REFERENCES,
+SELECT, TRIGGER`; `anon = REFERENCES, TRIGGER`) y la de «62 de 92 tablas con INSERT y TRUNCATE» se corrieron con la 0508 ya
+pegada, así que no dicen cómo estaba antes; la lista de las 62 SÍ trae `marcajes`, `jornadas`, `periodos_planilla`,
+`expediente_disciplinario`, `liquidacion_pagada`, `planilla_pagada_detalle`, `movimientos_planilla`, `asignaciones_salario`,
+`datos_personales`, `politica_salarial`… y no trae `correcciones_auditoria` (explicado por la 0508) ni `personas` (la 0507
+solo revoca INSERT, así que su falta de TRUNCATE no viene de ella: ACL `rwdxtm`, origen no investigado). Lo único que la 0508
+no explica es que `anon` tampoco tenga SELECT sobre la tabla (la migración no se lo quita y el repo se lo da): una divergencia
+de privilegios por defecto, sin efecto sobre la escritura.
+
+**Abierto — otras tablas con escritura directa (reportado, NO tocado; decide Felipe).** **Las seis tablas de esta lista SÍ
+están en la lista de las 62 con TRUNCATE de producción**, o sea con los privilegios por defecto; que tengan también INSERT
+para `authenticated` no se verificó tabla por tabla (62 y 62 no prueban que sean las mismas), pero es lo que cabe esperar.
+Es la parte de este informe con exposición plausible en producción, y la de más consecuencia.
+**Actualización: la 0509 (en `main`, SIN PEGAR, entrada de arriba) midió estas mismas tablas por su lado y cierra
+`rendimiento_mensual`, `terminales` y `tarifas_hora`;** `configuracion` queda como decisión de Felipe y `documentos_tipos` se
+deja (la pantalla Normas inserta directo: es la puerta oficial); `push_tokens` es solo la fila propia. Lo que sigue es el
+análisis original de esta entrada, anterior a la 0509.
+- **`rendimiento_mensual`** (el bono por rendimiento): política `for all` a admin/líder, y su guardián
+  `fn_set_rendimiento`/`fn_quitar_rendimiento` (0111) se salta. **Medido** con un periodo pagado: la función dice «La planilla
+  de ese mes ya está PAGADA» y el upsert directo del `lider_do` PASA sobre ese mismo mes, con `puesto_por` de otra persona.
+  Los CHECK de rango y la FK de etiqueta sí valen directo; lo que se salta es el candado del mes pagado y el firmante. La app
+  no la escribe directo: es la candidata natural a un tratamiento como el de la 0507.
+- **`configuracion`**: política `for all` a admin/líder. La única función que la escribe es `fn_educacion_configurar` (rangos
+  0–20 y 0–30 días), y `valor` es jsonb sin constraint: un upsert directo se salta esos rangos. Las claves que mueven plata
+  —`planilla_provisiones`, `asignacion_familiar`, `bono_puntualidad`, `movilidad_diaria`, `liquidacion_incluye_variables`— no
+  tienen guardián NI rastro (solo 3 triggers: `gerencia_general`, firmante de empresa y `tasa_afp`). Ojo: la app SÍ escribe
+  directo `apariencia_tema` (`admin/apariencia/page.tsx:75`), así que no se puede cerrar «a lo 0507» sin antes mover esa clave
+  a una función.
+- **`tarifas_hora`, `terminales`, `documentos_tipos`, `push_tokens`**: ninguna función las escribe, así que no hay guardián
+  que saltar; la decisión es si deben ser solo-RPC. `documentos_tipos` la escribe la app directo (`admin/normas/page.tsx:479`);
+  `push_tokens` está acotada a la fila propia.
+- **TRUNCATE (e INSERT) a `authenticated` en 62 de las 92 tablas de producción** (63 de 91 en el desechable; herencia de los
+  defaults de Supabase). **Medido tabla por tabla en producción (2026-10-04, TRUNCATE):** están `marcajes`, `jornadas`,
+  `periodos_planilla`, `expediente_disciplinario`, `liquidacion_pagada`, `planilla_pagada_detalle`, `movimientos_planilla`,
+  `asignaciones_salario`, `datos_personales`. No alcanzable por PostgREST: es un privilegio sin cerradura, no un hueco que se
+  ataque hoy por la API. Es decisión de Felipe si se revoca en bloque (una migración con un `revoke truncate` sobre las tablas
+  append-only) o no se toca.
+- **`respaldo_horarios_chiara_20260814` está en producción y no en el repo** (solo en `scripts/sql-manual/restituir_horario_de_chiara.sql:67`,
+  `create table … as select`, que no activa RLS ni pone grants propios): es la tabla extra que explica 92 contra 91. Está en
+  la lista de las 62, o sea con los privilegios por defecto. **Verificado en producción (2026-10-04): `relrowsecurity = true` y
+  `anon` NO la lee — no hay nada que arreglar.** Un `create table … as` no activa RLS, así que alguien se la puso (o el proyecto
+  la activa solo en tablas nuevas). Lo que NO se miró son sus políticas: con RLS y sin políticas queda cerrada para
+  `authenticated`; una política permisiva la abriría. Borrarla es decisión aparte: es dato. La primera versión de esta entrada
+  la daba por posiblemente abierta: era una suposición sin medir, y la medición la desmintió.
+
+**No probado:** nada contra producción (ninguna consulta se corrió allá); el ataque se midió con `set role` + jwt en SQL, no con
+una petición HTTP real a PostgREST (es la misma mecánica, pero no se ejecutó); los 19 archivos rotos de la línea base (acotados
+a la 353); la pantalla de Correcciones, que solo LEE la tabla (se comprobó por búsqueda en el código, no abriéndola).
+
+---
+
+
+---
+
+## 2026-10-04 — Tres tablas que solo se escriben por sus funciones · migración 0509 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** al cerrar la puerta de `personas` (0507) se midió que otras cinco tablas admitían INSERT directo de admin o
+líder DO, y se pidió medir cuáles tienen un guardián que esa puerta se salte. Esta es la lista, con jwt de un `lider_do`
+en el esquema completo de `main` (484 migraciones, `begin … rollback`):
+
+| Tabla | Quién escribe hoy con sesión | Guardián | Veredicto |
+|---|---|---|---|
+| `rendimiento_mensual` | nadie (ninguna pantalla llama a `fn_set_rendimiento`) | las dos funciones: rol, mes **no pagado**, catálogo | **se cierra (0509)**: el insert directo en un mes pagado PASABA |
+| `terminales` | nadie (la app solo la lee; los scripts usan `service_role`) | ninguno | **se cierra (0509)**: un `lider_do` se registró como terminal y marcó la entrada de OTRA persona, sin PIN y sin rastro |
+| `tarifas_hora` | nadie; nada la lee; 0 filas | ninguno | **se cierra (0509)**, sin consecuencia hoy |
+| `configuracion` | la app, una sola clave (`apariencia_tema`) | 3 claves con trigger (`gerencia_general`, `firmante_empresa`, `tasa_afp`); **11 sin ninguno**, incluidas las de plata | **NO se toca: decisión de Felipe** (abajo) |
+| `documentos_tipos` | la pantalla Normas inserta directo | ninguno | se deja: la puerta directa ES la oficial |
+
+**Qué es la 0509:** molde de la 0507 — quita las políticas de escritura y revoca INSERT/UPDATE/DELETE a `authenticated`,
+`anon` y `public` en las tres; conserva la lectura como estaba (en `tarifas_hora` la única política era `FOR ALL`, así que
+se repone como SELECT **antes** de quitarla). **No reescribe ninguna función → no hay md5 de partida.** Antes de tocar
+nada comprueba que ninguna función que no corra como su dueño escriba en ellas, y si la hay se niega a correr y la
+nombra (probado en los dos sentidos: se niega ante una `invoker`, deja pasar a una `definer`). La fila de
+`rendimiento_mensual` fija el porcentaje del complemento que paga el núcleo de planilla; quitarla SUBE el pago.
+
+**Antes de pegar:** una consulta de solo lectura, ya escrita en la cabecera de la migración (con la fila del registro,
+para que «antes» y «después» no se confundan). Esperado: el registro no tiene 509, una política `[*]` por tabla,
+ninguna fila en «escriben sin ser definer». Después de pegar: el `select` final da **siete** `t`, y el registro tiene
+`509 · 0509_tres_tablas_que_solo_se_escriben_por_sus_funciones`.
+
+**Cómo se ensayó (y qué NO se pudo ver):**
+- Prueba **403** (27). Sin la migración cae 15 de 27, y cada caída tiene su causa en el hueco; los 12 que pasan son los
+  de «sin romper lo viejo». Con ella, 27/27. Idempotente; el bloque «cómo se revierte» revierte de verdad.
+- Suite pgTAP entera, con y sin la 0509: 309 archivos comunes con las **mismas aserciones una a una** (3 511 → 3 538 =
+  +27 de la 403). Los mismos 19 archivos de entorno fallan de los dos lados (el desechable no los puede ejecutar bien;
+  no son evidencia sobre la 0509). Barrido estático: de 309 archivos, 23 escrituras en estas tablas y todas como
+  `postgres`. Ninguna prueba existente llamaba a `fn_set_rendimiento`: ahora tiene cobertura.
+- **No se midió producción.** Falta correr la consulta previa allá. Con `personas` coincidió con el repo; con estas tres
+  no se sabe.
+
+**`configuracion` — decisión de Felipe, no técnica:** hoy cualquier admin o líder DO puede cambiar las constantes de
+planilla (`movilidad_diaria` pasó en la medición; `planilla_provisiones`, `asignacion_familiar` y `bono_puntualidad`
+tampoco tienen trigger) sin dejar rastro. Las reglas de planilla se consideran decididas y en los hechos solo cambian por
+migración. Si esa es la intención, lo coherente es un trigger por clave como el de `gerencia_general`. No se cierra la
+tabla entera porque `apariencia_tema` se escribe legítimamente desde la app.
+
+---
+
+## 2026-10-04 — Un alta que se parece a alguien ya registrado pide confirmación · migración 0506 · PEGADA Y VERIFICADA · SIN FUSIONAR
+
+**Origen:** una persona quedó registrada dos veces en Equipo, el mismo fin de semana, una con el nombre corto y otra con
+el completo; las dos activas, con su PIN y visibles en el terminal de su sede. Ni el índice único de documento (0125)
+ni el del correo podían verlo: **el alta no captura el DNI**, y dos escrituras distintas de un nombre no chocan contra
+ninguna restricción. La causa de que se repitiera el alta, además: el formulario mostraba **Cargo y Tipo de vínculo**
+pero `crearPersona` nunca los mandaba, así que la fila nueva salía «Sin cargo» y lo natural era volver a registrarla
+(y quien elegía «Practicante» o «Recibo por honorarios» quedaba en «Planilla» sin enterarse).
+
+**Qué es:** `fn_crear_persona` se niega —`raise exception`, hint `persona_parecida`— si el nombre se parece al de alguien
+ya registrado, **activo o ya salido**, salvo que quien da de alta pase `p_confirmo_distinta = true`. La regla compara por
+palabras (sin tildes, sin partículas; campo por campo sin contradicción, campos cruzados, contención, y un tipeo de una
+letra en palabras de 5+): no avisa por compartir solo el nombre de pila ni solo un apellido. `fn_personas_parecidas` deja
+a la pantalla preguntar **a quién** se parece antes de escribir nada, y Equipo muestra un aviso con «Ver en la lista».
+Un `pg_advisory_xact_lock` pone en fila a dos altas simultáneas. El alta ya no pide Cargo ni Tipo de vínculo.
+La firma cambia de 7 a 8 argumentos: **`drop function` de la vieja**, o `create or replace` dejaría dos y la llamada
+quedaría ambigua (la 0297/0299 y la 0367).
+
+**Medido:** prueba **400** (29): 66 casos de nombres, el guardián, los permisos y una sola versión de la función; se
+comprobó que **falla** con el guardián apagado y con cuatro mutaciones (rama (c), sin NFC, confirmación NULL, sin tope).
+Dos altas simultáneas del mismo nombre dejan **1** fila con el candado y **2** sin él (dos sesiones reales). Las pruebas
+235, 250 y 159 pasan igual con y sin la migración. Revisión adversarial con verificador escéptico por hallazgo: ninguno
+bloquea; se aplicó el tope de 120 caracteres (la comparación es cuadrática), NFC, la exclusión de estaciones de retail y
+el aviso que se desplaza hasta la vista.
+
+**Pegada el 2026-10-04 y verificada** en el SQL Editor. md5 de partida (pedido a producción justo antes) `143a698a…`
+(2050 caracteres, 0 retornos, **1 versión**: idéntico a la 0300 del repositorio); de llegada: `versiones = 1`, guardián
+adentro, `anon` no puede ejecutarla, la regla responde y md5 `50c42522550d7827969efbbdc7472268`, idéntico al medido en el
+Postgres local y en una base desechable construida desde cero. **Va ANTES de fusionar el PR de la pantalla**: si el PR
+llega a `main` primero, Equipo no puede dar de alta a nadie (falla cerrado, con «falta aplicar una migración»).
+Después de pegarla: `scripts/sql-manual/pares_ya_registrados.sql` (solo lectura) para ver qué otras parejas ya están
+registradas dos veces; nadie lo había medido. Con la 0507 (la entrada de abajo) no chocan: esa no reescribe la función.
+
+**Abierto:**
+- ~~El INSERT directo a `personas` se salta todo esto~~ — **cerrado por la 0507** (entrada de abajo): sin política ni
+  privilegio de INSERT para `authenticated`, la única entrada es `fn_crear_persona`.
+- `fn_reactivar_persona` no mira si ya hay otra persona activa parecida. Y cambiar el nombre en «Editar» no pasa por
+  la regla.
+- **El alta no captura el DNI**: es el único freno determinista (el índice único), y la regla de nombres no ve a dos
+  registros que no comparten ninguna palabra (~7.5 % de las parejas en la simulación).
+- `personas.fecha_ingreso` nace con `current_date` en UTC: quien se da de alta pasadas las 19:00 de Lima queda con ingreso
+  al día siguiente.
+## 2026-10-04 — Dos nombres, cada uno en su sitio · SIN MIGRACIÓN · FUSIONADO (#492) y visto en producción
+
+**Origen:** a cada integrante se le carga «un nombre y un apellido por practicidad» (`personas.nombres/apellidos`,
+lo que se ve en el terminal) y eso confundía: el formulario de Equipo los llamaba «Nombres» y «Apellidos», como si
+fueran los del DNI. El nombre completo ya existía (`datos_personales.nombre_dni`) y Contratos, el memo y «Lo mío» ya
+lo usaban; la boleta y los papeles de cese seguían imprimiendo el corto.
+
+**Qué es:** nada de esquema. `packages/shared/src/nombres.ts` dice una vez qué nombre va en un papel
+(`nombreOficial`: el del DNI, o el corto si falta; un `nombre_dni` de puros espacios cuenta como faltante). Lo usan
+la **boleta** (admin y «Lo mío»; también el nombre del PDF), el **certificado de trabajo**, la **constancia de cese** y
+la **firma de quien certifica por CAYLA**. En Equipo los campos pasan a «Nombre corto» / «Apellido corto» con la
+aclaración de dónde va el nombre completo. **El terminal no cambia** y una prueba (`tests/nombres.test.ts`) vigila
+que nunca lea `datos_personales`. Si falta el nombre del DNI, el certificado y la constancia lo avisan en la vista
+previa (no se imprimen en silencio: una vez entregados no se corrigen).
+
+**Decidido a propósito — qué NO se tocó:** `fn_planilla_calcular` y `fn_proyeccion_periodo` siguen armando
+`'nombre'` como «nombres apellidos» (es la función de pago; la boleta lee el nombre del DNI aparte, como ya leía
+`documento`). `fn_papeles_cese` (0400) igual: su campo `nombre_completo` sigue siendo el corto y la pantalla de
+Liquidaciones lo reemplaza al cargar. Si algún día se reescribe cualquiera de las dos por otra razón, conviene
+arreglarlo en origen.
+
+**Abierto:**
+- ~~Las constancias de recepción de **Normas** y de **Política salarial** imprimen «Apellidos, Nombres» del corto.~~
+  **Resuelto en el PR siguiente** (rama `claude/constancias-nombre-completo`): la lista sigue ordenada por el
+  nombre corto de nómina —`nombre_dni` es texto libre y su orden de palabras varía de una persona a otra— y bajo
+  cada nombre figura el completo del DNI. Si falta, la pantalla lo cuenta (solo en pantalla); si la lectura
+  falla, se nombra y se apaga «Imprimir».
+- Unas diez pantallas escriben a mano `ficha?.nombre_dni || nombre` (contratos, memo, firma, movilidad, cumpleaños…).
+  Funcionan; no se migraron al helper en este lote.
+- **El dato, no el código:** `nombre_dni` se teclea a mano y nada lo compara con el DNI. Quien no tiene ficha
+  todavía (el panel de Datos personales la lista «sin ficha») imprime con el corto. Medido en producción el
+  2026-10-04: **1 de 26** activos tiene `nombre_dni` vacío.
+
+---
+
+## 2026-10-04 — El alta de una persona solo entra por fn_crear_persona · migración 0507 · PEGADA Y VERIFICADA · FUSIONADA (PR #490)
+
+**Origen:** dos revisiones independientes señalaron que la política `personas_insert_admin_lider` (0003) y el INSERT que
+la 0004 le dio a `authenticated` dejan a un admin o líder DO insertar en `personas` directo por REST, sin pasar por
+`fn_crear_persona`. La 0300 decía que esa función es «la única puerta de alta del sistema»: lo era de la app, no de la base.
+
+**Medido, y el hueco es real de punta a punta** (Postgres desechable con las 483 migraciones de `main`, `begin … rollback`,
+jwt de un `lider_do`): `fn_crear_persona(…, 'admin', …)` → «No puedes crear una persona con un rol igual o superior al
+tuyo»; el mismo admin con un `insert` directo → pasa. Atado a otra cuenta de acceso, esa cuenta entra con
+`fn_rol_actual() = admin` y usa `fn_set_rol` como admin legítimo. Los triggers de rol, sede, pensión y PIN son todos
+BEFORE UPDATE: el INSERT no los dispara. El único trigger de INSERT sobre `personas` es el de la 0490 y solo mira
+`cuenta_de_servicio` — corrige una premisa del encargo («no hay ninguno»), que salía así solo porque la base local no
+tenía la 0490.
+
+**Qué es:** la 0507 quita la política, revoca el INSERT de `personas` (a `public`, `anon` y `authenticated`) y el de la
+vista `retail.personas`, que es insertable y es la misma tabla por otro mango (hoy no sirve para dar de alta, por
+`nombres NOT NULL`; se salva solo por `security_invoker = true`). **No reescribe ninguna función → no hay md5 de partida.**
+`fn_crear_persona` sigue insertando porque es `SECURITY DEFINER` y su insert corre como su dueño. Prueba **401** (17); la
+**388** cambia de 17 a 18 (el insert directo ahora muere en el privilegio, y la mitad INSERT del trigger de la 0490 pasa
+a defenderse con `service_role`, que conserva su INSERT).
+
+**Por qué un revoke y no un trigger** (el molde de la 0296/0342/0490): ese molde existe porque en UPDATE el privilegio no
+se puede revocar sin dejar sin escribir las demás columnas. En INSERT nadie legítimo escribe directo, y lo que se puede
+borrar se borra. Un trigger «todo lo que no sea postgres» además frenaría a `service_role` (`setup-personas-prod.mjs`,
+`seed-dev.mjs`). Quién inserta hoy con sesión de usuario: **nadie** — `apps/web`, `packages/`, `cayla-retail` (seeds como
+postgres y un fixture propio) y las migraciones (las cuatro versiones de `fn_crear_persona`, todas definer) se revisaron.
+
+**Pegada el 2026-10-04 y verificada en producción** (SQL Editor). El `select` final de la propia migración dio las seis
+columnas en `true`. El registro tiene **507 · `0507_el_alta_de_una_persona_solo_entra_por_fn_crear_persona`** (el nombre
+guardado lleva el prefijo `0507_`, como la 0296 y la 0300; las anteriores a la 0505 no). Estado medido después: RLS
+activa en `personas`; `authenticated` con SELECT, UPDATE y DELETE pero **sin INSERT** (`authenticated=rwdxtm`);
+`anon` sin INSERT; **0** políticas de INSERT o ALL; `service_role` y `postgres` conservan su INSERT; una sola función
+inserta en `personas` y es `fn_crear_persona` con `prosecdef = t`. **`retail.personas` NO existe en producción** (el
+esquema `retail` sí): la parte de la vista fue un no-op ahí, y la puerta de la vista nunca estuvo abierta en producción.
+No hay md5 de partida porque no se reescribió ninguna función.
+**Fusionar es publicar `main`, pero este PR no cambia ninguna pantalla:** solo SQL, pruebas y esta nota. Ya no hay
+nada que pegar antes. **Dueño de `fn_crear_persona` verificado en producción:** `postgres`, `prosecdef = t`, y su dueño
+puede insertar en `personas` — por eso el alta por la función no se ve afectada por el revoke. Lo que NO se ejercitó es
+un alta real en producción (no se crea una persona de prueba allá); la evidencia es el catálogo, no el uso.
+
+**Cómo se ensayó (y qué NO se pudo ver):**
+- Control: la 401 SIN la migración cae 10 de 17; con ella pasa 17/17. Idempotente (se pegó dos veces) y el bloque «cómo
+  se revierte» de la cabecera revierte de verdad (se probó).
+- Suite pgTAP entera en el desechable, con y sin la 0507: 308 archivos comunes idénticos (3 427 → 3 445 aserciones =
+  +1 de la 388 y +17 de la 401). Fallan los mismos 20 archivos de los dos lados, aserción por aserción; 11 se caen por
+  `auth.users.email_confirmed_at`, que la imagen no trae — con la columna añadida corren más y siguen idénticos. Esos 20
+  no son evidencia sobre la 0507: son el límite del desechable. Lo acota un barrido estático — de 308 archivos, solo la
+  388 inserta en `personas` como `authenticated`.
+- Convive con la 0506 (rama sin fusionar) en los **dos** órdenes: 400 (29/29), 235 (5/5), 401 (17/17), 388 (18/18).
+- **Antes de pegar no se midió producción:** el hueco se midió en el esquema que construyen las migraciones, no allá, y
+  no hay forma de saber ahora si alguna vez estuvo abierto en producción (la primera consulta de comprobación se
+  corrió ya con la 0507 pegada, y se leyó mal como «producción ya venía sin el hueco»; el registro con 507 lo aclaró).
+  Tampoco se sabe si el registro de cuentas está abierto allá (`enable_signup` es un ajuste del panel de Supabase; en
+  el `config.toml` local está en `true`): si lo está, la cadena de arriba no necesita ni una cuenta cómplice previa.
+  La lección para la próxima: **una consulta de «antes de pegar» debe incluir la fila de `migraciones_aplicadas`**, o
+  su resultado no dice si es «antes» o «después».
+
+**Abierto:**
+- **`correcciones_auditoria` admite INSERT directo de admin, líder DO y líder de equipo** (0003:227/231), sin trigger.
+  Medido: un `lider_do` inserta una fila con `corregido_por` = un admin y `corregido_at` de hace 40 días, y pasa. Es la
+  tabla del rastro de toda edición manual. Ojo antes de revocar: `fn_educacion_cerrar_al_cesar` la escribe sin ser
+  `SECURITY DEFINER` (se rompería el cese). Lanzado como tarea aparte; el registro de producción ya muestra la
+  **0508** (`el_rastro_de_correcciones_solo_lo_escriben_las_funciones`), de esa otra sesión — su estado lo documenta ella.
+- Otras cinco tablas admitían INSERT directo de admin/líder (`configuracion`, `documentos_tipos`, `rendimiento_mensual`,
+  `tarifas_hora`, `terminales`; `push_tokens` es solo la fila propia y `horarios_asignados` ya tiene trigger). **Medidas
+  el 2026-10-04: ver la entrada de la 0509, arriba.**
+- `donde-vive.sh` toma el primer contenedor `supabase_db_*`; con retail y dynamic arriba toma el de retail y avisa
+  «la función no existe en el Postgres local» sin que sea cierto. No se tocó.
+
+---
+
+## 2026-10-02 — El feriado posterior al cese no corresponde · migración 0505 · PEGADA Y VERIFICADA · SIN FUSIONAR
+
+**Origen:** Planilla del periodo 29-sep → 28-oct mostraba «1 feriado(s) sin salario ese día: no se pudo calcular ·
+Equipo →» a dos personas que cesaron antes del 8-oct (una practicante y una integrante en planilla). Medido en
+producción con la propia función: tramos cerrados el día del cese, `sin_salario = true`, `monto = 0`. La plata estaba
+bien; el aviso era falso, y su enlace invitaba a reabrir el salario — `fn_set_salario` no mira el cese, y con eso el
+feriado SÍ se pagaba (S/ 14.41 medido en la prueba 399).
+
+**Decisión de Felipe (2026-10-02): el feriado posterior al cese NO se paga.** El sistema tenía dos respuestas: S/ 0 con
+la baja por el botón (todos los casos reales) y «saldo legítimo» en la 0244 / prueba 185 (cese puesto a mano). Gana la
+primera: art. 8 D. Leg. 713 («los trabajadores»), la liquidación ya corta en el cese, y es lo que producción pagaba.
+
+**Qué es:** `fn_feriado_devengado_nucleo` pregunta «¿seguía vinculada ese día?» antes que el salario. Un feriado
+posterior al cese pasa a «no corresponde», paga 0 aunque el tramo siga abierto, y deja de contar como «sin salario».
+El detalle gana `despues_cese`; la pantalla dice «no corresponde (posterior al cese)». Prueba **399** (15; contra la
+0397 caen las 9 previstas). La **185** cambia su montaje de § 11 al «marcaje cerrado tarde» (sigue 51/51). Suite
+entera en base desechable: idéntica antes y después en los 306 archivos previos.
+
+**Pegada el 2026-10-02 y verificada** en el SQL Editor: md5 de partida `c2cddb1d…` (9 312) idéntico al repositorio;
+de llegada `82178e23…` (10 344), idéntico al de la base desechable; `migraciones_aplicadas` con **505 ·
+el_feriado_posterior_al_cese_no_corresponde** (número Y nombre); los dos casos reales pasan a `sin_salario = false`,
+`despues_cese = true`, `monto = 0`. Se pegó desde el portapapeles de `dame-el-sql.sh`, idéntico byte por byte a GitHub.
+Falta fusionar el PR #486, que es publicar la pantalla («no corresponde (posterior al cese)»).
+
+**Abierto:**
+- El candado de `fn_set_salario`: deja asignar salario a quien ya cesó, y con la fecha que propone Equipo (inicio del
+  periodo) BORRA los tramos reales que empiezan después. La baja ya se niega a lo inverso (0176). Migración chica.
+- **El vínculo no tiene historia.** `fn_reactivar_persona` (0327) pone `fecha_cese = null` y conserva el ingreso
+  original: tras un reingreso el sistema cree que la persona nunca se fue. Si alguien cesa el 2-oct y vuelve el 20-oct
+  del mismo periodo, el 8-oct vuelve a estar «vinculada» y con el salario cerrado: regresa el aviso falso, y si alguien
+  le pone salario, se paga un feriado de cuando no trabajaba. Afecta a la 0505 y a las cinco preguntas iguales del
+  núcleo (tope de pago y las cuatro ausencias de la 0418). La solución de fondo es una historia de vínculos (como las
+  «medidas» de SAP); tocaría el núcleo de planilla, así que se decide después del cierre de octubre.
+- Los comentarios de `fn_periodo_pagado` (0244 y copias) siguen citando el feriado posterior al cese como saldo
+  legítimo: desde la 0505 ese ejemplo es falso.
+
+---
+
+## 2026-10-01 — La subvención pactada de los practicantes sigue a la RMV nueva · migración 0502 · PEGADA Y VERIFICADA · PR #480 SIN FUSIONAR
+
+**Estado al 2026-10-01, a mediodía — lo que de verdad pasó en producción:** Felipe pegó la 0502 y la fila final que devolvió coincide columna por columna con lo esperado: `tramos_0502 = 5` · `practicantes_bajo = 0` · `por_suposicion = 5` (ninguno tiene horas cargadas: la jornada completa de su modalidad se SUPUSO) · `con_horas_de_convenio = 0` · `educacion_realineada_hoy = 0` · registro `502 la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230`. **Pendiente de la pegada:** volver a correr la consulta de comprobación y mirar que ningún practicante quede bajo el piso. **Lo que sigue abierto y NO lo resuelve la migración:** la consulta al laboralista de abajo (art. 45 con pago por horas; ningún convenio firmado en el sistema; adenda o renovación). Fusionar este PR no cambia pantallas: solo deja en `main` el archivo ya pegado.
+
+**Origen.** La 0501 —la RMV a S/ 1,230, **pegada y verificada** el 1-oct— no alcanza a los practicantes:
+`fn_fijar_base_declarada` exige `en_planilla` y ellos tienen `en_planilla = false`. En producción hay **cinco
+practicantes activos** (tres profesionales y dos preprofesionales) cuya subvención pactada es S/ 1,130 y desde el 1-oct
+queda **bajo la RMV** (Ley 28518 art. 45: no menos de una RMV a la jornada máxima de su modalidad; proporcional
+si pactaron menos). **Lo decidido por Felipe (2026-10-01):** llevar esa subvención pactada a S/ 1,230 desde el 1-oct,
+**por regla** y sin nombres ni ids en ningún archivo, con una migración **aparte** de la 0501.
+
+**Qué promete —y qué NO— esta migración.** Promete alinear **lo pactado** (el tramo vigente de `asignaciones_salario`: lo
+que Contratos exige y lo que imprime la constancia) a la RMV. **No promete que la boleta pague esa cifra ni que se
+cumpla el art. 45**: la planilla paga a un practicante por las horas marcadas, y un preprofesional que cumple sus 30 h
+semanales cobra ≈ dos tercios del tramo (ver «Lo que la 0502 NO resuelve»). Por eso el nombre dice «sigue a la RMV» y no
+«llega al piso», y la nota permanente de cada tramo no afirma cumplimiento. *(La primera pasada se llamaba «los
+practicantes llegan al piso»: prometía de más y se renombró.)*
+
+**Qué hay** (rama `claude/practicantes-piso-0502`; **nada pegado ni fusionado**):
+
+| Archivo | Qué |
+|---|---|
+| `supabase/migrations/0502_la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230.sql` | La migración. Atómica, solo sube, idempotente, con guardia final y **una sola pegada a la vez** (candado de transacción). No reescribe ninguna función ni deja ningún objeto permanente. **Devuelve al final UNA fila** con los conteos. |
+| `supabase/tests/396_la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230.test.sql` | 48 aserciones: la regla sobre una veintena de practicantes de laboratorio (convenios en conflicto incluidos), la acción, la planilla (1,220.32), el tramo que empieza el 1-oct, el candado por grupo. |
+| `scripts/sql-manual/antes_de_pegar_la_subvencion_de_los_practicantes_1230.sql` | Solo SELECT. 16 filas; la **fila 6** es una entrada por practicante y es lo que Felipe confirma. |
+| `tests/practicantes-subvencion-misma-regla.test.ts` | Compara, palabra por palabra, la regla de la migración, de la prueba y del script. |
+
+### La regla — y por qué no es «por rango»
+
+Se sube a quien cumpla **todo**: practicante **activo**, no cuenta de servicio, con subvención vigente **por debajo de
+su referencia**. La referencia es la **RMV vigente el 1-oct, leída de `parametros_laborales`** (no escrita a mano; la
+migración se detiene si no es 1,230, o sea si la 0501 no está) y, solo para un **preprofesional con convenio de menos de
+30 h**, su proporción: RMV × horas / 30 (la misma cuenta del generador de Contratos). **Nunca por rango:** cada
+practicante lleva uno de los seis rangos de `asignaciones_salario` —no existe un rango «practicante»—, así que un
+`UPDATE` o un `fn_fijar_base_declarada` por rango habría barrido también a quien pactó menos horas, y subirle de más no
+se puede deshacer (sería **bajarle** una subvención).
+
+**Qué convenios cuentan.** Todo convenio de prácticas **no anulado que traiga horas, firmado o en borrador**: equivocarse
+hacia «protegerlo» se arregla pegando de nuevo; subir de más no. Si una persona tiene convenios no anulados que **se
+contradicen** —horas distintas entre sí, o uno con horas y otro sin ellas— la migración **se DETIENE** con «conflicto de
+convenios» y Felipe decide a mano (anular en Contratos el que sobra). La primera pasada tomaba «el más reciente»: con un
+convenio **firmado de 20 h** y un borrador posterior sin horas, dejaba a esa persona «asumida» y la **subía a 1,230**
+(ensayado contra el borrador commiteado: sube); y al revés, un borrador sin firmar con 20 h la dejaba «no se toca» sin
+decirlo. Ahora la fila 6 muestra por persona cuántos convenios hay, sus horas y si están firmados.
+
+Lo que hace: `fn_set_salario` por persona, **con el rango que ya tiene**, desde el **1-oct** (el tramo viejo se cierra
+el 30-sep), y sube `personas.sueldo_base_legal` solo si ya tenía un valor menor (nulo se queda nulo) —no mueve el pago
+de un practicante, pero la constancia de subvención imprime «Subvención pactada (mes completo)» **leyendo esa
+columna**—. El valor anterior queda en `correcciones_auditoria` (`personas.sueldo_base_legal`), que es lo que permite
+revertirlo, y el motivo dice **el valor real** al que sube (el proporcional, si pactó menos horas; la primera pasada
+decía siempre «sube al piso de la RMV de S/ 1,230»). **Solo sube:** a quien ya cobra su referencia o más (1,230 o 1,300) no
+se le abre ni un tramo. La nota permanente de cada tramo dice: *«Subvención pactada alineada a la RMV de S/ X vigente
+desde el 2026-10-01 (referencia: Ley 28518, art. 45; si la boleta cumple el artículo es consulta abierta con el
+laboralista)…»* y, cuando las horas no salen de un convenio, *«jornada completa de su modalidad (48 h) SUPUESTA»* (30 h
+para un preprofesional).
+
+**Se OMITE y se cuenta (sin nombres)** a quien no tiene modalidad, no tiene subvención cargada o **ingresó después del
+1-oct sin horas pactadas**. **DETIENE** —sin tocar nada— si hay un conflicto de convenios; si a quien sube le tocaría una
+`base_provision` propia (`fn_set_salario` no la copia), sueldo fijo, o **un tramo de sueldo que EMPIEZA el 1-oct o
+después**; si hay un cambio de sueldo programado que todavía cubre el 1-oct; si no hay admin activo con usuario; si la
+RMV del 1-oct no es 1,230; o si el grupo practicante del periodo ya está **pagado** (candado de `fn_set_salario`, por
+grupo desde la 0327).
+
+*El tramo que empieza el 1-oct o después es de la segunda pasada:* `fn_set_salario` **borra** todo tramo con
+`vigente_desde >=` la fecha. A quien ingresó **hoy** y cobra menos que su referencia le habría borrado su único tramo
+para poner el nuestro, y la receta de reversión —que reabre el tramo cerrado el 30-sep— lo habría dejado con **cero
+tramos** (ensayado contra el borrador commiteado: lo hace). Ahora se detiene en voz alta.
+
+Presta la identidad del admin activo más antiguo **solo dentro de la transacción**, igual que la 0501 y la 0462; el guard
+de las funciones no se toca. **Una sola pegada a la vez:** lo primero que hace el bloque es tomar un candado de
+transacción; una segunda pegada simultánea espera y, al seguir, ya no encuentra a nadie bajo su referencia (sin el
+candado, dos pegadas simultáneas duplicaban las filas de auditoría de la base legal: medido, 12 en vez de 6).
+
+### ⚠️ La suposición «jornada completa» — la confirma Felipe leyendo la fila 6
+
+**Ninguno** de los cinco tiene un convenio con horas pactadas cargado en el sistema. El generador solo guarda las horas de
+un **preprofesional** (al profesional le deja `null`) y el sistema entero —generador, texto del convenio, el script de
+la 0501— lee «sin horas» como **jornada completa** de la modalidad (30 h / 48 h). La 0502 hace lo mismo, **y eso es una
+suposición, no un dato**. Está escrita en el encabezado de la migración y en la nota de cada tramo.
+
+**La protección por horas existe SOLO para el preprofesional con un convenio generado CON horas:** el generador guarda
+horas únicamente para él, y la regla las ignora si la modalidad no es «preprofesional». **Para los tres profesionales esa
+protección es NULA por construcción:** su convenio nunca lleva horas, la regla les aplica la RMV entera y no existe dónde
+cargar «este profesional trabaja menos» para que la regla lo lea. **Para un profesional de jornada reducida NO hay
+protección, y si Felipe duda de alguno, NO se pega.** *(La primera pasada decía que cargar horas en un convenio bastaba para proteger a cualquiera de los cinco: era falso
+para los profesionales.)*
+
+**Felipe NO ha confirmado la jornada de ninguno:** la fila 6 del script de la 0501 mostraba «horas completas» solo porque no hay horas cargadas (es el relleno cuando falta el dato; no comprueba nada). **Lo que la confirma es leer, ahora con las horas SUPUESTAS en número
+(30 o 48), lo que marcó cada uno en el último periodo pagado (aprox.), su horario vigente como señal débil y sus convenios
+con si están firmados, en la fila 6 del script nuevo ANTES de pegar.** La migración dice a cuántos subió por suposición
+**en la fila final que devuelve** (`por_suposicion`, `con_horas_de_convenio`): el SQL Editor **no muestra los
+`RAISE NOTICE`**, así que lo que importa no viaja en ellos. **Si no la confirma, no se pega.**
+
+### Lo que cuesta — MEDIDO, con su cota
+
+Con `fn_planilla_calcular` en un Postgres desechable propio (cadena completa de 480 migraciones + la 0502), el periodo
+**28-sep → 28-oct (31 días; tres al sueldo viejo)** y **jornadas MODELADAS** —las horas reales de producción no se
+pueden leer desde acá—. Por perfil (reproducido en la segunda pasada):
+
+| Jornada modelada | Horas del periodo | Cobra con 1,130 | Cobra con 1,230 | Sube |
+|---|---|---|---|---|
+| Preprofesional 6 h L–V (30 h/sem) | 138 | 773.90 | 833.45 | **+59.55** |
+| Preprofesional 5 h L–S (30 h/sem) | 135 | 757.07 | 816.63 | **+59.56** |
+| Profesional 8 h L–V (40 h/sem) | 184 | 1,031.86 | 1,111.27 | **+79.41** |
+| Profesional 8 h L–S (48 h/sem) | 216 | 1,211.32 | 1,306.60 | **+95.28** |
+| Asistencia completa, 6.5 h × 31 días (el techo) | 201.5 | 1,130.00 | 1,220.32 | **+90.32** |
+
+**Los S/ 384.12 de la primera pasada se retiran:** eran la SUMA de estas cinco jornadas distintas (una de 40 h y una de
+6.5 h todos los días), no una medida de los cinco reales, y no se reprodujeron como tal. **El rango medido para los cinco
+reales** (2 preprofesionales y 3 profesionales; la jornada máxima de cada modalidad como piso del rango y 6.5 h × 31
+días como techo; quien marque menos horas cuesta menos):
+
+- **Primer periodo (28-sep → 28-oct): ≈ S/ 405 a S/ 452** de pago por horas (3 de 31 días al sueldo viejo). Extremos:
+  2 × 59.55 + 3 × 95.28 = 404.94 y 5 × 90.32 = 451.60.
+- **En régimen: ≈ S/ 490 a S/ 565 al mes** según las horas que marquen (medido con jornadas modeladas: mezcla ≈ S/ 491; los cinco a jornada legal máxima ≈ S/ 520–526; los cinco a 6.5 h × 31 días ≈ S/ 564; quien marque menos cuesta menos) = el pago por horas a periodo completo (subida = horas × S/ 100 / (6.5 × días
+  del periodo)) **más el devengo semestral y del descanso, S/ 12.50 por persona**. El **EsSalud +9** ya subió con la 0501 y no
+  se cuenta acá.
+- **Por practicante: ≈ S/ 78 al mes (preprofesional de 30 h) a ≈ S/ 120 (profesional).**
+- **La cifra con las horas REALES la da la fila 8 del script** (horas del último periodo pagado de cada uno).
+- La estimación vieja de «≈ S/ 110–125 por practicante al mes» era el TECHO, no un promedio: 100 de pago + 12.50 de lo
+  devengado = 112.50, y 121.50 con los 9.00 de EsSalud de la 0501.
+
+- **Lo devengado se revalúa de golpe, una vez, en +8.85 %** (1,230 / 1,130): la media subvención semestral y el descanso de
+  15 días (Ley 28518 art. 42) los leen `fn_subvenciones_practicante` (0467; la usa Provisiones) y
+  `fn_mis_subvenciones_practicante` (0485; la ve el propio practicante) sobre la subvención **vigente al corte**, sin
+  versionar el pasado. Medido (reproducido en la segunda pasada) con ingreso el 2-mar y corte el 15-oct: **5,253.05 → 5,717.90 (+S/ 464.85
+  para los cinco)**; de ahí en adelante cada hito de seis meses y el descanso valen **S/ 50 más** por persona. Es costo real, no un
+  error: **quien mire Provisiones el día de la pegada va a ver el salto.**
+- **Efecto colateral heredado, medido:** cada tramo nuevo dispara `fn_educacion_realinear` (0281), que corrige la asignación
+  por educación de quien tenga una que no cuadre con el 75 % de su costo declarado y deja en la auditoría el motivo
+  «Cambió el rango» aunque el rango no cambió (pasa con S/ 80.00 sobre un costo de S/ 107: sube a S/ 80.25; no pasa si ya
+  cuadra). La **fila 9** del script dice de antemano a cuántos les puede pasar y la **fila final** de la migración cuenta
+  cuántos pasó (`educacion_realineada_hoy`).
+
+### Lo que la 0502 NO resuelve — consulta para el laboralista
+
+1. **¿Pagar por horas marcadas cumple el art. 45 de la Ley 28518 si un preprofesional de 30 h cobra ≈ dos tercios del
+   tramo?** La planilla paga a un practicante por las horas marcadas (6.5 h por día calendario = la subvención entera):
+   un preprofesional que cumple sus 30 h semanales cobra **≈ S/ 773–833** en el periodo (≈ 66 % del tramo), con 1,130 y
+   también con 1,230. La 0322 lo dejó escrito como decisión de quien da de alta. La 0502 alinea el TRAMO —lo pactado y lo
+   que Contratos exige—, no contesta esta pregunta, y ninguna pantalla la marca. **Si la respuesta es que un
+   preprofesional de 30 h debe cobrar la RMV entera, cerrar la brecha cuesta ≈ S/ 388–406 al mes por preprofesional
+   (≈ S/ 775 los dos), además de lo de la 0502.**
+2. **Ninguno de los cinco tiene convenio firmado en el sistema — y eso es un RIESGO, no solo un hueco de horas.** Toda
+   la categoría practicante (sin CTS, gratificación ni vacaciones, sin AFP ni 4.ª) descansa en que exista un convenio de
+   modalidad formativa por escrito. Sin convenio firmado y vigente esa modalidad podría no ser oponible y el vínculo
+   reclasificarse como laboral (a validar con el laboralista, no se afirma). La 0502 no lo cura ni lo agrava. ¿Qué papel
+   existe de cada uno, con qué modalidad y jornada? El sistema no puede probar la jornada pactada de ninguno.
+3. **Adenda o renovación para los convenios firmados que dicen 1,130:** pagar más es favorable, pero el papel queda viejo.
+
+**Pendiente que no es consulta:** el **segundo tramo de la RMV (S/ 1,300, primer semestre de 2027)** volverá a dejar la
+subvención pactada bajo la RMV: hay que rehacer esta migración con los números de ese día; nada en el sistema avisa
+cuando el decreto salga.
+
+### Orden de pegado — fecha límite real: ANTES de pagar el grupo practicante del periodo 28-sep → 28-oct
+
+**La 0502 es solo datos:** no cambia pantallas ni funciones, así que no depende del orden respecto de ningún PR. Pero
+`dame-el-sql.sh` se niega a entregarla si no está en GitHub byte por byte, así que **primero se sube** (rama, PR en
+borrador). **La fecha límite real no es el 28-oct sino el momento de pagar:** la migración se pega **ANTES de pagar el
+grupo practicante del periodo 28-sep → 28-oct** (el periodo cierra el 2026-10-28); desde que ese grupo figure como
+pagado, el candado de `fn_set_salario` (por grupo, desde la 0327) la hace abortar entera.
+
+1. `./scripts/que-falta-pegar.sh` y pegar lo que genera: la **0502** figura pendiente y **no** hay filas nuevas de «SOBRA LA FILA».
+2. `./scripts/dame-el-sql.sh scripts/sql-manual/antes_de_pegar_la_subvencion_de_los_practicantes_1230.sql` (así los
+   acentos no se rompen), pegar y ejecutar: una tabla de 16 filas. **Leer:** fila 1 (cuántos suben: lo esperado es 5),
+   fila 2 (`1230 / 1130`), fila 3 (**todo en 0**, incluido «CONFLICTO DE CONVENIOS»), fila 4 (quién firma el rastro),
+   fila 5 (a cuántos se les SUPONE la jornada), **fila 6 (una por practicante: ¿es verdad que trabaja esas horas?)**,
+   fila 8 (el costo con sus horas reales), fila 9 (educación a realinear), fila 10 (**0**), fila 11 (**ningún periodo
+   con practicantes pagados**).
+3. **Confirmar la fila 6, persona por persona.** Si alguna dice «DETIENE» o la jornada supuesta no es la real: parar y
+   corregir (convenio con las horas reales en Contratos —solo sirve para un preprofesional—, anular el convenio que
+   sobra, modalidad en Equipo) y volver a correr el paso 2. **Para un profesional no hay forma de cargar horas que la
+   regla lea: si dudas de alguno, NO se pega** (Plan B: los confirmados se suben a mano en Equipo, misma persona y rango, vigencia 2026-10-01; el dudoso espera a DO y al laboralista). **Si aparece «conflicto de convenios», NO anules a ciegas un convenio firmado:** la regla no mira fechas y un convenio vencido también cuenta; anular recalcula el vencimiento del contrato (0312).
+4. `./scripts/dame-el-sql.sh 0502` y `diff <(pbpaste) supabase/migrations/0502_*.sql && echo idéntico`. Pegar **entero** y
+   ejecutar: es todo o nada; si da error no se tocó nada — copiar el mensaje completo y parar.
+5. La fila que devuelve debe decir: `tramos_0502` = los que dijo la fila 1 como «sube» · `practicantes_bajo` = **solo**
+   los de jornada reducida o fuera (la fila 6) · `por_suposicion` = lo que dijo la fila 5 y `con_horas_de_convenio` el
+   resto (**la suma da `tramos_0502`**) · `educacion_realineada_hoy` = lo que anticipó la fila 9 (si dijo 0, 0) ·
+   `502 la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230`.
+
+### Cómo se verifica
+
+Volver a correr el script del paso 2: **fila 12 = 0** (nadie bajo su referencia), **fila 13** = los que subían, con la
+división «por suposición / con horas de convenio» de la fila 5, **fila 14** = solo jornada reducida o fuera, **fila
+15 = 0**, **fila 16** = las dos migraciones **con número y nombre**. Después: abrir la boleta de un practicante del
+periodo 28-sep → 28-oct: «Subvención pactada (mes completo)» dice 1,230.00. Y recordar que Provisiones va a mostrar el
+salto de arriba y que **no se puede bajar después de pagar un periodo con ella**.
+
+### Cómo se ensayó (y qué NO se pudo ver)
+
+**Primera pasada:** el borrador pasó una auditoría independiente de tres auditores; esta segunda pasada aplica sus
+correcciones. **Segunda pasada**, contra la cadena completa de 480 migraciones (hasta la 0501) en un Postgres desechable
+**propio** (contenedor `scratch-0502p2-pg`, puerto 54993; no se tocó ningún `supabase_*`):
+
+- el archivo real pegado sobre una base sin practicantes (pasa, no exige admin, la fila final sale en ceros);
+- un escenario de 15 practicantes activos y 3 controles (integrante en planilla, locador, en prueba): sube **7**
+  (4 por suposición, 3 con horas de su convenio), la fila final dijo `7 · 7 · 4 · 3 · 0`; la **segunda pegada es
+  idempotente** (mismos hashes de tramos, bases y auditoría) y la **receta de reversión** devuelve tramos, bases y conteo
+  **exactos**;
+- **13 casos que deben detenerla**, todos con el estado **idéntico** después: horas distintas entre sí, firmado de 20 h con
+  un borrador posterior sin horas, conflicto en quien ya cumple, conflicto en quien no tiene modalidad, `base_provision`,
+  sueldo fijo, tramo programado después del 1-oct, **ingreso el 1-oct con tramo desde el 1-oct**, sin admin, otra RMV el
+  1-oct, sin ninguna RMV, grupo practicante ya pagado, cambio programado que cubre el 1-oct; y **5 que deben pasar**
+  (conflicto resuelto anulando uno, `base_provision` en quien no sube, ingreso el 1-oct con 1,230, solo el grupo
+  «planilla» pagado, sueldo fijo en quien no sube);
+- el **borrador commiteado** (el de la primera pasada) contra los dos casos de la auditoría: **sube a 1,230** a quien
+  firmó 20 h y **borra el único tramo** de quien ingresó el 1-oct. La versión nueva se detiene en los dos;
+- **concurrencia:** dos pegadas simultáneas dejan **6** filas de auditoría de la base legal con el candado y **12** sin
+  él (control);
+- **siete mutaciones a la migración** que la guardia final cazó (subir a todos a 1,230, no subir la base legal, rango fijo,
+  bajar a quien cobra más, mover a un integrante en planilla, saltarse a uno, base legal con otro valor); quitar los dos
+  frenos nuevos (conflicto de convenios y tramo desde el 1-oct) deja pasar la migración —o sea que esos frenos son los
+  que protegen—;
+- la **396** pasa **48/48** y se comprobó que **puede fallar** con **siete mutaciones** a su regla (sin la clasificación de
+  conflicto, conflicto solo por horas distintas, el borrador no cuenta, el anulado cuenta, el tramo del 1-oct no cuenta,
+  sin tope de 30 h, horas distintas sin detectar). La prueba de vitest se vio fallar al tocar una sola condición del script.
+  La **122** pasa (con `schema_migrations` emulada) verificando la fila de la 0502. **Suite pgTAP completa: 306 archivos**;
+  fallan los **mismos 20** que en el control de la primera pasada (a `auth.users` le faltan columnas de GoTrue; la 122
+  pasa si se emula `schema_migrations`), con **idénticos** conteos de aserciones en todos los demás. *(Trampa del banco de
+  pruebas: ocho archivos fallaban de entrada con «permission denied for schema public» porque la base desechable se
+  clonó con otro dueño que `postgres`; no era la 0502 —con el permiso puesto pasan—, y solo el control lo distinguió.)*
+
+**No se pudo ver:** el `do $$` de la migración no se puede ejecutar desde pgTAP (por eso la regla vive en una vista que SÍ
+se mide, y el bloque se ensayó aparte); y las **horas reales** de los cinco, que solo existen en producción — por eso la
+fila 8 del script y la confirmación de la fila 6 son de Felipe. `db-tests` de GitHub es la señal fiable de las pgTAP.
+
+---
+
+## 2026-10-01 — El Archivo de la empresa (Empresa → Archivo) · migración 0503 · PEGADA Y VERIFICADA · SIN FUSIONAR
+
+**Origen:** había que guardar la constancia de inscripción del banco de datos *Videovigilancia* (ANPD,
+INS-2026-5135 · PJ-2026-4553, 08-09-2026) y su formulario firmado, para tenerlos a la mano en una auditoría.
+Dynamic no tenía dónde: todo lo que se subía colgaba de una persona. Felipe eligió construir un archivo propio
+(«A») y ponerlo en un grupo nuevo del menú, **Empresa → Archivo**, que solo ve DO.
+
+**Qué es:** tabla `archivo_empresa`, bucket privado `archivo-empresa`, `fn_archivo_subir` / `fn_archivo_retirar` /
+`fn_archivo_empresa`, pantalla `/admin/archivo`. Nada se edita ni se borra: corregir crea una ficha que reemplaza a
+la anterior (puede reusar el archivo) y retirar exige motivo. Avisa lo que vence en ≤ 60 días. Prueba pgTAP **397**
+(49 aserciones; el control sin índice único, sin trigger y con lectura abierta pone en rojo las 6 que deben caer).
+
+**Pegada el 2026-10-01 y verificada** en el SQL Editor: tabla 1/1, funciones 5/5, políticas de Storage 4/4,
+bucket privado, RLS activa, y `migraciones_aplicadas` con **503 · el_archivo_de_la_empresa** (número Y nombre).
+Se pegó desde el portapapeles de `dame-el-sql.sh`, comprobado idéntico byte por byte al archivo en GitHub.
+Falta fusionar el PR #481, que es publicar la pantalla.
+
+**Después de pegar:** subir los dos PDF de videovigilancia desde la pantalla (viven en Descargas de la MacBook; no
+van a git: llevan el DNI del representante). Y el primero que más vale subir es la **constancia de REMYPE**: sin ella
+no aplica el tope del 1 % de los ingresos netos a las multas de una inspección (ver «El techo que ordena todas las
+multas», más abajo).
+
+**Abierto:** la líder de equipo no ve el archivo; si un inspector llega a una tienda, no puede mostrar la licencia de
+su sede. Se resolvería abriéndole la lectura de los papeles de SU sede (`sede_id`), no del archivo entero.
+
+---
+
+## 2026-09-30 — La RMV sube a S/ 1,230 el 1-oct, la escala la sigue y la asignación familiar sube a S/ 123 · migración 0501 · PEGADA y verificada (2026-10-01) · SIN FUSIONAR
+
+**Origen:** el **D.S. 015-2026-TR**, publicado el **2026-09-28** en El Peruano (edición extraordinaria), art. 1,
+lleva la RMV a S/ 1,300 **en dos tramos**: el primero (+S/ 100 = **S/ 1,230**) rige el **2026-10-01**; el
+segundo (+S/ 70) lo fijará **otro decreto supremo en el primer semestre de 2027** y **NO está construido**.
+Verificado contra el texto publicado. El decreto no menciona la asignación familiar.
+
+**Lo decidido por Felipe (2026-09-30)** — la migración **0501** y la prueba **395** lo construyen:
+
+| | antes | desde el **2026-10-01** |
+|---|---|---|
+| RMV (`parametros_laborales`) | 1,130 | **1,230** |
+| Base declarada **colibrí** (10 personas) — sueldo y `sueldo_base_legal` | 1,130 | **1,230** |
+| Base declarada **cayla** (4) | 1,185 | **1,245** |
+| **support** (1) · aurora · oráculo · archicaylo | 1,260 · 1,360 · 1,440 · 1,500 | **sin cambio** (ni un tramo nuevo) |
+| Lo que publica la **Política salarial** (`categorias_laborales.salario_declarado`) | 1,130 · 1,185 · 1,260 | **1,230 · 1,245 · 1,260** |
+| **Asignación familiar** | 113 | **123** (10 % de la RMV, Ley 25129 art. 1) |
+| `DEFAULT` de `personas.sueldo_base_legal` (altas futuras) | 1,130 | **1,230** |
+
+**Por qué support se queda en 1,260:** ya cumple la RMV. La escala es la **más barata que mantiene el orden**.
+La cobertura de estudios llega a S/ 270 al mes y la Política publica una «Referencia mensual» = remuneración +
+movilidad (hasta S/ 288) + estudios (colibrí 1,608 · cayla 1,713 · support 1,818 · aurora 2,008): **la
+educación no se sube ni se iguala «para compensar»; la base cumple sola.**
+
+**Lo que cuesta** (factor 1.2567 = EsSalud 9 % + grati 8.33 % + CTS 4.17 % + vacaciones 4.17 %; **estimado**, el
+número real sale de `fn_simular_planilla`): colibrí +100 × 10 = S/ 1,256.70 · cayla +60 × 4 = S/ 301.61 →
+**≈ S/ 1,558.31 al mes** (~S/ 18,700 al año). La asignación suma **≈ S/ 12.57 al mes por cada integrante que la
+cobra**: cuántos son lo dice la consulta (iv) del script de abajo. **Alternativas medidas y descartadas por ahora:**
+cayla también en 1,230 (el mínimo absoluto de ley) ahorraría S/ 75.40 al mes → S/ 1,482.91 en total, pero deja a
+colibrí y cayla con la **misma** base; la escala 1,230 / 1,260 / 1,290 (support también sube) costaría
+S/ 1,671.41. Felipe puede pedir la primera: es cambiar **un número** (`v_montos` de la 0501, `param` del script,
+`rangos.ts` y la prueba 395).
+
+**⚠️ El primer periodo con el sueldo nuevo paga MENOS de lo que parece.** Los sueldos suben **desde el 2026-10-01**
+y la planilla paga **por día con el tramo de cada jornada**: los días de septiembre que caen dentro del
+periodo abierto se pagan al **sueldo viejo**. **CORRECCIÓN del 2026-10-01:** el periodo abierto en producción es
+**28/09 → 28/10 (31 días)** —lo midió la fila 11 del script de comprobación; el último pagado cerró el 27/09—, no el
+29/09 → 28/10 de 30 días que se asumió al escribir esto. Son **tres** días al sueldo viejo (28, 29 y 30), no dos:
+un colibrí con asistencia completa cobra **≈ S/ 1,220.32** (3/31 × 1,130 + 28/31 × 1,230) y una cayla
+**≈ S/ 1,239.19** (en la prueba 395, con un periodo de 30 días, daba 1,223.33 y 1,241.00) — **no es «menos que la RMV»**:
+son tres días de septiembre al sueldo de septiembre; desde el periodo siguiente cobran el sueldo completo.
+La cabecera de la 0501 (ya pegada, y por eso intacta: lo pegado tiene que seguir siendo idéntico a lo guardado)
+todavía dice «29-sep» y «2 días»; vale esta corrección, no ella. **Hoy hay 9 colibrí, no 10** (fila 1 del script):
+el costo mensual de la escala es ≈ S/ 1,433, no ≈ S/ 1,558.
+El piso de EsSalud sí usa la RMV **entera** de 1,230 en ese periodo, porque se lee al último día: 9 % × 1,230 =
+S/ 110.70 (antes 101.70). Tener esta explicación a mano el día de pago.
+
+### La asignación familiar sube a 123 — irreversible, y por qué se tocó `configuracion`
+
+**Decidido «por ley»**, sabiendo que la nota de la 0122 dice que la pequeña empresa no la tiene entre sus derechos
+(la «vía de riesgo cero» de agosto era dejarla en 113). **Una vez que un periodo se calcula y se paga con 123,
+bajarla es una reducción unilateral de remuneración** (art. 30 inc. b del D.S. 003-97-TR): la única parte de la
+0501 que no se deshace.
+
+La asignación vive en **dos sitios** —medido contra las 480 migraciones—: `parametros_laborales` (versionada; la
+leen el núcleo de la planilla y `fn_provisiones`) y `configuracion.asignacion_familiar` (0113, **sin fechas**; es
+el respaldo de las dos anteriores y la **única** fuente de `fn_remuneracion_computable`, de la que cuelgan las
+liquidaciones por cese). Subir solo la versionada dejaba la boleta en 123 y la liquidación en 113, **en contra de
+quien se va**. La 0501 sube las dos. Qué recalcula: solo lo **no pagado** (`liquidacion_pagada` congela el total).
+Qué error deja: una liquidación cuya fecha de referencia sea anterior al 1-oct pero se calcule con 123 paga unos
+céntimos **de más** (un cese de octubre mira el mes anterior); dejar 113 pagaba de menos a todo cese desde noviembre.
+
+**Deuda que queda:** `fn_remuneracion_computable` sigue leyendo `configuracion` sin fecha; lo correcto es que lea
+`parametros_laborales` a `p_fecha_ref` (migración propia, con md5 de producción). Y los `coalesce(…, 113.00)`
+escritos **dentro** de las funciones (núcleo, `fn_provisiones`, `fn_remuneracion_computable`) siguen ahí: solo se
+usan si faltan las dos tablas, y no faltan. Cuando la RMV suba al segundo tramo, la asignación a **130** hay que
+subirla en **los dos** sitios otra vez.
+
+### Los practicantes: la 0501 NO los alcanza — los resuelve la **0502** (entrada «La subvención pactada de los practicantes sigue a la RMV nueva», arriba)
+
+`fn_fijar_base_declarada` exige `en_planilla` y un practicante tiene `en_planilla = false`: la 0501 **no los
+alcanza**, y su subvención de S/ 1,130 queda bajo el piso de la Ley 28518 art. 45 (RMV, o su proporción a las horas
+pactadas) **sin que el sistema lo marque**. **Decidido el 2026-10-01 por Felipe: la migración 0502** alinea su subvención pactada a la RMV
+**por regla** (nunca por rango, que habría barrido a quien pactó menos horas) — ver la entrada de arriba, con la
+suposición «jornada completa», el costo medido, lo que NO promete (la boleta paga por horas) y el orden de pegado. Además, desde el 1-oct Contratos **bloquea**
+generar un convenio con subvención bajo el piso (por eso el código lee ahora la RMV con la regla de la planilla y no
+como «la fila abierta»), su EsSalud sube solo (piso puro, 101.70 → 110.70) y los convenios ya firmados siguen diciendo
+1,130 en el papel (pagar más es favorable, pero el papel queda viejo: adenda o próxima renovación, **consulta para el
+laboralista**).
+
+### La otra rama: `claude/salary-update-1230-bd7a09` — descartarla o cerrarla
+
+Otra sesión escribió el mismo día (10:00–10:17) una versión **distinta** de este trabajo: una 0500 con la RMV en
+1,230 **y la asignación en 123**, un guion que deja **colibrí y cayla ambos en 1,230**, la prueba 394 y su propia
+entrada en este archivo (que recomienda «colibrí y cayla iguales»: **superada por la decisión de arriba**). No está
+fusionada ni pegada. **No fusionarla:** su 0500 sube la asignación sin tocar `configuracion` (las dos verdades), su
+guion afirma que «no baja a nadie» y la función **sí baja** a quien ya cobre más de su rango, y las dos ramas tocan
+`estado.md` y `rangos.ts` (habrá conflicto). **Si de todos modos se pegara, la 0501 sigue siendo correcta** en
+cualquier orden (`on conflict do nothing`, cierres que no repiten, solo sube). Si se descarta, el número **0500 queda
+como hueco** —el hook solo avisa— y conviene dejarlo anotado acá; la 0499 ya está en `main` (PR #476) y la 0501
+se ensayó también con ella aplicada.
+
+### Lo que la 0501 detiene, y cómo se ensayó
+
+Todo va en **una transacción** con guardia final: aborta en voz alta —sin tocar nada— si hay alguien con la base
+sin confirmar, con `base_provision` propia (`fn_set_salario` no la copia al tramo nuevo y sus provisiones bajarían
+en silencio), con sueldo fijo, con un tramo ya programado después del 1-oct, o con un campo por encima y otro por
+debajo; si no hay un admin activo con usuario; o si al final el sistema no lee 1,130 / 1,230 y 113 / 123 donde
+debe. **Solo sube:** quien ya cobra más de su rango (monto propio) queda como está (`fn_fijar_base_declarada` **no**
+protege de bajar; se le pasa `p_omitir` calculado). Presta la identidad del admin activo más antiguo **solo dentro de
+la transacción** (mismo patrón que la 0462; el guard de las funciones no se toca) y **corrige la nota** que la
+función deja escrita para un alza. Ensayada contra la cadena completa de 480 migraciones en un Postgres
+desechable con un escenario tipo producción (10 + 4 + 1 + 1 + 1 y casos de borde): los **nueve** casos que deben
+detenerla (base sin confirmar, `base_provision`, sueldo fijo, tramo programado, un campo arriba y otro abajo, sin
+admin, periodo ya pagado, otra RMV sembrada el 1-oct, otra asignación sembrada el 1-oct) y el que debe **pasar**
+(una cuenta de servicio en colibrí se omite), la base vacía de CI (pasa sin exigir admin), repegarla dos veces
+(mismos conteos), quien ya cobra más (1,500 y 1,300: no baja), el pago real por tramos y la suite pgTAP completa
+**con control**: 305 archivos antes y 306 después, sin ninguna diferencia salvo la prueba nueva **395 (31
+aserciones)**. Los mismos **19 archivos** fallan con y sin la migración, por el entorno (a `auth.users` le faltan
+columnas de GoTrue); la 122 falla en el control solo porque no existe `supabase_migrations.schema_migrations` y con esa
+tabla emulada **pasa y verifica la fila de la 0501**. Se comprobó que la 395 **puede fallar** con cinco mutaciones a
+propósito (configuracion en 113, DEFAULT en 1,130, Política en 1,130, la RMV nueva borrada, y el reajuste sin
+`p_omitir`). **No se simuló el reloj de Postgres en
+octubre**: las pruebas con fechas relativas a hoy comparan identidades, no montos, pero `db-tests` de GitHub es la
+señal fiable.
+
+### Guion de mañana — 2026-10-01
+
+**RMV a S/ 1,230 · escala nueva · asignación familiar S/ 123 · Política salarial nueva** — revisado por un lector sin contexto que lo recorrió paso a paso contra el código.
+
+**Orden que no se altera:** comprobar → pegar la 0501 en producción → fusionar el PR → recargar y comprobar → publicar la Política → avisar. Nada se hace en producción esta noche (30-sep): entre pegar y el 1-oct la pantalla Contratos (con el código viejo) no vería ninguna RMV.
+
+**Nunca, en ningún paso:** pegar la 0500 ni correr scripts/sql-manual/reajuste_bases_rmv_1230.sql (son de la rama claude/salary-update-1230-bd7a09; ese script baja Cayla de 1,245 a 1,230 y reescribe la Política) · npx vercel --prod · supabase db reset · fusionar el PR antes del paso 10 · pulsar «Confirmar de todas formas» en la ventana de publicar.
+
+**A. Preparar** (lo hace Claude, con tu OK, dentro de la carpeta de este trabajo: .claude/worktrees/planilla-seccion-feriado-21d627, rama claude/salary-structure-update-4f2712; solo después de las 00:00 hora de Lima del 1-oct: antes, el pre-push se detiene porque la novedad lleva fecha 2026-10-01 y tests/novedades.test.ts rechaza fechas futuras)
+1. **Hecho el 2026-09-30:** se trajo origin/main a la rama (0499, retiro de las 0497/0498, novedad del certificado) y se resolvieron novedades.ts —las tres entradas— y este archivo —las dos secciones—. Pasadas las 00:00 de Lima, Claude vuelve a correr ./scripts/siguiente-numero.sh: si la 0501 ya no está libre, renumera migración, prueba 395, script antes_de_pegar y textos, y lo vuelve a comprobar.
+2. **Decidido el 2026-09-30:** la frase de la Política quedó «se reajustan, como mínimo, hasta la nueva mínima» (Cayla queda en 1245, por encima de la mínima); ya va en este PR. También decidido: sueldos desde el 1-oct (no el 29-sep) y el rótulo de la boleta de septiembre se arregla en un PR aparte, después.
+3. Commit nuevo (nunca --amend) y git push. Si el hook responde que regeneró la consulta de qué falta pegar y aborta, es normal: repetir git push.
+4. Abrir el PR como BORRADOR (draft), con título «NO FUSIONAR ANTES DE PEGAR LA 0501» y este guion pegado en la descripción. Comprobar: gh pr view N --json isDraft,autoMergeRequest debe dar true y null, y Auto-fix apagado. Un borrador no se puede fusionar ni por costumbre ni por fusión automática.
+5. Esperar a que db-tests y ui-tests salgan en verde sobre el ÚLTIMO commit. Si alguno sale rojo: no pegar ni fusionar; pasar a Claude el nombre de la prueba.
+
+**B. Comprobar y pegar** (tú; Supabase, proyecto de PRODUCCIÓN —no el local—, SQL Editor; los comandos, en la terminal dentro de la carpeta del trabajo)
+6. ./scripts/que-falta-pegar.sh genera scripts/sql-manual/que_falta_pegar.sql (solo lo genera): pega ese archivo en el SQL Editor y ejecútalo. Esperado: la 0501 figura pendiente y no hay ninguna fila nueva de «SOBRA LA FILA»; la 0500 NO debe estar aplicada. Si lo está: parar.
+7. ./scripts/dame-el-sql.sh scripts/sql-manual/antes_de_pegar_la_rmv_1230.sql (así los acentos no se rompen), pegar, ejecutar: una sola tabla de 17 filas. Leer:
+   - Fila 2: «14 persona(s)» (10 Colibrí + 4 Cayla medidos el 30-sep; si difiere, mira la fila 1 y para).
+   - Fila 3 (los cinco casos) y fila 15: TODO en 0. Si no, la migración se detendrá: no seguir. Remedio por causa: *base sin confirmar* → confirmarla en Equipo; *base_provision propia* o *sueldo fijo* → decisión de Felipe, no se resuelve a ciegas; *tramo de sueldo programado después del 1-oct* → revisarlo en Equipo; *un campo arriba y otro abajo* → igualar a mano (consulta (i) del script); *fila 15 (rendimiento < 100 en un mes pagado)* → decisión de Felipe.
+   - Fila 4: «nadie» o quien cobra por encima de su monto (esa persona NO se toca, es lo correcto).
+   - Fila 5: «nadie». Si sale una estación o cuenta de servicio de rango Colibrí, es lo esperado: la migración la omite a propósito.
+   - Filas 6 y 7: practicantes. La 0501 NO los toca: los resuelve la 0502 (entrada «La subvención pactada de los practicantes sigue a la RMV nueva», con su propio script y orden de pegado). Anota quiénes salen «QUEDA BAJO EL PISO EL 1-OCT».
+   - Fila 8: antes «1130 / 1130». Fila 9: antes «113 / 113 / 113». Los valores salen con cinco decimales (1130.00000 es 1130).
+   - Fila 10: cuántas personas cobran asignación familiar (cada una cuesta ≈ S/ 12.57 más al mes y, pagado un periodo con 123, no se puede bajar).
+   - Fila 11: periodo abierto que cierra el 2026-10-28 (el 1-oct se midió 2026-09-28 → 2026-10-28; si la fecha_fin NO es 2026-10-28, para y avisa). Fila 12: último periodo cerrado o pagado.
+   - Fila 13: la 499 puede figurar; la 500 y la 501 NO.
+   - Fila 14: quién firmará el rastro (el admin activo más antiguo con usuario; no tiene que ser Felipe).
+   - Fila 16: cuántas constancias dejó la versión vigente (te dice a cuántas personas llegará el aviso).
+   - Fila 17: antes 1130 · 1185 · 1260 · 1360 · 1440 · 1500 (con dos decimales).
+8. ./scripts/dame-el-sql.sh 0501 y comprobar los acentos: diff <(pbpaste) supabase/migrations/0501_*.sql && echo idéntico. Pegar ENTERO en el SQL Editor y ejecutar. Es todo o nada: si da error, no se tocó nada; copia el mensaje completo y para. No hay prisa contable: se puede pegar después mientras el periodo 29-sep → 28-oct no esté pagado. Si luego el editor contesta «current transaction is aborted», recarga la pestaña del SQL Editor.
+9. Comprobar la fila que devuelve: RMV 15-oct 1230 · RMV 30-sep 1130 · asignación 15-oct 123 · asignación 30-sep 113 · configuración 123 · default 1230.00 · «colibri 1230.00 · cayla 1245.00 · support 1260.00» · «501 la_rmv_sube_a_1230_y_la_escala_la_sigue» (los ceros de más no importan). Volver a ejecutar el paso 7: fila 2 = 0 persona(s); fila 8 = 1130 / 1230; fila 9 = 113 / 123 / 123; fila 17 = 1230 · 1245 · 1260 · 1360 · 1440 · 1500. Desde aquí hasta el paso 14 no pares (unos 15 minutos y, de preferencia, antes de que abran las sedes): desde ahora cualquiera que abra Política salarial ve la escala nueva con la insignia «Desactualizada».
+
+**C. Fusionar y publicar** (tú)
+10. En GitHub, en el PR: «Ready for review» → confirmar que el CI sigue en verde → botón verde de fusionar (fusionar ES publicar). Esperar el despliegue de Vercel en «Ready» (~1 minuto; pestaña Deployments de cayla-dynamic o el check de Vercel en el commit de main). Si la fusión cae en un día distinto del 1-oct, antes de fusionar corregir id y fecha de la novedad.
+11. Recarga forzada (Cmd+Shift+R) en TODAS las pestañas de Dynamic que tengas abiertas (una pestaña vieja publicaría el texto viejo). Personas → Equipo → botón «•••» de una fila Colibrí → «Editar salario»: base 1,230 y NO debe salir el aviso ámbar «Fuera de la base del rango». Con una Cayla, 1,245. Cierra SIN guardar.
+12. Publicaciones → Política salarial: la insignia «Desactualizada» y el aviso ámbar «El cuadro cambió después de publicar» → enlace «Publica una versión nueva» (o la pestaña «Versiones y publicación», /admin/politica-salarial/versiones) → sección «Publicar» → botón «Publicar» → ventana «Publicar política salarial». Debe decir «Esto creará la versión N+1» y «Las X personas obligadas van a tener que dejar constancia de nuevo». Si en cambio dice «No hay cambios de contenido»: pulsa solo «Cancelar»; significa que el navegador no ve el SQL o el código nuevo; recarga forzada y repite. Pulsa «Publicar versión nueva» UNA vez. Mensaje verde esperado: «Se publicó la versión N+1. Las constancias se piden de nuevo.»
+13. Comprobar. (a) Versiones y publicación → Historial → «Ver» en la versión nueva: sección «La escala» con Colibrí 1,230 · Cayla 1,245 · Support 1,260 · Aurora 1,360 · Oráculo 1,440 · ArchiCayla 1,500, y la cláusula de la mínima vital con el texto nuevo. (b) Documento vigente: «Versión N+1 · publicada el <hoy> · Vigente · Constancias: 0 / Y». En esa pantalla la escala no se dibuja como tabla: ábrela con el botón «+» de «Cómo se aplica cada criterio a cada categoría» (tarjetas S/ 1230.00 · 1245.00 · 1260.00 · 1360.00 · 1440.00 · 1500.00).
+14. Deja tu propia constancia: al abrir Dynamic sale «Te falta dejar una constancia» → «Leer y dejar constancia» → al final, «Constancia de haber recibido este documento» (tu nombre ya viene escrito) → «Dejar constancia» → «Gracias. Tu constancia quedó registrada.»
+15. Avisar a todos.
+   - La novedad «Hay una versión nueva de la Política salarial para leer y confirmar» ya salió con la fusión, para todos los roles: en Publicaciones → Anuncios (sección de novedades) y en «Lo mío» (tarjeta «Una novedad del sistema», con «Entendido»; 14 días). No lleva montos: así debe ser.
+   - Recomendado: un Anuncio de DO justo ahora, para tener el aviso a tu hora. Publicaciones → Anuncios → «Publicar un anuncio»: Título «Hay una versión nueva de la Política salarial para leer y confirmar». Cuerpo: «Desarrollo Organizacional publicó hoy una versión nueva de la Política salarial. Al abrir Dynamic verás un aviso que pide dejar constancia: entra con «Leer y dejar constancia», lee el documento y pulsa «Dejar constancia» al final. Dejar constancia no significa estar de acuerdo: significa que la recibiste y la leíste. Si tienes una duda o una discrepancia, puedes plantearla a la Gerencia y recibirás respuesta por escrito.» A quién: «Todas las sedes» → «Publicar». Sin montos.
+   - Quien tenga Dynamic abierto desde antes verá el aviso al recargar; quien no tenga cuenta no lo verá nunca (ver paso 16).
+
+**D. Después**
+16. Seguimiento en Publicaciones → Política salarial → «Constancias» (hoja imprimible con pendientes y motivo). Quien no deja constancia: no se bloquea nada, no se le descuenta nada y nadie la firma por ella; queda pendiente y visible. A los 3 días, su líder de equipo o DO la acompaña a abrir su propia cuenta y dejarla ella misma (es la única vía: la hoja dice «no hay vía en papel para este documento»). Si no puede entrar, qué otra prueba de entrega se acepta es consulta al laboralista; no se promete antes. Para dar el documento en papel: Versiones y publicación → «Ver» → «Descargar PDF» (el «Imprimir / Guardar como PDF» del documento vigente omite la sección «La escala»). El «X / Y» de Política y la hoja de Constancias pueden diferir en quien está en días de selección: vale la hoja.
+17. Antes del cierre del 28-oct:
+   - Practicantes (filas 6-7): **los resuelve la 0502** (entrada «La subvención pactada de los practicantes sigue a la RMV nueva»): se pega después de leer la fila 6 de su script y antes de pagar el grupo practicante del periodo 28-sep → 28-oct. Desde el 1-oct Contratos bloquea generar o renovar un convenio con subvención bajo el piso (RMV, o su proporción a las horas pactadas) —la 0502 lo desbloquea al subir el tramo—; su EsSalud sube solo de 101.70 a 110.70; los convenios firmados siguen diciendo 1,130 (adenda o renovación: consulta al laboralista).
+   - Personas → Datos personales: revisar los ⚠ de asignación familiar («se le paga y declara que no tiene hijos menores», etc.). A quien se le pague sin corresponder recibirá S/ 123 desde el 1-oct y no se podrá bajar.
+   - Regenerar los borradores de renovaciones creados antes de pegar (llevan la remuneración vieja congelada; un borrador se corrige, no se duplica).
+   - Abrir la boleta de una Colibrí y de una Cayla del periodo 28-sep → 28-oct: la línea de remuneración con el mes completo debe dar ≈ 1,220.32 y ≈ 1,239.19 (no es el total de la boleta) y el piso de EsSalud 110.70.
+   - Explicación para quien pregunte: «Del 28 de septiembre al 28 de octubre, los días 28, 29 y 30 de septiembre se pagan con el sueldo de septiembre y del 1 al 28 de octubre con el sueldo nuevo; por eso este primer periodo sale por debajo del sueldo nuevo completo. Desde el periodo siguiente cobras el monto completo.»
+   - Avisar en persona (DO o su líder de equipo) a las personas de Colibrí y Cayla del ajuste, y a quienes cobran asignación familiar de su nuevo monto: el aviso del sistema no lleva montos. Support, Aurora, Oráculo y ArchiCayla no suben.
+18. Limpieza (Claude). **Hecho el 2026-10-01:** los huecos 0472 y 0500 quedaron anotados en scripts/hooks/huecos-conocidos.txt con su razón; la rama de la 0500 se renombró a archivo/0500-no-pegar, sin fusionar y sin subir a GitHub (no se borró: es el único ejemplar de sus commits, y la nota del hueco los cita), y su sesión «Actualización de sueldo a 1230» quedó archivada en el app. Confirmado en el SQL Editor de producción: `select numero, nombre from migraciones_aplicadas where numero in (472, 500);` devolvió cero filas. Vigilancia de Felipe: el segundo tramo de la RMV (S/ 1,300, decreto del primer semestre de 2027) no está construido y nada avisa cuando salga; entonces Colibrí, Cayla y Support vuelven a quedar bajo el piso y la asignación pasa a 130 en parametros_laborales y en configuracion.
+
+**Si algo sale en otro orden**
+- Fusionar antes de pegar: Equipo propone bases (1,230 / 1,245) que el sistema aún no paga, Contratos lee la RMV vieja y la novedad avisa de una versión que no existe. Pegar la 0501 y seguir con el paso 12 recarga el estado.
+- Publicar la Política antes de pegar el SQL o antes de fusionar (o desde una pestaña vieja): se congela un documento con la escala o la cláusula viejas; hay que publicar otra versión y todo el equipo confirma dos veces.
+- Pegar la noche del 30: Contratos sin RMV hasta el 1-oct («[FALTA PUBLICAR LA RMV VIGENTE EN EL SISTEMA]» en el convenio de jornada reducida).
+- Pegar después de pagar el periodo 28-sep → 28-oct: el candado de periodo pagado de fn_set_salario rechaza el cambio y la 0501 aborta entera.
+- Pegar la 0500 o el reajuste de la rama paralela después de la 0501: baja Cayla a 1,230; detener y avisar.
+
+---
+
+## 2026-09-29/30 — Un cese con reingreso se regulariza (0499 PEGADA · regularización HECHA y verificada) · la licencia sin goce (0497/0498) se RETIRÓ sin haberse pegado
+
+**Estado al 2026-09-30, por la tarde — lo que de verdad pasó en producción:**
+- **0499 pegada y verificada** (`funcion_cambiada = true`; `migraciones_aplicadas` tiene la 499 con su nombre).
+- **Regularización ejecutada por Felipe (paso 2) y comprobada (paso 3).** La fecha de ingreso de la persona
+  pasó de 30/09/2025 a 02/06/2026; se registró la liquidación de la primera etapa (versión 1) **neta en cero,
+  saldada por declaración** de Felipe, sin verificar contra comprobantes: sueldo de marzo pagado; gratificación
+  de 2025 pagada (se tomó el importe del sistema, S/359.70); los S/317.53 de la planilla de julio atribuidos
+  por completo a la primera etapa, con **S/77.73 anotados como «pagado de más» sin compensar**; CTS saldada
+  por otro arreglo (S/282.03); vacaciones «pagadas» **sin monto declarado, se asumió que completas (S/317.24)**.
+  La fecha de pago quedó vacía a propósito. Resultado medido en producción, igual al del ensayo: vacaciones
+  15.04 → 4.96 días, reserva sin líneas negativas (vac S/141.65, CTS S/153.45, gratificación S/211.80), el
+  sistema no la da por liquidada, y el rastro tiene sus dos filas. El bloque para deshacerlo quedó probado
+  (anula la liquidación y devuelve el ingreso; no despaga lo pagado) y no se necesitó.
+- **0497/0498 (licencia sin goce) RETIRADAS el 2026-09-30, sin haberse pegado nunca.** Estaban fusionadas desde
+  #474 y no hacían falta para este caso (son para un acuerdo de no venir SIN cese). Se retiraron por tres razones:
+  el uso futuro es bajo e incierto (un caso en unas treinta personas, y ese caso no era una licencia); no se podían
+  encender hasta que el laboralista respondiera; y mientras estuvieran sin pegar el informe de «qué falta pegar»
+  las marcaba ❌ para siempre, que es lo que enseña a no mirarlo. Se retiró también el aviso de la pantalla de
+  Ausencias y los tipos. **Siguen en el historial de git** (commits `104a111b`, `b61e6675` y `413e0e5d`, PR #474):
+  para reponerlas hacen falta dos cosas —un caso real de acuerdo sin cese y la respuesta del laboralista sobre si
+  esos días cuentan como servicio—, y entonces conviene rehacerlas sobre la versión vigente de las cuatro funciones,
+  no restaurarlas tal cual. Quedan como hueco documentado en `huecos-conocidos.txt`.
+  **Lo que de verdad falta construir es un flujo de reingreso**: el caso real fue un cese con reingreso, y hoy se
+  resuelve con SQL a mano; `fn_reactivar_persona` conserva `fecha_ingreso` y no hay historial de ingresos.
+- **Accidente de proceso, ya rescatado:** #474 se fusionó a las 09:39 (Lima), ANTES de que se subiera la 0499;
+  esos commits quedaron en la rama, fuera de `main`, mientras producción ya tenía la función. Es el mismo
+  modo de fallar que #452/#453. Se rescataron en un PR aparte. **Regla: no empujar más commits a una rama cuyo
+  PR ya se fusionó; comprobar `gh pr view` antes de cada push.**
+- **Sin decidir ni comprobar:** la baja y el alta en el T-Registro de SUNAT (22/03 y 02/06) y las PLAME de abril y
+  mayo; el documento firmado del mutuo acuerdo; los comprobantes de los pagos declarados; y si la liquidación de
+  quien trabaja a tiempo parcial debe calcularse con el sueldo base completo o con su ritmo real (consulta al
+  laboralista, junto con los intereses por la demora).
+
+**Origen:** la pantalla de Provisiones mostraba **15.0 días** de vacaciones para una integrante
+que cumple su primer año esta semana, y la pregunta fue cómo los acumuló tan rápido si estudia
+y trabaja a tiempo parcial. Los datos de producción (SELECTs de Felipe, sin nombres aquí): ingreso
+hace un año, sin cese, sueldo continuo, y **71 días seguidos sin una sola marca** en el medio, sin
+ninguna ausencia escrita. El monto reservado estaba bien —sigue las horas marcadas—; lo que no
+cuadraba eran los días.
+
+**El defecto no era aritmético, era de modelo.** `fn_vacaciones_saldo_interno` (0357) gana
+`15 × años + trunco` por calendario desde `fecha_ingreso` y **no lee `ausencias`**. Da igual que DO
+registrara esos 71 días como lo que fueran: el contador seguía en 15.0. Y la liquidación al cesar
+paga `días pendientes` desde ese mismo contador, así que el sistema no tenía cómo representar
+«estuvo fuera». (La reserva en soles nunca tuvo el problema: un día sin marca no tiene `pago_dia`.)
+
+**[RETIRADAS el 2026-09-30 — esta descripción se conserva solo como referencia del diseño.]**
+
+**Se construyó en dos migraciones, a propósito** (primero se cambia el terreno, después el cambio):
+
+| | qué hace | toca plata | necesita md5 |
+|---|---|---|---|
+| **0497** | columna `tipos_ausencia.suspende_record` (con dos constraints: no puede convivir con `paga` ni con `descuenta_vacaciones`), el tipo `licencia_sin_goce` y dos funciones internas (`fn_dias_suspendidos`, `fn_fecha_ingreso_efectiva`) | no | no: solo agrega |
+| **0498** | `fn_vacaciones_saldo_interno`, `fn_vacaciones_truncas`, `fn_vacaciones_resumen` y `fn_provisiones` leen el ingreso efectivo | sí | sí: guardia dentro de la migración |
+
+**El interruptor nace APAGADO.** Si los días de una licencia sin goce restan del año de servicio es
+una regla legal, y no la decide una migración. Con él apagado ambas migraciones son inertes: se
+puede pegar y registrar desde hoy sin que se mueva un día ni un sol. Cuando el laboralista confirme:
+`update tipos_ausencia set suspende_record = true where codigo = 'licencia_sin_goce';` — sin
+migración, y todo lo ya registrado cuenta desde ese momento.
+
+**Restar los días y correr el aniversario son la MISMA cuenta** (se había planteado como dos
+opciones para el laboralista): una sola función, `fn_fecha_ingreso_efectiva`, corre `fecha_ingreso`
+tantos días como la persona estuvo fuera, y las cuatro la leen. La única pregunta legal que queda
+es binaria: ¿cuenta como servicio, sí o no?
+
+**Medido en un Postgres desechable** (fechas inventadas, sueldo S/1,950, 71 días fuera): saldo
+14.88 → 11.88 días, liquidación S/967.20 → S/772.20 (= 3 × 1,950 ÷ 2 ÷ 15 = S/195.00), reserva en
+soles sin cambio. Con el interruptor apagado las **44 pruebas** que ya tocaban estas funciones
+(565 aserciones) dan exactamente lo mismo antes y después. Pruebas nuevas: 391 (23 aserciones) y
+392 (24), y se comprobó que pueden fallar rompiendo cada función de a una.
+
+**La guardia de la 0498.** No se pudo pedir el md5 a producción antes de escribirla, así que la
+verificación se movió al momento de pegar: la migración compara cada cuerpo contra el que se leyó
+(repositorio al 2026-09-29) y **PARA sin aplicar nada** si es otra versión. Acepta tal cual, sin
+comentarios y con `\r` por línea. Probada con una versión distinta (aborta, no aplica nada), con
+`\r` (pasa) y repegada sobre sí misma (aborta). **Aun así: `donde-vive.sh` de las cuatro y mirar
+si otra sesión fusionó algo que las reescriba, antes de pegar.**
+
+**Pendiente, en este orden:**
+1. **RESPONDIDO por Felipe el 2026-09-30: la persona se fue, dejó de trabajar y luego regresó.**
+   Eso **no es una licencia sin goce**, y la diferencia importa: es un cese seguido de un reingreso
+   (o, si nadie lo formalizó, una ausencia de hecho cuya naturaleza legal decide el laboralista).
+   **Las 0497/0498 NO resuelven este caso**: cubren un acuerdo de no venir sin cese, que es otra
+   cosa. Lo que el sistema tiene hoy para esto:
+   · No hay cese registrado (`fecha_cese` nula, sin rastro de cese ni de reactivación en
+     `correcciones_auditoria`) y el tramo de sueldo siguió abierto.
+   · **No existe un flujo de reingreso.** `fn_reactivar_persona` (0209/0327) existe «porque a veces la
+     baja fue un error»: conserva `fecha_ingreso`, así que aunque SÍ se hubiera cesado y reactivado,
+     el contador de vacaciones contaría el hueco como servicio. Hay una sola columna de fecha de
+     ingreso por persona y ningún historial de ingresos.
+   · Si fue un cese real, la liquidación de la primera etapa (vacaciones, CTS y gratificación
+     truncas) habría estado vencida desde entonces y hoy no hay cómo saber si se pagó. **Esto hay que
+     mirarlo con el laboralista antes que cualquier cambio de código.**
+   · La otra persona activa con cero marcas en abril y mayo (las demás tienen entre 22 y 29 por mes)
+     es una **accionista, fuera de planilla**: no es el mismo caso. (Aquí se sugirió antes que podía
+     serlo; Felipe lo corrigió el 2026-09-30. Quien filtre «activos sin marcas» debe excluir a
+     `no_trabajador`, que no tiene jornada que marcar.) Descartado también un hueco global de la
+     importación: las demás personas de planilla sí tienen marcas esos dos meses.
+2. **DECIDIDO por Felipe el 2026-09-30: opción A — tratarlo como cese y reingreso**, con SQL a mano. El
+   camino normal está cerrado por tres frenos que son correctos en general: `fn_cesar_persona`
+   no cesa dentro de un periodo ya pagado ni cuando hay un sueldo posterior al cese;
+   `fn_set_fecha_ingreso` no cambia el ingreso si hay jornadas en un periodo pagado;
+   `fn_registrar_ausencia` no registra nada que cruce un periodo pagado. Se ensayó entero en un
+   Postgres desechable (caso con la estructura y las cifras del real):
+   · **0499** (en este PR, con la prueba 393): `fn_persona_liquidada` decía «existe alguna fila de
+     liquidación no anulada». Quien se liquidaba y volvía a trabajar quedaba «liquidada» para siempre
+     y **desaparecía de las colas «días por revisar» y «marcas apartadas»** (las dos la usan para
+     ocultar a quien ya cobró). Medido: sin la 0499 su marca apartada dejaba de verse. Y hallazgo de
+     paso: anular la liquidación tampoco la deshacía para esa función, porque la anulación es una
+     versión nueva y la original queda con `anulada = false`. Ahora cuenta la ÚLTIMA versión y solo
+     si es del cese que la persona tiene HOY. 15 pruebas previas (272 aserciones) idénticas.
+   · **El guion de regularización** (4 pasos: diagnóstico, cálculo en seco, escritura, comprobación)
+     **nombra a una persona y no vive en git**; se entrega por el chat. La escritura es un solo bloque
+     todo-o-nada con más de diez guardas (persona única y activa, ingreso esperado —que frena la doble
+     corrida—, fechas coherentes, ninguna marca entre el cese y el reingreso, sin liquidación previa,
+     0499 pegada, y el total igual al que se revisó y se pagó).
+   · Qué hace: registra la liquidación de la primera etapa en `liquidacion_pagada` (la foto inmutable,
+     con su ingreso y su cese) y mueve `fecha_ingreso` al reingreso. **No inactiva a la persona ni un
+     instante**: `personas_cese_coherente` no deja una persona activa con cese y forzarlo dispara el
+     trigger de educación. No toca los tramos de sueldo ni de horario.
+   · **Lo que reveló el diagnóstico real (2026-09-30), y cambió el guion:** `periodos_planilla` no
+     tiene ningún periodo entre febrero y el 28/06/2026 —todo lo anterior se pagó por Excel—, el libro
+     de desembolsos de esa persona está vacío, y la planilla de julio le pagó S/317.53 de gratificación.
+     **`fn_liquidacion` no ve nada de lo pagado antes del 28/06**: su paso 1 («el sueldo pendiente no se
+     pudo calcular», grati y CTS «ya depositado S/0») es un TOPE, no lo que se debe pagar; pagarlo tal
+     cual puede pagar dos veces. Esto vale para CUALQUIER liquidación de alguien que trabajó antes de esa
+     fecha, no solo para este caso.
+   · **Cómo se descuentan los pagos previos, medido:** anotarlos en el libro de desembolsos NO sirve aquí.
+     Con el escenario ilustrativo (gratificación de diciembre y los S/317.53 de julio) la gratificación
+     trunca sale NEGATIVA (−S/77.73, y ese negativo entra en el registro de la liquidación) y Provisiones
+     muestra −S/250 de «pagado de más» en gratificación. Causa: un pago de julio cubre las DOS etapas y el
+     libro no lo puede partir, y al mover el ingreso esas ventanas dejan de contar el trabajo de la primera
+     etapa. La vía que funciona: el guion de escritura recibe lo YA PAGADO por concepto y registra en
+     `liquidacion_pagada` los importes NETOS, con el cálculo bruto y el ajuste dentro de `detalle`
+     (`regularizacion`). Cada concepto se descuenta por separado y nunca baja de cero: un pago de más en uno
+     se anota como «pagado de más no compensado» y no le quita a otro. Sin negativos en Provisiones.
+   · Efectos medidos: vacaciones vuelven a empezar (15.0 → ~5 días); la reserva de grati y CTS baja
+     en lo que la liquidación paga; la cola de marcas sigue mostrándola; **los periodos pagados no
+     cambian** (su foto queda igual).
+   · **Riesgo conocido:** el cálculo EN VIVO de un periodo pagado de la primera etapa puede bajar
+     (en el ensayo, enero: −S/93.35 por el feriado del 1 de enero, que ya no le corresponde con un
+     ingreso posterior). Lo pagado no se toca; solo importa si alguien REABRE ese periodo y lo
+     vuelve a pagar. `fn_set_fecha_ingreso` se negaba justo por esto.
+3. **Consulta al laboralista** (la opción A no la espera, pero conviene): (a) la liquidación de la
+   primera etapa debía pagarse a las 48 horas del cese y hoy está vencida: ¿corren intereses? (b) si
+   alguien que se fue sin que se formalizara un cese y volvió conserva su antigüedad; (c) para los
+   acuerdos de no venir SIN cese, si esos días cuentan como servicio para el récord vacacional
+   (eso es lo único que enciende o no el interruptor de la 0497/0498).
+4. **Papeles de la primera etapa, que no son SQL:** la hoja de liquidación y el certificado de
+   trabajo del primer periodo, y el contrato de la segunda etapa. El sistema guarda el detalle de la
+   liquidación (`liquidacion_pagada.detalle`) pero su pantalla de Liquidaciones lista a quien está
+   cesado, así que para alguien activa los papeles hay que armarlos de ese detalle.
+5. Lo de las 0497/0498 (licencia sin goce) **se retiró** (ver arriba): no hacía falta para esto y queda en el
+   historial de git por si aparece un caso real.
+
+**Lo que esto NO arregla, y conviene no atribuirle:**
+- **Sueldo fijo:** la planilla no lee `ausencias` (medido en la 0247). Una licencia sin goce baja
+  los días de vacaciones de quien tiene sueldo fijo, pero **no** le baja el sueldo; ese descuento
+  hay que hacerlo aparte.
+- **La reserva de vacaciones vuelve a cero en el aniversario de calendario** aunque los días
+  ganados sigan sin gozar (`vv` mide desde `va.aniv_ini`, `fn_provisiones` 0491). Es un defecto
+  aparte y anterior: mientras `fn_vacaciones_resumen` dice «te debemos 15 días», Provisiones
+  reserva casi cero. Sale de leer el código; se puede confirmar mirando la columna Vacaciones de
+  cualquiera el día siguiente a su aniversario. Sin decidir.
+- **`fn_personas_sin_horario_vigente` (0385) ya existía** y ya mide a quien marca sin horario. Lo
+  que salió de más en esta revisión —marcas de enero a julio sin horario— es en su mayoría
+  historia importada de antes del 10 de julio, cuando `horarios_asignados` todavía no existía; no
+  es un defecto nuevo. Las dos personas de Central que siguen sin horario hoy son las que la 0385
+  ya documenta como a propósito.
+
+## 2026-09-29 — Casos filtraba `p_desde` contra la medianoche de UTC, no la de Lima · migración 0494 · PEGADA Y VERIFICADA · SIN FUSIONAR
+
+**Origen:** CI (db-tests) del PR #472 reventó la prueba 390 con «con p_desde de mañana, ninguno
+califica» — dio 3, no 0. No fue flaky: `fn_casos_resumen` (0493) comparaba `r.creado_at >= p_desde`
+con `p_desde date`, y ese `>=` convierte `p_desde` con el cast implícito `date → timestamptz`, que
+asume medianoche EN EL TIMEZONE DE LA SESIÓN (UTC en el servidor) y no en Lima. Deja una ventana de
+5 horas —19:00 a 00:00 en Lima— donde un reporte de "ayer" en Lima ya contaba como "de hoy". El CI
+que falló corrió justo en esa ventana (02:46 UTC = 21:46 Lima del día previo); fuera de ella la
+prueba pasa siempre, así que se leía como intermitente sin serlo.
+
+**Arreglo:** ancla `p_desde` a la medianoche de Lima con la misma fórmula que ya usa la 0488
+(`(fecha + time '00:00:00') at time zone 'America/Lima'`) — el `+ time` fuerza el tipo `timestamp`
+antes de `at time zone`, que sin eso resuelve el overload contrario en silencio (medido: sin el
+`+ time`, `date at time zone 'America/Lima'` da la conversión Lima→UTC en vez de UTC→Lima, sin
+ningún error que avise). Reproducido y verificado en un Postgres desechable con el instante exacto
+del CI que falló, y con la misma fórmula en un instante "seguro" del día — las dos veces con el
+resultado correcto. El frontend no cambia: ya manda `p_desde` con `hoyLima()` (`fecha-lima.ts`), el
+bug era solo del lado del servidor.
+
+**Pegada y comprobada contra producción (2026-09-29 22:01 Lima, dentro de la ventana que rompía el
+filtro):** md5 del cuerpo idéntico byte a byte al del repo (570 car., `f3ac...59f4`), `migraciones_
+aplicadas` tiene la 494, y la misma fórmula evaluada en vivo con `now()` de producción dio
+`mañana → false` / `hoy → true` — en el peor momento del día para este bug.
+
+**De paso, algo que no toca esta migración:** `fn_set_meta_cobertura` tiene DOS versiones en
+`public` (medido con la misma consulta). No es el mismo síntoma de la 0393 —esa función no está en
+ningún camino de esta sesión—, pero es la misma familia de accidente (0297/0299) y queda para
+revisar aparte.
+
+## 2026-09-28 — La 0393 deja de gritar «MIRA ARRIBA»: ya estaba explicada · SIN SQL · SIN FUSIONAR
+
+**Origen:** `que_falta_pegar.sql` en producción dijo «393 · ⚠️ SOBRA LA FILA» y «⚠️ 1 PEGADAS Y NO
+GUARDADAS», y la sesión arrancó a decidir si fusionar el generador de firma o retirarlo. **Esa
+decisión ya estaba tomada y medida el 2026-09-08** (entrada de abajo, y `huecos-conocidos.txt`):
+contenido superado por la 0395/0398, no se recupera. Lo que fallaba era la consulta, que no tenía
+forma de saber que un caso ya estaba explicado y gritó igual durante tres semanas — el aviso que
+cazó la 0177, la 0243 y la 0381 estaba aprendiendo a leerse como ruido.
+
+**Qué cambia:** una fila de `huecos-conocidos.txt` con la marca `[sobra la fila: <nombre>]` sale en
+la consulta como «ya explicada» y no cuenta para el resumen. La excepción exige número **y** nombre:
+si otra migración se pega con el 393, el nombre cambia y el aviso vuelve solo. Probado en un
+Postgres desechable: la 0393 real calla; el 393 con otro nombre grita; una huérfana nueva grita
+aunque la 0393 esté explicada; sin marcas, igual que antes.
+
+**La rama `claude/signature-generator-function-bd2127` se guardó y se borró (decidido con Felipe el
+2026-09-28).** Sin PR, fusionarla habría dejado dos `fn_set_mi_firma` y «Quitar firma» habría fallado
+con «is not unique» (comprobado en un Postgres desechable). Mismo caso que la 0108
+(`movilidad-supeditada-a-asistencia`, abandonada en agosto): su commit ya no existe en el disco de
+ninguna Mac de trabajo, solo lo conservaba GitHub sin garantía. Las dos ramas quedaron con una
+etiqueta antes de borrarlas — `archivo/0393-generador-de-firma` y
+`archivo/0108-movilidad-supeditada-a-asistencia` — para que el SQL exacto que corrió en producción
+(o casi corrió, en el caso de la 0108) sobreviva sin depender de que nadie recuerde un hash de
+commit. Ver `scripts/hooks/huecos-conocidos.txt`.
+
+**Pendiente:** re-medir en producción que no haya ninguna `fn_set_mi_firma` de más (la foto es del
+09-08) — la consulta va en el PR.
+
+## 2026-09-28 — Las estaciones de Retail dejan de ser personas para Dynamic · migraciones 0490 + 0491 · ESCRITAS Y PROBADAS · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** Datos personales mostraba seis «ESTACIÓN — Caja/Almacén … (no es persona)» como fichas
+sin completar. Son las terminales compartidas de cayla-retail (ADR-0160 de ese repo): filas de
+`personas` porque retail les cuelga ventas (57 FK) y ACTIVAS porque su acceso lo exige
+(`fn_rol_actual` 0374 y 67 comparaciones de retail con `estado = 'activo'`). Marcarlas inactivas
+les cortaba las tiendas.
+
+**Lo que costaba, medido en local** (`begin … rollback`, estación creada con los defaults de
+`personas`): nacen `en_planilla = true`, `planilla`, sueldo 1130, y **`fn_planilla_calcular` les
+ponía S/ 101.70 de EsSalud a cada una** (piso de la RMV) — el mismo síntoma que la 0484, por otra
+causa. Además salían en el terminal de marcaje, en la población del Reglamento, en los acuses de la
+política salarial, en Contratos y en Documentación.
+
+**Decisiones de Felipe (2026-09-28):** columna propia (no leer `retail.colaboradores.terminal`, no
+por nombre); fuera de TODO Dynamic; se les niega la entrada a Dynamic; se ven solo en un bloque
+plegado al final de Equipo.
+
+- **[`0490`](../supabase/migrations/0490_una_cuenta_de_servicio_no_es_una_persona.sql)** —
+  `personas.cuenta_de_servicio`, puerta `fn_set_cuenta_de_servicio` + trigger (update E insert),
+  marca por nombre las que ya existen y saca las cuentas del `terminal_roster`. La puerta se niega
+  a esconder a quien tiene marcajes/jornadas, a quien cobró dinero en un mes congelado
+  (`total > 0`, no «tiene fila»: una estación congelada queda con S/ 0) o a quien no es
+  `integrante`. No reescribe funciones: sin md5 de partida.
+- **[`0491`](../supabase/migrations/0491_la_planilla_y_las_listas_dejan_fuera_a_las_cuentas_de_servicio.sql)**
+  — `not p.cuenta_de_servicio` en nueve funciones: planilla (núcleo), provisiones, vacaciones,
+  población obligada, política salarial, Documentación, Contratos, candidatos de educación,
+  boletas. Cuerpos de `pg_get_functiondef` sobre la vigente de cada una, con **freno de md5** que
+  acepta sin comentarios y con CRLF. Probado: pasa sobre los originales, pasa con CRLF, bloquea
+  con otro cuerpo.
+- **Pantallas:** 27 consultas filtran la columna; login, marco del panel y un layout nuevo de
+  «Lo mío» rechazan a una estación con sesión; ficha con insignia e interruptor (DO,
+  `puedeMarcarCuentaDeServicio`); novedad para el panel.
+
+**Verificado:** pgTAP `388` 17/17 (con control: desmarcada vuelve a la planilla); typecheck;
+vitest 1227 + permisos; navegador contra Postgres local con 4 estaciones de prueba (login
+rechazado, Datos personales/Equipo/Contratos/Documentación/Horarios sin estaciones, marcar y
+desmarcar desde la ficha con su rastro). Hecho en Windows: la base local se construyó desde una
+copia LF de `supabase/` (con CRLF la 0311 aborta por su propio freno).
+
+**⚠️ Orden al pegar, y por qué urge:**
+1. **La 0491 exige la 0484 en producción** (parte de su `fn_planilla_calcular_nucleo`). Si la 0484
+   sigue sin pegar, el freno de la 0491 aborta nombrando esa función — no rompe nada. O se pega la
+   0484 primero (decisión ya tomada, ver abajo), o se reconstruye la 0491 desde la versión de
+   producción.
+2. Pegar **0490 → 0491 ANTES de congelar la planilla del periodo** que cierra hoy: si no, las
+   estaciones entran congeladas con su EsSalud. (La 0490 igual las marca —su fila es de S/ 0—,
+   pero ese periodo habría que reabrirlo y volver a pagarlo, como el caso de la 0484.)
+3. Recién después, fusionar: las listas filtran por la columna.
+4. Mirar los NOTICE de la 0490: debe decir 6 marcadas. Una estación con marcajes NO se marca.
+5. **De aquí en adelante**, cada estación nueva que se cree para Retail se marca desde su ficha
+   («•••» → «No es una persona»). Retail sigue sin saber de esta columna.
+
+---
+
+## 2026-09-27 — Un memo se puede entregar por Info, sin papel · migración 0486 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**Origen: «ella puede firmar desde Info, o vendría bien un botón de notificar?»** Se investigó y
+la respuesta corta fue que ninguna de las dos: desde Info solo se firma un memo YA entregado
+(0408: `fn_mis_memos` filtra `estado = 'entregado'`), y un botón de notificar no tenía por dónde
+avisar —el sistema no tiene correo, WhatsApp ni push— y habría dado la falsa sensación de haber
+notificado, cuando el 56.2 dice que un firmado sin entregar no produce efecto. Felipe decidió que
+la entrega digital sí se quiere, **«ambas opciones son válidas, pero estando en tres ciudades lo
+digital tiene que ayudar»**, y eso es lo que se construyó.
+
+**Cómo funciona.** Quien emite pulsa **«Enviar a su Info»** (botón visible junto a «Subir cargo
+firmado»; ninguna es «la normal»). La persona lo abre en `/mio/memo/<id>`, lo lee y confirma con
+**«Firmar y recibir»** o **«Recibir sin firmar»**, cada una con una segunda confirmación. Ese clic
+ES la entrega: `estado = entregado`, `medio_entrega = 'digital'`, con fecha y hora. Enviar no
+entrega ni agrava; abrir tampoco. Se puede **retirar** el envío mientras no lo haya recibido.
+Nivel 4 queda fuera (como en la 0408).
+
+**Migración [`0486`](../supabase/migrations/0486_el_memo_se_entrega_por_info.sql).** Solo agrega:
+dos columnas (`enviado_a_info_at/por`), el medio `digital`, cinco constraints que hacen imposibles
+los estados absurdos (entrega digital sin envío previo, sin respuesta suya, borrador enviado…) y
+cinco funciones. **No reescribe ninguna función existente**, así que no hay md5 de partida. Nadie
+puede escribir «digital» en nombre de otro: `fn_expediente_entregar` no lo acepta. Requiere la
+**0408 ya en producción** —verificarlo con `./scripts/que-falta-pegar.sh` antes de pegar—.
+
+**Verificado sin tocar el Postgres compartido.** El que hay levantado en esta Mac es el de
+**cayla-retail**, no el de este repo. Se levantó un contenedor propio y desechable con la misma
+imagen (`supabase/postgres:17.6.1.143`, puerto 54990), se aplicaron las 466 migraciones desde
+cero (con `storage.buckets` de mentira: el servicio de almacenamiento no corre) y sobre él:
+- Prueba nueva **`384_el_memo_se_entrega_por_info`: 49/49**, con **control**: quitando dos
+  constraints, las pruebas de esos estados imposibles fallan.
+- **Suite pgTAP entera contra esa base: 277 archivos verdes.** Otros 19 fallan **igual sin la
+  0486** (columnas de GoTrue que la imagen no trae, `supabase_migrations`…): huecos del banco de
+  pruebas, no regresiones. Comparado uno por uno con y sin la migración.
+- Pantallas probadas en el navegador contra las funciones REALES (servidor que imita a PostgREST
+  pero ejecuta cada RPC en esa base como rol `authenticated`): el camino de firmar, el de recibir
+  sin firmar, la carrera «lo retiraron mientras ella lo tenía abierto», y el envío/retiro desde
+  Disciplina. 1227 pruebas de interfaz en verde.
+
+**Un hallazgo que justifica la pantalla nueva.** La pantalla del memo del panel, abierta por una
+integrante, **imprimiría al representante legal como firmante** cuando lo firmó su líder de equipo
+—la RLS le esconde la ficha de quien firma y esa pantalla cae al valor por defecto—. `fn_mi_memo`
+nombra a quien firmó del lado del servidor; por eso la persona no lee el memo con la pantalla del
+panel. El papel se extrajo a `components/disciplina/memo-documento.tsx` (commit aparte, sin cambio
+de comportamiento, verificado línea por línea contra el original) y lo pintan las dos pantallas.
+
+**Lo que falta, en orden:**
+1. **Consultar al laboralista** si la firma de «Mi firma» —que puede ser una imagen, un trazo o
+   el nombre en una tipografía— sirve como constancia de recibido. La suposición está escrita en
+   la cabecera de la 0486. Puede construirse y revisarse antes; **no conviene usarla con una
+   sanción real sin esa respuesta.**
+2. Pegar la 0486 **ANTES** de fusionar (`./scripts/dame-el-sql.sh 486`, con el número re-pedido
+   con `./scripts/siguiente-numero.sh` y `donde-vive.sh` justo antes de entregar). Si el código
+   llega primero, `/mio` muestra el aviso rojo «no se pudo traer tus documentos por recibir» a
+   todo el equipo.
+3. Sin canal de aviso: la persona se entera al abrir Info, o cuando quien lo envió se lo dice.
+   Por eso existe «Copiar el aviso para ella» en el menú (texto genérico, sin nombrar de qué es).
+
+## 2026-09-27 — La constancia de una practicante ya muestra su descanso y su subvención semestral · SQL YA PEGADA
+
+**Origen: Felipe adjuntó su propia constancia de subvención (Benjamin Cueva, OTRU) y avisó que
+«hay otro tipo de beneficios pero no se están mostrando».** Investigado sin adivinar: se confirmó
+con `AskUserQuestion` que se refería al descanso de 15 días y la media subvención semestral de la
+Ley 28518 art. 42 — la 0465/0467 (2026-09-15) YA los calcula, pero solo en la pantalla de
+Provisiones (que ve DO); el documento que la propia persona se lleva seguía sin decir nada, y su
+texto legal del pie afirmaba «este sistema todavía no los calcula», que ya era falso.
+
+**Migración nueva: [`0485`](../supabase/migrations/0485_el_practicante_ve_su_descanso_y_subvencion_semestral.sql),
+pegada por Felipe el 2026-09-27 (`migraciones_aplicadas` confirma numero y nombre).**
+Crea `fn_mis_subvenciones_practicante()` — la misma fórmula que `fn_subvenciones_practicante`
+(0467), copiada para una sola persona (quien llama, vía `fn_persona_actual_id()`), sin exigir
+admin/líder. Prueba pgTAP nueva: `383_el_practicante_ve_su_descanso_y_subvencion_semestral`
+— corrida aislada contra el Postgres local (`BEGIN … ROLLBACK`, sin tocar la base compartida):
+10/10 en verde.
+
+**Por qué una función hermana y no una reescritura:** `fn_subvenciones_practicante` exige
+`fn_es_admin_o_lider()` a propósito (es la que usa DO para ver a TODAS las practicantes); tocar su
+guard para que una practicante se vea a sí misma es el peor lugar para un error de permisos. Mismo
+molde que ya usa este repo dos veces: `fn_planilla_calcular` junto a `fn_planilla_calcular_persona`
+(0329), y `fn_bonos_por_transferir` junto a `fn_mi_bono_cumpleanos` (0478).
+
+**Frontend:** [`boleta-hoja.tsx`](../apps/web/components/boleta-hoja.tsx) gana dos filas nuevas
+dentro de «Además, CAYLA paga por ti» —solo si hay algo devengado— y corrige el texto legal del
+practicante. Las dos pantallas que imprimen este documento (`/mio/boleta` y
+`/admin/planilla/boleta`) piden el dato aparte y con el mismo criterio de siempre: si la consulta
+falla, la constancia sigue saliendo sin esas dos líneas, no se cae. `typecheck` y los 1219 tests de
+vitest, verdes. Novedad agregada (`2026-09-27-constancia-practicante-descanso-y-subvencion`).
+
+**No paga nada solo.** Igual que hasta hoy: Felipe decide cuándo se transfiere: la constancia ahora
+lo hace VISIBLE, no lo pone en la planilla.
+
+---
+
+## 2026-09-27 — El período de prueba deja de generar EsSalud · migración 0484 · SIN PEGAR
+
+**Disparado por el cierre «Prueba» del periodo 29/08–27/09/2026** (pagado el
+27/09): 6 personas —Ana Huaccha, Angie Vizcarra, Geison Alcantára, María Vera,
+María Orbegoso, Steven Cruz—, todas con `fecha_ingreso` Y `fecha_cese` DENTRO
+de ese mismo periodo (de 0 a 25 días activo sobre 30), generaron S/101,70 de
+EsSalud cada una — S/610,20 en total. Angie ni siquiera marcó una hora:
+ingresó y cesó el mismo día.
+
+**Verificado contra producción (`vovjyyiafkxteijimpuy`) antes de escribir
+nada:** la foto congelada de ese cierre no tiene ninguna fila duplicada — el
+número es exactamente `6 × S/1.130 × 9 %`, el piso de la RMV aplicado
+completo y sin prorratear a las 6, por diseño de `fn_planilla_calcular_nucleo`
+(el piso solo se prorratea por días de subsidio, 0262 — nunca por
+entrada/cese a mitad de periodo, y la 0417 lo dice explícito: «no se tocó»).
+
+**Esto NO es el «riesgo de RMV» ya descartado dos veces** en
+`planilla-anexo-tecnico.md`: ese descarte es sobre alguien de planilla que
+trabaja el mes COMPLETO con turno reducido. Este caso es alguien cuyo vínculo
+entero —ingreso y cese— cupo dentro de un solo periodo de prueba.
+
+**⚠️ Decisión de Felipe (2026-09-27), con el riesgo legal explicado y
+aceptado:** `tipo_vinculo = 'prueba'` deja de generar EsSalud, punto — no solo
+prorratearlo, no solo excluir a quien no llegó a trabajar. Se le planteó que
+la ley (D.S. 009-97-SA) no hace esa excepción para el período de prueba, que
+solo protege contra el despido injustificado, y que dejar de declarar es una
+subdeclaración real frente a SUNAT. Decidió igual, con las 6 personas del caso
+real como alcance. Ver el encabezado de la
+[`0484`](../supabase/migrations/0484_el_periodo_de_prueba_deja_de_generar_essalud.sql)
+para el detalle completo.
+
+**Auditado contra Postgres local** (`BEGIN … ROLLBACK`, nunca `db reset`):
+prueba pgTAP
+[`382`](../supabase/tests/382_el_periodo_de_prueba_no_genera_essalud.test.sql),
+con control — la misma prueba SIN el cambio falla exactamente en los dos
+casos de `'prueba'` (101.70 en vez de 0) y el testigo de planilla no se mueve.
+
+**Pendiente, y es decisión de Felipe, no de esta migración:** el periodo ya
+pagado (27/09) NO se corrige solo. `planilla_pagada_detalle` es append-only;
+para que esos S/610,20 ya pagados bajen a S/0, hay que **pegar la 0484
+primero** y después **reabrir «Prueba» de ese periodo desde Planilla y volver
+a pagarlo** — dos pasos, en ese orden.
+
+---
+
 ## 2026-09-20 — Un feriado sin turnos ya no grita en rojo: el Dashboard pregunta «¿abre hoy la sede?» · SIN SQL · SIN FUSIONAR
 
 **No hay SQL: solo pantalla. Apilado sobre el PR #451** (la entrada de abajo): su rama es la base de
@@ -135,6 +3311,58 @@ Turnos, Hoja de sede e Incidencias. **No se probó con datos reales de producci�
 que las personas de CCO, AQP, LIM y OTRU tienen un horario vigente hoy (si una sede no tiene
 ninguno, el sistema NO la apaga en gris: dice «Sin meta hoy» o sigue en rojo, y eso sería verdad:
 no hay horarios cargados).
+
+---
+
+## 2026-09-19 — Boletas oficiales: los archivos no tenían respaldo, y quedan la consulta y la prueba real escritas · SIN SQL · SIN FUSIONAR
+
+**No hay SQL: solo un script, dos documentos y dos textos.** Sale de revisar la 0482
+(boletas oficiales) contra el código, no de una falla en producción.
+
+**El hallazgo que importa.** Los archivos de las boletas viven solo en el bucket
+«boletas»; la base guarda quién publicó y cuándo confirmó cada persona, pero no el
+documento. La guía de restauración cubre `--schema=public` y deja `storage` fuera a
+propósito, y por lo que se sabe de Supabase su respaldo diario de la base tampoco lo
+incluye (**confirmarlo en la consola del plan**). Si Storage pierde un archivo, la
+constancia queda apuntando a nada y el archivo no se puede regenerar.
+
+- [`scripts/respaldar-boletas.sh`](../scripts/respaldar-boletas.sh) baja el bucket a
+  una carpeta fuera del repo, comprueba el conteo contra lo que Storage lista y deja un
+  manifiesto sha256. Sección nueva en
+  [`prueba-restauracion-backup.md`](prueba-restauracion-backup.md). **Se probó con un
+  CLI de mentira (10 casos: copia incompleta, descarga que falla, bucket vacío,
+  destino dentro de git, manifiesto que detecta una alteración). NO se corrió contra el
+  CLI real ni contra producción:** el formato de `storage ls -r` es lo primero que
+  puede no coincidir, y si pasa falla en voz alta. Nadie ha hecho la primera copia
+  real, ni probado restaurar un archivo.
+- La 0482 decía «si Storage no responde, la persona sigue viendo lo ya publicado»:
+  falso, los archivos están en Storage. Corregido el comentario del encabezado (no
+  cambia ninguna función; no hay nada que repegar).
+- El aviso del editor ofrecía «HEIC» y en Chrome un HEIC falla. Ahora lo dice.
+- [`consulta-boletas-de-pago.md`](consulta-boletas-de-pago.md): 8 preguntas al
+  laboralista (plazo de entrega, validez de la entrega electrónica, conservación,
+  cesados, entrega equivocada…) y 5 al contador. Sin normas citadas de memoria.
+- [`probar-las-boletas-oficiales.md`](probar-las-boletas-oficiales.md): recorrido A–H
+  con una boleta propia de un periodo ya pagado.
+
+**Lo que se propuso y NO se hizo, y por qué:** el aviso por correo (Resend existe,
+pero su código avisa que sin `RESEND_FROM` verificado solo llega al dueño de la
+cuenta: comprobar el dominio primero); el cruce con el neto del contador y un canal de
+«tengo una observación» (los dos piden SQL nuevo); la carga por lote (depende de cómo
+entrega el contador, pregunta A); el aviso en la Bandeja de DO de «sin abrir hace más de
+3 días».
+
+**Pendiente, por orden:** (1) la primera prueba real (guía de arriba), sigue siendo lo
+primero; (2) la primera copia real con el script; (3) enviar la consulta.
+
+**Aparte, y de planilla:** [`hallazgos-abiertos.md`](hallazgos-abiertos.md) daba por
+abiertos cinco defectos 🔴 de la tabla del 05-set que ya tienen migración (0416, 0417,
+0418, 0419) y cuatro viñetas más (0283, 0278, 0346, el CSV rehecho el 15-set). Quedan
+tachados **como cerrados en el código, no en producción**: lo que falta es confirmar
+con la línea PLANILLA de `que_falta_pegar.sql` que producción corre la versión vigente
+del núcleo (la 0463 trae la 0416, 0417 y 0418), y aparte que estén la 0419
+(`fn_feriados_laborados`), la 0278/0283 (truncas) y la 0346 (`fn_grati_cts_periodo`).
+Una lista armada solo con esa tabla se equivocó en casi todo.
 
 ---
 
@@ -535,12 +3763,10 @@ Postgres local compartido.
 3. Recién ahí fusionar (este PR incluye el #422; fusionar es publicar).
 
 **Pendientes que esto dejó a la vista, sin tocar:**
-- `fn_documentos_tablero` (0424) calcula `bono_estado` también a quien es
-  practicante, aunque la base le niega el bono: DO ve en su Bandeja «Bono de
-  cumpleaños sin constancia firmada» de alguien a quien no puede registrárselo.
-  Info y la Bandeja mía ya no se equivocan (usan `fn_mi_bono_cumpleanos`); el
-  arreglo de fondo es en el tablero y pide su md5 de PRODUCCIÓN antes de
-  escribir.
+- ~~`fn_documentos_tablero` (0424) calcula `bono_estado` también a quien es
+  practicante, aunque la base le niega el bono~~ — **cerrado por la 0518**
+  (2026-10-13): las tres puertas leen la misma regla, y el bono también es
+  para practicantes. Ver la sección de ese día arriba.
 - Documentación no sabe **mostrar** una constancia de bono firmada desde el
   sistema (solo abre escaneos, como la ruta antes de `abrirVerFirma`), y su
   «Subir otro» sobre ella falla por el índice único de un bono por año.
@@ -2660,6 +5886,7 @@ primero, la línea de la 0365 queda redundante e inofensiva.
 - La política `alertas_marcar_leida_propia` (0003) más `grant update on alertas
   to authenticated` dejan que una integrante edite CUALQUIER columna de sus
   propias alertas (estado, intentos…). Preexistente; la 0362 lo amplía un poco.
+  **Cerrado por la 0550** (2026-10-25): ver la entrada de arriba.
 - `fn_crear_persona` sigue recibiendo el hash del PIN desde el navegador, y el
   terminal sigue comparándolo con bcryptjs en el cliente: es el crítico 1.
 - `fn_planilla_calcular` conserva `coalesce(…, 113.00)` como respaldo escrito
@@ -6868,20 +10095,20 @@ copiada de su log; la **137** cubre las dos ubicaciones posibles del acta.
 |---|---|---|
 | **Los convenios individuales de movilidad, firmados y cargados** | **antes del 28/08/2026** — es cuando se paga el periodo | Se habrá pagado movilidad sin el papel que la sostiene. La **RTF 05449-4-2007** desconoció la de 14 de 21 trabajadores por eso exacto |
 | **La política de movilidad de empresa, firmada** | con fecha **anterior al 29/07/2026** | Es cuando empezó a pagarse movilidad. Un documento posterior a los pagos que justifica **no los justifica, y encima lo deja por escrito**. El tablero lo avisa solo, en rojo, con las dos fechas |
-| **Contratar el Seguro Vida Ley** | cuanto antes | ~S/1,560/año. Sin póliza, CAYLA responde con su patrimonio: 16 remuneraciones por muerte natural (~S/18,000) o 32 por accidente o invalidez total (~S/36,000). Obligatorio desde el primer día (D.Leg. 688, mod. **Ley 31408**) |
+| ~~**Contratar el Seguro Vida Ley**~~ | ✅ **contratado con Pacífico, póliza Nº 143720** — visto en los certificados el 2026-10-21 | Prima **S/70 al mes**, inicio de la póliza 01/08/2026. **Dos personas sin certificado en mano** (puede que ya estén declaradas: la serie tiene 18 números y se liquidaron S/22,420 en octubre), **no consta el pago de las liquidaciones** (octubre vence el 31/10), ni el registro en el MTPE, ni las declaraciones juradas de beneficiarios: ver la sección del 2026-10-21, arriba. Quien quede sin declarar: CAYLA responde con su patrimonio, ~S/20,000 por muerte natural o ~S/40,000 por accidente o invalidez total (D.Leg. 688, mod. **Ley 31408**) |
 | **Pagar el día sustitutorio de Arequipa** | **el 29/09/2026**, con el periodo 29/08–28/09 ya cerrado | El equipo de AQP habrá descansado el 31/08 sin cobrarlo, y el acuerdo que firmaron dice que sí les tocaba. **No es automático**: el sistema no sabe que el 15/08 existe. Ver la sección propia más abajo |
-| **Registrar la póliza en el MTPE** | 30 días desde que se firma | No registrarla es la misma infracción que no tenerla |
+| **Registrar la póliza en el MTPE** | 30 días desde que se firma — **no consta que se haya hecho** (2026-10-21) | No registrarla es la misma infracción que no tenerla |
 | ~~**Pegar la [`0176`](../supabase/migrations/0176_quien_ya_se_fue_deja_de_tener_sueldo_vigente.sql)**~~ | ✅ **pegada el 2026-08-06** | Las seis de julio dejaron de tener sueldo vigente. No movió plata: su liquidación es S/ 0.00 antes y después (RxH, de 0 a 3 días). Comprobado con cuatro ceros: sin tramos abiertos, sin tramos pasados de largo, sin tramos posteriores al cese, sin motivos por revisar |
 | ~~**Pegar la [`0179`](../supabase/migrations/0179_la_pantalla_de_equipo_dice_cuando_y_por_que_se_fue.sql)**~~ | ✅ **pegada** — figura en `migraciones_aplicadas` de producción | La pantalla de Equipo ya dice cuándo y por qué se fue cada quien. El motivo viaja solo a admin y líder DO |
 | ~~**Pegar la 0180, la 0181 y la 0183**~~ | ✅ **pegadas el 2026-08-08** | Ver la sección del 08-08 arriba. Confirmadas por lo que devolvió el SQL Editor: `las_seis_con_candado: 6` y `funciones_con_texto_roto: 0` |
 | ~~**Pegar la [`0201`](../supabase/migrations/0201_la_foto_del_pago_aprende_el_sobretiempo.sql)**~~ | ✅ **pegada el 2026-08-10** | Sin ella, «Marcar como PAGADO» fallaba **para todo el periodo** —no solo para quien hiciera sobretiempo— en cuanto alguien pasara de 48 h en un ciclo de siete días. El candado de la foto era de julio (0127) y no conocía el sobretiempo que la 0185 empezó a pagar en agosto. Confirmada con cinco comprobaciones en verde, incluida la que recorre las 96 fotos ya guardadas con la fórmula nueva: ninguna se rompió |
 
-**Del Seguro de Vida Ley:** cotizado en **La Positiva, S/170/mes por 19
-personas**, sin comisión de corredor —Dante confirmó que el reglamento no la
-contempla— y con factura. **El 19 hay que cruzarlo antes de firmar**: el diseño
-remunerativo asume 26. Quien esté en planilla y fuera de la póliza queda sin
-cobertura, y ese capital lo paga CAYLA de su patrimonio. La consulta que arma la
-lista real está en
+**Del Seguro de Vida Ley (corregido el 2026-10-21):** lo que se cotizó en agosto fue **La Positiva, S/170/mes por 19
+personas**, pero lo contratado es **Pacífico, póliza Nº 143720**, a **S/70 al mes** y sin intermediación (las
+liquidaciones lo dicen). Dante confirmó que en este seguro el reglamento no contempla comisión de corredor. El cruce
+contra planilla ya se hizo (17 en planilla, 15 con certificado en mano, 2 sin él): ver la sección del 2026-10-21, arriba. Quien esté en planilla y
+sin declarar a Pacífico queda sin cobertura, y ese capital lo paga CAYLA de su patrimonio. La consulta que arma la
+lista y el cruce está en
 [`quienes_van_al_seguro_de_vida_ley.sql`](../scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql).
 
 ### A.2 · Lo que bloquea del contador — la marca de afectación
@@ -7660,7 +10887,8 @@ techo repite esto exacto. Está sin decidir si esa función debe pasar a bloquea
 | **Las bases declaradas** de los cuatro rangos altos — y hay que bajar **los dos campos**, `sueldo_base_legal` **y** `salario_mensual_soles` | confirmar los montos finales |
 | **Cargar las declaraciones de ruta firmadas** | **de Felipe. Plazo: 28/08/2026.** El sitio donde subirlas ya existe |
 | **Indicador del umbral de 20 trabajadores** — promedio corrido del ejercicio, con aviso al acercarse | nada. **Acordado: se construye después de cerrar el Seguro de Vida Ley** |
-| **Versionar la RMV a S/1,300** cuando se publique el decreto | que salga la norma |
+| **Versionar la RMV a S/1,230 y subir la escala** — [`0501`](../supabase/migrations/0501_la_rmv_sube_a_1230_y_la_escala_la_sigue.sql), prueba 395: **escrita, sin pegar ni fusionar** | pegarla **el 2026-10-01 y antes de fusionar** (ver «Guion de mañana», arriba) |
+| **Versionar la RMV a S/1,300 y reajustar de nuevo colibrí, cayla y support** (asignación familiar a S/130) | **el segundo decreto**, «primer semestre de 2027» y sin fecha. Nada en el sistema avisa cuando salga |
 | **Imprimir y firmar las ~20 renovaciones** — la pieza ya existe (`/admin/contratos`) y su SQL está al día | **la revisión legal del texto**, que no ha hecho nadie |
 
 ### El generador de contratos, tras la auditoría del 2026-08-24
@@ -7720,6 +10948,10 @@ anteriores (decisión de Felipe, 2026-08-24 — las renovaciones los reemplazan)
 
 ### La 0128 sigue escrita y sin llamar
 
+> ⚠️ **2026-09-30:** la **0501** la llama por primera vez, para subir colibrí (S/1,230) y cayla (S/1,245) por la
+> RMV nueva —solo sube; ver la entrada de arriba—. Y la escala **sí está decidida** desde el 2026-08-04 (`rangos.ts`).
+> Lo que sigue describe el estado de agosto y **no** debe leerse como vigente.
+
 `fn_fijar_base_declarada(rango, monto, vigencia, omitir[])` baja **los dos**
 campos que intervienen en el pago al mismo monto, versionando el salario vía
 `fn_set_salario`. La migración **crea la función y no la llama**: crearla no mueve
@@ -7766,18 +10998,19 @@ calcularlo solo y mostrarlo **antes** de que se firme el contrato.
 
 ### Sobre la RMV
 
-El alza se anunció el 28/07/2026 y **el decreto no está publicado**. Cuando
-salga, son dos sentencias por cada clave —`rmv` y `asignacion_familiar`— escritas
-en las cabeceras de la 0116 y la 0122. Los periodos ya pagados quedan intactos.
+**Actualizado el 2026-09-30.** El decreto **salió**: **D.S. 015-2026-TR**, publicado el 2026-09-28. Llevó la RMV a
+S/1,300 en dos tramos: **S/1,230 desde el 2026-10-01** (construido en la 0501, sin pegar; ver la entrada de arriba)
+y **S/1,300** por otro decreto en el primer semestre de 2027 (**sin construir, sin fecha, y nada avisa cuando salga**).
+La versión de agosto de esta sección decía que «el decreto no está publicado» y que eran «dos sentencias por cada
+clave»: hoy se hace en **una migración** (la RMV, la asignación en sus dos sitios, la escala y lo que publica la
+Política), y la asignación familiar **sí** se subió (S/123, irreversible).
 
-⚠️ **Ojo con el plazo, porque Dante lo describió mal.** Dijo que hay que esperar
-al Congreso y a la promulgación. La RMV **no se fija por ley**: se fija por
-**Decreto Supremo del Ejecutivo**, previa consulta al Consejo Nacional de
-Trabajo, conforme al art. 24 de la Constitución (la subida a S/1,130 fue el
-**D.S. 006-2024-TR**). Puede publicarse de un día para
-otro y regir desde el 1° del mes siguiente. **La vigilancia se mide en semanas,
-no en meses.** Donde sí puede tener razón es en el bono compensatorio para MYPE:
-eso es gasto público y probablemente sí necesita norma con rango de ley.
+⚠️ **Sobre el plazo, que Dante describió mal y aquí se confirmó.** Dijo que había que esperar al Congreso y a la
+promulgación. La RMV **no se fija por ley**: se fija por **Decreto Supremo del Ejecutivo**, previa consulta al
+Consejo Nacional de Trabajo, conforme al art. 24 de la Constitución (la subida a S/1,130 fue el **D.S. 006-2024-TR**
+y ésta el **D.S. 015-2026-TR**, dos meses después del anuncio del 28/07). Se publicó de un día para otro y rige el
+1° del mes siguiente. **La vigilancia se mide en semanas, no en meses.** Donde sí puede tener razón es en el bono
+compensatorio para MYPE: eso es gasto público y probablemente sí necesita norma con rango de ley.
 
 ### La fila general de movilidad vale S/ 10.00 — decisión tomada, se queda
 
@@ -7886,7 +11119,7 @@ de tu sueldo». **Sin total y sin porcentaje**, por decisión tomada.
 
 | Concepto | Decisión | Amparo |
 |---|---|---|
-| **Movilidad** | S/10.00 por día marcado en AQP y TRU, **S/12.00 en LIM** (0142) · 4 traslados · refrigerio de 1h15 habilita almorzar en casa. **Techo: ninguna tarifa diaria pasa del 4% de la RMV** (hoy **S/45.20**), con candado en la 0152 y prueba 119 | Art. 19 e) · PLAME **0909** ✅ confirmado |
+| **Movilidad** | S/10.00 por día marcado en AQP y TRU, **S/12.00 en LIM** (0142) · 4 traslados · refrigerio de 1h15 habilita almorzar en casa. **Techo: ninguna tarifa diaria pasa del 4% de la RMV** (**S/45.20** hasta el 30/09/2026 · **S/49.20** desde el 01/10, con la RMV de S/1,230), con candado en la 0152 y prueba 119 | Art. 19 e) · PLAME **0909** ✅ confirmado |
 | **Educación** | 75% del comprobante, tope por rango · vale para el trabajador **y/o sus hijos**, sin tope de edad | Art. 19 f) · PLAME **0202** ⚠️ falta confirmar el cero |
 | **Bono cumpleaños** | **S/180**, igual para los 26, en el mes del onomástico, sin condición de antigüedad | Art. 19 g) · PLAME **0203** ⚠️ mismo caso |
 | **Pensión** | Tasa real por persona (12.84%–13.06% u ONP 13%), desde el periodo abierto | — |

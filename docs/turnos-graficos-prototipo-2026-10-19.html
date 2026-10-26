@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turnos — gráficos de cobertura (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap">
+<!--
+  Prototipo (2026-10-19): cinco formas de dibujar la cobertura de Turnos. NO es código de la app ni toca ninguna base.
+  Datos ficticios de una tienda; «hoy» es el miércoles 21 de octubre de 2026.
+
+  Qué se quiere resolver (lo que se vio en la pantalla real):
+    · Con «sin meta» —lo normal hasta que alguien fija una— TODA la cobertura sale café sólido, y un bloque café sin
+      distinción dice lo mismo en un día lleno que en uno vacío.
+    · La cuadrícula «Integrada» tiene 28 filas de 50 px y obliga a bajar; los números repetidos son ruido.
+    · Las siluetas de «Semana» no dicen qué pasa: hay que descifrarlas.
+
+  Lo que NO cambia en ninguna variante (reglas de CLAUDE.md y de cobertura-turnos.ts):
+    · la cobertura solo cuenta áreas operativas; los líderes se miden aparte y su meta es plana todo el día;
+    · la meta tiene dos tramos, mañana y tarde, con el corte a las 14:15;
+    · el color nunca va solo: cada estado lleva palabra o símbolo (falta · cubierto · sobra · sin meta);
+    · Dynamic avisa, no decide: nada de aquí bloquea ni sanciona;
+    · en Arequipa se trabaja domingo si hay turnos; si nadie trabaja el día, se dice una palabra: «sin turnos».
+  Simplificación del prototipo: un tramo se cuenta con quien trabaja ≥ 3 h dentro de él (la pantalla real mide por
+  media hora y promedia el día).
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18; --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f;
+    --color-sand:#e8e0d0; --color-taupe:#805c4c; --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-ceniza:#635f58;
+    --font-sans:'DM Sans',ui-sans-serif,system-ui,sans-serif; --font-serif:'EB Garamond',ui-serif,Georgia,serif;
+    color-scheme:light;
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db; --color-rojo:#d4634a; --color-rojo-profundo:#e8836b;
+    --color-sand:#332e27; --color-taupe:#ab9080; --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-ceniza:#aaa59b; color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--color-crema);color:var(--color-tinta);font:14.5px/1.5 var(--font-sans)}
+  h1,h2,h3{font-family:var(--font-serif);font-weight:500;margin:0}
+  button{font:inherit;color:inherit;cursor:pointer}
+  p{margin:0}
+
+  .proto{position:sticky;top:0;z-index:50;background:var(--color-papel);border-bottom:1px solid var(--color-sand);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+  .vbtn{border:1px solid var(--color-sand);background:var(--color-crema);border-radius:10px;padding:6px 11px;font-weight:600;font-size:.82rem;display:inline-flex;gap:7px;align-items:center}
+  .vbtn b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--color-hueso);color:var(--color-taupe);font-size:.76rem}
+  .vbtn[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .vbtn[aria-pressed="true"] b{background:var(--color-crema);color:var(--color-tinta)}
+  .vbtn small{font-weight:500;opacity:.8}
+  .ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto;font-size:.78rem;color:var(--color-taupe)}
+  .seg{display:inline-flex;border:1px solid var(--color-sand);border-radius:8px;overflow:hidden;background:var(--color-papel)}
+  .seg button{border:0;background:none;padding:5px 11px;font-size:.8rem;font-weight:600;color:var(--color-taupe)}
+  .seg button[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema)}
+  .lema{max-width:1180px;margin:10px auto 0;padding:0 16px;color:var(--color-taupe);font-size:.86rem}
+  .lema strong{color:var(--color-tinta)}
+
+  .page{max-width:1180px;margin:0 auto;padding:14px 16px 80px}
+  .pantalla{background:transparent}
+  .cab h1{font-size:1.75rem;line-height:1.15}
+  .cab .sob{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-taupe);display:flex;gap:12px;align-items:center;margin-bottom:6px}
+  .cab .sob::before{content:"";width:36px;height:1px;background:var(--color-taupe)}
+  .cab p{color:var(--color-taupe);font-size:.9rem;margin-top:3px}
+  .barra{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 16px;border-bottom:1px solid var(--color-sand);margin:14px 0 14px}
+  .tabs{display:flex;gap:4px}
+  .tabs button{border:0;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 12px;color:var(--color-taupe)}
+  .tabs button[aria-pressed="true"]{border-color:var(--color-tinta);color:var(--color-tinta);font-weight:600}
+  .nav{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:.8rem;color:var(--color-taupe)}
+  .nav button{border:1px solid var(--color-sand);background:var(--color-papel);border-radius:8px;padding:3px 9px}
+  .dias{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .dias button{border:1px solid var(--color-sand);background:var(--color-papel);border-radius:8px;padding:5px 11px;font-size:.82rem}
+  .dias button[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .dias button small{opacity:.7}
+  .para{display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:.78rem}
+  .para .rot{text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--color-taupe);font-size:.72rem}
+
+  /* estados — nunca solo color: cada uno tiene su palabra o símbolo en el contexto */
+  .s-falta{--c:var(--color-rojo)} .s-ok{--c:var(--color-verde)} .s-sobra{--c:var(--color-ambar)} .s-sin{--c:var(--color-taupe)} .s-fuera{--c:transparent}
+  .fill{background:color-mix(in oklab,var(--c) 55%,var(--color-papel))}
+  .tinte{background:color-mix(in oklab,var(--c) 18%,var(--color-papel))}
+  .txt-falta{color:var(--color-rojo-profundo)} .txt-ok{color:var(--color-verde)} .txt-sobra{color:var(--color-ambar)} .txt-sin{color:var(--color-taupe)}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:999px;background:color-mix(in oklab,var(--c) 14%,var(--color-papel));color:var(--c);white-space:nowrap}
+  .s-falta.chip{color:var(--color-rojo-profundo)} .s-sin.chip{color:var(--color-taupe)}
+  .card{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;padding:14px 16px}
+  .card h3{font-size:1.05rem;margin-bottom:6px}
+  .muted{color:var(--color-taupe);font-size:.8rem}
+  .grid7{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+  .hatch{background-image:repeating-linear-gradient(135deg,color-mix(in oklab,var(--color-rojo) 45%,transparent) 0 3px,transparent 3px 7px)}
+
+  /* línea de tiempo */
+  .tl{position:relative}
+  .tl .reg{display:grid;grid-template-columns:120px 1fr;align-items:center;gap:8px;min-height:30px}
+  .tl .nom{font-size:.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tl .pista{position:relative;height:100%;min-height:26px}
+  .tl .barra-p{position:absolute;top:50%;transform:translateY(-50%);height:10px;border-radius:99px;background:color-mix(in oklab,var(--color-verde) 55%,var(--color-papel))}
+  .tl .barra-p.l{background:color-mix(in oklab,var(--color-pizarra) 60%,var(--color-papel))}
+  .reglaH{display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:.7rem;color:var(--color-taupe)}
+  .reglaH .e{position:relative;height:16px}
+  .reglaH .e span{position:absolute;transform:translateX(-50%)}
+  .banda{display:grid;grid-template-columns:repeat(28,1fr);gap:1px;border-radius:6px;overflow:hidden}
+  .banda i{display:block;height:100%}
+  .corte{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed var(--color-taupe);opacity:.6}
+  .solap{position:absolute;top:0;bottom:0;border-radius:4px}
+
+  table.t{border-collapse:separate;border-spacing:0;width:100%;font-size:.82rem}
+  table.t th,table.t td{padding:6px 8px;border-bottom:1px solid var(--color-sand);text-align:left}
+  table.t th{font-weight:600;color:var(--color-taupe);font-size:.74rem}
+  .celda-t{display:inline-block;padding:2px 8px;border-radius:8px;background:color-mix(in oklab,var(--color-verde) 14%,var(--color-papel));font-variant-numeric:tabular-nums;font-size:.78rem}
+  .celda-t.l{background:color-mix(in oklab,var(--color-pizarra) 16%,var(--color-papel))}
+  .celda-t.off{background:none;color:var(--color-taupe)}
+  .mini{position:relative;height:8px;border-radius:99px;background:var(--color-hueso);min-width:90px}
+  .mini i{position:absolute;top:0;bottom:0;border-radius:99px;background:color-mix(in oklab,var(--color-verde) 60%,var(--color-papel))}
+  .mini.l i{background:color-mix(in oklab,var(--color-pizarra) 60%,var(--color-papel))}
+
+  .medidor{display:flex;gap:4px}
+  .medidor i{width:22px;height:10px;border-radius:3px;background:var(--color-hueso);border:1px solid var(--color-sand)}
+  .medidor i.on{background:color-mix(in oklab,var(--c) 60%,var(--color-papel));border-color:var(--c)}
+  .persona-chip{display:inline-flex;gap:6px;align-items:baseline;border:1px solid var(--color-sand);background:var(--color-crema);border-radius:999px;padding:3px 11px;font-size:.8rem}
+  .persona-chip small{color:var(--color-taupe);font-variant-numeric:tabular-nums}
+
+  .calor{display:grid;grid-template-columns:48px repeat(7,1fr);gap:2px;font-size:.68rem}
+  .calor .h{color:var(--color-taupe);text-align:right;padding-right:6px;line-height:16px}
+  .calor .c{height:16px;border-radius:3px;display:grid;place-items:center;font-weight:600;font-size:.62rem}
+  .calor .cab-d{text-align:center;font-family:var(--font-serif);font-size:.9rem;padding-bottom:4px}
+  .nota{max-width:1180px;margin:18px auto 0;padding:0 16px}
+  .nota details{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+  .nota summary{cursor:pointer;font-weight:600}
+  .nota ul{margin:8px 0 0;padding-left:18px;color:var(--color-taupe)}
+  @media (max-width:760px){ .grid7{grid-template-columns:repeat(4,1fr)} .tl .reg,.reglaH{grid-template-columns:84px 1fr} }
+</style>
+</head>
+<body>
+<div class="proto">
+  <strong style="font-family:var(--font-serif);font-size:1.05rem">Cobertura de Turnos · 5 formas</strong>
+  <div id="vars" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <div class="ctl">
+    <span class="seg" role="group" aria-label="Meta"><button id="m1" aria-pressed="true">Con meta</button><button id="m0" aria-pressed="false">Sin meta</button></span>
+    <button class="vbtn" id="tema">Modo oscuro</button>
+  </div>
+</div>
+<p class="lema" id="lema"></p>
+
+<div class="page"><div class="pantalla">
+  <div class="cab"><div class="sob">Asistencia · miércoles, 21 de octubre</div><h1>Turnos y cobertura</h1><p>Arma la semana por sede: toca a una persona en un día para poner su turno o marcar descanso.</p></div>
+  <div class="barra">
+    <div class="tabs" id="tabs"></div>
+    <div class="nav"><span>Tienda · Arequipa</span><button>‹</button><span>19 oct – 25 oct</span><button>›</button><button>Hoy</button></div>
+  </div>
+  <div class="para" id="para"></div>
+  <div id="vista"></div>
+</div></div>
+
+<div class="nota" id="nota"></div>
+
+<script>
+/* ───────── datos ficticios ───────── */
+const DIAS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'], FEC=[19,20,21,22,23,24,25], HOY=2;
+const H0=7,H1=21,NS=28,CORTE=14.25,ABRE=9;
+const T={ // [entrada,salida] por día (0=Lun)
+  ops:[
+    {n:'Gaby',t:{0:[8.75,18],1:[8.75,18],2:[8.75,18],3:[8.75,18],4:[8.75,18],5:[8.75,14.25]}},
+    {n:'Elena',t:{0:[9,17.5],1:[9,17.5],3:[9,17.5],4:[9,17.5],5:[14.25,21]}},
+    {n:'Bruno',t:{0:[14.25,21],2:[14.25,21],3:[14.25,21],4:[14.25,21],5:[14.25,21]}},
+    {n:'Carla',t:{0:[8,14.25],1:[8,14.25],2:[8,14.25],4:[8,14.25],5:[8,14.25]}},
+    {n:'Dana',t:{0:[14.25,21],1:[8,14.25],2:[14.25,21],3:[8,14.25],4:[14.25,21]}},
+  ],
+  lid:[ {n:'Franco',t:{0:[9,18],1:[9,18],2:[9,18],3:[9,18],4:[9,18],5:[9,14.25]}} ],
+};
+const META={m:3,t:3,l:1};
+const S={v:'E',tab:'dia',dia:HOY,meta:true,tema:false};
+
+/* ───────── cálculo ───────── */
+const hh=h=>{const m=Math.round(h*60);return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+const hc=h=>{const m=Math.round(h*60),x=Math.floor(m/60),y=m%60;return y?x+':'+String(y).padStart(2,'0'):String(x)};
+const slotH=i=>H0+i*0.5;
+const metaDe=(h,quien)=>!S.meta?0:(quien==='lid'?META.l:(h<CORTE?META.m:META.t));
+function cuenta(d,quien,h){return T[quien].filter(p=>p.t[d]&&p.t[d][0]<=h&&h<p.t[d][1]).length}
+function estado(c,meta,h){ if(h<ABRE) return 's-fuera'; if(meta===0) return 's-sin'; return c<meta?'s-falta':(c>meta?'s-sobra':'s-ok'); }
+function slots(d,quien){return Array.from({length:NS},(_,i)=>{const h=slotH(i),c=cuenta(d,quien,h),m=metaDe(h,quien);return{h,c,m,e:estado(c,m,h)}})}
+function hayTurnos(d){return [...T.ops,...T.lid].some(p=>p.t[d])}
+function huecos(d,quien='ops',tipo='s-falta'){const r=[];let a=null;slots(d,quien).forEach((s,i,arr)=>{
+  if(s.e===tipo){ if(!a) a={s:s.h,e:s.h+.5,x:Math.abs(s.m-s.c)}; else{a.e=s.h+.5;a.x=Math.max(a.x,Math.abs(s.m-s.c))} }
+  else if(a){r.push(a);a=null} }); if(a)r.push(a); return r}
+function enTramo(d,quien,tr){ // personas con ≥3 h dentro del tramo
+  const [a,b]=tr==='m'?[H0,CORTE]:[CORTE,H1];
+  return T[quien].filter(p=>p.t[d]&&Math.min(b,p.t[d][1])-Math.max(a,p.t[d][0])>=3)}
+function estadoTramo(d,quien,tr){const n=enTramo(d,quien,tr).length;const m=quien==='lid'?META.l:(tr==='m'?META.m:META.t);
+  if(!S.meta) return {n,m:0,e:'s-sin'}; return {n,m,e:n<m?'s-falta':(n>m?'s-sobra':'s-ok')}}
+function resumenDia(d){ if(!hayTurnos(d)) return {txt:'sin turnos',e:'s-sin',ic:'–'};
+  if(!S.meta) return {txt:'sin meta',e:'s-sin',ic:'·'};
+  const a=estadoTramo(d,'ops','m'),b=estadoTramo(d,'ops','t');
+  const f=(a.e==='s-falta'?a.m-a.n:0)+(b.e==='s-falta'?b.m-b.n:0);
+  if(f>0) return {txt:'falta gente',e:'s-falta',ic:'▲'};
+  if(a.e==='s-sobra'||b.e==='s-sobra') return {txt:'sobra gente',e:'s-sobra',ic:'●'};
+  return {txt:'cubierto',e:'s-ok',ic:'✓'}}
+
+/* ───────── piezas ───────── */
+const pos=h=>((h-H0)/(H1-H0)*100).toFixed(2);
+function regla(){let t='';for(let h=8;h<=20;h+=2)t+=`<span style="left:${pos(h)}%">${h}h</span>`;return `<div class="reglaH"><span></span><div class="e">${t}</div></div>`}
+function filasPersonas(d,{fino}={}){
+  const f=(arr,cl)=>arr.map(p=>{const x=p.t[d];return `<div class="tl"><div class="reg"><span class="nom">${p.n}${cl?' <small class="muted">· líder</small>':''}</span><div class="pista">${x?`<span class="barra-p ${cl}" title="${p.n} ${hh(x[0])}–${hh(x[1])}" style="left:${pos(x[0])}%;width:${(x[1]-x[0])/(H1-H0)*100}%"></span>`:`<span class="muted" style="position:absolute;top:5px">descanso</span>`}<span class="corte" style="left:${pos(CORTE)}%"></span></div></div></div>`}).join('');
+  return f(T.ops,'')+f(T.lid,'l')}
+function bandaHtml(d,quien,alto=14){return `<div class="banda" style="height:${alto}px">${slots(d,quien).map(s=>`<i class="${s.e} ${s.e==='s-fuera'?'':'fill'}" title="${hc(s.h)} · ${s.c}${s.m?' de '+s.m:''}"></i>`).join('')}</div>`}
+function chipEstado(r){return `<span class="chip ${r.e}">${r.ic} ${r.txt}</span>`}
+function leyenda(){return S.meta?`<span class="muted"><span class="chip s-ok">✓ cubierto</span> <span class="chip s-falta">▲ falta</span> <span class="chip s-sobra">● sobra</span></span>`:`<span class="muted"><span class="chip s-sin">· sin meta: fija una para medir</span></span>`}
+function selDia(){return `<div class="dias">${DIAS.map((n,i)=>`<button data-d="${i}" aria-pressed="${S.dia===i}">${n} <small>${FEC[i]}</small></button>`).join('')}</div>`}
+function textoHuecos(d){const h=huecos(d);return h.length?h.map(x=>`falta${x.x>1?'n '+x.x:' 1'} · ${hc(x.s)}–${hc(x.e)}`).join(' · '):''}
+
+/* ───────── A · banda fina ───────── */
+const A={
+ dia(){const d=S.dia;return selDia()+`<div class="card"><div class="tl">${regla()}${filasPersonas(d)}
+   <div class="reg" style="margin-top:8px"><span class="nom">Cobertura</span><div class="pista">${bandaHtml(d,'ops',14)}</div></div>
+   <div class="reg"><span class="nom">Líderes</span><div class="pista">${bandaHtml(d,'lid',10)}</div></div></div>
+   <p class="muted" style="margin-top:10px">${leyenda()} Pasa el cursor por la banda para ver cuántos hay cada media hora.</p></div>`},
+ semana(){return `<div class="card">`+DIAS.map((n,i)=>{const r=resumenDia(i);return `<div class="reg" style="display:grid;grid-template-columns:70px 1fr 130px;gap:10px;align-items:center;margin:7px 0"><span><strong>${n}</strong> <small class="muted">${FEC[i]}</small></span>${hayTurnos(i)?bandaHtml(i,'ops',16):'<span class="muted">sin turnos</span>'}<span>${chipEstado(r)}</span></div>`}).join('')+`<div class="reglaH" style="grid-template-columns:70px 1fr 130px;margin-top:4px"><span></span><div class="e">${[8,10,12,14,16,18,20].map(h=>`<span style="left:${pos(h)}%">${h}h</span>`).join('')}</div></div><p class="muted" style="margin-top:8px">${leyenda()}</p></div>`},
+ integrada(){return `<div class="card">`+DIAS.map((n,i)=>`<div style="display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;margin:8px 0"><span><strong>${n}</strong> <small class="muted">${FEC[i]}</small></span><div>${hayTurnos(i)?`${bandaHtml(i,'ops',12)}<div style="height:3px"></div>${bandaHtml(i,'lid',7)}`:'<span class="muted">sin turnos</span>'}</div></div>`).join('')+`<p class="muted" style="margin-top:8px">Banda gruesa: operativas. Banda fina: líderes. ${leyenda()}</p></div>`},
+ lema:'<strong>A · Una banda fina, sin números.</strong> La cobertura pasa de bloque café con cifras a una banda delgada de color; los días se comparan uno bajo otro a la misma escala.',
+ gana:['Se ve un día entero en una línea y la semana cabe en una pantalla (7 bandas).','Sin cifras repetidas: el color dice el estado y el número sale al pasar el cursor.','Cambio chico: es la misma información, dibujada más liviana.'],
+ paga:['Sin pasar el cursor no sabes cuántas personas son; solo si falta o sobra.','En celular el cursor no existe: el detalle tendría que salir al tocar.','Con «sin meta» sigue siendo una banda de un solo color (taupe tenue, ya no café sólido).']
+};
+
+/* ───────── B · solo las excepciones ───────── */
+const B={
+ dia(){const d=S.dia;const h=huecos(d),so=huecos(d,'ops','s-sobra');
+  const chips=(!hayTurnos(d))?'<span class="chip s-sin">– sin turnos</span>':!S.meta?'<span class="chip s-sin">· sin meta: no hay qué medir</span>':(h.length||so.length?h.map(x=>`<span class="chip s-falta">▲ ${x.x>1?'faltan '+x.x:'falta 1'} · ${hc(x.s)}–${hc(x.e)}</span>`).join(' ')+so.map(x=>`<span class="chip s-sobra">● sobra ${x.x} · ${hc(x.s)}–${hc(x.e)}</span>`).join(' '):'<span class="chip s-ok">✓ cubierto todo el día</span>');
+  const over=h.map(x=>`<div class="solap hatch" style="left:calc(128px + (100% - 128px) * ${(x.s-H0)/(H1-H0)});width:calc((100% - 128px) * ${(x.e-x.s)/(H1-H0)});border:1px solid color-mix(in oklab,var(--color-rojo) 50%,transparent)" title="falta gente"></div>`).join('');
+  return selDia()+`<div class="card"><div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">${chips}</div><div class="tl" style="position:relative">${regla()}${filasPersonas(d)}${over}</div><p class="muted" style="margin-top:10px">Las franjas rayadas son las horas en que falta gente; el resto de la cobertura no se dibuja.</p></div>`},
+ semana(){return `<div class="grid7">`+DIAS.map((n,i)=>{const r=resumenDia(i);const hs=hayTurnos(i)&&S.meta?huecos(i):[];return `<div class="card ${r.e}" style="padding:12px"><div style="display:flex;justify-content:space-between"><strong>${n}</strong><span class="muted">${FEC[i]}</span></div><div style="margin:8px 0">${chipEstado(r)}</div><div class="muted" style="min-height:2.6em">${hs.length?hs.map(x=>`${hc(x.s)}–${hc(x.e)} · ${x.x>1?x.x+' menos':'1 menos'}`).join('<br>'):(r.e==='s-ok'?'Nada que hacer':'')}</div></div>`}).join('')+`</div><p class="muted" style="margin-top:10px">${leyenda()}</p>`},
+ integrada(){const filas=DIAS.map((n,i)=>({n,i,h:S.meta&&hayTurnos(i)?huecos(i):[]})).filter(x=>x.h.length);
+  return `<div class="card"><h3>Huecos de la semana</h3>`+(!S.meta?'<p class="muted">Sin meta no hay huecos que medir. Fija la meta de mañana y de tarde.</p>':filas.length?filas.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--color-sand)"><span><strong>${x.n} ${FEC[x.i]}</strong> · ${x.h.map(y=>`${hc(y.s)}–${hc(y.e)} <span class="txt-falta">(${y.x>1?'faltan '+y.x:'falta 1'})</span>`).join(', ')}</span><button style="border:1px solid var(--color-taupe);background:none;border-radius:8px;padding:3px 10px;font-size:.78rem">Ver el día</button></div>`).join(''):'<p class="txt-ok">✓ Toda la semana cubierta.</p>')+`</div>`},
+ lema:'<strong>B · Solo las excepciones.</strong> No se dibuja la cobertura que está bien: se dicen los huecos, con su hora, y se rayan sobre la línea de tiempo.',
+ gana:['Responde la pregunta real —«¿dónde falta gente?»— sin interpretar ningún dibujo.','La semana cabe en 7 tarjetas y la «Integrada» se vuelve una lista corta con atajo al día.','Funciona igual en celular.'],
+ paga:['No ves lo «normal»: cuánta gente hay un día cubierto ya no se ve.','Depende de tener meta; sin ella la pantalla dice poco.','Cambia la forma de pensar la pantalla (de dibujo a lista): más conversación con las líderes.']
+};
+
+/* ───────── C · calor suave ───────── */
+function svgArea(d,ancho,alto,maxC){const sl=slots(d,'ops');const w=ancho/NS;const y=c=>alto-(c/maxC)*(alto-4)-2;
+  let area=`M0 ${alto}`;sl.forEach((s,i)=>{area+=` L${i*w} ${y(s.c)} L${(i+1)*w} ${y(s.c)}`});area+=` L${ancho} ${alto} Z`;
+  let meta='';if(S.meta){let p='';sl.forEach((s,i)=>{p+=`${i?' L':'M'}${i*w} ${y(s.m)} L${(i+1)*w} ${y(s.m)}`});meta=`<path d="${p}" fill="none" stroke="var(--color-tinta)" stroke-width="1.2" stroke-dasharray="4 3" opacity=".7"/>`}
+  const falta=sl.map((s,i)=>s.e==='s-falta'?`<rect x="${i*w}" y="${y(s.m)}" width="${w}" height="${y(s.c)-y(s.m)}" fill="var(--color-rojo)" opacity=".55"/>`:'').join('');
+  const sobra=sl.map((s,i)=>s.e==='s-sobra'?`<rect x="${i*w}" y="${y(s.c)}" width="${w}" height="${y(s.m)-y(s.c)}" fill="var(--color-ambar)" opacity=".5"/>`:'').join('');
+  return `<svg viewBox="0 0 ${ancho} ${alto}" width="100%" height="${alto}" preserveAspectRatio="none" role="img" aria-label="Cobertura del día"><path d="${area}" fill="color-mix(in oklab,var(--color-verde) 35%,var(--color-papel))"/>${falta}${sobra}${meta}</svg>`}
+function calorHtml(){let h='<div class="calor"><span></span>'+DIAS.map((n,i)=>`<div class="cab-d">${n}<div class="muted" style="font-family:var(--font-sans)">${FEC[i]}</div></div>`).join('');
+  for(let i=0;i<NS;i++){const hr=slotH(i);h+=`<div class="h">${i%2===0?hc(hr)+'h':''}</div>`;
+    for(let d=0;d<7;d++){const c=cuenta(d,'ops',hr),m=metaDe(hr,'ops'),e=hayTurnos(d)?estado(c,m,hr):'s-fuera';const num=(e==='s-falta'||e==='s-sobra')?c:'';h+=`<div class="c ${e} ${c===0||e==='s-fuera'?'':'tinte'}" title="${DIAS[d]} ${hc(hr)} · ${c}${m?' de '+m:''}" style="${c===0?'background:var(--color-hueso)':''}${e==='s-falta'?';box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--color-rojo) 60%,transparent)':''}">${num}</div>`}}
+  return h+'</div>'}
+const C={
+ dia(){const d=S.dia;return selDia()+`<div class="card"><div style="margin-bottom:6px;display:flex;justify-content:space-between"><h3>Cuántas operativas hay, hora por hora</h3>${leyenda()}</div><div style="display:grid;grid-template-columns:120px 1fr;gap:8px"><span class="muted" style="font-size:.74rem;align-self:center">personas${S.meta?'<br>— – meta':''}</span>${svgArea(d,560,110,5)}</div><div class="tl" style="margin-top:8px">${regla()}${filasPersonas(d)}</div></div>`},
+ semana(){return `<div class="grid7">`+DIAS.map((n,i)=>`<div class="card" style="padding:10px"><div style="display:flex;justify-content:space-between"><strong>${n}</strong><span class="muted">${FEC[i]}</span></div>${hayTurnos(i)?svgArea(i,140,60,5):'<div style="height:60px;display:grid;place-items:center" class="muted">sin turnos</div>'}<div style="margin-top:6px">${chipEstado(resumenDia(i))}</div></div>`).join('')+`</div><p class="muted" style="margin-top:10px">Misma escala en los siete días (0–5 personas). Línea punteada: la meta. Rojo = falta · ámbar = sobra. ${leyenda()}</p>`},
+ integrada(){return `<div class="card">${calorHtml()}<p class="muted" style="margin-top:8px">16 px por media hora: toda la jornada cabe sin bajar. El número solo aparece donde falta o sobra. ${leyenda()}</p></div>`},
+ lema:'<strong>C · Calor suave y áreas.</strong> Se conserva la idea del mapa de calor, pero tenue, bajo y con números solo en los problemas; el día se dibuja como curva contra la meta.',
+ gana:['Reconoce de un vistazo la «forma» del día y de la semana contra la meta (línea punteada).','La cuadrícula integrada baja de ~1 400 px a ~480 px.','Es lo más parecido a lo que ya existe: menos reaprendizaje.'],
+ paga:['Una curva sigue necesitando leerse: para quien no es analítica no es tan inmediata como B.','Más SVG que mantener y que probar en modo oscuro.','Escala común de 0–5 personas: una sede con 12 en piso necesitaría otra.']
+};
+
+/* ───────── D · quién cuándo ───────── */
+const D={
+ dia(){const d=S.dia;const fila=(p,cl)=>{const x=p.t[d];return `<tr><td>${p.n}${cl?' <small class="muted">· líder</small>':''}</td><td><span class="celda-t ${cl} ${x?'':'off'}">${x?hh(x[0])+' – '+hh(x[1]):'descanso'}</span></td><td style="width:45%"><div class="mini ${cl}">${x?`<i style="left:${pos(x[0])}%;width:${(x[1]-x[0])/(H1-H0)*100}%"></i>`:''}</div></td></tr>`};
+  return selDia()+`<div class="card"><table class="t"><tr><th>Persona</th><th>Turno</th><th>7 h ········ 21 h</th></tr>${T.ops.map(p=>fila(p,'')).join('')}${T.lid.map(p=>fila(p,'l')).join('')}</table><div style="margin-top:10px">${hayTurnos(d)?bandaHtml(d,'ops',10):''}<p class="muted" style="margin-top:6px">${chipEstado(resumenDia(d))} ${leyenda()}</p></div></div>`},
+ semana(){return `<div class="card" style="overflow:auto"><table class="t"><tr><th></th>${DIAS.map((n,i)=>`<th>${n} ${FEC[i]}</th>`).join('')}</tr>${[...T.ops.map(p=>[p,'']),...T.lid.map(p=>[p,'l'])].map(([p,cl])=>`<tr><td>${p.n}${cl?' <small class="muted">· líder</small>':''}</td>${DIAS.map((_,i)=>{const x=p.t[i];return `<td><span class="celda-t ${cl} ${x?'':'off'}">${x?hc(x[0])+'–'+hc(x[1]):'—'}</span></td>`}).join('')}</tr>`).join('')}<tr><td><strong>Cobertura</strong></td>${DIAS.map((_,i)=>`<td>${chipEstado(resumenDia(i))}</td>`).join('')}</tr></table></div>`},
+ integrada(){return `<div class="card" style="overflow:auto"><table class="t"><tr><th></th>${DIAS.map((n,i)=>`<th>${n} ${FEC[i]}</th>`).join('')}</tr>${[...T.ops.map(p=>[p,'']),...T.lid.map(p=>[p,'l'])].map(([p,cl])=>`<tr><td>${p.n}</td>${DIAS.map((_,i)=>{const x=p.t[i];return `<td style="min-width:90px"><div class="mini ${cl}">${x?`<i style="left:${pos(x[0])}%;width:${(x[1]-x[0])/(H1-H0)*100}%" title="${hh(x[0])}–${hh(x[1])}"></i>`:''}</div></td>`}).join('')}</tr>`).join('')}</table><p class="muted" style="margin-top:8px">Cada barra va de 7 h a 21 h. Una persona por fila, un día por columna.</p></div>`},
+ lema:'<strong>D · Quién trabaja cuándo.</strong> Se pasa de «cuánta gente hay» a «quién está»: una tabla personas × días, con la cobertura como fila de resumen.',
+ gana:['Es lo que una líder piensa al armar turnos: «¿qué le toco a Gaby esta semana?».','Se ve la semana de una persona de un vistazo (útil para el tope de 48 h y los descansos).','Lo más sencillo de construir y probar.'],
+ paga:['La cobertura queda de segundo plano: ver el hueco exige leer la fila de abajo.','Con 12+ personas la tabla crece hacia abajo.','No reemplaza el tablero de metas.']
+};
+
+/* ───────── E · mañana y tarde (recomendada) ───────── */
+function medidor(n,m,e){const total=Math.max(m,n,1);return `<span class="medidor ${e}">${Array.from({length:total},(_,i)=>`<i class="${i<n?'on':''}"></i>`).join('')}</span>`}
+function bloqueTramo(d,tr,quien='ops'){const r=estadoTramo(d,quien,tr);const gente=enTramo(d,quien,tr);
+  const palabra=r.e==='s-falta'?`falta${r.m-r.n>1?'n '+(r.m-r.n):' 1'}`:r.e==='s-sobra'?`sobra${r.n-r.m>1?'n '+(r.n-r.m):' 1'}`:r.e==='s-ok'?'completo':'sin meta';
+  return `<div class="card ${r.e}" style="flex:1;min-width:260px"><div style="display:flex;justify-content:space-between;align-items:center"><h3>${tr==='m'?'Mañana':'Tarde'} <span class="muted" style="font-family:var(--font-sans)">${tr==='m'?'hasta las 14:15':'desde las 14:15'}</span></h3><span class="chip ${r.e}">${r.e==='s-ok'?'✓':r.e==='s-falta'?'▲':r.e==='s-sobra'?'●':'·'} ${palabra}</span></div>
+   <div style="display:flex;align-items:center;gap:10px;margin:8px 0"><span class="${r.e}">${medidor(r.n,r.m,r.e)}</span><strong>${r.n}</strong><span class="muted">${r.m?'de '+r.m:'sin meta'}</span></div>
+   <div style="display:flex;gap:6px;flex-wrap:wrap">${gente.length?gente.map(p=>`<span class="persona-chip">${p.n} <small>${hc(p.t[d][0])}–${hc(p.t[d][1])}</small></span>`).join(''):'<span class="muted">nadie</span>'}</div></div>`}
+const E={
+ dia(){const d=S.dia;if(!hayTurnos(d))return selDia()+`<div class="card"><p class="muted">Sin turnos este día.</p></div>`;
+  const lid=estadoTramo(d,'lid','m');
+  return selDia()+`<div style="display:flex;gap:12px;flex-wrap:wrap">${bloqueTramo(d,'m')}${bloqueTramo(d,'t')}</div>
+   <div class="card" style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><strong>Líderes</strong><span class="s-ok">${T.lid.filter(p=>p.t[d]).map(p=>`<span class="persona-chip">${p.n} <small>${hc(p.t[d][0])}–${hc(p.t[d][1])}</small></span>`).join('')||'<span class="muted">ninguno</span>'}</span><span class="chip ${S.meta?(T.lid.some(p=>p.t[d])?'s-ok':'s-falta'):'s-sin'}">${S.meta?(T.lid.some(p=>p.t[d])?'✓ con líder':'▲ sin líder'):'· sin meta'}</span></div>
+   <details style="margin-top:12px" class="card"><summary style="cursor:pointer;font-weight:600">Ver hora por hora</summary><div style="margin-top:10px" class="tl">${regla()}${filasPersonas(d)}<div class="reg" style="margin-top:6px"><span class="nom">Cobertura</span><div class="pista">${bandaHtml(d,'ops',12)}</div></div></div></details>`},
+ semana(){const fila=(tr)=>`<tr><th>${tr==='m'?'Mañana':'Tarde'}</th>${DIAS.map((_,i)=>{if(!hayTurnos(i))return '<td class="muted">sin turnos</td>';const r=estadoTramo(i,'ops',tr);return `<td><button data-d="${i}" data-go="dia" style="border:0;background:none;padding:0;text-align:left"><span class="${r.e}">${medidor(r.n,r.m,r.e)}</span><div class="${'txt-'+r.e.slice(2)}" style="font-size:.78rem;margin-top:2px">${r.m?`${r.n} de ${r.m}`:`${r.n}`}${r.e==='s-falta'?' ▲':r.e==='s-sobra'?' ●':r.e==='s-ok'?' ✓':''}</div></button></td>`}).join('')}</tr>`;
+  return `<div class="card" style="overflow:auto"><table class="t"><tr><th></th>${DIAS.map((n,i)=>`<th>${n} ${FEC[i]}</th>`).join('')}</tr>${fila('m')}${fila('t')}<tr><th>Líder</th>${DIAS.map((_,i)=>`<td>${!hayTurnos(i)?'<span class="muted">—</span>':T.lid.some(p=>p.t[i])?'<span class="chip '+(S.meta?'s-ok':'s-sin')+'">'+(S.meta?'✓ ':'· ')+'Franco</span>':'<span class="chip '+(S.meta?'s-falta':'s-sin')+'">'+(S.meta?'▲ sin líder':'· —')+'</span>'}</td>`).join('')}</tr></table><p class="muted" style="margin-top:8px">Cada cuadrito es una persona; con meta, los vacíos son las que faltan. Toca un día para ver quién. ${leyenda()}</p></div>`},
+ integrada(){return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3>Hora por hora</h3><span class="muted">Es el detalle: para el día a día alcanza «Día» y «Semana».</span></div>${calorHtml()}</div>`},
+ lema:'<strong>E · Mañana y tarde (la recomendada).</strong> La meta ya se pone en dos tramos, así que la pantalla se explica en dos tramos: «mañana 2 de 3», «tarde completo», con quién está en cada uno. La hora por hora queda a pedido.',
+ gana:['Habla como la meta: dos tramos y un número. No hay nada que descifrar.','El cuadrito vacío es «la persona que falta»: se entiende sin leyenda.','La semana es una tabla de 2 filas × 7 días; la «Integrada» deja de ser una pantalla y pasa a ser un detalle.'],
+ paga:['Pierde resolución: no ve «de 14:00 a 14:30 falta uno» (queda en «Ver hora por hora»).','El tramo cuenta a quien trabaja ≥ 3 h en él: hay que fijar esa regla con las líderes antes de construirla.','Mantiene dos formas de mirar (tramo y hora): más para probar.']
+};
+
+const VAR={A:{n:'A',t:'Banda fina',o:A},B:{n:'B',t:'Solo excepciones',o:B},C:{n:'C',t:'Calor suave',o:C},D:{n:'D',t:'Quién cuándo',o:D},E:{n:'E',t:'Mañana y tarde',o:E,rec:true}};
+
+/* ───────── render ───────── */
+function render(){
+  const V=VAR[S.v].o;
+  document.getElementById('vars').innerHTML=Object.values(VAR).map(v=>`<button class="vbtn" data-v="${v.n}" aria-pressed="${S.v===v.n}"><b>${v.n}</b>${v.t}${v.rec?' <small>recomendada</small>':''}</button>`).join('');
+  document.getElementById('lema').innerHTML=V.lema;
+  document.getElementById('tabs').innerHTML=[['dia','Día'],['semana','Semana'],['integrada','Integrada']].map(([k,t])=>`<button data-t="${k}" aria-pressed="${S.tab===k}">${t}</button>`).join('');
+  const n=DIAS.map((_,i)=>S.meta&&hayTurnos(i)?huecos(i).length:0).reduce((a,b)=>a+b,0);
+  document.getElementById('para').innerHTML=`<span class="rot">Para decidir</span>`+(S.meta&&n?`<span class="chip s-falta">▲ ${n} hueco${n===1?'':'s'} de cobertura esta semana</span>`:`<span class="muted">${S.meta?'<span class="txt-ok">Nada pendiente</span>':'Sin meta: la cobertura no se mide'}</span>`);
+  document.getElementById('vista').innerHTML=V[S.tab]();
+  document.getElementById('nota').innerHTML=`<details open><summary>Qué gana y qué paga la variante ${S.v}</summary><p style="margin-top:8px"><strong>Gana</strong></p><ul>${V.gana.map(x=>`<li>${x}</li>`).join('')}</ul><p style="margin-top:8px"><strong>Paga</strong></p><ul>${V.paga.map(x=>`<li>${x}</li>`).join('')}</ul></details>
+   <details><summary>Lo que ninguna variante cambia</summary><ul><li>Qué cuenta como operativa y qué como líder, el corte de las 14:15 y la meta plana de líderes.</li><li>El color nunca va solo: cada estado lleva símbolo y palabra (✓ cubierto · ▲ falta · ● sobra · · sin meta).</li><li>Tocar a una persona en un día sigue abriendo su turno; nada aquí sanciona ni bloquea.</li><li>Con «sin meta» (el estado de hoy) ninguna variante pinta rojo ni verde: usa un tono neutro y dice «sin meta».</li></ul></details>`;
+}
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.v){S.v=b.dataset.v;render()} else if(b.dataset.t){S.tab=b.dataset.t;render()}
+  else if(b.dataset.go){S.dia=+b.dataset.d;S.tab='dia';render()} else if(b.dataset.d!==undefined){S.dia=+b.dataset.d;render()}
+  else if(b.id==='m1'||b.id==='m0'){S.meta=b.id==='m1';document.getElementById('m1').setAttribute('aria-pressed',S.meta);document.getElementById('m0').setAttribute('aria-pressed',!S.meta);render()}
+  else if(b.id==='tema'){S.tema=!S.tema;document.documentElement.dataset.theme=S.tema?'dark':'light';b.textContent=S.tema?'Modo claro':'Modo oscuro'}
+});
+render();
+</script>
+</body>
+</html>

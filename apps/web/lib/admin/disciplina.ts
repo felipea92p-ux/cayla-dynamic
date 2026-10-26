@@ -27,7 +27,9 @@ export type EstadoDocumento = "borrador" | "firmado" | "entregado" | "anulado" |
 /** Los tres papeles que pueden colgar de un documento (mig. 0206). */
 export type TipoPapel = "cargo_firmado" | "acta_negativa" | "descargo";
 
-export interface Hecho { fecha: string; minutos?: number }
+/** Un día citado. `minutos` en las tardanzas; `relato` en la conducta (0510),
+ *  que cita un solo hecho y lo cuenta con palabras. */
+export interface Hecho { fecha: string; minutos?: number; relato?: string }
 
 /**
  * Una fila de `fn_tardanzas_resumen`. `umbral` nombra el escalón ALCANZADO
@@ -65,7 +67,18 @@ export interface DocDisciplina {
   firmante_id: string | null; firmado_at: string | null;
   entregado_at: string | null; entregado_por: string | null; medio_entrega: string | null;
   entrega_testigo_nombre: string | null;
+  /** Cuándo y quién lo puso en la Info de la persona (0486). NO es la entrega:
+   *  esa es `entregado_at`, y llega cuando ella lo confirma. */
+  enviado_a_info_at: string | null; enviado_a_info_por: string | null;
   observacion: string | null;
+  /** Conducta (0510): qué falta del catálogo cita y cuándo supo la empresa del
+   *  hecho (52.6). Opcionales: tardanzas e inasistencias no los tienen. */
+  falta_rit_version?: number | null; falta_numeral?: string | null; falta_literal?: string | null;
+  conocido_el?: string | null;
+  /** Quién de DO tomó el caso que inició una líder (0511). Null = con la sede. */
+  tomado_por?: string | null; tomado_at?: string | null;
+  /** Firmó su copia en papel desde «Lo mío» (0408). Firmar es un acto deliberado: cuenta como haberlo leído. */
+  firma_sancionado_confirmada_at?: string | null;
 }
 
 // ── Borradores: en qué paso del art. 55.2 está ───────────────────────────────
@@ -125,11 +138,17 @@ export type PendienteDeEntregado = "cargo" | "resolver";
  * depende de la palabra de quien la registró, y una imputación entregada sin
  * resolver hace que el semáforo pida la misma decisión durante doce meses.
  * Mientras pida algo, no pasa al historial.
+ *
+ * UNA ENTREGA POR INFO NO PIDE CARGO (0486). Su constancia no es un papel
+ * escaneado: es la confirmación de la propia persona, con su fecha y hora, en la
+ * misma fila del documento. Pedirle a quien emitió que «suba el cargo» de una
+ * entrega que nunca tuvo papel sería un pendiente que no se puede cumplir, y
+ * un aviso que no se puede cumplir enseña a ignorar los que sí.
  */
 export function pendientesDeEntregado(d: DocDisciplina, adjuntos: readonly Adjunto[]): PendienteDeEntregado[] {
   if (d.estado !== "entregado") return [];
   const p: PendienteDeEntregado[] = [];
-  if (!tienePapelDeEntrega(adjuntos)) p.push("cargo");
+  if (!tienePapelDeEntrega(adjuntos) && d.medio_entrega !== "digital") p.push("cargo");
   if (d.nivel === "imputacion" && !d.resuelto_at) p.push("resolver");
   return p;
 }
@@ -421,4 +440,61 @@ export function ultimoDiaDeEntrega(fechaCese: string): string {
 /** Para buscar «Quispe» escribiendo «quispe» y «Ramírez» escribiendo «ramirez». */
 export function normalizarBusqueda(texto: string): string {
   return texto.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+}
+
+
+// ── La constancia de lectura (0516) ──────────────────────────────────────────
+
+/** Una fila de `lecturas_memo`: cuándo se abrió el documento y cuándo se leyó. */
+export interface LecturaMemo { expediente_id: string; abierto_at: string; leido_at: string | null }
+
+/**
+ * Desde cuántos días sin leer lo entregado le llega el aviso a la líder DO.
+ * Decidido el 2026-10-06: «aviso si pasan 7 días». Una semana es lo que tarda
+ * en volver alguien de vacaciones o de su día libre; antes sería ruido.
+ */
+export const DIAS_SIN_LEER_PARA_AVISO = 7;
+
+export type EstadoLectura =
+  | { tipo: "no_aplica" }
+  | { tipo: "firmo"; firmado_at: string }
+  | { tipo: "leido"; abierto_at: string; leido_at: string }
+  | { tipo: "abierto"; abierto_at: string }
+  | { tipo: "sin_abrir"; dias: number };
+
+const NIVELES_QUE_SE_LEEN = ["verbal", "amonestacion", "suspension"];
+
+/**
+ * Qué dice la constancia de lectura de un documento. Solo aplica a lo ENTREGADO
+ * EN PAPEL de los tres niveles que se leen en pantalla: lo recibido por Info ya
+ * tiene su constancia en la propia entrega (0486), y una imputación o un
+ * despido se entregan en físico o por vía notarial. Espeja `requiere_lectura`
+ * de `fn_mi_disciplina` (0516): la persona y DO ven lo mismo.
+ */
+export function estadoDeLectura(
+  d: Pick<DocDisciplina, "estado" | "nivel" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at">,
+  lectura: LecturaMemo | undefined,
+  ahora: Date,
+): EstadoLectura {
+  if (d.estado !== "entregado" || d.medio_entrega === "digital" || !NIVELES_QUE_SE_LEEN.includes(d.nivel)) {
+    return { tipo: "no_aplica" };
+  }
+  if (lectura?.leido_at) return { tipo: "leido", abierto_at: lectura.abierto_at, leido_at: lectura.leido_at };
+  // Firmar es un acto deliberado con su propia fecha: cuenta como haberlo leído.
+  if (d.firma_sancionado_confirmada_at) return { tipo: "firmo", firmado_at: d.firma_sancionado_confirmada_at };
+  if (lectura) return { tipo: "abierto", abierto_at: lectura.abierto_at };
+  const dias = d.entregado_at ? Math.max(0, Math.floor((ahora.getTime() - Date.parse(d.entregado_at)) / 864e5)) : 0;
+  return { tipo: "sin_abrir", dias };
+}
+
+/** ¿Hay que avisarle a DO? Entregado en papel, sin leer, y con más de `DIAS_SIN_LEER_PARA_AVISO` días. */
+export function lecturaPendienteParaAviso(
+  d: Pick<DocDisciplina, "estado" | "nivel" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at">,
+  lectura: LecturaMemo | undefined,
+  ahora: Date,
+): boolean {
+  const e = estadoDeLectura(d, lectura, ahora);
+  if (e.tipo !== "sin_abrir" && e.tipo !== "abierto") return false;
+  const dias = d.entregado_at ? Math.floor((ahora.getTime() - Date.parse(d.entregado_at)) / 864e5) : 0;
+  return dias >= DIAS_SIN_LEER_PARA_AVISO;
 }

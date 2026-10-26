@@ -8,8 +8,8 @@
 //
 // Las decisiones, tomadas con Felipe ese día sobre demos navegables:
 //   · Resumen arriba + tabla de siete columnas + detalle en panel lateral.
-//   · Indicadores por beneficio con su nombre exacto («saldo no pagado al
-//     corte»), no un «total provisionado» que prometa más de lo que es.
+//   · Indicadores por beneficio con su nombre exacto («acumulado a hoy, aún
+//     sin pagar»), no un «total provisionado» que prometa más de lo que es.
 //   · Calendario con lo vencido primero y lo que viene como acumulado a hoy;
 //     la proyección al cierre va después, en su propia función SQL auditada.
 //   · El negativo se muestra como «pagado de más» con su origen.
@@ -29,10 +29,11 @@ import { puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { Boton } from "@/components/ui/boton";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
-import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Drawer } from "@/components/ui/drawer";
 import { cx } from "@/components/ui/cx";
@@ -79,7 +80,6 @@ export default function ProvisionesPage() {
   const [subvenciones, setSubvenciones] = useState<Subvenciones>(undefined);
   const [filtros, setFiltros] = useState<FiltrosProvisiones>(FILTROS_VACIOS);
   const [vista, setVista] = useState<Vista>("personas");
-  const [comoAbierto, setComoAbierto] = useState(false);
   const [persona, setPersona] = useState<ProvPersona | null>(null);
   const [panelAbierto, setPanelAbierto] = useState(false);
   const focoAlAbrir = useRef<HTMLElement | null>(null);
@@ -225,27 +225,18 @@ export default function ProvisionesPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Pago")}
           titulo="Provisiones"
-          descripcion={
-            <>
-              Obligaciones laborales acumuladas y próximos desembolsos.
-              {data && (
-                <span className="mt-2 flex flex-wrap items-center gap-3">
-                  <span className="rounded-pildora bg-sand px-2.5 py-0.5 text-xs font-medium text-tinta">
-                    Al {fechaCorta(data.as_of)}
-                  </span>
-                  <Boton
-                    variante="enlace"
-                    className="text-xs"
-                    aria-expanded={comoAbierto}
-                    aria-controls="como-se-calculan"
-                    onClick={() => setComoAbierto((v) => !v)}
-                  >
-                    ⓘ Cómo se calculan las provisiones
-                  </Boton>
-                </span>
-              )}
-            </>
+          descripcion={data ? `Obligaciones laborales acumuladas y próximos desembolsos, al ${fechaCorta(data.as_of)}.` : "Obligaciones laborales acumuladas y próximos desembolsos."}
+          ayuda={
+            data ? (
+              <AyudaPantalla
+                titulo="Cómo se calculan las provisiones"
+                intro="Son cifras referenciales: el contador cierra los montos."
+              >
+                <ComoSeCalculan data={data} />
+              </AyudaPantalla>
+            ) : undefined
           }
           accion={
             data && (
@@ -261,29 +252,13 @@ export default function ProvisionesPage() {
           }
         />
 
-        {data && comoAbierto && (
-          <div id="como-se-calculan">
-            <TarjetaInfo
-              titulo="Cómo se calculan las provisiones"
-              className="mb-6 max-w-3xl"
-              accion={
-                <Boton variante="enlace" className="text-sm" onClick={() => setComoAbierto(false)}>
-                  Cerrar
-                </Boton>
-              }
-            >
-              <ComoSeCalculan data={data} />
-            </TarjetaInfo>
-          </div>
-        )}
-
         {error && (
-          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <BannerAviso role="alert" variante="alerta" enLinea className="mb-4 max-w-3xl">
             No se pudieron cargar las provisiones: {error}{" "}
             <Boton variante="enlace" className="font-medium" onClick={() => void cargar()}>
               Reintentar
             </Boton>
-          </div>
+          </BannerAviso>
         )}
 
         {cargando && !data && <Cargando />}

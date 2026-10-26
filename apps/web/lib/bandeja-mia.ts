@@ -4,12 +4,15 @@ import {
   type EstadoConstancia, type MotivoRechazo,
 } from "@cayla-dynamic/shared";
 import { loQueNoSePudo } from "./admin/lo-que-no-se-pudo";
+import { esJornadaEnCurso } from "./admin/jornada-esperada";
 import { traerAcusesPendientes, type AcusePendiente } from "./acuses-pendientes";
 import { ordenarContratoVigente } from "./mi-contrato";
 import { puedePedirBono, traerMiBono, type MiBono } from "./mi-bono";
 import { formatSoles } from "./rangos";
-import { esBoletaNueva } from "./boletas";
+import { esBoletaPorFirmar } from "./boletas";
 import { nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "./mis-boletas";
+import { fechaEnPalabras, traerMisReportes, tituloDeReporte, type FilaMiReporte } from "./reportes";
+import { compartirMientrasVuela } from "./compartir-mientras-vuela";
 
 /**
  * La Bandeja de cada persona — «qué te respondieron».
@@ -34,9 +37,10 @@ import { nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "./mis-bole
  *   firma, no cuando lo mira.
  *     · su contrato, mientras no confirme su firma   (contratos_generados, 0402)
  *     · un memo disciplinario por firmar             (fn_mis_memos, 0404)
+ *     · un memo que le enviaron a su Info y aún no recibió  (fn_mis_memos_por_recibir, 0486)
  *     · la política salarial y el RIT sin acusar     (Ley 30709)
  *     · días con el marcaje incompleto del periodo que se le va a pagar
- *     · su boleta oficial publicada y todavía sin abrir  (fn_mis_boletas, 0482)
+ *     · su boleta oficial publicada y todavía sin firmar (fn_mis_boletas, 0482/0532)
  *
  *   RESPUESTAS — lo que pidió y alguien le contestó. Eso sí caduca a los
  *   DIAS_NOVEDAD, porque no hay nada que hacer con ello:
@@ -108,12 +112,15 @@ export type OrigenBandeja =
   | "educacion"
   // Lo que depende de ti. No caduca.
   | "contrato" | "memo" | "acuse" | "marcaje" | "ruta" | "bono"
-  // Su boleta oficial publicada, sin abrir (0482). Deja de contar cuando la abre.
+  // Su boleta oficial publicada, sin firmar (0482/0532). Deja de contar cuando la firma.
   | "boleta"
   // Te lo hicieron a ti — no lo pediste, así que no hay nada "esperando" para
   // este origen — pero caduca igual que una respuesta: un turno ya guardado
   // no es algo que quede pendiente de hacer.
-  | "turno";
+  | "turno"
+  // Sus reportes (0483/0488): lo que le respondieron y no leyó, y lo que sigue
+  // abierto esperando respuesta.
+  | "reporte";
 
 /**
  * `atendido` es de las revisiones y no es lo mismo que `aprobado`: a un pedido
@@ -240,6 +247,17 @@ export interface FilaMemo {
   sancionado_rechazo_firma_at: string | null;
 }
 
+/**
+ * Un memo que se envió a su Info y todavía no recibió, de
+ * `fn_mis_memos_por_recibir()` (0486). Solo `id` y desde cuándo: ni el nivel ni
+ * el motivo viajan acá, porque esta tarjeta la ve de reojo cualquiera que pase
+ * cerca de la pantalla. El detalle recién existe al abrir el documento.
+ */
+export interface FilaMemoPorRecibir {
+  id: string;
+  enviado_a_info_at: string;
+}
+
 /** Un día del periodo abierto cuyo marcaje quedó incompleto. */
 export interface FilaMarcaje {
   fecha: string;
@@ -266,6 +284,9 @@ export interface FilaMovilidad {
   ruta_firmada_el: string | null;
   ruta_monto: number | null;
   ruta_desfasada: boolean;
+  /** 0492 — incompleta (versión corta, sin pasaje) o vencida (un año). Sin la
+   *  0492 pegada no llega, y se lee como «al día». */
+  ruta_por_renovar?: "incompleta" | "vencida" | null;
 }
 
 /** Una constancia de estudios suya (0450), de `educacion_entregas`, con su estudio. */
@@ -298,7 +319,7 @@ export interface FilaEducacionSituacion {
  * hecho que la base ya guarda (`vista_at`), así que no hay tabla de «vistos»
  * para esto, igual que con un contrato sin firmar.
  */
-export type FilaBoletaBandeja = Pick<FilaMiBoleta, "boleta_id" | "fecha_fin" | "estado" | "vista_at" | "publicada_at">;
+export type FilaBoletaBandeja = Pick<FilaMiBoleta, "boleta_id" | "fecha_fin" | "estado" | "vista_at" | "recibida_at" | "publicada_at">;
 
 export interface FuentesBandeja {
   perfil: FilaPerfil[];
@@ -307,6 +328,8 @@ export interface FuentesBandeja {
   /** El contrato vigente, o null si no tiene ninguno. */
   contrato: FilaContrato | null;
   memos: FilaMemo[];
+  /** Memos enviados a su Info que todavía no recibió (0486). Opcional: sin él, no se dice nada. */
+  memosPorRecibir?: FilaMemoPorRecibir[];
   /** Ya resueltos por lib/acuses-pendientes.ts: acá solo se pintan. */
   acuses: AcusePendiente[];
   /** Días del periodo abierto, sin filtrar: el criterio de «incompleto» vive acá. */
@@ -321,13 +344,21 @@ export interface FuentesBandeja {
   turnos: FilaTurno[];
   /**
    * Su bono de cumpleaños (0478), de `fn_mi_bono_cumpleanos`. NO del
-   * `bono_estado` del tablero: ese no sabe que el bono es de planilla y le
-   * pediría a una practicante algo que la base le niega. Opcional: sin él no
-   * se dice nada del bono.
+   * `bono_estado` del tablero: ese no distingue un pedido ya hecho pero todavía
+   * sin pagar de uno entregado (0478/0479). Opcional: sin él no se dice nada
+   * del bono.
    */
   bono?: MiBono | null;
+  /**
+   * Está en modalidad formativa (`tipo_vinculo = 'practicante'`). Solo cambia la
+   * palabra con la que se nombra lo que cobra: su boleta paga una «subvención»,
+   * no una planilla (0521). Opcional: sin él se asume que no.
+   */
+  practicante?: boolean;
   /** Sus boletas oficiales (0482). Opcional: sin ellas, no se dice nada de boletas. */
   boletas?: FilaBoletaBandeja[];
+  /** Sus reportes (0488), de `fn_reportes_mios`. Opcional: sin ellos, no se dice nada de reportes. */
+  reportes?: FilaMiReporte[];
   /** Sus constancias de estudios (0450). Opcional: quien no estudia no trae nada. */
   educacionEntregas?: FilaEducacionEntrega[];
   /** Sus estudios y en qué está cada constancia (0450). */
@@ -501,21 +532,34 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
   // firmó pero con una tarifa que quedó vieja, se le avisa igual: es la
   // misma alerta que ya pinta el tablero de Documentación para DO, solo que
   // acá le llega a ELLA, que es quien puede arreglarlo firmando de nuevo.
-  if (fuentes.movilidad && (fuentes.movilidad.estado === "sin_ruta" || fuentes.movilidad.ruta_desfasada)) {
+  // Y desde la 0492, si quedó por renovar (incompleta o vencida): también la
+  // arregla ELLA firmando de nuevo. La desfasada manda si coinciden.
+  const porRenovar = fuentes.movilidad?.estado === "ok" && !fuentes.movilidad.ruta_desfasada
+    ? (fuentes.movilidad.ruta_por_renovar ?? null) : null;
+  if (fuentes.movilidad && (fuentes.movilidad.estado === "sin_ruta" || fuentes.movilidad.ruta_desfasada || porRenovar)) {
     const mov = fuentes.movilidad;
     const desfasada = mov.estado !== "sin_ruta" && mov.ruta_desfasada;
+    const yaFirmada = desfasada || porRenovar !== null;
     pendientes.push({
-      instante: desfasada && mov.ruta_firmada_el ? Date.parse(`${mov.ruta_firmada_el}T00:00:00Z`) : 0,
+      instante: yaFirmada && mov.ruta_firmada_el ? Date.parse(`${mov.ruta_firmada_el}T00:00:00Z`) : 0,
       m: {
         clave: "ruta:declaracion", origen: "ruta", estado: "por_firmar",
-        fecha: desfasada && mov.ruta_firmada_el ? mov.ruta_firmada_el : hoy,
+        fecha: yaFirmada && mov.ruta_firmada_el ? mov.ruta_firmada_el : hoy,
         titulo: desfasada
           ? "Tu declaración de ruta quedó desactualizada"
-          : "Falta tu declaración de ruta y gasto de transporte",
+          : porRenovar === "incompleta"
+            ? "Renueva tu declaración de ruta: ahora tiene los cinco puntos"
+            : porRenovar === "vencida"
+              ? "Renueva tu declaración de ruta: ya pasó un año"
+              : "Falta tu declaración de ruta y gasto de transporte",
         respuesta: null,
         detalle: desfasada
           ? `La firmaste declarando S/ ${Number(mov.ruta_monto).toFixed(2)} y hoy se paga otra tarifa. Vuelve a firmarla con el monto vigente.`
-          : "Sostiene que tu movilidad no pague impuestos ni descuentos. Fírmala desde el sistema — no hace falta imprimir ni escanear nada.",
+          : porRenovar === "incompleta"
+            ? "La firmaste con la versión corta, que no preguntaba el costo del pasaje ni el uso de taxi. Vuelve a firmarla; tu movilidad se sigue pagando igual mientras tanto."
+            : porRenovar === "vencida"
+              ? "Se renueva una vez al año para confirmar tu ruta. Vuelve a firmarla; tu movilidad se sigue pagando igual mientras tanto."
+              : "Sostiene que tu movilidad no pague impuestos ni descuentos. Fírmala desde el sistema — no hace falta imprimir ni escanear nada.",
         nuevo: true,
         ir: "/mio/movilidad",
         marcarVistoComo: null,
@@ -538,7 +582,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         respuesta: null,
         detalle: b.estado === "vencido"
           ? `${monto}Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo.`
-          : `${monto}Es el mes de tu cumpleaños. Lo pides firmando tu constancia y se suma a tu boleta.`,
+          : `${monto}Es el mes de tu cumpleaños. Lo pides firmando tu constancia.`,
         nuevo: true,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,
@@ -560,6 +604,28 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         detalle: "Está en Info, en la pestaña «Historial». Firmarlo no es aceptar lo que dice: puedes firmarlo y presentar tu descargo, o dejar constancia de que te niegas a firmar.",
         nuevo: true,
         ir: "/mio",
+        marcarVistoComo: null,
+      },
+    });
+  }
+
+  // Los memos ENVIADOS a su Info que todavía no recibió (0486). Es lo mismo que
+  // un memo por firmar para la Bandeja —algo que depende de ella y no caduca—,
+  // con una diferencia que importa: ESTE todavía no está entregado, y solo su
+  // confirmación lo entrega. Por eso el texto le pide RECIBIRLO, no firmarlo:
+  // firmar es opcional, recibir es lo que cuenta.
+  //
+  // GENÉRICO, igual que arriba: ni el nivel ni el motivo.
+  for (const m of fuentes.memosPorRecibir ?? []) {
+    pendientes.push({
+      instante: Date.parse(m.enviado_a_info_at),
+      m: {
+        clave: `memo-recibir:${m.id}`, origen: "memo", estado: "por_firmar", fecha: fechaLima(m.enviado_a_info_at),
+        titulo: "Tienes un documento por recibir",
+        respuesta: null,
+        detalle: "Ábrelo, léelo y confirma que lo recibiste. Recibirlo no es aceptar lo que dice: puedes firmarlo y presentar tu descargo, o recibirlo sin firmar.",
+        nuevo: true,
+        ir: `/mio/memo/${m.id}`,
         marcarVistoComo: null,
       },
     });
@@ -606,7 +672,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
       // sin horas o cerrada por el sistema es un día que hay que revisar.
       .filter((j) => j.estado === "auto_cerrada_pendiente" || j.horas_trabajadas === null)
       // Su jornada de HOY todavía abierta no es un día roto: está trabajando.
-      .filter((j) => !(j.fecha === hoy && (j.estado === "abierta" || j.estado === "en_pausa")))
+      .filter((j) => !esJornadaEnCurso(j.fecha, hoy, j.estado))
       .map((j) => j.fecha)
       .sort();
 
@@ -626,22 +692,68 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     }
   }
 
-  // Su boleta oficial publicada y sin abrir (0482). Cuenta hasta que la abre —
-  // `vista_at` ya está guardado—, y NO caduca a los DIAS_NOVEDAD: una boleta sin
-  // abrir a los 20 días es justo la que más hay que seguir avisando. Una por
-  // periodo, con el mes en el título: dos boletas sin abrir son dos avisos.
+  // Su boleta oficial publicada y sin firmar (0482/0532). Cuenta hasta que la
+  // firma —`recibida_at` ya está guardado—, y NO caduca a los DIAS_NOVEDAD: una
+  // boleta sin firmar a los 20 días es justo la que más hay que seguir avisando.
+  // Una por periodo, con el mes en el título: dos boletas sin firmar son dos avisos.
   for (const b of fuentes.boletas ?? []) {
-    if (!esBoletaNueva(b) || !b.boleta_id) continue;
+    if (!esBoletaPorFirmar(b) || !b.boleta_id) continue;
     pendientes.push({
       instante: b.publicada_at ? Date.parse(b.publicada_at) : 0,
       m: {
         clave: `boleta:${b.boleta_id}`, origen: "boleta", estado: "por_ver",
         fecha: b.publicada_at ? fechaLima(b.publicada_at) : hoy,
-        titulo: `Tu boleta de ${nombreDelPeriodo(b.fecha_fin, { conAnio: false, minuscula: true })} ya está disponible`,
+        titulo: b.vista_at
+          ? `Tu boleta de ${nombreDelPeriodo(b.fecha_fin, { conAnio: false, minuscula: true })} espera tu firma`
+          : `Tu boleta de ${nombreDelPeriodo(b.fecha_fin, { conAnio: false, minuscula: true })} ya está disponible`,
         respuesta: null,
-        detalle: "Es la boleta oficial que entregó el contador. Ábrela en «Boletas»; seguirá acá hasta que la abras.",
+        detalle: b.vista_at
+          ? "Ya la abriste. Fírmala en «Boletas» para darla por recibida; seguirá acá hasta que la firmes."
+          : "Es la boleta oficial que entregó el contador. Ábrela en «Boletas» y fírmala; seguirá acá hasta que la firmes.",
         nuevo: true,
         ir: "/mio?tab=boletas",
+        marcarVistoComo: null,
+      },
+    });
+  }
+
+  // Sus reportes (0488). Lo que le escribieron o el cierre, sin leer, cuenta
+  // hasta que abre el reporte —abrirlo lo deja escrito en la base— y NO caduca
+  // a los DIAS_NOVEDAD, por lo mismo que la boleta: una respuesta sobre algo
+  // que ella contó es justo la que no puede perderse. Lo que sigue abierto sin
+  // nada nuevo va a «esperando», con la fecha en que le tienen que responder.
+  for (const r of fuentes.reportes ?? []) {
+    const clave = `reporte:${r.id}`;
+    const nombre = `${tituloDeReporte(r.tipo, r.via).toLowerCase()} (${r.codigo})`;
+    if (r.sin_leer > 0) {
+      const cuando = r.cerrado_at ?? r.ultimo_mensaje_at ?? r.creado_at;
+      respuestas.push({
+        instante: Date.parse(cuando),
+        m: {
+          clave, origen: "reporte", estado: "atendido", fecha: fechaLima(cuando),
+          titulo: r.estado === "cerrado" ? `Respondieron y cerraron tu reporte: ${nombre}` : `Te respondieron en tu reporte: ${nombre}`,
+          respuesta: null,
+          detalle: "Ábrelo para leer la respuesta; seguirá acá hasta que lo abras.",
+          nuevo: true,
+          ir: `/mio/reportes/${r.id}`,
+          marcarVistoComo: null,
+        },
+      });
+      continue;
+    }
+    if (r.estado === "cerrado") continue;
+    const fecha = fechaLima(r.creado_at);
+    esperando.push({
+      instante: Date.parse(r.creado_at),
+      m: {
+        clave, origen: "reporte", estado: "pendiente", fecha,
+        titulo: `Enviaste un reporte: ${nombre}`,
+        respuesta: null,
+        detalle: r.respuesta_vence_at
+          ? `Lo enviaste ${haceCuanto(fecha, hoy)}. Te responden por escrito a más tardar el ${fechaEnPalabras(r.respuesta_vence_at)}.`
+          : `Lo enviaste ${haceCuanto(fecha, hoy)}. Sigue en curso.`,
+        nuevo: false,
+        ir: `/mio/reportes/${r.id}`,
         marcarVistoComo: null,
       },
     });
@@ -842,7 +954,8 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         titulo: "Tu bono de cumpleaños va en tu boleta",
         respuesta: null,
         detalle: `Lo pediste ${haceCuanto(pedidoEl, hoy)}. ${b.monto !== null ? `${formatSoles(b.monto)} ya ` : "Ya "}está en tu boleta${
-          b.periodo_fin ? ` del periodo que cierra el ${diaYMes(b.periodo_fin)}` : ""} y se paga junto con tu planilla.`,
+          b.periodo_fin ? ` del periodo que cierra el ${diaYMes(b.periodo_fin)}` : ""} y se paga junto con ${
+          fuentes.practicante ? "tu subvención" : "tu planilla"}.`,
         nuevo: false,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,
@@ -857,7 +970,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
       instante: Date.parse(`${periodoFin}T00:00:00Z`),
       m: {
         clave: `bono:${b.documento_id}`, origen: "bono", estado: "atendido", fecha: periodoFin,
-        titulo: "Tu bono de cumpleaños se pagó con tu planilla",
+        titulo: `Tu bono de cumpleaños se pagó con ${fuentes.practicante ? "tu subvención" : "tu planilla"}`,
         respuesta: null,
         detalle: `${b.monto !== null ? `${formatSoles(b.monto)} · ` : ""}en tu boleta del periodo que cerró el ${diaYMes(periodoFin)}.`,
         nuevo: false,
@@ -1048,7 +1161,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion, vistos, bono, boletas] =
+    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes, ficha] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -1087,7 +1200,8 @@ export async function traerBandeja(
     // hace seguro reusar la función del tablero admin: sin ese argumento,
     // alguien con rol admin o líder que abra su PROPIA bandeja vería la fila
     // de cualquier compañera (la primera que devuelva el orden), no la suya.
-    supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }),
+    // Compartida con la pantalla de /mio, que pide la misma fila al abrir (compartir-mientras-vuela.ts).
+    compartirMientrasVuela("fn_documentos_tablero:mi_fila", async () => await supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true })),
     // Sus propios pedidos de revisión de esa declaración (0425). Sin admin de
     // por medio, esta misma RPC ya devuelve solo lo suyo — mismo criterio que
     // fn_documentos_tablero con p_solo_mi_fila.
@@ -1128,6 +1242,16 @@ export async function traerBandeja(
     // Sus boletas oficiales (0482). La función contesta solo por quien
     // pregunta, sin excepción para DO: no hace falta filtro de persona.
     traerMisBoletas(supabase),
+    // Los memos que le enviaron a su Info y todavía no recibió (0486). La función
+    // contesta solo por quien pregunta y devuelve únicamente los enviados: un
+    // borrador, o un firmado que nadie envió, sigue siendo invisible para ella.
+    supabase.rpc("fn_mis_memos_por_recibir"),
+    // Sus reportes (0488). Igual: `fn_reportes_mios` contesta solo por quien pregunta.
+    traerMisReportes(supabase),
+    // Su vínculo (0521): solo para nombrar bien lo que cobra. Falla suave: sin él
+    // se dice «planilla», que es lo que decía antes — y NO entra en `noSePudo`,
+    // por lo mismo que las etiquetas del catálogo.
+    supabase.from("personas").select("tipo_vinculo").eq("id", personaId).maybeSingle(),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -1155,6 +1279,7 @@ export async function traerBandeja(
     revisiones: (revisiones.data ?? []) as unknown as FilaRevision[],
     contrato: (contrato.data ?? null) as unknown as FilaContrato | null,
     memos: ((memos.data ?? []) as unknown as FilaMemo[]),
+    memosPorRecibir: ((memosPorRecibir.data ?? []) as unknown as FilaMemoPorRecibir[]),
     acuses,
     marcajes: ((marcajes?.data ?? []) as unknown as FilaMarcaje[]),
     periodo: per,
@@ -1167,7 +1292,9 @@ export async function traerBandeja(
     educacionSituacion: ((educacionSituacion.data ?? []) as unknown as FilaEducacionSituacion[])
       .filter((s) => s.persona_id === personaId),
     bono: bono.bono,
+    practicante: (ficha.data as { tipo_vinculo?: string } | null)?.tipo_vinculo === "practicante",
     boletas: boletas.filas,
+    reportes: reportes.filas,
     vistos: new Set(
       ((vistos.data ?? []) as { tipo_item: string; item_id: string }[])
         .map((v) => `${v.tipo_item}:${v.item_id}`),
@@ -1191,6 +1318,9 @@ export async function traerBandeja(
       { error: revisiones.error, que: "tus pedidos de revisar un día" },
       { error: contrato.error, que: "tu contrato" },
       { error: memos.error, que: "tus documentos por firmar" },
+      // Si la 0486 no está pegada esto lo dice a gritos, como con las boletas: un
+      // documento por recibir que no se muestra es peor que un aviso de más.
+      { error: memosPorRecibir.error, que: "tus documentos por recibir" },
       { error: marcajes?.error ?? null, que: "tus días del periodo" },
       { error: movilidad.error, que: "tu declaración de ruta" },
       { error: revisionesMovilidad.error, que: "tus pedidos de revisión de esa declaración" },
@@ -1201,6 +1331,7 @@ export async function traerBandeja(
       // Solo importa que haya fallado: para no pintar «no tienes nada» sobre una
       // boleta que sí hay. (Si la 0482 no está pegada, esto lo dice a gritos.)
       { error: boletas.error, que: "tus boletas" },
+      { error: reportes.error, que: "tus reportes" },
     ]),
   };
 }

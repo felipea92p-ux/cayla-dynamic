@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Disciplina en Lo mío</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<!--
+  Prototipo de la entrega 4 de «amonestaciones por conducta» (2026-10-06).
+  Qué ve la PERSONA en «Lo mío»: el mensaje de aliento, lo que tiene por leer,
+  su constancia de lectura y cómo va este mes. Datos ficticios. Los colores son
+  los trece tokens de apps/web/app/globals.css. No es código de la app.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18;
+    --color-rojo:#b8412d; --color-sand:#e8e0d0; --color-taupe:#805c4c;
+    --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-azul:#2f5f9e; --color-ceniza:#635f58;
+    --font-sans:'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-serif:'EB Garamond', ui-serif, Georgia, "Times New Roman", serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+      --color-rojo:#d4634a; --color-sand:#332e27; --color-taupe:#ab9080;
+      --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+      --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+    --color-rojo:#d4634a; --color-sand:#332e27; --color-taupe:#ab9080;
+    --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+    color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{ background:var(--color-crema); color:var(--color-tinta); font-family:var(--font-sans); font-size:14.5px; line-height:1.5; padding:28px 16px 72px; }
+  .page{ max-width:1120px; margin-inline:auto; display:flex; flex-direction:column; gap:28px; }
+  h1,h2,h3,h4{ font-family:var(--font-serif); font-weight:600; margin:0; text-wrap:balance; }
+  p{ margin:0; }
+  button,input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
+  :focus-visible{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+
+  .masthead{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px; align-items:flex-start; }
+  .masthead h1{ font-size:1.9rem; margin:10px 0 6px; }
+  .masthead p{ color:var(--color-taupe); max-width:64ch; }
+  .badge-demo{ display:inline-flex; font-size:.72rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--color-pizarra);
+    background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-pizarra) 35%, transparent); padding:5px 10px; border-radius:100px; }
+  .controles{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .seg{ display:inline-flex; flex-wrap:wrap; border:1px solid var(--color-sand); border-radius:10px; overflow:hidden; background:var(--color-papel); }
+  .seg button{ border:0; background:none; padding:7px 12px; font-size:.82rem; font-weight:600; color:var(--color-taupe); cursor:pointer; }
+  .seg button[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); }
+
+  .decision{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:16px; }
+  .decision header{ display:flex; flex-direction:column; gap:4px; }
+  .num{ font-size:.75rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--color-rojo); }
+  .decision h2{ font-size:1.45rem; }
+  .decision header p{ color:var(--color-taupe); max-width:72ch; }
+  .opciones{ display:flex; flex-wrap:wrap; gap:8px; }
+  .opcion{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:12px; padding:9px 14px; cursor:pointer; text-align:left; display:flex; flex-direction:column; gap:1px; }
+  .opcion strong{ font-size:.9rem; } .opcion span{ font-size:.75rem; color:var(--color-taupe); }
+  .opcion[aria-selected="true"]{ border-color:var(--color-tinta); background:var(--color-papel); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+  .rec{ font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--color-verde); }
+  .ganas{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:640px){ .ganas{ grid-template-columns:1fr; } }
+  .ganas div{ border-radius:10px; padding:10px 12px; font-size:.86rem; }
+  .ganas .g{ background:color-mix(in oklab, var(--color-verde) 10%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-verde) 30%, transparent); }
+  .ganas .p{ background:color-mix(in oklab, var(--color-ambar) 10%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-ambar) 30%, transparent); }
+  .ganas b{ display:block; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px; }
+  .variante{ display:none; } .variante.activa{ display:block; }
+
+  .escenario{ background:var(--color-hueso); border-radius:14px; padding:18px; display:flex; justify-content:center; }
+  .pantalla{ width:100%; max-width:980px; background:var(--color-crema); border:1px solid var(--color-sand); border-radius:12px; overflow:hidden; transition:max-width .25s ease; }
+  body.celular .pantalla{ max-width:390px; }
+  .barra-app{ display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--color-sand); background:var(--color-papel); font-size:.8rem; color:var(--color-taupe); }
+  .barra-app .marca{ font-family:var(--font-serif); font-size:1.05rem; color:var(--color-tinta); font-weight:600; }
+  .barra-app .quien{ margin-left:auto; }
+  .app{ display:grid; grid-template-columns:210px 1fr; min-height:420px; }
+  body.celular .app{ grid-template-columns:1fr; }
+  body.celular .menu{ display:none; }
+  .menu{ border-right:1px solid var(--color-sand); padding:12px 10px; background:var(--color-papel); display:flex; flex-direction:column; gap:2px; font-size:.84rem; }
+  .menu .grupo{ font-size:.66rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--color-taupe); padding:10px 8px 4px; }
+  .menu .it{ display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px 8px; border-radius:8px; color:var(--color-tinta); }
+  .menu .it.on{ background:var(--color-sand); font-weight:600; }
+  .menu .it.nuevo{ font-weight:600; }
+  .cuerpo-app{ padding:18px; display:flex; flex-direction:column; gap:14px; min-width:0; }
+  .titulo-app h3{ font-size:1.6rem; } .titulo-app p{ color:var(--color-taupe); font-size:.85rem; margin-top:2px; }
+  .cnt{ font-size:.68rem; font-weight:700; background:var(--color-rojo); color:var(--color-crema); border-radius:100px; padding:1px 7px; font-variant-numeric:tabular-nums; }
+  .cnt.suave{ background:var(--color-sand); color:var(--color-taupe); }
+
+  .btn{ border-radius:10px; padding:8px 14px; font-weight:600; font-size:.86rem; cursor:pointer; border:1px solid transparent; white-space:nowrap; }
+  .btn-primario{ background:var(--color-tinta); color:var(--color-crema); }
+  .btn-primario[disabled]{ opacity:.4; cursor:not-allowed; }
+  .btn-sec{ background:var(--color-papel); border-color:var(--color-sand); }
+  .pill{ font-size:.72rem; font-weight:600; border-radius:100px; padding:2px 8px; white-space:nowrap; }
+  .pill-pizarra{ color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel)); }
+  .pill-ambar{ color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 14%, var(--color-papel)); }
+  .pill-verde{ color:var(--color-verde); background:color-mix(in oklab, var(--color-verde) 14%, var(--color-papel)); }
+  .pill-ceniza{ color:var(--color-ceniza); background:color-mix(in oklab, var(--color-ceniza) 14%, var(--color-papel)); }
+  .nota{ font-size:.8rem; color:var(--color-taupe); border-left:3px solid var(--color-sand); padding-left:10px; }
+  .mini-rotulo{ font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--color-taupe); }
+
+  /* ── aliento ───────────────────────────────────────────── */
+  .aliento{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:26px 22px; text-align:center; display:flex; flex-direction:column; gap:10px; align-items:center; }
+  .aliento .carita{ width:46px; height:46px; border-radius:50%; background:color-mix(in oklab, var(--color-verde) 16%, var(--color-papel)); display:grid; place-items:center; color:var(--color-verde); }
+  .aliento .msj{ font-family:var(--font-serif); font-size:1.35rem; max-width:34ch; text-wrap:balance; }
+  .aliento .otro{ background:none; border:0; color:var(--color-taupe); font-size:.78rem; cursor:pointer; text-decoration:underline; }
+
+  /* ── tarjetas de documento ─────────────────────────────── */
+  .doc{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .doc.porleer{ border-color:color-mix(in oklab, var(--color-ambar) 55%, var(--color-sand)); box-shadow:inset 3px 0 0 var(--color-ambar); }
+  .doc .cab{ display:flex; flex-wrap:wrap; gap:6px 10px; align-items:baseline; justify-content:space-between; }
+  .doc .cab strong{ font-family:var(--font-serif); font-size:1.15rem; font-weight:600; }
+  .doc .meta{ font-size:.8rem; color:var(--color-taupe); display:flex; flex-wrap:wrap; gap:4px 14px; }
+  .doc .falta{ background:var(--color-hueso); border-radius:10px; padding:9px 11px; font-size:.86rem; }
+  .doc .falta b{ display:block; font-size:.7rem; letter-spacing:.05em; text-transform:uppercase; color:var(--color-taupe); }
+  .doc .relato{ border-left:3px solid var(--color-sand); padding-left:11px; }
+  .doc .vigencia{ font-size:.82rem; }
+  .doc .acciones{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .doc .oculto{ display:none; }
+  .constancia{ font-size:.82rem; color:var(--color-verde); display:flex; gap:6px; align-items:center; }
+  .doc details{ font-size:.82rem; color:var(--color-taupe); }
+  .doc summary{ cursor:pointer; font-weight:600; color:var(--color-tinta); }
+  .aviso-privado{ font-size:.78rem; color:var(--color-taupe); }
+  .cancelado{ opacity:.75; }
+
+  .comovas{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; }
+  .casillas{ display:flex; gap:5px; align-items:center; }
+  .casillas i{ width:12px; height:12px; border-radius:3px; background:var(--color-sand); display:inline-block; }
+  .casillas i.on{ background:var(--color-tinta); }
+  .tarjeta-resumen{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:12px; padding:12px 14px; display:flex; justify-content:space-between; gap:10px; align-items:center; }
+
+  .lista-msj{ columns:2 280px; gap:20px; font-size:.86rem; }
+  .lista-msj li{ break-inside:avoid; margin-bottom:8px; }
+  footer.fin{ color:var(--color-taupe); font-size:.8rem; text-align:center; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <section class="masthead">
+    <div>
+      <span class="badge-demo">Prototipo · datos ficticios</span>
+      <h1>Disciplina, vista por la persona</h1>
+      <p>Lo que ve una integrante en «Lo mío»: el mensaje de aliento cuando no hay nada, lo que tiene por leer con su constancia, y cómo va este mes. Dos decisiones antes de construir; cambia la situación y el dispositivo para ver cada caso.</p>
+    </div>
+    <div class="controles">
+      <div class="seg" role="group" aria-label="Dispositivo">
+        <button type="button" data-dispositivo="computadora" aria-pressed="true">Computadora</button>
+        <button type="button" data-dispositivo="celular" aria-pressed="false">Celular</button>
+      </div>
+      <div class="seg" role="group" aria-label="Tema">
+        <button type="button" data-tema="" aria-pressed="true">Sistema</button>
+        <button type="button" data-tema="light" aria-pressed="false">Claro</button>
+        <button type="button" data-tema="dark" aria-pressed="false">Oscuro</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════ DECISIÓN 1 · DÓNDE VIVE ═════════════ -->
+  <section class="decision" data-decision="donde">
+    <header>
+      <span class="num">Decisión 1 de 2</span>
+      <h2>¿Dónde vive la pestaña?</h2>
+      <p>Hoy los memos están en «Historial», que es la última sección del grupo Seguimiento. Una persona que quiere ver cómo va no sabe que ahí hay disciplina.</p>
+    </header>
+    <div class="opciones" role="tablist">
+      <button class="opcion" role="tab" aria-selected="true" data-v="a"><span class="rec">Recomendada</span><strong>A · Sección propia «Disciplina»</strong><span>En Seguimiento; Historial queda con las correcciones</span></button>
+      <button class="opcion" role="tab" aria-selected="false" data-v="b"><strong>B · Dentro de Historial</strong><span>Los memos pasan arriba de todo</span></button>
+      <button class="opcion" role="tab" aria-selected="false" data-v="c"><strong>C · Solo una tarjeta en Resumen</strong><span>Sin sección nueva</span></button>
+    </div>
+
+    <div class="variante activa" data-v="a">
+      <div class="escenario"><div class="pantalla">
+        <div class="barra-app"><span class="marca">Dynamic</span><span>Lo mío</span><span class="quien">Andrea Torres</span></div>
+        <div class="app">
+          <nav class="menu" aria-label="Secciones">
+            <div class="it">Resumen</div>
+            <div class="grupo">Asistencia</div><div class="it">Mis días</div><div class="it">Mis turnos</div><div class="it">Vacaciones y permisos</div>
+            <div class="grupo">Pago</div><div class="it">Boletas</div><div class="it">Movilidad</div><div class="it">Educación</div>
+            <div class="grupo">Documentos</div><div class="it">Contrato</div><div class="it">Firma</div><div class="it">Mi DNI</div><div class="it">Mis datos</div>
+            <div class="grupo">Seguimiento</div><div class="it">Objetivos</div><div class="it">Reportes</div>
+            <div class="it on nuevo">Disciplina <span class="cnt" id="menu-cnt">1</span></div><div class="it">Historial</div>
+          </nav>
+          <div class="cuerpo-app">
+            <div class="titulo-app"><h3>Disciplina</h3><p>Lo que consta en tu legajo y cómo vas este mes</p></div>
+            <p class="nota">Esta pantalla se dibuja completa más abajo, con cada situación.</p>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="variante" data-v="b">
+      <div class="escenario"><div class="pantalla">
+        <div class="barra-app"><span class="marca">Dynamic</span><span>Lo mío › Historial</span><span class="quien">Andrea Torres</span></div>
+        <div class="cuerpo-app">
+          <div class="titulo-app"><h3>Historial</h3><p>Tus memos y las correcciones a tus marcajes</p></div>
+          <div class="mini-rotulo">Disciplina</div>
+          <div class="doc"><div class="cab"><strong>Amonestación escrita</strong><span class="pill pill-ambar">Por leer</span></div><div class="meta"><span>6 de octubre</span><span>Trato descortés (53.2 h)</span></div></div>
+          <div class="mini-rotulo">Correcciones a tus marcajes</div>
+          <div class="doc"><div class="meta"><span>Nadie ha corregido ningún marcaje tuyo.</span></div></div>
+          <p class="nota">Quien busca «cómo voy» tiene que abrir «Historial», y el contador del menú diría «Historial 1», sin decir de qué.</p>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="variante" data-v="c">
+      <div class="escenario"><div class="pantalla">
+        <div class="barra-app"><span class="marca">Dynamic</span><span>Lo mío › Resumen</span><span class="quien">Andrea Torres</span></div>
+        <div class="cuerpo-app">
+          <div class="titulo-app"><h3>Resumen</h3></div>
+          <div class="tarjeta-resumen"><div><strong>Tienes un documento por leer</strong><div class="aviso-privado">Ábrelo para ver el detalle.</div></div><button class="btn btn-primario">Abrir</button></div>
+          <div class="tarjeta-resumen"><div><strong>Boleta de setiembre disponible</strong></div><button class="btn btn-sec">Ver</button></div>
+          <p class="nota">Sin sección propia: no hay dónde ver el historial, ni el mensaje de aliento, ni «cómo vas». Solo avisa cuando hay algo.</p>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="ganas">
+      <div class="g" data-gp="a"><b>Ganas</b>La persona encuentra su disciplina donde la busca, con su propio nombre y su contador. Y el mensaje de aliento tiene dónde vivir.</div>
+      <div class="p" data-gp="a"><b>Pagas</b>Una sección más en el menú (de catorce a quince), y hay que mover los memos de Historial a ella.</div>
+      <div class="g" data-gp="b" hidden><b>Ganas</b>Sin sección nueva, y los memos siguen donde ya estaban.</div>
+      <div class="p" data-gp="b" hidden><b>Pagas</b>La sección se llama «Historial» y no dice que ahí está la disciplina; y el aviso de «por leer» llevaría a un nombre genérico.</div>
+      <div class="g" data-gp="c" hidden><b>Ganas</b>Lo más simple.</div>
+      <div class="p" data-gp="c" hidden><b>Pagas</b>No cumple lo que pediste: una interfaz de disciplina «visible para todos», con aliento cuando no hay nada. Si no hay nada, la tarjeta desaparece y la persona no ve nunca nada.</div>
+    </div>
+  </section>
+
+  <!-- ═════════════ DECISIÓN 2 · CUÁNTO SE VE ═════════════ -->
+  <section class="decision" data-decision="detalle">
+    <header>
+      <span class="num">Decisión 2 de 2</span>
+      <h2>¿Cuánto se ve en la lista, y cuánto detrás de «Leer»?</h2>
+      <p>Hoy la tarjeta de Resumen es genérica a propósito: cualquiera puede mirar la pantalla de reojo. Tú pediste que la persona vea el caso detallado. Esto decide qué se ve a primera vista y cómo se deja la constancia. Prueba el botón.</p>
+    </header>
+    <div class="opciones" role="tablist">
+      <button class="opcion" role="tab" aria-selected="true" data-v="a"><span class="rec">Recomendada</span><strong>A · Lo básico en la lista; el detalle detrás de «Leer»</strong><span>«Lo leí» se activa después de abrirlo</span></button>
+      <button class="opcion" role="tab" aria-selected="false" data-v="b"><strong>B · Todo a la vista</strong><span>«Lo leí» siempre activo</span></button>
+    </div>
+    <div class="escenario"><div class="pantalla"><div class="cuerpo-app" id="lab-detalle"></div></div></div>
+    <div class="ganas">
+      <div class="g" data-gp="a"><b>Ganas</b>«Lo leí» vale más: solo se puede pulsar después de abrir el documento, así que la constancia dice que lo abrió. Y lo que se ve de reojo es el tipo, la fecha y la falta, no el relato.</div>
+      <div class="p" data-gp="a"><b>Pagas</b>Un clic más para llegar al detalle.</div>
+      <div class="g" data-gp="b" hidden><b>Ganas</b>Todo a la vista, sin clic extra.</div>
+      <div class="p" data-gp="b" hidden><b>Pagas</b>Se puede pulsar «Lo leí» sin haber abierto nada, así que la constancia prueba menos. Y el relato de una sanción queda a la vista de quien mire la pantalla.</div>
+    </div>
+  </section>
+
+  <!-- ═════════════ LA PANTALLA ENTERA ═════════════ -->
+  <section class="decision">
+    <header>
+      <span class="num">Con las recomendadas</span>
+      <h2>La sección «Disciplina», en cada situación</h2>
+      <p>Lo que ve Andrea al entrar. Cambia la situación.</p>
+    </header>
+    <div class="controles">
+      <span class="mini-rotulo" style="margin:0">Situación:</span>
+      <div class="seg" role="group" aria-label="Situación">
+        <button type="button" data-sit="nada" aria-pressed="true">Nada vigente</button>
+        <button type="button" data-sit="recibir" aria-pressed="false">Por recibir</button>
+        <button type="button" data-sit="papel" aria-pressed="false">Entregado, sin leer</button>
+        <button type="button" data-sit="leido" aria-pressed="false">Leído y vigente</button>
+        <button type="button" data-sit="junto" aria-pressed="false">Todo junto</button>
+      </div>
+    </div>
+    <div class="escenario"><div class="pantalla">
+      <div class="barra-app"><span class="marca">Dynamic</span><span>Lo mío › Disciplina</span><span class="quien">Andrea Torres</span></div>
+      <div class="app">
+        <nav class="menu" aria-label="Secciones">
+          <div class="it">Resumen <span class="cnt" id="res-cnt" hidden>1</span></div>
+          <div class="grupo">Asistencia</div><div class="it">Mis días</div><div class="it">Mis turnos</div><div class="it">Vacaciones y permisos</div>
+          <div class="grupo">Pago</div><div class="it">Boletas</div><div class="it">Movilidad</div><div class="it">Educación</div>
+          <div class="grupo">Documentos</div><div class="it">Contrato</div><div class="it">Firma</div><div class="it">Mi DNI</div><div class="it">Mis datos</div>
+          <div class="grupo">Seguimiento</div><div class="it">Objetivos</div><div class="it">Reportes</div>
+          <div class="it on">Disciplina <span class="cnt" id="menu-cnt2" hidden>1</span></div><div class="it">Historial</div>
+        </nav>
+        <div class="cuerpo-app" id="pantalla"></div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- ═════════════ LOS MENSAJES ═════════════ -->
+  <section class="decision">
+    <header>
+      <span class="num">Para revisar</span>
+      <h2>Los mensajes de aliento</h2>
+      <p>Salen cuando no hay nada vigente ni por leer. Uno por día, el mismo todo el día para la misma persona. Estos son 16 para empezar; dime cuáles cambiarías o quitarías. Evité los que afirman algo sobre cómo se porta («eres puntual»), porque también los lee quien tuvo una tardanza ayer. Los más cálidos, y los que más conviene que revises, son el 5, el 10 y el 15.</p>
+    </header>
+    <ol class="lista-msj" id="lista-msj"></ol>
+  </section>
+
+  <footer class="fin">Prototipo para decidir la entrega 4. Personas y hechos ficticios; la falta citada es el 53.2 h) del RIT v4.0.</footer>
+</div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+const MENSAJES = [
+  "Todo en orden por aquí. No tienes nada pendiente de leer.",
+  "Pantalla tranquila hoy: sin llamados y sin documentos.",
+  "Nada que leer, nada que firmar. Que sea un día ligero.",
+  "Aquí no hay noticias, y en esta pantalla eso es buena noticia.",
+  "Tu legajo disciplinario no tiene nada vigente. Gracias por cuidar al equipo y a las clientas.",
+  "Sin pendientes. Tómate un cafecito: te lo mereces.",
+  "Cero papeles hoy. Hasta Desarrollo Organizacional lo celebra.",
+  "Todo en calma. Si algo no te queda claro, pregúntale a tu líder de equipo o a Desarrollo Organizacional.",
+  "Una pantalla vacía es una pantalla feliz.",
+  "Sin llamados de atención y sin documentos por leer. ¡Buen trabajo, equipo!",
+  "Hoy no hay nada para ti aquí. Aprovecha el día.",
+  "Nada pendiente. Y pedir ayuda a tiempo también es parte del buen trabajo.",
+  "Todo al día. Esta pantalla te avisará si algo cambia.",
+  "Silencio en Disciplina: lo mejor que puede pasar.",
+  "Sin novedades en tu legajo. Los detalles que cuidas son los que hacen grande a CAYLA.",
+  "Hoy esta pantalla descansa. Tú también puedes.",
+];
+$("#lista-msj").innerHTML = MENSAJES.map(m => `<li>${m}</li>`).join("");
+
+// ── controles globales ──────────────────────────────────────────────────────
+$$("[data-dispositivo]").forEach(b => b.addEventListener("click", () => {
+  $$("[data-dispositivo]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  document.body.classList.toggle("celular", b.dataset.dispositivo === "celular");
+}));
+$$("[data-tema]").forEach(b => b.addEventListener("click", () => {
+  $$("[data-tema]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  if (b.dataset.tema) document.documentElement.dataset.theme = b.dataset.tema; else delete document.documentElement.dataset.theme;
+}));
+$$(".decision[data-decision]").forEach(sec => {
+  $$(".opcion", sec).forEach(op => op.addEventListener("click", () => {
+    $$(".opcion", sec).forEach(o => o.setAttribute("aria-selected", String(o === op)));
+    $$(".variante", sec).forEach(v => v.classList.toggle("activa", v.dataset.v === op.dataset.v));
+    $$("[data-gp]", sec).forEach(g => g.hidden = g.dataset.gp !== op.dataset.v);
+    if (sec.dataset.decision === "detalle") { pintarLab(); pintarPantalla(); }
+  }));
+});
+const variante = (decision) => $(`.decision[data-decision=${decision}] .opcion[aria-selected=true]`).dataset.v;
+
+// ── los documentos de la persona (ficticios) ────────────────────────────────
+const DOCS = {
+  amonestacion: { id: "am", titulo: "Amonestación escrita", causal: "Conducta", falta: "Trato descortés · literal h) del numeral 53.2",
+    faltaTexto: "Tratar de forma descortés o desconsiderada a una clienta, a una compañera o a un tercero.",
+    fecha: "6 de octubre de 2026", hecho: "2 de octubre", supo: "3 de octubre", firma: "Lucía Ramos · Líder de equipo",
+    relato: "Le respondió de mala manera a una clienta que pedía un cambio de talla, delante de otras dos clientas.",
+    vigente: "6 de octubre de 2027" },
+  verbal: { id: "ve", titulo: "Llamada de atención verbal", causal: "Conducta", falta: "Puesto desordenado · literal b) del numeral 53.1",
+    faltaTexto: "Descuido en el orden, la limpieza o la presentación del puesto de trabajo, del taller o de la sala de ventas.",
+    fecha: "30 de setiembre de 2026", hecho: "28 de setiembre", supo: "28 de setiembre", firma: "Lucía Ramos · Líder de equipo",
+    relato: "Dejó el mostrador desordenado al cierre del turno.", vigente: null },
+  tardanzas: { id: "ta", titulo: "Amonestación escrita", causal: "Tardanzas", falta: "Tardanzas reiteradas · literal b) del numeral 53.2",
+    faltaTexto: "Las tardanzas reiteradas, en los umbrales y con la gradación del artículo 19.",
+    fecha: "Enviada a tu Info el 6 de octubre de 2026", hecho: "setiembre", supo: "1 de octubre", firma: "Desarrollo Organizacional",
+    relato: "Tres tardanzas en el periodo mensual de setiembre: 3, 10 y 17.", vigente: "al recibirla" },
+  vieja: { id: "vi", titulo: "Amonestación escrita", causal: "Tardanzas", falta: "Tardanzas reiteradas",
+    faltaTexto: "", fecha: "14 de mayo de 2025", hecho: "", supo: "", firma: "", relato: "", vigente: null },
+};
+// qué estado tiene cada documento en cada situación: recibir | porleer | leido | cancelado
+const SITUACIONES = {
+  nada:    [["vieja", "cancelado"]],
+  recibir: [["tardanzas", "recibir"]],
+  papel:   [["amonestacion", "porleer"]],
+  leido:   [["amonestacion", "leido"], ["verbal", "leido"]],
+  junto:   [["tardanzas", "recibir"], ["amonestacion", "porleer"], ["verbal", "leido"], ["vieja", "cancelado"]],
+};
+let situacion = "nada";
+const leidos = new Set();      // constancias dejadas durante la demo
+const abiertos = new Set();    // documentos que se abrieron
+
+$$("[data-sit]").forEach(b => b.addEventListener("click", () => {
+  $$("[data-sit]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  situacion = b.dataset.sit; leidos.clear(); abiertos.clear(); pintarPantalla();
+}));
+
+const horaDemo = () => "10:42";
+
+function tarjeta(clave, estado, modo) {
+  const d = DOCS[clave];
+  const yaLeido = estado === "leido" || leidos.has(clave);
+  const abierto = abiertos.has(clave);
+  const todoAVista = modo === "b";
+  const pill = estado === "recibir" ? '<span class="pill pill-ambar">Por recibir</span>'
+    : estado === "cancelado" ? '<span class="pill pill-ceniza">Ya no pesa</span>'
+    : yaLeido ? '<span class="pill pill-verde">Leído</span>' : '<span class="pill pill-ambar">Por leer</span>';
+  if (estado === "cancelado") {
+    return `<div class="doc cancelado"><div class="cab"><strong>${d.titulo} · ${d.causal.toLowerCase()}</strong>${pill}</div>
+      <div class="meta"><span>Entregada el ${d.fecha}</span><span>Cumplió sus doce meses: ya no se cuenta como antecedente (56.7)</span></div></div>`;
+  }
+  const detalle = `
+    <div class="falta"><b>Qué falta es</b>${d.falta}<div style="margin-top:3px;color:var(--color-taupe)">«${d.faltaTexto.replace(/\.$/, "")}»</div></div>
+    <div class="meta"><span>Hecho: ${d.hecho}</span><span>La empresa supo el ${d.supo}</span><span>Firma: ${d.firma}</span></div>
+    <div class="relato"><div class="mini-rotulo">Lo que pasó</div>${d.relato}</div>
+    ${d.vigente ? `<div class="vigencia"><strong>Cuenta como antecedente</strong> doce meses desde que lo recibes${d.vigente !== "al recibirla" ? `, hasta el ${d.vigente}` : ""} (RIT 56.1).</div>` : `<div class="vigencia">No es una sanción y no cuenta como antecedente (RIT 54.2).</div>`}
+    <details><summary>Qué puedes hacer si no estás de acuerdo</summary>
+      <p style="margin-top:6px">Leer no es aceptar. Puedes pedir una reconsideración por escrito a Gerencia General dentro de los cinco días hábiles siguientes a recibirlo (RIT 55.5), y puedes acudir a la Autoridad Inspectiva de Trabajo.</p></details>`;
+  const basico = `<div class="meta"><span>${d.fecha}</span><span>${d.falta.split(" · ")[0]}</span></div>`;
+  let cuerpo = "", acc = "";
+  if (estado === "recibir") {
+    cuerpo = basico + `<p class="aviso-privado">Ábrelo, léelo y confirma que lo recibiste. Recibirlo no es aceptar lo que dice: puedes firmarlo o recibirlo sin firmar.</p>`;
+    acc = `<button class="btn btn-primario">Abrir y recibir</button>`;
+  } else if (yaLeido) {
+    cuerpo = (todoAVista || abierto ? detalle : basico + `<details><summary>Ver el documento</summary><div style="display:grid;gap:10px;margin-top:8px">${detalle}</div></details>`);
+    cuerpo += `<div class="constancia"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 5 5 9-10"/></svg>Leíste este documento el 6 de octubre de 2026, a las ${horaDemo()}. Leerlo no es aceptarlo.</div>`;
+  } else if (todoAVista) {
+    cuerpo = detalle;
+    acc = `<button class="btn btn-primario" data-leer="${clave}">Lo leí</button><span class="aviso-privado">Queda anotado con tu nombre, la fecha y la hora.</span>`;
+  } else {
+    cuerpo = basico + (abierto ? `<div style="display:grid;gap:10px">${detalle}</div>` : `<p class="aviso-privado">El detalle de lo que pasó se ve al abrir el documento.</p>`);
+    acc = abierto
+      ? `<button class="btn btn-primario" data-leer="${clave}">Lo leí</button><span class="aviso-privado">Queda anotado con tu nombre, la fecha y la hora.</span>`
+      : `<button class="btn btn-sec" data-abrir="${clave}">Leer el documento</button><button class="btn btn-primario" disabled title="Ábrelo primero">Lo leí</button>`;
+  }
+  return `<div class="doc ${estado === "porleer" && !yaLeido ? "porleer" : ""}"><div class="cab"><strong>${d.titulo} · ${d.causal.toLowerCase()}</strong>${pill}</div>${cuerpo}${acc ? `<div class="acciones">${acc}</div>` : ""}</div>`;
+}
+
+function aliento() {
+  // Uno por día, estable para la misma persona: aquí se simula con el día del año.
+  const dia = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 864e5);
+  return MENSAJES[(dia + alientoDelta) % MENSAJES.length];
+}
+let alientoDelta = 0;
+
+function pintarPantalla() {
+  const modo = variante("detalle");
+  const items = SITUACIONES[situacion];
+  const vivos = items.filter(([c, e]) => e !== "cancelado" && !(e === "leido" || leidos.has(c)));
+  const porLeer = vivos.length;
+  const haySinNada = !items.some(([c, e]) => e === "recibir" || e === "porleer" || e === "leido");
+  let html = `<div class="titulo-app"><h3>Disciplina</h3><p>Lo que consta en tu legajo y cómo vas este mes</p></div>`;
+  if (haySinNada) {
+    html += `<div class="aliento"><div class="carita"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.4 2.2 2 3.5 2s2.5-.6 3.5-2M9 9.5h.01M15 9.5h.01"/></svg></div>
+      <p class="msj">${aliento()}</p><button class="otro" id="otro">Ver otro mensaje</button></div>`;
+  }
+  html += items.map(([c, e]) => tarjeta(c, e, modo)).join("");
+  html += `<div class="comovas"><span class="mini-rotulo">Cómo vas este mes</span>
+    <div class="casillas" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i><span style="margin-left:6px;font-variant-numeric:tabular-nums">2 de 3</span></div>
+    <p style="font-size:.86rem">Llevas 2 tardanzas en octubre. Con la tercera, la Empresa podría emitir una amonestación escrita (RIT 19.2); no es automático (52.9). Si alguna se justifica —salud, transporte, una citación—, pídele a tu líder de equipo que la justifique dentro de las 48 horas siguientes a tu regreso (RIT 18.2).</p></div>`;
+  if (items.some(([c]) => c === "tardanzas")) {
+    html += `<p class="nota">Una vez que recibas la amonestación por tardanzas, el umbral cambia: con ella vigente, dos tardanzas en un mes habilitarían una suspensión (RIT 19.2 c). El texto sale de la misma cuenta que usa Disciplina, no de una copia.</p>`;
+  }
+  $("#pantalla").innerHTML = html;
+  $("#menu-cnt2").hidden = porLeer === 0; $("#menu-cnt2").textContent = porLeer;
+  $("#res-cnt").hidden = porLeer === 0; $("#res-cnt").textContent = porLeer;
+  const o = $("#otro"); if (o) o.addEventListener("click", () => { alientoDelta++; pintarPantalla(); });
+  $$("#pantalla [data-abrir]").forEach(b => b.addEventListener("click", () => { abiertos.add(b.dataset.abrir); pintarPantalla(); }));
+  $$("#pantalla [data-leer]").forEach(b => b.addEventListener("click", () => { leidos.add(b.dataset.leer); pintarPantalla(); }));
+}
+
+// El laboratorio de la decisión 2: la misma tarjeta, sola.
+let labLeidos = new Set(), labAbiertos = new Set();
+function pintarLab() {
+  const modo = variante("detalle");
+  // La tarjeta de laboratorio usa sus propios conjuntos, para no mezclarlos con los de la pantalla.
+  [leidos, abiertos].forEach(s => s.clear()); labLeidos.forEach(c => leidos.add(c)); labAbiertos.forEach(c => abiertos.add(c));
+  const el = $("#lab-detalle");
+  el.innerHTML = tarjeta("amonestacion", "porleer", modo);
+  $$("[data-abrir]", el).forEach(b => b.addEventListener("click", () => { labAbiertos.add(b.dataset.abrir); pintarLab(); }));
+  $$("[data-leer]", el).forEach(b => b.addEventListener("click", () => { labLeidos.add(b.dataset.leer); pintarLab(); }));
+  [leidos, abiertos].forEach(s => s.clear());
+  pintarPantalla();
+}
+pintarLab();
+</script>
+</body>
+</html>

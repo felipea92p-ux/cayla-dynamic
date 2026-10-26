@@ -100,8 +100,15 @@ export function useNavColapsado(): {
  * La lista se guarda entera en localStorage porque un plegado que se olvida en
  * cada recarga no es un plegado: obliga a rehacerlo cada vez y la gente deja de
  * usarlo.
+ *
+ * `clave` existe porque desde el 2026-10-06 hay DOS menús con grupos —el del
+ * panel y el de «Lo mío»— y los dos tienen un «Pago» y una «Asistencia» con
+ * contenido distinto. Con una sola memoria, cerrar «Pago» en «Lo mío» cerraría
+ * Planilla, Provisiones y Costos en el panel. Al revés que el plegado a rail
+ * (`useNavColapsado`), que es UNA preferencia —«quiero el menú angosto»— y
+ * por eso los dos la comparten.
  */
-export function useGruposCerrados(): {
+export function useGruposCerrados(clave: string = CLAVE_GRUPOS): {
   cerrados: ReadonlySet<string>;
   alternarGrupo: (etiqueta: string) => void;
 } {
@@ -109,7 +116,7 @@ export function useGruposCerrados(): {
 
   useEffect(() => {
     try {
-      const bruto = localStorage.getItem(CLAVE_GRUPOS);
+      const bruto = localStorage.getItem(clave);
       if (!bruto) return;
       const lista: unknown = JSON.parse(bruto);
       // Se comprueba la forma en vez de confiar: esto es texto que cualquiera
@@ -123,7 +130,7 @@ export function useGruposCerrados(): {
       // Sin localStorage, o con un JSON roto: todos los grupos abiertos, que es
       // el estado por defecto y no molesta a nadie.
     }
-  }, []);
+  }, [clave]);
 
   const alternarGrupo = useCallback((etiqueta: string) => {
     setCerrados((antes) => {
@@ -131,13 +138,13 @@ export function useGruposCerrados(): {
       if (siguiente.has(etiqueta)) siguiente.delete(etiqueta);
       else siguiente.add(etiqueta);
       try {
-        localStorage.setItem(CLAVE_GRUPOS, JSON.stringify([...siguiente]));
+        localStorage.setItem(clave, JSON.stringify([...siguiente]));
       } catch {
         // El grupo se pliega igual en esta pestaña; solo no se acuerda mañana.
       }
       return siguiente;
     });
-  }, []);
+  }, [clave]);
 
   return { cerrados, alternarGrupo };
 }

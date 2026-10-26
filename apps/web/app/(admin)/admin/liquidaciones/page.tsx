@@ -10,15 +10,23 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { generarCsv, descargarCsv } from "@/lib/admin/csv";
 import { formatSoles } from "@/lib/rangos";
-import { EMPRESA, hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import {
+  APOYOS_CONSTANCIA, EMPRESA, ETIQUETA_APOYO, ETIQUETA_DECISION, decisionesPara, fechaLima, hoyLima,
+  motivoDeConstanciaValido, nombreCorto, nombreOficial, puedeEstamparFirmaDeEmpresa, puedeVerPlanilla,
+  queDibujarDeLaConstancia, usaNombreDelDni,
+  type ApoyoConstancia, type DecisionConstancia, type EstadoRegistroDiferencia, type FilaDiferenciaConstancia,
+} from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
-import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Pestanas } from "@/components/ui/pestanas";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 
 // Liquidación por cese. La ley da 48 HORAS desde el cese para pagar (art. 4 del
@@ -33,12 +41,16 @@ import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 //      reales arriba, y cuatro cifras accionables encima de las tabs.
 //   2. VENCIDAS SOLO EN SU TAB. Sin franja permanente: su propio conteo en
 //      rojo en la pestaña es la señal.
-//   3. DIFERENCIA ESPERADA vs REAL, CON FILTRO. `fn_liquidacion_diferencias`
-//      (0454) dice si una diferencia la explica el descuento que el cierre de
-//      Planilla obliga a registrar (0244) — el estado normal de casi toda
-//      cesada, no una avería — o si es una diferencia de verdad. Solo la real
-//      enciende el badge de la fila y el filtro «Con diferencias»; la
-//      esperada se explica, en tono neutro, dentro del desglose.
+//   3. DIFERENCIA ESPERADA vs REAL, SOLO DENTRO DEL DESGLOSE.
+//      `fn_liquidacion_diferencias` (0454) dice si una diferencia la explica
+//      el descuento que el cierre de Planilla obliga a registrar (0244) — el
+//      estado normal de casi toda cesada, no una avería — o si es una
+//      diferencia de verdad. Se muestra al abrir una liquidación pagada: la
+//      esperada en tono neutro, la real en rojo. Hasta el 2026-10-21 la real
+//      además encendía una insignia en la fila, una pastilla en «Para
+//      atender» y un filtro; se quitaron porque una liquidación ya pagada no
+//      tiene cómo cerrar ese aviso —no hay un «dejar constancia»—, así que
+//      «3 con diferencias» no bajaba nunca y acababa leyéndose como ruido.
 //
 // QUÉ MUESTRA Y QUÉ NO. Todas las cesadas con liquidación por resolver, sin
 // filtrar por vínculo. `fn_liquidaciones_pendientes` no descarta los totales
@@ -129,7 +141,16 @@ type Detalle = Record<string, unknown> & {
 // componente de impresión lo muestra: no es lo que corresponde en ninguno de
 // los dos documentos.
 interface PapelesCese {
+  // Ojo con el nombre: `fn_papeles_cese` (0400) lo arma como «nombres apellidos»
+  // —el corto, el del terminal—, no como el del DNI. Esta pantalla lo REEMPLAZA
+  // al cargar (ver `cargarDetalle`) por `datos_personales.nombre_dni`, que es el
+  // que un banco compara contra el documento al soltar la CTS. Para cuando
+  // llega a un componente de impresión, `nombre_completo` ya es el bueno.
   nombre_completo: string;
+  // Lo agrega esta pantalla, no la función: la ficha no tiene cargado el nombre
+  // del DNI, así que el papel saldrá con el corto. Se avisa en la vista previa
+  // porque estos dos papeles no se corrigen una vez entregados.
+  sinNombreDni?: boolean;
   documento: string | null;
   genero: "masculino" | "femenino" | null;
   cargo: string | null;
@@ -184,19 +205,28 @@ export default function LiquidacionesPage() {
   const [tab, setTab] = useState<Tab>("pendientes");
   const [busqueda, setBusqueda] = useState("");
   const [filtroSede, setFiltroSede] = useState("");
-  // Solo tiene sentido en Pagadas: aísla las que de verdad hay que revisar
-  // (Decisión III — separar esperada de real, con filtro).
-  const [soloConDiferencias, setSoloConDiferencias] = useState(false);
 
   const [abierta, setAbierta] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [diferencias, setDiferencias] = useState<Diferencia[]>([]);
   const [diferenciasError, setDiferenciasError] = useState<string | null>(null);
+  // Qué pasó con una diferencia real (0542). `null` en cualquiera de los dos
+  // es «no sé» —la 0542 todavía no está pegada, o la lectura falló—, y la
+  // pantalla se comporta como antes: ver `queDibujarDeLaConstancia`.
+  const [constancia, setConstancia] = useState<EstadoRegistroDiferencia | null>(null);
+  const [constanciaError, setConstanciaError] = useState<string | null>(null);
+  const [registroAccion, setRegistroAccion] =
+    useState<{ personaId: string; nombre: string; modo: "registrar" | "corregir" | "retirar" } | null>(null);
+  const [registroDecision, setRegistroDecision] = useState<DecisionConstancia | "">("");
+  const [registroApoyo, setRegistroApoyo] = useState<ApoyoConstancia | "">("");
+  const [registroMotivo, setRegistroMotivo] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [nota, setNota] = useState("");
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [firmanteEmpresa, setFirmanteEmpresa] = useState<FirmanteEmpresa | null>(null);
-  const [esFirmanteEmpresa, setEsFirmanteEmpresa] = useState(false);
+  // La firma de QUIEN FIRMA POR CAYLA (`fn_firma_empresa`, 0398), no la de quien
+  // tenga la sesión abierta. `miFirma` queda para la hoja de la liquidación.
+  const [firmaEmpresa, setFirmaEmpresa] = useState<string | null>(null);
 
   // Confirmaciones que antes eran window.confirm()/window.prompt(): Felipe
   // aprobó migrar todos los diálogos nativos del panel al Modal compartido
@@ -267,38 +297,54 @@ export default function LiquidacionesPage() {
   // solo mostrar una firma sin nombre debajo.
   useEffect(() => {
     void (async () => {
-      const [cfg, yo] = await Promise.all([
+      const [cfg, fe] = await Promise.all([
         supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
-        supabase.rpc("fn_persona_actual_id"),
+        supabase.rpc("fn_firma_empresa"),
       ]);
       const cfgValor = (cfg.data as { valor: { persona_id?: string; cargo?: string } } | null)?.valor;
       if (!cfgValor?.persona_id) return;
-      const { data: ficha } = await supabase
-        .from("personas")
-        .select("nombres, apellidos, documento")
-        .eq("id", cfgValor.persona_id)
-        .maybeSingle();
+      const [{ data: ficha }, { data: dpFirmante }] = await Promise.all([
+        supabase
+          .from("personas")
+          .select("nombres, apellidos, documento")
+          .eq("id", cfgValor.persona_id)
+          .maybeSingle(),
+        supabase
+          .from("datos_personales")
+          .select("nombre_dni")
+          .eq("persona_id", cfgValor.persona_id)
+          .maybeSingle(),
+      ]);
       if (!ficha) return;
       setFirmanteEmpresa({
-        nombre: `${ficha.nombres} ${ficha.apellidos}`,
+        // Quien certifica firma con su nombre del DNI, igual que quien recibe el
+        // papel: un certificado entre «Elida Lizeth Salinas Mamani» y una firma
+        // de «Felipe Alvarez» no se ve de la misma empresa.
+        nombre: nombreOficial(
+          dpFirmante?.nombre_dni as string | null | undefined,
+          nombreCorto(ficha.nombres, ficha.apellidos),
+        ),
         dni: ficha.documento,
         cargo: cfgValor.cargo ?? "Gerencia General",
         personaId: cfgValor.persona_id,
       });
-      // La firma escaneada SOLO se estampa si quien tiene la sesión abierta es
-      // la misma persona designada como firmante — igual que Contratos
-      // (`esFirmante`). Sin este candado, cualquier líder que abra el
-      // documento estamparía SU PROPIA firma debajo del nombre de otra
-      // persona: el papel quedaría firmado por alguien que nunca lo firmó.
-      setEsFirmanteEmpresa(Boolean(yo.data) && yo.data === cfgValor.persona_id);
+      // La firma que se estampa es SIEMPRE la de la persona designada como
+      // firmante, no la de quien tiene la sesión abierta: `fn_firma_empresa` no
+      // recibe parámetros y sale de la misma fila que el nombre impreso, así
+      // que nadie estampa SU PROPIA firma debajo del nombre de otra persona.
+      // Antes solo se estampaba si el firmante tenía la sesión abierta; con otra
+      // cuenta el certificado salía sin firma.
+      setFirmaEmpresa(typeof fe.data === "string" && fe.data.startsWith("data:image") ? fe.data : null);
     })();
   }, [supabase]);
 
   async function cargarDetalle(personaId: string) {
-    const [liq, dif, papeles] = await Promise.all([
+    const [liq, dif, papeles, con] = await Promise.all([
       supabase.rpc("fn_liquidacion", { p_persona_id: personaId }),
       supabase.rpc("fn_liquidacion_diferencias", { p_persona_id: personaId }),
       supabase.rpc("fn_papeles_cese", { p_persona_id: personaId }),
+      // De una liquidación sin pagar devuelve cero filas, y barato.
+      supabase.rpc("fn_liquidacion_constancia_estado", { p_persona_id: personaId }),
     ]);
     if (liq.error) { avisar("error", mensajeDeError(liq.error)); return; }
     setDetalle(liq.data as Detalle);
@@ -309,18 +355,35 @@ export default function LiquidacionesPage() {
     // Quien está por apretar «Marcar como pagada» necesita saber que esto no
     // se comprobó, no ver un desglose que parece cuadrado por accidente.
     setDiferenciasError(dif.error ? mensajeDeError(dif.error) : null);
+    // «Sin filas» y «falló» no son lo mismo: lo primero es «nada que registrar»,
+    // lo segundo es «no sé» y no dibuja nada nuevo (ver queDibujarDeLaConstancia).
+    setConstancia(con.error ? null : (((con.data as unknown as EstadoRegistroDiferencia[] | null) ?? [])[0] ?? null));
+    setConstanciaError(con.error ? mensajeDeError(con.error) : null);
     // Sin bloquear la pantalla si esto falla: los papeles de salida son un
     // extra sobre la liquidación, no una condición para verla. Si falla, los
     // dos botones nuevos simplemente no aparecen (quedan detrás de `papelesCese`).
-    setPapelesCese(papeles.error ? null : (papeles.data as unknown as PapelesCese));
+    if (papeles.error) { setPapelesCese(null); return; }
+    const crudo = papeles.data as unknown as PapelesCese;
+    // El nombre del DNI no viaja en `fn_papeles_cese` y esa función no se
+    // reescribe por esto: se lee de la ficha, como ya hacen Contratos y el memo.
+    // Sin ficha o sin nombre cargado el papel cae al corto, y la vista previa lo
+    // dice (`sinNombreDni`) en vez de imprimirlo en silencio.
+    const { data: dp } = await supabase
+      .from("datos_personales").select("nombre_dni").eq("persona_id", personaId).maybeSingle();
+    const nombreDni = (dp?.nombre_dni as string | null | undefined) ?? null;
+    setPapelesCese({
+      ...crudo,
+      nombre_completo: nombreOficial(nombreDni, crudo.nombre_completo),
+      sinNombreDni: !usaNombreDelDni(nombreDni),
+    });
   }
 
   async function abrir(personaId: string) {
     if (abierta === personaId) {
-      setAbierta(null); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setPapelesCese(null);
+      setAbierta(null); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setConstancia(null); setConstanciaError(null); setPapelesCese(null);
       return;
     }
-    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setPapelesCese(null);
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setConstancia(null); setConstanciaError(null); setPapelesCese(null);
     setNota(""); setApreciacion(""); setModalAbierto(null);
     await cargarDetalle(personaId);
   }
@@ -379,7 +442,7 @@ export default function LiquidacionesPage() {
     if (error) { avisar("error", mensajeDeError(error)); return; }
     setPagoAccion(null);
     await cargar();
-    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null);
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setConstancia(null); setConstanciaError(null);
     await cargarDetalle(personaId);
     const v = (data as { version?: number } | null)?.version;
     avisar("ok",
@@ -422,9 +485,69 @@ export default function LiquidacionesPage() {
     if (error) { avisar("error", mensajeDeError(error)); return; }
     setAnularAccion(null); setMotivoAnular("");
     await cargar();
-    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null);
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setConstancia(null); setConstanciaError(null);
     await cargarDetalle(personaId);
     avisar("ok", `Liquidación de ${nombre} anulada con constancia. Vuelve a marcarla cuando el número esté bien.`);
+  }
+
+  // ── Qué pasó con una diferencia real (0542) ───────────────────────────────
+  // La decisión es de una persona: el sistema nombra la diferencia y calcula su
+  // sentido, no la resuelve. Aquí solo se junta lo que la pantalla vio —versión,
+  // huella, cabeza de la cadena— y se manda tal cual: el servidor lo recalcula y
+  // lo rechaza si ya no es lo que da el cálculo.
+  function abrirRegistro(modo: "registrar" | "corregir" | "retirar") {
+    if (!abierta || !constancia) return;
+    const previa = constancia.vigente;
+    setRegistroAccion({
+      personaId: abierta, modo,
+      nombre: pendientes.find((p) => p.persona_id === abierta)?.persona ?? "",
+    });
+    // Sin opción por defecto al registrar: quien aprieta tiene que elegir. Al
+    // corregir se parte de lo que había, pero el motivo se vuelve a escribir.
+    setRegistroDecision(modo === "retirar" ? "retirada" : modo === "corregir" && previa ? previa.decision : "");
+    setRegistroApoyo(modo === "corregir" && previa?.apoyo ? previa.apoyo : "");
+    setRegistroMotivo("");
+  }
+
+  async function ejecutarRegistro() {
+    if (!registroAccion || !constancia?.huella || !registroDecision) return;
+    const { personaId, nombre, modo } = registroAccion;
+    if (!motivoDeConstanciaValido(registroMotivo)) {
+      avisar("error", "Cuéntalo en al menos 10 caracteres: dentro de un año ese texto es lo único que explica por qué se cerró el aviso.");
+      return;
+    }
+    if (registroDecision === "pagado_es_correcto" && !registroApoyo) {
+      avisar("error", "Elige en qué te apoyas para decir que lo pagado era lo correcto.");
+      return;
+    }
+    setOcupado(true);
+    const { error } = await supabase.rpc("fn_liquidacion_constatar", {
+      p_persona_id: personaId,
+      p_version: constancia.version,
+      p_huella: constancia.huella,
+      p_decision: registroDecision,
+      p_apoyo: registroDecision === "pagado_es_correcto" ? registroApoyo : null,
+      p_motivo: registroMotivo.trim(),
+      p_reemplaza_id: constancia.cabeza_id,
+    });
+    setOcupado(false);
+    if (error) {
+      const mensaje = mensajeDeError(error);
+      avisar("error", mensaje);
+      // Si lo que se vio ya no es lo que hay (el cálculo cambió, hay una versión
+      // nueva, o alguien se adelantó) el modal ya no sirve: se cierra y se vuelve
+      // a leer, para ver las cifras de ahora.
+      if (/cambió mientras mirabas|Otra persona ya registró|versión nueva|Ya no hay una diferencia/.test(mensaje)) {
+        setRegistroAccion(null);
+        await cargarDetalle(personaId);
+      }
+      return;
+    }
+    setRegistroAccion(null);
+    await cargarDetalle(personaId);
+    avisar("ok", modo === "retirar"
+      ? `Registro de ${nombre} retirado: la diferencia vuelve a estar abierta.`
+      : `Quedó registrado qué pasó con la diferencia de ${nombre}.`);
   }
 
   // El nombre con el que se guarda el PDF. Ver use-titulo-documento.ts: sin
@@ -451,7 +574,6 @@ export default function LiquidacionesPage() {
   const pagadas  = pendientes.filter((p) => p.pagada);
   const sinMonto = pendientes.filter((p) => !p.pagada && p.total === 0);
   const avisoUrgente = avisos.filter((a) => a.ya_devenga);
-  const conDiferenciasReales = pagadas.filter((p) => p.descuadra_real).length;
 
   const coincideBusqueda = (p: Pendiente) =>
     busqueda.trim() === "" || p.persona.toLowerCase().includes(busqueda.trim().toLowerCase());
@@ -460,16 +582,16 @@ export default function LiquidacionesPage() {
   // Sin useMemo a propósito: son unas 30 personas en todo CAYLA y ~20 ceses al
   // año — filtrar en cada render no mide nada, y complicar esto con
   // dependencias de un helper redefinido cada vez no compra nada a cambio.
-  const filaFiltrada = (lista: Pendiente[], soloDif: boolean) =>
-    lista.filter((p) => coincideBusqueda(p) && coincideSede(p) && (!soloDif || p.descuadra_real));
+  const filaFiltrada = (lista: Pendiente[]) =>
+    lista.filter((p) => coincideBusqueda(p) && coincideSede(p));
 
-  const visibleEnPlazo = filaFiltrada(enPlazo, false);
-  const visibleVencidas = filaFiltrada(vencidas, false);
-  const visiblePagadas = filaFiltrada(pagadas, soloConDiferencias);
+  const visibleEnPlazo = filaFiltrada(enPlazo);
+  const visibleVencidas = filaFiltrada(vencidas);
+  const visiblePagadas = filaFiltrada(pagadas);
 
-  const hayFiltrosActivos = busqueda.trim() !== "" || filtroSede !== "" || soloConDiferencias;
+  const hayFiltrosActivos = busqueda.trim() !== "" || filtroSede !== "";
   function limpiarFiltros() {
-    setBusqueda(""); setFiltroSede(""); setSoloConDiferencias(false);
+    setBusqueda(""); setFiltroSede("");
   }
 
   function exportarCsv() {
@@ -507,6 +629,7 @@ export default function LiquidacionesPage() {
   }
 
   const listaActiva = tab === "pendientes" ? visibleEnPlazo : tab === "vencidas" ? visibleVencidas : visiblePagadas;
+  const registro: RegistroDiferencia = { estado: constancia, error: constanciaError, abrir: abrirRegistro };
 
   return (
     <div className="flex flex-1 flex-col">
@@ -514,22 +637,19 @@ export default function LiquidacionesPage() {
       <main className="flex-1 p-6 print:p-0">
         <div className="print:hidden">
           <CabeceraPagina
+            sobretitulo={sobretituloDeHoy("Pago")}
             titulo="Liquidaciones"
-            descripcion={
-              <>
-                Controla pagos de cese, plazos y diferencias posteriores.{" "}
-                <details className="mt-1 inline-block align-top text-xs">
-                  <summary className="inline cursor-pointer text-rojo underline decoration-dotted">
-                    ⓘ Cómo se calcula el plazo
-                  </summary>
-                  <p className="mt-2 max-w-xl text-taupe">
-                    La ley da <strong>48 horas</strong> desde el cese para pagar (art. 4 del D.S. 001-97-TR):
-                    el último día trabajado más dos días de calendario, sin excepción por fin de semana o
-                    feriado. Al marcar una liquidación como pagada, la cifra se congela: si después el
-                    cálculo cambia, el sistema lo dice y no mueve el número.
-                  </p>
-                </details>
-              </>
+            descripcion="Controla pagos de cese, plazos y diferencias posteriores."
+            ayuda={
+              <AyudaPantalla
+                titulo="Cómo se calcula el plazo"
+                intro="La ley da 48 horas desde el cese para pagar la liquidación."
+                secciones={[
+                  { titulo: "El plazo", texto: "Es el último día trabajado más dos días de calendario, sin excepción por fin de semana o feriado (art. 4 del D.S. 001-97-TR)." },
+                  { titulo: "Al marcar como pagada", texto: "La cifra se congela y no se mueve. Si después el cálculo de hoy da otra cosa, lo verás al abrir la liquidación pagada." },
+                  { titulo: "Vencidas", texto: "Pasado el plazo sin pagar, la liquidación pasa a «Vencidas». Si ya se pagó por fuera, falta anotarlo para que deje de figurar." },
+                ]}
+              />
             }
             accion={
               <Boton variante="secundario" tamano="sm" onClick={exportarCsv} disabled={listaActiva.length === 0}>
@@ -539,9 +659,9 @@ export default function LiquidacionesPage() {
           />
 
           {cargaError && (
-            <p className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm text-rojo">
+            <BannerAviso role="alert" variante="alerta" enLinea className="mb-4">
               No se pudo leer la lista: {cargaError}
-            </p>
+            </BannerAviso>
           )}
 
           {/* ── El aviso del vínculo «prueba» ────────────────────────────────
@@ -549,72 +669,55 @@ export default function LiquidacionesPage() {
               esta es la pantalla que habla de beneficios. Solo aparece cuando ya
               pasó el mes: antes no cuesta nada y avisar sería ruido. */}
           {avisoUrgente.map((a) => (
-            <div key={a.persona_id} className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm">
-              <strong className="text-rojo">{a.persona} lleva {a.dias} días como «prueba».</strong>{" "}
+            <BannerAviso key={a.persona_id} variante="alerta" enLinea titulo={`${a.persona} lleva ${a.dias} días como «prueba».`} className="mb-4">
               {a.aviso}
-            </div>
+            </BannerAviso>
           ))}
 
-          {/* ── Resumen (Decisión I) ───────────────────────────────────────── */}
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <ResumenCifra etiqueta="Pendientes" valor={enPlazo.length} />
-            <ResumenCifra
-              etiqueta="Vencidas"
-              valor={vencidas.length}
-              sub={vencidas.length > 0 ? formatSoles(vencidas.reduce((a, p) => a + p.total, 0)) : undefined}
-              tono={vencidas.length > 0 ? "rojo" : undefined}
-            />
-            <ResumenCifra etiqueta="Pagadas" valor={pagadas.length} />
-            <ResumenCifra
-              etiqueta="Con diferencias"
-              valor={conDiferenciasReales}
-              tono={conDiferenciasReales > 0 ? "ambar" : undefined}
-            />
-          </div>
+          {/* ── Para atender (Decisión I): lo vencido va primero; tocar una pastilla abre su pestaña ── */}
+          <ParaAtender
+            items={[
+              {
+                clave: "vencidas",
+                texto: `${vencidas.length} ${vencidas.length === 1 ? "vencida" : "vencidas"}${vencidas.length > 0 ? ` · ${formatSoles(vencidas.reduce((a, p) => a + p.total, 0))}` : ""}`,
+                n: vencidas.length,
+                tono: "rojo",
+              },
+              { clave: "pendientes", texto: `${enPlazo.length} en plazo`, n: enPlazo.length, tono: "pizarra" },
+            ]}
+            activa={tab === "vencidas" ? "vencidas" : null}
+            alTocar={(clave) => setTab(clave === "vencidas" ? "vencidas" : "pendientes")}
+          />
 
-          {/* ── Búsqueda y filtros ────────────────────────────────────────── */}
-          <div className="mb-4 flex flex-wrap items-end gap-3">
-            <Campo
-              etiqueta="Buscar persona"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="nombre o apellido"
-              className="w-56"
-            />
-            <CampoSelect etiqueta="Sede" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} className="w-40">
-              <option value="">Todas</option>
-              {sedes.map((sd) => <option key={sd.id} value={sd.codigo}>{sd.codigo} — {sd.nombre}</option>)}
-            </CampoSelect>
-            {tab === "pagadas" && (
-              <label className="flex items-center gap-2 pb-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-tinta"
-                  checked={soloConDiferencias}
-                  onChange={(e) => setSoloConDiferencias(e.target.checked)}
-                />
-                Con diferencias reales
-              </label>
-            )}
+          {/* ── Búsqueda y filtros, en una fila y sin rótulos encima ───────── */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="min-w-48 flex-1 sm:max-w-xs">
+              <Campo tamano="sm" aria-label="Buscar persona" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre o apellido" />
+            </div>
+            <div className="w-full sm:w-52">
+              <CampoSelect tamano="sm" aria-label="Sede" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)}>
+                <option value="">Todas las sedes</option>
+                {sedes.map((sd) => <option key={sd.id} value={sd.codigo}>{sd.codigo} — {sd.nombre}</option>)}
+              </CampoSelect>
+            </div>
             {hayFiltrosActivos && (
-              <button className="pb-2 text-sm text-taupe underline" onClick={limpiarFiltros}>
+              <Boton variante="enlace" className="text-sm text-taupe" onClick={limpiarFiltros}>
                 Limpiar filtros
-              </button>
+              </Boton>
             )}
           </div>
 
-          {/* ── Tabs por estado (Decisión I y II: vencidas solo en su tab) ──── */}
-          <div className="mb-4 flex gap-1 border-b border-sand">
-            <PestanaTab activa={tab === "pendientes"} onClick={() => setTab("pendientes")}>
-              Pendientes <Insignia tamano="sm" variante="neutral">{enPlazo.length}</Insignia>
-            </PestanaTab>
-            <PestanaTab activa={tab === "vencidas"} onClick={() => setTab("vencidas")}>
-              Vencidas <Insignia tamano="sm" variante={vencidas.length > 0 ? "alerta" : "neutral"}>{vencidas.length}</Insignia>
-            </PestanaTab>
-            <PestanaTab activa={tab === "pagadas"} onClick={() => setTab("pagadas")}>
-              Pagadas <Insignia tamano="sm" variante="neutral">{pagadas.length}</Insignia>
-            </PestanaTab>
-          </div>
+          {/* ── Pestañas por estado (Decisión I y II: vencidas solo en su pestaña) ── */}
+          <Pestanas
+            etiqueta="Estado de las liquidaciones"
+            pestanas={[
+              { clave: "pendientes", texto: `Pendientes · ${enPlazo.length}` },
+              { clave: "vencidas", texto: "Vencidas", aviso: vencidas.length },
+              { clave: "pagadas", texto: `Pagadas · ${pagadas.length}` },
+            ]}
+            activa={tab}
+            alElegir={(t) => setTab(t as typeof tab)}
+          />
 
           {tab === "pendientes" && (
             <SeccionTabla
@@ -630,7 +733,7 @@ export default function LiquidacionesPage() {
               abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError}
               nota={nota} setNota={setNota} ocupado={ocupado}
-              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
+              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} registro={registro}
               papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
               onImprimir={imprimir}
             />
@@ -644,7 +747,7 @@ export default function LiquidacionesPage() {
               abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError}
               nota={nota} setNota={setNota} ocupado={ocupado}
-              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
+              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} registro={registro}
               papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
               onImprimir={imprimir}
             />
@@ -658,7 +761,7 @@ export default function LiquidacionesPage() {
               abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError}
               nota={nota} setNota={setNota} ocupado={ocupado}
-              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
+              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} registro={registro}
               papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
               onImprimir={imprimir}
             />
@@ -730,18 +833,31 @@ export default function LiquidacionesPage() {
                   Cerrar
                 </button>
               </div>
+              {(modalAbierto === "certificado" || modalAbierto === "constancia") && papelesCese?.sinNombreDni && (
+                <BannerAviso
+                  variante="advertencia"
+                  titulo="Falta el nombre completo del DNI"
+                  className="m-4 mb-0 p-3 print:hidden"
+                >
+                  <p>
+                    Este papel saldrá con el nombre corto con el que se ve en el terminal. Un banco compara el
+                    nombre contra el DNI al soltar la CTS: carga el nombre completo en Datos personales antes
+                    de imprimirlo — una vez entregado, no se puede corregir.
+                  </p>
+                </BannerAviso>
+              )}
               <div className="hoja overflow-y-auto p-8 text-sm leading-relaxed print:overflow-visible print:p-0">
                 {modalAbierto === "liquidacion" && detalle && <Hoja d={detalle} miFirma={miFirma} />}
                 {modalAbierto === "certificado" && papelesCese && (
                   <HojaCertificado
                     p={papelesCese} apreciacion={apreciacion} firmante={firmanteEmpresa}
-                    firma={esFirmanteEmpresa ? miFirma : null}
+                    firma={puedeEstamparFirmaDeEmpresa(rol) ? firmaEmpresa : null}
                   />
                 )}
                 {modalAbierto === "constancia" && papelesCese && (
                   <HojaConstancia
                     p={papelesCese} detalle={detalle} firmante={firmanteEmpresa}
-                    firma={esFirmanteEmpresa ? miFirma : null}
+                    firma={puedeEstamparFirmaDeEmpresa(rol) ? firmaEmpresa : null}
                   />
                 )}
               </div>
@@ -837,43 +953,130 @@ export default function LiquidacionesPage() {
           </>
         )}
       </Modal>
+
+      {/* Modal: qué pasó con la diferencia real de una liquidación ya pagada (0542). */}
+      <Modal
+        abierto={registroAccion !== null}
+        onCerrar={() => setRegistroAccion(null)}
+        bloqueado={ocupado}
+        titulo={registroAccion?.modo === "retirar" ? "Retirar el registro" : "Qué pasó con esta diferencia"}
+        ancho="md"
+      >
+        {registroAccion && constancia && (
+          <>
+            {registroAccion.modo === "retirar" ? (
+              <p className="mb-3 text-sm text-taupe">
+                Vas a retirar el registro de la diferencia de{" "}
+                <strong className="text-tinta">{registroAccion.nombre}</strong>. La diferencia vuelve a quedar
+                abierta. El registro anterior no se borra: queda en el historial.
+              </p>
+            ) : (
+              <>
+                <p className="mb-2 text-sm text-taupe">
+                  El cálculo de hoy no coincide con la liquidación de{" "}
+                  <strong className="text-tinta">{registroAccion.nombre}</strong>:
+                </p>
+                <LineasDeDiferencia filas={constancia.filas} className="mb-3" />
+                {constancia.sentido === "a_favor_persona" && (
+                  <p className="mb-3 text-xs text-taupe">
+                    Hoy se le daría MÁS que lo que se le pagó. Si esa diferencia se le debe, no la cierres:
+                    págala y usa «Volver a marcarla como pagada».
+                  </p>
+                )}
+                {constancia.sentido === "a_favor_cayla" && (
+                  <p className="mb-3 text-xs text-taupe">
+                    Se le pagó DE MÁS. Según el numeral 29.6 del Reglamento, eso se comunica por escrito con el
+                    detalle del cálculo y se acuerda la devolución; no se descuenta de golpe sin su conformidad escrita.
+                  </p>
+                )}
+                {(constancia.sentido === "a_favor_persona" || constancia.sentido === "a_favor_cayla") && (
+                  <fieldset className="mb-3 flex flex-col gap-2">
+                    <legend className="mb-1 text-sm text-taupe">¿Qué pasó?</legend>
+                    {decisionesPara(constancia.sentido).map((d) => (
+                      <label key={d} className="flex items-start gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="registro-decision"
+                          className="mt-1 size-4 accent-tinta"
+                          checked={registroDecision === d}
+                          onChange={() => setRegistroDecision(d)}
+                        />
+                        {ETIQUETA_DECISION[d]}
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
+                {registroDecision === "pagado_es_correcto" && (
+                  <div className="mb-3">
+                    <CampoSelect
+                      etiqueta="¿En qué te apoyas?"
+                      value={registroApoyo}
+                      onChange={(e) => setRegistroApoyo(e.target.value as ApoyoConstancia | "")}
+                    >
+                      <option value="">Elige…</option>
+                      {APOYOS_CONSTANCIA.map((a) => <option key={a} value={a}>{ETIQUETA_APOYO[a]}</option>)}
+                    </CampoSelect>
+                  </div>
+                )}
+              </>
+            )}
+            <label className="mb-4 flex flex-col gap-1 text-sm">
+              {registroAccion.modo === "retirar" ? "¿Por qué lo retiras?" : "Cuéntalo"} (mínimo 10 caracteres, obligatorio)
+              <AreaTexto
+                value={registroMotivo}
+                onChange={(e) => setRegistroMotivo(e.target.value)}
+                rows={3}
+                autoFocus
+                placeholder={registroAccion.modo === "retirar"
+                  ? "ej. se registró por error: falta confirmarlo con el laboralista."
+                  : "ej. la regla de vacaciones truncas cambió después del pago; lo confirmó el contador el 20/10."}
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Boton onClick={() => setRegistroAccion(null)} disabled={ocupado}>Cancelar</Boton>
+              <Boton
+                variante="primario"
+                onClick={() => void ejecutarRegistro()}
+                cargando={ocupado}
+                disabled={
+                  !registroDecision || !motivoDeConstanciaValido(registroMotivo)
+                  || (registroDecision === "pagado_es_correcto" && !registroApoyo)
+                }
+              >
+                {registroAccion.modo === "retirar" ? "Retirar" : "Guardar"}
+              </Boton>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
 
-function ResumenCifra({
-  etiqueta, valor, sub, tono,
-}: { etiqueta: string; valor: number; sub?: string; tono?: "rojo" | "ambar" }) {
-  return (
-    <div className="rounded-control bg-hueso px-4 py-3">
-      <p className={
-        tono === "rojo" ? "font-serif text-2xl text-rojo" : tono === "ambar" ? "font-serif text-2xl text-ambar" : "font-serif text-2xl text-tinta"
-      }>
-        {valor}
-      </p>
-      <p className="text-xs tracking-wide text-taupe uppercase">{etiqueta}</p>
-      {sub && <p className={tono === "rojo" ? "text-xs text-rojo" : "text-xs text-taupe"}>{sub}</p>}
-    </div>
-  );
+// Lo que baja de la página hasta el desglose para el registro de una diferencia.
+interface RegistroDiferencia {
+  estado: EstadoRegistroDiferencia | null;
+  error: string | null;
+  abrir: (modo: "registrar" | "corregir" | "retirar") => void;
 }
 
-function PestanaTab({ activa, onClick, children }: { activa: boolean; onClick: () => void; children: React.ReactNode }) {
+// Las filas de una diferencia, una por línea y sin tabla: «se pagó X, hoy daría Y».
+function LineasDeDiferencia({ filas, className }: { filas: FilaDiferenciaConstancia[]; className?: string }) {
   return (
-    <button
-      onClick={onClick}
-      className={
-        "flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium " +
-        (activa ? "border-rojo text-tinta" : "border-transparent text-taupe hover:text-tinta")
-      }
-    >
-      {children}
-    </button>
+    <ul className={className}>
+      {filas.map((x) => (
+        <li key={x.concepto} className="text-sm tabular-nums">
+          <span className="text-taupe">{x.concepto}:</span> se pagó {formatSoles(x.pagado)}, hoy daría{" "}
+          {formatSoles(x.ahora)} ({x.diferencia > 0 ? "+" : ""}{formatSoles(x.diferencia)})
+        </li>
+      ))}
+    </ul>
   );
 }
 
 function SeccionTabla({
   vacio, filas, modo, abierta, onAbrir, detalle, diferencias, diferenciasError, nota, setNota, ocupado,
-  onPagar, onAnular, miFirma, papelesCese, apreciacion, setApreciacion, onImprimir,
+  onPagar, onAnular, miFirma, registro, papelesCese, apreciacion, setApreciacion, onImprimir,
 }: {
   vacio: { titulo: string; texto: string };
   filas: Pendiente[];
@@ -885,6 +1088,7 @@ function SeccionTabla({
   onPagar: (id: string, nombre: string, total: number, yaPagada: boolean, fechaCese: string, venceEl: string) => void;
   onAnular: (id: string, nombre: string) => void;
   miFirma: string | null;
+  registro: RegistroDiferencia;
   papelesCese: PapelesCese | null; apreciacion: string; setApreciacion: (v: string) => void;
   onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
@@ -913,13 +1117,6 @@ function SeccionTabla({
             <Fila>
               <td className="px-4 py-2.5">
                 <strong>{f.persona}</strong>
-                {/* Decisión III: solo la diferencia REAL enciende el badge de la
-                    fila — la esperada por el cierre de Planilla es el curso
-                    normal de una cesada y se explica, en tono neutro, dentro
-                    del desglose, no acá. */}
-                {f.descuadra_real && (
-                  <Insignia variante="alerta" className="ml-2">⚠ Cálculo cambió</Insignia>
-                )}
               </td>
               <td className="px-4 py-2.5 text-taupe">{f.sede}</td>
               <td className="px-4 py-2.5 text-taupe">{fechaCorta(f.fecha_cese)}</td>
@@ -949,7 +1146,7 @@ function SeccionTabla({
                 <td colSpan={6} className="bg-crema/50 px-4 py-3">
                   <Desglose
                     d={detalle} diferencias={diferencias} diferenciasError={diferenciasError} pagada={f.pagada}
-                    nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma}
+                    nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma} registro={registro}
                     // `detalle.total` — no `f.total` — porque es el número que la
                     // persona acaba de leer en el Desglose de abajo, recién
                     // calculado. `f.total` es el que trajo la lista al montar la
@@ -1016,18 +1213,22 @@ function Linea({ etiqueta, jsonb }: { etiqueta: string; jsonb: Record<string, un
 }
 
 function Desglose({
-  d, diferencias, diferenciasError, pagada, nota, setNota, ocupado, onPagar, onAnular, miFirma,
+  d, diferencias, diferenciasError, pagada, nota, setNota, ocupado, onPagar, onAnular, miFirma, registro,
   papelesCese, apreciacion, setApreciacion, onImprimir,
 }: {
   d: Detalle; diferencias: Diferencia[]; diferenciasError: string | null; pagada: boolean;
   nota: string; setNota: (v: string) => void; ocupado: boolean;
   onPagar: () => void; onAnular: () => void;
   miFirma: string | null;
+  registro: RegistroDiferencia;
   papelesCese: PapelesCese | null; apreciacion: string; setApreciacion: (v: string) => void;
   onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
   const esperadas = diferencias.filter((x) => x.origen === "esperada_por_cierre");
   const reales = diferencias.filter((x) => x.origen === "real");
+  const que = queDibujarDeLaConstancia({ error: registro.error, fila: registro.estado }, pagada);
+  const vigente = registro.estado?.vigente ?? null;
+  const anterior = registro.estado?.anterior ?? null;
 
   return (
     <div className="rounded-control border border-sand bg-papel p-3">
@@ -1085,7 +1286,7 @@ function Desglose({
               cambió. El sistema la nombra; qué hacer con ella —pagarla,
               compensarla o dejar constancia— sigue siendo una decisión
               humana: nunca se ajusta sola (Decisión XI). */}
-          {reales.length > 0 && (
+          {reales.length > 0 && que !== "vigente" && (
             <BannerAviso variante="alerta" titulo="Revisar — esto no lo explica el cierre del mes" className="mt-3 p-3">
               <table className="w-full">
                 <tbody>
@@ -1101,10 +1302,50 @@ function Desglose({
                 </tbody>
               </table>
               <p className="mt-2 text-xs text-taupe">
-                Qué hacer con la diferencia —pagarla, compensarla o dejar constancia— es una decisión
-                tuya: el sistema la nombra, no la resuelve.
+                Qué hacer con la diferencia es una decisión tuya: el sistema la nombra, no la resuelve.
+                Si se le debe, págala con «Volver a marcarla como pagada»; si no, registra qué pasó.
               </p>
             </BannerAviso>
+          )}
+          {/* Ya se registró qué pasó (0542): el rojo se calma y queda quién, cuándo y por qué. */}
+          {que === "vigente" && vigente && (
+            <BannerAviso variante="informativo" titulo="Ya se registró qué pasó con esta diferencia" className="mt-3 p-3">
+              <p>
+                {ETIQUETA_DECISION[vigente.decision]}.
+                {vigente.apoyo ? ` Apoyo: ${ETIQUETA_APOYO[vigente.apoyo].toLowerCase()}.` : ""} Lo registró{" "}
+                {vigente.por} el {fechaLarga(fechaLima(vigente.cuando))}.
+              </p>
+              <p className="mt-1 text-xs text-taupe">«{vigente.motivo}»</p>
+              <LineasDeDiferencia filas={vigente.diferencias} className="mt-2" />
+              <p className="mt-2 text-xs text-taupe">
+                Si el cálculo cambia otra vez, el aviso vuelve solo.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Boton variante="secundario" tamano="sm" onClick={() => registro.abrir("corregir")} disabled={ocupado}>
+                  Corregir
+                </Boton>
+                <Boton variante="secundario" tamano="sm" onClick={() => registro.abrir("retirar")} disabled={ocupado}>
+                  Retirar el registro
+                </Boton>
+              </div>
+            </BannerAviso>
+          )}
+          {que === "registrar" && (
+            <div className="mt-3">
+              {anterior && (
+                <p className="mb-2 text-xs text-taupe">
+                  El {fechaLarga(fechaLima(anterior.cuando))} se había registrado «{ETIQUETA_DECISION[anterior.decision]}»
+                  con otras cifras. El cálculo cambió desde entonces; las de ahora son las de arriba:
+                  <LineasDeDiferencia filas={anterior.diferencias} className="mt-1" />
+                </p>
+              )}
+              <Boton variante="secundario" tamano="sm" onClick={() => registro.abrir("registrar")} disabled={ocupado}>
+                Registrar qué pasó con la diferencia
+              </Boton>
+            </div>
+          )}
+          {que === "no_se_puede" && registro.estado?.motivo_no && (
+            <p className="mt-2 text-xs text-taupe">{registro.estado.motivo_no}</p>
           )}
         </>
       )}
@@ -1251,8 +1492,8 @@ function Identidad({ p }: { p: PapelesCese }) {
 
 // El bloque de firma de los dos documentos que salen hacia afuera: el nombre y
 // el cargo de quien certifica van SIEMPRE (es lo que hace válido el papel ante
-// un tercero); la imagen de la firma solo si quien tiene la sesión abierta es
-// esa misma persona (`firma`, ya resuelto por el llamador con `esFirmanteEmpresa`).
+// un tercero); la imagen de la firma es la del firmante configurado (`firma`,
+// que el llamador lee con `fn_firma_empresa`), sin importar quién abre el papel.
 function FirmaEmpresa({ firmante, firma }: { firmante: FirmanteEmpresa | null; firma: string | null }) {
   return (
     <div className="text-center text-xs">
@@ -1261,6 +1502,29 @@ function FirmaEmpresa({ firmante, firma }: { firmante: FirmanteEmpresa | null; f
       {firmante?.dni && <div>DNI N.° {firmante.dni}</div>}
       <div>{firmante?.cargo ?? "Gerencia General"}</div>
       <div>{EMPRESA.nombre}</div>
+    </div>
+  );
+}
+
+// El «recibí» del certificado. El Reglamento (59.6) obliga a entregarlo dentro
+// de las 48 horas del cese, y el sistema no guarda que se entregó ni cuándo —el
+// documento se arma en vivo, no se archiva—. La única prueba de esa entrega es
+// esta firma y esta fecha, escritas a mano por quien lo recibe. Por eso la fecha
+// de recepción es un espacio en blanco y no `hoyLima()`: la que importa es el
+// día en que el papel llegó a sus manos, no el día en que se imprimió.
+//
+// `conFirmaEmpresa` alinea la línea de firma con la de CAYLA cuando esta lleva
+// imagen de firma arriba (`h-14`); sin imagen, las dos líneas ya quedan a la
+// misma altura y no hace falta reservar nada.
+function RecibiConforme({ p, conFirmaEmpresa }: { p: PapelesCese; conFirmaEmpresa: boolean }) {
+  return (
+    <div className={`text-xs ${conFirmaEmpresa ? "pt-14" : ""}`}>
+      <div className="w-56 border-t border-tinta pt-1">Recibí conforme</div>
+      <div>{p.nombre_completo}</div>
+      {p.documento && <div>DNI N.° {p.documento}</div>}
+      <div className="mt-2">
+        Fecha de recepción: <span className="inline-block w-32 border-b border-tinta align-baseline" />
+      </div>
     </div>
   );
 }
@@ -1303,7 +1567,8 @@ function HojaCertificado({
         Trujillo, {fechaLarga(hoy)}.
       </p>
 
-      <div className="mt-12 flex justify-end">
+      <div className="mt-12 flex items-start justify-between gap-6">
+        <RecibiConforme p={p} conFirmaEmpresa={!!firma} />
         <FirmaEmpresa firmante={firmante} firma={firma} />
       </div>
 

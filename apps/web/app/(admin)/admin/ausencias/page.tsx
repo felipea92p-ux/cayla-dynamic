@@ -30,12 +30,28 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { useSedesPorId } from "@/lib/admin/use-sedes";
+import { BuscadorPersona, type OpcionBuscador } from "@/components/ui/buscador-persona";
+import { Ban, CalendarDays, List } from "lucide-react";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Insignia } from "@/components/ui/insignia";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
+import { Menu, MenuItem } from "@/components/ui/menu";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Pestanas } from "@/components/ui/pestanas";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { sinTildes } from "@/lib/admin/sin-tildes";
+import { CalendarioMes } from "./calendario-mes";
+import type { AusenciaDeCalendario } from "@/lib/admin/calendario-ausencias";
+import { mesVecino } from "@/lib/admin/calendario-ausencias";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
@@ -121,7 +137,7 @@ type FiltroEstado = "todas" | "pendientes" | "vigentes" | "anuladas";
 type FiltroPersonaEstado = "activos" | "cesados";
 interface PersonaFacts { fechaCese: string | null; liquidada: boolean }
 
-interface Persona { id: string; nombres: string; apellidos: string }
+interface Persona { id: string; nombres: string; apellidos: string; sede_base_id: string | null }
 interface Tipo {
   codigo: string; nombre: string; paga: boolean;
   requiere_documento: boolean; requiere_aprobacion: boolean;
@@ -140,6 +156,11 @@ interface Ausencia {
  *  la tabla — antes se perdía a ojo entre un año de registros ya resueltos. */
 function esPendiente(a: Ausencia): boolean {
   return a.requiere_aprobacion && !a.aprobada && !a.anulada;
+}
+/** `doc_colegiatura` y no una lista de tipos escrita acá: solo el descanso médico y la maternidad exigen esos datos, que
+ *  es exactamente lo que `fn_ausencia_adjuntar_certificado` acepta. Una anulada ya no recibe documentos. */
+function puedeAdjuntar(a: Ausencia): boolean {
+  return !a.anulada && Boolean(a.doc_colegiatura);
 }
 
 interface Alerta {
@@ -193,6 +214,8 @@ export default function AusenciasPage() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [personas, setPersonas] = useState<Persona[]>([]);
+  // Nombre de cada sede, para las fichas del buscador. Si no llega, el buscador sigue sirviendo, solo sin fichas.
+  const sedePorId = useSedesPorId();
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [lista, setLista] = useState<Ausencia[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
@@ -295,8 +318,44 @@ export default function AusenciasPage() {
   const [pagina, setPagina] = useState(0);
   const POR_PAGINA = 50;
 
+  // Lista o calendario del mes (se acuerda por navegador), qué pastilla de «Para atender» filtra, la búsqueda por
+  // nombre y qué mes se mira en el calendario.
+  const [vista, setVista] = useFiltroGuardado<"lista" | "calendario">("ausencias.vista", "lista");
+  const [atencion, setAtencion] = useState<"" | "vacaciones" | "essalud" | "patron">("");
+  const [busca, setBusca] = useState("");
+  const [mesCal, setMesCal] = useState(() => {
+    const [anio, mes] = hoyLima().split("-").map(Number);
+    return { anio, mes };
+  });
+
   const tipoSel = tipos.find((t) => t.codigo === tipoCod) ?? null;
 
+  // El panel consolidado: los mismos tres avisos de siempre (vencimiento
+  // legal, reembolso de EsSalud, patrón de ausencias), agrupados por persona
+  // en vez de por tipo de aviso — antes había que leer los tres bloques
+  // buscando el mismo nombre en cada uno para saber el impacto de UNA
+  // persona; ahora es una fila.
+  const impactoPorPersona = useMemo(() => {
+    const mapa = new Map<string, ImpactoPersona>();
+    const fila = (id: string, nombre: string, sede: string | null) => {
+      let f = mapa.get(id);
+      if (!f) { f = { persona_id: id, nombre, sede, legal: null, financiero: null, patron: [] }; mapa.set(id, f); }
+      if (sede && !f.sede) f.sede = sede;
+      return f;
+    };
+    for (const v of porVencer) fila(v.persona_id, v.persona, v.sede).legal = v;
+    for (const s of subsidio.filter((x) => x.hay_que_avisar)) fila(s.persona_id, s.nombre, null).financiero = s;
+    for (const a of alertas) fila(a.persona_id, a.nombre, null).patron.push(a);
+    return Array.from(mapa.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [porVencer, subsidio, alertas]);
+
+
+  // Quién cae en cada pastilla de «Para atender» (vacaciones por vencer, cupo de EsSalud, patrón de ausencias).
+  const personasPorAtencion = useMemo(() => ({
+    vacaciones: new Set(impactoPorPersona.filter((f) => f.legal).map((f) => f.persona_id)),
+    essalud: new Set(impactoPorPersona.filter((f) => f.financiero).map((f) => f.persona_id)),
+    patron: new Set(impactoPorPersona.filter((f) => f.patron.length > 0).map((f) => f.persona_id)),
+  }), [impactoPorPersona]);
   const pendientesCount = useMemo(() => lista.filter(esPendiente).length, [lista]);
 
   // Filtra por estado y, encima, sube las pendientes de aprobar al principio
@@ -304,11 +363,13 @@ export default function AusenciasPage() {
   // una acción, y con doce meses de historial por defecto se perdía entre
   // cientos de filas ya resueltas.
   const porFiltroEstadoYRango = useMemo(() => lista.filter((a) => {
+    if (busca.trim() !== "" && !sinTildes(a.nombre).includes(sinTildes(busca.trim()))) return false;
+    if (atencion !== "" && !personasPorAtencion[atencion].has(a.persona_id)) return false;
     if (filtroEstado === "pendientes") return esPendiente(a);
     if (filtroEstado === "vigentes") return !a.anulada && !esPendiente(a);
     if (filtroEstado === "anuladas") return a.anulada;
     return true;
-  }), [lista, filtroEstado]);
+  }), [lista, filtroEstado, busca, atencion, personasPorAtencion]);
 
   const esCesada = useCallback(
     (personaIdFila: string) => !!personaFacts.get(personaIdFila)?.fechaCese,
@@ -341,25 +402,6 @@ export default function AusenciasPage() {
     [listaOrdenada, paginaActual],
   );
 
-  // El panel consolidado: los mismos tres avisos de siempre (vencimiento
-  // legal, reembolso de EsSalud, patrón de ausencias), agrupados por persona
-  // en vez de por tipo de aviso — antes había que leer los tres bloques
-  // buscando el mismo nombre en cada uno para saber el impacto de UNA
-  // persona; ahora es una fila.
-  const impactoPorPersona = useMemo(() => {
-    const mapa = new Map<string, ImpactoPersona>();
-    const fila = (id: string, nombre: string, sede: string | null) => {
-      let f = mapa.get(id);
-      if (!f) { f = { persona_id: id, nombre, sede, legal: null, financiero: null, patron: [] }; mapa.set(id, f); }
-      if (sede && !f.sede) f.sede = sede;
-      return f;
-    };
-    for (const v of porVencer) fila(v.persona_id, v.persona, v.sede).legal = v;
-    for (const s of subsidio.filter((x) => x.hay_que_avisar)) fila(s.persona_id, s.nombre, null).financiero = s;
-    for (const a of alertas) fila(a.persona_id, a.nombre, null).patron.push(a);
-    return Array.from(mapa.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [porVencer, subsidio, alertas]);
-
   // LA FECHA DE EMISIÓN NACE PUESTA, y no es comodidad.
   //
   // El 2026-08-26 un descanso médico real no se pudo registrar: Safari pintaba
@@ -381,7 +423,7 @@ export default function AusenciasPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al, error: eAl }, { data: sub, error: eSub }, { data: pv, error: ePv }, { data: pf }] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, sede_base_id").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
@@ -735,16 +777,31 @@ export default function AusenciasPage() {
   // dentro de la confirmación de pago (esa no repite el formulario, solo lo
   // resume; ver más abajo). Separado en función para no duplicar el JSX entre
   // el modal normal y cualquier reapertura tras cancelar la confirmación.
+  // Qué hay en el menú «•••» de una fila. Con UNA sola opción real —casi siempre «Anular»— el menú es un
+  // clic de más: se dibuja esa opción como un ícono. Con dos o más, o cuando lo único que hay es el aviso
+  // «la aprobó DO» (que es texto y no una acción), sigue el menú.
+  const extrasDeFila = (a: Ausencia) => {
+    const verDoc = esDO && esPendiente(a) && Boolean(certificados[a.id]);
+    const adjuntar = esDO && esPendiente(a) && !certificados[a.id] && puedeAdjuntar(a);
+    const anularBloqueada = a.requiere_aprobacion && a.aprobada && !esDO;
+    return { verDoc, adjuntar, anularBloqueada, soloAnular: !verDoc && !adjuntar && !anularBloqueada };
+  };
+  const opcionesPersona: OpcionBuscador[] = personas.map((p) => ({
+    id: p.id,
+    nombre: `${p.nombres} ${p.apellidos}`,
+    sede: p.sede_base_id ? sedePorId.get(p.sede_base_id) ?? null : null,
+  }));
   const formularioContenido = (
     <div className="grid gap-3 sm:grid-cols-2">
-      <CampoSelect
-        etiqueta="Persona"
-        value={personaId}
-        onChange={(e) => { setPersonaId(e.target.value); void revisarCruceMarcaje(e.target.value, inicio, fin); }}
-      >
-        <option value="">Elegir…</option>
-        {personas.map((p) => (<option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>))}
-      </CampoSelect>
+      {/* Sede en fichas y búsqueda que va acortando la lista: con 30 personas, un desplegable obliga a
+          recorrerlas todas. Las sedes se leen de la tabla (nunca una lista a mano). */}
+      <div className="sm:col-span-2">
+        <BuscadorPersona
+          opciones={opcionesPersona}
+          value={personaId}
+          onChange={(id) => { setPersonaId(id); void revisarCruceMarcaje(id, inicio, fin); }}
+        />
+      </div>
       {/* Tipo NACE VACÍO a propósito. Antes se rellenaba solo con el primer
           tipo del catálogo ("Vacaciones") y la comprobación de más abajo
           nunca podía avisar — el motivo real de este "Elegir…" está en
@@ -759,6 +816,15 @@ export default function AusenciasPage() {
             </option>
           );
         })}
+      </CampoSelect>
+      {/* Tipo y motivo van juntos (qué ausencia es y de qué se trata), y las dos fechas juntas debajo. */}
+      <CampoSelect
+        etiqueta="Motivo — de qué se trata"
+        value={motivoEtiqueta}
+        onChange={(e) => setMotivoEtiqueta(e.target.value)}
+      >
+        <option value="">Elegir…</option>
+        {MOTIVO_ETIQUETAS.map((m) => (<option key={m} value={m}>{m}</option>))}
       </CampoSelect>
       <Campo
         etiqueta="Desde"
@@ -795,14 +861,6 @@ export default function AusenciasPage() {
         </p>
       )}
 
-      <CampoSelect
-        etiqueta="Motivo — de qué se trata"
-        value={motivoEtiqueta}
-        onChange={(e) => setMotivoEtiqueta(e.target.value)}
-      >
-        <option value="">Elegir…</option>
-        {MOTIVO_ETIQUETAS.map((m) => (<option key={m} value={m}>{m}</option>))}
-      </CampoSelect>
       <div className="sm:col-span-2">
         <AreaTexto
           etiqueta="Detalle (opcional — lo que se conversó; queda en su historial)"
@@ -902,15 +960,20 @@ export default function AusenciasPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Ausencias"
-          descripcion={
-            <>
-              Todos los días que alguien no vino, y por qué — vacaciones incluidas. Un día registrado aquí{" "}
-              <strong className="font-medium">deja de contar como falta injustificada</strong> y no alimenta el
-              expediente disciplinario. En CAYLA solo se paga lo que la ley obliga —descanso médico con
-              documento, maternidad, vacaciones y el duelo de un familiar directo— o lo que la empresa decide
-              conceder aparte (licencia con goce).
-            </>
+          descripcion="Cada día que alguien no vino, y por qué. Un día registrado aquí no cuenta como falta injustificada."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funcionan las ausencias"
+              intro="Aquí se registran los días que alguien no vino, vacaciones incluidas. Nada se borra: una ausencia se anula con motivo y queda en el historial."
+              secciones={[
+                { titulo: "Qué cambia", texto: <>Un día registrado aquí <strong className="font-medium text-tinta">deja de contar como falta injustificada</strong> y no alimenta el expediente disciplinario.</> },
+                { titulo: "Qué se paga", texto: "En CAYLA solo se paga lo que la ley obliga —descanso médico con documento, maternidad, vacaciones y el duelo de un familiar directo— o lo que la empresa decide conceder aparte (licencia con goce)." },
+                { titulo: "Impacto", texto: "La tarjeta «Impacto por colaborador» avisa vacaciones por vencer, el cupo de EsSalud y patrones de ausencias. El patrón es para conversar, nunca para sancionar solo con ese dato." },
+                { titulo: "Periodo pagado", texto: "No se puede registrar ni anular nada dentro de un periodo de planilla ya pagado: hay que reabrirlo primero." },
+              ]}
+            />
           }
           accion={<Boton variante="primario" onClick={abrirRegistro}>+ Registrar ausencia</Boton>}
         />
@@ -922,72 +985,91 @@ export default function AusenciasPage() {
             banner: son tres fuentes distintas y una puede fallar sin que
             fallen las otras dos. */}
         {errorPorVencer && (
-          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta" className="mb-3 max-w-3xl">
             {errorPorVencer} — esto no quiere decir que nadie tenga vacaciones por vencer, solo que
             el aviso no se pudo calcular. Es el único de esta pantalla con fecha límite legal (art. 23,
             D. Leg. 713): conviene revisar a mano mientras no cargue.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {errorAlertas && (
-          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta" className="mb-3 max-w-3xl">
             {errorAlertas} — esto no quiere decir que nadie tenga un patrón de ausencias, solo que
             el aviso no se pudo calcular.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {errorSubsidio && (
-          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta" className="mb-3 max-w-3xl">
             {errorSubsidio} — esto no quiere decir que nadie tenga descanso médico pendiente de reembolso,
             solo que el aviso no se pudo calcular.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
 
-        <div className="mb-6 max-w-3xl rounded-superficie border border-sand bg-papel p-5">
-          <h2 className="mb-1 font-serif text-lg">Impacto por colaborador</h2>
-          {impactoPorPersona.length === 0 ? (
-            <p className="text-sm text-taupe">Sin alertas activas hoy — vacaciones al día, dentro del cupo de EsSalud y sin patrón de ausencias que revisar.</p>
-          ) : (
-            <>
-              <ul className="mt-2 divide-y divide-sand text-sm">
-                {impactoPorPersona.map((f) => (
-                  <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-2 first:pt-0 last:pb-0">
-                    <span className="w-44 shrink-0 font-medium text-tinta">
-                      {f.nombre}
-                      {f.sede && <span className="block text-xs font-normal text-taupe">{f.sede}</span>}
-                    </span>
-                    <span className="flex flex-1 flex-wrap gap-1.5">
-                      {f.legal && (
-                        <Insignia variante={f.legal.records_vencidos > 0 ? "alerta" : "advertencia"} punto={false}>
-                          {f.legal.records_vencidos > 0
-                            ? `${f.legal.records_vencidos === 1 ? "récord vencido" : `${f.legal.records_vencidos} récords vencidos`} · ${f.legal.dias_pendientes}d`
-                            : `vence en ${f.legal.dias_para_vencer}d · ${f.legal.dias_pendientes}d sin gozar`}
-                        </Insignia>
-                      )}
-                      {f.financiero && (
-                        <Insignia punto={false}>
-                          EsSalud: {f.financiero.dias_calendario}/{f.financiero.umbral}d
-                          {f.financiero.sin_certificado > 0 ? " · sin certificado" : ""}
-                        </Insignia>
-                      )}
-                      {f.patron.map((p) => (
-                        <Insignia key={p.tipo_nombre} variante="advertencia" punto={false}>
-                          {p.veces}× «{p.tipo_nombre}» en {p.ventana_dias}d
-                        </Insignia>
-                      ))}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-3 text-xs text-taupe">
-                Un récord de vacaciones vencido obliga a indemnizar (art. 23, D. Leg. 713). El cupo de EsSalud
-                se cuenta en días corridos y no incluye maternidad. El patrón de ausencias es para conversar,
-                nunca para sancionar solo con este dato.
-              </p>
-            </>
-          )}
-        </div>
+        {/* PARA ATENDER: lo que pide una conversación o una decisión, en una línea. Reemplaza la tarjeta «Impacto por
+            colaborador», que ocupaba un bloque entero aun cuando decía «sin alertas». Cada pastilla filtra la lista a
+            esas personas y abre, debajo, el detalle de lo que la hace saltar. */}
+        {/* Mientras carga no se dice «nada pendiente»: sería tranquilizar sin haber mirado. */}
+        {!cargando && (
+        <ParaAtender
+          items={[
+            { clave: "pendientes", texto: `${pendientesCount} ${pendientesCount === 1 ? "pendiente" : "pendientes"} de aprobar`, n: pendientesCount, tono: "pizarra" },
+            { clave: "vacaciones", texto: `${personasPorAtencion.vacaciones.size} ${personasPorAtencion.vacaciones.size === 1 ? "vacación" : "vacaciones"} por vencer`, n: personasPorAtencion.vacaciones.size, tono: impactoPorPersona.some((f) => (f.legal?.records_vencidos ?? 0) > 0) ? "rojo" : "ambar" },
+            { clave: "essalud", texto: `${personasPorAtencion.essalud.size} con cupo de EsSalud`, n: personasPorAtencion.essalud.size, tono: "ambar" },
+            { clave: "patron", texto: `${personasPorAtencion.patron.size} ${personasPorAtencion.patron.size === 1 ? "patrón" : "patrones"} de ausencias`, n: personasPorAtencion.patron.size, tono: "neutro" },
+          ]}
+          activa={atencion !== "" ? atencion : filtroEstado === "pendientes" ? "pendientes" : null}
+          alTocar={(clave) => {
+            setPagina(0);
+            if (clave === "pendientes") { setAtencion(""); setFiltroEstado(filtroEstado === "pendientes" ? "todas" : "pendientes"); return; }
+            setFiltroEstado("todas");
+            setAtencion(atencion === clave ? "" : (clave as "vacaciones" | "essalud" | "patron"));
+          }}
+        />
+        )}
+
+        {atencion !== "" && (
+          <TarjetaInfo className="mb-4" titulo={atencion === "vacaciones" ? "Vacaciones por vencer" : atencion === "essalud" ? "Cupo de EsSalud" : "Patrón de ausencias"}>
+            <ul className="divide-y divide-sand text-sm">
+              {impactoPorPersona.filter((f) => personasPorAtencion[atencion].has(f.persona_id)).map((f) => (
+                <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-2 first:pt-0 last:pb-0">
+                  <span className="w-44 shrink-0 font-medium text-tinta">
+                    {f.nombre}
+                    {f.sede && <span className="block text-xs font-normal text-taupe">{f.sede}</span>}
+                  </span>
+                  <span className="flex flex-1 flex-wrap gap-1.5">
+                    {atencion === "vacaciones" && f.legal && (
+                      <Insignia variante={f.legal.records_vencidos > 0 ? "alerta" : "advertencia"} punto={false}>
+                        {f.legal.records_vencidos > 0
+                          ? `${f.legal.records_vencidos === 1 ? "récord vencido" : `${f.legal.records_vencidos} récords vencidos`} · ${f.legal.dias_pendientes}d`
+                          : `vence en ${f.legal.dias_para_vencer}d · ${f.legal.dias_pendientes}d sin gozar`}
+                      </Insignia>
+                    )}
+                    {atencion === "essalud" && f.financiero && (
+                      <Insignia punto={false}>
+                        EsSalud: {f.financiero.dias_calendario}/{f.financiero.umbral}d
+                        {f.financiero.sin_certificado > 0 ? " · sin certificado" : ""}
+                      </Insignia>
+                    )}
+                    {atencion === "patron" && f.patron.map((p) => (
+                      <Insignia key={p.tipo_nombre} variante="advertencia" punto={false}>
+                        {p.veces}× «{p.tipo_nombre}» en {p.ventana_dias}d
+                      </Insignia>
+                    ))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-taupe">
+              {atencion === "vacaciones"
+                ? "Un récord de vacaciones vencido obliga a indemnizar (art. 23, D. Leg. 713)."
+                : atencion === "essalud"
+                  ? "El cupo de EsSalud se cuenta en días corridos y no incluye maternidad."
+                  : "El patrón de ausencias es para conversar, nunca para sancionar solo con este dato."}
+            </p>
+          </TarjetaInfo>
+        )}
 
         {/* Rango, estado y pestaña de persona. El filtro de estado existe
             porque la única fila que pide una acción en esta pantalla —
@@ -995,56 +1077,62 @@ export default function AusenciasPage() {
             con el rango por defecto (doce meses) quedaba enterrada entre
             cientos de filas ya resueltas. Aun en "Todas", esas filas se
             ordenan arriba. */}
-        <div className="mb-3 flex flex-wrap items-end gap-3">
-          {/* Cada filtro reinicia la página a la vez que cambia — quedarse en
-              la página 4 de una lista que un filtro nuevo dejó con 1 sería
-              mostrar una tabla vacía sin que nada lo explique. Se resetea acá,
-              junto al gesto que lo causa, y no en un efecto aparte. */}
-          <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => { setPagina(0); setDesde(e.target.value); }} />
-          <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => { setPagina(0); setHasta(e.target.value); }} />
-          <CampoSelect
-            etiqueta="Estado"
-            value={filtroEstado}
-            onChange={(e) => { setPagina(0); setFiltroEstado(e.target.value as FiltroEstado); }}
-          >
-            <option value="todas">Todas</option>
-            <option value="pendientes">Pendientes de aprobar</option>
-            <option value="vigentes">Vigentes</option>
-            <option value="anuladas">Anuladas</option>
-          </CampoSelect>
-          {pendientesCount > 0 && (
-            <span className="flex items-center gap-1.5 pb-2 text-xs text-taupe">
-              <Insignia variante="contador" tamano="sm">{pendientesCount}</Insignia>
-              {pendientesCount === 1 ? "pendiente de aprobar" : "pendientes de aprobar"}
-            </span>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {/* Cada filtro reinicia la página a la vez que cambia — quedarse en la página 4 de una lista que un filtro
+              nuevo dejó con 1 sería mostrar una tabla vacía sin que nada lo explique. Se resetea acá, junto al gesto
+              que lo causa, y no en un efecto aparte. */}
+          <div className="min-w-44 flex-1 basis-52">
+            <Campo tamano="sm" aria-label="Buscar persona por nombre" placeholder="Buscar persona" value={busca}
+              onChange={(e) => { setPagina(0); setBusca(e.target.value); }} />
+          </div>
+          <div className="w-full sm:w-52">
+            <CampoSelect tamano="sm" aria-label="Estado" value={filtroEstado}
+              onChange={(e) => { setPagina(0); setFiltroEstado(e.target.value as FiltroEstado); }}>
+              <option value="todas">Todos los estados</option>
+              <option value="pendientes">Pendientes de aprobar</option>
+              <option value="vigentes">Vigentes</option>
+              <option value="anuladas">Anuladas</option>
+            </CampoSelect>
+          </div>
+          {vista === "lista" && (
+            // Desde y Hasta en la misma línea, con su rótulo al lado (no encima). El calendario mira un mes y los
+            // reemplaza por su propio selector de mes.
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-taupe">
+              <span className="flex items-center gap-2">
+                <label htmlFor="ausencias-desde">Desde</label>
+                <Campo tamano="sm" id="ausencias-desde" type="date" value={desde} className="w-36"
+                  onChange={(e) => { setPagina(0); setDesde(e.target.value); }} />
+              </span>
+              <span className="flex items-center gap-2">
+                <label htmlFor="ausencias-hasta">Hasta</label>
+                <Campo tamano="sm" id="ausencias-hasta" type="date" value={hasta} className="w-36"
+                  onChange={(e) => { setPagina(0); setHasta(e.target.value); }} />
+              </span>
+            </div>
           )}
+          {(busca !== "" || filtroEstado !== "todas" || atencion !== "") && (
+            <Boton variante="enlace" className="text-xs text-taupe"
+              onClick={() => { setBusca(""); setFiltroEstado("todas"); setAtencion(""); setPagina(0); }}>
+              Limpiar
+            </Boton>
+          )}
+          <div className="ml-auto flex gap-1" role="group" aria-label="Cómo ver las ausencias">
+            <BotonIcono tamano="md" etiqueta="Ver como lista" icono={<List aria-hidden />} activo={vista === "lista"} onClick={() => setVista("lista")} />
+            <BotonIcono tamano="md" etiqueta="Ver como calendario" icono={<CalendarDays aria-hidden />} activo={vista === "calendario"} onClick={() => setVista("calendario")} />
+          </div>
         </div>
 
-        {/* Personal cesado en su propia pestaña (rediseño 2026-09-15): antes
-            era un cuarto valor de un desplegable de cuatro; ahora son dos
-            pestañas, y "Cesados" incluye a cualquiera que dejó de estar
-            activo — liquidado o no — para seguir sirviendo de auditoría antes
-            de una liquidación (0421/0422) sin abrir una pantalla aparte. */}
-        <div className="mb-3 flex gap-1 border-b border-sand" role="tablist" aria-label="Personal">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={filtroPersona === "activos"}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${filtroPersona === "activos" ? "border-rojo text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}
-            onClick={() => { setPagina(0); setFiltroPersona("activos"); }}
-          >
-            Activos ({activosCount})
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={filtroPersona === "cesados"}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${filtroPersona === "cesados" ? "border-rojo text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}
-            onClick={() => { setPagina(0); setFiltroPersona("cesados"); }}
-          >
-            Cesados ({cesadosCount})
-          </button>
-        </div>
+        {/* Personal cesado en su propia pestaña (rediseño 2026-09-15): «Cesados» incluye a cualquiera que dejó de
+            estar activo —liquidado o no— para seguir sirviendo de auditoría antes de una liquidación (0421/0422). */}
+        <Pestanas
+          etiqueta="Personal"
+          pestanas={[
+            { clave: "activos" as const, texto: `Activos (${activosCount})` },
+            { clave: "cesados" as const, texto: `Cesados (${cesadosCount})` },
+          ]}
+          activa={filtroPersona}
+          alElegir={(v) => { setPagina(0); setFiltroPersona(v); }}
+        />
 
         {cargando ? (
           <Cargando texto="Cargando las ausencias…" />
@@ -1055,13 +1143,25 @@ export default function AusenciasPage() {
             <Boton variante="secundario" tamano="sm" className="mt-2" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         ) : listaOrdenada.length === 0 ? (
-          <div className="max-w-2xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
+          <EstadoVacio>
             {lista.length === 0
               ? "No hay ausencias registradas en ese rango de fechas."
               : filtroPersona === "cesados"
               ? "No hay ausencias de personal cesado con ese estado en el rango elegido."
-              : "No hay ausencias con ese estado en el rango elegido."}
-          </div>
+              : "No hay ausencias con esos filtros en el rango elegido."}
+          </EstadoVacio>
+        ) : vista === "calendario" ? (
+          <CalendarioMes
+            ausencias={listaOrdenada.map((a): AusenciaDeCalendario => ({
+              id: a.id, personaId: a.persona_id, nombre: a.nombre, tipo: a.tipo, tipoNombre: a.tipo_nombre,
+              inicio: a.fecha_inicio, fin: a.fecha_fin, pendiente: esPendiente(a), anulada: a.anulada,
+            }))}
+            anio={mesCal.anio}
+            mes={mesCal.mes}
+            hoy={hoyLima()}
+            onMes={(d) => setMesCal((m) => mesVecino(m.anio, m.mes, d))}
+            onElegir={(nombre) => { setBusca(nombre); setPagina(0); setVista("lista"); }}
+          />
         ) : (
           <Tabla className="[font-variant-numeric:tabular-nums]">
             <TablaEncabezado>
@@ -1110,14 +1210,6 @@ export default function AusenciasPage() {
                         <>
                           <Insignia>anulada</Insignia>
                           <div className="text-xs text-taupe">{a.anulada_motivo}</div>
-                          {/* El papel sigue existiendo aunque la ausencia se
-                              haya anulado, y a veces es justo lo que hay que
-                              mirar para entender por qué se anuló. */}
-                          {certificados[a.id] && (
-                            <Boton variante="secundario" tamano="sm" className="mt-1" onClick={() => void verCertificado(a)}>
-                              Ver documento
-                            </Boton>
-                          )}
                         </>
                       ) : esPendiente(a) ? (
                         <Insignia variante="advertencia">pendiente de aprobar</Insignia>
@@ -1126,69 +1218,69 @@ export default function AusenciasPage() {
                       )}
                     </td>
                     <td className="px-4 py-2">
-                      {!a.anulada && (
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          {certificados[a.id] ? (
-                            <Boton variante="secundario" tamano="sm" onClick={() => void verCertificado(a)}>
-                              Ver documento
-                            </Boton>
-                          ) : a.doc_colegiatura ? (
-                            // `doc_colegiatura` y no una lista de tipos escrita
-                            // acá: solo el descanso médico y la maternidad
-                            // exigen esos datos, que es exactamente lo que
-                            // `fn_ausencia_adjuntar_certificado` acepta.
-                            //
-                            // El disparador es un <Boton> (antes era un <label>
-                            // a mano con "rounded border px-2 py-1" — no
-                            // coincidía ni en radio ni en borde con el resto de
-                            // acciones de la fila); el input sigue oculto
-                            // detrás, uno por fila para que dos ausencias con
-                            // este botón a la vez no compartan el mismo input.
-                            <>
-                              <Boton
-                                variante="secundario"
-                                tamano="sm"
-                                disabled={adjuntando !== null}
-                                onClick={() => refsAdjuntar.current[a.id]?.click()}
-                              >
-                                {adjuntando === a.id ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar documento"}
-                              </Boton>
-                              <input
-                                ref={(el) => { refsAdjuntar.current[a.id] = el; }}
-                                type="file"
-                                accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  e.target.value = "";   // para poder reintentar con el mismo archivo
-                                  if (f) void adjuntarCertificado(a, f);
-                                }}
-                              />
-                            </>
-                          ) : null}
-                          {esDO && esPendiente(a) && (
-                            <Boton variante="secundario" tamano="sm" onClick={() => pedirAprobar(a)} disabled={guardando}>
-                              Aprobar
-                            </Boton>
-                          )}
-                          {/* Anular lo que YA aprobó DO (0442) pide el mismo
-                              permiso que aprobarlo — la encargada de sede deja
-                              de tener un botón que solo le iba a devolver un
-                              error del servidor; en su lugar, a quién
-                              pedírselo. Vacaciones no entra acá: paga, pero
-                              nunca pasa por una aprobación real de DO
-                              (requiere_aprobacion = false). */}
-                          {a.requiere_aprobacion && a.aprobada && !esDO ? (
-                            <span className="self-center text-xs text-taupe">
-                              Ya la aprobó DO — pídesela a Desarrollo Organizacional para anularla.
-                            </span>
-                          ) : (
-                            <Boton variante="peligro" tamano="sm" onClick={() => pedirAnular(a)} disabled={guardando}>
-                              Anular
-                            </Boton>
-                          )}
-                        </div>
+                      {/* UNA acción a la vista —la que ese estado pide— y el resto en «•••». Antes eran hasta tres
+                          botones apilados en cada fila. El <input> del archivo vive acá, fuera del menú: un menú cerrado
+                          desmonta sus ítems y el input se iría con ellos. */}
+                      {puedeAdjuntar(a) && (
+                        <input
+                          ref={(el) => { refsAdjuntar.current[a.id] = el; }}
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = "";   // para poder reintentar con el mismo archivo
+                            if (f) void adjuntarCertificado(a, f);
+                          }}
+                        />
                       )}
+                      <div className="flex items-center justify-end gap-1.5">
+                        {esDO && esPendiente(a) ? (
+                          <Boton variante="primario" tamano="sm" onClick={() => pedirAprobar(a)} disabled={guardando}>Aprobar</Boton>
+                        ) : certificados[a.id] ? (
+                          <Boton variante="secundario" tamano="sm" onClick={() => void verCertificado(a)}>Ver documento</Boton>
+                        ) : puedeAdjuntar(a) ? (
+                          <Boton variante="secundario" tamano="sm" disabled={adjuntando !== null}
+                            onClick={() => refsAdjuntar.current[a.id]?.click()}>
+                            {adjuntando === a.id ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar documento"}
+                          </Boton>
+                        ) : null}
+                        {!a.anulada && extrasDeFila(a).soloAnular && (
+                          <BotonIcono
+                            tamano="md"
+                            etiqueta={`Anular ausencia de ${a.nombre}`}
+                            icono={<Ban aria-hidden />}
+                            className="hover:border-rojo hover:text-rojo-profundo"
+                            onClick={() => pedirAnular(a)}
+                            disabled={guardando}
+                          />
+                        )}
+                        {!a.anulada && !extrasDeFila(a).soloAnular && (
+                          <Menu alinear="derecha" trigger={({ abierto, alternar }) => (
+                            <Boton variante="sutil" tamano="sm" onClick={alternar}
+                              aria-haspopup="menu" aria-expanded={abierto} aria-label={`Más acciones para ${a.nombre}`}>
+                              •••
+                            </Boton>
+                          )}>
+                            {/* Lo que no quedó como botón visible: cuando el botón es «Aprobar», el documento (o su
+                                adjuntar) pasa aquí. */}
+                            {esDO && esPendiente(a) && certificados[a.id] && (
+                              <MenuItem onClick={() => void verCertificado(a)}>Ver documento</MenuItem>
+                            )}
+                            {esDO && esPendiente(a) && !certificados[a.id] && puedeAdjuntar(a) && (
+                              <MenuItem onClick={() => refsAdjuntar.current[a.id]?.click()} disabled={adjuntando !== null}>Adjuntar documento</MenuItem>
+                            )}
+                            {/* Anular lo que YA aprobó DO (0442) pide el mismo permiso que aprobarlo: quien no es DO ve a
+                                quién pedírselo en vez de un botón que solo le iba a devolver un error del servidor.
+                                Vacaciones no entra: paga, pero nunca pasa por una aprobación real de DO. */}
+                            {a.requiere_aprobacion && a.aprobada && !esDO ? (
+                              <MenuItem disabled>La aprobó DO: pídeles que la anulen</MenuItem>
+                            ) : (
+                              <MenuItem variante="peligro" onClick={() => pedirAnular(a)} disabled={guardando}>Anular</MenuItem>
+                            )}
+                          </Menu>
+                        )}
+                      </div>
                     </td>
                   </Fila>
                   );
@@ -1197,7 +1289,7 @@ export default function AusenciasPage() {
           </Tabla>
         )}
 
-        {!cargando && !errorCarga && totalPaginas > 1 && (
+        {!cargando && !errorCarga && vista === "lista" && totalPaginas > 1 && (
           <div className="mt-3 flex items-center gap-3 text-xs text-taupe">
             <Boton
               variante="secundario"

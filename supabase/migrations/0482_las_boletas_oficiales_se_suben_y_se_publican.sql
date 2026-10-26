@@ -96,8 +96,16 @@
 -- ── LO QUE SE PUEDE PERDER Y LO QUE NO ───────────────────────────────────────
 --
 --   Si Storage no responde: la subida falla entera, sin filas. Se degrada así:
---   DO no puede subir, la persona sigue viendo lo ya publicado (las URL firmadas
---   son de 60 segundos y las pide el navegador). Nunca se pierde un dato.
+--   DO no puede subir, y la persona sigue viendo la LISTA de sus boletas y sus
+--   fechas (viven en la base), pero NO puede abrir ni guardar las hojas: los
+--   archivos están en Storage y las URL firmadas (60 segundos) las pide el
+--   navegador. Su confirmación, si ya la dio, no se pierde.
+--   (Corregido el 2026-09-19: este párrafo decía que «la persona sigue viendo lo
+--   ya publicado», y sin Storage no se abre ningún archivo.)
+--   Y hay una pérdida que ESTE diseño no evita: si Storage pierde un archivo, la
+--   base conserva quién lo publicó y cuándo lo confirmó la persona, pero no el
+--   documento. El respaldo de la base NO incluye Storage: ver
+--   `scripts/respaldar-boletas.sh`.
 --   La marca «vista» prueba que se pidieron los archivos, no que se leyeron.
 --
 -- ── NÚMEROS (Jeff Dean) ──────────────────────────────────────────────────────

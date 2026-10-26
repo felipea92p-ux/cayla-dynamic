@@ -11,10 +11,10 @@ import {
   LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText, UserRound, ScrollText, Megaphone, Palette,
+  BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare, Archive, ShieldCheck, FileStack,
   type LucideIcon,
 } from "lucide-react";
-import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA } from "@cayla-dynamic/shared";
+import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS } from "@cayla-dynamic/shared";
 
 // Qué renglones del menú ve cada quien. Las listas vienen de `permisos.ts` — el
 // menú no vuelve a decidir quién es DO, solo lo consulta.
@@ -33,6 +33,12 @@ export type Item = {
   Icon: LucideIcon;
   roles?: readonly string[];
   contador?: Contador;
+  /**
+   * Una condición que el rol no alcanza a decir. Hoy una sola: «casos», que
+   * se ve si `fn_ve_casos` (0488) dice que sí — la Gerencia General es una
+   * MARCA, no un rol, y de los admins solo ella gestiona reportes.
+   */
+  requiere?: "casos";
 };
 
 export type Grupo = { label?: string; items: Item[] };
@@ -67,6 +73,15 @@ export type Grupo = { label?: string; items: Item[] };
 //     nombra lo mismo con la palabra de la casa («Planilla»).
 //
 // Lo que NO cambió: ninguna URL, ningún `roles`, ningún nombre de pantalla.
+//
+// Ocho desde el 2026-10-01: «Empresa», con un solo renglón, «Archivo» (0503).
+// Ninguno de los siete le servía, y cada uno por una razón concreta: Personas es
+// de papeles de alguien y este es de CAYLA; Publicaciones es lo que TODO el
+// equipo tiene que poder abrir, y esto lo ve solo DO; Configuración cambia cómo
+// funciona el sistema, y ahí nadie busca una constancia durante una inspección.
+// Se llama «Archivo» y no «Documentos» porque «Documentación» (Personas) ya es
+// otra cosa —los pactos que firma cada persona— y en el buscador (⌘K) las dos
+// saldrían juntas al escribir «docu».
 export const GRUPOS: Grupo[] = [
   { items: [
     // «Lo mío» va sin `roles` y va PRIMERO: es lo único de este menú que habla de
@@ -126,11 +141,33 @@ export const GRUPOS: Grupo[] = [
     { href: "/admin/datos-personales", label: "Datos personales", Icon: IdCard, roles: SEDE },
     { href: "/admin/contratos", label: "Contratos", Icon: ScrollText, roles: DO },
     { href: "/admin/documentacion", label: "Documentación", Icon: FileSignature, roles: DO },
+    // En qué seguro está cada colaborador y qué póliza le falta (0528): FOLA para
+    // los practicantes, EsSalud —por planilla— para el resto, y los que DO agregue.
+    // Va junto a Contratos y Documentación porque es el mismo tipo de cosa: un
+    // papel POR PERSONA con su estado de firma. No va en Pago aunque cueste plata:
+    // la prima se paga a la aseguradora y no pasa por la planilla. Sin contador
+    // propio: lo que pide (alguien sin póliza, una por vencer, un paso del papeleo,
+    // un cambio de seguro por cerrar) ya lo cuenta la Bandeja, y un aviso en dos
+    // sitios deja de ser aviso.
+    { href: "/admin/seguros", label: "Seguros", Icon: ShieldCheck, roles: DO },
     { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
+    // «Casos» (Reportes, 0483/0488; plan, decisión 21). Aquí y no en el grupo
+    // «Reportes», que son informes: este nombre evita que un ítem y un grupo
+    // digan lo mismo con dos sentidos. Va ANTES de Disciplina, no después: un
+    // reporte no es una falta, y el orden no debe sugerir que lleva a una.
+    { href: "/admin/casos", label: "Casos", Icon: MessagesSquare, roles: SEDE, requiere: "casos" },
     { href: "/admin/disciplina", label: "Disciplina", Icon: Gavel, roles: SEDE },
   ] },
   { label: "Pago", items: [
     { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },
+    // Las boletas OFICIALES del contador (0482), con renglón propio desde el
+    // 2026-10-16. Hasta entonces la única puerta era el botón «Boletas del
+    // periodo» dentro de Planilla: se agrandó una vez porque nadie lo
+    // encontraba, y aun así DO volvió a preguntar dónde estaba. El problema no
+    // era el tamaño del botón, era que había que saber que vive DENTRO de otra
+    // pantalla. Va justo debajo de Planilla porque es lo que sigue a cerrarla.
+    // Sin `?periodo=`, la pantalla abre el último periodo pagado (`periodoInicial`).
+    { href: "/admin/planilla/boletas", label: "Boletas", Icon: FileStack, roles: ROLES_GESTIONAN_BOLETAS },
     { href: "/admin/provisiones", label: "Provisiones", Icon: PiggyBank, roles: DO },
     { href: "/admin/costos", label: "Costos", Icon: Coins, roles: DO },
     { href: "/admin/liquidaciones", label: "Liquidaciones", Icon: HandCoins, roles: DO },
@@ -162,6 +199,12 @@ export const GRUPOS: Grupo[] = [
     // el permiso apague también el renglón.
     { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown, roles: ROLES_EXPORTAN_ASISTENCIA },
   ] },
+  // Lo que la empresa presenta o recibe de una autoridad: inscripciones,
+  // licencias, REMYPE. Va al fondo, junto a Configuración, por frecuencia —se
+  // abre pocas veces al año—, aunque el día que se abre sea urgente.
+  { label: "Empresa", items: [
+    { href: "/admin/archivo", label: "Archivo", Icon: Archive, roles: DO },
+  ] },
   { label: "Configuración", items: [
     { href: "/admin/areas", label: "Áreas", Icon: LayoutGrid, roles: DO },
     { href: "/admin/sedes", label: "Sedes", Icon: Building2, roles: DO },
@@ -192,7 +235,22 @@ export const GRUPOS: Grupo[] = [
 // (boleta de planilla, memo de disciplina, imprimir/constancias de normas,
 // constancias de política salarial, boleta de "lo mío") dejaban el menú sin
 // nada resaltado — un caso general, no seis excepciones para enumerar a mano.
+//
+// Y cuando dos renglones cuelgan uno del otro, gana el más específico
+// (2026-10-16): /admin/planilla/boletas es un renglón propio Y una sub-ruta de
+// /admin/planilla, así que la regla de arriba encendía los dos a la vez. No se
+// resuelve con un `if` para Boletas: se resuelve preguntando si otro renglón
+// del menú reclama la ruta con más precisión. Así /admin/planilla/boleta (la
+// del sistema, sin renglón propio) sigue resaltando «Planilla», y el día que
+// otra sub-ruta gane su renglón no hace falta tocar esto.
+const RUTAS_DEL_MENU: readonly string[] = GRUPOS.flatMap((g) => g.items.map((i) => i.href));
+
 export function esActivo(pathname: string, href: string): boolean {
+  if (!coincide(pathname, href)) return false;
+  return !RUTAS_DEL_MENU.some((otra) => otra.startsWith(href + "/") && coincide(pathname, otra));
+}
+
+function coincide(pathname: string, href: string): boolean {
   if (pathname === href) return true;
   if (pathname.startsWith(href + "/")) return true;
   // El perfil de una persona (/admin/personas/[id]) se entra desde Equipo, así

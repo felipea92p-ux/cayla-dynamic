@@ -39,11 +39,11 @@ insert into firmas_escaneadas (persona_id, imagen, tipo)
 values ('00000000-0000-0000-0000-000000336001', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==', 'imagen');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000336011', true);
-select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',1,1);
+select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',1,1,2.50);
 
 -- ── 1 · El candado: vigente y al día, ya no se firma sola ──────────────────
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Otro Distrito','Lima',1,1) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Otro Distrito','Lima',1,1,2.50) $$,
   null, null,
   'CANDADO · con declaración vigente y al día, la única puerta que queda es pedir revisión');
 

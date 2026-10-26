@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info, Lock, MoreHorizontal } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Lock, MoreHorizontal } from "lucide-react";
 import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import {
@@ -26,6 +26,10 @@ import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 
@@ -74,37 +78,6 @@ interface ResumenMes {
 // permanente: "no pagan nada, sirven de historial para promociones" es algo
 // que se lee una vez, no en cada visita.
 // ============================================================================
-function ModalComoFunciona({ abierto, onCerrar }: { abierto: boolean; onCerrar: () => void }) {
-  return (
-    <Modal abierto={abierto} onCerrar={onCerrar} titulo="Cómo funcionan los objetivos" ancho="lg">
-      <div className="space-y-3 text-sm text-taupe">
-        <p>
-          Cada persona tiene un checklist de objetivos por mes. <strong className="text-tinta">No pagan
-          nada</strong>: son el historial que sostiene una promoción. La política salarial firmada pone
-          «cumplió los objetivos que se le asignaron» entre los requisitos para cambiar de categoría, y esa
-          política dice que la remuneración solo se mueve por categoría o por un ajuste general de la
-          escala — nunca por un objetivo suelto.
-        </p>
-        <p>
-          El cumplimiento del mes se calcula <strong className="text-tinta">por cantidad</strong> de
-          objetivos marcados (cumplidos ÷ total), no por su dificultad ni por ningún porcentaje que se
-          escriba en el título. Si escribes algo como «(40%)» en un objetivo, es solo texto para quien lo
-          lee — no cambia el cálculo.
-        </p>
-        <p>
-          Menos del 30% de cumplimiento marca <strong className="text-tinta">Observación</strong>: un aviso
-          para conversar, nunca una sanción automática. La decisión de qué hacer con eso es siempre de una
-          persona.
-        </p>
-        <p>
-          Un mes cuya planilla ya fue <strong className="text-tinta">pagada</strong> queda en solo lectura —
-          para corregirlo, un administrador reabre ese periodo desde Planilla.
-        </p>
-      </div>
-    </Modal>
-  );
-}
-
 // ============================================================================
 // Bandeja de equipo — vista inicial cuando no hay persona elegida. Solo datos
 // de objetivos (no duplica Asistencia/Horas, que ya vive en Desempeño):
@@ -129,6 +102,7 @@ function BandejaEquipo({
   const [filtroTexto, setFiltroTexto] = useState("");
   const [filtroSede, setFiltroSede] = useState("");
   const [filtroObjetivos, setFiltroObjetivos] = useState<"todos" | "con" | "sin">("todos");
+  const [soloObservacion, setSoloObservacion] = useState(false);
 
   const sedes = useMemo(() => {
     const vistas = new Map<string, string>();
@@ -153,9 +127,10 @@ function BandejaEquipo({
     return filas
       .filter((f) => !filtroSede || f.persona.sede_base_id === filtroSede)
       .filter((f) => filtroObjetivos === "todos" || (filtroObjetivos === "con" ? f.total > 0 : f.total === 0))
+      .filter((f) => !soloObservacion || f.estado.variante === "alerta")
       .filter((f) => !texto || `${f.persona.nombres} ${f.persona.apellidos}`.toLowerCase().includes(texto))
       .sort((a, b) => a.prioridad - b.prioridad || a.persona.nombres.localeCompare(b.persona.nombres));
-  }, [filas, filtroTexto, filtroSede, filtroObjetivos]);
+  }, [filas, filtroTexto, filtroSede, filtroObjetivos, soloObservacion]);
 
   const totalPersonas = filas.length;
   const conObjetivos = filas.filter((f) => f.total > 0).length;
@@ -164,57 +139,50 @@ function BandejaEquipo({
 
   return (
     <div>
-      <TarjetaInfo className="mb-4">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-taupe">
-          {MESES[mes - 1]} {anio}
-        </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div>
-            <div className="font-serif text-2xl">{totalPersonas}</div>
-            <div className="text-xs text-taupe">personas activas</div>
-          </div>
-          <div>
-            <div className="font-serif text-2xl">{conObjetivos}</div>
-            <div className="text-xs text-taupe">con objetivos</div>
-          </div>
-          <div>
-            <div className="font-serif text-2xl">{sinObjetivos}</div>
-            <div className="text-xs text-taupe">sin objetivos</div>
-          </div>
-          <div>
-            <div className="font-serif text-2xl text-rojo">{enObservacion}</div>
-            <div className="text-xs text-taupe">en observación</div>
-          </div>
-        </div>
-      </TarjetaInfo>
+      {/* Lo que pide atención, en una línea: tocar una pastilla filtra la lista. */}
+      <ParaAtender
+        items={[
+          { clave: "observacion", texto: `${enObservacion} en observación`, n: enObservacion, tono: "rojo" },
+          { clave: "sin", texto: `${sinObjetivos} sin objetivos`, n: sinObjetivos, tono: "ambar" },
+        ]}
+        activa={soloObservacion ? "observacion" : filtroObjetivos === "sin" ? "sin" : null}
+        alTocar={(clave) => {
+          if (clave === "observacion") { setSoloObservacion((v) => !v); return; }
+          setFiltroObjetivos((f) => (f === "sin" ? "todos" : "sin"));
+        }}
+      />
+      <p className="-mt-2 mb-4 text-xs text-taupe">
+        {MESES[mes - 1]} {anio} · {totalPersonas} personas activas · {conObjetivos} con objetivos
+      </p>
 
-      <div className="mb-3 flex flex-wrap items-end gap-3">
-        <Campo
-          etiqueta="Buscar persona"
-          value={filtroTexto}
-          onChange={(e) => setFiltroTexto(e.target.value)}
-          placeholder="Nombre…"
-          className="min-w-56"
-        />
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="min-w-56">
+          <Campo tamano="sm" aria-label="Buscar persona" value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)} placeholder="Buscar persona…" />
+        </div>
         {verTodasLasSedes && sedes.length > 1 && (
-          <CampoSelect etiqueta="Sede" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)}>
-            <option value="">Todas</option>
-            {sedes.map(([id, etiqueta]) => (
-              <option key={id} value={id}>
-                {etiqueta}
-              </option>
-            ))}
-          </CampoSelect>
+          <div className="w-52">
+            <CampoSelect tamano="sm" aria-label="Sede" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)}>
+              <option value="">Todas las sedes</option>
+              {sedes.map(([id, etiqueta]) => (
+                <option key={id} value={id}>
+                  {etiqueta}
+                </option>
+              ))}
+            </CampoSelect>
+          </div>
         )}
-        <CampoSelect
-          etiqueta="Objetivos"
-          value={filtroObjetivos}
-          onChange={(e) => setFiltroObjetivos(e.target.value as "todos" | "con" | "sin")}
-        >
-          <option value="todos">Todos</option>
-          <option value="con">Con objetivos</option>
-          <option value="sin">Sin objetivos</option>
-        </CampoSelect>
+        <div className="w-44">
+          <CampoSelect
+            tamano="sm"
+            aria-label="Objetivos"
+            value={filtroObjetivos}
+            onChange={(e) => setFiltroObjetivos(e.target.value as "todos" | "con" | "sin")}
+          >
+            <option value="todos">Todos</option>
+            <option value="con">Con objetivos</option>
+            <option value="sin">Sin objetivos</option>
+          </CampoSelect>
+        </div>
       </div>
 
       <Tabla>
@@ -408,7 +376,6 @@ function ObjetivosContenido() {
   // se deriva comparándola contra la clave actual, en vez de un booleano que
   // un efecto tendría que resetear a mano en cada cambio de selección.
   const [claveCargada, setClaveCargada] = useState<string | null>(null);
-  const [infoAbierto, setInfoAbierto] = useState(false);
 
   // Drawer compartido para crear/editar — mismos campos, RPC distinta.
   const [drawer, setDrawer] = useState<{ modo: "crear" } | { modo: "editar"; item: ObjetivoItem } | null>(null);
@@ -436,7 +403,7 @@ function ObjetivosContenido() {
       const { data: p } = await supabase
         .from("personas")
         .select("id, nombres, apellidos, rol, sede_base_id, sedes:sede_base_id(codigo, nombre)")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .order("nombres");
       setPersonas((p as unknown as Persona[]) ?? []);
     });
@@ -731,81 +698,75 @@ function ObjetivosContenido() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mx-auto w-full max-w-5xl">
+        <div className="w-full">
           <CabeceraPagina
+            sobretitulo={sobretituloDeHoy("Personas")}
             titulo="Objetivos"
-            descripcion={
-              <>
-                Define y da seguimiento a los compromisos mensuales del equipo.{" "}
-                <button
-                  onClick={() => setInfoAbierto(true)}
-                  className="inline-flex items-center gap-1 align-middle text-rojo hover:underline"
-                >
-                  <Info size={13} aria-hidden /> Cómo funcionan los objetivos
-                </button>
-              </>
+            descripcion="Define y da seguimiento a los compromisos mensuales del equipo."
+            ayuda={
+              <AyudaPantalla
+                titulo="Cómo funcionan los objetivos"
+                intro="Cada persona tiene un checklist de objetivos por mes. No pagan nada: son el historial que sostiene una promoción."
+                secciones={[
+                  { titulo: "Qué sostienen", texto: "La política salarial firmada pone «cumplió los objetivos que se le asignaron» entre los requisitos para cambiar de categoría, y esa política dice que la remuneración solo se mueve por categoría o por un ajuste general de la escala — nunca por un objetivo suelto." },
+                  { titulo: "Cómo se mide", texto: "El cumplimiento del mes se calcula por cantidad de objetivos marcados (cumplidos ÷ total), no por su dificultad ni por ningún porcentaje que se escriba en el título. Si escribes algo como «(40%)» en un objetivo, es solo texto para quien lo lee — no cambia el cálculo." },
+                  { titulo: "Observación", texto: "Menos del 30% de cumplimiento marca Observación: un aviso para conversar, nunca una sanción automática. La decisión de qué hacer con eso es siempre de una persona." },
+                  { titulo: "Un mes pagado", texto: "Un mes cuya planilla ya fue pagada queda en solo lectura — para corregirlo, un administrador reabre ese periodo desde Planilla." },
+                ]}
+              />
             }
           />
 
-          {/* Periodo: contexto global — navegación mes a mes, y salto directo. */}
-          <div className="mb-6 flex flex-wrap items-end gap-4">
-            <div className="flex items-end gap-1">
-              <Boton
-                variante="sutil"
-                tamano="sm"
-                className="mb-[3px] px-2"
-                onClick={() => {
-                  const p = sumarMeses(anio, mes, -1);
-                  setAnio(p.anio);
-                  setMes(p.mes);
-                }}
-                aria-label="Mes anterior"
-              >
-                <ChevronLeft size={14} />
-              </Boton>
-              <span className="min-w-40 pb-2 text-center font-serif text-lg capitalize">{mesLabel.toLowerCase()}</span>
-              <Boton
-                variante="sutil"
-                tamano="sm"
-                className="mb-[3px] px-2"
-                onClick={() => {
-                  const s = sumarMeses(anio, mes, 1);
-                  setAnio(s.anio);
-                  setMes(s.mes);
-                }}
-                aria-label="Mes siguiente"
-              >
-                <ChevronRight size={14} />
-              </Boton>
-            </div>
-            <CampoSelect etiqueta="Mes" value={mes} onChange={(e) => setMes(Number(e.target.value))}>
-              {MESES.map((m, i) => (
-                <option key={m} value={i + 1}>
-                  {m}
-                </option>
-              ))}
-            </CampoSelect>
-            <CampoSelect etiqueta="Año" value={anio} onChange={(e) => setAnio(Number(e.target.value))}>
-              {[hoy.anio - 1, hoy.anio, hoy.anio + 1].map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </CampoSelect>
-
-            {personaId && (
-              <CampoSelect
-                etiqueta="Cambiar persona"
-                value={personaId}
-                onChange={(e) => setPersonaId(e.target.value)}
-                className="min-w-56"
-              >
-                {personas.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombres} {p.apellidos}
+          {/* Periodo: contexto global — navegación mes a mes, y salto directo. En una fila, sin rótulos encima. */}
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <BotonIcono
+              etiqueta="Mes anterior"
+              icono={<ChevronLeft aria-hidden />}
+              onClick={() => {
+                const p = sumarMeses(anio, mes, -1);
+                setAnio(p.anio);
+                setMes(p.mes);
+              }}
+            />
+            <span className="min-w-36 text-center font-serif text-lg capitalize">{mesLabel.toLowerCase()}</span>
+            <BotonIcono
+              etiqueta="Mes siguiente"
+              icono={<ChevronRight aria-hidden />}
+              onClick={() => {
+                const s = sumarMeses(anio, mes, 1);
+                setAnio(s.anio);
+                setMes(s.mes);
+              }}
+            />
+            <div className="w-36">
+              <CampoSelect tamano="sm" aria-label="Mes" value={mes} onChange={(e) => setMes(Number(e.target.value))}>
+                {MESES.map((m, i) => (
+                  <option key={m} value={i + 1}>
+                    {m}
                   </option>
                 ))}
               </CampoSelect>
+            </div>
+            <div className="w-24">
+              <CampoSelect tamano="sm" aria-label="Año" value={anio} onChange={(e) => setAnio(Number(e.target.value))}>
+                {[hoy.anio - 1, hoy.anio, hoy.anio + 1].map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </CampoSelect>
+            </div>
+
+            {personaId && (
+              <div className="min-w-56">
+                <CampoSelect tamano="sm" aria-label="Cambiar persona" value={personaId} onChange={(e) => setPersonaId(e.target.value)}>
+                  {personas.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombres} {p.apellidos}
+                    </option>
+                  ))}
+                </CampoSelect>
+              </div>
             )}
           </div>
 
@@ -1057,7 +1018,6 @@ function ObjetivosContenido() {
             )}
           </Modal>
 
-          <ModalComoFunciona abierto={infoAbierto} onCerrar={() => setInfoAbierto(false)} />
         </div>
       </main>
     </div>

@@ -19,7 +19,9 @@
 --      cobra movilidad (0117)— empezaría a aparecer en el tablero de
 --      Documentación, exactamente el falso positivo que el sistema entero
 --      está armado para evitar. Y el bono de cumpleaños, que esta migración
---      deja fuera a propósito, tiene que seguir rechazando a la practicante.
+--      dejó fuera a propósito, tiene que seguir rechazando al locador. (La 0519
+--      lo abrió a la practicante: esa prueba vive en la 414, y aquí el control
+--      pasa a la locadora, que sigue fuera.)
 -- ============================================================================
 begin;
 select plan(9);
@@ -76,16 +78,16 @@ select lives_ok(
 
 select throws_ok(
   $$ select fn_documento_registrar('bono', fn_hoy_lima(),
-       '00000000-0000-0000-0000-000000335005', null, null,
+       '00000000-0000-0000-0000-000000335002', null, null,
        2026, false, null, 'documentos/prueba-335-bono.jpg', null) $$,
   null, null,
-  'BONO INTACTO · el bono de cumpleaños sigue exigiendo en_planilla — no se abrió de paso');
+  'BONO INTACTO · el bono de cumpleaños sigue rechazando a la locadora — la 0519 lo abrió al practicante, no al RxH');
 
 -- ── 3 · Puerta propia: fn_confirmar_mi_declaracion_ruta ────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000335011', true);
 
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',1,1) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',1,1,2.50) $$,
   null, null,
   'RECHAZADO · todavía sin firma configurada, aunque ya le corresponda el trámite');
 
@@ -93,7 +95,7 @@ insert into firmas_escaneadas (persona_id, imagen, tipo)
 values ('00000000-0000-0000-0000-000000335001', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==', 'imagen');
 
 select lives_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',1,1) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',1,1,2.50) $$,
   'OK · con firma configurada, la practicante firma su propia declaración de ruta (sin costo propio, 0425/0426)');
 
 -- ── 4 · Aparece donde tiene que aparecer ───────────────────────────────────

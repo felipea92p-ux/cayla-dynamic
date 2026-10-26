@@ -3,16 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ROLES_DO, TZ_LIMA } from "@cayla-dynamic/shared";
+import { ROLES_DO, TZ_LIMA, puedeEstamparFirmaDeEmpresa } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Rotulo } from "@/components/ui/rotulo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { cx } from "@/components/ui/cx";
 import { SubnavPoliticaSalarial } from "./_subnav";
 import { BloqueVista } from "./_documento-vista";
@@ -196,8 +199,8 @@ function MatrizCategorias({ cats, esDO }: { cats: CategoriaCuadro[]; esDO: boole
       )}
 
       {/* Comparador */}
-      <div className="rounded-superficie border border-sand bg-papel p-4">
-        <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-taupe">Comparar dos categorías</div>
+      <TarjetaInfo>
+        <Rotulo como="div" className="mb-3">Comparar dos categorías</Rotulo>
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <select value={izq} onChange={(e) => setIzq(e.target.value)} className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta">
             {cats.map((c) => <option key={c.rango} value={c.rango}>{NOMBRE_RANGO[c.rango] ?? c.rango}</option>)}
@@ -220,7 +223,7 @@ function MatrizCategorias({ cats, esDO }: { cats: CategoriaCuadro[]; esDO: boole
             </div>
           ))}
         </div>
-      </div>
+      </TarjetaInfo>
     </div>
   );
 }
@@ -341,8 +344,12 @@ export default function PoliticaSalarialPage() {
   const [cuadro, setCuadro] = useState<Cuadro | null>(null);
   const [vigente, setVigente] = useState<Vigente | null>(null);
   const [miRango, setMiRango] = useState<string | null>(null);
+  // La firma de quien firma por CAYLA (`fn_firma_empresa`), no la de quien mira:
+  // sale de la misma fila que el nombre del firmante (0147), así que la firma de
+  // una persona no cae bajo el nombre de otra. Antes solo se veía si Felipe
+  // tenía la sesión abierta; ahora la ve quien abre el panel con rol que la
+  // estampa (Gerencia, DO, líder de equipo).
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
-  const [esFirmante, setEsFirmante] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -365,12 +372,10 @@ export default function PoliticaSalarialPage() {
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
     setError(null);
-    const [c, v, f, yo, cfg, r] = await Promise.all([
+    const [c, v, f, r] = await Promise.all([
       supabase.rpc("fn_cuadro_categorias"),
       supabase.rpc("fn_politica_salarial_vigente"),
-      supabase.rpc("fn_mi_firma"),
-      supabase.rpc("fn_persona_actual_id"),
-      supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
+      supabase.rpc("fn_firma_empresa"),
       supabase.rpc("fn_mi_rango_actual"),
     ]);
     if (c.error !== null || v.error !== null) {
@@ -381,8 +386,6 @@ export default function PoliticaSalarialPage() {
     setCuadro(c.data as unknown as Cuadro);
     setVigente(v.data as unknown as Vigente);
     setFirmaUrl(typeof f.data === "string" && f.data.startsWith("data:image") ? f.data : null);
-    const vf = (cfg.data?.valor ?? null) as { persona_id?: string } | null;
-    setEsFirmante(Boolean(vf?.persona_id) && vf?.persona_id === yo.data);
     setMiRango(typeof r.data === "string" ? r.data : null);
     setCargando(false);
   }, []);
@@ -393,12 +396,10 @@ export default function PoliticaSalarialPage() {
     (async () => {
       const supabase = createAdminSupabaseClient();
       setError(null);
-      const [c, v, f, yo, cfg, r] = await Promise.all([
+      const [c, v, f, r] = await Promise.all([
         supabase.rpc("fn_cuadro_categorias"),
         supabase.rpc("fn_politica_salarial_vigente"),
-        supabase.rpc("fn_mi_firma"),
-        supabase.rpc("fn_persona_actual_id"),
-        supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
+        supabase.rpc("fn_firma_empresa"),
         supabase.rpc("fn_mi_rango_actual"),
       ]);
       if (cancelado.actual) return;
@@ -410,8 +411,6 @@ export default function PoliticaSalarialPage() {
       setCuadro(c.data as unknown as Cuadro);
       setVigente(v.data as unknown as Vigente);
       setFirmaUrl(typeof f.data === "string" && f.data.startsWith("data:image") ? f.data : null);
-      const vf = (cfg.data?.valor ?? null) as { persona_id?: string } | null;
-      setEsFirmante(Boolean(vf?.persona_id) && vf?.persona_id === yo.data);
       setMiRango(typeof r.data === "string" ? r.data : null);
       setCargando(false);
     })();
@@ -470,9 +469,10 @@ export default function PoliticaSalarialPage() {
   if (cargando) return <Cargando />;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 print:max-w-none print:p-0">
+    <main className="flex-1 p-4 pt-6 sm:p-6 print:max-w-none print:p-0">
       <div className="print:hidden">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Publicaciones")}
           titulo="Política salarial"
           descripcion="Cómo se organiza el trabajo en CAYLA y cómo se determina lo que gana cada persona."
           accion={<Boton variante="secundario" tamano="sm" onClick={() => window.print()}>Imprimir / Guardar como PDF</Boton>}
@@ -509,8 +509,8 @@ export default function PoliticaSalarialPage() {
           </BannerAviso>
         )}
 
-        {error !== null && <p className="mb-4 rounded-control border border-rojo/30 bg-rojo/10 px-4 py-3 text-sm text-rojo">{error}</p>}
-        {aviso !== null && <p className="mb-4 rounded-control border border-verde/25 bg-verde/10 px-4 py-3 text-sm text-verde">{aviso}</p>}
+        {error !== null && <BannerAviso enLinea variante="alerta" role="alert" className="mb-4">{error}</BannerAviso>}
+        {aviso !== null && <BannerAviso enLinea variante="positivo" role="status" className="mb-4">{aviso}</BannerAviso>}
 
         <Campo
           type="search"
@@ -593,7 +593,7 @@ export default function PoliticaSalarialPage() {
             })}
 
             <footer className="mt-10 border-t border-sand pt-6 print:break-inside-avoid">
-              {firmaUrl !== null && esFirmante && (
+              {firmaUrl !== null && puedeEstamparFirmaDeEmpresa(persona?.rol) && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
               )}
@@ -602,8 +602,7 @@ export default function PoliticaSalarialPage() {
             </footer>
 
             {vigente !== null && vigente.publicada && (
-              <section className="mt-8 rounded-superficie border border-sand bg-papel p-5 print:hidden">
-                <h2 className="mb-2 text-base font-semibold text-tinta">Constancia de haber recibido este documento</h2>
+              <TarjetaInfo como="section" titulo="Constancia de haber recibido este documento" className="mt-8 print:hidden">
                 {vigente.mi_acuse !== null ? (
                   <p className="text-sm text-tinta">
                     Dejaste constancia el {fechaHora(vigente.mi_acuse.acusado_at)} como <strong>{vigente.mi_acuse.nombre}</strong>. No hace falta hacer nada más hasta que se publique una versión nueva.
@@ -619,7 +618,7 @@ export default function PoliticaSalarialPage() {
                     </div>
                   </>
                 )}
-              </section>
+              </TarjetaInfo>
             )}
           </div>
         </div>

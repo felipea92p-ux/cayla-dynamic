@@ -9,10 +9,14 @@ import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { CampoClave } from "@/components/ui/campo-clave";
 import { Tabla } from "@/components/ui/tabla";
+import { Pestanas } from "@/components/ui/pestanas";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { guardarMiClave } from "@/lib/admin/mi-clave";
 import { REQUISITOS_CLAVE, problemasDeClave, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 interface Cuenta {
   id: string;
@@ -81,6 +85,8 @@ export default function CuentasPage() {
   const esAdmin = puedeGestionarCatalogos(rol);
 
   const { avisar } = useToast();
+
+  const [pestana, setPestana] = useFiltroGuardado<"cuentas" | "invitar" | "lideres" | "clave">("cuentas.pestana", "cuentas");
 
   // cambiar mi contraseña
   const [nueva, setNueva] = useState("");
@@ -297,7 +303,7 @@ export default function CuentasPage() {
     return (
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
-          <h1 className="mb-1 font-serif text-2xl">Mi cuenta</h1>
+          <CabeceraPagina sobretitulo={sobretituloDeHoy("Configuración")} titulo="Mi cuenta" descripcion="Cambia tu contraseña." />
           <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
         </main>
       </div>
@@ -307,12 +313,33 @@ export default function CuentasPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <h1 className="mb-1 font-serif text-2xl">Cuentas</h1>
-        <p className="mb-6 text-sm text-taupe">Cambia tu contraseña y gestiona los accesos del equipo al panel.</p>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Configuración")}
+          titulo="Cuentas"
+          descripcion="Cambia tu contraseña y gestiona los accesos del equipo al panel."
+        />
 
-        <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
+        {/* Cuatro pestañas en vez de una pantalla larga por la que bajar: quien viene a invitar no tiene por qué pasar
+            por la lista de cuentas, ni quien viene a cambiar su clave por todo lo demás. */}
+        <Pestanas
+          etiqueta="Secciones de Cuentas"
+          pestanas={[
+            { clave: "cuentas", texto: "Cuentas del equipo" },
+            { clave: "invitar", texto: `Invitar${invitables.length + pendientes.length > 0 ? ` (${invitables.length + pendientes.length})` : ""}` },
+            { clave: "lideres", texto: `Líderes${promovibles.length > 0 ? ` (${promovibles.length})` : ""}` },
+            { clave: "clave", texto: "Mi contraseña" },
+          ] as const}
+          activa={pestana}
+          alElegir={setPestana}
+        />
 
-        <h2 className="mb-3 mt-8 font-serif text-lg">Gestionar cuentas del equipo</h2>
+        {pestana === "clave" && (
+          <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
+        )}
+
+        {pestana === "cuentas" && (
+          <div>
+        <h2 className="mb-3 font-serif text-lg">Gestionar cuentas del equipo</h2>
         {/* Persistente a propósito: no es un aviso que se va solo. Mientras la
             lista no cargue, todo lo que se ve debajo puede estar incompleto. */}
         {errListado && (
@@ -445,7 +472,12 @@ export default function CuentasPage() {
             </tbody>
         </Tabla>
 
-        <h2 className="mb-1 mt-8 font-serif text-lg">Invitar para que dejen constancia</h2>
+          </div>
+        )}
+
+        {pestana === "invitar" && (
+          <div>
+        <h2 className="mb-1 font-serif text-lg">Invitar para que dejen constancia</h2>
         <p className="mb-3 text-sm text-taupe">
           La Ley 30709 obliga a informar la política salarial a cada persona y a poder probarlo. Para dejar
           su constancia necesitan entrar con su propia cuenta. Al invitarles reciben un correo y{" "}
@@ -491,7 +523,7 @@ export default function CuentasPage() {
           </div>
         )}
 
-        <h2 className="mb-1 mt-8 font-serif text-lg">Volver a invitar — todavía no han entrado</h2>
+        <h2 className="mb-1 mt-10 font-serif text-lg">Volver a invitar — todavía no han entrado</h2>
         <p className="mb-3 text-sm text-taupe">
           Tienen cuenta creada pero <strong>nunca han iniciado sesión</strong>: el correo se perdió, llegó a spam
           o quedó pendiente. A quien fue invitada le llega otra vez la invitación; a quien ya tenía clave le llega
@@ -539,7 +571,12 @@ export default function CuentasPage() {
           </div>
         )}
 
-        <h2 className="mb-1 mt-8 font-serif text-lg">Convertir en líder de equipo</h2>
+          </div>
+        )}
+
+        {pestana === "lideres" && (
+          <div>
+        <h2 className="mb-1 font-serif text-lg">Convertir en líder de equipo</h2>
         <p className="mb-3 text-sm text-taupe">
           Da acceso al panel de su sede a una integrante. Al convertirla, aparece arriba para crearle su cuenta.
         </p>
@@ -565,6 +602,8 @@ export default function CuentasPage() {
                 </Boton>
               </div>
             ))}
+          </div>
+        )}
           </div>
         )}
       </main>

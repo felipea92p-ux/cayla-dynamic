@@ -1,0 +1,157 @@
+<!doctype html>
+<!--
+  sin-conexion.html — lo que se ve cuando no hay internet y se abre Dynamic.
+
+  QUÉ PROMETE. Que quien abre el panel, «Lo mío» o el login sin conexión vea
+  una página de Dynamic que le dice, en la primera línea, qué pasa y qué
+  significa para lo que estaba haciendo — y, debajo, un colibrí para esperar.
+  Lo sirve `sin-conexion-sw.js` cuando una navegación falla por falta de red;
+  nunca se sirve con red, salvo si alguien la abre a propósito
+  (`/sin-conexion.html`: sirve para verla sin desconectarse).
+
+  QUÉ NO ES. Una copia del panel. Sin red, el panel no sabe nada: ni quién es
+  la persona, ni la planilla, ni los marcajes. Esta página no intenta fingir lo
+  contrario, y por eso la primera línea es el aviso y el juego va después: un
+  colibrí bonito arriba de todo podría hacer creer que algo se guardó.
+
+  AUTOCONTENIDA. No carga hojas de estilo del sitio, fuentes de Google ni
+  nada que viva en Next: sin red, nada de eso existe. Los colores repiten los
+  de `globals.css` (claro y oscuro) y lo único externo son los TRES archivos
+  que el service worker guarda a propósito — su lista (`ACTIVOS`) tiene que
+  coincidir con lo que esta página pide; `tests/sin-conexion.test.ts` lo
+  vigila.
+
+  El juego es `colibri/juego.js`, el mismo que el easter egg del buscador.
+  `?juego=vuelo|salto|flappy` fuerza uno (para probar); sin eso se sortea.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Sin conexión — Dynamic</title>
+  <style>
+    :root {
+      --color-crema: #f5f0e8; --color-papel: #fbf8f2; --color-tinta: #1a1a18;
+      --color-rojo: #b8412d; --color-rojo-profundo: #8b2a1f;
+      --color-sand: #e8e0d0; --color-taupe: #805c4c;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-tema="claro"]) {
+        --color-crema: #1c1a16; --color-papel: #26221d; --color-tinta: #ede7db;
+        --color-rojo: #d4634a; --color-rojo-profundo: #e8836b;
+        --color-sand: #332e27; --color-taupe: #ab9080;
+        color-scheme: dark;
+      }
+    }
+    :root[data-tema="oscuro"] {
+      --color-crema: #1c1a16; --color-papel: #26221d; --color-tinta: #ede7db;
+      --color-rojo: #d4634a; --color-rojo-profundo: #e8836b;
+      --color-sand: #332e27; --color-taupe: #ab9080;
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 24px; min-height: 100vh; min-height: 100dvh; padding: 32px 16px;
+      background: var(--color-crema); color: var(--color-tinta);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased; text-align: center;
+    }
+    main { width: 100%; max-width: 640px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+    .colibri {
+      display: inline-block; width: 64px; aspect-ratio: 1755 / 1184; background-color: var(--color-taupe);
+      -webkit-mask: url(/colibri.png) center / contain no-repeat; mask: url(/colibri.png) center / contain no-repeat;
+    }
+    h1 { margin: 0; font-family: "EB Garamond", Georgia, "Times New Roman", serif; font-weight: 400; font-size: 32px; line-height: 1.15; }
+    .aviso { margin: 0; max-width: 440px; font-size: 15px; line-height: 1.55; color: var(--color-taupe); }
+    .aviso strong { color: var(--color-tinta); font-weight: 600; }
+    .previa { margin: 0; font-size: 13px; color: var(--color-taupe); border: 1px solid var(--color-sand); border-radius: 8px; padding: 6px 12px; }
+    button {
+      font: inherit; font-weight: 500; font-size: 15px; cursor: pointer;
+      padding: 10px 22px; border-radius: 8px; border: 1px solid var(--color-taupe);
+      background: transparent; color: var(--color-tinta);
+    }
+    button:hover { border-color: var(--color-rojo); color: var(--color-rojo); }
+    button:focus-visible, canvas:focus-visible { outline: 2px solid var(--color-rojo); outline-offset: 2px; }
+    button[data-vuelta] { background: var(--color-tinta); color: var(--color-crema); border-color: var(--color-tinta); }
+    button[data-vuelta]:hover { background: var(--color-rojo-profundo); border-color: var(--color-rojo-profundo); color: var(--color-crema); }
+    .juego { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .juego p { margin: 0; font-size: 13px; color: var(--color-taupe); }
+    canvas {
+      width: 100%; max-width: 640px; aspect-ratio: 640 / 240; display: block; touch-action: manipulation;
+      background: var(--color-papel); border: 1px solid var(--color-sand); border-radius: 12px; cursor: pointer;
+    }
+    .sin-js, [hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="colibri" aria-hidden="true"></span>
+
+    <div role="status" aria-live="polite">
+      <h1 id="titulo">Sin conexión</h1>
+      <p class="aviso" id="aviso">
+        <strong>Dynamic necesita internet y ahora no hay.</strong> Nada de lo que hagas en esta pantalla se guarda;
+        si estabas llenando algo y no llegaste a guardarlo, habrá que repetirlo. Revisa tu wifi y toca «Reintentar».
+      </p>
+    </div>
+
+    <p class="previa" id="previa" hidden>Vista previa: así se ve cuando no hay internet.</p>
+
+    <button type="button" id="reintentar">Reintentar</button>
+
+    <section class="juego" id="juego" hidden aria-label="Juego del colibrí">
+      <canvas id="lienzo" tabindex="0"></canvas>
+      <p>Mientras vuelve la señal, juega: espacio, flecha arriba o tocar la pantalla.</p>
+    </section>
+  </main>
+
+  <script>
+    // El tema que la persona eligió en el panel (la misma clave que app/layout.tsx), antes de pintar.
+    try {
+      var t = localStorage.getItem("cayla-tema");
+      if (t !== "claro" && t !== "oscuro") t = localStorage.getItem("cayla-tema-global");
+      if (t === "claro" || t === "oscuro") document.documentElement.setAttribute("data-tema", t);
+    } catch (e) {}
+  </script>
+  <script type="module">
+    const esVistaPrevia = location.pathname === "/sin-conexion.html";
+    const boton = document.getElementById("reintentar");
+    const titulo = document.getElementById("titulo");
+    const aviso = document.getElementById("aviso");
+    document.getElementById("previa").hidden = !esVistaPrevia;
+
+    function reintentar() {
+      boton.disabled = true;
+      boton.textContent = "Probando…";
+      // En la vista previa no hay «lo que se estaba abriendo» a donde volver: se va al inicio.
+      if (esVistaPrevia) location.href = "/";
+      else location.reload();
+    }
+    boton.addEventListener("click", reintentar);
+
+    // Cuando el navegador dice que volvió la red NO se recarga solo: quien está jugando perdería la partida,
+    // y una recarga automática que falla vuelve a esta misma página sin que nadie sepa por qué parpadeó.
+    window.addEventListener("online", () => {
+      titulo.textContent = "Volvió la conexión";
+      aviso.textContent = "Toca el botón para volver a lo que estabas haciendo.";
+      boton.textContent = "Volver ahora";
+      boton.setAttribute("data-vuelta", "");
+    });
+
+    // El juego es un extra: si no carga (la caché no lo tiene todavía), la página sigue siendo útil sin él.
+    try {
+      const { montar } = await import("/colibri/juego.js");
+      const variante = new URLSearchParams(location.search).get("juego");
+      document.getElementById("juego").hidden = false;
+      montar(document.getElementById("lienzo"), { variante });
+    } catch (e) {
+      // Sin juego, solo el aviso y el botón.
+    }
+  </script>
+</body>
+</html>

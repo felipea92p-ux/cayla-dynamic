@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Almuerzos y jornada del día — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap">
+<!--
+  Prototipo (2026-10-20): cinco formas de VER cuánto almuerza el equipo y cómo fue el día de cada quien. NO es código de la app ni toca ninguna base.
+  Datos: las marcas REALES de la demo del 12 al 16 de octubre (entrada, salida a almuerzo, retorno, salida final). «Hoy» está SIMULADO a las 14:10
+  para poder mostrar lo que los datos de la demo no tienen: quien está almorzando ahora, y quien volvió tarde.
+  El tiempo permitido de refrigerio sale de cada horario (`refrigerio_min`); en la demo está en 0 en todos, así que aquí se usa 60 min como ejemplo.
+  Dónde viviría: una pestaña «Jornada» del Dashboard (lo de hoy, en vivo) y el mismo componente, con otra fecha, en Desempeño.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18; --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f;
+    --color-sand:#e8e0d0; --color-taupe:#805c4c; --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-ceniza:#635f58;
+    --font-sans:'DM Sans',ui-sans-serif,system-ui,sans-serif; --font-serif:'EB Garamond',ui-serif,Georgia,serif; color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--color-crema);color:var(--color-tinta);font:14.5px/1.5 var(--font-sans)}
+  h1,h2,h3{font-family:var(--font-serif);font-weight:500;margin:0}
+  button,select{font:inherit;color:inherit} button{cursor:pointer} p{margin:0}
+  .proto{position:sticky;top:0;z-index:50;background:var(--color-papel);border-bottom:1px solid var(--color-sand);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+  .vbtn{border:1px solid var(--color-sand);background:var(--color-crema);border-radius:10px;padding:6px 11px;font-weight:600;font-size:.82rem;display:inline-flex;gap:7px;align-items:center}
+  .vbtn b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--color-hueso);color:var(--color-taupe);font-size:.76rem}
+  .vbtn[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .vbtn[aria-pressed="true"] b{background:var(--color-crema);color:var(--color-tinta)}
+  .lema{max-width:1180px;margin:10px auto 0;padding:0 16px;color:var(--color-taupe);font-size:.86rem} .lema strong{color:var(--color-tinta)}
+  .page{max-width:1180px;margin:0 auto;padding:14px 16px 80px}
+  .cab .sob{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-taupe);display:flex;gap:12px;align-items:center;margin-bottom:6px}
+  .cab .sob::before{content:"";width:36px;height:1px;background:var(--color-taupe)}
+  .cab h1{font-size:1.75rem;line-height:1.15} .cab p{color:var(--color-taupe);font-size:.9rem;margin-top:3px}
+  .muted{color:var(--color-taupe);font-size:.8rem}
+  .card{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;overflow:hidden}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-sand);margin:14px 0}
+  .tab{border:0;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 12px;color:var(--color-taupe)}
+  .tab[aria-current]{border-color:var(--color-tinta);color:var(--color-tinta);font-weight:600}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+  .fil{border:1px solid var(--color-sand);background:var(--color-papel);border-radius:8px;padding:4px 11px;font-size:.78rem;font-weight:600}
+  .fil[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:999px;background:color-mix(in oklab,var(--c) 14%,var(--color-papel));color:var(--c)}
+  .chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+  .c-ok{--c:var(--color-verde)} .c-al{--c:var(--color-rojo-profundo)} .c-am{--c:var(--color-ambar)} .c-pi{--c:var(--color-pizarra)} .c-ne{--c:var(--color-ceniza)}
+  .tl{padding:6px 16px 14px}
+  .eje{display:grid;grid-template-columns:150px 1fr;align-items:end;font-size:.7rem;color:var(--color-taupe);margin:8px 0 2px}
+  .horas{position:relative;height:16px}.horas span{position:absolute;transform:translateX(-50%)}
+  .fila{display:grid;grid-template-columns:150px 1fr;align-items:center;border-top:1px solid var(--color-sand);padding:7px 0}
+  .fila .n{font-size:.84rem;font-weight:500;line-height:1.2} .fila .n small{display:block;color:var(--color-taupe);font-weight:400;font-size:.72rem}
+  .pista{position:relative;height:26px;background:repeating-linear-gradient(90deg,transparent 0 calc(100%/11 - 1px),var(--color-sand) calc(100%/11 - 1px) calc(100%/11))}
+  .seg{position:absolute;top:3px;height:20px;border-radius:5px}
+  .trab{background:color-mix(in oklab,var(--color-tinta) 78%,var(--color-papel))}
+  .alm{background:repeating-linear-gradient(135deg,color-mix(in oklab,var(--color-ambar) 55%,var(--color-papel)) 0 5px,color-mix(in oklab,var(--color-ambar) 28%,var(--color-papel)) 5px 10px);border:1px solid var(--color-ambar);display:grid;place-items:center;font-size:.68rem;font-weight:700;color:var(--color-ambar);overflow:hidden;white-space:nowrap}
+  .alm.largo{border-color:var(--color-rojo-profundo);color:var(--color-rojo-profundo)}
+  .vivo{position:absolute;top:0;bottom:0;width:2px;background:var(--color-rojo)}
+  .vivo::after{content:"ahora";position:absolute;top:-14px;left:-14px;font-size:.62rem;color:var(--color-rojo-profundo);font-weight:700}
+  .punto{animation:late 1.4s ease-in-out infinite} @keyframes late{50%{opacity:.35}}
+  .leyenda{display:flex;gap:14px;flex-wrap:wrap;font-size:.75rem;color:var(--color-taupe);padding:0 16px 14px}
+  .leyenda i{display:inline-block;width:14px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+  table{width:100%;border-collapse:collapse;font-size:.86rem} th{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--color-taupe);text-align:left;padding:9px 12px;background:var(--color-hueso)}
+  td{padding:9px 12px;border-top:1px solid var(--color-sand)} td.n{font-weight:500} td small{color:var(--color-taupe);display:block}
+  .mini{height:6px;border-radius:4px;background:var(--color-sand);position:relative;width:110px;display:inline-block;vertical-align:middle;margin-left:8px}
+  .mini i{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+  .tarjetas{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+  .tj{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:14px;padding:12px 14px}
+  .tj h3{font-size:1.05rem}.grande{font-family:var(--font-serif);font-size:1.7rem;line-height:1.1;margin:6px 0 2px}
+  .grp{margin:16px 0 8px;font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--color-taupe);font-weight:600}
+  .meter{height:8px;border-radius:5px;background:var(--color-sand);overflow:hidden;margin-top:6px}.meter i{display:block;height:100%}
+  .heat td{text-align:center;padding:6px 8px} .heat td.n{text-align:left}
+  .cel{display:inline-block;min-width:54px;border-radius:7px;padding:3px 6px;font-weight:600;font-size:.8rem}
+  .cel.v{background:color-mix(in oklab,var(--color-verde) 18%,var(--color-papel));color:var(--color-verde)}
+  .cel.a{background:color-mix(in oklab,var(--color-ambar) 20%,var(--color-papel));color:var(--color-ambar)}
+  .cel.r{background:color-mix(in oklab,var(--color-rojo) 16%,var(--color-papel));color:var(--color-rojo-profundo)}
+  .cel.s{color:var(--color-taupe);font-weight:400}
+  .sedes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+  .puntos{position:relative;height:30px;margin-top:10px;background:linear-gradient(var(--color-sand),var(--color-sand)) center/100% 2px no-repeat}
+  .puntos b{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid var(--color-papel)}
+  .v1 .vA,.v2 .vB,.v3 .vC,.v4 .vD,.v5 .vE{display:block}.vA,.vB,.vC,.vD,.vE{display:none}
+</style>
+</head>
+<body class="v1">
+<div class="proto">
+  <strong style="font-family:var(--font-serif);font-size:1rem">Almuerzos y jornada</strong>
+  <button class="vbtn" aria-pressed="true" data-v="1"><b>A</b>Línea del día</button>
+  <button class="vbtn" aria-pressed="false" data-v="2"><b>B</b>Tabla</button>
+  <button class="vbtn" aria-pressed="false" data-v="3"><b>C</b>Ahora</button>
+  <button class="vbtn" aria-pressed="false" data-v="4"><b>D</b>Semana</button>
+  <button class="vbtn" aria-pressed="false" data-v="5"><b>E</b>Por sede</button>
+</div>
+<p class="lema" id="lema"></p>
+<div class="page">
+  <header class="cab">
+    <div class="sob">Asistencia · Martes, 20 de octubre</div>
+    <h1>Jornada del día</h1>
+    <p>A qué hora entró cada quien, cuánto almorzó y si el día sigue abierto. Un almuerzo más largo de lo permitido se ve en ámbar o rojo.</p>
+  </header>
+  <div class="tabs"><button class="tab" aria-current="page">Jornada</button><button class="tab">Tendencias</button></div>
+  <div class="bar" id="barra"></div>
+  <div id="vistas">
+    <section class="vA card" id="A"></section>
+    <section class="vB card" id="B"></section>
+    <section class="vC" id="C"></section>
+    <section class="vD card" id="D"></section>
+    <section class="vE" id="E"></section>
+  </div>
+</div>
+<script>
+const SEMANA = [{"fecha": "2026-10-12", "nombre": "Franco Supervisor AQP", "sede": "AQP", "e": "08:54", "sa": "13:02", "ra": "14:05", "sf": "18:03"}, {"fecha": "2026-10-12", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:53", "sa": "13:09", "ra": "14:01", "sf": "18:05"}, {"fecha": "2026-10-12", "nombre": "Diego Supervisor LIM", "sede": "LIM", "e": "08:54", "sa": "13:06", "ra": "14:01", "sf": "18:01"}, {"fecha": "2026-10-12", "nombre": "Elena Integrante LIM", "sede": "LIM", "e": "08:54", "sa": "13:06", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-12", "nombre": "Ana Supervisora TRU", "sede": "TRU", "e": "08:53", "sa": "13:01", "ra": "14:02", "sf": "18:04"}, {"fecha": "2026-10-12", "nombre": "Bruno Integrante TRU", "sede": "TRU", "e": "08:58", "sa": "13:06", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-12", "nombre": "Carla Integrante TRU", "sede": "TRU", "e": "08:53", "sa": "13:01", "ra": "14:03", "sf": "18:03"}, {"fecha": "2026-10-13", "nombre": "Franco Supervisor AQP", "sede": "AQP", "e": "08:58", "sa": "13:04", "ra": "14:01", "sf": "18:03"}, {"fecha": "2026-10-13", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:58", "sa": "13:06", "ra": "14:01", "sf": "18:05"}, {"fecha": "2026-10-13", "nombre": "Diego Supervisor LIM", "sede": "LIM", "e": "08:56", "sa": "13:02", "ra": "14:04", "sf": "18:02"}, {"fecha": "2026-10-13", "nombre": "Elena Integrante LIM", "sede": "LIM", "e": "08:52", "sa": "13:00", "ra": "14:02", "sf": "18:00"}, {"fecha": "2026-10-13", "nombre": "Ana Supervisora TRU", "sede": "TRU", "e": "08:52", "sa": "13:00", "ra": "14:05", "sf": "18:05"}, {"fecha": "2026-10-13", "nombre": "Carla Integrante TRU", "sede": "TRU", "e": "08:52", "sa": "13:06", "ra": "14:05", "sf": "18:01"}, {"fecha": "2026-10-14", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:56", "sa": "13:08", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-14", "nombre": "Diego Supervisor LIM", "sede": "LIM", "e": "08:57", "sa": "13:05", "ra": "14:06", "sf": "18:02"}, {"fecha": "2026-10-14", "nombre": "Elena Integrante LIM", "sede": "LIM", "e": "08:57", "sa": "13:01", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-14", "nombre": "Ana Supervisora TRU", "sede": "TRU", "e": "08:56", "sa": "13:06", "ra": "14:00", "sf": "18:02"}, {"fecha": "2026-10-14", "nombre": "Bruno Integrante TRU", "sede": "TRU", "e": "09:40", "sa": "13:00", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-14", "nombre": "Carla Integrante TRU", "sede": "TRU", "e": "08:53", "sa": "13:07", "ra": "14:03", "sf": "18:03"}, {"fecha": "2026-10-15", "nombre": "Diego Supervisor LIM", "sede": "LIM", "e": "08:53", "sa": "13:05", "ra": "14:04", "sf": "18:02"}, {"fecha": "2026-10-15", "nombre": "Elena Integrante LIM", "sede": "LIM", "e": "08:54", "sa": "13:06", "ra": "14:02", "sf": "18:02"}, {"fecha": "2026-10-15", "nombre": "Ana Supervisora TRU", "sede": "TRU", "e": "08:52", "sa": "13:08", "ra": "14:07", "sf": "18:05"}, {"fecha": "2026-10-15", "nombre": "Bruno Integrante TRU", "sede": "TRU", "e": "08:58", "sa": "13:02", "ra": "14:07", "sf": "18:03"}, {"fecha": "2026-10-15", "nombre": "Carla Integrante TRU", "sede": "TRU", "e": "08:57", "sa": "13:02", "ra": "14:03", "sf": "23:59"}, {"fecha": "2026-10-16", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:52", "sa": "13:02", "ra": "14:01", "sf": "18:03"}, {"fecha": "2026-10-16", "nombre": "Diego Supervisor LIM", "sede": "LIM", "e": "08:56", "sa": "13:04", "ra": "14:04", "sf": "18:00"}, {"fecha": "2026-10-16", "nombre": "Elena Integrante LIM", "sede": "LIM", "e": "08:55", "sa": "13:00", "ra": "14:00", "sf": "18:00"}, {"fecha": "2026-10-16", "nombre": "Ana Supervisora TRU", "sede": "TRU", "e": "08:57", "sa": "13:07", "ra": "14:00", "sf": "18:04"}, {"fecha": "2026-10-16", "nombre": "Bruno Integrante TRU", "sede": "TRU", "e": "08:56", "sa": "13:00", "ra": "14:04", "sf": "18:02"}, {"fecha": "2026-10-16", "nombre": "Carla Integrante TRU", "sede": "TRU", "e": "08:55", "sa": "13:05", "ra": "14:03", "sf": "18:01"}];
+const PERMITIDO = 60;           // minutos de refrigerio del horario (en la demo está en 0; aquí, ejemplo)
+const AHORA = "14:10";
+const min = (h)=> h? (+h.slice(0,2))*60 + (+h.slice(3,5)) : null;
+const hh = (m)=> String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+const dur = (m)=> m>=60 ? Math.floor(m/60)+" h"+(m%60? " "+String(m%60).padStart(2,"0"):"") : m+" min";
+// HOY simulado: lo real del 16 + lo que los datos de la demo no tienen.
+const base16 = SEMANA.filter(r=>r.fecha==="2026-10-16");
+const HOY = [
+  {nombre:"Gaby Integrante AQP",sede:"AQP",e:"08:58",sa:"13:00",ra:"13:58",sf:null},          // ya volvió, trabaja
+  {nombre:"Diego Supervisor LIM",sede:"LIM",e:"08:52",sa:"13:25",ra:null,sf:null},              // almorzando hace 45 min
+  {nombre:"Elena Integrante LIM",sede:"LIM",e:"08:55",sa:"12:50",ra:null,sf:null},              // almorzando hace 80 min (se pasó)
+  {nombre:"Ana Supervisora TRU",sede:"TRU",e:"08:49",sa:null,ra:null,sf:null},                  // aún no sale a almorzar
+  {nombre:"Bruno Integrante TRU",sede:"TRU",e:"08:00",sa:"12:00",ra:"13:25",sf:null},          // volvió 25 min tarde
+  {nombre:"Carla Integrante TRU",sede:"TRU",e:"08:00",sa:null,ra:null,sf:"13:00"}               // turno corto, ya terminó
+];
+const DIAS = {"hoy":HOY, "2026-10-16":base16};
+let dia="hoy", sede="";
+function estado(r){
+  if(r.sf) return {k:"fin",t:"Terminó",c:"c-ne"};
+  if(r.sa && !r.ra){ const m = min(AHORA)-min(r.sa); return {k:"alm",t:"Almorzando · "+dur(m), c: m>PERMITIDO?"c-al":"c-am", m}; }
+  return {k:"trab",t:"Trabajando",c:"c-ok"};
+}
+function almMin(r){ if(r.sa&&r.ra) return min(r.ra)-min(r.sa); if(r.sa&&dia==="hoy") return min(AHORA)-min(r.sa); return null; }
+function filas(){ return DIAS[dia].filter(r=>!sede||r.sede===sede).slice().sort((a,b)=>a.sede.localeCompare(b.sede)||a.nombre.localeCompare(b.nombre)); }
+function barra(){
+  const sedes=["","AQP","LIM","TRU"];
+  document.getElementById("barra").innerHTML =
+   `<select id="selDia" class="fil" style="padding:5px 9px"><option value="hoy" ${dia==="hoy"?"selected":""}>Hoy · martes 20 (simulado a las ${AHORA})</option><option value="2026-10-16" ${dia!=="hoy"?"selected":""}>Viernes 16 de octubre</option></select>`+
+   sedes.map(s=>`<button class="fil" aria-pressed="${sede===s}" data-sede="${s}">${s||"Todas las sedes"}</button>`).join("");
+  document.getElementById("selDia").onchange=e=>{dia=e.target.value;pintar()};
+  document.querySelectorAll("[data-sede]").forEach(b=>b.onclick=()=>{sede=b.dataset.sede;pintar()});
+}
+const X0=480, X1=1140; // 08:00 a 19:00
+const pct=(m)=> ((m-X0)/(X1-X0)*100);
+function A(){
+  const hs=[8,9,10,11,12,13,14,15,16,17,18,19];
+  let h=`<div class="tl"><div class="eje"><span></span><div class="horas">${hs.map(x=>`<span style="left:${pct(x*60)}%">${x}:00</span>`).join("")}</div></div>`;
+  for(const r of filas()){
+    const e=min(r.e), sa=min(r.sa), ra=min(r.ra), sf=min(r.sf), ahora=min(AHORA), est=estado(r);
+    const fin = sf ?? (dia==="hoy"? ahora : null) ?? (ra??sa??e);
+    let segs="";
+    if(sa){ segs+=`<div class="seg trab" style="left:${pct(e)}%;width:${pct(sa)-pct(e)}%"></div>`;
+      const finA = ra ?? ahora; const largo=(finA-sa)>PERMITIDO;
+      segs+=`<div class="seg alm ${largo?"largo":""}" style="left:${pct(sa)}%;width:${pct(finA)-pct(sa)}%" title="Almuerzo">${dur(finA-sa)}${!ra?" …":""}</div>`;
+      if(ra) segs+=`<div class="seg trab" style="left:${pct(ra)}%;width:${pct(fin)-pct(ra)}%"></div>`;
+    } else segs+=`<div class="seg trab" style="left:${pct(e)}%;width:${pct(fin)-pct(e)}%"></div>`;
+    const vivo = dia==="hoy" && !sf ? `<div class="vivo" style="left:${pct(ahora)}%"></div>`:"";
+    h+=`<div class="fila"><div class="n">${r.nombre}<small>${r.sede} · ${r.e}${sf?" – "+r.sf:""}</small></div><div class="pista">${segs}${vivo}</div></div>`;
+  }
+  h+=`</div><div class="leyenda"><span><i style="background:color-mix(in oklab,var(--color-tinta) 78%,var(--color-papel))"></i>Trabajando</span><span><i style="background:repeating-linear-gradient(135deg,#d9b46e 0 4px,#ecd9ae 4px 8px);border:1px solid var(--color-ambar)"></i>Almuerzo (ámbar dentro de lo permitido, rojo si se pasa de ${PERMITIDO} min)</span><span><i style="background:var(--color-rojo);width:3px"></i>Ahora</span></div>`;
+  document.getElementById("A").innerHTML=h;
+}
+function B(){
+  let h=`<table><thead><tr><th>Persona</th><th>Entró</th><th>Salió a almorzar</th><th>Volvió</th><th>Almuerzo</th><th>Salida</th><th>Estado</th></tr></thead><tbody>`;
+  for(const r of filas()){
+    const m=almMin(r), est=estado(r), pas=m!=null&&m>PERMITIDO;
+    h+=`<tr><td class="n">${r.nombre}<small>${r.sede}</small></td><td>${r.e}</td><td>${r.sa||"—"}</td><td>${r.ra||(r.sa&&dia==="hoy"?"<span class='chip c-am'>aún no</span>":"—")}</td>
+    <td>${m==null?"—":`<b style="color:${pas?"var(--color-rojo-profundo)":"inherit"}">${dur(m)}</b>${pas?` <span class="muted">+${m-PERMITIDO} min</span>`:""}<span class="mini"><i style="width:${Math.min(100,m/PERMITIDO*100/1.5)}%;background:${pas?"var(--color-rojo)":"var(--color-verde)"}"></i></span>`}</td><td>${r.sf||"—"}</td><td><span class="chip ${est.c}">${est.t}</span></td></tr>`;
+  }
+  document.getElementById("B").innerHTML=h+`</tbody></table>`;
+}
+function C(){
+  const f=filas(), grupos=[["alm","Almorzando ahora"],["trab","Trabajando"],["fin","Ya terminaron"]];
+  let h="";
+  for(const [k,tit] of grupos){
+    const g=f.filter(r=>estado(r).k===k); if(!g.length) continue;
+    h+=`<div class="grp">${tit} · ${g.length}</div><div class="tarjetas">`;
+    for(const r of g){
+      const e=estado(r);
+      if(k==="alm"){ const m=e.m, pas=m>PERMITIDO;
+        h+=`<div class="tj"><h3>${r.nombre}</h3><span class="muted">${r.sede} · salió ${r.sa}</span><div class="grande" style="color:${pas?"var(--color-rojo-profundo)":"inherit"}">${dur(m)}</div><span class="muted">de ${PERMITIDO} min permitidos${pas?` · se pasó ${m-PERMITIDO} min`:` · vuelve a las ${hh(min(r.sa)+PERMITIDO)}`}</span><div class="meter"><i style="width:${Math.min(100,m/PERMITIDO*100)}%;background:${pas?"var(--color-rojo)":"var(--color-ambar)"}"></i></div></div>`;
+      } else if(k==="trab"){ const m=r.sa&&r.ra?min(r.ra)-min(r.sa):null;
+        h+=`<div class="tj"><h3>${r.nombre}</h3><span class="muted">${r.sede} · entró ${r.e}</span><div style="margin-top:8px">${m==null?`<span class="muted">Aún no sale a almorzar</span>`:`<span class="chip ${m>PERMITIDO?"c-al":"c-ok"}">almorzó ${dur(m)}${m>PERMITIDO?` · +${m-PERMITIDO}`:""}</span>`}</div></div>`;
+      } else h+=`<div class="tj"><h3>${r.nombre}</h3><span class="muted">${r.sede} · ${r.e} – ${r.sf}</span><div style="margin-top:8px"><span class="muted">Sin almuerzo en su turno</span></div></div>`;
+    }
+    h+=`</div>`;
+  }
+  document.getElementById("C").innerHTML=h||`<p class="muted">Nadie en esta vista.</p>`;
+}
+function D(){
+  const dias=[...new Set(SEMANA.map(r=>r.fecha))].sort();
+  const nombres=[...new Set(SEMANA.filter(r=>!sede||r.sede===sede).map(r=>r.nombre))].sort();
+  const nd=f=>["lun","mar","mié","jue","vie"][new Date(f+"T12:00:00").getDay()-1]+" "+f.slice(8);
+  let h=`<table class="heat"><thead><tr><th>Persona</th>${dias.map(d=>`<th style="text-align:center">${nd(d)}</th>`).join("")}<th style="text-align:center">Promedio</th></tr></thead><tbody>`;
+  for(const n of nombres){
+    const ms=dias.map(d=>{const r=SEMANA.find(x=>x.fecha===d&&x.nombre===n); return r&&r.sa&&r.ra? min(r.ra)-min(r.sa):null;});
+    const v=ms.filter(x=>x!=null), prom=v.length? Math.round(v.reduce((a,b)=>a+b,0)/v.length):null;
+    const cl=m=>m==null?"s":m>PERMITIDO+10?"r":m>PERMITIDO?"a":"v";
+    h+=`<tr><td class="n">${n}</td>${ms.map(m=>`<td><span class="cel ${cl(m)}">${m==null?"—":m+" min"}</span></td>`).join("")}<td><span class="cel ${cl(prom)}">${prom==null?"—":prom+" min"}</span></td></tr>`;
+  }
+  document.getElementById("D").innerHTML=h+`</tbody></table><div class="leyenda" style="padding-top:12px"><span><i style="background:color-mix(in oklab,var(--color-verde) 40%,var(--color-papel))"></i>dentro de ${PERMITIDO} min</span><span><i style="background:color-mix(in oklab,var(--color-ambar) 40%,var(--color-papel))"></i>hasta +10 min</span><span><i style="background:color-mix(in oklab,var(--color-rojo) 35%,var(--color-papel))"></i>más de +10 min</span></div>`;
+}
+function E(){
+  const sedes=["AQP","LIM","TRU"].filter(s=>!sede||s===sede);
+  let h=`<div class="sedes">`;
+  for(const s of sedes){
+    const rs=SEMANA.filter(r=>r.sede===s&&r.sa&&r.ra), ms=rs.map(r=>min(r.ra)-min(r.sa)), prom=ms.length?Math.round(ms.reduce((a,b)=>a+b,0)/ms.length):0, max=Math.max(...ms,0), min_=Math.min(...ms,999);
+    const pasan=ms.filter(m=>m>PERMITIDO).length;
+    h+=`<div class="tj"><div style="display:flex;justify-content:space-between;align-items:baseline"><h3>${s}</h3><span class="muted">${ms.length} almuerzos · semana 12–16 oct</span></div>
+    <div class="grande">${prom} min <span class="muted" style="font-family:var(--font-sans)">promedio</span></div>
+    <span class="muted">el más corto ${min_} min · el más largo ${max} min · ${pasan} de ${ms.length} pasaron de ${PERMITIDO}</span>
+    <div class="puntos">${ms.map(m=>`<b title="${m} min" style="left:${Math.max(2,Math.min(98,(m-40)/(90-40)*100))}%;background:${m>PERMITIDO+10?"var(--color-rojo)":m>PERMITIDO?"var(--color-ambar)":"var(--color-verde)"}"></b>`).join("")}</div>
+    <div style="display:flex;justify-content:space-between" class="muted"><span>40 min</span><span>${PERMITIDO} min</span><span>90 min</span></div></div>`;
+  }
+  document.getElementById("E").innerHTML=h+`</div>`;
+}
+function pintar(){ barra(); A();B();C();D();E();
+  const l={1:"<strong>A · Línea del día</strong>: el día de cada quien como una barra —trabajo en tinta, almuerzo en ámbar rayado con su duración—; el día abierto llega hasta «ahora» y el almuerzo en curso dice «…».",
+  2:"<strong>B · Tabla</strong>: lo mismo en columnas, para ordenar y comparar. La barrita compara contra el tiempo permitido.",
+  3:"<strong>C · Ahora</strong>: lo de hoy en vivo: quién almuerza (con su cronómetro contra lo permitido), quién trabaja y quién ya terminó.",
+  4:"<strong>D · Semana</strong>: minutos de almuerzo por persona y día. Sirve para ver quién se pasa seguido, no solo hoy.",
+  5:"<strong>E · Por sede</strong>: el promedio de cada sede y la dispersión de sus almuerzos de la semana."};
+  document.getElementById("lema").innerHTML=l[document.body.className.slice(1)]; }
+document.querySelectorAll(".vbtn").forEach(b=>b.onclick=()=>{document.body.className="v"+b.dataset.v;document.querySelectorAll(".vbtn").forEach(x=>x.setAttribute("aria-pressed",x===b));pintar();});
+pintar();
+</script>
+</body>
+</html>

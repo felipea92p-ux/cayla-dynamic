@@ -115,6 +115,984 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-26-turnos-integrada-y-revision-de-dias-pasados",
+    fecha: "2026-10-26",
+    titulo: "Turnos: la Integrada respeta la salida de cada día y los días pasados muestran su marcaje",
+    queMejoro:
+      "En la vista Integrada, las horas después de la última salida de un día —como el domingo desde las 18:15— salían como falta y con el borde de «sin líder», con la tienda ya cerrada. " +
+      "Ahora cada día se mide solo entre su primera entrada y su última salida, como las tarjetas «Mañana y tarde», y el borde ámbar sale solo donde hay operativas sin ningún líder.\n\n" +
+      "En «turnos no coinciden con el horario base», las filas de días que ya pasaron muestran a qué hora marcó la persona. " +
+      "«Usar el horario base» en uno de esos días ahora te pide confirmar y te dice qué va a pasar: ese día se vuelve a medir contra la hora del horario base, y si el turno era lo que se le había indicado conviene dejarlo como está. " +
+      "«Quitar los espejos viejos» en bloque solo toca días de hoy en adelante. Y la etiqueta «excepción a propósito» pasa a llamarse «cambio puntual».",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-25-bandeja-cuenta-lo-que-le-toca-a-una-persona-y-explica-los-correos",
+    fecha: "2026-10-25",
+    titulo: "La Bandeja cuenta lo que le toca a una persona y explica los correos que no salieron",
+    queMejoro:
+      "El número del menú y el del Dashboard ahora son el mismo, y ya no se infla: cada fila de la Bandeja cuenta una vez, y los " +
+      "correos de aviso que no salieron cuentan una sola vez —no uno por cada correo—, igual que las constancias de Normas. Por eso " +
+      "el número bajó mucho: no es que haya menos por hacer, es que antes se contaba de más.\n\n" +
+      "La tarjeta «Sistema» quedó en una línea y, al abrir «Ver por qué y qué hacer», dice en una frase por motivo qué pasó con esos " +
+      "correos. Con «Revisar y resolver estos avisos» ves primero cuántos se volverían a enviar y cuántos se darían por cerrados, y " +
+      "recién al confirmar se hace. Cerrar un aviso no borra lo que avisaba: el contrato, las vacaciones o el día sin cerrar siguen " +
+      "en su pantalla.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-25-educacion-pago-unico-habla-de-fecha-no-de-calendario",
+    fecha: "2026-10-25",
+    titulo: "Educación: un pago único habla de «fecha del pago», no de calendario",
+    queMejoro:
+      "Si un estudio es de pago único, ya no te pide un «calendario de pagos»: pide «la fecha del pago». Y cuando su constancia ya " +
+      "está aprobada queda al día sin pedir nada más, y sale de la Bandeja y del número rojo del menú de Educación.\n\n" +
+      "Si un estudio ya tiene constancia aprobada pero nunca se le marcó «Pago único», el cajón ahora lo dice: elige «Pago único» y " +
+      "guarda, la fecha es opcional. En «Lo mío», quien tiene un pago único ve que su pago ya está registrado, en vez de que le pidan " +
+      "la fecha de un próximo pago que no existe.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-25-campos-y-botones-mas-marcados-y-ventanas-que-no-sueltan-el-teclado",
+    fecha: "2026-10-25",
+    titulo: "Campos y botones con el borde más marcado, y ventanas que no sueltan el teclado",
+    queMejoro:
+      "Los campos donde escribes —y los botones de acción secundaria, como «Cancelar»— ahora tienen un borde más marcado, para que se " +
+      "reconozca de un vistazo dónde escribir o tocar, en modo claro y en oscuro. Los mensajes de error bajo un campo también se leen " +
+      "mejor en modo oscuro.\n\n" +
+      "En las ventanas que se abren encima de la pantalla —confirmar una anulación, por ejemplo—, Tab y Mayús+Tab ya no se escapan " +
+      "hacia la pantalla de atrás: se quedan dentro de la ventana, y al cerrarla el cursor vuelve al botón que la abrió.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-24-cuentas-lista-a-las-integrantes-y-constancias-muestra-todas",
+    fecha: "2026-10-24",
+    titulo: "Cuentas lista a las integrantes con acceso, y Constancias muestra todas las que existen",
+    queMejoro:
+      "En Cuentas, la pestaña «Cuentas del equipo» ahora incluye también a las integrantes que ya tienen su acceso, no solo a las " +
+      "líderes y administradoras. Desde ahí puedes resetearles la contraseña o corregirles el correo, que antes no tenía dónde hacerse.\n\n" +
+      "En la hoja de constancias de la política salarial, debajo de los pendientes aparece «También dejaron constancia»: quienes dejaron " +
+      "su constancia pero no cuentan en el total de la hoja —practicantes y recibos por honorarios—. Se ve solo en pantalla; el papel " +
+      "impreso sigue con la población comprendida de siempre.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-24-barra-superior-con-saludo-y-menu-que-nombra-al-instante",
+    fecha: "2026-10-24",
+    titulo: "Barra superior con saludo, menú que nombra al instante y «Dar de baja»",
+    queMejoro:
+      "La barra de arriba se ordenó: el buscador quedó a la izquierda, en el centro te saluda según la hora —«Buenos días», " +
+      "«Buenas tardes» o «Buenas noches»— con la hora de Lima debajo, y a la derecha están los atajos, el modo claro u oscuro y, " +
+      "al final, «Cerrar sesión». El buscador funciona igual que siempre.\n\n" +
+      "En el menú lateral de iconos, el nombre de cada pantalla aparece al instante al pasar el mouse o al llegar con Tab, sin la " +
+      "espera de antes.\n\n" +
+      "Y en Equipo, el botón «Registrar salida» ahora se llama «Dar de baja». Hace lo mismo: anota el último día trabajado y el " +
+      "motivo, y la persona deja de aparecer en el terminal sin borrarse su historial.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-22-ya-puedes-ver-tu-seguro-de-vida-ley-en-mi-seguro",
+    fecha: "2026-10-22",
+    titulo: "Ya puedes ver tu Seguro de Vida Ley en «Mi seguro»",
+    queMejoro:
+      "Cuando Desarrollo Organizacional registra tu póliza de Vida Ley, aparece en «Mi seguro» con su propia tarjeta, aparte de tu " +
+      "seguro principal (EsSalud o FOLA): su número, la aseguradora, hasta cuándo es vigente y el PDF de tu certificado, que puedes " +
+      "abrir o descargar. Si aún no la ves, es porque todavía no está registrada.\n\n" +
+      "Debajo, «Cómo usar tu póliza Vida Ley» cuenta qué es, qué dice la póliza, cuánto dura y dónde está tu certificado. Es un " +
+      "resumen: lo que vale es el PDF. Si el papel no trae alguna fecha, la pantalla lo dice en vez de inventarla. Si algo no " +
+      "cuadra, avisa a Desarrollo Organizacional.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-22-planilla-pide-confirmar-pagar-antes-del-cierre",
+    fecha: "2026-10-22",
+    titulo: "Planilla: pagar un grupo antes de que termine el periodo ahora pide confirmar",
+    queMejoro:
+      "En «Revisar cierre», si el periodo todavía no terminó, aparece un aviso rojo que dice cuántos días faltan y qué pasa si se confirma: " +
+      "desde ese instante las marcas nuevas de ese grupo entran selladas y sus horas no se recalculan. Para seguir hay que escribir una palabra. " +
+      "Con el periodo ya terminado, el cierre se ve y se confirma igual que siempre.\n\n" +
+      "No se bloquea: pagar antes puede ser una excepción a propósito, como una liquidación o un practicante que se va. " +
+      "El aviso está para que no pase con un solo clic.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-21-oficina-mide-su-meta-en-integrantes",
+    fecha: "2026-10-21",
+    titulo: "Una oficina mide su meta en integrantes en la sede",
+    queMejoro:
+      "En el Dashboard, una sede de tipo central (como una oficina) ya no se mide contra «personal operativo»: su meta es cuántos integrantes hay en la sede, y se pinta en verde cuando están. " +
+      "Antes salía «meta por revisar» todos los días, porque en una oficina nadie es de un área operativa.\n\n" +
+      "En una tienda o un taller no cambia nada: ahí la meta sigue contando al personal operativo. " +
+      "Quien está de prueba tampoco suma en una oficina. Las pantallas de Turnos y Reporte de sede cuentan igual.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-21-liquidaciones-registra-que-paso-con-una-diferencia",
+    fecha: "2026-10-21",
+    titulo: "Liquidaciones: ya se puede registrar qué pasó con una diferencia",
+    queMejoro:
+      "Dentro de una liquidación ya pagada, cuando el cálculo de hoy no coincide con lo que se pagó, hay un botón nuevo: " +
+      "«Registrar qué pasó con la diferencia». Se elige qué pasó, en qué se apoya y se cuenta por qué; queda guardado con quién " +
+      "lo registró y cuándo, y el aviso rojo se calma. Si después el cálculo cambia otra vez, el aviso vuelve solo, y el registro " +
+      "se puede corregir o retirar.\n\n" +
+      "Y en la lista de pagadas ya no aparece «Cálculo cambió» en cada fila: ese aviso no se podía cerrar nunca y acababa " +
+      "siendo ruido. Sigue dentro de cada liquidación, que es donde se decide. Si una diferencia sí se le debe a la persona, " +
+      "no se cierra con esto: se paga y se usa «Volver a marcarla como pagada».",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-20-costos-con-graficos-y-mas-ancho",
+    fecha: "2026-10-20",
+    titulo: "Costos del equipo ocupa toda la pantalla y trae gráficos",
+    queMejoro:
+      "Las tablas de Costos ya no se quedan en una columna angosta: usan el ancho disponible y, a la derecha, hay tres gráficos " +
+      "—el costo real de cada periodo (lo que se transfirió y las provisiones), dónde va el costo entre tiendas, taller y central, " +
+      "y el costo por hora de cada sede—. En una pantalla estrecha los gráficos bajan debajo de las tablas.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-20-almuerzos-en-dashboard-y-desempeno",
+    fecha: "2026-10-20",
+    titulo: "Ahora se ve cuánto y cuándo almuerza cada quien",
+    queMejoro:
+      "El Dashboard tiene una pestaña nueva, «Jornada», junto a «Hoy» y «Tendencias»: muestra por sede el día de cada persona, " +
+      "con la hora de entrada, cuándo salió a almorzar, cuánto fue y si sigue almorzando. Se ve como línea del día o como tabla, " +
+      "y arriba avisa quién está almorzando ahora. CCO y Desarrollo Organizacional van aparte, por área.\n\n" +
+      "En Desempeño, al abrir a una persona, la tabla de días tiene la columna «Almuerzo» y las barras de «Horas por día» llevan " +
+      "una franja de rayitas a la altura en que salió a almorzar. Hasta hoy eso solo se veía abriendo Correcciones.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-20-cobertura-suma-por-area-y-la-prueba-no",
+    fecha: "2026-10-20",
+    titulo: "La cobertura suma por área; quien está de prueba, todavía no",
+    queMejoro:
+      "Para la cobertura de una sede cuenta quien trabaja en un área operativa, sea practicante o tenga el cargo que tenga. " +
+      "Quien está haciendo su prueba no suma hasta que deje de estarlo, y en Equipo lleva la etiqueta «de prueba · no suma cobertura». " +
+      "Ya no aparece esa etiqueta en el resto de las personas.\n\n" +
+      "Qué áreas cuentan se marca en Áreas: si el equipo de una oficina no suma, revisa que su área esté marcada como operativa.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-20-correcciones-historial-completo-y-dia-a-dia",
+    fecha: "2026-10-20",
+    titulo: "Correcciones: el historial muestra también las tardanzas levantadas",
+    queMejoro:
+      "Cuando levantabas una tardanza desde Correcciones, la hora quedaba tachada en el día pero no aparecía en el " +
+      "«Historial de correcciones», y al quitar el levantamiento no quedaba ningún rastro. Ahora las dos cosas se " +
+      "anotan: qué día, con qué motivo y quién lo hizo.\n\n" +
+      "Junto al calendario hay además dos flechas para pasar al día anterior o al siguiente; el calendario queda para " +
+      "saltar de mes.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-documentacion-y-ausencias-mas-claras",
+    fecha: "2026-10-19",
+    titulo: "Documentación y Ausencias se ven más claras, y Ausencias tiene calendario",
+    queMejoro:
+      "En Documentación, lo que falta ahora está arriba en «Para atender» —la política de movilidad, quién no ha " +
+      "firmado, quién se negó y los cargos de cumpleaños— y cada documento tiene su pestaña. Subir un papel abre un " +
+      "cajón al costado en vez de empujar la página.\n\n" +
+      "En Ausencias, los avisos de vacaciones por vencer, cupo de EsSalud y patrón de ausencias pasan a pastillas que " +
+      "filtran la lista, y cada fila muestra solo la acción que le toca (aprobar, ver o adjuntar el documento); lo demás " +
+      "está en «•••». Además hay una vista nueva, «Calendario»: un renglón por persona y una casilla por día del mes, con " +
+      "lo pendiente de aprobar rayado. Tocas una barra y vas a la lista de esa persona.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-cada-seccion-de-lo-mio-tiene-una-guia-corta",
+    fecha: "2026-10-19",
+    titulo: "Cada sección de «Lo mío» tiene una guía corta, y la puedes volver a ver",
+    queMejoro:
+      "Al abrir por primera vez una sección de «Lo mío» —Resumen, Mis días, Boletas, Mi seguro y las demás— aparece " +
+      "una guía de dos o tres pasos. Un aro rojo señala lo importante y el resto de la pantalla casi no se oscurece, " +
+      "así que se sigue leyendo lo que hay detrás. La puedes seguir, omitir con «Omitir» o cerrar con la X: no vuelve " +
+      "sola a salir.\n\n" +
+      "Si la quieres de nuevo, el enlace «Ver guía de esta pantalla» está debajo de tu nombre, arriba de la pantalla, en " +
+      "cada sección que tiene guía. La de Resumen pasó de siete pasos a tres.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-19-turnos-por-tramos-y-correcciones-con-semana",
+    fecha: "2026-10-19",
+    titulo: "Turnos habla de «mañana y tarde», y Correcciones muestra la semana",
+    queMejoro:
+      "En Turnos, cada día se lee como se pone la meta: «Mañana 2 de 3 · falta 1», «Tarde completo», con quién está en cada " +
+      "tramo, y ahí mismo cambias la meta. Arriba, «Para decidir» junta los turnos que no coinciden con el horario base y a " +
+      "quién se acerca a las 48 horas. La hora por hora queda detrás de «Ver hora por hora».\n\n" +
+      "En Correcciones, arriba de cada persona está su semana con una frase corta por día («8 h 03», «25 min tarde», «Sin " +
+      "jornada»): tocas un día y lo abres sin usar el calendario. Con pantalla ancha, el historial queda a la derecha.\n\n" +
+      "Una tardanza que ya se levantó por fuerza mayor sale tachada también en el Dashboard y deja de contar como tardanza " +
+      "ahí. Y Datos personales, Feriados, Costos, Sedes, Áreas, Anuncios, Cuentas, Hoja de sede, Exportar, Disciplina y Casos " +
+      "estrenan la misma cabecera de siempre, con su ⓘ de ayuda.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-quien-esta-de-prueba-cuenta-en-la-cobertura",
+    fecha: "2026-10-19",
+    titulo: "Quien está de prueba ya cuenta en la cobertura de su sede",
+    queMejoro:
+      "En el Dashboard, en Turnos y en el Reporte de sede, quien está haciendo sus días de prueba ahora cuenta como " +
+      "personal operativo en piso, igual que un practicante. Antes podía salir «Trabajando ahora · 3» y a la vez " +
+      "«2 / 4 operativas»: la persona de prueba estaba trabajando pero no sumaba a la meta.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-en-el-terminal-quien-esta-de-prueba-se-distingue-y-la-lista-se-actualiza-sola",
+    fecha: "2026-10-19",
+    titulo: "En el terminal, quien está de prueba se distingue y la lista se actualiza sola",
+    queMejoro:
+      "En el terminal de marcaje, quien está de prueba ahora tiene la tarjeta con borde punteado, una cinta «En prueba» " +
+      "arriba y su avance, «Prueba · 2 de 3», en una píldora. Es siempre del mismo color: el avance lo dice el texto, y " +
+      "ya no se confunde con los colores de «en pausa» ni de «refrigerio».\n\n" +
+      "Además, el terminal revisa la lista cada minuto: quien se suma al equipo, o pasa de prueba a planilla, aparece en " +
+      "la pantalla de la sede sin que nadie la recargue.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-19-planilla-y-las-pantallas-de-dinero-con-una-sola-cabecera",
+    fecha: "2026-10-19",
+    titulo: "Planilla y las pantallas de dinero comparten cabecera, ayuda «ⓘ» y «Para atender»",
+    queMejoro:
+      "En Planilla, arriba del detalle hay una franja «Para cerrar»: dice qué frena el pago y cuál es el paso que toca " +
+      "—resolver lo que frena, cerrar un grupo o ir a Boletas—, con un solo botón principal. Cada grupo sigue " +
+      "pagándose por su cuenta y su estado se ve en una fila de pastillas. Las boletas siguen a la vista junto al selector " +
+      "de periodo.\n\n" +
+      "Boletas, Liquidaciones, Provisiones, Costos, Bandeja, Objetivos y Normas se ordenan igual que Educación: el " +
+      "título con su «ⓘ» (ahí quedó la explicación larga, que antes ocupaba la pantalla), los avisos como pastillas " +
+      "que filtran, y los filtros en una sola fila. En Liquidaciones, Objetivos y Normas lo que espera una acción " +
+      "—vencidas, observaciones, constancias pendientes— aparece arriba y al tocarlo lleva a la lista.\n\n" +
+      "No cambió ningún cálculo ni ninguna regla: es la misma información, con menos texto encima.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-la-prueba-de-tres-dias-se-ve-y-se-decide",
+    fecha: "2026-10-19",
+    titulo: "La prueba de tres días: se ve en todo el sistema y se decide desde la Bandeja",
+    queMejoro:
+      "Quien está de prueba ahora lleva una etiqueta, «Prueba · 2 de 3», junto a su nombre: en el terminal de marcaje, " +
+      "en Equipo, en Horas, en Horarios y en Planilla. Los días son los que ya trabajó, no los del calendario. No se le " +
+      "hace contrato todavía: en Contratos, «Nuevo documento» muestra su prueba, donde se suben las dos caras de su DNI, " +
+      "y el contrato se hace cuando completa sus tres días.\n\n" +
+      "En la Bandeja hay un módulo nuevo, «Pruebas», para Desarrollo Organizacional y para las líderes de equipo, que " +
+      "ven a su gente. Cada prueba dice cuántos días lleva y qué toca: si ya completó el plazo, decidir; si lo pasó y nadie " +
+      "decidió, aparece en rojo. Ahí mismo se marca «No fue apto» o «Se retiró», y cada botón explica qué pasa antes de " +
+      "confirmar. En Equipo, si das de baja a alguien que está de prueba (menú ⋯ de su fila, opción «Dar de baja»; antes se llamaba «Registrar salida»), se abre ese mismo panel.\n\n" +
+      "Cuando el contrato queda firmado, «Subir contrato firmado» ofrece pasar a la persona de «Prueba» a «Planilla» en el " +
+      "mismo paso. Desarrollo Organizacional ve además lo que se cerró en las últimas 48 horas, y quién lo decidió.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-asistencia-equipo-contratos-y-dashboard-mas-claros",
+    fecha: "2026-10-19",
+    titulo: "Asistencia, Equipo, Contratos y el Dashboard se ven más claros",
+    queMejoro:
+      "Las pantallas de Asistencia, Equipo, Contratos y el Dashboard se rehicieron para que lo que hay que atender se vea " +
+      "primero y lo demás no estorbe. Varias arrancan con una franja «Para atender»: tocas una pastilla y la lista se " +
+      "reduce a eso; si ya no hace falta, vuelves a tocarla. La explicación larga de cada pantalla ahora está detrás del " +
+      "ⓘ junto al título.\n\n" +
+      "El Dashboard tiene una pestaña nueva, «Tendencias», con gráficos de asistencia y puntualidad por sede a lo largo " +
+      "de las semanas. Equipo se ordena por sede y avisa quién no tiene salario o a quién le termina pronto el contrato. " +
+      "En Contratos la lista va de lo más urgente a lo que está al día, cada fila trae el botón que le toca (Renovar, " +
+      "Subir firmado, Copia entregada), el historial de cada persona se abre desde «Ver historial» y, al crear un " +
+      "documento, buscas a la persona por nombre o la filtras por sede y por situación del contrato.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-mi-seguro-cada-colaborador-ve-el-suyo",
+    fecha: "2026-10-19",
+    titulo: "Ya puedes ver tu seguro en «Lo mío»",
+    queMejoro:
+      "En «Lo mío» hay una sección nueva, «Mi seguro», en el grupo Documentos. Dice en qué seguro estás. Si el " +
+      "tuyo lleva póliza, ves su número y hasta cuándo es vigente, y puedes abrir o descargar el PDF de tu póliza y de " +
+      "tu convenio de pago. Si lo gestiona la empresa con la planilla, como EsSalud, ahí lo dice y no hay póliza que ver.\n\n" +
+      "Si estás en FOLA, también te cuenta cómo usar el seguro —qué hacer en una emergencia y el plazo para avisar, " +
+      "la atención en la red de Pacífico, la carta de garantía si te van a hospitalizar, el médico a domicilio y el " +
+      "reembolso— y lo que no cubre. Es un resumen: lo que vale es tu póliza en PDF. Si no ves tu póliza o la fecha " +
+      "no cuadra, avisa a Desarrollo Organizacional.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-17-educacion-el-panel-de-un-estudio-dice-que-toca-hacer",
+    fecha: "2026-10-17",
+    titulo: "El panel de un estudio en Educación dice qué toca hacer",
+    queMejoro:
+      "Al abrir un estudio en Educación, lo primero que ves es su situación en una frase: si falta definir cuándo " +
+      "toca su próximo pago, si hay una constancia por revisar o si está al día. Debajo, la última constancia " +
+      "aprobada, con el mes de la cuadrícula al que pertenece y hace cuánto fue.\n\n" +
+      "La constancia por revisar sube al inicio, la última aprobada se abre sola para ver el papel sin un clic de más, " +
+      "y cada constancia aprobada dice «cuenta para» qué mes. Así se entiende por qué un check puede no verse en la " +
+      "cuadrícula: un pago con fecha de hace más de seis meses queda fuera de los meses que se ven al abrir, y el " +
+      "panel lo avisa.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-seguros-en-que-seguro-esta-cada-colaborador",
+    fecha: "2026-10-17",
+    titulo: "Seguros: ya se ve en qué seguro está cada colaborador y a quién le falta su póliza",
+    queMejoro:
+      "Hay una pantalla nueva, «Seguros», en el grupo Personas. Muestra en qué seguro está cada colaborador, hasta " +
+      "cuándo está cubierto y qué papeleo falta (prima, firma y factura), y guarda los PDF de la póliza. Si a alguien " +
+      "le falta la póliza que su seguro pide, aparece primero y en rojo, y la Bandeja también lo avisa.\n\n" +
+      "Cada colaborador sigue el seguro que le toca por su vínculo, y Desarrollo Organizacional puede cambiárselo a " +
+      "una persona; cuando alguien cambia de seguro quedan pendientes la baja del anterior y el alta del nuevo. Si hay " +
+      "un seguro que el sistema no conoce, se agrega desde «Tipos de seguro». Es solo para Desarrollo Organizacional y " +
+      "solo avisa: no cambia lo que cobra nadie. El plan y el beneficio máximo quedan «sin confirmar» hasta que el " +
+      "corredor los confirme. Más adelante cada colaborador con póliza podrá ver la suya en «Lo mío».\n\n" +
+      "Para no teclear lo mismo dos veces: «Leer PDF de póliza» lee el número, la vigencia y la prima de uno o varios " +
+      "PDF y los propone para que los revises antes de registrar; una póliza de vida o de EPS se registra a todas las " +
+      "personas de una vez, con un solo PDF; y «Lista de asegurados» arma quiénes están en un seguro, con lo que piden " +
+      "el contador y la aseguradora y señalando a quien le falta un dato.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-la-firma-de-la-empresa-sale-sola-en-los-papeles",
+    fecha: "2026-10-17",
+    titulo: "La firma de la empresa sale sola en los papeles, la abra quien la abra",
+    queMejoro:
+      "Los contratos, las hojas de Documentación (declaración de ruta, política de movilidad y cargo del bono), " +
+      "el certificado de trabajo y la constancia de cese de Liquidaciones, y la Política salarial llevan ahora la " +
+      "firma guardada de quien firma por CAYLA, sin que esa persona tenga que abrirlos. Antes, si el papel lo abría " +
+      "otra cuenta, la línea de firma salía en blanco.\n\n" +
+      "Si quien firma por CAYLA todavía no guardó su firma en «Mi firma», el papel sale con la línea en blanco para " +
+      "firmar a mano, y la pantalla lo avisa antes de imprimir.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-17-tu-boleta-firmada-se-descarga-con-tu-firma",
+    fecha: "2026-10-17",
+    titulo: "Tu boleta firmada se ve y se descarga con tu firma",
+    queMejoro:
+      "En «Boletas», una boleta que ya firmaste se abre como una sola hoja: tus datos, la fecha de pago, la boleta " +
+      "y, debajo, tu firma con la fecha y la hora. «Descargar PDF» la guarda así, en un solo archivo: si tu " +
+      "teléfono o computadora te pregunta, elige «Guardar como PDF».\n\n" +
+      "Antes de firmarla, la boleta se sigue viendo y guardando tal como la entregó el contador.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-17-la-boleta-firmada-se-descarga-con-su-firma",
+    fecha: "2026-10-17",
+    titulo: "«Ver boleta firmada» ahora es una sola hoja que se descarga en PDF",
+    queMejoro:
+      "En Planilla → Boletas, «Ver boleta firmada» muestra la constancia de recepción: nombre y documento de la " +
+      "persona, sede, periodo, fecha de pago, fecha y hora de la firma, la boleta y, debajo, la firma. «Descargar " +
+      "PDF» la guarda en un solo archivo, lista para el contador o para el archivo.\n\n" +
+      "Además, la foto de una boleta ya no se ve cortada: entra entera en la pantalla y se amplía con un toque. Y " +
+      "una boleta firmada ya no tiene «Ver» a secas: se mira siempre con su firma.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-educacion-meses-anteriores-y-siguientes",
+    fecha: "2026-10-17",
+    titulo: "En Educación ahora se avanza y se retrocede por los meses",
+    queMejoro:
+      "La cuadrícula de constancias tiene «← Meses anteriores» y «Meses siguientes →», de seis en seis: puedes " +
+      "ir al pasado y volver sin recargar la pantalla, y llegar a los meses que cubre un pago adelantado más allá " +
+      "de lo que se ve al abrir.\n\n" +
+      "La pantalla trae solo los meses que estás mirando y pide los demás cuando te mueves, así abre más rápido " +
+      "aunque haya mucha gente. Mientras un mes llega, sus casillas esperan; si no se pudo traer, se ven con «?» " +
+      "y arriba aparece «Reintentar».",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-la-politica-de-movilidad-se-firma-desde-el-sistema",
+    fecha: "2026-10-17",
+    titulo: "La política de movilidad ya se firma desde Documentación, sin escanear",
+    queMejoro:
+      "Al abrir «Firmar la política» en Documentación, la política se puede firmar con la firma que el sistema ya " +
+      "tiene guardada de quien firma por CAYLA: la misma que sale en los contratos. No hay que imprimirla, firmarla " +
+      "a mano ni escanearla. Se guarda tal como sale impresa ese día, con la firma y la fecha, y «Ver documento» la " +
+      "muestra igual aunque después cambien las tarifas.\n\n" +
+      "Subir el papel firmado a mano sigue siendo posible, en la misma pantalla. Vale la más reciente de las dos.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-tu-boleta-de-pago-se-firma-desde-dynamic",
+    fecha: "2026-10-17",
+    titulo: "Tu boleta de pago ahora se firma desde Dynamic",
+    queMejoro:
+      "Cuando Desarrollo Organizacional publica tu boleta, la abres en «Boletas» y la firmas ahí mismo con la firma " +
+      "que ya tienes guardada en tu perfil. Si todavía no tienes una, la creas en ese momento, una sola vez. " +
+      "Ya no hace falta firmar un papel.\n\n" +
+      "«Firmar» se enciende cuando abres la boleta, y te pide una segunda confirmación antes de quedar firmada. " +
+      "Tu firma queda copiada en esa boleta con la fecha y la hora: si más adelante cambias tu firma, las boletas " +
+      "que ya firmaste no cambian. Si no puedes firmar desde el sistema, avisa a Desarrollo Organizacional.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-17-do-anula-una-boleta-y-la-restablece-en-48-horas",
+    fecha: "2026-10-17",
+    titulo: "Anular una boleta de pago ahora se puede deshacer durante 48 horas",
+    queMejoro:
+      "Al anular una boleta ya publicada, la pantalla te muestra a quién y qué estás anulando: el nombre, la sede, " +
+      "el periodo, las fechas, la boleta y su constancia de firma. Eliges un motivo de la lista (o escribes otro, de " +
+      "al menos 5 letras) y marcas que es la persona correcta.\n\n" +
+      "Si te equivocaste, «Restablecer» la devuelve exactamente como estaba, con su firma, durante 48 horas. Pasado " +
+      "ese plazo hay que subir una boleta nueva. En «Ver boleta firmada» ves la boleta con la firma de la persona, " +
+      "quién y cuándo firmó. La persona ve «En revisión» mientras tanto.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-educacion-pagar-varios-meses-de-una-vez",
+    fecha: "2026-10-17",
+    titulo: "Si pagaste varios meses de tus estudios de una vez, súbelo una sola vez",
+    queMejoro:
+      "Al subir tu constancia en Educación ahora puedes elegir «Varios meses de una vez»: pones desde qué mes " +
+      "hasta qué mes pagaste y el total (o lo de cada mes), y el sistema reparte los meses. Si un mes no es así, " +
+      "lo corriges y escribes por qué. Desarrollo Organizacional la revisa una sola vez y no tendrás que enviar " +
+      "constancia de esos meses.\n\n" +
+      "También tienes «Tu historial», con todo lo que enviaste y lo que se aprobó o se rechazó, y por qué.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-17-educacion-en-pestanas-con-iconos-por-mes",
+    fecha: "2026-10-17",
+    titulo: "Educación se ordena en pestañas y cada mes se lee con un ícono",
+    queMejoro:
+      "Educación tiene cuatro pestañas: Constancias, Aprobadas del ciclo, Historial y Cómo funciona. En la " +
+      "cuadrícula cada mes es un ícono —aprobada, por revisar, rechazada o falta— con una raya que dice si ese " +
+      "mes se pagó el apoyo; al pasar el mouse sale el detalle con la miniatura del comprobante, y el mes en curso " +
+      "va sombreado.\n\n" +
+      "Se abre en «Solicitaron» (quienes pidieron apoyo); «Todos» suma a quienes no pidieron. Un pago de varios " +
+      "meses se ve como una franja y se aprueba una sola vez. El Historial junta todo lo que pasó, por sede, " +
+      "persona y fechas, con CSV.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-educacion-aprobadas-del-ciclo-y-rechazar-una-aprobada",
+    fecha: "2026-10-17",
+    titulo: "En Educación se puede corregir una constancia aprobada por error",
+    queMejoro:
+      "Antes, una constancia aprobada no se podía corregir. Ahora Educación tiene la sección «Aprobadas en el ciclo de " +
+      "pago»: elige un ciclo (del 29 al 28), mira a quién se aprobó y quién lo hizo, con la constancia a la vista, y " +
+      "usa «Rechazar…» con el motivo de siempre o «Otro motivo» (mínimo 3 letras, sin máximo). La integrante lo lee " +
+      "en su Bandeja y envía otra.\n\n" +
+      "El rechazo queda en el historial del estudio, con quién la aprobó, quién la rechazó después y por qué. Antes de " +
+      "confirmar, la pantalla avisa si era la única constancia aprobada de ese estudio —entonces el apoyo deja de " +
+      "pagarse hasta que se apruebe otra— y no deja rechazarla si el periodo ya se pagó con ella.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-16-boletas-en-el-menu",
+    fecha: "2026-10-16",
+    titulo: "Las boletas oficiales ya tienen su propio lugar en el menú",
+    queMejoro:
+      "En el menú de la izquierda, dentro de «Pago», hay un renglón nuevo: «Boletas», justo debajo de Planilla. " +
+      "Lleva directo a la pantalla donde se suben, se revisan y se publican las boletas que entrega el contador, y " +
+      "abre en el último periodo pagado. También la encuentras escribiendo «boletas» en el buscador (⌘K).\n\n" +
+      "El botón «Boletas del periodo» dentro de Planilla sigue donde estaba y lleva al mismo sitio, ya con el " +
+      "periodo que tengas elegido.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-16-el-bono-de-cumpleanos-en-practicas-va-en-la-boleta",
+    fecha: "2026-10-16",
+    titulo: "Si estás en prácticas, tu bono de cumpleaños va en tu boleta",
+    queMejoro:
+      "Tu bono de cumpleaños ahora entra a tu boleta del periodo y se paga al cierre, igual que al resto del " +
+      "equipo. Es una corrección: una novedad anterior decía que a quien está en prácticas se lo transfería " +
+      "Desarrollo Organizacional y que no iba en una boleta, y ya no es así.\n\n" +
+      "Si ya habías pedido tu bono, no tienes que hacer nada.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-16-educacion-constancias-por-mes-y-por-sede",
+    fecha: "2026-10-16",
+    titulo: "En Educación ya se ven las constancias de cada mes, por sede, sin descargar nada",
+    queMejoro:
+      "La lista de Educación ahora es una cuadrícula: una fila por persona e institución, una columna por mes y, en " +
+      "cada casilla, la miniatura de la constancia recibida. Un toque la abre grande —foto o PDF con todas sus hojas— " +
+      "con sus datos al lado y los botones Aprobar y Rechazar, sin otra pestaña ni descargar nada. También se puede " +
+      "usar desde el celular.\n\n" +
+      "La sede va arriba, con el número de estudios de cada una, y las cinco tarjetas de arriba cuentan solo lo que " +
+      "estás viendo: si eliges una sede o un mes, las tarjetas y la lista dicen lo mismo. Con las flechas ← → pasas de " +
+      "una constancia a otra y con Esc cierras el visor. Con «Todas», cada sede tiene su " +
+      "bloque con su resumen. Un guion en un mes es un mes sin constancia, no una falta: lo vencido lo sigue diciendo la " +
+      "etiqueta de estado. Si una persona registró el mismo estudio dos veces, sale en una sola línea con sus meses " +
+      "seguidos.\n\n" +
+      "«Más filtros» suma quién estudia, el tipo de constancia, quién la revisó y un rango de fechas, y lo que eliges " +
+      "queda en la dirección: puedes guardarla o pasarla para ver lo mismo. «Descargar» baja el cuadro de lo que ves " +
+      "(CSV) y, si eliges un mes, un ZIP con las constancias de esa sede y ese mes.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-16-educacion-por-grupos-y-cuadro-de-constancias",
+    fecha: "2026-10-16",
+    titulo: "Educación se puede ver por grupos, con quién no ha pedido nada y un cuadro de constancias",
+    queMejoro:
+      "En Educación hay pestañas debajo de las tarjetas: Al día, Por revisar, Por completar, Vencidas o rechazadas y " +
+      "Sin solicitar. Se agrupa por el estado de la constancia, no por si el apoyo se paga, y «Sin solicitar» lista a " +
+      "las personas activas que no tienen ningún apoyo ni una solicitud por revisar, con un botón para registrarles " +
+      "uno.\n\n" +
+      "Arriba hay dos paneles que se abren: «Cómo funciona», con la regla, el techo por rango y los plazos de la " +
+      "constancia, y «Dónde están las constancias», que explica dónde se guardan, qué queda registrado y permite " +
+      "descargar un cuadro (CSV) con una fila por constancia y archivo, para una auditoría. La tarjeta «Rechazadas» " +
+      "ahora se llama «Constancias rechazadas» y dice «esperando a la integrante» en vez de «atender», porque a Desarrollo " +
+      "Organizacional no le toca nada hasta que llegue la corregida; el historial aclara que cuenta solicitudes, no constancias.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-16-adjuntar-comprobante-a-solicitud-de-apoyo-educativo",
+    fecha: "2026-10-16",
+    titulo: "Ya puedes adjuntar el comprobante a tu solicitud de apoyo educativo después de enviarla",
+    queMejoro:
+      "Si enviaste tu solicitud de apoyo educativo sin el comprobante, ya no tienes que retirarla y pedirla de nuevo: " +
+      "en Lo mío, Educación, tu solicitud pendiente tiene un botón «Adjuntar comprobante». Desarrollo Organizacional " +
+      "lo ve al revisarla, y sin él no puede aprobar.\n\n" +
+      "Si te equivocaste de archivo, el mismo botón dice «Cambiar comprobante» y lo reemplaza mientras la solicitud " +
+      "siga pendiente. Una vez revisada o retirada, el comprobante ya no se cambia.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-13-asistencia-diseno-unificado",
+    fecha: "2026-10-13",
+    titulo: "Asistencia de hoy se ve más ordenada: números, avisos y sedes con una sola forma",
+    queMejoro:
+      "Los cuatro números de arriba —trabajando ahora, tardanzas, sin marcar y sedes bajo la meta— ahora son " +
+      "casillas, y el estado de cada una lo dice un punto de color junto a su nombre, no el color del número. Lo que " +
+      "cuenta cada casilla no cambió: solo la forma de leerla. Si una casilla está en cero, ya no se puede abrir, " +
+      "porque no tiene detalle que mostrar.\n\n" +
+      "Lo mismo pasa dentro de cada sede: los recuadros «Trabajando ahora» y «En pausa» ya no se pintan de verde y " +
+      "de ámbar, llevan un punto; los avisos tienen un tamaño para los de una línea y otro para los que explican; y " +
+      "si un filtro no encuentra a nadie, aparece un botón para quitar los filtros. En el celular los cuatro " +
+      "números van en dos filas de dos y ocupan algo más de pantalla que antes. Las tablas del panel perdieron las " +
+      "franjas alternas: la fila se resalta al pasar el cursor.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-13-agregar-marcaje-propone-lo-que-falta",
+    fecha: "2026-10-13",
+    titulo: "En Correcciones, «Agregar un marcaje faltante» ya propone lo que falta",
+    queMejoro:
+      "Al abrir el día de alguien, el formulario ya no arranca siempre en «Entrada · 08:00». Propone el marcaje que " +
+      "le falta a ese día —por ejemplo «Salida final» si ya tiene su entrada— y la hora que le tocaba según su " +
+      "horario. Mientras no la cambies, la etiqueta dice «Hora · según su horario».\n\n" +
+      "Revisa la hora antes de agregar: es la de su horario, no necesariamente la real. Si es hoy y todavía no llega " +
+      "su hora de salida, no se propone la salida, porque puede que siga trabajando. El tipo y la hora se cambian " +
+      "con un clic, como siempre.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-13-cumpleanos-en-info",
+    fecha: "2026-10-13",
+    titulo: "En tu mes de cumpleaños, Info te saluda y te deja firmar tu bono ahí mismo",
+    queMejoro:
+      "Desde el primer día del mes de tu cumpleaños, Info abre con un saludo del equipo —dieciséis mensajes " +
+      "distintos que van cambiando— y, si te corresponde el bono de cumpleaños, con el botón para firmar tu " +
+      "constancia sin buscarla en ningún menú. Antes la tarjeta del bono quedaba abajo del Resumen, y a quien " +
+      "el sistema no le ofrecía el bono no le decía nada en su mes.\n\n" +
+      "Y el bono ya es también para quien está en prácticas: hasta hoy el sistema se lo negaba aunque " +
+      "Desarrollo Organizacional lo viera como pendiente. Quedan fuera el periodo de prueba y los contratos " +
+      "de menos de una semana. A quien está en prácticas se lo transfiere Desarrollo Organizacional: no va en " +
+      "una boleta.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-13-planilla-muestra-movilidad-y-educacion-en-su-columna",
+    fecha: "2026-10-13",
+    titulo: "En Planilla, la movilidad y la educación ya tienen su propia columna",
+    queMejoro:
+      "En la tabla de cada grupo —también la de Practicantes— ahora hay una columna «Movilidad» y otra «Educación», " +
+      "con su suma al pie. Antes esos dos conceptos estaban dentro del total y solo se veían al abrir a la persona, " +
+      "en «Cómo se arma su total».\n\n" +
+      "Si alguien tiene la asignación por educación registrada pero le falta cargar el comprobante, la celda lo dice " +
+      "(«sin comprobante») en vez de quedar en blanco. Pasa el cursor sobre un monto de movilidad para ver la tarifa por día.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-13-ver-el-cargo-de-cumpleanos-firmado-desde-el-sistema",
+    fecha: "2026-10-13",
+    titulo: "En Documentación ya se puede abrir el cargo de cumpleaños firmado desde el sistema",
+    queMejoro:
+      "En «Cargos de cumpleaños», quien firmó su constancia desde «Lo mío» ahora tiene el botón «Ver». Antes su fila " +
+      "decía «Firmado» y no había dónde abrir lo firmado: «Ver» solo existía para un papel escaneado.\n\n" +
+      "Se abre la constancia con su firma y la fecha en que se firmó, y se puede imprimir o guardar como PDF. " +
+      "«Subir otro» sigue en el menú ⋯ de la fila.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-06-asistencia-de-hoy-se-ve-completa-en-el-telefono",
+    fecha: "2026-10-06",
+    titulo: "«Asistencia de hoy» ya se ve completa en el teléfono",
+    queMejoro:
+      "En el teléfono, lo primero que ves ahora es lo que importa: si hay algo urgente y los cuatro números del día " +
+      "(trabajando, tardanzas, sin marcar y sedes bajo la meta), todo en la primera pantalla. Antes había que bajar " +
+      "más de una pantalla de filtros y botones para llegar al primer dato.\n\n" +
+      "El buscador queda arriba, y Sede, Estado y «Solo alertas» están en el botón «Filtros», que te dice cuántos tienes " +
+      "activos. «Personalizar» y «Ver en Google Sheets» pasaron al menú ⋯. Cada sede muestra su estado completo con una " +
+      "franja de color. Toca una cifra para ver quién es y qué cuenta exactamente. En la computadora todo sigue igual.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-el-terminal-avisa-cuando-pierde-su-vinculo",
+    fecha: "2026-10-06",
+    titulo: "El terminal avisa cuando la Mac de la sede pierde su vínculo",
+    queMejoro:
+      "Si la Mac de una sede se queda sin su vínculo con el sistema, ahora aparece una franja roja fija: «Esta Mac " +
+      "perdió su vínculo: las marcas se guardan pero NO se envían». Antes nadie se enteraba, y las marcas terminaban " +
+      "apartadas en Correcciones después de seis intentos.\n\n" +
+      "Mientras esté así, las marcas se quedan guardadas en la Mac y salen solas al volver a vincularla; ya no se " +
+      "apartan. Si ves la franja, avisa a tu líder de equipo: quien tiene las credenciales del terminal usa " +
+      "«Volver a vincular» en la misma franja.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-lo-mio-tiene-una-seccion-disciplina",
+    fecha: "2026-10-06",
+    titulo: "«Lo mío» tiene una sección nueva: Disciplina",
+    queMejoro:
+      "En Seguimiento hay una sección nueva, «Disciplina», justo antes de «Historial». Ahí ves tus documentos, " +
+      "de a 10 por página, y cómo vas este mes. Los memos que antes estaban en «Historial» ahora están en «Disciplina».\n\n" +
+      "Si te entregaron un documento en papel, ahí puedes abrirlo y dejar constancia de que lo leíste. Leerlo no es " +
+      "aceptarlo. Si no tienes nada pendiente, la sección te lo dice con un mensaje.\n\n" +
+      "En el menú, un número junto a «Disciplina» te avisa cuando hay algo por leer o por recibir.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-registrar-una-falta-desde-disciplina",
+    fecha: "2026-10-06",
+    titulo: "Desde Disciplina se puede registrar una falta de conducta",
+    queMejoro:
+      "En Disciplina hay un botón nuevo, «Registrar una falta», y el mismo botón en la ficha de cada persona. Se elige " +
+      "la falta por su nombre corto, con el texto del Reglamento a la vista; se cuenta qué pasó, cuándo y cuándo se " +
+      "supo; y queda un borrador que sigue el trámite de siempre: comunicar, firmar y entregar.\n\n" +
+      "La líder de equipo la registra para integrantes de su sede; a otra líder la registra Desarrollo Organizacional. " +
+      "Desarrollo Organizacional recibe un aviso en su Bandeja, puede tomar el caso y devolverlo con un motivo que lee " +
+      "la líder, y ve si la persona ya leyó lo que se le entregó en papel.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-lo-mio-volver-retrocede",
+    fecha: "2026-10-06",
+    titulo: "En «Lo mío», «← Volver» y «Cancelar» te devuelven a donde estabas",
+    queMejoro:
+      "Los botones «← Volver a Info», «← Tus reportes» y «Cancelar» ahora hacen lo mismo que «atrás»: te " +
+      "devuelven a donde estabas, en vez de abrir una página más. Si desde Mis días abriste tu boleta y tocas " +
+      "«← Volver a Info», regresas a Mis días, no al Resumen; y si tocas «Cancelar» al escribir un reporte y " +
+      "luego usas «atrás», ya no vuelves al formulario que acabas de cerrar.\n\n" +
+      "Si abriste la pantalla directamente, sin pasar por «Lo mío», el botón te lleva a «Lo mío» como antes.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-el-alta-pide-el-documento",
+    fecha: "2026-10-06",
+    titulo: "Dar de alta a alguien ahora pide su documento",
+    queMejoro:
+      "En Equipo, «Agregar» pide el tipo de documento (DNI, carné de extranjería o pasaporte / PTP) y su número. " +
+      "Si ese documento ya lo tiene alguien registrado, el sistema no deja crearla otra vez y dice quién es, con " +
+      "«Ver en la lista»; si ya salió, se la reactiva desde su menú. Es lo que evita registrar dos veces a la misma " +
+      "persona.\n\n" +
+      "Las estaciones de retail se dan de alta marcando «Es una estación de retail»: no llevan documento. Y en Datos " +
+      "personales, el documento se corrige eligiendo también su tipo.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-cargar-mi-documento-desde-lo-mio",
+    fecha: "2026-10-06",
+    titulo: "Si tu documento no está cargado, ahora lo cargas desde «Lo mío»",
+    queMejoro:
+      "En «Lo mío › Mis datos › Editar», si tu documento de identidad todavía no figura, puedes elegir el tipo y " +
+      "escribir el número. Lo revisa Desarrollo Organizacional antes de guardarse, porque es el número que va en tu " +
+      "contrato. Si ya está cargado, se ve como siempre y solo DO lo puede corregir.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-el-historial-se-pliega-y-se-pagina",
+    fecha: "2026-10-06",
+    titulo: "El historial de «Lo mío» se pliega, se lee mejor y ya no se corta en 20",
+    queMejoro:
+      "En «Lo mío › Historial», «Cambios a tu registro» ahora aparece cerrado y dice cuántos cambios hay. Tócalo " +
+      "para abrirlo: se ven de 10 en 10, con «Anterior» y «Siguiente». Antes solo salían los 20 más recientes y " +
+      "el resto no se podía ver.\n\n" +
+      "Un cambio de horario ya no sale como un montón de llaves y comillas: dice, por ejemplo, de lunes a viernes " +
+      "de 8:30 a 2:00 y pasa a otro horario, desde qué día y con qué motivo. Además, el contrato, la boleta, " +
+      "Movilidad y «Contar algo» ya caben en la pantalla del celular, sin cortarse por el lado.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-lo-mio-atras-vuelve-a-la-seccion",
+    fecha: "2026-10-06",
+    titulo: "En «Lo mío», «atrás» te devuelve a la sección en la que estabas",
+    queMejoro:
+      "Si abres un reporte y usas «atrás» —el botón del navegador o el gesto del teléfono—, vuelves a la lista " +
+      "de tus reportes, ya no al Resumen. Lo mismo entre secciones: si pasaste de Mis días a Boletas, «atrás» " +
+      "te devuelve a Mis días.\n\n" +
+      "Recargar la página te sigue llevando al Resumen, como hasta ahora.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-datos-personales-ordena-los-pendientes",
+    fecha: "2026-10-06",
+    titulo: "En Datos personales, los pendientes se pliegan y se recorren en orden",
+    queMejoro:
+      "La tarjeta de Pendientes ahora se pliega a una sola línea con los nombres: toca uno y se abre su ficha, lista " +
+      "para completar. La lista entera, con lo que le falta a cada persona, aparece en el espacio de la ficha cuando " +
+      "no tienes a nadie abierto.\n\n" +
+      "Al abrir una ficha pendiente, arriba dice en cuál vas («2 de 4») y tiene «Siguiente →» para pasar a la próxima. " +
+      "En la lista del equipo, «Por completar» muestra solo a quienes les falta algo. Y los filtros de sede ya no " +
+      "muestran sedes donde no hay nadie.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-el-menu-de-lo-mio-se-ordena-por-temas",
+    fecha: "2026-10-06",
+    titulo: "El menú de «Lo mío» se ordena por temas y tiene buscador",
+    queMejoro:
+      "En «Lo mío», las secciones del menú ya no van en una sola lista: están agrupadas en Asistencia, Pago, " +
+      "Documentos y Seguimiento. Puedes cerrar los grupos que no usas tocando su título, y el menú se acuerda en " +
+      "ese dispositivo. En la computadora, ⌘K (Ctrl+K en Windows) abre un buscador: escribe «sueldo», " +
+      "«vacaciones» o «memo» y te lleva a la sección.\n\n" +
+      "En el teléfono, el botón «Menú» pasó al café de la paleta, el nombre de la sección queda al centro de la " +
+      "barra y el cambio de tema está dentro del menú, junto a la ✕. Si la lista no entra en la pantalla, abajo " +
+      "aparece «Más abajo» para que sepas que hay más secciones. «Tus datos» ahora se llama «Mis datos».",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-el-apoyo-educativo-terminado-se-renueva",
+    fecha: "2026-10-06",
+    titulo: "Si tu apoyo educativo terminó y sigues estudiando, ahora lo renuevas desde tu portal",
+    queMejoro:
+      "En «Lo mío › Educación», cuando tu apoyo educativo ya terminó, aparece «Sigo estudiando: renovar mi apoyo», " +
+      "con tu institución y tus datos ya llenos. Antes esa pantalla mostraba tu solicitud como aprobada y no " +
+      "ofrecía ningún botón, así que no había cómo seguir subiendo tus constancias.\n\n" +
+      "Si te rechazaron la constancia de un pago que hiciste mientras el apoyo estaba vigente, ahora puedes " +
+      "corregirla aunque el apoyo ya haya terminado. Y al pedir el apoyo, la fecha de fin pregunta por el fin de tu " +
+      "ciclo o curso, no por el de este mes: se pide una sola vez y después cada mes subes tu constancia.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-lo-mio-vuelve-a-abrir-en-resumen",
+    fecha: "2026-10-06",
+    titulo: "Al recargar «Lo mío», vuelves a tu Resumen",
+    queMejoro:
+      "Si llegabas a «Lo mío» desde un aviso de la Bandeja o desde «← Tus reportes» y luego recargabas la " +
+      "página, se volvía a abrir esa misma sección —Reportes, Boletas o Turnos— en vez del Resumen. Ahora el " +
+      "aviso te lleva a su sección una sola vez, y al recargar siempre empiezas por el Resumen, donde están tus " +
+      "vacaciones, tu periodo de pago y las novedades.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-05-el-terminal-ilumina-en-vez-de-ocultar",
+    fecha: "2026-10-05",
+    titulo: "En el terminal, los estados se iluminan en vez de ocultar a los demás",
+    queMejoro:
+      "En la pantalla de marcar, los botones grandes de estados que había sobre las casillas pasaron a ser una " +
+      "sola píldora fina bajo el selector de sede. Si tocas un estado, se iluminan las personas que están en él " +
+      "y las demás se atenúan, pero ninguna desaparece: todas siguen viendo su nombre para marcar.\n\n" +
+      "Los estados que nadie tiene ya no se dibujan, así que en una sede chica la píldora es muy corta. Las " +
+      "casillas son todas iguales y el estado se ve en el ícono de color de la esquina de la foto; al pasar el " +
+      "mouse por ese ícono o por la píldora aparece lo que significa. Tocar el ícono marca, igual que tocar " +
+      "cualquier parte de la casilla.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-05-el-terminal-muestra-en-que-punto-esta-cada-integrante",
+    fecha: "2026-10-05",
+    titulo: "El terminal muestra en qué punto del día está cada integrante",
+    queMejoro:
+      "En la pantalla de marcar, cada casilla ahora dice si la persona está laborando, en refrigerio, en pausa " +
+      "(por un trámite, una cita médica u otro motivo), con el turno terminado o sin haber entrado todavía. Se ve " +
+      "en el ícono sobre su foto, en el color de la casilla y en la línea con la hora bajo su nombre.\n\n" +
+      "Bajo el reloj hay una leyenda que cuenta cuántas personas hay en cada estado. Si tocas uno, la pantalla " +
+      "muestra solo a esas personas; vuelve sola a los 20 segundos, o al tocar «Ver todos» o cualquier nombre. " +
+      "Marcar funciona igual que siempre.\n\n" +
+      "Quien salió y volvió sigue mostrando a qué hora entró, y aparte de cuándo a cuándo estuvo fuera. Si la " +
+      "Mac no pudo confirmar el estado del día, las casillas se ven como antes, en vez de mostrar algo dudoso.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-04-constancias-con-nombre-completo",
+    fecha: "2026-10-04",
+    titulo: "Las constancias de Normas y de Política salarial traen el nombre completo del DNI",
+    queMejoro:
+      "En las hojas de «Constancia de entrega y difusión» —la de cada documento de Normas y la de la Política " +
+      "salarial— ahora figura, bajo cada nombre de la lista, el nombre completo tal como consta en el DNI. La " +
+      "lista sigue ordenada por apellido, como una nómina.\n\n" +
+      "Si a alguien todavía no se le cargó su nombre completo en Datos personales, la pantalla avisa cuántas " +
+      "personas faltan antes de imprimir. Si no se pudo leer ese dato, «Imprimir» queda apagado hasta recargar " +
+      "la página.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-04-equipo-avisa-si-ya-esta-registrada",
+    fecha: "2026-10-04",
+    titulo: "Al agregar a alguien, Equipo avisa si ya está registrada",
+    queMejoro:
+      "Antes de dar de alta a una persona, Equipo revisa si ya hay alguien con un nombre parecido —aunque esté " +
+      "escrito más corto, sin tildes o con los apellidos cruzados— y lo muestra con su sede y su fecha de ingreso. " +
+      "Si es la misma, se abre desde la lista; si es otra, se confirma con un clic. Incluye a quien ya salió: " +
+      "esa persona se reactiva, no se registra de nuevo.\n\n" +
+      "El formulario de alta también cambió: ya no pide Cargo ni Tipo de vínculo, porque nunca se guardaban al " +
+      "agregar y la fila nueva salía «Sin cargo». Esos datos se completan después, con «Editar».",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-04-nombre-completo-en-los-papeles",
+    fecha: "2026-10-04",
+    titulo: "Tu boleta y tus papeles de salida llevan tu nombre completo, como en el DNI",
+    queMejoro:
+      "La boleta de pago, el certificado de trabajo y la constancia de cese ahora salen con tu nombre completo " +
+      "tal como está en tu DNI, y ya no con el nombre corto con el que apareces en el terminal. En el terminal " +
+      "sigues viéndote con el nombre corto, para encontrarte rápido.\n\n" +
+      "Si el nombre de tu DNI todavía no está cargado en Datos personales, el papel sale con el nombre corto: " +
+      "Desarrollo Organizacional lo ve en «Pendientes». En Equipo, los campos de nombre pasan a llamarse " +
+      "«Nombre corto» y «Apellido corto», para que no se confundan con el nombre legal.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-02-horarios-sin-refrigerio",
+    fecha: "2026-10-02",
+    titulo: "En Horarios, un horario puede quedar sin refrigerio",
+    queMejoro:
+      "Quien entra solo en la tarde y ya llega almorzando no tenía cómo quedar bien: el refrigerio solo ofrecía " +
+      "60 o 75 minutos y le restaba una hora que nunca toma. Ahora la lista trae «Ninguno» (en el horario por día " +
+      "se ve como 0), y el total de la semana cuenta esas horas.\n\n" +
+      "Cuando alguien entra pasadas las 13:00 y todavía tiene refrigerio puesto, el editor lo avisa y ofrece " +
+      "«Poner sin refrigerio» con un clic. Es solo una sugerencia: no cambia nada hasta que la aceptas.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-01-dashboard-nombre-abre-el-dia",
+    fecha: "2026-10-01",
+    titulo: "En el Dashboard, el nombre de cada persona abre su día",
+    queMejoro:
+      "En «Sedes», al hacer clic en el nombre de alguien —en «Trabajando ahora», en «En pausa» o en el detalle " +
+      "del equipo— se abre Correcciones con esa persona y el día de hoy ya elegidos: ves todas sus marcas, a qué " +
+      "hora le tocaba entrar y lo que ya se corrigió.\n\n" +
+      "Antes solo se podía llegar ahí desde una tardanza o un estado; para ver el día de quien estaba trabajando " +
+      "sin novedad había que ir a Correcciones y buscarla en la lista.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-01-archivo-de-la-empresa",
+    fecha: "2026-10-01",
+    titulo: "Los papeles de la empresa ya tienen su lugar: Empresa → Archivo",
+    queMejoro:
+      "Hay un renglón nuevo al fondo del menú, «Empresa → Archivo», para los papeles que CAYLA presenta o recibe " +
+      "de una autoridad: la inscripción de un banco de datos personales, la constancia de REMYPE, la licencia de " +
+      "funcionamiento de cada sede. Se suben en PDF o en foto y se abren con un clic, para tenerlos a la mano el " +
+      "día de una inspección.\n\n" +
+      "Cada papel dice quién lo emite, de qué sede es, quién lo subió y cuándo. Si le pones fecha de vencimiento, " +
+      "la pantalla avisa dos meses antes. Nada se borra: corregir un dato deja la versión anterior en el historial, " +
+      "y retirar un papel pide escribir el motivo. Solo lo ve Desarrollo Organizacional.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-01-nueva-version-de-la-politica-salarial",
+    fecha: "2026-10-01",
+    titulo: "Hay una versión nueva de la Política salarial para leer y confirmar",
+    queMejoro:
+      "Desarrollo Organizacional publica hoy una versión nueva de la Política salarial. Al abrir Dynamic verás el aviso «Te falta dejar una " +
+      "constancia»: entra con «Leer y dejar constancia», lee el documento y, al final, escribe tu nombre y pulsa " +
+      "«Dejar constancia». Se lee en un minuto.\n\n" +
+      "Dejar constancia no significa estar de acuerdo con lo que dice: significa que la recibiste y la leíste. " +
+      "Si algo no te queda claro, o tienes una discrepancia, puedes plantearla a Desarrollo Organizacional o a la " +
+      "Gerencia y recibirás respuesta por escrito. Si cierras el aviso sin firmar, vuelve a salir hasta que dejes " +
+      "tu constancia.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-09-30-correcciones-sin-quienes-ya-cesaron",
+    fecha: "2026-09-30",
+    titulo: "Correcciones ya no lista a quienes dejaron de trabajar",
+    queMejoro:
+      "La lista de colaboradores de Correcciones mostraba también a quienes ya cesaron, con un «(cesó)» al lado, " +
+      "y había que pasar por encima de ellos para llegar a quien sí trabaja. Ahora la lista trae solo a quienes " +
+      "siguen activos.\n\n" +
+      "Si un día por revisar de alguien que cesó sigue pendiente, sigue apareciendo en los avisos de arriba de " +
+      "la pantalla, y desde ahí se abre igual que antes.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-09-30-certificado-de-trabajo-con-recibi",
+    fecha: "2026-09-30",
+    titulo: "El certificado de trabajo ya trae su línea de «Recibí conforme»",
+    queMejoro:
+      "Hasta ahora, el certificado de trabajo que se imprime desde Liquidaciones salía solo con la firma de CAYLA: " +
+      "no había dónde dejar constancia de que la persona lo recibió, ni de qué día. Como el sistema no archiva " +
+      "el papel que se imprime, esa firma era la única forma de probar la entrega dentro de las 48 horas del cese.\n\n" +
+      "Ahora, a la izquierda de la firma de CAYLA, hay una línea de «Recibí conforme» con el nombre y el DNI de la " +
+      "persona, y un espacio para que escriba a mano la fecha en que lo recibe. Imprime dos copias y guarda en el " +
+      "legajo la que firme quien cesó.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-09-28-casos-en-el-dashboard",
+    fecha: "2026-09-28",
+    titulo: "El Dashboard ya cuenta cuántos Casos hay, de qué son y en qué sede",
+    queMejoro:
+      "Hasta ahora, para saber cuántos reportes había en Casos —y de qué se trataban— había que abrir la Bandeja " +
+      "y contarlos a mano. En «Resumen del día», junto a «Pendientes de acción» y «Personal», hay un indicador " +
+      "nuevo: «+ Casos». Al agregarlo, se ve cuántos casos hay en los últimos 6 meses, cuántos siguen abiertos, " +
+      "cuántos tienen un plazo vencido, y cuántos se eligió reportar sobre cada tema y en cada sede.\n\n" +
+      "Son solo números: nadie ve desde aquí quién escribió cada reporte, así que sigue siendo tan confidencial " +
+      "como siempre. Se ve lo mismo que ya se puede ver en Casos, uno por uno, solo que sumado.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-09-28-declaracion-de-ruta-se-renueva",
+    fecha: "2026-09-28",
+    titulo: "Tu declaración de ruta ahora se renueva",
+    queMejoro:
+      "Si firmaste tu declaración de ruta desde Info en estas últimas semanas, lo hiciste con la versión corta, " +
+      "que no preguntaba el costo del pasaje ni el uso de taxi. Ahora vas a ver un aviso para volver a firmarla " +
+      "con los cinco puntos: se hace desde Info, en un minuto.\n\n" +
+      "Además, desde ahora cada declaración se renueva una vez al año, en la fecha en que la firmaste. " +
+      "Mientras no la renueves, tu movilidad se sigue pagando igual.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-09-28-declaracion-de-ruta-pasaje-y-taxi",
+    fecha: "2026-09-28",
+    titulo: "Tu declaración de ruta vuelve a preguntar el pasaje y el taxi",
+    queMejoro:
+      "La declaración de ruta que firmas desde Info tenía menos puntos que el papel de siempre: decía dónde vives " +
+      "y cuántos medios de transporte usas, pero no cuánto cuesta cada pasaje ni si a veces tienes que tomar taxi. " +
+      "Ahora tiene los cinco puntos del papel: escribes el costo de tu pasaje, el gasto diario se calcula " +
+      "solo, y si según tu turno a veces usas taxi, anotas cuánto cuesta y cuántas veces por semana.\n\n" +
+      "El taxi es opcional: si no lo usas, déjalo en blanco. Si ya firmaste tu declaración, no tienes que volver a " +
+      "hacerlo: sigue vigente tal como la firmaste.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-09-28-estaciones-de-retail-dejan-de-aparecer",
+    fecha: "2026-09-28",
+    titulo: "Las estaciones de caja y almacén de Retail ya no aparecen como si fueran personas",
+    queMejoro:
+      "Las cuentas que Retail usa en cada tienda —«ESTACIÓN — Caja Lima», «ESTACIÓN — Almacén Trujillo» y " +
+      "las demás— salían en Datos personales como fichas sin completar, en Equipo, en el terminal de marcaje " +
+      "de su sede y en las listas de Contratos y Documentación. Ya no: Dynamic las reconoce como cuentas de " +
+      "servicio y las deja fuera de todo.\n\n" +
+      "Siguen funcionando igual en Retail. Si necesitas revisarlas, están al final de Equipo, en un bloque " +
+      "plegado «Cuentas de servicio». Y si alguna vez una ficha se marca así por error, desde su ficha se " +
+      "desmarca con el menú «•••».",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-09-28-reportes-en-info",
+    fecha: "2026-09-28",
+    titulo: "Nuevo en Info: «Reportes», para contar algo o proponer una mejora",
+    queMejoro:
+      "En Info hay una sección nueva, «Reportes». Ahí puedes contar algo que pasó con el equipo, con la empresa o con una clienta, proponer una idea de mejora o hacerle una consulta a tu líder, y ver en qué va y qué te respondieron. " +
+      "Lo lee solo quien lo gestiona, y antes de enviarlo la pantalla te dice quiénes lo van a leer.\n\n" +
+      "Si es algo de tipo sexual, o si hay un riesgo para alguien ahora, márcalo arriba del formulario: va por un camino aparte y con plazos propios, y tu líder no lo ve. " +
+      "La persona reportada nunca sabe quién reportó, y cada reporte tiene una fecha límite de respuesta escrita, que ves apenas lo envías.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-09-27-constancia-practicante-descanso-y-subvencion",
+    fecha: "2026-09-27",
+    titulo: "Tu constancia de subvención ya muestra tu descanso y tu subvención semestral",
+    queMejoro:
+      "Tu constancia de subvención ya mostraba lo que ganas por tus horas y tu movilidad, pero le faltaban " +
+      "los otros dos beneficios que la Ley 28518 (art. 42) también te da: el descanso de 15 días al cumplir " +
+      "12 meses continuos de convenio, y una media subvención adicional por cada 6 meses continuos.\n\n" +
+      "Ahora, si ya tienes algo acumulado de cualquiera de los dos, lo ves en tu constancia, junto al aporte " +
+      "de EsSalud. Sigue siendo algo que pides a Desarrollo Organizacional cuando corresponda — esto solo " +
+      "hace que puedas verlo antes de pedirlo.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-09-27-boleta-feriados-especifica-fecha",
     fecha: "2026-09-27",
     titulo: "Tu boleta ahora dice qué feriado se pagó, no solo el monto",
@@ -125,15 +1103,15 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
-    id: "2026-09-27-turnos-integrada-y-revision-de-dias-pasados",
+    id: "2026-09-27-desempeno-no-acusa-a-quien-esta-trabajando",
     fecha: "2026-09-27",
-    titulo: "Turnos: la Integrada respeta la salida de cada día y los días pasados muestran su marcaje",
+    titulo: "Desempeño ya no marca «por revisar» a quien está en su turno",
     queMejoro:
-      "En la vista Integrada, las horas después de la última salida de un día —por ejemplo el domingo después de las 18:15— salían en rojo y con el borde ámbar de «sin líder», como si faltara gente con la tienda ya cerrada. " +
-      "Ahora cada día se mide solo entre su primera entrada y su última salida, igual que en la vista Semana, y el borde ámbar sale solo donde hay operativas sin ningún líder.\n\n" +
-      "En «turnos no coinciden con el horario base», las filas de días que ya pasaron muestran a qué hora marcó la persona. " +
-      "«Usar el horario base» en uno de esos días ahora te pide confirmar y te dice qué va a pasar: ese día se vuelve a medir contra la hora del horario base, y si el turno era lo que se le había indicado conviene dejarlo como está. " +
-      "«Quitar los espejos viejos» en bloque solo toca días de hoy en adelante. Y la etiqueta «excepción a propósito» pasa a llamarse «cambio puntual».",
+      "Mirado a mediodía, Desempeño contaba como «marcaje sin cerrar» a todas las personas que estaban trabajando, y además les cargaba las horas de hoy como si ya las debieran. " +
+      "Ahora el día de hoy se pinta con un contorno verde («hoy, en su jornada») y entra en las cuentas recién cuando se marca la salida.\n\n" +
+      "Las horas se comparan solo con los días que tenían horario o turno cargado; lo trabajado antes de tener horario se dice aparte, en vez de inflar el total. " +
+      "El recuadro «Turnos sin cargar» pasa a llamarse «Medidas sin turno», ya no incluye lo que ya se justificó y deja de ir en rojo: habla de lo que falta cargar en Turnos, no de las personas. " +
+      "Y el recuadro «Personas» y la nota del pie cuentan con los mismos filtros de sede y área que la tabla.",
     audiencia: "panel",
   },
   {

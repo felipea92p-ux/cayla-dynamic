@@ -37,13 +37,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  CalendarCheck, Clock, FileSignature, Gavel, GraduationCap, HandCoins, IdCard, Inbox, PencilLine, ScrollText, Search,
-  TreePalm, type LucideIcon,
+  CalendarCheck, Clock, FileSignature, Gavel, GraduationCap, HandCoins, Hourglass, IdCard, Inbox, MessagesSquare, PencilLine, ScrollText, Search,
+  ShieldCheck, TreePalm, type LucideIcon,
 } from "lucide-react";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
-import { Campo } from "@/components/ui/campo";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { cx } from "@/components/ui/cx";
 import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -58,7 +60,10 @@ import {
   alertasConProblema, armarPendientes, diaLima, ETIQUETA_MODULO, FUENTES_VACIAS, modulosDeLaBandeja,
   resumenValorPerfil, traerFuentesBandeja, type FuentesBandeja, type ModuloBandeja, type Pendiente, type TipoItemVisto,
 } from "@/lib/admin/bandeja-fuentes";
-import { hoyLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { hoyLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla, puedeVerSaludDeAlertas, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { TarjetaSistema } from "@/components/bandeja/tarjeta-sistema";
+import { PanelPrueba } from "@/components/pruebas/panel-prueba";
+import { textoDeHoras } from "@/lib/admin/pruebas";
 import { resumenNormasPendientes, type ResumenNormas } from "@/lib/admin/bandeja-equipo";
 
 const CLAVE_SEDE_FILTRO = "bandeja_sede_filtro";
@@ -77,12 +82,14 @@ const ICONO_MODULO: Record<ModuloBandeja, LucideIcon> = {
   horarios: Clock,
   datos_personales: IdCard,
   liquidaciones: HandCoins,
+  seguros: ShieldCheck,
+  casos: MessagesSquare,
+  pruebas: Hourglass,
 };
 
 // Columnas de la fila en ancho completo. Literal, no armado: Tailwind solo ve
 // clases que aparecen enteras en el código.
 const COLUMNAS = "@3xl:grid-cols-[minmax(9rem,1.1fr)_minmax(14rem,2.4fr)_9.5rem_11rem_minmax(8rem,auto)]";
-const SELECT = "rounded-control border border-sand bg-hueso px-3 py-2 text-base text-tinta sm:text-sm";
 
 /** El grupo también se dice con FORMA, no solo con color: cuadro lleno, medio círculo, anillo, raya. */
 function MarcaGrupo({ grupo }: { grupo: GrupoUrgencia }) {
@@ -136,15 +143,15 @@ function TarjetaCategoria({
       title={alDia ? `${etiqueta}: nada pendiente` : activa ? "Ver todo" : `Ver solo ${etiqueta}`}
       onClick={onClick}
       className={cx(
-        "grid grid-cols-[auto_1fr_auto] items-center gap-x-2 rounded-control border px-3 py-2 text-left transition-colors duration-150",
+        "flex items-center gap-2 rounded-control border px-3 py-1.5 text-left transition-colors duration-150",
         activa ? "border-tinta bg-papel ring-1 ring-tinta"
           : alDia ? "border-dashed border-sand hover:border-taupe/60"
           : "border-sand bg-papel hover:border-taupe/60",
       )}
     >
-      <Icon className="row-span-2 size-4 text-taupe" aria-hidden />
-      <span className="truncate text-sm font-medium text-tinta">{etiqueta}</span>
-      <span className={cx("row-span-2 text-xl font-medium tabular-nums", alDia ? "text-taupe" : "text-tinta")}>{fallo ? "—" : n}</span>
+      <Icon className="size-4 shrink-0 text-taupe" aria-hidden />
+      <span className="text-sm font-medium text-tinta">{etiqueta}</span>
+      <span className={cx("text-base font-medium tabular-nums", alDia ? "text-taupe" : "text-tinta")}>{fallo ? "—" : n}</span>
       <span className={cx("text-xs",
         fallo ? "font-medium text-rojo-profundo"
           : alDia ? "text-verde"
@@ -419,6 +426,38 @@ export default function BandejaPage() {
       <Link href={p.contexto.href} className="text-sm text-rojo hover:underline">{p.contexto.texto} →</Link>
     );
 
+    // La prueba de tres días (0536): el MISMO panel que usa Contratos, para que la líder de
+    // equipo —que no abre Contratos— pueda decidir sobre su gente desde aquí.
+    if (p.tipo === "prueba") {
+      const prueba = fuentes.pruebas.find((x) => x.persona_id === p.itemId);
+      if (!prueba) return null;
+      return (
+        <PanelPrueba
+          fila={prueba} supabase={createAdminSupabaseClient()} rol={rol}
+          alCambiar={() => { setAbierta(null); void cargar(); }}
+        />
+      );
+    }
+    if (p.tipo === "prueba_cierre") {
+      const cierre = fuentes.cierresPruebas.find((x) => x.prueba_id === p.itemId);
+      if (!cierre) return null;
+      return (
+        <div className="flex flex-col gap-1 text-sm">
+          <p>
+            «{cierre.motivo}» · {cierre.decidida_por ? `decidió ${cierre.decidida_por}` : "decidió una persona que ya no figura"}
+            {" "}el {diaLima(cierre.cerrada_at)}
+          </p>
+          <p className="text-taupe">
+            Último día trabajado: {diaYMes(cierre.cerrada_fecha)} · {cierre.dias_trabajados} {cierre.dias_trabajados === 1 ? "día" : "días"} ·
+            {" "}{textoDeHoras(cierre.horas_marcadas)} marcadas{cierre.resultado === "retirado" ? ", que no se pagan" : ", que se pagan"}.
+          </p>
+          <p className="text-xs text-taupe">
+            Si fue un error, se corrige reactivando a la persona desde Equipo: queda rastro de quién y cuándo.
+          </p>
+        </div>
+      );
+    }
+
     if (p.tipo === "revision" || p.tipo === "revision_movilidad" || p.tipo === "revision_contrato") {
       return (
         <div className="flex flex-col gap-2">
@@ -516,6 +555,8 @@ export default function BandejaPage() {
     const verbo = soloVer ? "Ver"
       : p.tipo === "solicitud_vacacion" || p.tipo === "solicitud_perfil" ? "Resolver"
       : p.tipo === "bono_por_transferir" ? "Confirmar"
+      : p.tipo === "prueba" ? "Decidir"
+      : p.tipo === "prueba_cierre" ? "Ver"
       : "Atender";
     return (
       <li
@@ -594,7 +635,24 @@ export default function BandejaPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <CabeceraPagina titulo="Bandeja" descripcion="Todo lo que requiere tu atención, en un solo lugar." />
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Pendientes")}
+          titulo="Bandeja"
+          descripcion="Todo lo que requiere tu atención, en un solo lugar."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funciona la Bandeja"
+              intro="Junta lo que cada módulo ya sabe que necesita a una persona. No inventa un criterio nuevo de «pendiente»: si algo se arregla en su módulo, a la próxima carga ya no está."
+              secciones={[
+                { titulo: "Las casillas de arriba", texto: "Una por módulo, también las que están en cero («Al día»): así se distingue «Contratos está al día» de «Contratos no se revisa aquí». Tocar una filtra la lista." },
+                { titulo: "Si un módulo no cargó", texto: "Su casilla dice «No se pudo cargar» en rojo. No se pinta «Al día» sobre un hueco: que no se pudiera mirar no significa que no haya nada." },
+                { titulo: "La lista", texto: "Va por urgencia: Vencido (ya pasó el plazo o el riesgo corre), Hoy, Próximos y Sin plazo. Cada fila dice si se resuelve aquí mismo o en su módulo." },
+                { titulo: "Qué ves", texto: "Los líderes de equipo ven solo lo de su sede; Desarrollo Organizacional y dirección, todas." },
+                { titulo: "El número del menú", texto: "Suma las filas de la lista (la casilla «Todo»), más 1 si hay correos de aviso que no salieron (la tarjeta «Sistema») y 1 si hay constancias de Normas por recoger (el enlace de arriba). Por eso puede ser 2 más que «Todo»: la tarjeta y el enlace cuentan una vez cada uno, aunque dentro haya decenas de avisos." },
+              ]}
+            />
+          }
+        />
 
         {/* Enlace compacto, no una sección: esto no se resuelve aquí —se
             resuelve dejando constancia en Normas—, así que no le corresponde
@@ -622,7 +680,7 @@ export default function BandejaPage() {
                 {modulos.length} módulo{modulos.length === 1 ? "" : "s"} · {alDia} al día
               </span>
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))]">
+            <div className="mt-2 flex flex-wrap gap-2">
               <TarjetaCategoria
                 id="categoria-todo" etiqueta="Todo" Icon={Inbox}
                 n={paraTarjetas.length} vencidos={vencidosTotal}
@@ -648,110 +706,66 @@ export default function BandejaPage() {
 
             {/* ── Buscar y filtrar ─────────────────────────────────────── */}
             <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-sand pb-3">
-              <label className="flex min-w-48 flex-1 items-center gap-2 rounded-control border border-sand bg-hueso px-3 focus-within:border-taupe focus-within:ring-2 focus-within:ring-rojo/30">
-                <Search className="size-4 shrink-0 text-taupe" aria-hidden />
-                <input
+              <div className="relative min-w-48 flex-1">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-taupe" aria-hidden />
+                <Campo
                   id="bandeja-buscar"
+                  tamano="sm"
                   type="search"
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   placeholder="Buscar persona o pendiente…"
                   aria-label="Buscar persona o pendiente"
-                  className="w-full bg-transparent py-2 text-base text-tinta outline-none placeholder:text-taupe/60 sm:text-sm"
+                  className="pl-8"
                 />
-              </label>
+              </div>
               {puedeTodasLasSedes && (
-                <select
-                  id="bandeja-sede"
-                  aria-label="Sede"
-                  value={sedeEfectiva ?? ""}
-                  onChange={(e) => elegirSedeFiltro(e.target.value || null)}
-                  className={SELECT}
-                >
-                  <option value="">Todas las sedes · {porSedeSinSede.length}</option>
-                  {opcionesSede.map((s) => (
-                    <option key={s.codigo} value={s.codigo}>
-                      {s.codigo}{s.nombre ? ` — ${s.nombre}` : ""} · {porSedeSinSede.filter((p) => p.sede === s.codigo).length}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-full sm:w-56">
+                  <CampoSelect
+                    id="bandeja-sede"
+                    tamano="sm"
+                    aria-label="Sede"
+                    value={sedeEfectiva ?? ""}
+                    onChange={(e) => elegirSedeFiltro(e.target.value || null)}
+                  >
+                    <option value="">Todas las sedes · {porSedeSinSede.length}</option>
+                    {opcionesSede.map((s) => (
+                      <option key={s.codigo} value={s.codigo}>
+                        {s.codigo}{s.nombre ? ` — ${s.nombre}` : ""} · {porSedeSinSede.filter((p) => p.sede === s.codigo).length}
+                      </option>
+                    ))}
+                  </CampoSelect>
+                </div>
               )}
-              <select
-                id="bandeja-urgencia"
-                aria-label="Urgencia"
-                value={grupoFiltro ?? ""}
-                onChange={(e) => setGrupoFiltro((e.target.value || null) as GrupoUrgencia | null)}
-                className={SELECT}
-              >
-                <option value="">Toda urgencia</option>
-                {GRUPOS_URGENCIA.map((g) => <option key={g.clave} value={g.clave}>{g.etiqueta}</option>)}
-              </select>
+              <div className="w-full sm:w-44">
+                <CampoSelect
+                  id="bandeja-urgencia"
+                  tamano="sm"
+                  aria-label="Urgencia"
+                  value={grupoFiltro ?? ""}
+                  onChange={(e) => setGrupoFiltro((e.target.value || null) as GrupoUrgencia | null)}
+                >
+                  <option value="">Toda urgencia</option>
+                  {GRUPOS_URGENCIA.map((g) => <option key={g.clave} value={g.clave}>{g.etiqueta}</option>)}
+                </CampoSelect>
+              </div>
               {!puedeTodasLasSedes && <span className="text-xs text-taupe">Ves solo lo de tu sede.</span>}
               {hayFiltros && <Boton variante="enlace" onClick={limpiarFiltros} className="text-sm text-rojo">Limpiar filtros</Boton>}
             </div>
 
             {/* ── Sistema: salud del despacho de correos, no una tarea ─── */}
             {resumenAlertas && problemasCorreo > 0 && (
-              <details className="group mt-4 rounded-control border border-pizarra/30 bg-pizarra/5 px-4 py-2.5 text-sm">
-                <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2">
-                  <span className="rounded bg-pizarra/15 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-pizarra">Sistema</span>
-                  <span>
-                    <strong>{problemasCorreo} aviso{problemasCorreo === 1 ? "" : "s"} por correo</strong>{" "}
-                    no va{problemasCorreo === 1 ? "" : "n"} a salir solo{problemasCorreo === 1 ? "" : "s"}.
-                  </span>
-                  <span className="text-rojo group-open:hidden">Ver qué pasó →</span>
-                </summary>
-                <ul className="mt-2 space-y-2">
-                  {resumenAlertas.fallidas_definitivas > 0 && (
-                    <li className="rounded-control border border-pizarra/30 bg-papel p-3">
-                      <strong className="text-rojo-profundo">
-                        {resumenAlertas.fallidas_definitivas} fall{resumenAlertas.fallidas_definitivas === 1 ? "ó" : "aron"} tres veces
-                      </strong>
-                      <span className="text-taupe"> — ya no se reintentan. </span>
-                      {resumenAlertas.motivos_definitivos.length > 0 ? (
-                        <>
-                          Motivo del último intento:
-                          <ul className="mt-1 list-disc pl-5 text-taupe">
-                            {resumenAlertas.motivos_definitivos.map((m) => <li key={m}>{m}</li>)}
-                          </ul>
-                          <span className="mt-1 block">
-                            Si dice «sin líder de equipo con correo» (o «sin encargada con correo», en avisos anteriores),
-                            se arregla en Equipo cargando el correo de su líder de equipo;
-                            si es de Resend, revisa la clave <code>RESEND_API_KEY</code> y el dominio verificado.
-                          </span>
-                        </>
-                      ) : (
-                        <>Sin nota del motivo: revisa en Sentry el último despacho y la cuenta de Resend (clave <code>RESEND_API_KEY</code> y dominio verificado).</>
-                      )}
-                    </li>
-                  )}
-                  {resumenAlertas.atascadas > 0 && (
-                    <li className="rounded-control border border-pizarra/30 bg-papel p-3">
-                      <strong className="text-ambar">
-                        {resumenAlertas.atascadas} qued{resumenAlertas.atascadas === 1 ? "ó" : "aron"} a medio despachar
-                      </strong>
-                      <span className="text-taupe"> hace más de una hora. </span>
-                      Se reintentan solos en el próximo despacho (hasta tres veces); si vuelve a pasar, revisa en Sentry por qué se corta.
-                    </li>
-                  )}
-                  {resumenAlertas.caducadas > 0 && (
-                    <li className="rounded-control border border-pizarra/30 bg-papel p-3">
-                      <strong className="text-ambar">
-                        {resumenAlertas.caducadas} caduc{resumenAlertas.caducadas === 1 ? "ó" : "aron"} sin salir
-                      </strong>
-                      <span className="text-taupe"> — más de siete días sin despacho. </span>
-                      Ya no se van a mandar: si el aviso todavía importa, hay que darlo a mano.
-                    </li>
-                  )}
-                </ul>
-                <p className="mt-2 text-taupe">
-                  {resumenAlertas.despachables} esperando el próximo despacho ·{" "}
-                  {resumenAlertas.ultimo_envio_at
-                    ? `último correo enviado el ${diaLima(resumenAlertas.ultimo_envio_at)}`
-                    : "todavía no salió ningún correo"}
-                  {" "}— si esa fecha se aleja, el cron dejó de correr.
-                </p>
-              </details>
+              <TarjetaSistema
+                resumen={resumenAlertas}
+                total={problemasCorreo}
+                puedeResolver={puedeVerSaludDeAlertas(rol)}
+                onResuelto={async () => {
+                  // Recargar la lista no basta: el número del menú se calcula aparte y solo
+                  // vuelve a contar al oír este aviso (el mismo que da `retirar`).
+                  await cargar();
+                  avisarCambioEnBandeja();
+                }}
+              />
             )}
 
             {/* ── La lista, por urgencia ───────────────────────────────── */}

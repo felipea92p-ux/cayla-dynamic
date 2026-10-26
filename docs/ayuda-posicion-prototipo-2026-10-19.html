@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dónde va el ⓘ — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600&family=DM+Sans:wght@400;500;600&display=swap">
+<!--
+  Prototipo (2026-10-19): cinco lugares posibles para el ⓘ de una pantalla. NO es código de la app.
+  Problema visto en Ausencias: el ⓘ queda a la derecha del texto y, al ser un botón de 32 px con
+  `items-start`, se ve más abajo que la línea que describe. Cada variante se muestra con tres
+  descripciones reales (una corta, una media y una que en celular ocupa dos líneas) y en ancho de
+  escritorio y de celular (375 px). Tokens de globals.css, claro y oscuro.
+-->
+<style>
+  :root{
+    --crema:#f5f0e8; --papel:#fbf8f2; --tinta:#1a1a18; --sand:#e8e0d0; --taupe:#805c4c; --hueso:#eae1d2; --rojo:#b8412d;
+    --sans:'DM Sans',system-ui,sans-serif; --serif:'EB Garamond',Georgia,serif; color-scheme:light;
+  }
+  :root[data-t="oscuro"]{ --crema:#1c1a16; --papel:#26221d; --tinta:#ede7db; --sand:#332e27; --taupe:#ab9080; --hueso:#15110d; --rojo:#d4634a; color-scheme:dark; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--crema);color:var(--tinta);font:15px/1.5 var(--sans)}
+  .barra{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 20px;background:var(--papel);border-bottom:1px solid var(--sand)}
+  .barra b{font-family:var(--serif);font-size:18px;font-weight:500}
+  .barra button{font:inherit;border:1px solid var(--sand);background:var(--crema);color:var(--tinta);border-radius:8px;padding:5px 12px;cursor:pointer}
+  main{max-width:1180px;margin:0 auto;padding:24px 20px 80px}
+  .var{margin:0 0 36px;border:1px solid var(--sand);border-radius:16px;background:var(--papel);overflow:hidden}
+  .var > header{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--sand)}
+  .var h2{margin:0;font:500 20px var(--serif)}
+  .rec{font-size:12px;background:var(--tinta);color:var(--crema);border-radius:99px;padding:1px 10px}
+  .pq{color:var(--taupe);font-size:13px;flex-basis:100%}
+  .muestras{display:grid;gap:22px;padding:20px;grid-template-columns:minmax(0,1fr) 375px}
+  @media (max-width:1000px){.muestras{grid-template-columns:1fr}}
+  .lienzo{background:var(--crema);border-radius:12px;padding:22px 24px}
+  .movil{width:375px;max-width:100%;background:var(--crema);border-radius:12px;padding:18px 16px;border:1px dashed var(--sand)}
+  .lienzo + .lienzo{margin-top:14px}
+  .etq{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--taupe);margin:0 0 8px}
+  h1{margin:0;font:500 1.75rem/1.15 var(--serif);letter-spacing:-.01em}
+  .desc{color:var(--taupe);font-size:14px;max-width:42rem;margin-top:4px}
+  /* el botón ⓘ */
+  .i{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:99px;border:0;background:none;color:var(--taupe);cursor:pointer;padding:0}
+  .i:hover{background:color-mix(in srgb,var(--sand) 60%,transparent);color:var(--tinta)}
+  .i svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .i.chico svg{width:18px;height:18px}
+  /* A · hoy */
+  .A .fila{display:flex;gap:6px;align-items:flex-start}
+  .A .i{margin-block:-4px}
+  /* B · al final del texto, alineado con la línea */
+  .B .desc .i{vertical-align:-7px;margin-left:2px}
+  /* C · junto al título */
+  .C .tit{display:flex;align-items:center;gap:6px}
+  /* D · al inicio del texto */
+  .D .fila{display:flex;gap:6px;align-items:flex-start}
+  .D .i{margin-top:-4px}
+  .D .desc{margin-top:0;padding-top:0}
+  /* E · con palabra */
+  .E .tit{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .E .pill{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--taupe);border:1px solid var(--sand);border-radius:99px;padding:3px 11px 3px 8px;background:var(--papel);cursor:pointer}
+  .E .pill:hover{color:var(--tinta);border-color:var(--taupe)}
+  .E .pill svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .notas{padding:0 20px 18px;font-size:13px;color:var(--taupe)}
+  .notas b{color:var(--tinta);font-weight:600}
+  .velo{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
+  .velo.on{display:flex}
+  .modal{background:var(--papel);border-radius:16px;max-width:30rem;width:100%;padding:22px 24px}
+  .modal h3{margin:0 0 8px;font:500 20px var(--serif)}
+  .modal p{margin:0 0 14px;color:var(--taupe);font-size:14px}
+  .modal button{font:inherit;float:right;border:0;background:var(--tinta);color:var(--crema);border-radius:8px;padding:8px 16px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="barra">
+  <b>Dónde va el ⓘ</b>
+  <span style="color:var(--taupe);font-size:13px">Cinco lugares, con tres descripciones reales cada uno. A la derecha, el mismo encabezado en 375 px.</span>
+  <button id="tema" style="margin-left:auto">Modo oscuro</button>
+</div>
+<main id="raiz"></main>
+
+<div class="velo" id="velo" onclick="if(event.target===this)cerrar()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+    <h3 id="mt">Cómo funcionan las ausencias</h3>
+    <p>Aquí se registran los días que alguien no vino, vacaciones incluidas. Nada se borra: una ausencia se anula con motivo y queda en el historial.</p>
+    <button onclick="cerrar()">Entendido</button><div style="clear:both"></div>
+  </div>
+</div>
+
+<script>
+const ICONO = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5.5M12 7.8v.01" stroke-linecap="round"/></svg>';
+const MUESTRAS = [
+  {t:'Ausencias', d:'Cada día que alguien no vino, y por qué. Un día registrado aquí no cuenta como falta injustificada.'},
+  {t:'Desempeño del equipo', d:'Toca una fila para ver sus días · 626 h de 726 h que tocaban · 8 personas · 9 d de ausencia (8 pagados)'},
+  {t:'Horarios base', d:'Jornada semanal y descansos de cada colaborador. Un cambio conserva el historial.'},
+];
+const VARIANTES = [
+  {k:'A', nombre:'A · Como está hoy', rec:false,
+   pq:'Botón de 32 px a la derecha del texto, pegado arriba. Se ve más abajo que la línea y flota solo cuando el texto es corto.',
+   nota:'<b>Gana:</b> nada que cambiar. <b>Paga:</b> es lo que te pareció descentrado; en celular queda huérfano al final de la segunda línea.',
+   html:(s)=>`<h1>${s.t}</h1><div class="fila desc"><span>${s.d}</span><button class="i" onclick="abrir('${s.t}')" aria-label="Cómo funciona">${ICONO}</button></div>`},
+  {k:'B', nombre:'B · Al final del texto, alineado con la línea', rec:false,
+   pq:'El ⓘ sigue al texto como una palabra más: queda centrado con su línea y, si el texto salta de línea, se va con la última palabra.',
+   nota:'<b>Gana:</b> se lee como parte de la frase; no depende del ancho. <b>Paga:</b> en celular queda al final de la segunda línea, donde cuesta verlo.',
+   html:(s)=>`<h1>${s.t}</h1><div class="desc">${s.d}<button class="i" onclick="abrir('${s.t}')" aria-label="Cómo funciona">${ICONO}</button></div>`},
+  {k:'C', nombre:'C · Al lado del título', rec:true,
+   pq:'Pequeño, centrado con las letras de «Ausencias». Está siempre en el mismo sitio, sin importar cuánto mida la descripción.',
+   nota:'<b>Gana:</b> posición fija y primera en leerse; la descripción queda limpia y sin sangrados. <b>Paga:</b> el título «carga» un elemento más; el ⓘ es chico para un dedo, por eso el botón mide 32 px aunque el dibujo sea de 18.',
+   html:(s)=>`<div class="tit"><h1>${s.t}</h1><button class="i chico" onclick="abrir('${s.t}')" aria-label="Cómo funciona">${ICONO}</button></div><div class="desc">${s.d}</div>`},
+  {k:'D', nombre:'D · Al inicio del texto descriptivo', rec:false,
+   pq:'El ⓘ abre la línea y el texto se alinea a su derecha: si salta de línea queda con sangría.',
+   nota:'<b>Gana:</b> está junto a lo que explica y en celular es lo primero que se ve. <b>Paga:</b> desplaza el texto 34 px y la descripción deja de alinearse con el título.',
+   html:(s)=>`<h1>${s.t}</h1><div class="fila"><button class="i" onclick="abrir('${s.t}')" aria-label="Cómo funciona">${ICONO}</button><div class="desc">${s.d}</div></div>`},
+  {k:'E', nombre:'E · Con palabra: «Cómo funciona»', rec:false,
+   pq:'Una pastilla pequeña con el ⓘ y las palabras, al lado del título.',
+   nota:'<b>Gana:</b> quien nunca vio un ⓘ entiende qué hace; mejor para integrantes y líderes sin práctica. <b>Paga:</b> más peso visual en cada cabecera, justo lo que se quiere aligerar.',
+   html:(s)=>`<div class="tit"><h1>${s.t}</h1><button class="pill" onclick="abrir('${s.t}')">${ICONO} Cómo funciona</button></div><div class="desc">${s.d}</div>`},
+];
+const raiz = document.getElementById('raiz');
+VARIANTES.forEach(v=>{
+  const lienzos = MUESTRAS.map(m=>`<div class="lienzo ${v.k}">${v.html(m)}</div>`).join('');
+  const movil = `<div class="movil ${v.k}">${v.html(MUESTRAS[1])}</div><div style="height:14px"></div><div class="movil ${v.k}">${v.html(MUESTRAS[0])}</div>`;
+  raiz.insertAdjacentHTML('beforeend',`<section class="var"><header><h2>${v.nombre}</h2>${v.rec?'<span class="rec">recomendada</span>':''}<span class="pq">${v.pq}</span></header><div class="muestras"><div>${lienzos}</div><div>${movil}</div></div><div class="notas">${v.nota}</div></section>`);
+});
+function abrir(t){document.getElementById('mt').textContent='Cómo funciona: '+t;document.getElementById('velo').classList.add('on')}
+function cerrar(){document.getElementById('velo').classList.remove('on')}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrar()});
+document.getElementById('tema').onclick=function(){const r=document.documentElement;const o=r.dataset.t==='oscuro';r.dataset.t=o?'':'oscuro';this.textContent=o?'Modo oscuro':'Modo claro'};
+</script>
+</body>
+</html>

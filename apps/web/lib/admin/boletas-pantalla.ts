@@ -22,9 +22,9 @@
 // ============================================================================
 
 import type { Database } from "@cayla-dynamic/database";
-import { TZ_LIMA } from "@cayla-dynamic/shared";
+import { TZ_LIMA, fechaLima } from "@cayla-dynamic/shared";
 import {
-  estadoVisible, etiquetaDeHojas, puedeElegirNoAvisar,
+  estadoVisible, etiquetaDeHojas, puedeElegirNoAvisar, sePuedeRestablecer,
   type CambiosDeVersion, type EstadoVisible, type TipoBoleta,
 } from "@/lib/boletas";
 import { sinTildes } from "@/lib/sin-tildes";
@@ -39,7 +39,7 @@ export type FilaTablero = Database["public"]["Functions"]["fn_boletas_tablero"][
 
 /** El orden en que se ofrecen los estados en el filtro: primero lo que pide acción. */
 export const ESTADOS_DEL_FILTRO: readonly EstadoVisible[] = [
-  "falta", "borrador", "publicada", "vista", "confirmada", "papel", "anulada", "sin_pago",
+  "falta", "borrador", "publicada", "vista", "firmada", "confirmada", "papel", "anulada", "sin_pago",
 ];
 
 export type FiltroTablero = {
@@ -79,11 +79,20 @@ export type AccionesFila = {
   historial: boolean;
   /** Solo una boleta ya publicada se anula (la persona ya la ve). */
   anular: boolean;
+  /** Ver la boleta con su constancia de firma (0532): quien ya la firmó o confirmó. */
+  constancia: boolean;
+  /** Restablecer una anulación, mientras corren las 48 horas (0532). */
+  restablecer: boolean;
+  /** Ver lo que se anuló, con su motivo, su historial y su constancia (0532). */
+  anulacion: boolean;
 };
 
-const NADA: AccionesFila = { subir: false, papel: false, ver: false, editar: false, historial: false, anular: false };
+const NADA: AccionesFila = {
+  subir: false, papel: false, ver: false, editar: false, historial: false, anular: false,
+  constancia: false, restablecer: false, anulacion: false,
+};
 
-export function accionesDeFila(f: FilaTablero): AccionesFila {
+export function accionesDeFila(f: FilaTablero, ahora: Date = new Date()): AccionesFila {
   const e = estadoVisible(f);
   switch (e) {
     case "sin_pago":
@@ -95,6 +104,10 @@ export function accionesDeFila(f: FilaTablero): AccionesFila {
         subir: f.tiene_cuenta,
         papel: !f.tiene_cuenta,
         historial: f.boleta_id !== null,
+        // Lo anulado se puede mirar (con su motivo) y, dentro de las 48 horas,
+        // restablecer: es lo único que `fn_boleta_restablecer` acepta.
+        restablecer: e === "anulada" && sePuedeRestablecer(f.restablecible_hasta, ahora),
+        anulacion: e === "anulada" && f.boleta_id !== null,
       };
     case "papel":
       // Se puede ANULAR: si DO marca «papel» por error no debe quedar sin salida.
@@ -104,14 +117,21 @@ export function accionesDeFila(f: FilaTablero): AccionesFila {
     case "borrador":
     case "publicada":
     case "vista":
-    case "confirmada":
+    case "firmada":
+    case "confirmada": {
+      const constancia = (e === "firmada" || e === "confirmada") && f.version_id !== null;
       return {
         ...NADA,
-        ver: f.version_id !== null,
+        // Una boleta firmada se mira CON su firma (2026-10-17): «Ver» a secas la
+        // mostraba sola, sin la firma ni quién y cuándo, junto a otro botón que
+        // sí la mostraba. Ahí el único es «Ver boleta firmada».
+        ver: f.version_id !== null && !constancia,
         editar: f.version_id !== null,
         historial: f.boleta_id !== null,
         anular: f.estado === "publicada",
+        constancia,
       };
+    }
   }
 }
 
@@ -192,4 +212,15 @@ export function fechaHoraLima(iso: string | null | undefined): string {
   return new Intl.DateTimeFormat("es-PE", {
     timeZone: TZ_LIMA, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false,
   }).format(new Date(iso)).replace(/\./g, "");
+}
+
+/**
+ * Cuántos días hace que se pagó el periodo, contados en días de Lima (`hoy` ya viene en hora de Lima). Null si el periodo no se ha
+ * pagado: sin fecha de pago no hay «vencido» que decir. Una boleta que falta con el pago ya hecho es algo que se debe, no algo pendiente.
+ */
+export function diasDesdeElPago(pagadoAt: string | null | undefined, hoy: string): number | null {
+  if (!pagadoAt) return null;
+  const pago = fechaLima(pagadoAt);
+  const dias = Math.round((Date.UTC(+hoy.slice(0, 4), +hoy.slice(5, 7) - 1, +hoy.slice(8, 10)) - Date.UTC(+pago.slice(0, 4), +pago.slice(5, 7) - 1, +pago.slice(8, 10))) / 86_400_000);
+  return Math.max(0, dias);
 }

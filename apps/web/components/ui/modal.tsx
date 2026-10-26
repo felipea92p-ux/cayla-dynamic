@@ -5,9 +5,12 @@
 // solo scrim (bg-black/40, no bg-tinta/NN: ese se aclara mal en modo oscuro —
 // ver CLAUDE.md) para todos los modales de acá en adelante.
 //
-// Es un mínimo funcional: cierra con Escape y pone el foco en el contenedor.
-// Un atrapado de foco completo (que Tab no se escape del modal) queda como
-// mejora pendiente, no bloqueaba los fundamentos.
+// Cierra con Escape, pone el foco en el propio diálogo (no en su primer botón: puede
+// ser «Anular» o «Eliminar») y, desde el 2026-10-25, atrapa el foco —Tab y Shift+Tab
+// no se escapan hacia la página que está bajo el velo— y lo devuelve a quien abrió el
+// diálogo al cerrarse, igual que Drawer y HojaInferior: los tres comparten
+// `useFocoAtrapado`. Antes quedaba como «mejora pendiente»: con el teclado se podía
+// caminar por detrás de un modal abierto, sobre una pantalla que no se ve ni se toca.
 //
 // Retocado 2026-09-07, antes de que se use en la primera pantalla real:
 // - `ancho` reemplaza el max-w-md clavado. Medidos los 6 modales escritos a
@@ -26,6 +29,7 @@
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useFocoAtrapado } from "@/lib/use-foco-atrapado";
 
 // "xl" se agregó con la 0401, para el primer modal que no muestra un formulario
 // sino un DOCUMENTO: la foto de un DNI a max-w-lg se ve, pero no se LEE, y ese
@@ -65,27 +69,40 @@ export function Modal({
   const ref = useRef<HTMLDivElement>(null);
   const tituloId = useId();
 
-  // Separado a propósito del efecto de abajo: `onCerrar` casi siempre llega
-  // como una función nueva en cada render de quien usa el modal (acá mismo,
-  // en Contratos, es un `() => setAnulando(null)` inline). Si el foco
-  // estuviera en ESE efecto, cada tecla que se escribe en un campo de adentro
-  // —cualquier `onChange` dispara un re-render del padre— volvería a robarle
-  // el foco al contenedor del modal, y la tecla siguiente no llegaba a
-  // ningún lado: "escribo una letra y me bota". Este efecto solo depende de
-  // `abierto`, así que el foco se pone UNA VEZ, al abrir, y listo.
+  // Quién tenía el foco al abrirse (casi siempre el botón que lo abrió), para
+  // devolvérselo al cerrar. Un Modal no recibe un `volverElFocoA` como el Drawer:
+  // tiene 50 usos y pedírselo a todos sería tocar 50 pantallas por un dato que
+  // el navegador ya sabe. Va ANTES de los dos efectos de abajo a propósito: los
+  // efectos corren en el orden en que se declaran, y el segundo ya mueve el foco.
+  const disparador = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    disparador.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }, [abierto]);
+
+  // Escape, la trampa de Tab y el regreso del foco. `onCerrar` casi siempre llega
+  // como una función nueva en cada render de quien usa el modal (en Contratos es
+  // un `() => setAnulando(null)` inline); el hook la guarda en un ref para no
+  // volver a suscribirse —ni devolver el foco— en cada tecla que se escribe en un
+  // campo de adentro. Con `bloqueado`, ni Escape cierra.
+  useFocoAtrapado({
+    abierto,
+    onCerrar: () => {
+      if (!bloqueado) onCerrar();
+    },
+    caja: ref,
+    volverElFocoA: disparador,
+    enfocarPrimero: false,
+  });
+
+  // El foco inicial va en el diálogo, UNA vez, al abrir: este efecto solo
+  // depende de `abierto`. Si dependiera de `onCerrar`, cada tecla de un campo
+  // de adentro le robaría el foco al contenedor y la siguiente no llegaría a
+  // ningún lado: "escribo una letra y me bota".
   useEffect(() => {
     if (!abierto) return;
     ref.current?.focus();
   }, [abierto]);
-
-  useEffect(() => {
-    if (!abierto) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !bloqueado) onCerrar();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [abierto, bloqueado, onCerrar]);
 
   if (!abierto) return null;
 

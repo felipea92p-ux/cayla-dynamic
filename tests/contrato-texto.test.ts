@@ -262,6 +262,18 @@ describe("documentoConvenio", () => {
     expect(texto).not.toContain(">causa<");
   });
 
+  // 0504: CAYLA asegura a sus practicantes con un seguro privado FOLA, no con
+  // EsSalud. El papel que se firma tiene que decir lo mismo que la póliza.
+  it("la cláusula de seguro dice seguro privado y no promete afiliación a EsSalud", () => {
+    const texto = construirContrato(datosConvenio());
+    expect(texto).toContain("seguro privado");
+    expect(texto).toContain("artículo 42.8");
+    expect(texto).toContain("catorce (14)");
+    expect(texto).toContain("treinta (30)");
+    expect(texto).not.toContain("mediante su afiliación a EsSalud");
+    expect(texto).not.toContain("artículo 43");
+  });
+
   it("la jornada depende de la modalidad, nunca 48h fijas como en un contrato", () => {
     const preprofesional = construirContrato(datosConvenio({ practicanteModalidad: "preprofesional" }));
     const profesional = construirContrato(datosConvenio({ practicanteModalidad: "profesional" }));

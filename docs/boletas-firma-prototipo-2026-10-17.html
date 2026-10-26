@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boletas con firma — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Dancing+Script:wght@700&family=Caveat:wght@600&family=Sacramento&display=swap">
+<!--
+  Prototipo de «las colaboradoras firman su boleta de pago» (2026-10-17).
+
+  QUÉ MUESTRA. El mismo recorrido de punta a punta, con las dos pantallas a la
+  vez: lo que hace DO en /admin/planilla/boletas (ahora con su entrada «Boletas»
+  en el menú Personas) y lo que ve la colaboradora en su celular, en
+  «Lo mío → Boletas». Lo que se hace en una se refleja en la otra.
+
+  QUÉ DECIDIÓ FELIPE (2026-10-17):
+    · firma con la que ya está guardada en Mi perfil → Firma (copia congelada),
+    · firmar es obligatorio (la salida es «Entregada en papel», que ya existe),
+    · DO puede anular una boleta ya aprobada y restablecerla dentro de 48 h
+      (decisión del mismo día, tras ver el prototipo),
+    · (cambió el mismo día) DO ve la boleta firmada: la boleta con la firma
+      estampada y su constancia (quién, cuándo),
+    · la carga sigue siendo persona por persona.
+
+  Datos ficticios. Los colores son los tokens de apps/web/app/globals.css.
+  No es código de la app y no toca ninguna base de datos.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18;
+    --color-rojo:#b8412d; --color-sand:#e8e0d0; --color-taupe:#805c4c;
+    --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-azul:#2f5f9e; --color-ceniza:#635f58;
+    --font-sans:'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-serif:'EB Garamond', ui-serif, Georgia, "Times New Roman", serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+      --color-rojo:#d4634a; --color-sand:#332e27; --color-taupe:#ab9080;
+      --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+      --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+    --color-rojo:#d4634a; --color-sand:#332e27; --color-taupe:#ab9080;
+    --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+    color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{ background:var(--color-crema); color:var(--color-tinta); font-family:var(--font-sans); font-size:14.5px; line-height:1.5; padding:24px 16px 72px; }
+  .page{ max-width:1240px; margin-inline:auto; display:flex; flex-direction:column; gap:22px; }
+  h1,h2,h3,h4{ font-family:var(--font-serif); font-weight:600; margin:0; text-wrap:balance; }
+  p{ margin:0; }
+  button,input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
+  button{ cursor:pointer; }
+  :focus-visible{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+
+  /* ── cabecera del prototipo ── */
+  .masthead{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px; align-items:flex-start; }
+  .masthead h1{ font-size:1.9rem; margin:10px 0 6px; }
+  .masthead p{ color:var(--color-taupe); max-width:70ch; }
+  .badge-demo{ display:inline-flex; font-size:.72rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--color-pizarra);
+    background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-pizarra) 35%, transparent); padding:5px 10px; border-radius:100px; }
+  .controles{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .chk{ display:inline-flex; gap:7px; align-items:center; font-size:.82rem; color:var(--color-taupe); background:var(--color-papel); border:1px solid var(--color-sand); border-radius:10px; padding:7px 11px; }
+  .chk input{ accent-color:var(--color-tinta); }
+  .sel{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:10px; padding:7px 10px; font-size:.82rem; }
+
+  /* ── recorrido guiado ── */
+  .recorrido{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
+  .pasos{ display:grid; grid-template-columns:repeat(5,1fr); gap:8px; list-style:none; margin:0; padding:0; }
+  @media (max-width:860px){ .pasos{ grid-template-columns:1fr 1fr; } }
+  .paso{ border:1px solid var(--color-sand); border-radius:12px; padding:9px 11px; font-size:.8rem; color:var(--color-taupe); background:var(--color-crema); display:flex; flex-direction:column; gap:3px; }
+  .paso b{ font-size:.66rem; letter-spacing:.05em; text-transform:uppercase; }
+  .paso.hecho{ color:var(--color-verde); border-color:color-mix(in oklab, var(--color-verde) 40%, var(--color-sand)); }
+  .paso.ahora{ color:var(--color-tinta); border-color:var(--color-rojo); box-shadow:inset 0 0 0 1px var(--color-rojo); background:var(--color-papel); }
+  .pista{ font-size:.86rem; color:var(--color-taupe); }
+  .pista strong{ color:var(--color-tinta); }
+
+  /* ── escenario: DO a la izquierda, celular a la derecha ── */
+  .escenario{ display:grid; grid-template-columns:minmax(0,1fr) 392px; gap:22px; align-items:start; }
+  @media (max-width:1100px){ .escenario{ grid-template-columns:1fr; } .celwrap{ justify-self:center; } }
+  .etiqueta{ font-size:.72rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--color-taupe); margin:0 0 8px 4px; }
+
+  /* ventana del panel de DO */
+  .win{ position:relative; background:var(--color-crema); border:1px solid var(--color-sand); border-radius:14px; overflow:hidden; box-shadow:0 1px 0 var(--color-sand); }
+  .win-bar{ display:flex; align-items:center; gap:7px; padding:9px 12px; background:var(--color-hueso); border-bottom:1px solid var(--color-sand); }
+  .win-bar i{ width:10px; height:10px; border-radius:50%; background:var(--color-sand); display:block; }
+  .win-bar span{ margin-left:8px; font-size:.74rem; color:var(--color-taupe); background:var(--color-papel); border:1px solid var(--color-sand); border-radius:8px; padding:2px 10px; }
+  .win-body{ display:grid; grid-template-columns:188px 1fr; min-height:560px; container-type:inline-size; }
+  @media (max-width:700px){ .win-body{ grid-template-columns:1fr; } .side{ display:none; } }
+  .side{ background:var(--color-papel); border-right:1px solid var(--color-sand); padding:14px 10px; display:flex; flex-direction:column; gap:2px; font-size:.84rem; }
+  .side .grp{ font-size:.66rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--color-taupe); padding:4px 10px 6px; }
+  .side .it{ display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:8px; color:var(--color-taupe); }
+  .side .it::before{ content:""; width:12px; height:12px; border:1.5px solid currentColor; border-radius:3px; opacity:.7; flex:none; }
+  .side .it.on{ background:var(--color-tinta); color:var(--color-crema); }
+  .side .nuevo{ margin-left:auto; font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; background:var(--color-rojo); color:#fff; padding:1px 6px; border-radius:100px; }
+  .main{ padding:20px; display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .cab h2{ font-size:1.55rem; }
+  .cab p{ color:var(--color-taupe); font-size:.86rem; margin-top:2px; }
+  .cifras{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  @container (max-width:560px){ .cifras{ grid-template-columns:1fr 1fr; } }
+  .cifra{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:12px; padding:10px 12px; }
+  .cifra b{ font-family:var(--font-serif); font-size:1.6rem; font-weight:600; display:block; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .cifra span{ font-size:.74rem; color:var(--color-taupe); }
+  .cifra.hot b{ color:var(--color-rojo); }
+  .tabla{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; overflow:hidden; }
+  .fila{ display:grid; grid-template-columns:minmax(0,1.5fr) 56px minmax(0,1.3fr) auto; gap:10px; align-items:center; padding:11px 14px; border-top:1px solid var(--color-sand); }
+  .fila.cab-t{ border-top:0; background:var(--color-hueso); font-size:.7rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--color-taupe); padding-block:8px; }
+  .fila.foco{ background:color-mix(in oklab, var(--color-rojo) 6%, var(--color-papel)); }
+  .fila .nom{ font-weight:600; min-width:0; }
+  .fila .nom small{ display:block; font-weight:400; color:var(--color-taupe); font-size:.76rem; }
+  .fila .sed{ font-size:.8rem; color:var(--color-taupe); }
+  .acciones{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+  @container (max-width:520px){
+    .fila{ grid-template-columns:1fr auto; }
+    .fila .sed{ display:none; }
+    .fila.cab-t{ display:none; }
+    .fila .est{ grid-column:1 / -1; order:3; }
+    .acciones{ grid-column:1 / -1; order:4; justify-content:flex-start; }
+  }
+
+  /* botones e insignias */
+  .btn{ border:1px solid var(--color-tinta); background:var(--color-tinta); color:var(--color-crema); border-radius:10px; padding:7px 13px; font-weight:600; font-size:.82rem; min-height:36px; }
+  .btn.sec{ background:transparent; color:var(--color-tinta); border-color:var(--color-taupe); }
+  .btn.rojo{ background:var(--color-rojo); border-color:var(--color-rojo); color:#fff; }
+  .btn.fino{ min-height:30px; padding:4px 10px; font-size:.78rem; }
+  .btn[disabled]{ opacity:.45; cursor:not-allowed; }
+  .btn.grande{ min-height:48px; width:100%; font-size:.98rem; border-radius:12px; }
+  .ins{ display:inline-flex; align-items:center; gap:6px; font-size:.74rem; font-weight:600; padding:3px 9px; border-radius:100px; border:1px solid transparent; white-space:nowrap; }
+  .ins::before{ content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .ins.alerta{ color:var(--color-rojo); background:color-mix(in oklab, var(--color-rojo) 12%, var(--color-papel)); }
+  .ins.aviso{ color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 14%, var(--color-papel)); }
+  .ins.info{ color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel)); }
+  .ins.ok{ color:var(--color-verde); background:color-mix(in oklab, var(--color-verde) 14%, var(--color-papel)); }
+  .ins.neutro{ color:var(--color-ceniza); background:color-mix(in oklab, var(--color-ceniza) 12%, var(--color-papel)); }
+
+  /* modales dentro de la ventana de DO */
+  .velo{ position:absolute; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:5; }
+  .modal{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; width:min(480px,100%); max-height:100%; overflow:auto; padding:20px; display:flex; flex-direction:column; gap:14px; }
+  .modal.ancho{ width:min(620px,100%); }
+  .datos{ display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin:0; background:var(--color-crema); border:1px solid var(--color-sand); border-radius:12px; padding:10px 12px; font-size:.82rem; }
+  .datos dt{ color:var(--color-taupe); font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; }
+  .datos dd{ margin:0; font-weight:600; }
+  .previa{ max-height:210px; overflow:auto; border:1px solid var(--color-sand); border-radius:10px; padding:8px; background:var(--color-crema); }
+  .alerta-caja{ border:1px solid var(--color-rojo); background:color-mix(in oklab, var(--color-rojo) 8%, var(--color-papel)); border-radius:10px; padding:10px 12px; font-size:.82rem; }
+  .campo{ width:100%; border:1px solid var(--color-taupe); border-radius:10px; padding:8px 10px; background:var(--color-crema); }
+  .lbl{ font-size:.74rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--color-taupe); }
+  .marca{ font-size:.7rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--color-rojo); }
+  .modal h3{ font-size:1.3rem; }
+  .sello{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .sello b{ font-size:.7rem; letter-spacing:.05em; text-transform:uppercase; color:var(--color-verde); }
+  .sello p{ font-size:.78rem; color:var(--color-taupe); }
+  .modal .sub{ color:var(--color-taupe); font-size:.86rem; }
+  .modal .pie{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+  .seg{ display:inline-flex; border:1px solid var(--color-sand); border-radius:10px; overflow:hidden; background:var(--color-crema); }
+  .seg button{ border:0; background:none; padding:7px 12px; font-size:.82rem; font-weight:600; color:var(--color-taupe); }
+  .seg button[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); }
+  .hojas{ display:flex; flex-direction:column; gap:6px; }
+  .hoja-fila{ display:flex; align-items:center; gap:10px; border:1px solid var(--color-sand); background:var(--color-crema); border-radius:10px; padding:7px 10px; font-size:.82rem; }
+  .hoja-fila .mini{ width:34px; height:44px; border-radius:4px; background:var(--color-hueso) center/cover; border:1px solid var(--color-sand); flex:none; }
+  .hoja-fila span{ margin-left:auto; color:var(--color-taupe); font-size:.74rem; }
+  .vacio{ border:1px dashed var(--color-taupe); border-radius:12px; padding:18px; text-align:center; color:var(--color-taupe); font-size:.84rem; }
+  .linea{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:0; }
+  .linea li{ display:grid; grid-template-columns:18px 1fr; gap:10px; padding-bottom:12px; position:relative; font-size:.86rem; }
+  .linea li::before{ content:""; width:10px; height:10px; border-radius:50%; background:var(--color-sand); margin-top:5px; }
+  .linea li::after{ content:""; position:absolute; left:4px; top:17px; bottom:0; width:2px; background:var(--color-sand); }
+  .linea li:last-child::after{ display:none; }
+  .linea li.si::before{ background:var(--color-verde); }
+  .linea li small{ display:block; color:var(--color-taupe); }
+  .linea li.no{ color:var(--color-taupe); }
+  .nota-caja{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:10px; padding:10px 12px; font-size:.8rem; color:var(--color-taupe); }
+
+  /* ── celular ── */
+  .celwrap{ width:392px; max-width:100%; }
+  .phone{ width:100%; border:10px solid var(--color-tinta); border-radius:42px; background:var(--color-crema); position:relative; overflow:hidden; height:760px; display:flex; flex-direction:column; }
+  :root[data-theme="dark"] .phone{ border-color:var(--color-sand); }
+  .phone .barra{ height:28px; flex:none; display:flex; justify-content:space-between; align-items:center; padding:6px 22px 0; font-size:.7rem; font-weight:700; }
+  .phone .cab-c{ padding:10px 18px 6px; flex:none; }
+  .phone .cab-c small{ color:var(--color-taupe); font-size:.76rem; }
+  .phone .cab-c h3{ font-size:1.5rem; }
+  .phone .cuerpo{ flex:1; overflow:auto; padding:8px 18px 18px; display:flex; flex-direction:column; gap:12px; }
+  .phone .nav-c{ flex:none; display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--color-sand); background:var(--color-papel); }
+  .phone .nav-c button{ border:0; background:none; padding:10px 4px 12px; font-size:.72rem; font-weight:600; color:var(--color-taupe); position:relative; min-height:48px; }
+  .phone .nav-c button[aria-current="page"]{ color:var(--color-tinta); }
+  .phone .nav-c button[aria-current="page"]::after{ content:""; position:absolute; top:0; left:30%; right:30%; height:3px; background:var(--color-rojo); border-radius:0 0 3px 3px; }
+  .globito{ position:absolute; top:4px; margin-left:4px; background:var(--color-rojo); color:#fff; font-size:.62rem; border-radius:100px; padding:0 6px; line-height:16px; }
+  .tarjeta{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .tarjeta h4{ font-size:1.12rem; }
+  .tarjeta .sub{ font-size:.8rem; color:var(--color-taupe); }
+  .aviso-boleta{ border-color:var(--color-rojo); background:color-mix(in oklab, var(--color-rojo) 7%, var(--color-papel)); }
+  .gris{ opacity:.55; }
+  .sheet{ position:absolute; inset:0; background:var(--color-crema); display:flex; flex-direction:column; z-index:4; }
+  .sheet.anim{ animation:sube .22s ease-out; }
+  @keyframes sube{ from{ transform:translateY(24px); opacity:0; } to{ transform:none; opacity:1; } }
+  @media (prefers-reduced-motion: reduce){ .sheet.anim{ animation:none; } }
+  .sheet .top{ display:flex; align-items:center; gap:10px; padding:34px 14px 10px; border-bottom:1px solid var(--color-sand); background:var(--color-papel); flex:none; }
+  .sheet .top button{ border:0; background:none; font-weight:600; color:var(--color-taupe); padding:8px; min-height:44px; }
+  .sheet .top b{ font-family:var(--font-serif); font-size:1.1rem; }
+  .sheet .scroll{ flex:1; overflow:auto; padding:14px; display:flex; flex-direction:column; gap:12px; }
+  .sheet .base{ flex:none; padding:12px 14px 16px; border-top:1px solid var(--color-sand); background:var(--color-papel); display:flex; flex-direction:column; gap:8px; }
+  .sheet .base small{ text-align:center; color:var(--color-taupe); font-size:.76rem; }
+
+  /* la boleta de ejemplo (papel) */
+  .hoja-ej{ background:#fff; color:#1a1a18; border:1px solid #d9d2c3; border-radius:6px; padding:14px; font-size:.74rem; display:flex; flex-direction:column; gap:8px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .hoja-ej .hj-top{ display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #1a1a18; padding-bottom:6px; }
+  .hoja-ej .hj-top b{ font-family:var(--font-serif); font-size:1.15rem; letter-spacing:.06em; }
+  .hoja-ej .hj-who{ font-weight:700; font-size:.82rem; } .hoja-ej .hj-who small{ display:block; font-weight:400; color:#6b6558; }
+  .hoja-ej table{ width:100%; border-collapse:collapse; }
+  .hoja-ej td{ padding:3px 0; border-bottom:1px dotted #cfc8b8; } .hoja-ej td:last-child{ text-align:right; font-variant-numeric:tabular-nums; }
+  .hoja-ej .hj-net{ display:flex; justify-content:space-between; font-weight:700; font-size:.9rem; border-top:2px solid #1a1a18; padding-top:6px; }
+  .hoja-ej .ej{ color:#9a3b2a; font-size:.66rem; text-align:center; text-transform:uppercase; letter-spacing:.06em; }
+  .foto-real{ width:100%; border-radius:6px; border:1px solid var(--color-sand); display:block; }
+
+  /* firma */
+  .firma-caja{ border:1px solid var(--color-sand); background:#fff; color:#1a1a18; border-radius:12px; padding:14px 14px 10px; min-height:96px; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; }
+  .firma-caja .trazo{ font-size:2.3rem; line-height:1.1; text-align:center; }
+  .firma-caja img{ max-width:100%; max-height:84px; }
+  .firma-caja hr{ width:80%; border:0; border-top:1px solid #1a1a18; margin:2px 0 0; }
+  .firma-caja small{ color:#6b6558; font-size:.68rem; }
+  .estilos{ display:grid; gap:8px; }
+  .estilo{ border:1px solid var(--color-sand); background:#fff; color:#1a1a18; border-radius:12px; padding:8px 12px; text-align:left; font-size:1.7rem; line-height:1.2; }
+  .estilo[aria-pressed="true"]{ border-color:var(--color-tinta); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+  canvas.lienzo{ width:100%; height:130px; background:#fff; border:1px solid var(--color-sand); border-radius:12px; touch-action:none; display:block; }
+  .exito{ text-align:center; display:flex; flex-direction:column; align-items:center; gap:10px; padding-top:10px; }
+  .exito .tic{ width:64px; height:64px; border-radius:50%; background:color-mix(in oklab, var(--color-verde) 16%, var(--color-papel)); color:var(--color-verde); display:grid; place-items:center; font-size:2rem; border:1px solid color-mix(in oklab, var(--color-verde) 40%, transparent); }
+
+  /* notas al pie */
+  .notas{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:860px){ .notas{ grid-template-columns:1fr; } }
+  .caja{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:10px; }
+  .caja h3{ font-size:1.25rem; }
+  .caja ul{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:7px; font-size:.88rem; }
+  .caja li strong{ color:var(--color-tinta); }
+  .toast{ position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--color-tinta); color:var(--color-crema); padding:10px 16px; border-radius:12px; font-size:.86rem; z-index:50; box-shadow:0 6px 24px rgba(0,0,0,.25); }
+  .oculto{ display:none; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div>
+      <span class="badge-demo">Prototipo · datos ficticios · no toca la base</span>
+      <h1>Boletas de pago con firma</h1>
+      <p>DO sube la boleta del contador y la publica; la colaboradora la abre en su celular y la firma con la firma que ya tiene guardada; DO ve en su tablero que quedó «Firmada». Haz clic en cualquiera de las dos pantallas: cada acción se refleja en la otra.</p>
+    </div>
+    <div class="controles">
+      <label class="chk"><span>Ver el celular como</span>
+        <select class="sel" id="selPersona" aria-label="Ver el celular como"></select>
+      </label>
+      <label class="chk"><input type="checkbox" id="chkFirma"> Ya tiene su firma guardada</label>
+      <span class="chk" id="relojTxt">Reloj de la demo: hoy</span>
+      <button class="btn sec" data-act="reloj" data-h="24">Adelantar 24 h</button>
+      <button class="btn sec" data-act="reloj" data-h="49">Adelantar 49 h</button>
+      <button class="btn sec" id="btnReset">Reiniciar demo</button>
+    </div>
+  </header>
+
+  <section class="recorrido" aria-label="Recorrido guiado">
+    <ol class="pasos" id="pasos"></ol>
+    <p class="pista" id="pista"></p>
+  </section>
+
+  <div class="escenario">
+    <section>
+      <p class="etiqueta">Desarrollo Organizacional · computadora</p>
+      <div class="win" id="win"></div>
+    </section>
+    <section class="celwrap">
+      <p class="etiqueta">La colaboradora · celular, «Lo mío»</p>
+      <div class="phone" id="phone"></div>
+    </section>
+  </div>
+
+  <section class="notas">
+    <div class="caja">
+      <h3>Lo que muestra este recorrido</h3>
+      <ul>
+        <li><strong>Boletas ahora está en el menú Personas</strong>, junto a Contratos y Documentación. Hoy la pantalla existe, pero solo se llega desde un enlace dentro de Planilla.</li>
+        <li><strong>«Confirmar que la recibí» se reemplaza por «Firmar».</strong> Sigue exigiendo haber abierto la boleta antes: firmar sin verla no dice nada.</li>
+        <li><strong>La firma se copia en esa boleta</strong> al firmar. Si la colaboradora cambia su firma después, las boletas ya firmadas conservan la que usó ese día (mismo criterio del memo y del contrato).</li>
+        <li><strong>Sin firma guardada</strong>, el sistema se la hace crear ahí mismo, una sola vez. Activa o apaga «Ya tiene su firma guardada» arriba para verlo.</li>
+        <li><strong>DO puede anular una boleta ya aprobada</strong> («Anular» en la fila). El modal muestra el nombre, la sede, el periodo, las fechas, la boleta y la constancia de firma, para comprobar que es la correcta; pide un motivo (lista o «Otro», mínimo 5 letras) y un check con el nombre de la persona.</li>
+        <li><strong>Se puede restablecer durante 48 h.</strong> «Adelantar 49 h» (arriba) muestra el plazo vencido. La boleta de Julia ya está anulada: pruébala.</li>
+        <li><strong>DO ve la boleta firmada:</strong> la boleta con la constancia de firma (la firma estampada, quién y cuándo) desde «Ver boleta firmada», y la puede descargar. Pruébalo en la fila de Rosa, que ya firmó.</li>
+      </ul>
+    </div>
+    <div class="caja">
+      <h3>Lo que este prototipo NO resuelve (para decidir)</h3>
+      <ul>
+        <li><strong>Firmar es obligatorio.</strong> Quien no tenga cuenta, no pueda firmar o se niegue queda sin boleta recibida. La única salida es «Entregada en papel» de DO, que ya existe; el prototipo la deja visible en cada fila.</li>
+        <li><strong>Quién ve la firma.</strong> Hoy la ve DO y la propia persona. La líder de equipo no ve boletas, y por tanto tampoco firmas.</li>
+        <li><strong>Al restablecer, la firma vuelve intacta</strong> (supuesto mío): la persona no tiene que firmar otra vez, porque el documento es el mismo. Si prefieres que firme de nuevo, es un cambio de una línea.</li>
+        <li><strong>La persona ve «En revisión», sin motivo</strong> y sin aviso de que se anuló. ¿Quieres que se le avise?</li>
+        <li><strong>Pasadas las 48 h</strong> ya no se restablece: solo «Subir boleta nueva». La anulación queda en el historial.</li>
+        <li><strong>En producción</strong> ya existe «anular» (migración 0482: motivo de 5 letras, deja rastro) pero es definitivo y no muestra la constancia. Restablecer exige guardar el estado previo y una función nueva con el tope de 48 h.</li>
+        <li><strong>Reemplazar una boleta ya firmada</strong> reinicia la firma: es otro documento (regla de la 0482). No se muestra aquí.</li>
+        <li><strong>No es firma digital certificada.</strong> Es constancia de recepción con fecha y hora, como el memo. Conviene que el contador confirme que le basta para dejar el papel.</li>
+        <li><strong>Para llevarlo a producción</strong> haría falta una migración nueva (la firma copiada y la función que la escribe), el cambio del botón y su prueba. La migración se pega antes de fusionar.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<div class="toast oculto" id="toast" role="status"></div>
+
+<script>
+(() => {
+  /* ───────── utilidades ───────── */
+  const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  // Hora de Lima = UTC−5 (sin horario de verano). Solo para pintar la demo.
+  function fmt(ts){
+    if(!ts) return '—';
+    const d = new Date(ts - 5*3600*1000);
+    let h = d.getUTCHours(); const m = String(d.getUTCMinutes()).padStart(2,'0');
+    const ap = h >= 12 ? 'p. m.' : 'a. m.'; h = h % 12 || 12;
+    return `${d.getUTCDate()} ${MESES[d.getUTCMonth()]} ${d.getUTCFullYear()} · ${h}:${m} ${ap}`;
+  }
+  const $ = (s) => document.querySelector(s);
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const PERIODO = 'Septiembre 2026';
+  const ESTILOS = {
+    elegante: { nombre:'Elegante', fam:"'Dancing Script', cursive" },
+    a_mano:   { nombre:'A mano',   fam:"'Caveat', cursive" },
+    clasica:  { nombre:'Clásica',  fam:"'Sacramento', cursive" },
+  };
+  const ETIQUETA = {
+    falta:     ['Falta',                 'alerta'],
+    borrador:  ['Subida · sin publicar', 'info'],
+    publicada: ['Publicada · sin abrir', 'aviso'],
+    vista:     ['Abierta · sin firmar',  'info'],
+    firmada:   ['Firmada',               'ok'],
+    papel:     ['Entregada en papel',    'ok'],
+    anulada:   ['Anulada',               'neutro'],
+  };
+  const VENTANA = 48*3600*1000;   // plazo para restablecer una anulación
+  const MOTIVOS = [
+    ['otra_persona', 'Se subió la boleta de otra persona'],
+    ['otro_periodo', 'Es de otro periodo'],
+    ['datos',        'Los montos o datos están mal (el contador la corrige)'],
+    ['ilegible',     'El archivo no se lee bien'],
+    ['error',        'Se publicó por error'],
+    ['otro',         'Otro motivo…'],
+  ];
+  let toastT;
+  function aviso(txt){
+    const t = $('#toast'); t.textContent = txt; t.classList.remove('oculto');
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.add('oculto'), 2600);
+  }
+
+  /* ───────── estado ───────── */
+  let S, ultimaPant = null;
+  const ahora = () => Date.now() + (S ? S.off : 0);
+  function reiniciar(){
+    const t = Date.now(), h = 3600*1000, d = 24*h;
+    const jPrev = { estado:'publicada', hojas:[{ nombre:'boleta-ejemplo.jpg', tipo:'imagen', url:null, kb:412 }], subida:t-3*d, publicada:t-3*d+h, vista:t-2*d, firmada:t-2*d+h, firma:{ tipo:'tipografica', estilo:'clasica' } };
+    const ej = [{ nombre:'boleta-ejemplo.jpg', tipo:'imagen', url:null, kb:412 }];
+    S = {
+      foco: 'c',
+      personas: [
+        { id:'c', nombre:'Camila Rojas Vega',   sede:'TRU', conCuenta:true,  estado:'falta',     hojas:[], publicada:null, vista:null, firmada:null, firma:null, subida:null },
+        { id:'l', nombre:'Lucía Paredes Soto',  sede:'LIM', conCuenta:true,  estado:'publicada', hojas:ej, subida:t-2*d, publicada:t-2*d+h, vista:null, firmada:null, firma:null },
+        { id:'m', nombre:'Marta Quispe Díaz',   sede:'AQP', conCuenta:true,  estado:'publicada', hojas:ej, subida:t-2*d, publicada:t-2*d+h, vista:t-d, firmada:null, firma:null },
+        { id:'r', nombre:'Rosa Huamán Lara',    sede:'CCO', conCuenta:true,  estado:'publicada', hojas:ej, subida:t-2*d, publicada:t-2*d+h, vista:t-d-3*h, firmada:t-d-2*h, firma:{ tipo:'tipografica', estilo:'elegante' } },
+        { id:'j', nombre:'Julia Ramos Cueva',   sede:'LIM', conCuenta:true,  estado:'anulada',   hojas:jPrev.hojas, subida:jPrev.subida, publicada:jPrev.publicada, vista:null, firmada:null, firma:null,
+          anulada:{ at:t-20*h, motivo:'Se subió la boleta de otra persona', prev:jPrev },
+          hist:[{ t:t-20*h, txt:'Anulada por DO · Se subió la boleta de otra persona' }] },
+        { id:'a', nombre:'Ana Flores Tapia',    sede:'TRU', conCuenta:false, estado:'papel',     hojas:[], subida:null, publicada:t-d, vista:null, firmada:null, firma:null },
+      ],
+      // La firma guardada en «Mi perfil → Firma» de cada una.
+      guardada: { j:{tipo:'tipografica',estilo:'clasica'}, c:null, l:{tipo:'tipografica',estilo:'a_mano'}, m:{tipo:'tipografica',estilo:'clasica'}, r:{tipo:'tipografica',estilo:'elegante'}, a:null },
+      cel: { pant:'resumen', hoja:null, paso:0, metodo:'escribir', estiloSel:'elegante', trazo:false },
+      off: 0,              // adelanto del reloj de la demo, en ms
+      anular: { motivo:'', texto:'', ok:false },
+      modal: null,         // { t:'subir'|'publicar'|'papel'|'detalle'|'firmada'|'anular'|'restablecer'|'anulada', id }
+      borrador: { tipo:'imagen', hojas:[] },
+    };
+    render();
+  }
+  const persona = (id) => S.personas.find((p) => p.id === id);
+  function visible(p){
+    if(p.estado === 'anulada') return 'anulada';
+    if(p.estado === 'publicada') return p.firmada ? 'firmada' : (p.vista ? 'vista' : 'publicada');
+    return p.estado;
+  }
+  const iniciales = (p) => p.nombre.split(' ')[0];
+  // La boleta tal como estaba antes de anularse (para mostrarla y para restablecerla).
+  const origen = (p) => p.anulada ? Object.assign({}, p, p.anulada.prev) : p;
+  const restablecible = (p) => !!p.anulada && (ahora() - p.anulada.at) < VENTANA;
+  function quedan(p){
+    const ms = VENTANA - (ahora() - p.anulada.at); if(ms <= 0) return '';
+    const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    return `${h} h ${String(m).padStart(2,'0')} min`;
+  }
+  function anularValido(){
+    const a = S.anular; if(!a.motivo || !a.ok) return false;
+    return a.motivo !== 'otro' || a.texto.trim().length >= 5;
+  }
+
+  /* ───────── la boleta (papel) ───────── */
+  function hojaEjemplo(p){
+    return `<div class="hoja-ej">
+      <div class="hj-top"><b>CAYLA</b><span>Boleta de pago · ${PERIODO}</span></div>
+      <div class="hj-who">${esc(p.nombre)}<small>${p.sede} · periodo 29 ago – 28 sep</small></div>
+      <table>
+        <tr><td>Remuneración del periodo</td><td>S/ 1,245.00</td></tr>
+        <tr><td>Movilidad (no remunerativa)</td><td>S/ 120.00</td></tr>
+        <tr><td>Descuento de pensión</td><td>− S/ 161.84</td></tr>
+        <tr><td>Aporte EsSalud (a cargo de CAYLA)</td><td>S/ 112.05</td></tr>
+      </table>
+      <div class="hj-net"><span>Neto pagado</span><span>S/ 1,203.16</span></div>
+      <p class="ej">Ejemplo ficticio · no es una boleta real</p>
+    </div>`;
+  }
+  function hojasHTML(p){
+    if(!p.hojas.length) return hojaEjemplo(p);
+    return p.hojas.map((h) => h.url && h.tipo === 'imagen'
+      ? `<img class="foto-real" src="${h.url}" alt="Hoja de la boleta">`
+      : hojaEjemplo(p)).join('');
+  }
+
+  /* ───────── la firma (se dibuja igual en todos lados) ───────── */
+  function firmaHTML(f, p){
+    if(!f) return '';
+    if(f.tipo === 'dibujo') return `<div class="firma-caja"><img src="${f.png}" alt="Firma dibujada"><hr><small>${esc(p.nombre)}</small></div>`;
+    const e = ESTILOS[f.estilo];
+    return `<div class="firma-caja"><div class="trazo" style="font-family:${e.fam}">${esc(p.nombre)}</div><hr><small>${esc(p.nombre)}</small></div>`;
+  }
+
+  /* ───────── PANEL DE DO ───────── */
+  function contar(){
+    const c = { falta:0, borrador:0, espera:0, firmada:0, anuladas:0 };
+    S.personas.forEach((p) => {
+      const v = visible(p);
+      if(v === 'falta') c.falta++;
+      else if(v === 'borrador') c.borrador++;
+      else if(v === 'publicada' || v === 'vista') c.espera++;
+      else if(v === 'anulada') c.anuladas++;
+      else c.firmada++;
+    });
+    return c;
+  }
+  function accionesDO(p){
+    const v = visible(p), b = [];
+    if(v === 'falta'){
+      b.push(`<button class="btn fino" data-act="subir" data-id="${p.id}">Subir boleta</button>`);
+      b.push(`<button class="btn sec fino" data-act="papel" data-id="${p.id}">Entregada en papel</button>`);
+    } else if(v === 'borrador'){
+      b.push(`<button class="btn rojo fino" data-act="publicar" data-id="${p.id}">Publicar</button>`);
+      b.push(`<button class="btn sec fino" data-act="subir" data-id="${p.id}">Editar</button>`);
+    } else if(v === 'publicada' || v === 'vista'){
+      b.push(`<button class="btn sec fino" data-act="detalle" data-id="${p.id}">Ver detalle</button>`);
+      b.push(`<button class="btn sec fino" data-act="anular" data-id="${p.id}">Anular</button>`);
+    } else if(v === 'firmada'){
+      b.push(`<button class="btn fino" data-act="verFirmada" data-id="${p.id}">Ver boleta firmada</button>`);
+      b.push(`<button class="btn sec fino" data-act="anular" data-id="${p.id}">Anular</button>`);
+    } else if(v === 'anulada'){
+      if(restablecible(p)) b.push(`<button class="btn rojo fino" data-act="restablecer" data-id="${p.id}">Restablecer</button>`);
+      else b.push(`<button class="btn fino" data-act="subir" data-id="${p.id}">Subir boleta nueva</button>`);
+      b.push(`<button class="btn sec fino" data-act="verAnulacion" data-id="${p.id}">Ver anulación</button>`);
+    }
+    return b.join('');
+  }
+  function filaDO(p){
+    const v = visible(p), [txt, tono] = ETIQUETA[v];
+    let fecha = '';
+    if(v === 'firmada') fecha = `<small>${fmt(p.firmada)}</small>`;
+    else if(v === 'vista') fecha = `<small>Abierta ${fmt(p.vista)}</small>`;
+    else if(v === 'publicada') fecha = `<small>Publicada ${fmt(p.publicada)}</small>`;
+    else if(v === 'papel') fecha = `<small>${fmt(p.publicada)}</small>`;
+    else if(v === 'anulada') fecha = `<small>${restablecible(p) ? 'Se puede restablecer: quedan ' + quedan(p) : 'Plazo de 48 h vencido'}</small>`;
+    return `<div class="fila ${p.id === S.foco ? 'foco' : ''}">
+      <div class="nom">${esc(p.nombre)}${p.conCuenta ? '' : '<small>Sin cuenta en el sistema</small>'}</div>
+      <div class="sed">${p.sede}</div>
+      <div class="est"><span class="ins ${tono}">${txt}</span>${fecha ? `<div style="margin-top:3px;color:var(--color-taupe);font-size:.74rem">${fecha.replace(/<\/?small>/g,'')}</div>` : ''}</div>
+      <div class="acciones">${accionesDO(p)}</div>
+    </div>`;
+  }
+  function modalDO(){
+    const m = S.modal; if(!m) return '';
+    const p = m.id ? persona(m.id) : null;
+    if(m.t === 'subir'){
+      const b = S.borrador;
+      const lista = b.hojas.length
+        ? b.hojas.map((h, i) => `<div class="hoja-fila"><div class="mini" style="${h.url && h.tipo==='imagen' ? `background-image:url('${h.url}')` : ''}"></div>${esc(h.nombre)}<span>${h.kb} KB</span><button class="btn sec fino" data-act="quitarHoja" data-i="${i}" aria-label="Quitar hoja">Quitar</button></div>`).join('')
+        : `<div class="vacio">Todavía no hay hojas. Agrega la foto o el PDF que entregó el contador.</div>`;
+      return `<div class="velo"><div class="modal" role="dialog" aria-label="Subir boleta">
+        <div><h3>Boleta de ${esc(p.nombre)}</h3><p class="sub">${PERIODO} · el periodo ya está pagado. Hasta que la publiques, ${esc(iniciales(p))} no la ve.</p></div>
+        <div class="seg" role="group" aria-label="Tipo de archivo">
+          <button aria-pressed="${b.tipo==='imagen'}" data-act="tipo" data-v="imagen">Fotos</button>
+          <button aria-pressed="${b.tipo==='pdf'}" data-act="tipo" data-v="pdf">PDF</button>
+        </div>
+        <div class="hojas">${lista}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label class="btn sec fino" style="display:inline-flex;align-items:center">Elegir ${b.tipo==='imagen'?'foto':'PDF'}…
+            <input type="file" id="archivo" class="oculto" ${b.tipo==='imagen' ? 'accept="image/*"' : 'accept="application/pdf"'} multiple></label>
+          <button class="btn sec fino" data-act="ejemplo">Usar boleta de ejemplo</button>
+        </div>
+        <div class="pie">
+          <button class="btn sec" data-act="cerrar">Cancelar</button>
+          <button class="btn" data-act="guardar" ${b.hojas.length ? '' : 'disabled'}>Guardar sin publicar</button>
+        </div></div></div>`;
+    }
+    if(m.t === 'publicar'){
+      return `<div class="velo"><div class="modal" role="dialog" aria-label="Publicar boleta">
+        <div><h3>¿Publicar la boleta de ${esc(p.nombre)}?</h3>
+        <p class="sub">${esc(iniciales(p))} recibirá un aviso en su Bandeja y un globito en «Boletas». <strong>Tendrá que abrirla y firmarla</strong> para darla por recibida.</p></div>
+        <p class="nota-caja">Lo que se publica no se borra: si hubiera un error, la boleta se anula con un motivo y se sube otra.</p>
+        <div class="pie"><button class="btn sec" data-act="cerrar">Volver</button><button class="btn rojo" data-act="publicarOk" data-id="${p.id}">Publicar</button></div></div></div>`;
+    }
+    if(m.t === 'papel'){
+      return `<div class="velo"><div class="modal" role="dialog" aria-label="Entregada en papel">
+        <div><h3>¿Entregaste la boleta en papel a ${esc(p.nombre)}?</h3>
+        <p class="sub">Es la salida para quien no tiene cuenta o no puede firmar en el sistema. Queda anotada la fecha de hoy.</p></div>
+        <div class="pie"><button class="btn sec" data-act="cerrar">Volver</button><button class="btn" data-act="papelOk" data-id="${p.id}">Sí, la entregué en papel</button></div></div></div>`;
+    }
+    if(m.t === 'firmada'){
+      return `<div class="velo"><div class="modal ancho" role="dialog" aria-label="Boleta firmada">
+        <div><h3>Boleta firmada · ${esc(p.nombre)}</h3><p class="sub">${PERIODO} · ${p.sede} · <span class="ins ok">Firmada</span></p></div>
+        <div class="hojas">${hojasHTML(p)}</div>
+        <div class="sello"><b>Constancia de firma</b>
+          ${firmaHTML(p.firma, p)}
+          <p>Firmada por ${esc(p.nombre)} el ${fmt(p.firmada)}</p>
+          <p>La firma es la copia que usó ese día: si cambia su firma después, esta boleta no cambia.</p>
+          <p>Publicada el ${fmt(p.publicada)} · abierta por primera vez el ${fmt(p.vista)}</p></div>
+        <div class="pie"><button class="btn sec" data-act="anular" data-id="${p.id}">Anular</button><button class="btn sec" data-act="descargar">Descargar con firma</button><button class="btn" data-act="cerrar">Cerrar</button></div></div></div>`;
+    }
+    if(m.t === 'anular'){
+      const q = p, a = S.anular, firmada = !!q.firmada;
+      const hasta = fmt(ahora() + VENTANA);
+      return `<div class="velo"><div class="modal ancho" role="dialog" aria-label="Anular boleta">
+        <div><span class="marca">Anular boleta</span><h3>${esc(p.nombre)} · ${PERIODO}</h3>
+          <p class="sub">Revisa que sea la persona y la boleta correctas antes de anular.</p></div>
+        <dl class="datos">
+          <div><dt>Persona</dt><dd>${esc(p.nombre)}</dd></div><div><dt>Sede</dt><dd>${p.sede}</dd></div>
+          <div><dt>Periodo</dt><dd>${PERIODO} · 29 ago – 28 sep</dd></div><div><dt>Estado ahora</dt><dd>${ETIQUETA[visible(p)][0]}</dd></div>
+          <div><dt>Subida por DO</dt><dd>${fmt(p.subida)}</dd></div><div><dt>Publicada</dt><dd>${fmt(p.publicada)}</dd></div>
+          <div><dt>Abierta por ${esc(iniciales(p))}</dt><dd>${fmt(p.vista)}</dd></div><div><dt>Firmada</dt><dd>${fmt(p.firmada)}</dd></div>
+        </dl>
+        <div><p class="lbl" style="margin-bottom:6px">La boleta</p><div class="previa">${hojasHTML(p)}</div></div>
+        ${firmada
+          ? `<div class="sello"><b>Constancia de firma</b>${firmaHTML(p.firma, p)}<p>Firmada por ${esc(p.nombre)} el ${fmt(p.firmada)}</p></div>`
+          : `<p class="nota-caja">Todavía no firmó: no hay constancia de firma.</p>`}
+        <div><label class="lbl" for="anMotivo">Motivo (queda anotado junto a la boleta)</label>
+          <select class="campo" id="anMotivo" style="margin-top:6px"><option value="">Elige un motivo…</option>
+            ${MOTIVOS.map(([k, t]) => `<option value="${k}" ${a.motivo===k?'selected':''}>${t}</option>`).join('')}</select>
+          ${a.motivo === 'otro' ? `<textarea class="campo" id="anTexto" rows="2" placeholder="Escribe el motivo (mínimo 5 letras)" style="margin-top:8px">${esc(a.texto)}</textarea>
+            <p class="sub" id="anCont" style="margin-top:4px"></p>` : ''}</div>
+        <div class="alerta-caja">Qué pasa al anular: ${esc(iniciales(p))} deja de ver la boleta en «Lo mío» y ve que está en revisión.
+          ${firmada ? 'Su firma queda guardada: no se pierde.' : ''}
+          <strong>Tienes 48 horas para restablecerla (hasta el ${hasta}).</strong> Pasado ese plazo, hay que subir una boleta nueva.</div>
+        <label class="chk" style="align-self:flex-start"><input type="checkbox" id="anOk" ${a.ok?'checked':''}> Confirmo que es la boleta de ${esc(p.nombre)} · ${PERIODO}</label>
+        <div class="pie"><button class="btn sec" data-act="cerrar">Cancelar</button>
+          <button class="btn rojo" id="btnAnular" data-act="anularOk" data-id="${p.id}" ${anularValido()?'':'disabled'}>Anular boleta</button></div></div></div>`;
+    }
+    if(m.t === 'restablecer'){
+      const q = origen(p), v = q.firmada ? 'firmada' : (q.vista ? 'vista' : 'publicada');
+      return `<div class="velo"><div class="modal" role="dialog" aria-label="Restablecer boleta">
+        <div><span class="marca" style="color:var(--color-verde)">Restablecer</span><h3>¿Restablecer la boleta de ${esc(p.nombre)}?</h3>
+          <p class="sub">${PERIODO} · ${p.sede}</p></div>
+        <dl class="datos">
+          <div><dt>Se anuló</dt><dd>${fmt(p.anulada.at)}</dd></div><div><dt>Quedan para restablecer</dt><dd>${quedan(p)}</dd></div>
+          <div style="grid-column:1/-1"><dt>Motivo de la anulación</dt><dd>${esc(p.anulada.motivo)}</dd></div>
+        </dl>
+        <p class="nota-caja">Vuelve exactamente como estaba: <strong>${ETIQUETA[v][0]}</strong>${q.firmada ? ` el ${fmt(q.firmada)}, con su firma intacta` : ''}. ${esc(iniciales(p))} la vuelve a ver en «Lo mío». Queda anotado en el historial que se anuló y se restableció.</p>
+        <div class="pie"><button class="btn sec" data-act="cerrar">Volver</button><button class="btn rojo" data-act="restablecerOk" data-id="${p.id}">Restablecer boleta</button></div></div></div>`;
+    }
+    if(m.t === 'anulada'){
+      const q = origen(p), ok = restablecible(p);
+      return `<div class="velo"><div class="modal ancho" role="dialog" aria-label="Boleta anulada">
+        <div><span class="marca">Boleta anulada</span><h3>${esc(p.nombre)} · ${PERIODO}</h3>
+          <p class="sub">${p.sede} · <span class="ins neutro">Anulada</span> ${ok ? '· se puede restablecer: quedan ' + quedan(p) : '· plazo de 48 h vencido'}</p></div>
+        <dl class="datos">
+          <div><dt>Anulada</dt><dd>${fmt(p.anulada.at)}</dd></div><div><dt>Por</dt><dd>DO</dd></div>
+          <div style="grid-column:1/-1"><dt>Motivo</dt><dd>${esc(p.anulada.motivo)}</dd></div></dl>
+        <div><p class="lbl" style="margin-bottom:6px">Lo que se anuló</p><div class="previa">${hojasHTML(q)}</div></div>
+        ${q.firmada ? `<div class="sello"><b>Constancia de firma (se conserva)</b>${firmaHTML(q.firma, p)}<p>Firmada por ${esc(p.nombre)} el ${fmt(q.firmada)}</p></div>` : ''}
+        <ul class="linea">${(p.hist || []).map((h) => `<li class="si"><div>${esc(h.txt)}<small>${fmt(h.t)}</small></div></li>`).join('')}</ul>
+        <div class="pie">${ok ? `<button class="btn rojo" data-act="restablecer" data-id="${p.id}">Restablecer</button>` : `<button class="btn" data-act="subir" data-id="${p.id}">Subir boleta nueva</button>`}
+          <button class="btn sec" data-act="cerrar">Cerrar</button></div></div></div>`;
+    }
+    if(m.t === 'detalle'){
+      const v = visible(p), [txt, tono] = ETIQUETA[v];
+      const ev = (si, t, f) => `<li class="${si ? 'si' : 'no'}"><div>${t}<small>${si ? fmt(f) : 'Pendiente'}</small></div></li>`;
+      return `<div class="velo"><div class="modal" role="dialog" aria-label="Detalle de la boleta">
+        <div><h3>${esc(p.nombre)}</h3><p class="sub">Boleta de ${PERIODO} · ${p.sede} · <span class="ins ${tono}">${txt}</span></p></div>
+        <ul class="linea">
+          ${ev(!!p.subida, 'Subida por DO', p.subida)}
+          ${ev(!!p.publicada, 'Publicada', p.publicada)}
+          ${ev(!!p.vista, 'Abierta por ' + esc(iniciales(p)) + ' por primera vez', p.vista)}
+          ${ev(!!p.firmada, 'Firmada por ' + esc(iniciales(p)), p.firmada)}
+          ${(p.hist || []).map((h) => `<li class="si"><div>${esc(h.txt)}<small>${fmt(h.t)}</small></div></li>`).join('')}
+        </ul>
+        ${v === 'firmada' ? '' : `<p class="nota-caja">Mientras no firme, la boleta sigue pendiente. Si no puede firmar desde el sistema, usa «Entregada en papel».</p>`}
+        <div class="pie">
+          ${v === 'firmada' ? `<button class="btn sec" data-act="verFirmada" data-id="${p.id}">Ver boleta firmada</button>` : `<button class="btn sec" data-act="papel" data-id="${p.id}">Entregada en papel</button>`}
+          <button class="btn sec" data-act="anular" data-id="${p.id}">Anular</button>
+          <button class="btn" data-act="cerrar">Cerrar</button></div></div></div>`;
+    }
+    return '';
+  }
+  function renderDO(){
+    const c = contar();
+    $('#win').innerHTML = `
+      <div class="win-bar"><i></i><i></i><i></i><span>cayla-dynamic.vercel.app/admin/planilla/boletas</span></div>
+      <div class="win-body">
+        <aside class="side" aria-label="Menú de ejemplo">
+          <div class="grp">Personas</div>
+          <div class="it">Equipo</div><div class="it">Datos personales</div><div class="it">Contratos</div><div class="it">Documentación</div>
+          <div class="it on" aria-current="page">Boletas <span class="nuevo">nuevo</span></div>
+          <div class="it">Objetivos</div><div class="it">Casos</div><div class="it">Disciplina</div>
+        </aside>
+        <main class="main">
+          <div class="cab"><h2>Boletas de pago</h2><p>${PERIODO} · 29 ago – 28 sep · periodo pagado. La boleta oficial es la que entrega el contador.</p></div>
+          <div class="cifras">
+            <div class="cifra ${c.falta ? 'hot' : ''}"><b>${c.falta}</b><span>Faltan por subir</span></div>
+            <div class="cifra"><b>${c.borrador}</b><span>Subidas, sin publicar</span></div>
+            <div class="cifra ${c.espera ? 'hot' : ''}"><b>${c.espera}</b><span>Esperan su firma</span></div>
+            <div class="cifra"><b>${c.firmada}</b><span>Firmadas o en papel</span></div>
+          </div>
+          ${c.anuladas ? `<p class="sub" style="color:var(--color-taupe);font-size:.8rem">${c.anuladas} boleta${c.anuladas>1?'s':''} anulada${c.anuladas>1?'s':''} · no cuenta${c.anuladas>1?'n':''} en las cifras de arriba.</p>` : ''}
+          <div class="tabla" role="table" aria-label="Boletas del periodo">
+            <div class="fila cab-t" role="row"><div>Persona</div><div>Sede</div><div>Estado</div><div></div></div>
+            ${S.personas.map(filaDO).join('')}
+          </div>
+        </main>
+      </div>${modalDO()}`;
+  }
+
+  /* ───────── CELULAR ───────── */
+  function sheetVisor(p){
+    const firmada = !!p.firmada;
+    return `<div class="sheet">
+      <div class="top"><button data-act="celVolver" aria-label="Cerrar">← Cerrar</button><b>Boleta · ${PERIODO}</b></div>
+      <div class="scroll">${hojasHTML(p)}</div>
+      <div class="base">
+        ${firmada
+          ? `<button class="btn sec grande" data-act="celVolver">Cerrar</button>`
+          : `<button class="btn rojo grande" data-act="celIrFirmar">Firmar esta boleta</button><small>Ya la abriste: ahora puedes firmarla.</small>`}
+      </div></div>`;
+  }
+  function editorFirma(p){
+    const c = S.cel;
+    return `<div class="tarjeta">
+      <h4>Crea tu firma, una sola vez</h4>
+      <p class="sub">Todavía no tienes una firma guardada. La usarás en tus boletas, tu contrato y lo demás que firmes aquí. Después la puedes cambiar en Mi perfil → Firma.</p>
+      <div class="seg" role="group" aria-label="Cómo quieres crearla">
+        <button aria-pressed="${c.metodo==='escribir'}" data-act="metodo" data-v="escribir">Con mi nombre</button>
+        <button aria-pressed="${c.metodo==='dibujar'}" data-act="metodo" data-v="dibujar">Dibujarla</button>
+      </div>
+      ${c.metodo === 'escribir'
+        ? `<div class="estilos">${Object.entries(ESTILOS).map(([k, e]) => `<button class="estilo" style="font-family:${e.fam}" aria-pressed="${c.estiloSel===k}" data-act="estilo" data-v="${k}">${esc(p.nombre)}</button>`).join('')}</div>
+           <p class="sub">El nombre sale de tu DNI; tú solo eliges el estilo.</p>`
+        : `<canvas class="lienzo" id="lienzo" aria-label="Dibuja tu firma aquí"></canvas>
+           <div style="display:flex;gap:8px;justify-content:space-between;align-items:center"><span class="sub">Dibuja con el dedo.</span><button class="btn sec fino" data-act="limpiar">Borrar</button></div>`}
+      <button class="btn grande" data-act="guardarFirma">Guardar mi firma</button>
+    </div>`;
+  }
+  function sheetFirmar(p){
+    const g = S.guardada[p.id], c = S.cel;
+    let cuerpo;
+    if(!g){
+      cuerpo = editorFirma(p);
+    } else if(c.paso === 0){
+      cuerpo = `<div class="tarjeta">
+          <h4>Vas a firmar tu boleta de ${PERIODO}</h4>
+          <p class="sub">Esta es tu firma guardada. Quedará copiada en esta boleta, con la fecha y la hora.</p>
+          ${firmaHTML(g, p)}
+          <p class="sub">Para dar por recibida tu boleta necesitas firmarla. Si no puedes hacerlo desde aquí, avisa a Desarrollo Organizacional.</p>
+        </div>`;
+    } else {
+      cuerpo = `<div class="tarjeta aviso-boleta">
+          <h4>¿Firmas tu boleta de ${PERIODO}?</h4>
+          <p class="sub">Un clic de más aquí cuenta como tu firma. Revísalo una vez más: no se puede deshacer.</p>
+          ${firmaHTML(g, p)}
+        </div>`;
+    }
+    const base = !g ? '' : (c.paso === 0
+      ? `<button class="btn rojo grande" data-act="celFirmar1">Firmar y recibir</button><button class="btn sec" data-act="celVerOtraVez">Ver mi boleta otra vez</button>`
+      : `<button class="btn rojo grande" data-act="celFirmarOk">Sí, firmar mi boleta</button><button class="btn sec" data-act="celFirmar0">Volver</button>`);
+    return `<div class="sheet">
+      <div class="top"><button data-act="celVolver" aria-label="Cerrar">← Cerrar</button><b>Firmar boleta</b></div>
+      <div class="scroll">${cuerpo}</div>
+      ${base ? `<div class="base">${base}</div>` : ''}</div>`;
+  }
+  function sheetHecho(p){
+    return `<div class="sheet">
+      <div class="top"><b style="margin-left:10px">Boleta firmada</b></div>
+      <div class="scroll"><div class="exito">
+        <div class="tic" aria-hidden="true">✓</div>
+        <h3>Listo, firmaste tu boleta</h3>
+        <p class="sub" style="color:var(--color-taupe)">${PERIODO} · ${fmt(p.firmada)}</p>
+        <div style="width:100%">${firmaHTML(p.firma, p)}</div>
+        <p class="sub" style="color:var(--color-taupe)">Desarrollo Organizacional ya lo ve. Puedes volver a abrir tu boleta cuando quieras.</p>
+      </div></div>
+      <div class="base"><button class="btn grande" data-act="celVolver">Volver a mis boletas</button></div></div>`;
+  }
+  function renderCel(){
+    const id = $('#selPersona').value || S.foco;
+    const p = persona(id), c = S.cel, v = visible(p);
+    const lista = (p.estado === 'publicada');          // lo que ella puede ver: publicadas (nunca borradores)
+    const porFirmar = lista && !p.firmada;
+    let cuerpo = '';
+    if(c.pant === 'resumen'){
+      cuerpo = `
+        ${porFirmar ? `<div class="tarjeta aviso-boleta"><h4>Tu boleta de ${PERIODO} está lista</h4>
+            <p class="sub">Ábrela y fírmala para darla por recibida.</p>
+            <button class="btn rojo" data-act="celIr" data-v="boletas">Ir a mis boletas</button></div>` : ''}
+        ${lista && p.firmada ? `<div class="tarjeta"><h4>Boleta de ${PERIODO}</h4><p class="sub">La firmaste el ${fmt(p.firmada)}</p></div>` : ''}
+        <div class="tarjeta gris"><h4>Mi día</h4><p class="sub">Entrada 8:58 a. m. · Refrigerio 1:00 p. m.</p></div>
+        <div class="tarjeta gris"><h4>Mis vacaciones</h4><p class="sub">12 días disponibles.</p></div>`;
+    } else if(c.pant === 'boletas'){
+      if(lista){
+        cuerpo = `<div class="tarjeta">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h4>${PERIODO}</h4><span class="ins ${ETIQUETA[v][1]}">${ETIQUETA[v][0]}</span></div>
+            <p class="sub">Periodo 29 ago – 28 sep · publicada el ${fmt(p.publicada)}</p>
+            ${p.firmada ? `<p class="sub">Firmada el <strong>${fmt(p.firmada)}</strong></p>` : ''}
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button class="btn ${p.firmada ? 'sec' : 'rojo'} grande" data-act="celVer">${p.firmada ? 'Ver mi boleta' : 'Ver mi boleta'}</button>
+              ${p.firmada ? '' : `<button class="btn grande" data-act="celIrFirmar" ${p.vista ? '' : 'disabled'}>Firmar</button>
+              <p class="sub">${p.vista ? 'Ya la abriste: puedes firmarla.' : 'Ábrela con «Ver mi boleta» para poder firmarla.'}</p>`}
+            </div></div>`;
+      } else if(p.estado === 'anulada'){
+        cuerpo = `<div class="tarjeta"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h4>${PERIODO}</h4><span class="ins aviso">En revisión</span></div><p class="sub">Desarrollo Organizacional está revisando tu boleta. Te avisaremos cuando esté lista.</p></div>`;
+      } else if(p.estado === 'papel'){
+        cuerpo = `<div class="tarjeta"><h4>${PERIODO}</h4><p class="sub">Tu boleta se te entregó en papel el ${fmt(p.publicada)}</p></div>`;
+      } else {
+        cuerpo = `<div class="tarjeta"><h4>Todavía no hay boletas</h4><p class="sub">Cuando Desarrollo Organizacional publique tu boleta de ${PERIODO}, aparecerá aquí y te llegará un aviso.</p></div>`;
+      }
+    } else {
+      cuerpo = `<div class="tarjeta gris"><h4>Bandeja</h4><p class="sub">Aquí llegan tus avisos.</p></div>`;
+    }
+    const globo = porFirmar ? `<span class="globito">1</span>` : '';
+    let sheet = '';
+    const abre = c.pant !== ultimaPant; ultimaPant = c.pant;   // la hoja solo se desliza al abrirse, no en cada clic
+    if(c.pant === 'visor') sheet = sheetVisor(p);
+    else if(c.pant === 'firmar') sheet = sheetFirmar(p);
+    else if(c.pant === 'hecho') sheet = sheetHecho(p);
+    const pantBase = (c.pant === 'visor' || c.pant === 'firmar' || c.pant === 'hecho') ? (c.vuelve || 'boletas') : c.pant;
+    $('#phone').innerHTML = `
+      <div class="barra"><span>12:30</span><span>●●● 5G</span></div>
+      <div class="cab-c"><small>Hola, ${esc(iniciales(p))}</small><h3>${pantBase==='boletas'?'Mis boletas':(pantBase==='bandeja'?'Bandeja':'Lo mío')}</h3></div>
+      <div class="cuerpo">${cuerpo}</div>
+      <nav class="nav-c" aria-label="Lo mío">
+        <button data-act="celIr" data-v="resumen" ${pantBase==='resumen'?'aria-current="page"':''}>Resumen</button>
+        <button data-act="celIr" data-v="boletas" ${pantBase==='boletas'?'aria-current="page"':''}>Boletas${globo}</button>
+        <button data-act="celIr" data-v="bandeja" ${pantBase==='bandeja'?'aria-current="page"':''}>Bandeja</button>
+      </nav>${abre ? sheet.replace('class="sheet"','class="sheet anim"') : sheet}`;
+    bindLienzo();
+  }
+
+  /* lienzo para dibujar la firma */
+  function bindLienzo(){
+    const cv = $('#lienzo'); if(!cv) return;
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    const x = cv.getContext('2d'); x.scale(dpr, dpr);
+    x.lineWidth = 2.4; x.lineCap = 'round'; x.lineJoin = 'round'; x.strokeStyle = '#1a1a18';
+    let dib = false;
+    const pos = (e) => { const b = cv.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+    cv.addEventListener('pointerdown', (e) => { dib = true; cv.setPointerCapture(e.pointerId); x.beginPath(); x.moveTo(...pos(e)); S.cel.trazo = true; });
+    cv.addEventListener('pointermove', (e) => { if(!dib) return; x.lineTo(...pos(e)); x.stroke(); });
+    ['pointerup','pointercancel'].forEach((t) => cv.addEventListener(t, () => { dib = false; }));
+  }
+
+  /* ───────── recorrido guiado ───────── */
+  function renderRecorrido(){
+    const p = persona('c'), v = visible(p);
+    const hecho = [v !== 'falta', v !== 'falta' && v !== 'borrador', v === 'vista' || v === 'firmada', v === 'firmada', v === 'firmada'];
+    const ahora = hecho.findIndex((h) => !h);
+    const T = ['DO sube la boleta de Camila', 'DO la publica', 'Camila la abre', 'Camila la firma', 'DO ve la boleta firmada'];
+    $('#pasos').innerHTML = T.map((t, i) => `<li class="paso ${hecho[i] ? 'hecho' : (i === ahora ? 'ahora' : '')}"><b>Paso ${i+1}${hecho[i] ? ' · listo' : ''}</b>${t}</li>`).join('');
+    const pistas = [
+      'En la computadora, en la fila de <strong>Camila Rojas</strong>, pulsa <strong>«Subir boleta»</strong>. Puedes elegir un archivo tuyo o usar la boleta de ejemplo.',
+      'La boleta quedó guardada pero Camila todavía no la ve. Pulsa <strong>«Publicar»</strong> en su fila.',
+      'En el celular, entra a <strong>Boletas</strong> (tiene un globito) y pulsa <strong>«Ver mi boleta»</strong>. Fíjate que «Firmar» sigue apagado hasta que la abra.',
+      'Camila ya la abrió. Pulsa <strong>«Firmar»</strong> y sigue los pasos (su firma aún no está guardada: la creará ahí mismo).',
+      'En la computadora, la fila de Camila pasó a <strong>«Firmada»</strong> con fecha y hora. Pulsa <strong>«Ver boleta firmada»</strong> para ver la boleta con su firma estampada.',
+      'Recorrido completo. Ahora prueba <strong>anular</strong>: en la fila de Camila o de Rosa pulsa «Anular». La de <strong>Julia</strong> ya está anulada hace 20 h: pulsa «Restablecer». Con «Adelantar 49 h» verás qué pasa cuando vence el plazo.',
+    ];
+    $('#pista').innerHTML = (ahora === -1 ? pistas[5] : pistas[ahora]);
+  }
+
+  function render(){
+    const sel = $('#selPersona'), actual = sel.value || S.foco;
+    sel.innerHTML = S.personas.filter((p) => p.conCuenta).map((p) => `<option value="${p.id}" ${p.id === actual ? 'selected' : ''}>${esc(p.nombre)} · ${p.sede}</option>`).join('');
+    $('#chkFirma').checked = !!S.guardada[sel.value];
+    $('#relojTxt').textContent = S.off ? 'Reloj de la demo: +' + Math.round(S.off/3600000) + ' h' : 'Reloj de la demo: hoy';
+    renderDO(); renderCel(); renderRecorrido();
+  }
+
+  /* ───────── acciones ───────── */
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act]'); if(!el) return;
+    const a = el.dataset.act, id = el.dataset.id, c = S.cel;
+    const yo = persona($('#selPersona').value);
+    switch(a){
+      // — DO —
+      case 'subir': S.borrador = { tipo:'imagen', hojas: persona(id).hojas.length ? persona(id).hojas.slice() : [] }; S.modal = { t:'subir', id }; break;
+      case 'tipo': S.borrador = { tipo: el.dataset.v, hojas: [] }; break;
+      case 'ejemplo': S.borrador.hojas.push({ nombre:'boleta-ejemplo.' + (S.borrador.tipo === 'pdf' ? 'pdf' : 'jpg'), tipo:S.borrador.tipo, url:null, kb:412 }); break;
+      case 'quitarHoja': S.borrador.hojas.splice(+el.dataset.i, 1); break;
+      case 'guardar': { const p = persona(S.modal.id); p.hojas = S.borrador.hojas; p.estado = 'borrador'; p.anulada = null; p.vista = null; p.firmada = null; p.firma = null; p.publicada = null; p.subida = ahora(); S.modal = null; aviso('Boleta guardada. ' + iniciales(p) + ' todavía no la ve.'); break; }
+      case 'publicar': S.modal = { t:'publicar', id }; break;
+      case 'publicarOk': { const p = persona(id); p.estado = 'publicada'; p.publicada = ahora(); S.modal = null; aviso('Publicada. ' + iniciales(p) + ' recibió el aviso.'); break; }
+      case 'papel': S.modal = { t:'papel', id }; break;
+      case 'papelOk': { const p = persona(id); p.estado = 'papel'; p.publicada = ahora(); S.modal = null; aviso('Anotada como entregada en papel.'); break; }
+      case 'detalle': S.modal = { t:'detalle', id }; break;
+      case 'verFirmada': S.modal = { t:'firmada', id }; break;
+      case 'descargar': aviso('En la app real: baja la boleta con la constancia de firma (PDF).'); break;
+      case 'anular': S.anular = { motivo:'', texto:'', ok:false }; S.modal = { t:'anular', id }; break;
+      case 'anularOk': {
+        if(!anularValido()) return;
+        const p = persona(id), a = S.anular;
+        const motivo = a.motivo === 'otro' ? a.texto.trim() : MOTIVOS.find((m) => m[0] === a.motivo)[1];
+        p.anulada = { at: ahora(), motivo, prev: { estado:p.estado, hojas:p.hojas, subida:p.subida, publicada:p.publicada, vista:p.vista, firmada:p.firmada, firma:p.firma } };
+        p.hist = (p.hist || []).concat([{ t: ahora(), txt:'Anulada por DO · ' + motivo }]);
+        p.estado = 'anulada'; p.vista = null; p.firmada = null; p.firma = null;
+        S.modal = null; aviso('Boleta de ' + iniciales(p) + ' anulada. Puedes restablecerla durante 48 h.'); break;
+      }
+      case 'restablecer': S.modal = { t:'restablecer', id }; break;
+      case 'restablecerOk': {
+        const p = persona(id); if(!restablecible(p)){ S.modal = null; aviso('El plazo de 48 h ya venció.'); break; }
+        Object.assign(p, p.anulada.prev); p.anulada = null;
+        p.hist = (p.hist || []).concat([{ t: ahora(), txt:'Restablecida por DO' }]);
+        S.modal = null; aviso('Boleta restablecida: ' + iniciales(p) + ' la vuelve a ver.'); break;
+      }
+      case 'verAnulacion': S.modal = { t:'anulada', id }; break;
+      case 'reloj': S.off += (+el.dataset.h) * 3600 * 1000; aviso('Reloj adelantado ' + el.dataset.h + ' h.'); break;
+      case 'cerrar': S.modal = null; break;
+      // — celular —
+      case 'celIr': c.pant = el.dataset.v; break;
+      case 'celVer': c.vuelve = 'boletas'; c.pant = 'visor'; if(!yo.vista){ yo.vista = ahora(); aviso('Primera apertura anotada: ya puede firmarla.'); } break;
+      case 'celVolver': c.pant = c.vuelve || 'boletas'; c.paso = 0; break;
+      case 'celIrFirmar': if(!yo.vista) break; c.vuelve = 'boletas'; c.pant = 'firmar'; c.paso = 0; break;
+      case 'celVerOtraVez': c.pant = 'visor'; break;
+      case 'celFirmar1': c.paso = 1; break;
+      case 'celFirmar0': c.paso = 0; break;
+      case 'celFirmarOk': yo.firmada = ahora(); yo.firma = JSON.parse(JSON.stringify(S.guardada[yo.id])); c.pant = 'hecho'; c.paso = 0; break;
+      case 'metodo': c.metodo = el.dataset.v; c.trazo = false; break;
+      case 'estilo': c.estiloSel = el.dataset.v; break;
+      case 'limpiar': c.trazo = false; break;
+      case 'guardarFirma': {
+        if(c.metodo === 'escribir'){ S.guardada[yo.id] = { tipo:'tipografica', estilo:c.estiloSel }; }
+        else {
+          const cv = $('#lienzo');
+          if(!c.trazo || !cv){ aviso('Dibuja tu firma antes de guardar.'); return; }
+          S.guardada[yo.id] = { tipo:'dibujo', png: cv.toDataURL('image/png') };
+        }
+        aviso('Firma guardada. Ya puedes firmar tu boleta.'); break;
+      }
+    }
+    render();
+    if(a === 'limpiar') bindLienzo();
+  });
+
+  document.addEventListener('change', (e) => {
+    if(e.target.id === 'archivo'){
+      [...e.target.files].forEach((f) => {
+        S.borrador.hojas.push({ nombre:f.name, tipo:S.borrador.tipo, url: f.type.startsWith('image/') ? URL.createObjectURL(f) : null, kb: Math.max(1, Math.round(f.size / 1024)) });
+      });
+      render();
+    }
+    if(e.target.id === 'anMotivo'){ S.anular.motivo = e.target.value; render(); const t = $('#anTexto'); if(t) t.focus(); actualizarAnular(); }
+    if(e.target.id === 'anOk'){ S.anular.ok = e.target.checked; actualizarAnular(); }
+    if(e.target.id === 'selPersona'){ S.foco = e.target.value; S.cel = { pant:'resumen', paso:0, metodo:'escribir', estiloSel:'elegante', trazo:false }; render(); }
+    if(e.target.id === 'chkFirma'){
+      const id = $('#selPersona').value;
+      S.guardada[id] = e.target.checked ? { tipo:'tipografica', estilo:'elegante' } : null;
+      render();
+    }
+  });
+  function actualizarAnular(){
+    const b = $('#btnAnular'); if(b) b.disabled = !anularValido();
+    const c = $('#anCont'); if(c){ const n = S.anular.texto.trim().length; c.textContent = n >= 5 ? n + ' letras' : n + ' de 5 letras como mínimo'; }
+  }
+  document.addEventListener('input', (e) => { if(e.target.id === 'anTexto'){ S.anular.texto = e.target.value; actualizarAnular(); } });
+  $('#btnReset').addEventListener('click', () => { $('#selPersona').value = ''; reiniciar(); aviso('Demo reiniciada.'); });
+
+  reiniciar();
+})();
+</script>
+</body>
+</html>

@@ -36,26 +36,26 @@ set role authenticated;
 -- ── 1 · EL ATAQUE: crear una cuenta NUEVA directamente como Admin ─────────
 select throws_ok(
   $$ select fn_crear_persona('Complice', 'Nueva', '00000000-0000-0000-0000-000000023500',
-                             'admin', 'calidad_servicio', null, 'x') $$,
+                             'admin', 'calidad_servicio', null, 'x', false, 'dni', '23500001') $$,
   'No puedes crear una persona con un rol igual o superior al tuyo.',
   'BLOQUEADO · un lider_do no puede crear una cuenta nueva como Admin');
 
 -- ── 2 · Ni crear a un par (otro lider_do) ───────────────────────────────────
 select throws_ok(
   $$ select fn_crear_persona('Otro', 'LiderDO', '00000000-0000-0000-0000-000000023500',
-                             'lider_do', 'calidad_servicio', null, 'x') $$,
+                             'lider_do', 'calidad_servicio', null, 'x', false, 'dni', '23500002') $$,
   'No puedes crear una persona con un rol igual o superior al tuyo.',
   'BLOQUEADO · tampoco puede crear a un par de su propio rango');
 
 -- ── 3 · Lo que SÍ tiene que seguir funcionando: crear por debajo ───────────
 select lives_ok(
   $$ select fn_crear_persona('Nueva', 'Integrante', '00000000-0000-0000-0000-000000023500',
-                             'integrante', 'calidad_servicio', null, 'x') $$,
+                             'integrante', 'calidad_servicio', null, 'x', false, 'dni', '23500003') $$,
   'PERMITIDO · un lider_do sí puede crear a alguien como integrante, como siempre');
 
 select lives_ok(
   $$ select fn_crear_persona('Nueva', 'Encargada', '00000000-0000-0000-0000-000000023500',
-                             'supervisor_sede', 'calidad_servicio', null, 'x') $$,
+                             'supervisor_sede', 'calidad_servicio', null, 'x', false, 'dni', '23500004') $$,
   'PERMITIDO · y también como supervisor_sede, que sigue por debajo de lider_do');
 
 reset role;
@@ -67,7 +67,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000235a1
 set role authenticated;
 select throws_ok(
   $$ select fn_crear_persona('Malo', 'Rol', '00000000-0000-0000-0000-000000023500',
-                             'gerente', 'calidad_servicio', null, 'x') $$,
+                             'gerente', 'calidad_servicio', null, 'x', false, 'dni', '23500005') $$,
   'Rol inválido: gerente',
   'SIN ROMPER LO VIEJO · un rol fuera del catálogo sigue dando su propio error');
 

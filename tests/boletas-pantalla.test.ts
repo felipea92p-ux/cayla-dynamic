@@ -8,7 +8,7 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import {
-  accionesDeFila, borradoresDelTablero, casillaAvisar, fechaHoraLima, filtrarTablero,
+  accionesDeFila, borradoresDelTablero, casillaAvisar, diasDesdeElPago, fechaHoraLima, filtrarTablero,
   nombreDePeriodo, periodoInicial, resumenDelDocumento, sedesDelTablero, type FilaTablero,
 } from "@/lib/admin/boletas-pantalla";
 import { cambiosEntreVersiones } from "@/lib/boletas";
@@ -19,7 +19,8 @@ function fila(o: Partial<FilaTablero> = {}): FilaTablero {
     persona_id: "p1", nombre: "Ana Quispe", cargo: "Vendedora", sede_codigo: "TRU", tipo_vinculo: "planilla",
     tiene_cuenta: true, grupo_pagado: true, boleta_id: null, estado: "falta",
     version_id: null, version_n: null, tipo: null, n_partes: 0, bytes: 0, actualizada: false,
-    publicada_at: null, vista_at: null, recibida_at: null, ...o,
+    publicada_at: null, vista_at: null, recibida_at: null,
+    firmada: false, anulada_at: null, anulada_motivo: null, restablecible_hasta: null, ...o,
   };
 }
 
@@ -47,13 +48,40 @@ describe("accionesDeFila", () => {
     expect(a).toMatchObject({ subir: true, historial: true, ver: false, editar: false, anular: false });
   });
 
+  it("anulada dentro de las 48 horas: además se puede restablecer; vencido el plazo, ya no", () => {
+    const ahora = new Date("2026-10-18T12:00:00Z");
+    const dentro = conBoleta("anulada", { anulada_at: "2026-10-17T15:00:00Z", restablecible_hasta: "2026-10-19T15:00:00Z" });
+    const vencida = conBoleta("anulada", { anulada_at: "2026-10-10T15:00:00Z", restablecible_hasta: "2026-10-12T15:00:00Z" });
+    const vieja = conBoleta("anulada"); // anterior a la 0532: la base no sabe a qué volvería
+    expect(accionesDeFila(dentro, ahora)).toMatchObject({ restablecer: true, anulacion: true, subir: true });
+    expect(accionesDeFila(vencida, ahora)).toMatchObject({ restablecer: false, anulacion: true, subir: true });
+    expect(accionesDeFila(vieja, ahora)).toMatchObject({ restablecer: false, anulacion: true });
+  });
+
+  it("la constancia es solo de quien ya firmó (o confirmó antes de la firma)", () => {
+    expect(accionesDeFila(conBoleta("publicada", { vista_at: "x", recibida_at: "y", firmada: true }))).toMatchObject({ constancia: true, anular: true });
+    expect(accionesDeFila(conBoleta("publicada", { vista_at: "x", recibida_at: "y" }))).toMatchObject({ constancia: true });
+    expect(accionesDeFila(conBoleta("publicada", { vista_at: "x" }))).toMatchObject({ constancia: false });
+    expect(accionesDeFila(conBoleta("publicada"))).toMatchObject({ constancia: false });
+    expect(accionesDeFila(conBoleta("borrador"))).toMatchObject({ constancia: false });
+  });
+
   it("borrador: ver, editar e historial, pero NO anular (la persona no la ve)", () => {
     expect(accionesDeFila(conBoleta("borrador"))).toMatchObject({ ver: true, editar: true, historial: true, anular: false });
   });
 
-  it("publicada, vista o confirmada: todas, con anular", () => {
-    for (const extra of [{}, { vista_at: "2026-09-02T15:00:00Z" }, { vista_at: "2026-09-02T15:00:00Z", recibida_at: "2026-09-02T16:00:00Z" }]) {
+  it("publicada o vista: todas, con anular", () => {
+    for (const extra of [{}, { vista_at: "2026-09-02T15:00:00Z" }]) {
       expect(accionesDeFila(conBoleta("publicada", extra))).toMatchObject({ ver: true, editar: true, historial: true, anular: true });
+    }
+  });
+
+  it("firmada o confirmada: se mira con su firma, no con «Ver» a secas", () => {
+    const recibida = { vista_at: "2026-09-02T15:00:00Z", recibida_at: "2026-09-02T16:00:00Z" };
+    for (const extra of [recibida, { ...recibida, firmada: true }]) {
+      expect(accionesDeFila(conBoleta("publicada", extra))).toMatchObject({
+        constancia: true, ver: false, editar: true, historial: true, anular: true,
+      });
     }
   });
 
@@ -150,5 +178,20 @@ describe("periodos y fechas", () => {
     expect(resumenDelDocumento({ tipo: "imagen", n_partes: 3, bytes: 1_572_864 })).toBe("3 fotos · 1.5 MB");
     expect(resumenDelDocumento({ tipo: "pdf", n_partes: 1, bytes: 245_760 })).toBe("1 PDF · 240 KB");
     expect(resumenDelDocumento({ tipo: null, n_partes: 0, bytes: 0 })).toBeNull();
+  });
+});
+
+describe("diasDesdeElPago", () => {
+  it("cuenta días de Lima desde el pago", () => {
+    expect(diasDesdeElPago("2026-09-29T20:00:00+00:00", "2026-10-20")).toBe(21);
+    expect(diasDesdeElPago("2026-10-20T15:00:00+00:00", "2026-10-20")).toBe(0);
+  });
+  it("un pago de la noche de Lima cae en el día de Lima, no en el de UTC", () => {
+    // 22:00 en Lima del 19 = 03:00 UTC del 20.
+    expect(diasDesdeElPago("2026-10-20T03:00:00+00:00", "2026-10-20")).toBe(1);
+  });
+  it("sin fecha de pago no hay «vencido»", () => {
+    expect(diasDesdeElPago(null, "2026-10-20")).toBeNull();
+    expect(diasDesdeElPago(undefined, "2026-10-20")).toBeNull();
   });
 });

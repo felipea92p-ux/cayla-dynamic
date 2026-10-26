@@ -1,29 +1,44 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { Filtro } from "@/components/ui/filtro";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { debeTenerSalario, finDeContratoProximo, VENTANA_FIN_CONTRATO_DIAS } from "@/lib/admin/equipo-situacion";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Drawer } from "@/components/ui/drawer";
 import { Insignia } from "@/components/ui/insignia";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
+import { PanelPrueba } from "@/components/pruebas/panel-prueba";
+import { EtiquetaPrueba } from "@/components/pruebas/etiqueta-prueba";
+import type { FilaPrueba } from "@/lib/admin/pruebas";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
-import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
+import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
 import { listarPendientesPorPersona } from "@/lib/admin/bandeja-equipo";
 import {
-  hoyLima, primeroDeMesLima, rangoDelMesLima, puedeAdministrarEquipo, puedeVerPlanilla,
+  hoyLima, primeroDeMesLima, rangoDelMesLima, puedeAdministrarEquipo, puedeVerPlanilla, etiquetaDeSede,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
+  avisoDocumentoEnNombre, puedeMarcarCuentaDeServicio,
+  TIPOS_DOCUMENTO, TIPO_DOCUMENTO_LABEL, AYUDA_DOCUMENTO, errorDeDocumento, normalizarDocumento, type TipoDocumento,
+  estaDePrueba,
 } from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
@@ -70,43 +85,25 @@ function generarPin(): string {
   return pin;
 }
 
-/**
- * Copiar sin depender de que `navigator.clipboard` exista.
- *
- * La API moderna no está fuera de HTTPS (o localhost) y puede rechazar sin
- * permiso; el respaldo es el `textarea` de toda la vida. Devuelve si se copió
- * de verdad, porque un botón que dice «Copiado» sin haber copiado es peor que
- * uno que falla: quien lo lee cierra el panel y pierde el PIN.
- */
-async function copiarAlPortapapeles(texto: string): Promise<boolean> {
-  try {
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(texto);
-      return true;
-    }
-  } catch {
-    // sigue al respaldo
-  }
-  try {
-    const campo = document.createElement("textarea");
-    campo.value = texto;
-    campo.setAttribute("readonly", "");
-    campo.style.position = "fixed";
-    campo.style.opacity = "0";
-    document.body.appendChild(campo);
-    campo.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(campo);
-    return ok;
-  } catch {
-    return false;
-  }
-}
-
 interface Sede {
   id: string;
   codigo: string;
   nombre: string;
+  tipo: string | null;
+  ciudad: string | null;
+}
+
+// Alguien ya registrado cuyo nombre se parece al que se está dando de alta
+// (`fn_personas_parecidas`, 0506). Incluye a quien ya salió: se reactiva, no se
+// vuelve a crear.
+interface PersonaParecida {
+  persona_id: string;
+  nombres: string;
+  apellidos: string;
+  estado: string;
+  sede_codigo: string | null;
+  fecha_ingreso: string;
+  fecha_cese: string | null;
 }
 
 // Qué se muestra en la tabla. "fin_contrato" no es un estado de la persona sino
@@ -169,14 +166,25 @@ interface FormPersona {
   // No aplica a `practicante` (0322): su subvención no genera renta de 4ta.
   retencion4ta: string;   // "" | automatica | siempre
   constancia4ta: string;  // fecha hasta la que vale su constancia del F.V. 1609
+  // El documento (0513) — solo en el alta. Una vez creada la persona, se
+  // corrige en Datos personales (fn_set_documento), con motivo y rastro.
+  // El tipo arranca en DNI, el caso de casi todo el equipo: un campo que
+  // bloquea el envío no arranca vacío (regla de la casa).
+  tipoDocumento: TipoDocumento;
+  documento: string;
+  // Una estación de retail (0490) no es una persona y no tiene documento:
+  // entra sin él y queda marcada en la misma operación (fn_crear_persona).
+  esEstacion: boolean;
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", practicanteModalidad: "", cargo: "", finContrato: "", motivoFinContrato: "", retencion4ta: "", constancia4ta: "" };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", practicanteModalidad: "", cargo: "", finContrato: "", motivoFinContrato: "", retencion4ta: "", constancia4ta: "", tipoDocumento: "dni", documento: "", esEstacion: false };
 
 export default function EquipoPage() {
   const router = useRouter();
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
+  // Las estaciones de retail (0490): filas de `personas` que no son personas.
+  const [cuentasServicio, setCuentasServicio] = useState<{ id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string }[]>([]);
   // Catálogo de áreas (tabla `areas` vía RPC fn_areas; NUNCA por REST — schema cache trabado).
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
   // Fecha de ingreso + primera entrada marcada por persona (RPC fn_ingresos; solo admin/lider,
@@ -197,6 +205,10 @@ export default function EquipoPage() {
   // no pisar con «sin retención» una configuración real que no se pudo leer.
   const [retenciones4ta, setRetenciones4ta] = useState<Map<string, { modo: string; hasta: string }>>(new Map());
   const [retencionesOk, setRetencionesOk] = useState(false);
+  // Quién es personal de dirección (0187): no lleva tramo de salario, así que no cuenta en «sin salario».
+  // Consulta aparte y tolerante, igual que las de arriba: si falla, nadie se descarta por esta vía y el aviso
+  // cuenta de más (lo seguro: no esconder a alguien que sí debe tener salario).
+  const [direccion, setDireccion] = useState<Set<string>>(new Set());
   const [cargando, setCargando] = useState(true);
   // ¿La última carga de personas falló? Distinto de "personas vacío": lo
   // primero es un error que hay que poder reintentar, lo segundo es "nadie
@@ -222,11 +234,32 @@ export default function EquipoPage() {
   // (a diferencia de sede/área/estado): es un atajo de esta consulta, no una
   // forma de mirar la pantalla.
   const [soloSinSalario, setSoloSinSalario] = useState(false);
+  // Atajo de «Para atender»: solo quien tiene algo pendiente en la Bandeja. No se guarda entre visitas.
+  const [soloConPendientes, setSoloConPendientes] = useState(false);
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [form, setForm] = useState<FormPersona>(FORM_VACIO);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  // A quién se parece lo que se está dando de alta (0506). `null` = todavía no se
+  // preguntó (o se cambió el nombre y hay que volver a preguntar); con filas, el
+  // formulario pide confirmar que es OTRA persona antes de crear nada.
+  const [parecidas, setParecidas] = useState<PersonaParecida[] | null>(null);
+  // 0513 · el documento ya lo tiene alguien. A diferencia del nombre parecido,
+  // no se puede confirmar «es otra persona»: dos personas con el mismo
+  // documento no existen. `personaId` sale del `detail` del error de la base.
+  const [documentoDe, setDocumentoDe] = useState<{ mensaje: string; personaId: string | null } | null>(null);
+  // El aviso aparece ENCIMA de los botones, y en una pantalla de 768 px el botón
+  // «Es otra persona» queda a más de 1 000 px: sin llevarla hasta ahí parece que
+  // «Agregar» no hizo nada. Se desplaza y se le da el foco (el botón que se
+  // pulsó se deshabilita mientras guarda y el foco se iba al <body>).
+  const avisoParecidasRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (parecidas && parecidas.length > 0) {
+      avisoParecidasRef.current?.focus({ preventScroll: true });
+      avisoParecidasRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [parecidas]);
   // A quién devolverle el foco cuando se cierra el panel lateral — el botón o
   // el ítem de menú que lo abrió. Un solo ref para los seis paneles porque
   // solo uno puede estar abierto a la vez (ver `useFocoAtrapado`). Para el
@@ -240,19 +273,10 @@ export default function EquipoPage() {
   // y salida— viven en el mismo <Drawer> lateral (0428): flota encima de la
   // tabla en vez de empujarla hacia abajo, así que no hace falta desplazar la
   // pantalla hasta él como sí hacía falta cuando se abrían arriba, en línea.
-  // EL PIN NO VA POR UN TOAST, y esto no es una preferencia de forma.
-  //
-  // Un aviso «ok» se apaga solo a los 4,5 segundos (DURACION_OK_MS, en
-  // components/toast.tsx), y ahí dentro iba el único ejemplar de cuatro dígitos
-  // que el sistema muestra en su vida, con un texto que decía «anótalo ahora, no
-  // se vuelve a mostrar». No alcanza para leerlo, entenderlo y escribirlo, y si
-  // se pierde hay que regenerarlo — lo que invalida el PIN que esa persona ya
-  // tenía. Así que vive en un panel que NO se cierra solo: se cierra cuando
-  // alguien dice que ya lo tiene.
-  //
-  // El temporizador del toast no se toca: gobierna todos los avisos del panel.
-  const [pinNuevo, setPinNuevo] = useState<{ nombre: string; pin: string } | null>(null);
-  const [pinCopiado, setPinCopiado] = useState(false);
+  // El PIN se retiró de esta pantalla (2026-10-19, decisión de Felipe): el terminal de marcaje ya no lo usa
+  // (0375). Ni el alta lo muestra ni existe «Nuevo PIN». La base TODAVÍA exige un `pin_hash` al crear a alguien
+  // (`fn_crear_persona`), así que el alta sigue mandando uno al azar que nadie ve; quitar esa columna es otra
+  // migración, no de esta pantalla.
   const [ceseId, setCeseId] = useState<string | null>(null);
   const [ceseForm, setCeseForm] = useState<{ fecha: string; motivo: MotivoCese | "" }>({ fecha: "", motivo: "" });
   const [guardandoCese, setGuardandoCese] = useState(false);
@@ -314,7 +338,7 @@ export default function EquipoPage() {
       return;
     }
     const [{ data: sedesData, error: sedesError }, { data: personasData, error: personasError }, { data: funcionesData, error: funcionesError }, { data: areasData, error: areasError }, { data: ingresosData, error: ingresosError }] = await Promise.all([
-      supabase.from("sedes").select("id, codigo, nombre").order("nombre"),
+      supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad").order("nombre"),
       supabase.from("personas").select("id, nombres, apellidos, rol, estado, email, sede_base_id").order("nombres"),
       supabase.rpc("fn_personas_funciones"),
       supabase.rpc("fn_areas"),
@@ -369,6 +393,8 @@ export default function EquipoPage() {
           .map((r) => [r.id, { modo: r.retencion_4ta ?? "", hasta: r.constancia_4ta_hasta ?? "" }] as const),
       ),
     );
+    const { data: dirData, error: dirError } = await supabase.from("personas").select("id").eq("personal_direccion", true);
+    setDireccion(new Set(dirError ? [] : ((dirData as { id: string }[] | null) ?? []).map((d) => d.id)));
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.
     const funciones = new Map(
@@ -377,8 +403,20 @@ export default function EquipoPage() {
     );
     setFuncionesOk(!funcionesError);
     setSedes(sedesData ?? []);
+    // Cuentas de servicio (0490): las estaciones de retail. Consulta aparte y
+    // tolerante, como las de arriba: si la 0490 todavía no está en producción,
+    // falla sola, nadie se aparta y la pantalla queda como era. Las que sí lo
+    // son salen de la tabla y de todos los contadores —no son del equipo— y se
+    // listan en su propio bloque al final, para poder revisarlas.
+    const { data: servData, error: servError } = await supabase
+      .from("personas")
+      .select("id")
+      .eq("cuenta_de_servicio", true);
+    const idsServicio = new Set(servError ? [] : ((servData as { id: string }[] | null) ?? []).map((s) => s.id));
+    const todas = (personasData as { id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string }[] | null) ?? [];
+    setCuentasServicio(todas.filter((p) => idsServicio.has(p.id)));
     setPersonas(
-      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "practicante_modalidad" | "fecha_cese" | "motivo_cese">[]) ?? []).map((p) => {
+      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "practicante_modalidad" | "fecha_cese" | "motivo_cese">[]) ?? []).filter((p) => !idsServicio.has(p.id)).map((p) => {
         const extra = funciones.get(p.id);
         return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla", practicante_modalidad: extra?.practicante_modalidad ?? null, cargo: extra?.cargo ?? null, fecha_cese: extra?.fecha_cese ?? null, motivo_cese: extra?.motivo_cese ?? null };
       }),
@@ -428,6 +466,21 @@ export default function EquipoPage() {
   // Falla silencioso, igual que el resto de esta pantalla: sin esto, la fila
   // simplemente no muestra el aviso, no se cae la tabla.
   const [pendientes, setPendientes] = useState<Map<string, string[]>>(new Map());
+  // Quién está de prueba y en qué día va (0536). Lo ve quien abre Equipo según su alcance: DO todo,
+  // la líder de equipo su sede. Sin esto, «dar de baja» a alguien de prueba es el cese de siempre
+  // y no dice si no fue apto o se retiró —que es lo que decide si se le paga lo trabajado.
+  const [pruebas, setPruebas] = useState<Map<string, FilaPrueba>>(new Map());
+  // Subir este número vuelve a pedirlas (después de cerrar una prueba).
+  const [versionPruebas, setVersionPruebas] = useState(0);
+  useEffect(() => {
+    let vigente = true;
+    void createAdminSupabaseClient()
+      .rpc("fn_pruebas_abiertas")
+      .then(({ data }) => {
+        if (vigente) setPruebas(new Map(((data as FilaPrueba[] | null) ?? []).map((f) => [f.persona_id, f] as const)));
+      });
+    return () => { vigente = false; };
+  }, [versionPruebas]);
   useEffect(() => {
     if (rol === null) return;
     let vigente = true;
@@ -454,11 +507,12 @@ export default function EquipoPage() {
     if (fEstado === "inactivos" && p.estado === "activo") return false;
     // Quien tiene fecha de término anotada y sigue trabajando. A quien ya cesó no
     // se le pregunta si se renueva: su contrato ya terminó de hecho.
-    if (fEstado === "fin_contrato" && (p.estado !== "activo" || !finesContrato.has(p.id))) return false;
+    if (fEstado === "fin_contrato" && (p.estado !== "activo" || !finDeContratoProximo(finesContrato.get(p.id), hoyLima()))) return false;
     // Atajo de la tarjeta "Sin salario asignado". Solo tiene sentido con
     // datos de salario ya cargados: si `fn_salarios_vigentes` falló, no hay
     // forma de distinguir "sin asignar" de "no se pudo leer".
-    if (soloSinSalario && (salariosEstado !== "ok" || p.estado !== "activo" || salarios[p.id])) return false;
+    if (soloSinSalario && (salariosEstado !== "ok" || p.estado !== "activo" || salarios[p.id] || !debeTenerSalario({ tipo_vinculo: p.tipo_vinculo, personal_direccion: direccion.has(p.id) }))) return false;
+    if (soloConPendientes && (pendientes.get(p.id)?.length ?? 0) === 0) return false;
     if (fSede !== "todas" && p.sede_base_id !== fSede) return false;
     if (fArea !== "todas" && p.funcion !== fArea) return false;
     const q = sinTildes(busca.trim());
@@ -472,98 +526,112 @@ export default function EquipoPage() {
   }
   const ocultas = personas.length - visibles.length;
 
-  // Las tarjetas de arriba de la tabla, mismo patrón que ya usan Contratos y
-  // Documentación (un número que es su propio filtro). Se calculan sobre
-  // `personas` completo —nunca sobre `visibles`— porque si no, filtrar por
-  // sede haría que las tarjetas cambiaran de significado a media consulta.
+  // Los números de «Para atender» y de los chips de arriba de la lista. Se calculan sobre `personas`
+  // completo —nunca sobre `visibles`— porque si no, filtrar por sede haría que cambiaran de significado
+  // a media consulta.
   const nActivos = personas.filter((p) => p.estado === "activo").length;
   const nInactivos = personas.length - nActivos;
-  const nFinContrato = personas.filter((p) => p.estado === "activo" && finesContrato.has(p.id)).length;
+  const hoy = hoyLima();
+  const nFinContrato = personas.filter((p) => p.estado === "activo" && finDeContratoProximo(finesContrato.get(p.id), hoy)).length;
+  // «Sin salario» solo cuenta a quien DEBE tener tramo (dirección, honorarios y sin vínculo laboral, no).
   const nSinSalario = salariosEstado === "ok"
-    ? personas.filter((p) => p.estado === "activo" && !salarios[p.id]).length
+    ? personas.filter((p) => p.estado === "activo" && !salarios[p.id] && debeTenerSalario({ tipo_vinculo: p.tipo_vinculo, personal_direccion: direccion.has(p.id) })).length
     : 0;
-  const contadores: { clave: string; etiqueta: string; n: number; activo: boolean; onClick: () => void }[] = [
-    {
-      clave: "activos", etiqueta: "Activos", n: nActivos, activo: fEstado === "activos" && !soloSinSalario,
-      onClick: () => { setFEstado("activos"); setSoloSinSalario(false); },
-    },
-    ...(puedeSalarios ? [{
-      clave: "fin_contrato", etiqueta: "Fin de contrato próximo", n: nFinContrato, activo: fEstado === "fin_contrato",
-      onClick: () => { setFEstado(fEstado === "fin_contrato" ? "activos" : "fin_contrato"); setSoloSinSalario(false); },
-    }] : []),
-    ...(puedeSalarios ? [{
-      clave: "sin_salario", etiqueta: "Sin salario asignado", n: nSinSalario, activo: soloSinSalario,
-      onClick: () => { setSoloSinSalario((v) => !v); if (fEstado !== "activos") setFEstado("activos"); },
-    }] : []),
-    {
-      clave: "inactivos", etiqueta: "Inactivos", n: nInactivos, activo: fEstado === "inactivos",
-      onClick: () => { setFEstado(fEstado === "inactivos" ? "activos" : "inactivos"); setSoloSinSalario(false); },
-    },
-  ];
+  const nConPendientes = personas.filter((p) => p.estado === "activo" && (pendientes.get(p.id)?.length ?? 0) > 0).length;
+  const atenderActiva = soloSinSalario ? "sin_salario" : soloConPendientes ? "pendientes" : fEstado === "fin_contrato" ? "fin_contrato" : null;
+  function alTocarAtender(clave: string) {
+    const ya = atenderActiva === clave;
+    setSoloSinSalario(false); setSoloConPendientes(false);
+    if (fEstado === "fin_contrato") setFEstado("activos");
+    if (ya) return;
+    if (clave === "fin_contrato") setFEstado("fin_contrato");
+    if (clave === "sin_salario") { setSoloSinSalario(true); if (fEstado !== "activos") setFEstado("activos"); }
+    if (clave === "pendientes") { setSoloConPendientes(true); if (fEstado !== "activos") setFEstado("activos"); }
+  }
+  function quitarFiltros() {
+    setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("activos"); setSoloSinSalario(false); setSoloConPendientes(false);
+  }
+
+  // Las personas visibles, agrupadas por su sede base (en el orden en que vienen las sedes). Una sede sin nadie
+  // visible no se dibuja; quien tuviera una sede desconocida cae al final en «Sin sede».
+  const gruposDeSede = (() => {
+    const conocidas = sedes
+      .map((sd) => ({ clave: sd.id, titulo: etiquetaDeSede(sd).titulo, codigo: sd.codigo, gente: visibles.filter((p) => p.sede_base_id === sd.id) }))
+      .filter((g) => g.gente.length > 0);
+    const ids = new Set(sedes.map((sd) => sd.id));
+    const sueltas = visibles.filter((p) => !ids.has(p.sede_base_id));
+    return sueltas.length > 0 ? [...conocidas, { clave: "sin-sede", titulo: "Sin sede", codigo: "?", gente: sueltas }] : conocidas;
+  })();
 
   function codigoSede(id: string) {
     return sedes.find((s) => s.id === id)?.codigo ?? "?";
   }
 
-  // Nombre + los avisos de abajo (ingreso, fin de contrato, cese, pendientes).
-  // Función que devuelve JSX, no un componente aparte: se usa igual en la fila
-  // de escritorio y en la tarjeta de mobile, y así no hay dos copias del texto
-  // legal de cada aviso divergiendo con el tiempo.
+  // El nombre y lo que NO cambia seguido: cargo y área en una línea, y el correo. Los avisos (pendientes, fin de
+  // contrato, sin salario, cuándo se fue) viven en su propia columna «Situación» (2026-10-19): antes iban
+  // apilados bajo el nombre y una fila de tres avisos medía el triple que una sin ninguno.
+  // Función que devuelve JSX, no un componente aparte: se usa igual en la fila de escritorio y en la tarjeta
+  // de mobile.
   function bloqueNombre(p: Persona) {
-    const pend = pendientes.get(p.id) ?? [];
+    // El CARGO manda sobre la etiqueta del rol (0182). El rol es un permiso —qué pantallas abre— y usarlo como
+    // título hacía que tres locadores figuraran como «Líder de equipo» y «Admin»; cargo de mando, área y monto
+    // fijo son indicios que desnaturalizan una locación de servicios.
+    const cargo = p.cargo !== null && p.cargo !== "" ? p.cargo : "Sin cargo";
     return (
       <>
         <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
         {p.con_hijos && (
           <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
         )}
-        {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
-          <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
-        )}
-        {/* En ámbar cuando su contrato vence este mes o antes: es el
-            momento en que sale del tablero de Documentación y, si es
-            que no se renueva, cuando hay que registrar su cese. */}
-        {puedeSalarios && finesContrato.has(p.id) && (
-          <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
-            Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
-          </div>
-        )}
-        {/* Cuándo y por qué se fue (0179). Solo aplica a quien está inactivo:
-            al equipo activo no le agrega una celda vacía en cada fila. Cierra
-            la secuencia que ya cuentan las dos líneas de arriba:
-            entró · hasta cuándo tenía contrato · cuándo se fue.
-            El motivo llega null si quien mira no es admin ni líder DO
-            —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
-        {p.estado === "inactivo" && p.fecha_cese && (
-          <div className="text-xs text-taupe">
-            Se fue: {fmtFechaDMA(p.fecha_cese)}
-            {p.motivo_cese && (
-              // El texto sale del catálogo también cuando es `por_revisar`:
-              // el desplegable de cese ya lo nombra así, y dos formas de decir
-              // lo mismo en la misma pantalla se contradicen a la primera. Lo
-              // único que cambia es el ámbar, que dice «esto falta».
-              <> · {p.motivo_cese === "por_revisar"
-                ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
-                    {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
-                  </span>
-                : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
-            )}
-          </div>
-        )}
-        {/* Pendientes (0428): mismas RPC que ya agrega `/admin/bandeja` por
-            tipo, acá agrupadas por persona. El link manda a Bandeja en
-            general —no hay hoy una forma de filtrarla por persona— y el
-            detalle de cuáles son queda en el `title`, que sí se puede leer
-            sin tener que entrar. */}
-        {pend.length > 0 && (
-          <Link href="/admin/bandeja" title={pend.join(" · ")} className="mt-0.5 inline-block">
-            <Insignia variante="advertencia" tamano="sm" punto={false}>
-              {pend.length} pendiente{pend.length === 1 ? "" : "s"}
-            </Insignia>
-          </Link>
-        )}
+        <div className="text-xs text-taupe">
+          {cargo} · {areaCorto(areas, p.funcion)}
+          {/* Central y administración no cuentan para la cobertura de una tienda: un hecho neutro, no un aviso. */}
+          {estaDePrueba(p.tipo_vinculo) && <span className="ml-1.5"><Insignia variante="informativo" tamano="sm" punto={false}>de prueba · no suma cobertura</Insignia></span>}
+        </div>
+        {p.email && <div className="truncate text-xs text-taupe">{p.email}</div>}
       </>
     );
+  }
+
+  // «Situación»: lo que pide una mirada, en insignias con palabra (el color no va solo). Es la columna que
+  // reemplaza a los avisos apilados bajo el nombre.
+  function situacion(p: Persona) {
+    const pend = pendientes.get(p.id) ?? [];
+    const fin = finesContrato.get(p.id);
+    const finCerca = p.estado === "activo" && finDeContratoProximo(fin, hoy);
+    const yaVencio = p.estado === "activo" && fin !== undefined && fin < hoy;
+    const filas: ReactNode[] = [];
+    // Quien está de prueba lo dice primero: es lo que más cambia cómo se lee el resto de su fila (todavía no tiene
+    // contrato, y «sin salario» o «sin contrato» no son un olvido). Mismo texto que en Horas, Horarios y Planilla.
+    const prueba = p.estado === "activo" ? pruebas.get(p.id) : undefined;
+    if (prueba) filas.push(<EtiquetaPrueba key="prueba" fila={prueba} />);
+    if (p.estado === "inactivo") {
+      filas.push(
+        <span key="salio" className="text-xs text-taupe">
+          {p.fecha_cese ? `Se fue el ${fmtFechaDMA(p.fecha_cese)}` : "Inactivo"}
+          {p.motivo_cese && <> · {p.motivo_cese === "por_revisar"
+            ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">{etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</span>
+            : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>}
+        </span>,
+      );
+    }
+    if (puedeSalarios && fin) {
+      filas.push(
+        <Insignia key="fin" variante={yaVencio ? "alerta" : finCerca ? "advertencia" : "neutral"} tamano="sm" punto={false}>
+          {yaVencio ? `Terminó el ${fmtFechaDMA(fin)} y sigue de alta` : `Contrato hasta ${fmtFechaDMA(fin)}`}
+        </Insignia>,
+      );
+    }
+    if (pend.length > 0) {
+      // El enlace manda a la Bandeja en general —hoy no se puede filtrar por persona— y el detalle de cuáles son
+      // queda en el `title`; en celular no se ve, y por eso la pantalla lo dice también en su ayuda.
+      filas.push(
+        <Link key="pend" href="/admin/bandeja" title={pend.join(" · ")}>
+          <Insignia variante="advertencia" tamano="sm" punto={false}>{pend.length} pendiente{pend.length === 1 ? "" : "s"}</Insignia>
+        </Link>,
+      );
+    }
+    return filas.length > 0 ? <div className="flex flex-wrap items-center gap-1.5">{filas}</div> : <span className="text-xs text-taupe">—</span>;
   }
 
   // La celda de salario, sin sus acciones (que desde ahora viven en el menú
@@ -579,7 +647,11 @@ export default function EquipoPage() {
       // se abre la columna Salario — que no tenga uno asignado es justo lo
       // que hay que poder leer, y menos de 4.5:1 no lo garantiza (auditoría
       // 2026-09-06/07).
-      : <span className="text-taupe">Sin asignar</span>;
+      : debeTenerSalario({ tipo_vinculo: p.tipo_vinculo, personal_direccion: direccion.has(p.id) })
+        ? <span className={p.estado === "activo" ? "font-medium text-ambar" : "text-taupe"}>Sin asignar</span>
+        // Dirección, honorarios y sin vínculo laboral no llevan tramo: decirlo evita que «Sin asignar» se lea como
+        // un olvido (y es la misma regla que deja a esta persona fuera de «sin salario» arriba).
+        : <span className="text-taupe">No aplica</span>;
   }
 
   // Las acciones de bajo uso de la fila, detrás de un menú "•••" (el mismo
@@ -587,7 +659,7 @@ export default function EquipoPage() {
   // angosta y "Editar" siempre visible al lado, cinco botones sueltos no
   // cabían sin romper a dos líneas en pantallas medianas.
   //
-  // Nuevo PIN / Registrar salida / Reactivar exigen `puedeEscribir` (admin o
+  // Dar de baja / Reactivar exigen `puedeEscribir` (admin o
   // líder DO) — a una encargada de sede esas RPC la rechazan siempre. Si
   // ninguna de las dos familias de permiso aplica, el menú entero no tiene
   // nada que ofrecer y no se dibuja: un "•••" que abre a un menú vacío es
@@ -611,13 +683,10 @@ export default function EquipoPage() {
           <MenuItem onClick={() => empezarSalario(p)}>{sal ? "Editar salario" : "Asignar salario"}</MenuItem>
         )}
         {puedeSalarios && <MenuItem onClick={() => void verHistorial(p)}>Historial de salario</MenuItem>}
-        {/* Solo a quien está activa: desde la 0364 el servidor rechaza
-            regenerar el PIN de una persona inactiva. */}
-        {puedeEscribir && p.estado === "activo" && <MenuItem onClick={() => void regenerarPin(p)}>Nuevo PIN</MenuItem>}
         {puedeEscribir && (p.estado === "activo" ? (
-          // «Registrar salida» y no «Desactivar»: lo que se hace es anotar
+          // «Dar de baja» y no «Desactivar»: lo que se hace es anotar
           // un hecho con su fecha y su motivo, no apagar un interruptor.
-          <MenuItem variante="peligro" onClick={() => empezarCese(p)}>Registrar salida</MenuItem>
+          <MenuItem variante="peligro" onClick={() => empezarCese(p)}>Dar de baja</MenuItem>
         ) : (
           <MenuItem onClick={() => setReactivarPendiente(p)}>Reactivar</MenuItem>
         ))}
@@ -625,15 +694,55 @@ export default function EquipoPage() {
     );
   }
 
-  async function crearPersona() {
+  // `confirmado` va SIEMPRE explícito (nunca `onClick={crearPersona}`): React le
+  // pasaría el evento como primer argumento, que es «verdadero», y el aviso de
+  // parecidos se saltaría solo.
+  async function crearPersona(confirmado: boolean) {
     if (!form.nombres.trim() || !form.apellidos.trim() || !form.sedeId) {
-      avisar("error", "Nombres, apellidos y sede son obligatorios.");
+      avisar("error", "Nombre corto, apellido corto y sede son obligatorios.");
       return;
     }
+    // Antes de preguntar por parecidos: si el DNI viaja en el apellido, el aviso
+    // de parecidos tampoco lo vería como la misma persona (0512).
+    const documentoEnNombre = avisoDocumentoEnNombre(form.nombres, form.apellidos);
+    if (documentoEnNombre) {
+      avisar("error", documentoEnNombre);
+      return;
+    }
+    // 0513 · el documento, con la misma regla que la base. Una estación no lleva.
+    if (!form.esEstacion) {
+      const errorDoc = errorDeDocumento(form.tipoDocumento, form.documento);
+      if (errorDoc) {
+        avisar("error", errorDoc);
+        return;
+      }
+    }
+    setDocumentoDe(null);
     setGuardando(true);
-    const pin = generarPin();
-    const pinHash = await bcrypt.hash(pin, 10);
     const supabase = createAdminSupabaseClient();
+    // 0506 · ANTES de generar un PIN y de escribir nada: ¿esta persona ya está
+    // registrada? Una persona quedó dada de alta dos veces porque dar de alta no
+    // miraba a nadie. Si la pregunta falla NO se sigue: el servidor tiene el mismo
+    // candado (`fn_crear_persona` se niega sin confirmación), pero seguir a ciegas
+    // sería justo lo que esto vino a evitar.
+    if (!confirmado) {
+      const { data: yaRegistradas, error: errorParecidas } = await supabase.rpc("fn_personas_parecidas", {
+        p_nombres: form.nombres.trim(),
+        p_apellidos: form.apellidos.trim(),
+      });
+      if (errorParecidas) {
+        setGuardando(false);
+        avisar("error", mensajeDeError(errorParecidas, "comprobar si ya está registrada"));
+        return;
+      }
+      if (yaRegistradas && yaRegistradas.length > 0) {
+        setGuardando(false);
+        setParecidas(yaRegistradas);
+        return;
+      }
+    }
+    // La base exige un pin_hash; nadie lo ve ni lo usa (ver el comentario de arriba).
+    const pinHash = await bcrypt.hash(generarPin(), 10);
     // Alta por RPC: el insert REST falla entero (PGRST204) si el payload trae "funcion".
     const { data: creada, error } = await supabase.rpc("fn_crear_persona", {
       p_nombres: form.nombres.trim(),
@@ -643,18 +752,44 @@ export default function EquipoPage() {
       p_funcion: form.funcion,
       p_email: form.email.trim() || null,
       p_pin_hash: pinHash,
+      p_confirmo_distinta: confirmado,
+      p_tipo_documento: form.esEstacion ? null : form.tipoDocumento,
+      p_documento: form.esEstacion ? null : normalizarDocumento(form.documento),
+      p_es_estacion: form.esEstacion,
     });
     if (error) {
+      // Tras CUALQUIER fallo se descarta el aviso: el siguiente clic vuelve a
+      // preguntar. Si el fallo fue de red y la persona sí llegó a crearse, el
+      // «Es otra persona — agregar igual» que seguía a la vista la habría
+      // duplicado: ahora el reintento la encuentra.
+      setParecidas(null);
+      // 0513 · el documento ya es de alguien: se dice a quién y no se ofrece
+      // «agregar igual». Va antes que el nombre parecido, como en la base.
+      if (error.hint === "documento_repetido") {
+        setGuardando(false);
+        setDocumentoDe({ mensaje: error.message, personaId: error.details || null });
+        return;
+      }
+      // Carrera: otra pestaña dio de alta a esta persona entre la pregunta y el
+      // insert, y el servidor se negó. En vez de un toast con una instrucción, se
+      // muestra el aviso de siempre, con su botón.
+      if (error.hint === "persona_parecida") {
+        const { data: ahora } = await supabase.rpc("fn_personas_parecidas", {
+          p_nombres: form.nombres.trim(),
+          p_apellidos: form.apellidos.trim(),
+        });
+        if (ahora && ahora.length > 0) {
+          setGuardando(false);
+          setParecidas(ahora);
+          return;
+        }
+      }
       setGuardando(false);
       avisar("error", mensajeDeError(error, "crear"));
       return;
     }
-    // El PIN se muestra UNA sola vez, y por eso NO viaja en este aviso: va al
-    // panel de abajo, que no se apaga solo. Lo que quede acá es lo que sí puede
-    // desaparecer a los pocos segundos sin que se pierda nada — el «agregada» y,
-    // si toca, la advertencia de la asignación familiar.
-    const nombreCompleto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
-    let texto = `${nombreCompleto} agregado(a).`;
+    const nombreCorto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
+    let texto = `${nombreCorto} agregado(a).`;
     let tipoAviso: "ok" | "error" = "ok";
     if (form.conHijos) {
       const nuevaId = (creada as { id: string } | null)?.id;
@@ -662,8 +797,7 @@ export default function EquipoPage() {
         ? await supabase.rpc("fn_set_con_hijos", { p_persona_id: nuevaId, p_con_hijos: true })
         : { error: { message: "no se recibió el id de la persona" } };
       if (errorHijos) {
-        // Aviso en ROJO para que la falla no pase desapercibida. El PIN ya no
-        // depende de este mensaje: está en su panel, se muestre este aviso o no.
+        // Aviso en ROJO para que la falla no pase desapercibida.
         tipoAviso = "error";
         texto += ` OJO: la asignación familiar no se pudo activar (${errorHijos.message}) — márcala editando a la persona.`;
       }
@@ -671,25 +805,8 @@ export default function EquipoPage() {
     setGuardando(false);
     setMostrandoAlta(false);
     setForm(FORM_VACIO);
-    // Antes de `cargar()`: el PIN tiene que estar en pantalla ya, no cuando
-    // termine de releerse el equipo entero.
-    mostrarPin(nombreCompleto, pin);
     await cargar();
     avisar(tipoAviso, texto);
-  }
-
-  function mostrarPin(nombre: string, pin: string) {
-    setPinCopiado(false);
-    setPinNuevo({ nombre, pin });
-  }
-
-  async function copiarPin() {
-    if (!pinNuevo) return;
-    if (await copiarAlPortapapeles(pinNuevo.pin)) {
-      setPinCopiado(true);
-      return;
-    }
-    avisar("error", "No se pudo copiar al portapapeles. Anótalo a mano: el PIN sigue en pantalla hasta que cierres el panel.");
   }
 
   async function guardarEdicion() {
@@ -703,6 +820,12 @@ export default function EquipoPage() {
     // traducido por mensajeDeError.
     if (form.finContrato && form.fechaIngreso && form.finContrato < form.fechaIngreso) {
       avisar("error", `El contrato no puede terminar antes de su ingreso (${fmtFechaDMA(form.fechaIngreso)}). Revisa la fecha.`);
+      return;
+    }
+    // Misma regla que el alta y que la base (0512): el número no va en el nombre.
+    const documentoEnNombreEdicion = avisoDocumentoEnNombre(form.nombres, form.apellidos);
+    if (documentoEnNombreEdicion) {
+      avisar("error", documentoEnNombreEdicion);
       return;
     }
     setGuardando(true);
@@ -991,7 +1114,7 @@ export default function EquipoPage() {
     });
     setGuardandoCese(false);
     if (error) {
-      avisar("error", mensajeDeError(error, "registrar la salida"));
+      avisar("error", mensajeDeError(error, "dar de baja"));
       return;
     }
     setCeseId(null);
@@ -1021,21 +1144,6 @@ export default function EquipoPage() {
     await reactivar(p);
   }
 
-  // El PIN nace en el servidor (0364): `fn_regenerar_pin` genera los cuatro
-  // dígitos, los hashea con bcrypt en Postgres y devuelve el PIN en claro UNA
-  // sola vez. Antes se hasheaba acá y se escribía `pin_hash` por REST directo,
-  // con la RLS como único freno; hoy un update directo a esa columna lo corta
-  // un trigger, así que este es el único camino.
-  async function regenerarPin(p: Persona) {
-    const supabase = createAdminSupabaseClient();
-    const { data: pin, error } = await supabase.rpc("fn_regenerar_pin", { p_persona_id: p.id });
-    if (error || !pin) {
-      avisar("error", error ? mensajeDeError(error, "regenerar el PIN") : "No se recibió el PIN nuevo. Vuelve a intentarlo.");
-      return;
-    }
-    mostrarPin(`${p.nombres} ${p.apellidos}`, pin);
-  }
-
   function empezarEdicion(p: Persona, boton?: HTMLElement | null) {
     setEditandoId(p.id);
     setMostrandoAlta(false);
@@ -1060,6 +1168,10 @@ export default function EquipoPage() {
       motivoFinContrato: "",
       retencion4ta: retenciones4ta.get(p.id)?.modo ?? "",
       constancia4ta: retenciones4ta.get(p.id)?.hasta ?? "",
+      // No se editan aquí (ver FormPersona): van solo para completar la forma.
+      tipoDocumento: "dni",
+      documento: "",
+      esEstacion: false,
     });
   }
 
@@ -1169,6 +1281,33 @@ export default function EquipoPage() {
     setMostrandoAlta(false);
     setEditandoId(null);
     setForm(FORM_VACIO);
+    setParecidas(null);
+    setDocumentoDe(null);
+  }
+
+  // «Ver en la lista» del aviso de documento repetido (0513): igual que el de
+  // parecidos, pero la persona llega por su id —el `detail` del error—.
+  function verDuenaDelDocumento(personaId: string) {
+    const p = personas.find((x) => x.id === personaId);
+    cerrarFormulario();
+    if (p) setBusca(`${p.nombres} ${p.apellidos}`);
+    setFSede("todas");
+    setFArea("todas");
+    setFEstado("todos");
+    setSoloSinSalario(false);
+  }
+
+  // «Ver en la lista» del aviso de parecidos: cierra el alta y deja la tabla
+  // mostrando a esa persona, con todos los filtros quitados —si ya salió, el
+  // filtro «Solo el equipo actual» la escondería—. Desde ahí se abre su ficha o,
+  // si ya salió, se reactiva con «•••».
+  function verEnLaLista(p: PersonaParecida) {
+    cerrarFormulario();
+    setBusca(`${p.nombres} ${p.apellidos}`);
+    setFSede("todas");
+    setFArea("todas");
+    setFEstado("todos");
+    setSoloSinSalario(false);
   }
 
   // Una sola columna, sin `sm:grid-cols-2`: ese breakpoint mira el ANCHO DE LA
@@ -1192,14 +1331,83 @@ export default function EquipoPage() {
   // ningún permiso)" contra el borde.
   const formulario = (modo: "alta" | "edicion") => (
     <div className="grid grid-cols-1 gap-4">
+      {/* Estos dos campos son el NOMBRE CORTO, no el nombre legal: «Elida» y
+          «Salinas», no «Elida Lizeth» y «Salinas Mamani». Se llamaban «Nombres» y
+          «Apellidos» —en plural, como un formulario del DNI— y quien los llenaba
+          con un nombre y un apellido «por practicidad» dejaba la duda de si
+          estaba cargando algo incompleto. El nombre completo vive en Datos
+          personales (`nombre_dni`) y es el que sale en los papeles: ver
+          `packages/shared/src/nombres.ts`. */}
       <label className="flex flex-col gap-1 text-sm">
-        Nombres
-        <input value={form.nombres} onChange={(e) => setForm({ ...form, nombres: e.target.value })} className="rounded-lg border px-3 py-2" />
+        Nombre corto{" "}
+        <span className="text-taupe">(el de todos los días: así se ve en el terminal y en el panel)</span>
+        <input value={form.nombres} onChange={(e) => { setForm({ ...form, nombres: e.target.value }); setParecidas(null); }} disabled={guardando} className="rounded-lg border px-3 py-2 disabled:opacity-50" />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        Apellidos
-        <input value={form.apellidos} onChange={(e) => setForm({ ...form, apellidos: e.target.value })} className="rounded-lg border px-3 py-2" />
+        Apellido corto{" "}
+        <span className="text-taupe">(sin números: el DNI y el nombre completo se cargan en Datos personales y son los que salen en contratos, boletas y liquidaciones)</span>
+        <input value={form.apellidos} onChange={(e) => { setForm({ ...form, apellidos: e.target.value }); setParecidas(null); }} disabled={guardando} className="rounded-lg border px-3 py-2 disabled:opacity-50" />
       </label>
+      {/* ── EL DOCUMENTO (0513) ─────────────────────────────────────────────
+          Solo en el alta: es lo que impide registrar dos veces a la misma
+          persona (el índice único de documento). Después se corrige en Datos
+          personales, con motivo y rastro. La forma de cada tipo la dice
+          `AYUDA_DOCUMENTO`, la misma regla que la base. */}
+      {modo === "alta" && !form.esEstacion && (
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <label className="flex flex-col gap-1 text-sm">
+            Tipo de documento
+            <select
+              value={form.tipoDocumento}
+              onChange={(e) => { setForm({ ...form, tipoDocumento: e.target.value as TipoDocumento }); setDocumentoDe(null); }}
+              disabled={guardando}
+              className="rounded-lg border bg-crema px-3 py-2 disabled:opacity-50"
+            >
+              {TIPOS_DOCUMENTO.map((t) => <option key={t} value={t}>{TIPO_DOCUMENTO_LABEL[t]}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Número
+            <input
+              value={form.documento}
+              inputMode={form.tipoDocumento === "dni" ? "numeric" : "text"}
+              autoComplete="off"
+              onChange={(e) => { setForm({ ...form, documento: e.target.value }); setDocumentoDe(null); }}
+              disabled={guardando}
+              className="rounded-lg border px-3 py-2 disabled:opacity-50"
+            />
+            <span className="text-xs text-taupe">{AYUDA_DOCUMENTO[form.tipoDocumento]} Con esto el sistema sabe si ya está registrada.</span>
+          </label>
+        </div>
+      )}
+      {modo === "alta" && puedeMarcarCuentaDeServicio(rol) && (
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.esEstacion}
+            onChange={(e) => setForm({ ...form, esEstacion: e.target.checked, rol: e.target.checked ? "integrante" : form.rol })}
+            disabled={guardando}
+            className="mt-0.5 h-4 w-4 accent-tinta disabled:opacity-50"
+          />
+          <span>
+            Es una estación de retail (no es una persona)
+            <span className="block text-xs text-taupe">La cuenta compartida de una tienda en el sistema de retail. No lleva documento, no marca asistencia y no entra a la planilla.</span>
+          </span>
+        </label>
+      )}
+      {modo === "alta" && documentoDe && (
+        <div role="alert" className="rounded-lg border border-rojo/30 bg-rojo/10 p-4 text-sm">
+          <p className="font-medium text-rojo-profundo">Esta persona ya está registrada</p>
+          <p className="mt-1 text-taupe">{documentoDe.mensaje}</p>
+          {documentoDe.personaId && (
+            <div className="mt-3">
+              <Boton variante="secundario" tamano="sm" onClick={() => verDuenaDelDocumento(documentoDe.personaId as string)}>
+                Ver en la lista
+              </Boton>
+            </div>
+          )}
+        </div>
+      )}
       <label className="flex flex-col gap-1 text-sm">
         Sede
         <select value={form.sedeId} onChange={(e) => setForm({ ...form, sedeId: e.target.value })} className="rounded-lg border bg-crema px-3 py-2">
@@ -1214,7 +1422,8 @@ export default function EquipoPage() {
       <label className="flex flex-col gap-1 text-sm">
         Rol{" "}
         <span className="text-taupe">(qué pantallas puede abrir en Dynamic — no es su cargo)</span>
-        <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })} className="rounded-lg border bg-crema px-3 py-2">
+        {/* Una estación (0513) solo puede ser integrante: lo exige fn_set_cuenta_de_servicio. */}
+        <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })} disabled={form.esEstacion} className="rounded-lg border bg-crema px-3 py-2 disabled:opacity-50">
           {ROLES_OPCIONES.map((r) => (
             <option key={r.valor} value={r.valor}>{r.label}</option>
           ))}
@@ -1223,20 +1432,37 @@ export default function EquipoPage() {
       {/* CARGO (0182) — va justo debajo del rol a propósito: son la pareja que
           hasta hoy estaba mezclada. El rol de arriba decide qué abre; esto
           decide cómo se la nombra. */}
-      <label className="flex flex-col gap-1 text-sm">
-        Cargo{" "}
-        <span className="text-taupe">
-          (cómo se la nombra en la columna Cargo y en su contrato. No cambia ningún permiso)
-        </span>
-        <input
-          type="text"
-          value={form.cargo}
-          onChange={(e) => setForm({ ...form, cargo: e.target.value })}
-          placeholder="Ej.: Practicante de Derecho, Socia, Asesor"
-          maxLength={60}
-          className="rounded-lg border bg-crema px-3 py-2"
-        />
-      </label>
+      {/* EL CARGO Y EL VÍNCULO NO SE PIDEN AL DAR DE ALTA (0506). Este formulario los
+          mostraba pero `crearPersona` NUNCA los mandaba: solo llegan al servidor los
+          siete datos de `fn_crear_persona`. Quien escribía «Atención al cliente» veía
+          «Sin cargo» en la fila nueva, creía que no se había guardado y volvía a dar
+          de alta a la misma persona —con el nombre completo esta vez—: así quedó una
+          registrada dos veces. Peor era el vínculo: elegir «Recibo por honorarios» o
+          «Practicante» no hacía nada, y la persona quedaba como «Planilla», que
+          acumula gratificación, CTS y vacaciones. Un campo que se muestra es una
+          promesa de que se guarda; los dos viven en «Editar», donde sí se guardan. */}
+      {modo === "edicion" ? (
+        <label className="flex flex-col gap-1 text-sm">
+          Cargo{" "}
+          <span className="text-taupe">
+            (cómo se la nombra en la columna Cargo y en su contrato. No cambia ningún permiso)
+          </span>
+          <input
+            type="text"
+            value={form.cargo}
+            onChange={(e) => setForm({ ...form, cargo: e.target.value })}
+            placeholder="Ej.: Practicante de Derecho, Socia, Asesor"
+            maxLength={60}
+            className="rounded-lg border bg-crema px-3 py-2"
+          />
+        </label>
+      ) : (
+        <p className="rounded-lg bg-hueso px-3 py-2 text-xs text-taupe">
+          El cargo, el tipo de vínculo y el salario se completan después, con «Editar» y el menú «•••» de
+          esta persona. Mientras tanto queda como «Planilla»: si es practicante o va por recibo por
+          honorarios, cámbialo en «Editar» ANTES de asignarle salario.
+        </p>
+      )}
       <label className="flex flex-col gap-1 text-sm">
         Área{" "}
         <span className="text-taupe">
@@ -1403,7 +1629,7 @@ export default function EquipoPage() {
             : "Asignación familiar (tiene hijos) — según el monto vigente en Configuración"}
         </label>
       )}
-      {puedeSalarios && (
+      {puedeSalarios && modo === "edicion" && (
         // EL CAMPO CON MÁS CONSECUENCIAS DEL FORMULARIO. Existe en la base desde la
         // 0085 y hasta la 0119 no se podía elegir desde ninguna pantalla, así que
         // todos quedaban en 'planilla' por defecto. Se muestra la consecuencia
@@ -1533,18 +1759,65 @@ export default function EquipoPage() {
           </span>
         </label>
       )}
+      {/* EL AVISO DE PARECIDOS (0506). Dice A QUIÉN se parece —nombre completo,
+          si sigue en el equipo, sede e ingreso—: un «ya hay alguien parecido,
+          ¿seguro?» que no nombra a nadie se confirma a ciegas. «Ver en la lista»
+          lleva a esa persona con los filtros quitados, porque quien ya salió está
+          escondida por el filtro «Solo el equipo actual». */}
+      {modo === "alta" && parecidas && parecidas.length > 0 && (
+        <div ref={avisoParecidasRef} tabIndex={-1} role="alert" className="rounded-lg border border-rojo/30 bg-rojo/10 p-4 text-sm outline-none">
+          <p className="font-medium text-rojo-profundo">
+            {parecidas.length === 1 ? "Ya hay alguien registrado con un nombre parecido" : "Ya hay personas registradas con un nombre parecido"}
+          </p>
+          <p className="mt-1 text-taupe">
+            Si es la misma persona, no la registres otra vez: ábrela en la lista y complétala ahí
+            {parecidas.some((x) => x.estado !== "activo") ? " (a quien ya salió se la reactiva desde su menú «•••»)" : ""}.
+            Si es otra persona, confirma con el botón de abajo que es distinta — no hace falta
+            cambiarle el nombre ni agregarle su DNI para diferenciarla.
+          </p>
+          <ul className="mt-3 flex flex-col gap-2">
+            {parecidas.map((x) => (
+              <li key={x.persona_id} className="flex items-center justify-between gap-3 rounded-lg bg-papel px-3 py-2">
+                <span>
+                  <span className="font-medium">{x.nombres} {x.apellidos}</span>
+                  <span className="block text-xs text-taupe">
+                    {x.estado === "activo"
+                      ? "Está en el equipo"
+                      : `Salió${x.fecha_cese ? ` el ${fmtFechaDMA(x.fecha_cese)}` : ""}`}
+                    {" · "}{x.sede_codigo ?? "sin sede"}{" · "}ingresó {fmtFechaDMA(x.fecha_ingreso)}
+                  </span>
+                </span>
+                <Boton variante="secundario" tamano="sm" onClick={() => verEnLaLista(x)}>
+                  Ver en la lista
+                </Boton>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="flex justify-end gap-3">
         <Boton variante="secundario" onClick={cerrarFormulario} disabled={guardando}>
           Cancelar
         </Boton>
-        <Boton
-          variante="primario"
-          onClick={modo === "alta" ? crearPersona : guardarEdicion}
-          disabled={guardando}
-          cargando={guardando}
-        >
-          {modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
-        </Boton>
+        {modo === "alta" && parecidas && parecidas.length > 0 ? (
+          <Boton
+            variante="primario"
+            onClick={() => void crearPersona(true)}
+            disabled={guardando}
+            cargando={guardando}
+          >
+            Es otra persona — agregar igual
+          </Boton>
+        ) : (
+          <Boton
+            variante="primario"
+            onClick={modo === "alta" ? () => void crearPersona(false) : guardarEdicion}
+            disabled={guardando}
+            cargando={guardando}
+          >
+            {modo === "alta" ? "Agregar" : "Guardar cambios"}
+          </Boton>
+        )}
       </div>
     </div>
   );
@@ -1623,6 +1896,24 @@ export default function EquipoPage() {
   const editorCese = () => {
     const p = personas.find((x) => x.id === ceseId);
     const fin = p ? finesContrato.get(p.id) : undefined;
+    // QUIEN ESTÁ DE PRUEBA NO SE DA DE BAJA CON EL CESE DE SIEMPRE. «No fue apto» y «se retiró» dan de
+    // baja con el mismo gesto, pero de ellos depende si se le paga lo trabajado (decisión de Felipe,
+    // 2026-10-19) y con qué motivo de cese queda. Por eso el panel de la prueba —el mismo de la
+    // Bandeja y Contratos— reemplaza al formulario genérico: la regla vive en un solo sitio.
+    const prueba = p ? pruebas.get(p.id) : undefined;
+    if (p && prueba && p.tipo_vinculo === "prueba") {
+      return (
+        <div className="grid grid-cols-1 gap-4">
+          <BannerAviso enLinea variante="informativo" titulo="Está de prueba.">
+            Para darle de baja hay que decir si no fue apto o se retiró: de eso depende si se le paga lo trabajado.
+          </BannerAviso>
+          <PanelPrueba
+            fila={prueba} supabase={createAdminSupabaseClient()} rol={rol}
+            alCambiar={() => { cerrarPanelLateral(); void cargar(); setVersionPruebas((v) => v + 1); }}
+          />
+        </div>
+      );
+    }
     return (
       <div className="grid grid-cols-1 gap-4">
         <label className="flex flex-col gap-1 text-sm">
@@ -1674,41 +1965,12 @@ export default function EquipoPage() {
         <div className="flex justify-end gap-3">
           <Boton variante="secundario" onClick={cerrarPanelLateral} disabled={guardandoCese}>Cancelar</Boton>
           <Boton variante="primario" onClick={guardarCese} disabled={guardandoCese} cargando={guardandoCese}>
-            Registrar salida
+            Dar de baja
           </Boton>
         </div>
       </div>
     );
   };
-
-  // El PIN recién generado. Vive en el mismo Drawer que los demás paneles de
-  // esta pantalla, pero con una diferencia que NO se negocia: `bloqueado` va
-  // siempre en `true` mientras haya un PIN puesto, sin importar si algo más se
-  // está guardando. Es el único panel de la pantalla cuyo motivo entero es que
-  // no se pierda de vista — un Escape sin querer, o un clic afuera por error,
-  // no pueden cerrarlo. Solo lo cierra el botón «Ya lo tengo».
-  const panelPin = () => (
-    // `role="status"` porque este panel reemplazó a un aviso que sí se
-    // anunciaba: sin él, quien navega con lector de pantalla oye desaparecer
-    // «X agregado(a)» y nada le dice que el PIN quedó en un panel — el único
-    // de la pantalla cuyo motivo entero es que no se pierda de vista.
-    <div role="status" aria-live="polite">
-      <p className="font-serif text-6xl tracking-[0.25em] tabular-nums text-tinta">{pinNuevo?.pin}</p>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Boton variante="primario" onClick={() => void copiarPin()}>
-          {pinCopiado ? "Copiado" : "Copiar"}
-        </Boton>
-        <Boton variante="secundario" onClick={() => setPinNuevo(null)}>
-          Ya lo tengo — cerrar
-        </Boton>
-      </div>
-      <p className="mt-3 text-xs text-taupe">
-        Este panel no se cierra solo, así que tómate el tiempo de anotarlo y entrégalo en privado. Es la
-        única vez que el sistema muestra estos cuatro dígitos: si se pierden hay que generar otros, y el
-        PIN anterior de esta persona deja de servir.
-      </p>
-    </div>
-  );
 
   const panelHistorial = () => (
     <div className="flex flex-col gap-4">
@@ -1753,22 +2015,17 @@ export default function EquipoPage() {
     </div>
   );
 
-  // Cuál de los seis paneles de esta pantalla ocupa el Drawer, y cómo se
-  // cierra cada uno. El PIN manda sobre todo lo demás (ver panelPin): si está
-  // puesto, cerrar significa "ya lo tengo" y nada más — nunca un Escape o un
-  // clic afuera sin querer.
+  // Cuál de los cinco paneles de esta pantalla ocupa el Drawer, y cómo se cierra cada uno.
   function cerrarPanelLateral() {
-    if (pinNuevo) { setPinNuevo(null); return; }
     cerrarFormulario();
     setSalEditId(null);
     setHistId(null);
     setCeseId(null);
   }
   const drawerAbierto =
-    pinNuevo !== null || mostrandoAlta || editandoId !== null ||
+    mostrandoAlta || editandoId !== null ||
     (puedeSalarios && salEditId !== null) || (puedeSalarios && histId !== null) || ceseId !== null;
   const tituloDrawer = (() => {
-    if (pinNuevo) return `PIN de ${pinNuevo.nombre}`;
     if (mostrandoAlta) return "Agregar persona";
     const nombreDe = (id: string | null) => {
       const p = personas.find((x) => x.id === id);
@@ -1777,315 +2034,259 @@ export default function EquipoPage() {
     if (editandoId) return nombreDe(editandoId) ? `Editar a ${nombreDe(editandoId)}` : "Editar";
     if (puedeSalarios && salEditId) return nombreDe(salEditId) ? `Salario de ${nombreDe(salEditId)}` : "Salario";
     if (puedeSalarios && histId) return nombreDe(histId) ? `Historial de salario — ${nombreDe(histId)}` : "Historial de salario";
-    if (ceseId) return nombreDe(ceseId) ? `Registrar la salida de ${nombreDe(ceseId)}` : "Registrar salida";
+    if (ceseId) return nombreDe(ceseId) ? `Dar de baja a ${nombreDe(ceseId)}` : "Dar de baja";
     return undefined;
   })();
 
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="font-serif text-2xl">Equipo</h1>
-          {/* Solo quien puede escribir: para una encargada de sede, dar de
-              alta es una de las cinco acciones que `fn_crear_persona` le
-              rechaza siempre (ver `puedeEscribir` más arriba). */}
-          {puedeEscribir && !mostrandoAlta && !editandoId && (
-            <div className="flex flex-wrap gap-2">
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Personas")}
+          titulo="Equipo"
+          descripcion="Quién está en cada sede y qué falta para tener su ficha al día."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funciona Equipo"
+              intro="Aquí vive la lista de quién trabaja en CAYLA. La ficha completa de cada persona se abre tocando su nombre."
+              secciones={[
+                { titulo: "Para atender", texto: `Lo que pide una decisión: contratos que terminan en los próximos ${VENTANA_FIN_CONTRATO_DIAS} días (o ya terminaron y la persona sigue de alta), personas sin salario asignado y quien tiene algo pendiente en la Bandeja. Toca una pastilla para ver solo esas personas.` },
+                { titulo: "Sin salario", texto: "No cuenta a dirección, honorarios ni a quien no tiene vínculo laboral: esas personas no llevan un tramo de salario." },
+                { titulo: "Pendientes", texto: "Suma lo que la Bandeja tiene para esa persona. Pasa el cursor por la insignia para ver cuáles son; el enlace lleva a la Bandeja entera, que todavía no se puede filtrar por persona." },
+                { titulo: "Fin de contrato", texto: "Anotar la fecha es un plan, no da de baja a nadie: sirve para avisar antes de que llegue el día. Un contrato que se pasa de fecha con la persona todavía trabajando se vuelve indefinido solo (art. 77)." },
+                { titulo: "Dar de baja", texto: "No borra nada: la persona deja de aparecer en el terminal y su historial se conserva. De la fecha que anotes salen su gratificación, su CTS y sus vacaciones truncas." },
+                { titulo: "Quién edita", texto: "Solo Desarrollo Organizacional y dirección. Una líder de equipo consulta a su gente." },
+              ]}
+            />
+          }
+          accion={
+            // Solo quien puede escribir: para una encargada de sede, dar de alta es una de las acciones que
+            // `fn_crear_persona` le rechaza siempre (ver `puedeEscribir` más arriba).
+            puedeEscribir && !mostrandoAlta && !editandoId ? (
               <Boton
                 variante="primario"
                 onClick={(e) => {
-                  setMostrandoAlta(true); setForm(FORM_VACIO); setSalEditId(null); setHistId(null); setCeseId(null);
+                  setMostrandoAlta(true); setForm(FORM_VACIO); setParecidas(null); setSalEditId(null); setHistId(null); setCeseId(null);
                   focoAlAbrir.current = e.currentTarget;
                 }}
               >
                 + Agregar persona
               </Boton>
-            </div>
-          )}
-        </div>
+            ) : undefined
+          }
+        />
 
         {puedeSalarios && salariosEstado === "error" && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <BannerAviso enLinea role="alert" variante="alerta" className="mb-4 max-w-3xl">
             No se pudieron cargar los salarios, así que su edición está deshabilitada (para no pisar
             un salario real con el valor por defecto).{" "}
             <Boton variante="enlace" className="font-medium" onClick={() => void cargarSalarios()}>
               Reintentar
             </Boton>
-          </div>
+          </BannerAviso>
         )}
 
         {/* Los seis paneles de esta pantalla —alta, edición, salario,
-            historial, PIN y cese— viven en el mismo panel lateral (0428), no
+            historial y cese— viven en el mismo panel lateral (0428), no
             empujando la tabla hacia abajo. Antes hacía falta desplazar la
             pantalla hasta un panel que podía abrirse fuera de la vista; un
             panel que flota encima no tiene ese problema, esté donde esté el
-            scroll de la tabla. `bloqueado` mientras se guarda algo, y SIEMPRE
-            mientras haya un PIN puesto (ver panelPin) — ese no se cierra con
-            un Escape ni un clic afuera por accidente. */}
+            scroll de la tabla. `bloqueado` mientras se guarda algo. */}
         <Drawer
           abierto={drawerAbierto}
           onCerrar={cerrarPanelLateral}
-          bloqueado={pinNuevo !== null || guardando || guardandoSal || guardandoCese}
+          bloqueado={guardando || guardandoSal || guardandoCese}
           titulo={tituloDrawer}
           volverElFocoA={focoAlAbrir}
         >
-          {pinNuevo
-            ? panelPin()
-            : mostrandoAlta
-              ? formulario("alta")
-              : editandoId
-                ? formulario("edicion")
-                : puedeSalarios && salEditId
-                  ? editorSalario()
-                  : puedeSalarios && histId
-                    ? panelHistorial()
-                    : ceseId
-                      ? editorCese()
-                      : null}
+          {mostrandoAlta
+            ? formulario("alta")
+            : editandoId
+              ? formulario("edicion")
+              : puedeSalarios && salEditId
+                ? editorSalario()
+                : puedeSalarios && histId
+                  ? panelHistorial()
+                  : ceseId
+                    ? editorCese()
+                    : null}
         </Drawer>
 
-        {/* Las tarjetas, y cada una es un filtro (mismo patrón que ya usan
-            Contratos y Documentación): un número que no se puede abrir obliga
-            a adivinar qué filtro lo reproduce. */}
-        {!cargando && (
-          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {contadores.map((c) => (
-              <button
-                key={c.clave}
-                onClick={c.onClick}
-                aria-pressed={c.activo}
-                className={`rounded-2xl border p-3 text-left transition-colors ${
-                  c.activo ? "border-taupe bg-hueso" : "border-sand bg-papel hover:bg-hueso"
-                }`}
-              >
-                <span className="block text-xs text-taupe">{c.etiqueta}</span>
-                <span className="block font-serif text-2xl tabular-nums text-tinta">{c.n}</span>
-              </button>
-            ))}
-          </div>
+        {/* PARA ATENDER: lo que pide una mirada, en una línea (como Educación y Asistencia). Un cero no se dibuja.
+            Cada pastilla es su propio filtro: un número que no se puede abrir obliga a adivinar qué filtro lo reproduce. */}
+        {!cargando && !falloPersonas && (
+          <ParaAtender
+            items={[
+              ...(puedeSalarios ? [{ clave: "fin_contrato", texto: `${nFinContrato} fin de contrato próximo`, n: nFinContrato, tono: "ambar" as const }] : []),
+              ...(puedeSalarios ? [{ clave: "sin_salario", texto: `${nSinSalario} sin salario`, n: nSinSalario, tono: "ambar" as const }] : []),
+              { clave: "pendientes", texto: `${nConPendientes} con pendientes`, n: nConPendientes, tono: "pizarra" as const },
+            ]}
+            activa={atenderActiva}
+            alTocar={alTocarAtender}
+          />
         )}
 
-        {/* Filtros. Todo el filtrado ocurre en el navegador sobre lo que ya está
-            cargado: son ~30 personas, no hay nada que pedirle a la base. */}
+        {/* Filtros. Todo el filtrado ocurre en el navegador sobre lo que ya está cargado: son ~30 personas,
+            no hay nada que pedirle a la base. Sin rótulos y con campos «sm» (2026-10-19). */}
         {!cargando && (
-          <div className="mb-3 flex flex-wrap items-end gap-3">
-            <Campo
-              etiqueta="Buscar"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="nombre o apellido"
-              className="w-52"
-            />
-            <CampoSelect etiqueta="Sede" value={fSede} onChange={(e) => setFSede(e.target.value)}>
-              <option value="todas">Todas</option>
-              {sedes.map((s) => (<option key={s.id} value={s.id}>{s.nombre}</option>))}
-            </CampoSelect>
-            <CampoSelect etiqueta="Área" value={fArea} onChange={(e) => setFArea(e.target.value)}>
-              <option value="todas">Todas</option>
-              {areas.filter((a) => a.activa).map((a) => (<option key={a.codigo} value={a.codigo}>{a.nombre}</option>))}
-            </CampoSelect>
-            <CampoSelect etiqueta="Mostrar" value={fEstado} onChange={(e) => setFEstado(e.target.value as FiltroEstado)}>
-              <option value="activos">Solo el equipo actual</option>
-              <option value="inactivos">Solo quienes ya no están</option>
-              {/* Solo para quien ve el dato: a quien no lo ve, esta opción le
-                  devolvería una lista vacía sin poder explicarle por qué. */}
-              {puedeSalarios && <option value="fin_contrato">Con fin de contrato anotado</option>}
-              <option value="todos">Todos</option>
-            </CampoSelect>
+          <TarjetaInfo className="mb-3 flex flex-wrap items-center gap-2 p-3 sm:p-3">
+            <div className="min-w-48 flex-1">
+              <Campo tamano="sm" aria-label="Buscar por nombre o apellido" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar persona" />
+            </div>
+            <div className="w-full sm:w-44">
+              <CampoSelect tamano="sm" aria-label="Sede" value={fSede} onChange={(e) => setFSede(e.target.value)}>
+                <option value="todas">Todas las sedes</option>
+                {sedes.map((s) => (<option key={s.id} value={s.id}>{etiquetaDeSede(s).titulo}</option>))}
+              </CampoSelect>
+            </div>
+            <div className="w-full sm:w-44">
+              <CampoSelect tamano="sm" aria-label="Área" value={fArea} onChange={(e) => setFArea(e.target.value)}>
+                <option value="todas">Todas las áreas</option>
+                {areas.filter((a) => a.activa).map((a) => (<option key={a.codigo} value={a.codigo}>{a.nombre}</option>))}
+              </CampoSelect>
+            </div>
+            <div role="group" aria-label="Quién se muestra" className="flex flex-wrap gap-1.5">
+              <Filtro tamano="sm" activo={fEstado === "activos"} onClick={() => { setFEstado("activos"); setSoloSinSalario(false); setSoloConPendientes(false); }}>
+                Activos <span className="tabular-nums opacity-70">{nActivos}</span>
+              </Filtro>
+              <Filtro tamano="sm" activo={fEstado === "inactivos"} onClick={() => { setFEstado("inactivos"); setSoloSinSalario(false); setSoloConPendientes(false); }}>
+                Ya no están <span className="tabular-nums opacity-70">{nInactivos}</span>
+              </Filtro>
+              <Filtro tamano="sm" activo={fEstado === "todos"} onClick={() => { setFEstado("todos"); setSoloSinSalario(false); setSoloConPendientes(false); }}>
+                Todos
+              </Filtro>
+            </div>
             {ocultas > 0 && (
-              <Boton
-                variante="enlace"
-                className="pb-2 text-xs text-taupe"
-                onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); setSoloSinSalario(false); }}
-              >
-                {ocultas === 1 ? "1 persona oculta" : `${ocultas} personas ocultas`} — quitar filtros
+              <Boton variante="enlace" className="text-xs text-taupe" onClick={quitarFiltros}>
+                {ocultas === 1 ? "1 persona oculta" : `${ocultas} personas ocultas`} — volver a «Activos»
               </Boton>
             )}
-          </div>
+          </TarjetaInfo>
         )}
 
         {cargando ? (
           <EsqueletoTabla
-            anchos={["w-36", "w-16", "w-20", "w-24", ...(puedeSalarios ? ["w-20"] : []), "w-40", "w-16", "w-24"]}
+            anchos={["w-40", "w-32", ...(puedeSalarios ? ["w-24"] : []), "w-16", "w-24"]}
           />
         ) : falloPersonas ? (
-          // Distinto del "ninguna persona coincide" de abajo: acá la consulta
-          // FALLÓ, no es que no haya nadie. Antes de esto, un fallo de la
-          // consulta principal se veía igual que un filtro sin resultados —
-          // el peor falso negativo que puede dar esta pantalla (hallazgo de
-          // la auditoría de apariencia, 2026-09-06/07).
-          <div className="max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          // Distinto del «ninguna persona coincide» de abajo: acá la consulta FALLÓ, no es que no haya nadie.
+          // Antes de esto, un fallo de la consulta principal se veía igual que un filtro sin resultados —el
+          // peor falso negativo que puede dar esta pantalla (auditoría de apariencia, 2026-09-06/07).
+          <BannerAviso enLinea role="alert" variante="alerta" className="max-w-2xl">
             <p>No se pudo cargar el equipo — esto no quiere decir que no haya nadie.</p>
             <Boton variante="secundario" tamano="sm" className="mt-2" onClick={() => void cargar()}>
               Reintentar
             </Boton>
-          </div>
+          </BannerAviso>
         ) : visibles.length === 0 ? (
-          <div className="max-w-2xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
-            Ninguna persona coincide con lo que buscas.{" "}
-            <Boton
-              variante="enlace"
-              className="font-medium"
-              onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); setSoloSinSalario(false); }}
-            >
-              Quitar filtros
-            </Boton>
-          </div>
+          <EstadoVacio accion={<Boton variante="secundario" tamano="sm" onClick={quitarFiltros}>Quitar filtros</Boton>}>
+            Ninguna persona coincide con lo que buscas.
+          </EstadoVacio>
         ) : (
-          <>
-            {/* Escritorio: la tabla de siempre. Debajo de `md` se esconde
-                entera a favor de la lista de tarjetas — arrastrar una tabla
-                de ocho columnas en horizontal ya se documentó como mal
-                diseño en esta misma pantalla (el panel de Historial,
-                auditoría de apariencia 2026-09-06/07); no tiene sentido
-                arreglarlo en un panel angosto y dejarlo en la tabla grande. */}
-            <div className="hidden sm:block">
-              <Tabla alturaMaxima="70vh">
-                <TablaEncabezado>
-                  <Th>Nombre</Th>
-                  <Th>Sede</Th>
-                  <Th>Cargo</Th>
-                  <Th>Área</Th>
-                  {puedeSalarios && <Th>Salario</Th>}
-                  <Th>Correo</Th>
-                  <Th>Estado</Th>
-                  {/* Ninguna acción de esta columna le funciona a quien no es
-                      admin ni líder DO — ver `puedeEscribir`. */}
-                  {(puedeEscribir || puedeSalarios) && <Th>Acciones</Th>}
-                </TablaEncabezado>
-                <tbody>
-                  {visibles.map((p) => (
-                    <Fila key={p.id} className={p.estado === "inactivo" ? "text-taupe" : ""}>
-                      <td className="px-4 py-2">{bloqueNombre(p)}</td>
-                      <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
-                      {/* El CARGO manda sobre la etiqueta del rol (0182). El rol
-                          es un permiso —qué pantallas abre— y usarlo como título
-                          hacía que tres locadores figuraran como «Líder de equipo
-                          (encargada)» y «Admin». Cargo de mando, área, sede, rango
-                          y monto fijo son los indicios que desnaturalizan una
-                          locación de servicios, y el expediente lo armaba esta
-                          misma celda.
-
-                          Desde el 2026-09-15 la columna se llama «Cargo» —como el
-                          campo de Editar— y sin cargo escrito dice «Sin cargo» en
-                          vez de caer al rol. Antes se titulaba «Rol» y mostraba el
-                          cargo: quien la leía buscaba en Editar el campo «Rol»,
-                          encontraba integrante/líder, y no entendía de dónde salía
-                          «Practicante de Ingeniería». Una columna «Cargo» que
-                          muestra «Integrante» repetiría esa misma confusión: el
-                          rol se ve y se cambia en Editar. */}
-                      <td className="px-4 py-2">
-                        {p.cargo !== null && p.cargo !== ""
-                          ? <span className="whitespace-nowrap">{p.cargo}</span>
-                          : <span className="text-taupe">Sin cargo</span>}
-                      </td>
-                      <td className="px-4 py-2">
-                        {esOperativaEn(areas, p.funcion)
-                          ? <span className="text-taupe">{areaCorto(areas, p.funcion)}</span>
-                          : (
-                            // "informativo" (pizarra) y no "advertencia" (ámbar):
-                            // no cuenta para la cobertura de tienda es un hecho
-                            // neutro de Central (administración/DO), no un aviso
-                            // de que algo está mal en la ficha de esa persona —
-                            // el ámbar aquí pintaba de "hay que revisar esto" a
-                            // gente cuya ficha está perfecta (hallazgo de la
-                            // auditoría de apariencia, 2026-09-06/07).
-                            <Insignia variante="informativo">{areaCorto(areas, p.funcion)}</Insignia>
+          <div className="grid gap-6">
+            {/* POR SEDE (2026-10-19): la sede es la unidad real del negocio, así que la lista se agrupa por ella
+                y sobran la columna Sede y el filtro como único camino. Una líder ve UNA sola sede. Se rompe si
+                una sede pasa de ~15 personas: ahí habría que partirla también por área. */}
+            {gruposDeSede.map((g) => (
+              <section key={g.clave} aria-label={g.titulo}>
+                <h2 className="mb-2 flex items-baseline gap-2 font-serif text-lg">
+                  {g.titulo}
+                  <span className="font-sans text-xs font-normal text-taupe">{g.codigo} · {g.gente.length} {g.gente.length === 1 ? "persona" : "personas"}</span>
+                </h2>
+                {/* Escritorio: tabla. Debajo de `sm` se esconde a favor de tarjetas — arrastrar una tabla de
+                    varias columnas en horizontal ya se documentó como mal diseño en esta misma pantalla. */}
+                <div className="hidden sm:block">
+                  <Tabla>
+                    <TablaEncabezado>
+                      <Th>Nombre</Th>
+                      <Th>Situación</Th>
+                      {puedeSalarios && <Th>Salario</Th>}
+                      <Th>Estado</Th>
+                      {/* Ninguna acción de esta columna le funciona a quien no es admin ni líder DO. */}
+                      {(puedeEscribir || puedeSalarios) && <Th><span className="sr-only">Acciones</span></Th>}
+                    </TablaEncabezado>
+                    <tbody>
+                      {g.gente.map((p) => (
+                        <Fila key={p.id} className={p.estado === "inactivo" ? "text-taupe" : ""}>
+                          <td className="px-4 py-2">{bloqueNombre(p)}</td>
+                          <td className="px-4 py-2">{situacion(p)}</td>
+                          {puedeSalarios && <td className="px-4 py-2">{celdaSalario(p)}</td>}
+                          <td className="px-4 py-2">
+                            <Insignia atenuada={p.estado !== "activo"}>{p.estado}</Insignia>
+                          </td>
+                          {(puedeEscribir || puedeSalarios) && (
+                            <td className="px-4 py-2">
+                              <div className="flex items-center justify-end gap-2">
+                                {puedeEscribir && (
+                                  <Boton variante="secundario" tamano="sm" onClick={(e) => empezarEdicion(p, e.currentTarget)}>Editar</Boton>
+                                )}
+                                {menuAcciones(p)}
+                              </div>
+                            </td>
                           )}
-                      </td>
-                      {puedeSalarios && <td className="px-4 py-2">{celdaSalario(p)}</td>}
-                      <td className="px-4 py-2">{p.email ?? <span className="text-taupe">—</span>}</td>
-                      <td className="px-4 py-2">
-                        <Insignia atenuada={p.estado !== "activo"}>{p.estado}</Insignia>
-                      </td>
-                      {(puedeEscribir || puedeSalarios) && (
-                        <td className="px-4 py-2">
-                          <div className="flex flex-wrap gap-2">
-                            {puedeEscribir && (
-                              <Boton variante="secundario" tamano="sm" onClick={(e) => empezarEdicion(p, e.currentTarget)}>Editar</Boton>
-                            )}
-                            {menuAcciones(p)}
-                          </div>
-                        </td>
-                      )}
-                    </Fila>
-                  ))}
-                </tbody>
-              </Tabla>
-            </div>
-
-            {/* Mobile: una tarjeta por persona en vez de la tabla — mismo
-                criterio que ya se construyó esta semana en Datos personales
-                para la pantalla hermana más parecida a esta. */}
-            <div className="space-y-3 sm:hidden">
-              {visibles.map((p) => (
-                <div key={p.id} className={`rounded-2xl border border-sand bg-papel p-4 ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">{bloqueNombre(p)}</div>
-                    <Insignia atenuada={p.estado !== "activo"} className="shrink-0">{p.estado}</Insignia>
-                  </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
-                    <div>
-                      <dt className="text-xs text-taupe">Sede</dt>
-                      <dd>{codigoSede(p.sede_base_id)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-taupe">Cargo</dt>
-                      <dd>
-                        {p.cargo !== null && p.cargo !== ""
-                          ? p.cargo
-                          : <span className="text-taupe">Sin cargo</span>}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-taupe">Área</dt>
-                      <dd>
-                        {esOperativaEn(areas, p.funcion)
-                          ? areaCorto(areas, p.funcion)
-                          : <Insignia variante="informativo" tamano="sm">{areaCorto(areas, p.funcion)}</Insignia>}
-                      </dd>
-                    </div>
-                    {puedeSalarios && (
-                      <div>
-                        <dt className="text-xs text-taupe">Salario</dt>
-                        <dd>{celdaSalario(p)}</dd>
-                      </div>
-                    )}
-                    <div className="col-span-2">
-                      <dt className="text-xs text-taupe">Correo</dt>
-                      <dd className="truncate">{p.email ?? <span className="text-taupe">—</span>}</dd>
-                    </div>
-                  </dl>
-                  {/* `justify-between`, no solo `gap-2`: el menú "•••" se
-                      alinea a la derecha DE SU DISPARADOR (`right-0` en
-                      components/ui/menu.tsx), así que si el botón queda a
-                      media tarjeta —como con `gap-2` a secas, pegado a
-                      "Editar"— el desplegable se abre hacia la izquierda y se
-                      corta contra el borde de un celular angosto. Empujarlo
-                      al borde derecho de la tarjeta le da los ~340px que
-                      necesita para abrir sin cortarse. */}
-                  {(puedeEscribir || puedeSalarios) && (
-                    <div className="mt-3 flex items-center justify-between gap-2">
-                      {puedeEscribir && (
-                        <Boton variante="secundario" tamano="sm" onClick={(e) => empezarEdicion(p, e.currentTarget)}>Editar</Boton>
-                      )}
-                      {menuAcciones(p)}
-                    </div>
-                  )}
+                        </Fila>
+                      ))}
+                    </tbody>
+                  </Tabla>
                 </div>
-              ))}
-            </div>
-          </>
+
+                {/* Mobile: una tarjeta por persona, con la situación debajo del nombre. */}
+                <div className="space-y-2 sm:hidden">
+                  {g.gente.map((p) => (
+                    <TarjetaInfo key={p.id} className={p.estado === "inactivo" ? "text-taupe" : ""}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">{bloqueNombre(p)}</div>
+                        <Insignia atenuada={p.estado !== "activo"} className="shrink-0">{p.estado}</Insignia>
+                      </div>
+                      <div className="mt-2">{situacion(p)}</div>
+                      {puedeSalarios && <div className="mt-2 text-sm"><span className="text-xs text-taupe">Salario · </span>{celdaSalario(p)}</div>}
+                      {/* `justify-between`, no solo `gap-2`: el menú «•••» se alinea a la derecha DE SU
+                          DISPARADOR (`right-0` en components/ui/menu.tsx); pegado a «Editar» se abre hacia la
+                          izquierda y se corta contra el borde de un celular angosto. */}
+                      {(puedeEscribir || puedeSalarios) && (
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          {puedeEscribir && (
+                            <Boton variante="secundario" tamano="sm" onClick={(e) => empezarEdicion(p, e.currentTarget)}>Editar</Boton>
+                          )}
+                          {menuAcciones(p)}
+                        </div>
+                      )}
+                    </TarjetaInfo>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         )}
 
-        <p className="mt-4 max-w-2xl text-xs text-taupe">
-          Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en un panel arriba de
-          esta tabla: no se cierra solo, se copia con un botón y lo cierras tú cuando ya lo tengas
-          anotado. Entrégalo en privado. “Registrar salida” no borra nada: la persona deja de aparecer
-          en el terminal pero su historial se conserva, y de la fecha que anotes salen su gratificación,
-          su CTS y sus vacaciones truncas. Anotar el fin de contrato es otra cosa y no da de baja a
-          nadie: es la fecha prevista de término, y está para avisar antes de que llegue.
-        </p>
+        {/* Cuentas de servicio (0490): plegado, al final y sin contar en nada.
+            Están aquí para poder revisarlas o desmarcar una por error desde su
+            ficha — no para operarlas: no marcan, no cobran, no tienen horario. */}
+        {!cargando && cuentasServicio.length > 0 && (
+          <details className="mt-6 max-w-2xl rounded-lg border border-sand bg-papel px-4 py-3 text-sm">
+            <summary className="cursor-pointer select-none text-taupe">
+              Cuentas de servicio ({cuentasServicio.length}) — no son personas
+            </summary>
+            <p className="mt-2 text-xs text-taupe">
+              Estaciones de caja y almacén que usa Retail. Existen como fichas porque Retail les atribuye
+              ventas, pero Dynamic no las paga, no aparecen en el terminal de marcaje ni cuentan en ninguna
+              lista. Si alguna es en realidad una persona, ábrela y desmárcala.
+            </p>
+            <ul className="mt-3 divide-y divide-sand">
+              {cuentasServicio.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 py-2">
+                  <span>
+                    {c.nombres} {c.apellidos}{" "}
+                    <span className="text-xs text-taupe">· {codigoSede(c.sede_base_id)}{c.estado !== "activo" ? " · inactiva" : ""}</span>
+                  </span>
+                  <Link href={`/admin/personas/${c.id}`} className="shrink-0 text-xs underline underline-offset-4 hover:text-rojo">
+                    Ver ficha
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
         {/* Modal: reactivar (reemplaza window.confirm). Mismo
             fn_reactivar_persona de siempre — ver confirmarReactivar. */}

@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   COLUMNAS_CSV,
   COLUMNAS_CSV_ANTERIORES,
+  atrasadoDelProximo,
   calendario,
+  cuandoSePaga,
+  diaYMes,
   estadoVentana,
   estadosFila,
   fechaCorta,
@@ -10,12 +13,15 @@ import {
   filtrar,
   FILTROS_VACIOS,
   gratiConBonificacion,
+  montoConAtrasado,
   montoProximo,
   pagosDe,
   proximoDesembolso,
   resumen,
   saldoDeFila,
   subvencionDe,
+  totalAtrasadoDelProximo,
+  totalConAtrasado,
   totalProximo,
   totalesSubvenciones,
   ventanasDe,
@@ -190,6 +196,45 @@ describe("próximo desembolso", () => {
   });
 });
 
+describe("lo atrasado que se sumaría al próximo depósito", () => {
+  it("para la CTS del 15/11 es lo que quedó de la de mayo, entero o parcial", () => {
+    expect(atrasadoDelProximo(ctsVencida, d)).toBe(67.05);
+    expect(atrasadoDelProximo(parcial, d)).toBe(256.4);
+  });
+  it("no mezcla beneficios: lo atrasado de la gratificación no engrosa el depósito de CTS", () => {
+    // Marco Salas debe S/2.84 de julio (gratificación) y tiene la CTS de mayo
+    // pagada de más: para el depósito del 15/11 no hay nada que sumar.
+    expect(atrasadoDelProximo(deMas, d)).toBe(0);
+  });
+  it("quien está al día no suma, y una practicante no tiene este número", () => {
+    expect(atrasadoDelProximo(alDia, d)).toBe(0);
+    expect(atrasadoDelProximo(practicante, d)).toBeNull();
+  });
+  it("el total del equipo es lo mismo que el calendario lista como pendiente de mayo", () => {
+    const mayo = calendario(d, equipo).vencidos.find((x) => x.ventana?.clave === "cts_may")!;
+    expect(totalAtrasadoDelProximo(equipo, d)).toBe(mayo.monto);
+    expect(totalAtrasadoDelProximo(equipo, d)).toBe(323.45);
+  });
+  it("el pago de más de una persona no achica lo atrasado de otra", () => {
+    expect(totalAtrasadoDelProximo([deMas, ctsVencida], d)).toBe(67.05);
+  });
+  it("lo que sale si se paga todo junto es el acumulado de noviembre más lo atrasado de mayo", () => {
+    expect(montoConAtrasado(parcial, d)).toBe(Math.round((266.11 + 256.4) * 100) / 100);
+    expect(totalConAtrasado(equipo, d)).toBe(Math.round((totalProximo(equipo, d)! + 323.45) * 100) / 100);
+    expect(montoConAtrasado(practicante, d)).toBeNull();
+  });
+  it("para la gratificación del 15/12 sí cuenta lo de julio, con su 9 %", () => {
+    const julio = persona({ persona_id: "k", nombre: "K", grati_s1: 100, be_s1: 9, grati_s2: 50, be_s2: 4.5 });
+    const dic = datos([julio], "2026-11-30", { fecha: "2026-12-15", tipo: "Gratificacion", ref: "grati_s2" });
+    expect(atrasadoDelProximo(julio, dic)).toBe(109);
+  });
+  it("del 16 al 31 de diciembre no inventa un monto", () => {
+    const fin = datos(equipo, "2026-12-20", { fecha: "2027-05-15", tipo: "CTS", ref: "cts_may" });
+    expect(atrasadoDelProximo(ctsVencida, fin)).toBeNull();
+    expect(totalAtrasadoDelProximo(fin.personas, fin)).toBeNull();
+  });
+});
+
 describe("calendario", () => {
   const cal = calendario(d, equipo);
   it("lista lo vencido con quién lo debe, en orden", () => {
@@ -325,5 +370,28 @@ describe("fechaCorta", () => {
   it("formatea por texto", () => {
     expect(fechaCorta("2026-11-15")).toBe("15 nov 2026");
     expect(fechaCorta(null)).toBe("—");
+  });
+});
+
+describe("diaYMes", () => {
+  it("es la fecha corta sin el año, también por texto", () => {
+    expect(diaYMes("2026-11-15")).toBe("15 nov");
+    expect(diaYMes("2026-05-05")).toBe("5 may");
+    expect(diaYMes(null)).toBe("—");
+    expect(diaYMes("no-es-una-fecha")).toBe("no-es-una-fecha");
+  });
+});
+
+describe("cuandoSePaga — la segunda línea de cada tarjeta del resumen", () => {
+  it("la gratificación se paga en julio y diciembre, en ese orden", () => {
+    expect(cuandoSePaga(d, "Gratificación")).toBe("Se paga el 15 jul y el 15 dic");
+  });
+  it("la CTS se deposita, no se paga: mayo y noviembre", () => {
+    expect(cuandoSePaga(d, "CTS")).toBe("Se deposita el 15 may y el 15 nov");
+  });
+  it("las fechas se leen de lo que manda la base, no están escritas en el texto", () => {
+    const otro = { ...d, grati_s2_pago: "2026-12-20", cts_may_pago: "2026-05-16" };
+    expect(cuandoSePaga(otro, "Gratificación")).toBe("Se paga el 15 jul y el 20 dic");
+    expect(cuandoSePaga(otro, "CTS")).toBe("Se deposita el 16 may y el 15 nov");
   });
 });

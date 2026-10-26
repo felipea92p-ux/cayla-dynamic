@@ -150,23 +150,42 @@ export async function POST(req: Request) {
         .from("personas")
         .select("id, nombres, apellidos, rol, auth_user_id, sedes:sede_base_id(codigo)")
         .in("rol", [...ROLES_CON_PANEL])
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .order("nombres");
+      // Las integrantes que YA tienen cuenta también se listan. Hasta el
+      // 2026-10-24 esta tabla solo traía los roles con panel, así que una
+      // integrante que había aceptado su invitación no salía en ninguna lista de
+      // la pantalla —ni en «Invitar», que es para quien no tiene cuenta, ni en
+      // «Volver a invitar», que es para quien nunca entró— y no había dónde
+      // resetearle la clave ni corregirle el correo. Sin cuenta siguen fuera:
+      // a ellas se les crea el acceso por invitación, para que elijan su clave.
+      const { data: integrantesConCuenta, error: errIntegrantes } = await admin
+        .from("personas")
+        .select("id, nombres, apellidos, rol, auth_user_id, sedes:sede_base_id(codigo)")
+        .eq("rol", "integrante")
+        .not("auth_user_id", "is", null)
+        .eq("estado", "activo").eq("cuenta_de_servicio", false);
+      if (errIntegrantes) {
+        Sentry.captureException(errIntegrantes);
+        return NextResponse.json({ error: mensajeDeError(errIntegrantes, "leer las cuentas de las integrantes") }, { status: 500 });
+      }
       const usuarios = await usuariosPorId(admin);
-      const cuentas = (personas ?? []).map((p: any) => ({
-        id: p.id,
-        nombre: `${p.nombres} ${p.apellidos}`,
-        rol: p.rol,
-        sede: p.sedes?.codigo ?? "?",
-        email: p.auth_user_id ? usuarios[p.auth_user_id]?.email ?? null : null,
-        tieneCuenta: !!p.auth_user_id,
-      }));
+      const cuentas = [...(personas ?? []), ...(integrantesConCuenta ?? [])]
+        .map((p) => ({
+          id: p.id,
+          nombre: `${p.nombres} ${p.apellidos}`,
+          rol: p.rol,
+          sede: (p.sedes as { codigo?: string } | null)?.codigo ?? "?",
+          email: p.auth_user_id ? usuarios[p.auth_user_id]?.email ?? null : null,
+          tieneCuenta: !!p.auth_user_id,
+        }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
       // Integrantes que se pueden promover a encargada (para darles acceso al panel de su sede)
       const { data: integrantes } = await admin
         .from("personas")
         .select("id, nombres, apellidos, sedes:sede_base_id(codigo)")
         .eq("rol", "integrante")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .order("nombres");
       const promovibles = (integrantes ?? []).map((p: any) => ({
         id: p.id,
@@ -195,7 +214,7 @@ export async function POST(req: Request) {
         .from("personas")
         .select("id, nombres, apellidos, email, en_planilla, tipo_vinculo, sedes:sede_base_id(codigo)")
         .eq("rol", "integrante")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .is("auth_user_id", null)
         .order("apellidos");
@@ -224,7 +243,7 @@ export async function POST(req: Request) {
         .from("personas")
         .select("id, nombres, apellidos, rol, auth_user_id, sedes:sede_base_id(codigo)")
         .not("auth_user_id", "is", null)
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .order("apellidos");
       const pendientes = (conCuenta ?? [])
         .map((p: any) => ({ p, u: usuarios[p.auth_user_id] }))

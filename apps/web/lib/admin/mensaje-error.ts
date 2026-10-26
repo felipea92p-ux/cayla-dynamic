@@ -43,6 +43,12 @@ const POR_CODIGO: Record<string, string> = {
   "42501": "No tienes permiso para hacer esto.",
   "42883": "Esta función todavía no está en la base de datos. Avisa a Felipe: falta aplicar una migración.",
   "42P01": "Falta una tabla en la base de datos. Avisa a Felipe: falta aplicar una migración.",
+  // La pantalla pide una columna que la base todavía no tiene. Es la forma en
+  // que se ve un PR fusionado antes de pegar su migración (`main` se publica
+  // sola): el 2026-09-28 Disciplina dejó de cargar el legajo porque pedía
+  // `enviado_a_info_at` de la 0486, y el aviso decía «el sistema no pudo
+  // completar la operación», que no dejaba adivinar que bastaba con pegarla.
+  "42703": "Falta una columna en la base de datos. Avisa a Felipe: falta aplicar una migración.",
   PGRST301: "Tu sesión venció. Vuelve a entrar.",
   PGRST202: "El sistema no encontró esta función. Avisa a Felipe: falta aplicar una migración.",
   PGRST204: "El sistema no reconoce una columna nueva. Suele arreglarse solo en unos minutos; si no, avisa a Felipe.",
@@ -65,7 +71,7 @@ const POR_CONSTRAINT: Record<string, string> = {
   // igual: el día que alguien vuelva a escribir `estado` a mano, el aviso tiene
   // que decir qué falta, no publicar el nombre del constraint.
   personas_cese_coherente:
-    "Para dar de baja a alguien hace falta su último día trabajado, y para reactivarla hay que borrarlo. Usa «Registrar salida» y «Reactivar» en Equipo.",
+    "Para dar de baja a alguien hace falta su último día trabajado, y para reactivarla hay que borrarlo. Usa «Dar de baja» y «Reactivar» en Equipo.",
   personas_motivo_cese_valido:
     "Ese motivo de salida no es uno de los válidos. Elígelo de la lista.",
   // El candado de la 0309: una persona no puede tener dos tramos de horario
@@ -74,6 +80,18 @@ const POR_CONSTRAINT: Record<string, string> = {
   // igual para cualquier otra escritura, y para el tiempo entre fusionar la
   // 0360 y pegarla en producción. Sin esto, lo que veía la encargada era
   // «conflicting key value violates exclusion constraint».
+  // La 0512: el DNI escrito dentro del nombre corto. Equipo lo frena antes con
+  // `avisoDocumentoEnNombre`; esto es para cualquier otra puerta.
+  personas_nombre_sin_documento:
+    "El nombre y el apellido corto van sin números: se ven en el terminal y en todas las listas. El DNI se guarda en Datos personales.",
+  // La 0513: tipo y número de documento van juntos y con la forma de su tipo.
+  // La pantalla lo frena antes (`errorDeDocumento`); esto es para cualquier otra puerta.
+  personas_documento_coherente:
+    "El documento no tiene la forma de su tipo: el DNI tiene 8 dígitos, el carné de extranjería de 9 a 12 y el pasaporte o PTP de 6 a 12.",
+  // El índice único de la 0125. Solo salta en una carrera —dos altas del mismo
+  // número a la vez—, porque las funciones lo miran antes y dicen de quién es.
+  idx_personas_documento_unico:
+    "Ese documento ya está registrado para otra persona. Búscala en Equipo antes de seguir.",
   horarios_sin_solape:
     "Ese rango de fechas ya tiene otro horario asignado. Elige una fecha de vigencia posterior, o corrige primero el tramo que ya existe.",
 };

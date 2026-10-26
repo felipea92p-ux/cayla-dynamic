@@ -8,9 +8,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { Search, UserRound, X } from "lucide-react";
+import { Bird, Search, UserRound, X } from "lucide-react";
 import type { Item } from "@/app/(admin)/admin/nav-items";
 import { Insignia } from "@/components/ui/insignia";
+import { JuegoColibri } from "@/components/juego-colibri";
+import { esPalabraDelColibri } from "@/lib/easter-eggs";
 
 // Sin tildes ni mayúsculas, igual que el filtro de Equipo: buscar "nunez"
 // tiene que encontrar a "Núñez". No se comparte un helper por esto solo —cada
@@ -45,7 +47,9 @@ type PersonaResultado = { id: string; nombres: string; apellidos: string; estado
 
 type Fila =
   | { tipo: "pantalla"; item: Item }
-  | { tipo: "persona"; persona: PersonaResultado };
+  | { tipo: "persona"; persona: PersonaResultado }
+  // Easter egg: escribir «colibrí» ofrece el juego. Ver docs/easter-eggs.md.
+  | { tipo: "juego" };
 
 export function BuscadorGlobal({
   grupos,
@@ -64,6 +68,8 @@ export function BuscadorGlobal({
   // ya dice exactamente eso — no hace falta un setState extra solo para marcar
   // que empezó, que es lo que un efecto no debería hacer de forma directa.
   const [personasEstado, setPersonasEstado] = useState<"sin-cargar" | "ok" | "error">("sin-cargar");
+  // El juego se abre desde el buscador pero NO vive dentro de él: el buscador se cierra al elegirlo.
+  const [juegoAbierto, setJuegoAbierto] = useState(false);
 
   // Cada apertura arranca en blanco. No se recuerda la última búsqueda, igual
   // que el filtro de Equipo no recuerda la anterior — y se ajusta durante el
@@ -87,7 +93,7 @@ export function BuscadorGlobal({
     void createAdminSupabaseClient()
       .from("personas")
       .select("id, nombres, apellidos, estado")
-      .order("nombres")
+      .eq("cuenta_de_servicio", false).order("nombres")
       .then(({ data, error }) => {
         if (!vivo) return;
         if (error) { setPersonasEstado("error"); return; }
@@ -115,6 +121,7 @@ export function BuscadorGlobal({
   const personasFiltradas = q ? personas.filter((p) => sinTildes(`${p.nombres} ${p.apellidos}`).includes(q)) : [];
 
   const filas: Fila[] = [
+    ...(esPalabraDelColibri(consulta) ? [{ tipo: "juego" } as const] : []),
     ...pantallasFiltradas.map((item): Fila => ({ tipo: "pantalla", item })),
     ...personasFiltradas.map((persona): Fila => ({ tipo: "persona", persona })),
   ];
@@ -123,14 +130,21 @@ export function BuscadorGlobal({
   const indiceValido = Math.min(indice, Math.max(filas.length - 1, 0));
 
   function ir(fila: Fila) {
+    if (fila.tipo === "juego") {
+      setJuegoAbierto(true);
+      onCerrar();
+      return;
+    }
     router.push(fila.tipo === "pantalla" ? fila.item.href : `/admin/personas/${fila.persona.id}`);
     onCerrar();
   }
 
-  if (!abierto) return null;
+  const juego = <JuegoColibri abierto={juegoAbierto} onCerrar={() => setJuegoAbierto(false)} />;
+  if (!abierto) return juego;
 
   return (
     <>
+      {juego}
       <div onClick={onCerrar} className="fixed inset-0 z-40 bg-black/20" aria-hidden />
       {/* Sin sombra, a propósito: globals.css prohíbe las sombras y el `Modal`
           compartido ya resolvió cómo se marca "esto flota" —border-taupe/35 +
@@ -172,12 +186,12 @@ export function BuscadorGlobal({
             filas.map((fila, i) => {
               const primeraDelGrupo = i === 0 || filas[i - 1].tipo !== fila.tipo;
               const seleccionada = i === indiceValido;
-              const key = fila.tipo === "pantalla" ? fila.item.href : `persona-${fila.persona.id}`;
+              const key = fila.tipo === "pantalla" ? fila.item.href : fila.tipo === "persona" ? `persona-${fila.persona.id}` : "huevo-colibri";
               return (
                 <div key={key}>
                   {primeraDelGrupo && (
                     <p className="etiqueta px-3 py-1.5 text-taupe">
-                      {fila.tipo === "pantalla" ? "Pantallas" : "Equipo"}
+                      {fila.tipo === "pantalla" ? "Pantallas" : fila.tipo === "persona" ? "Equipo" : "Un secreto"}
                     </p>
                   )}
                   {/* Nativo a propósito: fila de resultado navegable con flechas
@@ -191,11 +205,17 @@ export function BuscadorGlobal({
                   >
                     {fila.tipo === "pantalla" ? (
                       <fila.item.Icon size={16} strokeWidth={1.8} className="shrink-0" aria-hidden />
-                    ) : (
+                    ) : fila.tipo === "persona" ? (
                       <UserRound size={16} strokeWidth={1.8} className="shrink-0" aria-hidden />
+                    ) : (
+                      <Bird size={16} strokeWidth={1.8} className="shrink-0" aria-hidden />
                     )}
                     <span className="truncate">
-                      {fila.tipo === "pantalla" ? fila.item.label : `${fila.persona.nombres} ${fila.persona.apellidos}`}
+                      {fila.tipo === "pantalla"
+                        ? fila.item.label
+                        : fila.tipo === "persona"
+                          ? `${fila.persona.nombres} ${fila.persona.apellidos}`
+                          : "Jugar con el colibrí"}
                     </span>
                     {fila.tipo === "persona" && fila.persona.estado !== "activo" && (
                       <Insignia atenuada punto={false} tamano="sm" className="ml-auto shrink-0">

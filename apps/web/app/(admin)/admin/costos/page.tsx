@@ -29,10 +29,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { CampoSelect } from "@/components/ui/campo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Insignia } from "@/components/ui/insignia";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { BarrasHorizontales, GraficoPorPeriodo, abreviarSoles } from "@/components/costos/graficos-costos";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -173,7 +179,9 @@ export default function CostosPage() {
   // Se usa `fn_periodos` —la misma fuente que la pantalla de Planilla— para que
   // las dos no puedan discrepar sobre qué periodos hay.
   const vivoRef = useRef(true);
-  useEffect(() => () => { vivoRef.current = false; }, []);
+  // `vivoRef.current = true` al montar: en desarrollo React monta, desmonta y vuelve a montar cada componente, y sin esto el
+  // desmontaje intermedio dejaba la marca en `false` para siempre y las listas nunca se pintaban.
+  useEffect(() => { vivoRef.current = true; return () => { vivoRef.current = false; }; }, []);
 
   // Si esta consulta falla, NO es lo mismo que "todavía no hay periodos
   // pagados": es un error real, y se guarda en el mismo `error` que usa
@@ -288,35 +296,41 @@ export default function CostosPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="font-serif text-2xl">Costos del equipo</h1>
-          <div className="flex items-end gap-3">
-            <CampoSelect
-              etiqueta="Año"
-              value={anio ?? ""}
-              onChange={(e) => setAnio(Number(e.target.value))}
-              disabled={anios.length === 0}
-            >
-              {anios.map((y) => (<option key={y} value={y}>{y}</option>))}
-            </CampoSelect>
-            <Boton variante="primario" onClick={descargarCsvCostos} disabled={!data || data.por_persona.length === 0}>
-              Descargar CSV
-            </Boton>
-          </div>
-        </div>
-
-        <p className="mb-4 max-w-3xl text-xs text-taupe">
-          Solo aparecen los periodos ya <strong className="font-medium">marcados como pagados</strong>: su
-          desglose quedó congelado y ya no cambia. Lo que todavía está abierto se ve en Planilla, y es una
-          proyección, no un costo. Los periodos de CAYLA no son meses calendario, así que cada fila es{" "}
-          <strong className="font-medium">un periodo</strong>, no un mes.
-        </p>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Pago")}
+          titulo="Costos del equipo"
+          descripcion="Lo que costó el equipo en los periodos ya pagados. Lo que sigue abierto se ve en Planilla."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo se leen los costos"
+              intro="Solo aparecen los periodos ya marcados como pagados: su desglose quedó congelado y ya no cambia."
+              secciones={[
+                { titulo: "Costo y proyección", texto: "Lo que todavía está abierto se ve en Planilla, y es una proyección, no un costo. Aquí solo entra lo que ya se pagó." },
+                { titulo: "Un periodo, no un mes", texto: "Los periodos de CAYLA no son meses calendario (van del 29 al 28), así que cada fila es un periodo." },
+                { titulo: "Costo real, transferencia y banco", texto: "«Se transfirió» es lo que se pagó a las personas; el «costo real» suma además las provisiones; «salió del banco» incluye pensión, EsSalud y 4.ª." },
+                { titulo: "Reconstruido", texto: "Los periodos anteriores a que el sistema guardara la foto del pago llevan el desglose reconstruido: su cifra es la de hoy, no necesariamente la que se transfirió." },
+              ]}
+            />
+          }
+          accion={
+            <div className="flex items-center gap-2">
+              <div className="w-28">
+                <CampoSelect tamano="sm" aria-label="Año" value={anio ?? ""} onChange={(e) => setAnio(Number(e.target.value))} disabled={anios.length === 0}>
+                  {anios.map((y) => (<option key={y} value={y}>{y}</option>))}
+                </CampoSelect>
+              </div>
+              <Boton variante="secundario" onClick={descargarCsvCostos} disabled={!data || data.por_persona.length === 0}>
+                Descargar CSV
+              </Boton>
+            </div>
+          }
+        />
 
         {error && (
-          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <BannerAviso role="alert" variante="alerta" enLinea className="mb-4 max-w-3xl">
             No se pudieron cargar los costos: {error}{" "}
             <Boton variante="enlace" onClick={reintentar}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
 
         {cargando && !data && (
@@ -324,54 +338,47 @@ export default function CostosPage() {
         )}
 
         {anios.length === 0 && !cargando && !error && (
-          <div className="max-w-3xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
+          <BannerAviso variante="neutral" enLinea className="max-w-3xl">
             Todavía no hay ningún periodo marcado como pagado, así que no hay costos que sumar. En cuanto
             cierres el primero, aparecerá aquí.
-          </div>
+          </BannerAviso>
         )}
 
         {data && data.periodos_retroactivos > 0 && (
-          <div className="mb-4 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
+          <BannerAviso variante="advertencia" enLinea className="mb-4 max-w-3xl">
             {data.periodos_retroactivos === 1
               ? "Un periodo de este año tiene el desglose reconstruido"
               : `${data.periodos_retroactivos} periodos de este año tienen el desglose reconstruido`}{" "}
             en vez de congelado el día del pago: son anteriores a que el sistema guardara la foto. Su cifra
             es la de hoy, no necesariamente la que se transfirió. Los periodos que cierres de ahora en
             adelante quedan congelados en el momento exacto del pago.
-          </div>
+          </BannerAviso>
         )}
 
         {t && (
-          <div className="mb-6 grid max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <div className="rounded-control bg-tinta px-4 py-3 text-crema">
-              <div className="text-xs opacity-70">Costo real del año</div>
-              <div className="text-xl font-medium tabular-nums">{formatSoles(t.costo)}</div>
+          /* La franja del año: el costo real manda; el resto es el desglose de dónde sale. */
+          <TarjetaInfo className="mb-6 flex flex-wrap items-center gap-x-8 gap-y-3">
+            <div>
+              <p className="text-xs text-taupe">Costo real del año</p>
+              <p className="font-serif text-3xl leading-none tabular-nums text-tinta">{formatSoles(t.costo)}</p>
             </div>
-            <div className="rounded-control bg-sand/40 px-4 py-3">
-              <div className="text-xs text-taupe">Se transfirió</div>
-              <div className="text-xl font-medium tabular-nums">{formatSoles(t.neto)}</div>
-            </div>
-            <div className="rounded-control bg-sand/40 px-4 py-3">
-              <div className="text-xs text-taupe">Provisiones devengadas</div>
-              <div className="text-xl font-medium tabular-nums">{formatSoles(t.provisiones)}</div>
-            </div>
-            {t.salio_del_banco !== undefined && (
-              <div className="rounded-control bg-sand/40 px-4 py-3">
-                <div className="text-xs text-taupe">Salió del banco</div>
-                <div className="text-xl font-medium tabular-nums">{formatSoles(t.salio_del_banco)}</div>
-                <div className="text-xs text-taupe">+ pensión, EsSalud y 4ta</div>
-              </div>
-            )}
-            <div className="rounded-control bg-sand/40 px-4 py-3">
-              <div className="text-xs text-taupe">Periodos cerrados</div>
-              <div className="text-xl font-medium tabular-nums">{t.periodos}</div>
-              <div className="text-xs text-taupe">{t.personas} personas</div>
-            </div>
-          </div>
+            <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+              <div><dt className="text-xs text-taupe">Se transfirió</dt><dd className="font-medium tabular-nums">{formatSoles(t.neto)}</dd></div>
+              <div><dt className="text-xs text-taupe">Provisiones devengadas</dt><dd className="font-medium tabular-nums">{formatSoles(t.provisiones)}</dd></div>
+              {t.salio_del_banco !== undefined && (
+                <div><dt className="text-xs text-taupe">Salió del banco <span className="text-taupe/80">(+ pensión, EsSalud y 4.ª)</span></dt><dd className="font-medium tabular-nums">{formatSoles(t.salio_del_banco)}</dd></div>
+              )}
+              <div><dt className="text-xs text-taupe">Periodos cerrados</dt><dd className="font-medium tabular-nums">{t.periodos} <span className="text-xs font-normal text-taupe">· {t.personas} personas</span></dd></div>
+            </dl>
+          </TarjetaInfo>
         )}
 
         {data && data.por_periodo.length > 0 && (
-          <>
+          // `@container`: lo que cabe lo decide el ancho de ESTA zona, no el de la ventana. Con ancho de sobra, las tablas van a
+          // la izquierda y los gráficos a la derecha; con poco, los gráficos bajan debajo de las tablas.
+          <div className="@container">
+          <div className="grid gap-6 @5xl:grid-cols-[minmax(0,1fr)_22rem] @5xl:items-start">
+          <div className="min-w-0">
             <SeccionTabla titulo="Por periodo">
               <TablaEncabezado>
                 <Th>Periodo</Th>
@@ -518,7 +525,41 @@ export default function CostosPage() {
                 ))}
               </tbody>
             </SeccionTabla>
-          </>
+          </div>
+
+          <aside aria-label="Gráficos" className="space-y-4 @5xl:sticky @5xl:top-4">
+            <TarjetaInfo titulo="Costo real por periodo">
+              <GraficoPorPeriodo
+                periodos={[...data.por_periodo].reverse().map((p) => ({ etiqueta: MESES[p.mes - 1].slice(0, 3).replace(/^./, (c) => c.toUpperCase()) + (p.version > 1 ? " ↻" : ""), neto: p.neto, provisiones: p.provisiones, costo: p.costo }))}
+              />
+            </TarjetaInfo>
+            <TarjetaInfo titulo="Dónde va el costo">
+              <BarrasHorizontales
+                items={[...data.por_tipo].sort((a, b) => b.costo - a.costo).map((x) => ({
+                  etiqueta: ETIQUETA_TIPO[x.tipo] ?? x.tipo,
+                  valor: x.costo,
+                  texto: abreviarSoles(x.costo),
+                  detalle: `${t && t.costo > 0 ? Math.round((x.costo / t.costo) * 100) : 0} % del costo · ${x.personas} personas`,
+                }))}
+              />
+            </TarjetaInfo>
+            {data.por_sede.some((s) => s.costo_por_hora !== null) && (
+              <TarjetaInfo titulo="Costo por hora, por sede">
+                <BarrasHorizontales
+                  tono="verde"
+                  items={data.por_sede.filter((s) => s.costo_por_hora !== null).sort((a, b) => (b.costo_por_hora ?? 0) - (a.costo_por_hora ?? 0)).map((s) => ({
+                    etiqueta: s.nombre,
+                    valor: s.costo_por_hora ?? 0,
+                    texto: formatSoles(s.costo_por_hora ?? 0),
+                    detalle: `${s.personas} personas`,
+                  }))}
+                />
+                <p className="mt-3 text-xs text-taupe">Se compara por hora, no por el total: una sede con más gente siempre costará más.</p>
+              </TarjetaInfo>
+            )}
+          </aside>
+          </div>
+          </div>
         )}
 
         {data && data.por_periodo.length === 0 && anios.length > 0 && !cargando && (
@@ -540,7 +581,7 @@ function SeccionTabla({ titulo, children }: { titulo: string; children: React.Re
   return (
     <section className="mb-6">
       <h2 className="mb-2 font-serif text-lg">{titulo}</h2>
-      <Tabla className="max-w-5xl">{children}</Tabla>
+      <Tabla>{children}</Tabla>
     </section>
   );
 }

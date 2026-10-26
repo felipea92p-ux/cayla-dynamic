@@ -1,0 +1,177 @@
+-- ============================================================================
+-- 0519 — El bono de cumpleaños también lo recibe el practicante
+-- ============================================================================
+--
+-- ESTADO (2026-10-13): LISTA PARA PEGAR TÉCNICAMENTE; LO LEGAL SIGUE ABIERTO.
+-- Decidido por Felipe el 2026-10-13 («Opción 2: abrir el bono a practicantes»,
+-- después de ver el caso de Daniel Ruiz). El md5 de partida de producción ya
+-- está confirmado (ver más abajo). Lo que NO está cerrado son las tres
+-- preguntas de «LO QUE FALTA CONFIRMAR» al contador / abogado laboral: Felipe
+-- pidió el SQL antes de tenerlas, sabiendo que el texto de la constancia para
+-- practicantes (`apps/web/components/papel-bono.tsx`) es provisional.
+--
+-- ORDEN AL PEGAR: lo ideal es que el frontend con el texto nuevo (PR de esta
+-- rama) ya esté publicado ANTES de pegar esto. El frontend es compatible hacia
+-- atrás —sin la migración, un practicante sigue sin poder pedir el bono—, así
+-- que se puede fusionar primero sin romper nada. Al revés, un practicante que
+-- firme entre el pegado y la publicación firmaría el texto de planilla, que lo
+-- llama «trabajador» y cita normas laborales.
+--
+-- QUÉ PROMETE
+--
+--   Que quien tiene `tipo_vinculo = 'practicante'` (convenio de modalidad
+--   formativa, Ley 28518) pueda recibir el bono de cumpleaños igual que quien
+--   está en planilla: lo ve en «Lo mío», lo pide firmando su constancia, y
+--   Desarrollo Organizacional lo transfiere y lo confirma — o, si prefiere
+--   hacerlo en papel, lo registra desde Documentación.
+--
+-- EL DEFECTO QUE LO MOTIVÓ, MEDIDO EN PRODUCCIÓN EL 2026-10-13
+--
+--   Daniel Ruiz (practicante, `en_planilla = false`, activo, con cuenta):
+--     · `fn_documentos_tablero(true)` le decía bono_estado = 'este_mes'
+--       —la 0424 abrió el tablero a practicantes para la declaración de ruta
+--       y el bono se coló con ellos—, así que la Bandeja de DO y «Cargos de
+--       cumpleaños» le pedían una constancia;
+--     · `fn_mi_bono_cumpleanos()` le contestaba 'no_aplica', así que en su
+--       pantalla no aparecía «Pedir mi bono»;
+--     · y `fn_documento_registrar` habría rechazado el escaneo («Esa persona
+--       no está en planilla»).
+--   Tres puertas, dos respuestas. Se decidió resolverlo abriendo el bono al
+--   practicante y no cerrándolo en el tablero.
+--
+-- QUÉ HACE
+--
+--   1. `fn_persona_le_corresponde_bono(uuid)`: UN solo lugar para «¿le
+--      corresponde el bono?» — en planilla, o practicante. Hoy da lo mismo que
+--      `fn_persona_le_corresponde_movilidad` (0424), pero es OTRA pregunta y
+--      puede divergir mañana: por eso no se reutiliza esa función.
+--   2. `fn_mi_bono_cumpleanos()` (paso 2): usa esa función en vez de
+--      `en_planilla` a secas.
+--   3. `fn_documento_registrar` (rama bono): ídem.
+--   4. `fn_confirmar_mi_bono_cumpleanos()`: si quien firma es practicante, NO
+--      crea la línea de boleta.
+--
+-- POR QUÉ POR TRANSFERENCIA Y NO POR BOLETA
+--
+--   La 0479 metió el bono a la boleta para quien está en planilla. Para un
+--   practicante se descartó a propósito:
+--     · su subvención no es remuneración (art. 47, Ley 28518) y su boleta no es
+--       la de un trabajador (0322: hoy imprime un «Detalle de servicios
+--       prestados»); mezclar ahí un pago extra es mezclar lo que el repo ha
+--       cuidado en no mezclar (0119: no contar tardanzas ni abrir expedientes
+--       a un practicante, por ser indicios de subordinación);
+--     · evita preguntar, y auditar, qué hace `fn_planilla_calcular` con un
+--       `bono` de un practicante (EsSalud, retención) — pregunta que, si CAYLA
+--       lo decide con el contador, se responde en otra migración y con
+--       prueba;
+--     · el camino de respaldo ya existe y está probado (0478): el bono queda
+--       «pedido» y DO lo ve en «por transferir».
+--   NO SE TOCA `fn_planilla_calcular` NI NINGUNA FUNCIÓN DE CÁLCULO.
+--
+-- LO QUE FALTA CONFIRMAR (el contador / abogado laboral — el repo no lo decide)
+--
+--   1. ¿Puede CAYLA darle a un practicante un monto por cumpleaños sin que
+--      cuente como parte de su subvención ni cambie su condición formativa?
+--      No hallé norma que lo prohíba ni que lo autorice expresamente; que se
+--      pueda es una inferencia.
+--   2. ¿Qué texto debe llevar la constancia, y cómo debe constar el pago?
+--      Para planilla cita el literal g) del art. 19 del TUO del D. Leg. 650 y
+--      el art. 7 del D.S. 003-97-TR, que son del régimen laboral; para un
+--      practicante NO se citan, y la constancia no lo llama «trabajador». El
+--      texto nuevo (en `apps/web/components/papel-bono.tsx`) es provisional.
+--   3. ¿Es gasto deducible para CAYLA?
+--
+-- QUÉ NO HACE, A PROPÓSITO
+--
+--   · No toca `fn_documentos_tablero`: ya listaba al practicante (0424), y con
+--     esta migración esa lista deja de contradecir a las otras dos puertas.
+--   · No abre el bono a `rxh` ni `no_trabajador`: siguen fuera.
+--   · No guarda con qué texto se firmó (LÍMITE CONOCIDO, y más serio que el de
+--     planilla). La constancia se pinta al mirarla, según el `tipo_vinculo`
+--     ACTUAL de la persona. Para planilla eso solo cambia si alguien edita el
+--     texto del código; para un practicante, si después pasa a planilla —un
+--     patrón que ya existe en este repo— su constancia ya firmada pasaría a
+--     mostrar el texto de planilla («trabajador», normas laborales), distinto
+--     del que firmó. La solución limpia es guardar al firmar con qué texto fue
+--     (una columna en `documentos_firmados`, escrita por las dos funciones que
+--     registran un bono y devuelta por `fn_documentos_listar`) y va en otra
+--     migración; no se hizo aquí para no ensanchar una migración que toca
+--     plata. Anotado en docs/estado.md.
+--   · No toca a quien ya firmó: ninguna fila cambia al pegar esto.
+--
+-- MD5 DE PARTIDA — CONFIRMADOS EN PRODUCCIÓN EL 2026-10-13
+--
+--   fn_documento_registrar            0448   5319 caracteres
+--       tal cual 5909cada… · sin comentarios 47307a09…
+--   fn_mi_bono_cumpleanos()           0479   4414 caracteres
+--       tal cual 6a9d7307… · sin comentarios 983554cf…
+--   fn_confirmar_mi_bono_cumpleanos() 0479   4645 caracteres
+--       tal cual b6706e42… · sin comentarios e796c2b3…
+--
+--   Los cuerpos se copiaron del repo, y Felipe pidió el md5 a PRODUCCIÓN en el
+--   SQL Editor el mismo día: los tres coinciden, tanto el tal cual como el sin
+--   comentarios, con 0 retornos `\r`. (Se pidió DESPUÉS de escribir
+--   la migración y no antes, contra lo que dice CLAUDE.md; coincidió, así que
+--   no hubo daño — pero el orden correcto es el otro.) Se comprobó además que
+--   `main` no trajo migraciones sobre estas funciones desde que se escribió.
+--   El bloque 0 lo vuelve a comprobar solo al pegar y aborta sin tocar nada si
+--   alguna es otra versión; acepta el md5 tal cual, sin comentarios, y ambos
+--   sin `\r` (pegar desde Windows, 0401).
+--
+-- CÓMO SE REVIERTE
+--
+--   drop function if exists fn_persona_le_corresponde_bono(uuid);
+--   -- recrear fn_documento_registrar con el cuerpo de la 0448, y
+--   -- fn_mi_bono_cumpleanos / fn_confirmar_mi_bono_cumpleanos con los de la
+--   -- 0479 (`create or replace`, mismas firmas).
+--   Los bonos de practicantes ya pedidos quedarían «pedido» y se transfieren
+--   a mano: no hay datos que deshacer.
+--
+-- Idempotente: se puede pegar dos veces.
+-- ============================================================================
+
+-- ============================================================================
+-- ⛔ NEUTRALIZADA EL 2026-10-13 (PR #526). Esta migración ya NO ejecuta nada.
+-- ============================================================================
+--
+-- Lo de arriba es el encabezado original, intacto: es el registro de lo que
+-- Felipe decidió ese día. El código que lo cumplía vive en git (commit
+-- 540ba43d, fusionado a main en 4d761002) y lo que decidía lo trae hoy la 0520.
+--
+-- QUÉ PASÓ. El mismo día, otra rama arregló el mismo caso con la 0518, y la
+-- 0518 llegó primero a producción. Esta migración partía de los cuerpos de la
+-- 0479/0448 y su freno de md5 —bien hecho— se negaba a pisar otra cosa. Así que
+-- en producción nunca se pegó. Pero en una base construida DESDE CERO
+-- (`supabase db start`, el CI, cualquier clon) las migraciones corren en orden
+-- —0518, 0519, 0520— y el freno abortaba la construcción entera: medido en
+-- `db-tests` del PR #526, «PARA. Producción no tiene el cuerpo del que se copió
+-- esta migración». Nadie habría podido levantar una base local.
+--
+-- POR QUÉ NEUTRALIZARLA Y NO BORRARLA
+--   · Borrarla dejaría un hueco en la numeración, y el freno de numeración y la
+--     regla de «sin huecos» existen para que un hueco signifique «algo se pegó
+--     a mano sin quedar en el repo». Este no sería eso.
+--   · Dejarla ejecutable rompe la base desde cero (arriba).
+--   · Hacerla condicional (que se salte si la 0518 está) obligaría a envolver
+--     cuatro funciones enteras en `execute` dinámico: ilegible, y estas
+--     migraciones se leen.
+--   · Su fila en `migraciones_aplicadas` SE ESCRIBE igual: la prueba 122 exige
+--     que toda migración aplicada deje su rastro, y en una base desde cero esta
+--     sí «se aplicó» —como lo que es ahora, nada—. En producción la fila no
+--     está, y está bien: `scripts/hooks/no-se-pegan.txt` lo explica.
+--
+-- SI ALGUIEN LA PEGA EN PRODUCCIÓN: no pasa nada malo. Solo escribe su fila.
+-- No hace falta, y no se pide.
+--
+-- Lo que la 0519 decidía y SÍ está vigente, vía la 0520 (pegada el 2026-10-13):
+--   · `fn_persona_le_corresponde_bono` — el nombre es el de aquí; la regla es
+--     la unión (planilla o practicante, nunca en prueba ni con contrato de
+--     menos de 7 días).
+--   · El practicante firma y queda «pedido»: DO transfiere, nunca la boleta.
+--   · El frontend de esta rama (texto propio de la constancia del practicante)
+--     está publicado desde el PR #524.
+-- ============================================================================
+
+insert into migraciones_aplicadas (numero, nombre)
+values (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante')
+on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();

@@ -1,0 +1,422 @@
+"use client";
+
+// ============================================================================
+// Los archivos de una póliza — la póliza, el convenio de pago y la factura
+// ============================================================================
+// QUÉ PROMETE
+//   Subir, abrir y retirar los PDF (o fotos) de UNA póliza, con quién los subió y
+//   cuándo. Migración 0528: `fn_seguro_adjuntar` y `fn_seguro_retirar_archivo`.
+//
+// EL ARCHIVO VA PRIMERO (el molde de Archivo, 0503)
+//   Se sube al bucket y recién después se registra. Si Storage cae, no queda
+//   ninguna fila; si el registro falla después de subir, se intenta borrar el
+//   huérfano (la política lo permite porque nadie lo usa). Eso vive en
+//   `lib/admin/seguros-archivos.ts`, que comparte con la lectura de PDF.
+//
+// LA PÓLIZA COLECTIVA TIENE UN SOLO PAPEL
+//   Un seguro de vida o una EPS es UNA póliza con una fila por persona, y el PDF es uno. Si esta
+//   póliza tiene otras (`hermanas`), junto a «Guardar» hay una casilla, marcada: guardar el archivo
+//   también en las demás. Se COPIA dentro del almacén —no se vuelve a subir—, una vez por póliza, y
+//   si alguna falla se dice cuáles, sin deshacer las que sí quedaron, y se ofrece repetir SOLO esas
+//   (el archivo ya está en el almacén: no hay que volver a elegirlo ni a subirlo).
+//
+//   «OTRO PAPEL» NO SE COPIA
+//   La póliza, el convenio de pago y la factura son de la póliza de la empresa, y son los mismos para
+//   todas. Un «otro papel» puede ser de UNA persona (un certificado, una carta): copiarlo a las demás
+//   le pondría a cada una un papel ajeno, con datos que no le corresponden. Para ese tipo no hay casilla
+//   y el archivo se guarda solo aquí.
+//
+// POR QUÉ LA RUTA NO LLEVA EL NOMBRE
+//   El PDF de una póliza se llama «Apellidos, Nombres, FOLA 24043267.pdf»: lleva
+//   un nombre de persona. La ruta en el almacén es `<uuid>.<ext>` y nada más
+//   (la base lo exige); el nombre original solo se guarda como dato.
+// ============================================================================
+
+import { useCallback, useEffect, useState } from "react";
+import type { ClienteCayla } from "@cayla-dynamic/database";
+import { fechaLima } from "@cayla-dynamic/shared";
+import { Cargando } from "@/components/cargando";
+import { useToast } from "@/components/toast";
+import { AreaTexto } from "@/components/ui/area-texto";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { Boton } from "@/components/ui/boton";
+import { CampoCasilla, CampoSelect } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
+import { problemaDeArchivo, TIPOS_ARCHIVO } from "@/lib/admin/archivo";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
+import { BUCKET_SEGUROS, etiquetaTipoArchivo, loVeLaPersona, plural, TIPOS_ARCHIVO_SEGURO, type TipoArchivoSeguro } from "@/lib/admin/seguros";
+import { adjuntarArchivoAPoliza, copiarArchivoAPoliza } from "@/lib/admin/seguros-archivos";
+import { pesoLegible } from "@/lib/reducir-imagen";
+
+interface ArchivoDePoliza {
+  id: string; tipo: string; storage_path: string; nombre_archivo: string; mime: string; bytes: number;
+  subido_por_nombre: string | null; subido_at: string;
+  retirado_at: string | null; retirado_por_nombre: string | null; retirado_motivo: string | null;
+}
+
+const dia = (ts: string) => isoADiaMesAnio(fechaLima(ts));
+
+/** Otra póliza de la misma póliza colectiva: su id y cómo nombrarla en un aviso (la persona). */
+export interface PolizaHermana { id: string; titulo: string }
+
+/** «Ana, Beto, Carla y 3 más»: a quiénes llegaría (o llegó) una copia, para que quien sube lo vea antes y después. */
+function nombresDe(hermanas: readonly PolizaHermana[], max = 6): string {
+  const nombres = hermanas.map((h) => h.titulo);
+  return nombres.length <= max ? nombres.join(", ") : `${nombres.slice(0, max).join(", ")} y ${nombres.length - max} más`;
+}
+
+export function ArchivosPoliza({
+  abierto, onCerrar, supabase, polizaId, titulo, hermanas = [], onCambio,
+}: {
+  abierto: boolean;
+  onCerrar: () => void;
+  supabase: ClienteCayla;
+  polizaId: string | null;
+  /** «Ana Prueba · póliza 24043267». */
+  titulo: string;
+  /** Las otras pólizas de la misma póliza colectiva: el archivo puede guardarse también en ellas. */
+  hermanas?: PolizaHermana[];
+  /** Avisa a la pantalla que cambió algo, para que recargue sus contadores. */
+  onCambio: () => void;
+}) {
+  // Mientras sube o copia, ni Esc ni un clic en el velo cierran el diálogo: se perdería el aviso de qué
+  // pólizas quedaron sin el archivo.
+  const [ocupado, setOcupado] = useState(false);
+  return (
+    <Modal abierto={abierto && polizaId !== null} onCerrar={() => { if (!ocupado) onCerrar(); }} bloqueado={ocupado} titulo="Archivos de la póliza" ancho="lg">
+      {abierto && polizaId && (
+        <Cuerpo supabase={supabase} polizaId={polizaId} titulo={titulo} hermanas={hermanas} onCambio={onCambio} onCerrar={onCerrar} onOcupado={setOcupado} />
+      )}
+    </Modal>
+  );
+}
+
+function Cuerpo({
+  supabase, polizaId, titulo, hermanas, onCambio, onCerrar, onOcupado,
+}: {
+  supabase: ClienteCayla; polizaId: string; titulo: string; hermanas: PolizaHermana[];
+  onCambio: () => void; onCerrar: () => void; onOcupado: (ocupado: boolean) => void;
+}) {
+  const { avisar } = useToast();
+  const [archivos, setArchivos] = useState<ArchivoDePoliza[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [cargaError, setCargaError] = useState<string | null>(null);
+
+  const cargar = useCallback(async () => {
+    const { data, error } = await supabase.rpc("fn_seguro_archivos", { p_poliza_id: polizaId });
+    setArchivos((data as ArchivoDePoliza[] | null) ?? []);
+    setCargaError(error ? mensajeDeError(error, "cargar los archivos") : null);
+    setCargando(false);
+  }, [supabase, polizaId]);
+
+  // `cargar` solo pone estado después de su `await`: no hay renders en cascada.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargar(); }, [cargar]);
+
+  // ── Subir ─────────────────────────────────────────────────────────────
+  const [tipo, setTipo] = useState<TipoArchivoSeguro>("poliza");
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [claveInput, setClaveInput] = useState(0);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [progreso, setProgreso] = useState<number | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  // En la póliza colectiva el papel es uno, pero copiarlo a las demás lo decide quien lo sube y nace SIN
+  // marcar: con un número mal tecleado una póliza individual puede parecer «hermana» de la de otra persona
+  // (misma aseguradora, número y fechas), y un PDF copiado ahí lo abriría esa persona en «Lo mío». Lo midió
+  // la revisión independiente de la 0530.
+  const [tambien, setTambien] = useState(false);
+  // Si el archivo lo va a ver cada persona, quien lo sube confirma que no lleva datos de las demás.
+  const [confirmado, setConfirmado] = useState(false);
+  const [copiando, setCopiando] = useState<{ hechas: number; total: number } | null>(null);
+  // Las copias que fallaron, con lo necesario para repetirlas sin volver a subir nada.
+  const [faltanCopias, setFaltanCopias] = useState<{
+    ruta: string; tipo: TipoArchivoSeguro; nombre: string; total: number; faltan: PolizaHermana[];
+  } | null>(null);
+  // Un «otro papel» puede ser de una sola persona: no se reparte (ver el encabezado).
+  const seReparte = hermanas.length > 0 && tipo !== "otro";
+  const hayQueConfirmar = seReparte && tambien && loVeLaPersona(tipo);
+
+  /** Copia el archivo ya guardado a cada destino, una por una; devuelve a las que NO llegó. */
+  async function copiarEn(ruta: string, deQueTipo: TipoArchivoSeguro, nombre: string, destinos: PolizaHermana[]): Promise<PolizaHermana[]> {
+    const fallaron: PolizaHermana[] = [];
+    for (let i = 0; i < destinos.length; i++) {
+      setCopiando({ hechas: i, total: destinos.length });
+      const fallo = await copiarArchivoAPoliza(supabase, ruta, destinos[i].id, deQueTipo, nombre);
+      if (fallo) fallaron.push(destinos[i]);
+    }
+    return fallaron;
+  }
+
+  async function subir() {
+    setMsg(null); setFaltanCopias(null);
+    if (!archivo) { setMsg("Elige el archivo: un PDF o una foto."); return; }
+    const problema = problemaDeArchivo(archivo);
+    if (problema) { setMsg(problema); return; }
+    if (hayQueConfirmar && !confirmado) {
+      setMsg(`Marca la confirmación de abajo: ${plural(hermanas.length, "persona más podrá", "personas más podrán")} abrir este archivo desde «Lo mío».`);
+      return;
+    }
+
+    setSubiendo(true); onOcupado(true);
+    // Pase lo que pase —un fallo de red a medias incluido— el diálogo se desbloquea al salir.
+    let resultado: { ruta: string; aCopiar: PolizaHermana[]; fallaron: PolizaHermana[] } | null = null;
+    try {
+      const subido = await adjuntarArchivoAPoliza(supabase, polizaId, tipo, archivo, setProgreso);
+      if (!subido.ok) { setMsg(subido.error); return; }
+      // En las demás pólizas de la misma póliza colectiva: una por una, y las que fallen se dicen.
+      const aCopiar = seReparte && tambien ? hermanas : [];
+      resultado = { ruta: subido.ruta, aCopiar, fallaron: await copiarEn(subido.ruta, tipo, archivo.name, aCopiar) };
+    } catch {
+      setMsg("Algo falló al guardar el archivo. Revisa abajo si quedó, y vuelve a intentarlo.");
+    } finally {
+      setProgreso(null); setCopiando(null); setSubiendo(false); onOcupado(false);
+    }
+
+    // Con la póliza ya cambiada (o sin saber si cambió) la lista se recarga siempre.
+    // La copia a las demás pólizas se decide en cada archivo: vuelve a nacer sin marcar.
+    setArchivo(null); setClaveInput((n) => n + 1); setTambien(false); setConfirmado(false);
+    await cargar();
+    onCambio();
+    if (!resultado) return;
+    if (resultado.fallaron.length > 0) {
+      setFaltanCopias({ ruta: resultado.ruta, tipo, nombre: archivo.name, total: resultado.aCopiar.length, faltan: resultado.fallaron });
+    } else {
+      avisar("ok", resultado.aCopiar.length > 0
+        ? `Archivo guardado en esta póliza y en ${plural(resultado.aCopiar.length, "póliza más", "pólizas más")}: ${nombresDe(resultado.aCopiar)}.`
+        : "Archivo guardado.");
+    }
+  }
+
+  /** Repite la copia SOLO en las pólizas a las que no llegó: el archivo ya está en el almacén. */
+  async function repetirCopias() {
+    if (!faltanCopias) return;
+    setSubiendo(true); onOcupado(true);
+    let quedan: PolizaHermana[] = faltanCopias.faltan;
+    try {
+      quedan = await copiarEn(faltanCopias.ruta, faltanCopias.tipo, faltanCopias.nombre, faltanCopias.faltan);
+    } catch {
+      setMsg("Algo falló al copiar el archivo. Vuelve a intentarlo.");
+    } finally {
+      setCopiando(null); setSubiendo(false); onOcupado(false);
+    }
+    onCambio();
+    if (quedan.length === 0) {
+      setFaltanCopias(null);
+      avisar("ok", `El archivo quedó también en ${plural(faltanCopias.faltan.length, "póliza más", "pólizas más")}.`);
+    } else {
+      setFaltanCopias({ ...faltanCopias, faltan: quedan });
+    }
+  }
+
+  // ── Retirar ───────────────────────────────────────────────────────────
+  const [retirando, setRetirando] = useState<string | null>(null);
+  const [motivo, setMotivo] = useState("");
+  const [msgRetiro, setMsgRetiro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  async function retirar(id: string) {
+    if (motivo.trim().length < 5) { setMsgRetiro("Escribe el motivo (al menos 5 letras)."); return; }
+    setOcupado(true);
+    const { error } = await supabase.rpc("fn_seguro_retirar_archivo", { p_id: id, p_motivo: motivo.trim() });
+    setOcupado(false);
+    if (error) { setMsgRetiro(mensajeDeError(error)); return; }
+    setRetirando(null); setMotivo("");
+    await cargar();
+    onCambio();
+    avisar("ok", "Archivo retirado. Sigue guardado, a la vista del historial.");
+  }
+
+  async function abrir(a: ArchivoDePoliza) {
+    const fallo = await abrirArchivoFirmado(supabase, BUCKET_SEGUROS, a.storage_path, 120);
+    if (fallo) avisar("error", fallo);
+  }
+
+  const vigentes = archivos.filter((a) => !a.retirado_at);
+  const retirados = archivos.filter((a) => a.retirado_at);
+
+  return (
+    <>
+      <p className="mb-1 text-sm text-taupe">
+        {titulo}. Los PDF llevan DNI y fecha de nacimiento. La póliza y el convenio de pago los ve también la
+        persona asegurada, solo los suyos, en «Lo mío → Mi seguro»; la factura y «Otro papel» los ve solo
+        Desarrollo Organizacional.
+      </p>
+      <p className="mb-4 text-sm text-taupe">
+        {hermanas.length > 0
+          ? "Es una póliza colectiva: la póliza y el convenio de pago que subas los verá cada persona asegurada en «Lo mío» (todas, si los copias a las demás pólizas). Sube solo el papel de la póliza de la empresa, sin listas con el DNI o el sueldo de otras personas."
+          : "Sube a esta póliza solo el PDF de esta persona: si el archivo trae las pólizas de varias, ella las verá todas."}
+      </p>
+      {cargando ? <Cargando /> : cargaError ? (
+        <div className="mb-3 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          {cargaError} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+        </div>
+      ) : (
+        <>
+          {vigentes.length === 0 ? (
+            <p className="mb-4 rounded-lg bg-hueso px-3 py-3 text-sm text-taupe">
+              Esta póliza no tiene archivos todavía. Sube la póliza y el convenio de pago que mandó el corredor.
+            </p>
+          ) : (
+            <ul className="mb-4 space-y-2">
+              {vigentes.map((a) => (
+                <li key={a.id} className="rounded-xl border border-sand bg-papel px-4 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm text-tinta">
+                        <Insignia variante="neutral" tamano="sm" className="mr-1.5">{etiquetaTipoArchivo(a.tipo)}</Insignia>
+                        {a.nombre_archivo}
+                      </p>
+                      <p className="mt-0.5 text-xs text-taupe">
+                        {pesoLegible(a.bytes)} · subido el {dia(a.subido_at)}{a.subido_por_nombre && ` por ${a.subido_por_nombre}`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Boton variante="primario" tamano="sm" onClick={() => void abrir(a)}>Abrir</Boton>
+                      <Boton variante="sutil" tamano="sm" onClick={() => { setRetirando(retirando === a.id ? null : a.id); setMotivo(""); setMsgRetiro(null); }}>
+                        Retirar
+                      </Boton>
+                    </div>
+                  </div>
+                  {retirando === a.id && (
+                    <div className="mt-3 border-t border-sand pt-3">
+                      {(loVeLaPersona(a.tipo) || hermanas.length > 0) && (
+                        <p className="mb-2 text-xs text-taupe">
+                          {loVeLaPersona(a.tipo) ? "La persona deja de verlo en «Lo mío». " : ""}
+                          {hermanas.length > 0 ? "Retirar es de una póliza a la vez: si lo copiaste a las otras pólizas, retíralo también en cada una." : ""}
+                        </p>
+                      )}
+                      <label className="flex flex-col gap-1">
+                        <span className="text-sm text-taupe">Por qué se retira</span>
+                        <AreaTexto
+                          value={motivo}
+                          onChange={(e) => { setMotivo(e.target.value); setMsgRetiro(null); }}
+                          placeholder="ej. Era el convenio de otra persona"
+                          className={msgRetiro ? "border-rojo" : undefined}
+                        />
+                        {msgRetiro && <span className="text-xs text-rojo">{msgRetiro}</span>}
+                      </label>
+                      <div className="mt-2 flex justify-end gap-2">
+                        <Boton tamano="sm" onClick={() => setRetirando(null)} disabled={ocupado}>Cancelar</Boton>
+                        <Boton variante="peligro" tamano="sm" onClick={() => void retirar(a.id)} cargando={ocupado}>Sí, retirar</Boton>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {faltanCopias && (
+            <BannerAviso enLinea variante="advertencia" role="alert" className="mb-3">
+              <p>
+                El archivo quedó en esta póliza y en {faltanCopias.total - faltanCopias.faltan.length} de las otras {faltanCopias.total},
+                pero no en: {faltanCopias.faltan.map((h) => h.titulo).join(", ")}.
+              </p>
+              <p className="mt-1 text-xs">Si cierras esto sin repetirlo, ábrelas una por una y súbelo ahí.</p>
+              <div className="mt-2 flex justify-end">
+                <Boton tamano="sm" onClick={() => void repetirCopias()} cargando={subiendo} disabled={subiendo}>
+                  Guardarlo en {faltanCopias.faltan.length === 1 ? "esa póliza" : "esas pólizas"}
+                </Boton>
+              </div>
+            </BannerAviso>
+          )}
+
+          <div className="rounded-xl border border-sand bg-hueso px-4 py-4">
+            <p className="mb-3 text-sm text-tinta">Subir un archivo</p>
+            {msg && <p role="alert" className="mb-3 rounded border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">{msg}</p>}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <CampoSelect etiqueta="Qué es" value={tipo} onChange={(e) => { setTipo(e.target.value as TipoArchivoSeguro); setConfirmado(false); setMsg(null); }}>
+                {TIPOS_ARCHIVO_SEGURO.map((t) => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
+              </CampoSelect>
+              <label className="flex min-w-0 flex-col gap-1 sm:col-span-2">
+                <span className="text-sm text-taupe">Archivo</span>
+                <input
+                  key={claveInput}
+                  type="file"
+                  accept={TIPOS_ARCHIVO}
+                  onChange={(e) => { setArchivo(e.target.files?.[0] ?? null); setMsg(null); }}
+                  className="w-full min-w-0 rounded-control border border-sand bg-papel px-3 py-2 text-sm text-tinta file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs file:text-tinta"
+                />
+                <span className="text-xs text-taupe">
+                  {archivo ? `${archivo.name} · ${pesoLegible(archivo.size)}` : "Un PDF o una foto, hasta 50 MB."}
+                </span>
+              </label>
+              <p className="text-xs text-taupe sm:col-span-3">
+                {loVeLaPersona(tipo)
+                  ? "La persona podrá abrirlo desde «Lo mío», en «Mi seguro», si tiene cuenta."
+                  : "Solo lo ve Desarrollo Organizacional."}
+                {tipo === "convenio_pago" && " Si el convenio nombra a varias personas, no lo subas a la póliza de una sola."}
+              </p>
+            </div>
+            {hermanas.length > 0 && tipo === "otro" && (
+              <p className="mt-3 text-xs text-taupe">
+                Un «otro papel» se guarda solo en esta póliza: puede ser de una sola persona, y copiarlo a las demás le pondría a cada una un papel ajeno.
+              </p>
+            )}
+            {seReparte && (
+              <label className="mt-3 flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-tinta" checked={tambien} onChange={(e) => { setTambien(e.target.checked); setConfirmado(false); setMsg(null); }} disabled={subiendo} />
+                <span>
+                  <span className="text-tinta">Guardarlo también en las otras {plural(hermanas.length, "póliza", "pólizas")} de este seguro</span>
+                  <span className="block text-xs text-taupe">
+                    Se copiaría a: {nombresDe(hermanas)}.
+                    Es la misma póliza de la empresa —una fila por persona, con el mismo número y la misma vigencia—: el papel es uno.
+                    {loVeLaPersona(tipo)
+                      ? " Cada persona lo abrirá desde «Lo mío → Mi seguro»: que no lleve datos de las demás."
+                      : " Solo lo ve Desarrollo Organizacional, en el archivo de cada póliza."}
+                  </span>
+                </span>
+              </label>
+            )}
+            {hayQueConfirmar && (
+              <div className="mt-2 rounded-lg bg-ambar/15 px-3 py-2">
+                <CampoCasilla
+                  etiqueta={`Confirmo que este archivo no lleva datos de otras personas —su DNI, su fecha de nacimiento ni su sueldo—: lo abrirá cada una de las ${hermanas.length + 1} desde «Lo mío».`}
+                  checked={confirmado} onChange={(e) => { setConfirmado(e.target.checked); setMsg(null); }} disabled={subiendo}
+                />
+              </div>
+            )}
+            {copiando && (
+              <p className="mt-3 text-xs text-taupe" role="status">Guardándolo en las demás pólizas… {copiando.hechas} de {copiando.total}</p>
+            )}
+            {progreso !== null && (
+              <div className="mt-3">
+                <div className="h-1.5 w-full overflow-hidden rounded-pildora bg-sand">
+                  <div className="h-full bg-tinta transition-[width] duration-200" style={{ width: `${progreso}%` }} />
+                </div>
+                <span className="text-xs text-taupe">Subiendo — {progreso}%</span>
+              </div>
+            )}
+            <div className="mt-3 flex justify-end">
+              <Boton variante="primario" onClick={() => void subir()} cargando={subiendo}>
+                {progreso !== null ? `Subiendo… ${progreso}%` : "Guardar el archivo"}
+              </Boton>
+            </div>
+          </div>
+
+          {retirados.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-2 text-xs uppercase tracking-wide text-taupe">Retirados</p>
+              <ul className="space-y-2">
+                {retirados.map((a) => (
+                  <li key={a.id} className="rounded-lg border border-sand bg-hueso px-3 py-2 text-sm text-taupe">
+                    <span className="text-tinta">{etiquetaTipoArchivo(a.tipo)}: {a.nombre_archivo}</span>
+                    <span className="block text-xs">
+                      Retirado el {a.retirado_at ? dia(a.retirado_at) : "—"}
+                      {a.retirado_por_nombre && ` por ${a.retirado_por_nombre}`}: «{a.retirado_motivo}» ·{" "}
+                      <Boton variante="enlace" onClick={() => void abrir(a)}>abrir</Boton>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+      <div className="mt-5 flex justify-end"><Boton onClick={onCerrar}>Cerrar</Boton></div>
+    </>
+  );
+}

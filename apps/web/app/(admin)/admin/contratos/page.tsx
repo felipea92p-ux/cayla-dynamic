@@ -7,17 +7,32 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { AreaTexto } from "@/components/ui/area-texto";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Pestanas } from "@/components/ui/pestanas";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { bandaDe, ORDEN_BANDAS, racimoDeVencimientos, TEXTO_BANDA, type Banda } from "@/lib/admin/contratos-bandas";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Modal } from "@/components/ui/modal";
+import { BotonIcono } from "@/components/ui/boton-icono";
 import { Insignia } from "@/components/ui/insignia";
+import { sinTildes } from "@/lib/admin/sin-tildes";
+import { SelectorPersona, type OpcionPersona } from "./selector-persona";
 import { Menu, MenuItem } from "@/components/ui/menu";
-import { TablaEncabezado, Th } from "@/components/ui/tabla";
+import { ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { vigentesAl } from "@/lib/admin/parametro-vigente";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { useToast } from "@/components/toast";
-import { hoyLima, maximoSemanalPracticante, puedeGestionarContratos } from "@cayla-dynamic/shared";
+import { PanelPrueba } from "@/components/pruebas/panel-prueba";
+import { etiquetaDePrueba, nombreDe as nombreDePrueba, puedeHacerContrato, textoDelDia, type FilaPrueba } from "@/lib/admin/pruebas";
+import { hoyLima, maximoSemanalPracticante, puedeEstamparFirmaDeEmpresa, puedeGestionarContratos } from "@cayla-dynamic/shared";
 import {
   construirContrato,
   formatearFecha,
@@ -28,7 +43,6 @@ import {
   tipoQueCorresponde,
   type DatosContrato,
 } from "@/lib/admin/contrato-texto";
-import { Search } from "lucide-react";
 
 // Generador de contratos: se elige a la persona, el sistema jala lo que ya
 // sabe de ella (DNI, sueldo vigente, horario, sede) y arma el contrato
@@ -68,13 +82,6 @@ const MAX_BYTES = 50 * 1024 * 1024;
 // dentro de una frase: ahí un salto de línea no significa nada y solo estorba.
 function unaLinea(texto: string): string {
   return texto.replace(/\s+/g, " ").trim();
-}
-
-// Buscar «Gutierrez» tiene que encontrar a «Gutiérrez»: quien escribe con prisa
-// no pone la tilde, y media plantilla lleva una en el apellido. Mismo
-// normalizador que /admin/horas y que el buscador global.
-function sinTildes(t: string): string {
-  return t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 }
 
 function sumarDias(iso: string, n: number): string {
@@ -210,6 +217,8 @@ interface Parametro {
   clave: string;
   valor: number;
   sede_codigo: string | null;
+  vigente_desde: string;
+  vigente_hasta: string | null;
 }
 interface ContratoFila {
   id: string;
@@ -272,6 +281,9 @@ const TIPO_CONTRATO: Record<string, string> = {
  * porque es el caso más frecuente (es también el valor inicial de `tipo`). */
 const ORDEN_TIPOS = ["renovacion", "nuevo", "indefinido", "convenio_practicas", "adendum"] as const;
 
+/** Los contratos de TRABAJO: los que, firmados, sacan a alguien de «Prueba» y la pasan a «Planilla». Un convenio de prácticas o una adenda no. */
+const TIPOS_QUE_PASAN_A_PLANILLA: ReadonlySet<string> = new Set(["nuevo", "renovacion", "indefinido"]);
+
 /** Una frase que explica cada tarjeta de tipo, para elegir sin adivinar. */
 const DESCRIPCION_TIPO: Record<string, string> = {
   renovacion: "Renueva las condiciones de una relación que ya vence.",
@@ -291,26 +303,6 @@ const DESCRIPCION_TIPO: Record<string, string> = {
  * avisa de nada: el `rojo` de esta paleta es el acento sagrado, con un máximo
  * de usos por vista.
  */
-/** Los estados que se resuelven generando un contrato; el resto, abriendo el suyo. */
-const NECESITA_CONTRATO = new Set(["sin_contrato", "vencido", "por_vencer", "desnaturalizado"]);
-
-/**
- * Las pestañas de la pantalla principal. Cada `clave` es o bien un valor real
- * de `filtroEstado` que ya existía ("pendientes", "todos", "sin_firmar"), o
- * uno de los dos sentinelas nuevos que solo reagrupan del lado del cliente
- * ("vigentes" = ok + sin_vencimiento; "archivados" = cambia la fuente de
- * datos a los contratos anulados). Ninguna pestaña inventa un estado que
- * `fn_contratos_tablero` no entregue ya.
- */
-const TABS: { clave: string; etiqueta: string }[] = [
-  { clave: "todos", etiqueta: "Todos" },
-  { clave: "pendientes", etiqueta: "Requieren atención" },
-  { clave: "vigentes", etiqueta: "Vigentes" },
-  { clave: "sin_firmar", etiqueta: "Pendientes de firma" },
-  { clave: "archivados", etiqueta: "Archivados" },
-];
-
-
 /**
  * El nombre CORTO de cada estado, para la insignia de la tabla.
  *
@@ -415,6 +407,52 @@ function variantePorEstado(estado: string): "neutral" | "alerta" | "advertencia"
  * campo nuevo uno de los dos se queda sin reponerlo, y el formulario arrastra
  * al documento siguiente lo que quedó del anterior.
  */
+type ClavePrincipal = "renovar" | "subir" | "copia";
+
+/** Qué botón visible lleva la fila según su estado (nada si no hay nada que hacer hoy). Pura: no toca estado. */
+function principalDe(estado: string): { clave: ClavePrincipal; texto: string } | null {
+  switch (estado) {
+    case "desnaturalizado":
+    case "vencido":
+      return { clave: "renovar", texto: "Regularizar" };
+    case "por_vencer":
+      return { clave: "renovar", texto: "Renovar" };
+    case "sin_firmar":
+      return { clave: "subir", texto: "Subir firmado" };
+    case "tramite_pendiente":
+      return { clave: "copia", texto: "Copia entregada" };
+    default:
+      return null;
+  }
+}
+
+/** Una fila de la lista por urgencia: quién, qué documento y vigencia, cuánto falta, su estado y su acción. */
+function FilaContrato({ v }: {
+  v: { persona: string; documento: string; vigencia: string; sede: string | null; estadoLabel: string; estadoVariante: "neutral" | "alerta" | "advertencia" | "positivo" | "informativo";
+       vence: string; venceAlerta: boolean; titulo: string; onClickRow: () => void; acciones: React.ReactNode };
+}) {
+  const detalle = [v.documento !== "—" ? v.documento : null, v.vigencia !== "—" ? v.vigencia : null, v.sede].filter(Boolean).join(" · ");
+  return (
+    <li
+      onClick={v.onClickRow}
+      title={v.titulo}
+      className="flex cursor-pointer flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3 transition-colors duration-150 hover:bg-crema/60"
+    >
+      <div className="min-w-0">
+        <p className="truncate font-medium text-tinta">{v.persona}</p>
+        <p className="truncate text-xs text-taupe">{detalle}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {v.vence !== "—" && (
+          <span className={v.venceAlerta ? "text-xs font-medium text-rojo-profundo" : "text-xs text-taupe"}>{v.vence}</span>
+        )}
+        <Insignia variante={v.estadoVariante} tamano="sm">{v.estadoLabel}</Insignia>
+        <span onClick={(e) => e.stopPropagation()}>{v.acciones}</span>
+      </div>
+    </li>
+  );
+}
+
 function camposIniciales(p: Persona, sedeNombre: string, sedeCiudad: string | null): DatosFormulario {
   return {
     cargo: p.cargo ?? "",
@@ -470,12 +508,13 @@ export default function ContratosPage() {
   const [ritVersion, setRitVersion] = useState<string | null>(null);
   const [ritFecha, setRitFecha] = useState<string | null>(null);
   const [firmante, setFirmante] = useState(FIRMANTE_POR_DEFECTO);
-  // La firma escaneada de QUIEN ESTÁ USANDO EL PANEL. `fn_mi_firma()` no puede
-  // devolver la de otra persona, y eso es deliberado (0076/0147): estampar la
-  // firma de Felipe desde la sesión de alguien más es justo lo que esas
-  // migraciones existen para impedir.
+  // La firma escaneada de QUIEN FIRMA POR CAYLA (`fn_firma_empresa`, 0398), no
+  // la de quien tenga la sesión abierta. Es la misma fila que da el nombre
+  // impreso (`firmante_empresa`, 0147), así que el nombre y la rúbrica no
+  // pueden contradecirse aunque el contrato lo abra DO o la Gerencia: nunca sale
+  // la firma de una persona bajo el nombre de otra. Antes se estampaba solo si
+  // quien miraba ERA el firmante, y para el resto salía la raya en blanco.
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
-  const [esFirmante, setEsFirmante] = useState(false);
   const [contratos, setContratos] = useState<ContratoFila[]>([]);
   // `fn_contratos_listar` no filtra por `estado`: el historial de quien ya
   // cesó se queda en `contratos_generados` a propósito (no se borra), pero el
@@ -489,8 +528,19 @@ export default function ContratosPage() {
   // y con veinte venciendo el mismo día, «¿a quién le falta?» es la pregunta
   // que hay que poder hacer. Ver migración 0287.
   const [tablero, setTablero] = useState<FilaTablero[]>([]);
+  // ¿Falló la lectura del tablero o del historial? Distinto de «no hay nada»: sin esto, un error se veía como una
+  // lista vacía y contadores en cero —y con ellos desaparecía el aviso del art. 77, justo lo que NO puede callarse—.
+  // El Dashboard ya hacía lo mismo con `contratosNoRespondio`.
+  const [falloTablero, setFalloTablero] = useState(false);
+  const [falloHistorial, setFalloHistorial] = useState(false);
 
   const [personaId, setPersonaId] = useState("");
+  // Las pruebas de tres días abiertas (0536). Quien está de prueba NO se contrata todavía:
+  // su «documento» es la prueba (DNI de ambos lados y el plazo), y el contrato llega cuando
+  // completa sus días. Se pide con `fn_pruebas_abiertas`; si falla, queda vacío y todo se ve como antes.
+  const [pruebas, setPruebas] = useState<FilaPrueba[]>([]);
+  // «Pasarla a Planilla» al registrar el contrato firmado de alguien que está de prueba.
+  const [pasarAPlanilla, setPasarAPlanilla] = useState(false);
   const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido">(
     "renovacion",
   );
@@ -615,6 +665,10 @@ export default function ContratosPage() {
   // leer el tablero y lee los contratos anulados). Ninguno inventa un estado
   // nuevo del lado del servidor — solo reagrupan, del lado del cliente,
   // estados que `fn_contratos_tablero` ya entrega.
+  // Qué banda de urgencia se está mirando (la elige una pastilla de «Para atender»); `null` = todas.
+  const [bandaElegida, setBandaElegida] = useState<Banda | null>(null);
+  // El aviso del art. 77 arranca en una línea; la explicación legal se abre a pedido.
+  const [art77Abierto, setArt77Abierto] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<"pendientes" | "todos" | "vigentes" | "archivados" | string>(
     "pendientes",
   );
@@ -814,7 +868,8 @@ export default function ContratosPage() {
     }
 
     const hoy = hoyLima();
-    const [ps, ss, dp, sal, params, rit, ctr, tab, cfg, fichas, firma, yo] = await Promise.all([
+    const peticionPruebas = supabase.rpc("fn_pruebas_abiertas");
+    const [ps, ss, dp, sal, params, rit, ctr, tab, cfg, fichas, firma] = await Promise.all([
       // Sin `.eq("en_planilla", true)`: una practicante también genera un
       // documento acá (su convenio, 0333) aunque `en_planilla` le salga
       // false. Se filtra en el cliente por `en_planilla || tipo_vinculo ===
@@ -823,7 +878,7 @@ export default function ContratosPage() {
       supabase
         .from("personas")
         .select("id, nombres, apellidos, documento, cargo, sede_base_id, sede_fisica_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad, personal_direccion, sueldo_fijo, en_planilla, tipo_vinculo, practicante_modalidad")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo, ciudad"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, direccion, genero"),
@@ -832,12 +887,19 @@ export default function ContratosPage() {
       // null y el contrato lo dice en vez de inventar un monto — misma
       // regla que /admin/documentacion. La RMV es el piso de la subvención
       // de un convenio de prácticas (Ley 28518, art. 45).
+      //
+      // «Vigente» es la condición de la planilla —`vigente_desde <= hoy` y
+      // (`vigente_hasta` nula o `>= hoy`)—, NO «la fila abierta»: con `.is(null)`,
+      // cerrar la RMV vieja (vigente_hasta = víspera) y abrir la nueva con fecha
+      // futura dejaba la pantalla sin RMV hasta el día del cambio, y con las dos
+      // abiertas se quedaba con la primera que llegara. Ver parametro-vigente.ts.
       supabase
         .from("parametros_laborales")
-        .select("clave, valor, sede_codigo")
+        .select("clave, valor, sede_codigo, vigente_desde, vigente_hasta")
         .in("clave", ["movilidad_diaria", "bono_onomastico", "rmv"])
         .lte("vigente_desde", hoy)
-        .is("vigente_hasta", null),
+        .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`)
+        .order("vigente_desde", { ascending: false }),
       // La versión vigente del RIT. Se lee de la tabla, no se escribe a
       // mano: es exactamente el dato que este repo prohíbe hardcodear.
       supabase
@@ -854,16 +916,17 @@ export default function ContratosPage() {
       // Las fichas SIN filtrar por `en_planilla`: quien firma por la empresa no
       // tiene por qué estar en planilla —puede ser accionista— y buscarlo en la
       // lista del desplegable lo dejaría sin nombre ni DNI en el contrato.
-      supabase.from("personas").select("id, nombres, apellidos, documento").eq("estado", "activo"),
-      // Mi propia firma escaneada. Solo la mía: fn_mi_firma no acepta parámetros.
-      supabase.rpc("fn_mi_firma"),
-      supabase.rpc("fn_persona_actual_id"),
+      supabase.from("personas").select("id, nombres, apellidos, documento").eq("estado", "activo").eq("cuenta_de_servicio", false),
+      // La firma escaneada de quien firma por CAYLA. No recibe parámetros: nadie
+      // puede pedir «la firma de fulano», solo la del firmante configurado.
+      supabase.rpc("fn_firma_empresa"),
     ]);
 
     setPersonas(
       ((ps.data as Persona[]) ?? []).filter((p) => p.en_planilla || p.tipo_vinculo === "practicante"),
     );
     setSedes((ss.data as Sede[]) ?? []);
+    setPruebas(((await peticionPruebas).data as FilaPrueba[] | null) ?? []);
     setDatosPersonales((dp.data as DatoPersonal[]) ?? []);
     setSalarios((sal.data as Salario[]) ?? []);
 
@@ -881,11 +944,10 @@ export default function ContratosPage() {
       cargo: cfgValor?.cargo ?? FIRMANTE_POR_DEFECTO.cargo,
     });
 
-    const miFirma = typeof firma.data === "string" ? firma.data : null;
-    setFirmaUrl(miFirma?.startsWith("data:image") ? miFirma : null);
-    setEsFirmante(Boolean(firmanteId) && firmanteId === (yo.data as string | null));
+    const firmaEmpresa = typeof firma.data === "string" ? firma.data : null;
+    setFirmaUrl(firmaEmpresa?.startsWith("data:image") ? firmaEmpresa : null);
 
-    const paramsData = (params.data as Parametro[]) ?? [];
+    const paramsData = vigentesAl((params.data as Parametro[]) ?? [], hoy);
     setMovilidadTarifas(paramsData.filter((p) => p.clave === "movilidad_diaria"));
     const bono = paramsData.find((p) => p.clave === "bono_onomastico");
     setBonoOnomastico(bono ? Number(bono.valor) : null);
@@ -902,6 +964,8 @@ export default function ContratosPage() {
     setRitVersion(ritFila ? String(ritFila.etiqueta_version ?? ritFila.version) : null);
     setRitFecha(ritFila ? formatearFecha(ritFila.vigente_desde) : null);
 
+    setFalloHistorial(!!ctr.error);
+    setFalloTablero(!!tab.error);
     setContratos((ctr.data as ContratoFila[]) ?? []);
     setTablero((tab.data as FilaTablero[]) ?? []);
     if (!personaUrlAplicada.current) {
@@ -979,7 +1043,23 @@ export default function ContratosPage() {
       ),
     )
 
-    const inicio = tipo === "renovacion" && p.fecha_fin_contrato ? sumarDias(p.fecha_fin_contrato, 1) : hoyLima();
+    // El inicio nace donde empieza de verdad la relación: el día siguiente al
+    // fin del documento anterior si es una continuación (renovación, o un
+    // convenio que ya tiene uno registrado), y si no, la FECHA DE INGRESO de la
+    // persona — no «hoy». Con «hoy», cada contrato de alguien que ya está
+    // trabajando salía con inicio equivocado y había que corregirlo a mano
+    // (Felipe, 2026-10-24). El fin sigue siendo de quien genera: abajo solo
+    // nace con un plazo probable para no arrancar vacío.
+    // Quien está en PRUEBA no tiene contrato anterior: su `fecha_fin_contrato` es
+    // el fin de los días de prueba, y el contrato que se le genera arranca el
+    // día que ingresó (caso Robert Cabrera, 2026-10-24: ingreso 19/10, prueba
+    // hasta el 21/10, y la regla anterior proponía el 22).
+    const esConvenioDeEstaPersona = p.tipo_vinculo === "practicante" || tipo === "convenio_practicas";
+    const continuaElAnterior =
+      p.fecha_fin_contrato !== null &&
+      p.tipo_vinculo !== "prueba" &&
+      (tipo === "renovacion" || p.tipo_vinculo === "practicante");
+    const inicio = continuaElAnterior && p.fecha_fin_contrato ? sumarDias(p.fecha_fin_contrato, 1) : (p.fecha_ingreso || hoyLima());
     setFechaInicio(inicio);
     // La fecha de fin NO arranca vacía (regla de la casa del 2026-08-26): su
     // vacío bloquea «Generar borrador», y en Safari un valor tecleado a mano
@@ -987,7 +1067,6 @@ export default function ContratosPage() {
     // pasó justo eso con un convenio: 03/12/2026 a la vista y el botón apagado.
     // Nace con el plazo más probable —tres meses para un convenio, un año para
     // un contrato modal— y se cambia en un clic.
-    const esConvenioDeEstaPersona = p.tipo_vinculo === "practicante" || tipo === "convenio_practicas";
     setFechaFin(finDePlazo(inicio, esConvenioDeEstaPersona ? 3 : 12));
 
     // TRAER EL ANEXO I / PLAN FORMATIVO DEL DOCUMENTO ANTERIOR, SI HAY (hallazgo
@@ -1085,6 +1164,12 @@ export default function ContratosPage() {
   ]);
 
   const persona = personas.find((p) => p.id === personaId) ?? null;
+  // LA PRUEBA DE TRES DÍAS. Quien está de prueba y todavía no completa sus días NO tiene un
+  // contrato que generar: su documento es la prueba (DNI de ambos lados y el plazo). Cuando
+  // completa el plazo —o lo pasa— el contrato se hace con el generador de siempre, y la persona
+  // sigue «en prueba» hasta que quede firmado (ahí se pasa a Planilla).
+  const pruebaDePersona = persona ? pruebas.find((x) => x.persona_id === persona.id) ?? null : null;
+  const soloPrueba = pruebaDePersona !== null && !puedeHacerContrato(pruebaDePersona);
   // Una practicante no tiene "nuevo ingreso" ni "renovación" — su único
   // documento es el convenio (0333), y esto NO se resuelve reponiendo `tipo`
   // desde un efecto (ver el de abajo, que solo mira `fecha_ingreso`): es un
@@ -1140,7 +1225,7 @@ export default function ContratosPage() {
    * agrupa exactamente los campos que el formulario largo ya mostraba juntos
    * antes del rediseño (ver más abajo, en el render).
    */
-  const pasosGenerador: { id: string; etiqueta: string }[] = !persona
+  const pasosGenerador: { id: string; etiqueta: string }[] = !persona || soloPrueba
     ? [{ id: "persona", etiqueta: "Persona y documento" }]
     : esAdendum
       ? [
@@ -1800,6 +1885,12 @@ export default function ContratosPage() {
     setSubiendoPara(id);
     setArchivo(null);
     setFechaFirma(hoyLima());
+    // Quien está de prueba y firma su contrato de trabajo PASA a Planilla: la casilla nace marcada
+    // (es lo que casi siempre se quiere) y se puede desmarcar. Nace marcada y no vacía por la misma
+    // razón que una fecha: un default que obliga a acordarse es donde se olvida.
+    const c = contratos.find((x) => x.id === id);
+    const enPrueba = c ? personas.find((p) => p.id === c.persona_id)?.tipo_vinculo === "prueba" : false;
+    setPasarAPlanilla(enPrueba && c !== undefined && c.fecha_firma === null && TIPOS_QUE_PASAN_A_PLANILLA.has(c.tipo));
   }
 
   async function guardarFirma() {
@@ -1863,13 +1954,31 @@ export default function ContratosPage() {
       avisar("error", mensajeDeError(error, "registrar la firma"));
       return;
     }
+    // PASAR A PLANILLA. Son dos llamadas (registrar la firma y cambiar el vínculo): si la segunda
+    // falla, el contrato ya está firmado y NO se deshace — se dice claro y la persona sigue en la
+    // Bandeja como «toca decidir», así que no se pierde. No se tocó `fn_contrato_registrar` (13
+    // argumentos, muy usada) para hacerlas atómicas; ver docs/estado.md.
+    let pasoAPlanilla = false;
+    if (pasarAPlanilla && contratoASubir) {
+      const { error: ePasa } = await supabase.rpc("fn_set_tipo_vinculo", { p_persona_id: contratoASubir.persona_id, p_tipo: "planilla" });
+      if (ePasa) {
+        avisar(
+          "error",
+          `La firma quedó registrada, pero no se pudo pasar a ${contratoASubir.persona} de «Prueba» a «Planilla»: ${mensajeDeError(ePasa, "cambiar el vínculo")} Hazlo desde Equipo.`,
+        );
+      } else {
+        pasoAPlanilla = true;
+      }
+    }
     setSubiendoPara(null);
     await cargar();
     avisar(
       "ok",
-      yaFirmado
-        ? "Escaneo de respaldo guardado. La fecha de firma sigue siendo la de la firma digital."
-        : "Contrato firmado registrado. La fecha de vencimiento de la persona se actualizó.",
+      pasoAPlanilla
+        ? `Contrato firmado registrado. ${contratoASubir?.persona} pasó de «Prueba» a «Planilla»: desde ahora cobra la asignación familiar.`
+        : yaFirmado
+          ? "Escaneo de respaldo guardado. La fecha de firma sigue siendo la de la firma digital."
+          : "Contrato firmado registrado. La fecha de vencimiento de la persona se actualizó.",
     );
   }
 
@@ -1997,6 +2106,25 @@ export default function ContratosPage() {
   }
 
   /**
+   * El botón visible de cada fila de la lista por urgencia: la acción que ESA banda pide, para no
+   * esconderla en el menú «•••» (que sigue teniendo lo demás). Ninguna es acción nueva: «Renovar» abre
+   * el mismo generador que «Generar», con la persona y el tipo ya puestos; «Subir firmado» y
+   * «Copia entregada» son las funciones de siempre. Las filas «al día» no llevan botón: no hay nada
+   * que hacer hoy. `principalDe` (arriba, pura) dice cuál toca; esta la ejecuta.
+   */
+  function ejecutarPrincipal(clave: ClavePrincipal, personaIdFila: string, c: ContratoFila, tipoFila: typeof tipo) {
+    if (clave === "renovar") {
+      setPersonaId(personaIdFila);
+      setTipo(tipoFila === "nuevo" ? "renovacion" : tipoFila);
+      irAlGenerador();
+    } else if (clave === "subir") {
+      abrirSubida(c.id);
+    } else {
+      void marcarTramite(c.id, "copia");
+    }
+  }
+
+  /**
    * "+ Nuevo documento" y "Generar" (cuando alguien del tablero no tiene
    * contrato todavía) llevan los dos al mismo sitio: el generador, mostrado
    * como su propia pantalla — ver `generadorAbierto`.
@@ -2009,7 +2137,8 @@ export default function ContratosPage() {
     setBusca("");
     setFiltroSede("");
     setFiltroTipo("");
-    setFiltroEstado("todos");
+    setFiltroEstado("pendientes");
+    setBandaElegida(null);
   }
 
   // Escape cierra el modal del documento, igual que en `components/ui/modal`.
@@ -2024,7 +2153,7 @@ export default function ContratosPage() {
     return () => document.removeEventListener("keydown", alPulsar);
   }, [documentoAbierto]);
 
-  useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — Contrato de trabajo` : null);
+  useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — ${soloPrueba ? "Prueba de tres días" : "Contrato de trabajo"}` : null);
 
   if (rol === null || cargando) {
     return (
@@ -2083,12 +2212,32 @@ export default function ContratosPage() {
   // escaneo — un contrato puede estar firmado por autoservicio digital sin
   // ningún PDF subido. Llamarlo "archivo firmado" habría sido más confuso que
   // el texto que reemplaza, no más claro.
-  const contadores: { clave: string; etiqueta: string; n: number; grave: boolean }[] = [
-    { clave: "desnaturalizado", etiqueta: "Riesgo de continuidad", n: cuenta("desnaturalizado"), grave: true },
-    { clave: "sin_firmar", etiqueta: "Pendientes de firma", n: cuenta("sin_firmar"), grave: false },
-    { clave: "vencido", etiqueta: "Vencidos", n: cuenta("vencido"), grave: true },
-    { clave: "por_vencer", etiqueta: "Vencen en 30 días", n: cuenta("por_vencer"), grave: false },
-  ];
+  // «Para atender»: cuántos hay en cada banda de urgencia, sobre el tablero ENTERO (no sobre lo filtrado: es el
+  // estado del mes, no de la búsqueda). Cada pastilla filtra la lista a esa banda.
+  const nBanda = (b: Banda) => tablero.filter((f) => bandaDe(f) === b).length;
+  const nParaAtender = tablero.filter((f) => bandaDe(f) !== "al_dia").length;
+  const nArt77 = cuenta("desnaturalizado");
+  // Para el selector del generador: cada persona con la situación de su contrato (la del tablero), para poder
+  // buscar «a quién le falta» y no solo «cómo se llama».
+  const opcionesPersona: OpcionPersona[] = personas.map((p) => {
+    const f = tablero.find((x) => x.persona_id === p.id);
+    const banda = f ? bandaDe(f) : null;
+    return {
+      id: p.id,
+      nombre: `${p.apellidos}, ${p.nombres}`,
+      sede: f?.sede ?? null,
+      tipoTexto: f?.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : null,
+      situacionTexto: !f
+        ? "Sin registrar"
+        : f.estado === "sin_contrato" && f.fecha_fin_contrato !== null
+          ? "En papel"
+          : (ETIQUETA_CORTA[f.estado] ?? f.estado),
+      situacionVariante: f ? variantePorEstado(f.estado) : "informativo",
+      situacion: !f || banda === "sin_contrato" ? "sin_contrato" : banda === "al_dia" ? "al_dia" : "atender",
+    };
+  });
+  // La lista ya está mostrando solo a quienes pasaron el plazo: el ojo pasa a «quitar el filtro».
+  const soloArt77 = bandaElegida === "paso" && filtroEstado === "pendientes";
 
   // Las sedes que de verdad aparecen, para el desplegable. Se leen del tablero
   // y no de una lista escrita a mano: la regla de la casa es que una lista de
@@ -2119,10 +2268,13 @@ export default function ContratosPage() {
     .filter((f) => filtroTipo === "" || f.tipo === filtroTipo)
     .filter((f) => {
       if (filtroEstado === "todos") return true;
-      if (filtroEstado === "pendientes") return f.estado !== "ok";
-      if (filtroEstado === "vigentes") return f.estado === "ok" || f.estado === "sin_vencimiento";
+      // «Para atender» y «Al día» se reparten TODO el tablero por banda (ver contratos-bandas.ts): «en papel» es
+      // historia, no urgencia, así que ya no infla lo que pide atención.
+      if (filtroEstado === "pendientes") return bandaDe(f) !== "al_dia";
+      if (filtroEstado === "vigentes") return bandaDe(f) === "al_dia";
       return f.estado === filtroEstado;
     })
+    .filter((f) => bandaElegida === null || bandaDe(f) === bandaElegida)
     // Lo urgente arriba: primero lo grave, después por cuántos días quedan.
     .sort((a, b) => {
       const g = Number(ESTADO_TABLERO[b.estado]?.grave ?? false) - Number(ESTADO_TABLERO[a.estado]?.grave ?? false);
@@ -2162,6 +2314,10 @@ export default function ContratosPage() {
           sede: c.sede,
           estadoLabel: "Anulado",
           estadoVariante: "informativo" as const,
+          banda: null as Banda | null,
+          vence: "—",
+          venceAlerta: false,
+          fechaFin: null as string | null,
           titulo: c.anulado_motivo ? `Anulado: ${c.anulado_motivo}` : "Anulado",
           onClickRow: () => setDetalleId(c.id),
           acciones: accionesContrato(c),
@@ -2197,6 +2353,9 @@ export default function ContratosPage() {
                       f.estado === "sin_contrato" && f.fecha_fin_contrato !== null
                       ? "En papel"
                       : (ETIQUETA_CORTA[f.estado] ?? e.texto);
+          // Quien está de prueba no «está sin contrato»: está en su prueba. La fila lo dice con su
+          // etiqueta («Prueba · 2 de 3») y su acción es la de la prueba, no «Generar».
+          const pruebaFila = personaFila && f.estado === "sin_contrato" ? pruebas.find((x) => x.persona_id === f.persona_id) : undefined;
           const tipoFila = esPracticanteFila
             ? "convenio_practicas"
             : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
@@ -2218,22 +2377,42 @@ export default function ContratosPage() {
               irAlGenerador();
             }
           };
+          const etiquetaPrueba = pruebaFila ? etiquetaDePrueba(pruebaFila) : null;
           return {
             key: f.persona_id,
             persona: f.persona,
-            documento: f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—",
+            documento: pruebaFila ? "Prueba de tres días" : f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—",
             vigencia: contrato
               ? `${formatearFecha(contrato.fecha_inicio)} – ${contrato.fecha_fin ? formatearFecha(contrato.fecha_fin) : "indeterminado"}`
               : f.fecha_fin_contrato
                 ? `hasta ${formatearFecha(f.fecha_fin_contrato)}`
                 : "—",
             sede: f.sede,
-            estadoLabel,
-            estadoVariante: variantePorEstado(f.estado),
-            titulo: v.texto === "—" ? e.texto : `${e.texto} · vence ${v.texto}`,
+            estadoLabel: etiquetaPrueba ? etiquetaPrueba.texto : estadoLabel,
+            estadoVariante: etiquetaPrueba ? etiquetaPrueba.variante : variantePorEstado(f.estado),
+            banda: bandaDe(f) as Banda | null,
+            // «hace 6 días» / «en 9 días»: la urgencia a simple vista, ahora a la vista en la fila y no en un title.
+            vence: v.texto,
+            venceAlerta: v.alerta,
+            fechaFin: f.fecha_fin_contrato,
+            titulo: pruebaFila ? textoDelDia(pruebaFila) : v.texto === "—" ? e.texto : `${e.texto} · vence ${v.texto}`,
             onClickRow,
             acciones: contrato ? (
-              accionesContrato(contrato)
+              <span className="inline-flex items-center gap-1">
+                {principalDe(f.estado) && (
+                  <Boton
+                    variante="sutil"
+                    tamano="sm"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      ejecutarPrincipal(principalDe(f.estado)!.clave, f.persona_id, contrato, tipoFila);
+                    }}
+                  >
+                    {principalDe(f.estado)!.texto}
+                  </Boton>
+                )}
+                {accionesContrato(contrato)}
+              </span>
             ) : (
               <Boton
                 variante="sutil"
@@ -2243,35 +2422,11 @@ export default function ContratosPage() {
                   onClickRow();
                 }}
               >
-                Generar
+                {pruebaFila ? (puedeHacerContrato(pruebaFila) ? "Hacer contrato" : "Ver prueba") : "Generar"}
               </Boton>
             ),
           };
         });
-
-  // El archivo, agrupado por persona y en el orden en que ya vienen (el más
-  // reciente primero). `Map` y no un objeto: conserva el orden de inserción,
-  // que es el que decide la consulta.
-  //
-  // SIN `useMemo`, y a propósito: este bloque vive DESPUÉS de los `return`
-  // de «cargando» y «sin permiso», así que un hook acá se salta en esos
-  // renders y React revienta con el error 310 —«más hooks que en el render
-  // anterior»—, que es lo que pasó al probarlo. Agrupar veinte filas no
-  // cuesta nada; el hook sí.
-  const porPersona = (() => {
-    const m = new Map<string, ContratoFila[]>();
-    for (const c of contratos) {
-      // Quien ya cesó no aparece: su historial sigue en la base, pero esta
-      // pantalla es para gestionar contratos de quien sigue en la empresa.
-      if (!personasActivasIds.has(c.persona_id)) continue;
-      const previo = m.get(c.persona);
-      if (previo) previo.push(c);
-      else m.set(c.persona, [c]);
-    }
-    return [...m.entries()];
-  })();
-
-  const porPersonaVisible = porPersona.filter(([nombre]) => coincide(nombre));
 
   // UN SOLO SITIO DONDE SE VE UN CONTRATO: el visor de "Ver / imprimir".
   //
@@ -2302,10 +2457,11 @@ export default function ContratosPage() {
   // borrador en algo que parece un documento ya firmado. Acá solo se reemplaza
   // el marcador para la vista y la impresión.
   //
-  // Y solo si quien está usando el panel ES el firmante configurado: `fn_mi_firma`
-  // devuelve únicamente la firma propia, así que no hay forma —ni la debe haber—
-  // de estampar la de otra persona.
-  const puedeEstampar = esFirmante && Boolean(firmaUrl);
+  // Y siempre la del firmante configurado, no la de quien mira: `fn_firma_empresa`
+  // no recibe parámetros, así que no hay forma —ni la debe haber— de estampar la
+  // de otra persona. Se estampa por defecto a quien abre el panel con el rol que
+  // corresponde (Gerencia, DO, líder de equipo).
+  const puedeEstampar = puedeEstamparFirmaDeEmpresa(rol) && Boolean(firmaUrl);
   // La del colaborador (0402) es distinta: no depende de quién mira el panel,
   // sino de si ESE contrato puntual ya tiene una firma confirmada congelada.
   // Por eso recibe la imagen como parámetro en vez de leerla de un estado
@@ -2362,22 +2518,24 @@ export default function ContratosPage() {
                           {editando
                             ? `Editando: ${TIPO_CONTRATO[editando.tipo] ?? editando.tipo}`
                             : persona
-                              ? (TIPO_CONTRATO[tipoEfectivo] ?? tipoEfectivo)
+                              ? soloPrueba
+                                ? "Prueba de tres días"
+                                : (TIPO_CONTRATO[tipoEfectivo] ?? tipoEfectivo)
                               : "Nuevo documento"}
                         </p>
                         {persona && (
                           <p className="text-sm text-taupe">
-                            {persona.nombres} {persona.apellidos} · Paso {indicePaso + 1} de {pasosGenerador.length}
+                            {persona.nombres} {persona.apellidos}{soloPrueba ? "" : ` · Paso ${indicePaso + 1} de ${pasosGenerador.length}`}
                           </p>
                         )}
                       </div>
-                      {persona && (
+                      {persona && !soloPrueba && (
                         <span className="text-sm font-medium tabular-nums text-taupe">
                           {Math.round(((indicePaso + 1) / pasosGenerador.length) * 100)}%
                         </span>
                       )}
                     </div>
-                    {persona && (
+                    {persona && !soloPrueba && (
                       <div className="h-1.5 w-full overflow-hidden rounded-pildora bg-sand">
                         <div
                           className="h-full rounded-pildora bg-tinta transition-all duration-300"
@@ -2434,26 +2592,39 @@ export default function ContratosPage() {
                 {/* PASO — PERSONA Y DOCUMENTO */}
                 {pasoActual === "persona" && (
                   <>
-                    <CampoSelect
-                      id="generador-persona"
-                      etiqueta="Persona"
-                      className="disabled:bg-crema disabled:text-taupe"
+                    <SelectorPersona
+                      opciones={opcionesPersona}
                       value={personaId}
                       // Un borrador es de quien es. Cambiarle la persona no
                       // sería corregirlo, sería otro documento — y para eso
                       // está generar.
                       disabled={editando !== null}
-                      onChange={(e) => setPersonaId(e.target.value)}
-                    >
-                      <option value="">— elegir —</option>
-                      {personas.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.apellidos}, {p.nombres}
-                        </option>
-                      ))}
-                    </CampoSelect>
+                      onChange={setPersonaId}
+                    />
 
-                    {persona?.tipo_vinculo === "practicante" ? (
+                    {pruebaDePersona && !soloPrueba && (
+                      <BannerAviso enLinea variante="advertencia" titulo={`${nombreDePrueba(pruebaDePersona)} ya completó su prueba.`}>
+                        {textoDelDia(pruebaDePersona)}. Este contrato se firma en papel: al registrarlo firmado puedes pasarla de «Prueba» a
+                        «Planilla», y desde ahí cobra la asignación familiar.
+                      </BannerAviso>
+                    )}
+                    {soloPrueba && pruebaDePersona ? (
+                      // Quien está de prueba NO se contrata todavía. El «documento» es la prueba:
+                      // el DNI de ambos lados y el plazo. Nombres, apellidos y número ya vienen de
+                      // Equipo (0513) y no se vuelven a pedir.
+                      <div className="flex flex-col gap-3">
+                        <Campo etiqueta="Tipo" className="disabled:bg-crema disabled:text-taupe" value="Prueba de tres días" disabled />
+                        <div className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-taupe">
+                          <p className="font-medium text-tinta">Todavía no se le hace contrato.</p>
+                          <p className="mt-1 text-xs">
+                            Trabaja {pruebaDePersona.dias_plazo} días de prueba. Si pasa, recién ahí se le hace el contrato; si no, se
+                            le da de baja y se le paga lo trabajado, y si se retira por su cuenta no se le paga.
+                            Sus datos —nombres, apellidos y {persona?.documento ? `documento ${persona.documento}` : "documento"}— vienen de Equipo.
+                          </p>
+                        </div>
+                        <PanelPrueba fila={pruebaDePersona} supabase={supabase} rol={rol} alCambiar={() => void cargar()} />
+                      </div>
+                    ) : persona?.tipo_vinculo === "practicante" ? (
                       // Una practicante solo tiene un documento posible — no
                       // "nuevo ingreso" ni "renovación", que son conceptos de
                       // un contrato de trabajo (0333). Se fija sola y no se
@@ -3063,9 +3234,9 @@ export default function ContratosPage() {
                                 ? "sin firmante configurado — cárgalo en Documentación"
                                 : puedeEstampar
                                   ? `se estampa la de ${firmante.nombre}`
-                                  : esFirmante
-                                    ? "no tienes firma escaneada cargada — saldrá la raya en blanco"
-                                    : `la firma es de ${firmante.nombre}; solo esa persona puede estamparla, saldrá la raya en blanco`}
+                                  : firmaUrl
+                                    ? "tu rol no estampa la firma de la empresa — saldrá la raya en blanco"
+                                    : `${firmante.nombre} todavía no tiene su firma guardada en «Mi firma» — saldrá la raya en blanco`}
                             </dd>
                           </div>
                         </dl>
@@ -3147,7 +3318,7 @@ export default function ContratosPage() {
                     ) : (
                       <span />
                     )}
-                    {pasoActual !== "revision" && (
+                    {pasoActual !== "revision" && indicePaso < pasosGenerador.length - 1 && (
                       <Boton variante="primario" onClick={() => setPaso(pasosGenerador[indicePaso + 1].id)}>
                         Continuar →
                       </Boton>
@@ -3161,19 +3332,27 @@ export default function ContratosPage() {
             </div>
           )}
 
-      <div className="mx-auto max-w-6xl space-y-6 print:hidden">
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-2xl">Contratos</h1>
-            <p className="text-sm text-taupe">Gestiona contratos, renovaciones, convenios y documentos firmados.</p>
-          </div>
-          {/* Abre el generador como pantalla propia (`generadorAbierto`),
-              superpuesta al listado — ver el bloque justo dentro de
-              `<main>`, arriba de este `<div>`. */}
-          <Boton variante="primario" onClick={irAlGenerador} className="shrink-0">
-            + Nuevo documento
-          </Boton>
-        </header>
+      <div className="space-y-6 print:hidden">
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Personas")}
+          titulo="Contratos"
+          descripcion="Quién necesita un contrato, una renovación o una firma, de lo más urgente a lo que está al día."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funciona Contratos"
+              intro="Cada persona está en la banda que le toca según su contrato; la lista va de lo más urgente a lo que está al día. Abrir una fila muestra su documento."
+              secciones={[
+                { titulo: "Ya pasó el plazo", texto: "El contrato terminó y la persona sigue marcando asistencia. Pasada la fecha con la persona todavía trabajando, el art. 77 del D. Leg. 728 lo vuelve indefinido por ley, sin que nadie lo decida. Es lo único en rojo." },
+                { titulo: "Vence pronto", texto: "Termina en los próximos 60 días (la misma ventana que usa Equipo). Si varios vencen el mismo día, la pantalla lo dice: son decisiones, redacciones y firmas en la misma semana." },
+                { titulo: "Falta firma o copia", texto: "El contrato existe pero no está firmado (ni escaneado ni confirmado por la persona), o falta entregarle su copia." },
+                { titulo: "Sin contrato registrado", texto: "No hay ni documento ni fecha de fin anotada: no se sabe de ningún contrato." },
+                { titulo: "Al día", texto: "Vigentes, sin vencimiento, y los firmados en papel antes de que existiera el generador (marcados «En papel»): son historia, no urgencia." },
+                { titulo: "Quién entra", texto: "Desarrollo Organizacional y dirección; firma por CAYLA quien está configurado como firmante. Una líder de equipo no tiene esta pantalla." },
+              ]}
+            />
+          }
+          accion={<Boton variante="primario" onClick={irAlGenerador}>+ Nuevo documento</Boton>}
+        />
 
         {/* Antes el generador vivía en medio de esta columna, entre el
             listado y el archivo — con la Fase 2 pasó a ser su propia
@@ -3189,399 +3368,150 @@ export default function ContratosPage() {
             {/* El buscador vive DENTRO de la barra de filtros compacta, más
                 abajo (rediseño) — filtra las mismas dos fuentes que antes
                 (tablero y archivo), sin tildes. */}
-            {/* LOS CUATRO INDICADORES, Y CADA UNO ES UN FILTRO.
-                Un número que no se puede abrir obliga a adivinar qué filtro lo
-                reproduce. Pulsar uno deja la tabla con exactamente esas filas.
-                Solo el primero lleva rojo: es el único que cuesta plata. */}
-            {tablero.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {contadores.map((c) => {
-                  const activo = filtroEstado === c.clave;
-                  return (
-                    <button
-                      key={c.clave}
-                      onClick={() => setFiltroEstado(activo ? "pendientes" : c.clave)}
-                      aria-pressed={activo}
-                      className={`rounded-2xl border p-3 text-left transition-colors ${
-                        c.grave && c.n > 0 ? "border-rojo" : activo ? "border-taupe" : "border-sand"
-                      } ${activo ? "bg-hueso" : "bg-papel hover:bg-hueso"}`}
-                    >
-                      <span
-                        className={`flex items-center gap-1 text-xs ${c.grave && c.n > 0 ? "text-rojo" : "text-taupe"}`}
-                      >
-                        {c.etiqueta}
-                        {/* Explica "riesgo de continuidad" sin gastar sitio en
-                            la tarjeta: hover en escritorio (title nativo) y
-                            toque en celular abren el mismo texto — un toque
-                            además activa el filtro, que es lo esperable
-                            cuando se pulsa una tarjeta entera. */}
-                        {c.clave === "desnaturalizado" && (
-                          <span title={EXPLICACION_ART_77} className="cursor-help text-taupe/80">
-                            ⓘ
-                          </span>
-                        )}
-                      </span>
-                      <span
-                        className={`block font-serif text-2xl tabular-nums ${c.grave && c.n > 0 ? "text-rojo" : "text-tinta"}`}
-                      >
-                        {c.n}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Un fallo de lectura NO se ve como «nada pendiente»: el plazo del art. 77 corre igual aunque esta lista
+                no haya podido mirar. */}
+            {falloTablero && (
+              <BannerAviso role="alert" variante="alerta" titulo="No se pudieron consultar los contratos">
+                <p className="mb-2">
+                  Esto no significa que no haya nada pendiente: significa que no se pudo mirar. El plazo del{" "}
+                  <strong>artículo 77</strong> corre igual aunque esta lista no haya podido revisarlo.
+                </p>
+                <Boton variante="secundario" tamano="sm" onClick={() => void cargar()}>Reintentar</Boton>
+              </BannerAviso>
+            )}
+            {falloHistorial && !falloTablero && (
+              <BannerAviso enLinea role="alert">
+                No se pudo traer el historial de documentos: la lista de personas sí cargó, pero «Archivados» y las acciones de cada fila pueden estar incompletas.{" "}
+                <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+              </BannerAviso>
             )}
 
-            {/* BARRA DE FILTROS COMPACTA: buscar + sede + tipo + estado, en una
-                sola agrupación en vez de selects sueltos ocupando cada uno su
-                propia fila. El tipo se lee de lo que ya hay en pantalla, la
-                sede también — ninguno es una lista escrita a mano. */}
-            {tablero.length > 0 && (
-              <div className="space-y-2 rounded-2xl border border-sand bg-papel p-3">
-                <div className="relative">
-                  <Search
-                    size={15}
-                    strokeWidth={1.8}
-                    aria-hidden
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-taupe"
-                  />
-                  <input
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                    placeholder="Buscar por nombre…"
-                    aria-label="Buscar por nombre o sede"
-                    className="w-full rounded-control border border-sand bg-hueso py-2 pl-9 pr-9 text-base placeholder:text-taupe/60 sm:text-sm"
-                  />
-                  {busca && (
-                    <button
-                      onClick={() => setBusca("")}
-                      aria-label="Limpiar búsqueda"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 px-1 leading-none text-taupe hover:text-tinta"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  <CampoSelect value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
-                    <option value="">Todas las sedes</option>
-                    {sedesEnTablero.map((sd) => (
-                      <option key={sd} value={sd}>
-                        {sd}
-                      </option>
-                    ))}
-                  </CampoSelect>
-                  <CampoSelect value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} aria-label="Filtrar por tipo">
-                    <option value="">Todos los tipos</option>
-                    {tiposEnDatos.map((t) => (
-                      <option key={t} value={t}>
-                        {TIPO_CONTRATO[t] ?? t}
-                      </option>
-                    ))}
-                  </CampoSelect>
-                  <div className="col-span-2 sm:col-span-1">
-                    <CampoSelect
-                      value={filtroEstado}
-                      onChange={(e) => setFiltroEstado(e.target.value)}
-                      aria-label="Filtrar por estado"
-                    >
-                      <option value="pendientes">Necesitan atención</option>
-                      <option value="todos">Todos los estados</option>
-                      {Object.keys(ESTADO_TABLERO).map((e) => (
-                        <option key={e} value={e}>
-                          {ESTADO_TABLERO[e].texto}
-                        </option>
-                      ))}
-                      {/* Los dos sentinelas que solo activan las pestañas
-                          (ver TABS): se listan acá también para que este
-                          desplegable no muestre "Necesitan atención" por
-                          defecto cuando en realidad está en "Vigentes" o
-                          "Archivados" — un <select> sin ninguna opción que
-                          calce con su valor cae a la primera de la lista. */}
-                      <option value="vigentes">Vigentes (ok + sin vencimiento)</option>
-                      <option value="archivados">Archivados (anulados)</option>
-                    </CampoSelect>
+            {/* EL ART. 77 va primero y con título cuando existe: es lo único que cuesta plata (la persona que sigue
+                marcando después de su vencimiento queda con vínculo indefinido POR LEY). */}
+            {nArt77 > 0 && (
+              <BannerAviso enLinea variante="alerta">
+                <div className="flex items-center justify-between gap-3">
+                  <p>
+                    <b className="font-medium text-rojo-profundo">
+                      {nArt77} {nArt77 === 1 ? "persona siguió" : "personas siguieron"} marcando después de vencer su contrato
+                    </b>
+                  </p>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {/* Ojo = «mostrarme quiénes»; ojo tachado = «ya lo estoy viendo, quitar el filtro». */}
+                    <BotonIcono
+                      etiqueta={soloArt77 ? "Quitar el filtro" : "Ver quiénes"}
+                      icono={soloArt77 ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+                      onClick={() => {
+                        if (soloArt77) { setBandaElegida(null); return; }
+                        setFiltroEstado("pendientes");
+                        setBandaElegida("paso");
+                      }}
+                    />
+                    <BotonIcono
+                      etiqueta={art77Abierto ? "Ocultar por qué importa" : "Por qué importa"}
+                      icono={art77Abierto ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
+                      aria-expanded={art77Abierto}
+                      onClick={() => setArt77Abierto(!art77Abierto)}
+                    />
                   </div>
                 </div>
-                {(busca || filtroSede || filtroTipo || filtroEstado !== "pendientes") && (
-                  <button
-                    className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
-                    onClick={limpiarFiltros}
-                  >
-                    × Limpiar filtros
-                  </button>
+                {art77Abierto && <p className="mt-2">{EXPLICACION_ART_77}</p>}
+              </BannerAviso>
+            )}
+
+            {!falloTablero && tablero.length > 0 && (
+              <>
+                <Pestanas
+                  etiqueta="Secciones de Contratos"
+                  pestanas={[
+                    { clave: "pendientes", texto: "Para atender", aviso: nParaAtender },
+                    { clave: "vigentes", texto: "Al día" },
+                    { clave: "todos", texto: "Todos" },
+                    { clave: "archivados", texto: "Archivados" },
+                  ]}
+                  activa={filtroEstado === "sin_firmar" ? "pendientes" : filtroEstado}
+                  alElegir={(clave) => { setFiltroEstado(clave); setBandaElegida(null); }}
+                />
+
+                {(filtroEstado === "pendientes" || filtroEstado === "todos") && (
+                  <ParaAtender
+                    items={[
+                      { clave: "paso", texto: `${nBanda("paso")} ya pasó el plazo`, n: nBanda("paso"), tono: "rojo" },
+                      { clave: "pronto", texto: `${nBanda("pronto")} vence${nBanda("pronto") === 1 ? "" : "n"} pronto`, n: nBanda("pronto"), tono: "ambar" },
+                      { clave: "firma", texto: `${nBanda("firma")} falta${nBanda("firma") === 1 ? "" : "n"} firma o copia`, n: nBanda("firma"), tono: "pizarra" },
+                      { clave: "sin_contrato", texto: `${nBanda("sin_contrato")} sin contrato`, n: nBanda("sin_contrato"), tono: "neutro" },
+                    ]}
+                    activa={bandaElegida}
+                    alTocar={(clave) => setBandaElegida(bandaElegida === clave ? null : (clave as Banda))}
+                  />
                 )}
-              </div>
-            )}
 
-            {/* TABS: reagrupan del lado del cliente estados que
-                `fn_contratos_tablero` ya entrega (ver filasVista) — ninguno es
-                un estado nuevo del servidor. */}
-            {tablero.length > 0 && (
-              <div className="flex gap-1 overflow-x-auto border-b border-sand">
-                {TABS.map((t) => {
-                  const activo = filtroEstado === t.clave;
-                  return (
-                    <button
-                      key={t.clave}
-                      onClick={() => setFiltroEstado(t.clave)}
-                      aria-pressed={activo}
-                      className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors ${
-                        activo ? "border-tinta font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta"
-                      }`}
-                    >
-                      {t.etiqueta}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                {/* Filtros compactos, sin rótulos y con campos «sm». La sede y el tipo se leen de lo que ya hay en
+                    pantalla, no de una lista escrita a mano. */}
+                <TarjetaInfo className="flex flex-wrap items-center gap-2 p-3 sm:p-3">
+                  <div className="min-w-48 flex-1">
+                    <Campo tamano="sm" aria-label="Buscar por nombre o sede" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar persona" />
+                  </div>
+                  <div className="w-full sm:w-44">
+                    <CampoSelect tamano="sm" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
+                      <option value="">Todas las sedes</option>
+                      {sedesEnTablero.map((sd) => (<option key={sd} value={sd}>{sd}</option>))}
+                    </CampoSelect>
+                  </div>
+                  <div className="w-full sm:w-48">
+                    <CampoSelect tamano="sm" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} aria-label="Filtrar por tipo">
+                      <option value="">Todos los tipos</option>
+                      {tiposEnDatos.map((t) => (<option key={t} value={t}>{TIPO_CONTRATO[t] ?? t}</option>))}
+                    </CampoSelect>
+                  </div>
+                  {(busca || filtroSede || filtroTipo || bandaElegida !== null || filtroEstado === "sin_firmar") && (
+                    <Boton variante="enlace" className="text-xs text-taupe" onClick={limpiarFiltros}>Limpiar</Boton>
+                  )}
+                </TarjetaInfo>
 
-            {/* LA TABLA COMPACTA. Une lo que antes eran dos listas separadas
-                —el tablero (quién necesita un documento) y el archivo (los ya
-                generados)— en una sola fila por persona/documento, con las
-                acciones detrás de "•••" en vez de enlaces sueltos. Quien
-                todavía no tiene contrato sigue viéndose acá (columna Estado
-                dice "Sin registrar", o "En papel" si ya tiene uno firmado
-                antes de este generador — ver `estadoLabel` — y la acción es
-                "Generar"): esa visibilidad es la razón de ser de esta
-                pantalla y no se pierde al comprimir la tabla. */}
-            {tablero.length > 0 && (
-              <div className="rounded-2xl border border-sand bg-papel">
-                {/* Escritorio: tabla completa. En celular, tarjetas apiladas
-                    más abajo — mismos datos, sin scroll horizontal.
-                    La columna de Acciones subió de 7% a 14%: con "Generar"
-                    puesto (el texto más largo que le toca, con su padding de
-                    <Boton tamano="sm">) el 7% se quedaba corto y el botón
-                    salía cortado contra el borde de la tarjeta. */}
-                <div className="hidden sm:block">
-                  <table className="w-full table-fixed text-sm">
-                    <TablaEncabezado>
-                      <Th className="w-[26%] text-xs">Persona</Th>
-                      <Th className="w-[18%] text-xs">Documento</Th>
-                      <Th className="w-[19%] text-xs">Vigencia</Th>
-                      <Th className="w-[10%] text-xs">Sede</Th>
-                      <Th className="w-[13%] text-xs">Estado</Th>
-                      <Th className="w-[14%] text-xs" />
-                    </TablaEncabezado>
-                    <tbody>
-                      {filasVista.map((v) => (
-                        <tr
-                          key={v.key}
-                          onClick={v.onClickRow}
-                          title={v.titulo}
-                          className="cursor-pointer border-t border-sand transition-colors duration-150 even:bg-hueso/50 hover:bg-crema/60"
-                        >
-                          <td className="truncate px-3 py-2.5">{v.persona}</td>
-                          <td className="truncate px-2 py-2.5 text-taupe">{v.documento}</td>
-                          <td className="truncate px-2 py-2.5 text-taupe tabular-nums">{v.vigencia}</td>
-                          <td className="truncate px-2 py-2.5 text-taupe">{v.sede}</td>
-                          <td className="px-2 py-2.5">
-                            <Insignia variante={v.estadoVariante} tamano="sm">
-                              {v.estadoLabel}
-                            </Insignia>
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2.5 text-right">{v.acciones}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Celular: la misma fila, apilada en una tarjeta. */}
-                <div className="flex flex-col divide-y divide-sand sm:hidden">
-                  {filasVista.map((v) => (
-                    <div key={v.key} onClick={v.onClickRow} title={v.titulo} className="cursor-pointer px-3 py-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{v.persona}</p>
-                          <p className="truncate text-xs text-taupe">{v.documento}</p>
-                        </div>
-                        <Insignia variante={v.estadoVariante} tamano="sm" className="shrink-0">
-                          {v.estadoLabel}
-                        </Insignia>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-taupe">
-                        <span className="truncate">
-                          {v.vigencia !== "—" && `${v.vigencia} · `}
-                          {v.sede}
-                        </span>
-                        <span onClick={(e) => e.stopPropagation()}>{v.acciones}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {filasVista.length === 0 && (
-                  <p className="px-3 py-8 text-center text-sm text-taupe">
+                {filasVista.length === 0 ? (
+                  <EstadoVacio accion={(busca || filtroSede || filtroTipo || bandaElegida !== null)
+                    ? <Boton variante="secundario" tamano="sm" onClick={limpiarFiltros}>Limpiar filtros</Boton>
+                    : undefined}>
                     {filtroEstado === "archivados"
                       ? "No hay documentos archivados todavía."
-                      : "No encontramos contratos con estos filtros."}
-                    {(busca || filtroSede || filtroTipo || filtroEstado !== "pendientes") && (
-                      <>
-                        {" "}
-                        <button
-                          className="underline underline-offset-2 hover:text-tinta"
-                          onClick={limpiarFiltros}
-                        >
-                          Limpiar filtros
-                        </button>
-                      </>
-                    )}
-                  </p>
+                      : filtroEstado === "pendientes" && !(busca || filtroSede || filtroTipo || bandaElegida !== null)
+                        ? "Todo al día: no hay contratos que atender."
+                        : "No encontramos contratos con estos filtros."}
+                  </EstadoVacio>
+                ) : filtroEstado === "archivados" ? (
+                  <TarjetaInfo className="overflow-hidden p-0 sm:p-0">
+                    <ul className="divide-y divide-sand">{filasVista.map((v) => <FilaContrato key={v.key} v={v} />)}</ul>
+                  </TarjetaInfo>
+                ) : (
+                  <div className="grid gap-5">
+                    {ORDEN_BANDAS.filter((b) => filasVista.some((v) => v.banda === b)).map((b) => {
+                      const dentro = filasVista.filter((v) => v.banda === b);
+                      const racimo = b === "pronto" ? racimoDeVencimientos(dentro.map((v) => v.fechaFin)) : null;
+                      return (
+                        <section key={b} aria-label={TEXTO_BANDA[b].titulo}>
+                          <h2 className="mb-1 flex flex-wrap items-baseline gap-2 font-serif text-lg">
+                            {TEXTO_BANDA[b].titulo}
+                            <span className="font-sans text-xs font-normal text-taupe">{dentro.length} {dentro.length === 1 ? "persona" : "personas"}</span>
+                          </h2>
+                          <p className="mb-2 text-xs text-taupe">{TEXTO_BANDA[b].ayuda}</p>
+                          {racimo && (
+                            <BannerAviso enLinea className="mb-2">
+                              <strong>{racimo.cuantos} contratos vencen el mismo día</strong> ({formatearFecha(racimo.fecha)}): son {racimo.cuantos} decisiones,
+                              redacciones y firmas en la misma semana.
+                            </BannerAviso>
+                          )}
+                          <TarjetaInfo className="overflow-hidden p-0 sm:p-0">
+                            <ul className="divide-y divide-sand">{dentro.map((v) => <FilaContrato key={v.key} v={v} />)}</ul>
+                          </TarjetaInfo>
+                        </section>
+                      );
+                    })}
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </div>
-
-          {/* HISTORIAL COMPLETO, PLEGADO POR DEFECTO (rediseño).
-              La tabla compacta de arriba ya muestra el documento VIGENTE de
-              cada persona — el que importa para decidir hoy. Esto es lo que
-              queda atrás: convenios y contratos anteriores ya reemplazados
-              por uno nuevo, con quién los generó y cuándo se corrigieron. Es
-              información secundaria a propósito (spec §24: "no debe competir
-              con estado, tipo y vigencia"), así que arranca cerrada. */}
-          <details className="min-w-0 space-y-3">
-            <summary className="cursor-pointer list-none font-serif text-lg marker:content-['']">
-              Historial completo por persona
-              {porPersona.length > 0 && (
-                <span className="text-taupe">
-                  {" "}
-                  · {filtro ? `${porPersonaVisible.length} de ${porPersona.length}` : porPersona.length}
-                </span>
-              )}
-            </summary>
-
-            {contratos.length === 0 && (
-              <p className="text-sm text-taupe">Todavía no se generó ningún contrato.</p>
-            )}
-            {contratos.length > 0 && porPersonaVisible.length === 0 && (
-              <p className="text-sm text-taupe">Nada del archivo coincide con «{busca.trim()}».</p>
-            )}
-
-            {/* AGRUPADO POR PERSONA, Y LOS ANULADOS PLEGADOS.
-                La tabla plana repetía el nombre completo en cada fila —cuatro
-                veces para la misma persona— y daba a tres pruebas anuladas el
-                mismo peso visual que al contrato de verdad. Lo que importa de
-                cada persona es UNO: el vigente. Lo demás es historia, y la
-                historia se guarda, no se exhibe. */}
-            {porPersonaVisible.map(([nombre, filas]) => {
-              const vivos = filas.filter((c) => !c.anulado_at);
-              const anulados = filas.filter((c) => c.anulado_at);
-              return (
-                <article key={nombre} className="rounded-lg border border-sand bg-papel p-4">
-                  <h3 className="mb-2 font-medium">{nombre}</h3>
-
-                  {vivos.map((c) => (
-                    <div key={c.id} className="space-y-1 border-t border-sand/60 pt-2 first:border-0 first:pt-0">
-                      <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
-                        <span>
-                          {formatearFecha(c.fecha_inicio)} –{" "}
-                          {c.fecha_fin ? formatearFecha(c.fecha_fin) : "indeterminado"}
-                        </span>
-                        <span className="text-xs text-taupe">{TIPO_CONTRATO[c.tipo] ?? c.tipo}</span>
-                        {/* CAMBIO (0430): "firmado" es `fecha_firma`, no
-                            `storage_path` — un contrato puede estar firmado
-                            por autoservicio digital sin ningún escaneo. */}
-                        <span className={c.fecha_firma ? "text-xs text-verde" : "text-xs text-taupe"}>
-                          {c.fecha_firma ? `firmado el ${formatearFecha(c.fecha_firma)}` : "pendiente de firma"}
-                        </span>
-                        {c.firma_persona_confirmada_at && (
-                          <span className="text-xs text-taupe">
-                            firma digital confirmada el {formatearFecha(c.firma_persona_confirmada_at.slice(0, 10))}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Solo mientras falte: confirmar en cada fila lo que ya
-                          se hizo llena la pantalla de recibos. Comunicar el
-                          contrato a la Autoridad de Trabajo ya no es un
-                          trámite de nadie (0470, D. Leg. 1246) — lo único que
-                          puede faltar acá es la copia. */}
-                      {c.fecha_firma && !c.copia_entregada_at && (
-                        <p className="text-xs text-taupe">
-                          Falta entregar copia a {c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}
-                        </p>
-                      )}
-
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <Boton variante="enlace" onClick={() => abrirGenerado(c.id)}>
-                          Ver / imprimir
-                        </Boton>
-                        {/* Editar solo mientras sea un borrador. Una vez
-                            firmado —con escaneo o por autoservicio digital
-                            (0430)— manda lo que se firmó: se corrige con un
-                            adendum o se anula, nunca reescribiendo por detrás
-                            lo que ya se firmó. */}
-                        {!c.fecha_firma && (
-                          <Boton variante="enlace" onClick={() => empezarEdicion(c)}>
-                            Editar
-                          </Boton>
-                        )}
-                        {/* "Subir escaneo" sigue disponible aunque ya esté
-                            firmado por autoservicio digital: DO puede seguir
-                            adjuntando uno de respaldo (0430) — solo deja de
-                            ofrecerse cuando YA hay un escaneo guardado. */}
-                        {!c.storage_path && (
-                          <Boton variante="enlace" onClick={() => abrirSubida(c.id)}>
-                            {c.fecha_firma ? "Adjuntar escaneo de respaldo" : "Subir contrato firmado"}
-                          </Boton>
-                        )}
-                        {c.storage_path && (
-                          <Boton variante="enlace" onClick={() => verDocumento(c.storage_path!)}>
-                            Ver escaneo
-                          </Boton>
-                        )}
-                        {c.fecha_firma && !c.copia_entregada_at && (
-                          <Boton variante="enlace" onClick={() => marcarTramite(c.id, "copia")}>
-                            Marcar copia entregada
-                          </Boton>
-                        )}
-                        {/* Anular va al final y en taupe: es destructivo, no
-                            urgente. En rojo junto a acciones inofensivas se
-                            pulsa por error, y el rojo de esta paleta está
-                            reservado para lo que de verdad avisa. Se queda como
-                            <button> nativo: su hover (taupe → rojo) no es el que
-                            trae <Boton variante="enlace"> (hover:text-taupe), y
-                            forzar los dos hover en la misma clase deja el color
-                            final librado al orden de generación de Tailwind. */}
-                        <button className="ml-auto text-taupe underline underline-offset-2 hover:text-rojo" onClick={() => setAnulando(c.id)}>
-                          Anular
-                        </button>
-                      </div>
-                      <p className="text-xs text-taupe">
-                        Generado el {formatearFecha(c.generado_at.slice(0, 10))}
-                        {c.generado_por && ` por ${c.generado_por}`}
-                        {/* Que un documento cambió después de generarse se dice,
-                            no se deduce del archivo de auditoría. */}
-                        {c.editado_at &&
-                          ` · editado el ${formatearFecha(c.editado_at.slice(0, 10))}${c.editado_por ? ` por ${c.editado_por}` : ""}`}
-                      </p>
-                    </div>
-                  ))}
-
-                  {anulados.length > 0 && (
-                    <details className="mt-2 border-t border-sand/60 pt-2 text-xs text-taupe">
-                      <summary className="cursor-pointer">
-                        {anulados.length === 1 ? "1 anulado" : `${anulados.length} anulados`}
-                      </summary>
-                      <ul className="mt-1 space-y-1">
-                        {anulados.map((c) => (
-                          <li key={c.id} className="flex flex-wrap items-baseline gap-x-3">
-                            <span>{formatearFecha(c.generado_at.slice(0, 10))}</span>
-                            <span className="min-w-0 flex-1 truncate">{c.anulado_motivo}</span>
-                            <button className="underline underline-offset-2 hover:text-tinta" onClick={() => abrirGenerado(c.id)}>
-                              Ver
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                </article>
-              );
-            })}
-          </details>
         </div>
 
         {/* LOS DOS PANELES DE ACCIÓN SON MODALES desde que la pantalla se
@@ -3632,6 +3562,26 @@ export default function ContratosPage() {
             </label>
             <Campo etiqueta="Fecha de firma" type="date" value={fechaFirma} max={hoyLima()} onChange={(e) => setFechaFirma(e.target.value)} />
           </div>
+          {(() => {
+            const c = contratos.find((x) => x.id === subiendoPara);
+            const p = c ? personas.find((x) => x.id === c.persona_id) : undefined;
+            if (!c || p?.tipo_vinculo !== "prueba" || c.fecha_firma !== null || !TIPOS_QUE_PASAN_A_PLANILLA.has(c.tipo)) return null;
+            return (
+              <label className="mb-4 flex items-start gap-2 rounded-control bg-hueso px-3 py-2 text-sm">
+                <input
+                  type="checkbox" checked={pasarAPlanilla} disabled={guardandoFirma}
+                  onChange={(e) => setPasarAPlanilla(e.target.checked)} className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Pasar a {p.nombres} de «Prueba» a «Planilla»</span>
+                  <span className="block text-xs text-taupe">
+                    Con el contrato firmado deja de estar de prueba: desde ese periodo cobra la asignación familiar, si tiene hijos.
+                    Desmárcalo solo si todavía no corresponde.
+                  </span>
+                </span>
+              </label>
+            );
+          })()}
           {progreso !== null && <p className="mb-2 text-xs tabular-nums">{progreso}%</p>}
           <div className="flex justify-end gap-2">
             <Boton onClick={() => setSubiendoPara(null)}>Cancelar</Boton>
@@ -3835,6 +3785,50 @@ export default function ContratosPage() {
                       ))}
                     </ul>
                   </div>
+
+                  {/* EL HISTORIAL DE LA PERSONA, aquí y no en una sección aparte: «Ver historial» en el menú de una
+                      fila es una pregunta sobre ESA persona, así que lo anterior —renovaciones, convenios, anulados— se
+                      lista debajo y se abre con un toque. Antes vivía en un bloque plegado con todas las personas juntas. */}
+                  {(() => {
+                    const delaPersona = contratos
+                      .filter((x) => x.persona_id === c.persona_id)
+                      .sort((x, y) => y.generado_at.localeCompare(x.generado_at));
+                    if (delaPersona.length < 2) return null;
+                    return (
+                      <div className="mb-4 border-t border-sand pt-3">
+                        <p className="mb-2 font-serif text-base">Todos sus documentos · {delaPersona.length}</p>
+                        <ul className="divide-y divide-sand/60">
+                          {delaPersona.map((x) => {
+                            const actual = x.id === c.id;
+                            return (
+                              <li key={x.id}>
+                                <button
+                                  type="button"
+                                  disabled={actual}
+                                  onClick={() => setDetalleId(x.id)}
+                                  className="flex w-full flex-wrap items-baseline justify-between gap-x-3 py-1.5 text-left text-sm enabled:hover:bg-crema/60 disabled:cursor-default"
+                                >
+                                  <span className={actual ? "font-medium" : ""}>
+                                    {TIPO_CONTRATO[x.tipo] ?? x.tipo} ·{" "}
+                                    {formatearFecha(x.fecha_inicio)} – {x.fecha_fin ? formatearFecha(x.fecha_fin) : "indeterminado"}
+                                  </span>
+                                  <span className="text-xs text-taupe">
+                                    {actual
+                                      ? "este"
+                                      : x.anulado_at
+                                        ? "anulado"
+                                        : x.fecha_firma
+                                          ? "firmado"
+                                          : "sin firmar"}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex flex-wrap items-center gap-2 border-t border-sand pt-3">
                     {/* CAMBIO (0430): "editable" es "sin firmar" (fecha_firma),

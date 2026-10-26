@@ -9,8 +9,9 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import {
-  cambiosEntreVersiones, contarTablero, editaAvisa, esBoletaNueva, estadoVisible, etiquetaDeHojas,
-  extensionPorMime, problemaConLasHojas, puedeElegirNoAvisar, rutaDeHoja,
+  cambiosEntreVersiones, contarTablero, editaAvisa, esBoletaNueva, esBoletaPorFirmar, estadoVisible, etiquetaDeHojas,
+  extensionPorMime, motivoDeAnulacion, problemaConLasHojas, puedeElegirNoAvisar, rutaDeHoja,
+  sePuedeRestablecer, tiempoParaRestablecer, HORAS_PARA_RESTABLECER, MOTIVOS_DE_ANULACION,
   TOPE_ARCHIVO_BYTES, TOPE_BOLETA_BYTES,
 } from "@/lib/boletas";
 
@@ -25,10 +26,17 @@ describe("estadoVisible", () => {
     expect(estadoVisible({ estado: null, grupo_pagado: true })).toBe("falta");
   });
 
-  it("una publicada pasa de «sin abrir» a «vista» a «confirmada» según las dos fechas", () => {
+  it("una publicada pasa de «sin abrir» a «vista» a «firmada» según el acuse", () => {
     expect(estadoVisible({ estado: "publicada" })).toBe("publicada");
     expect(estadoVisible({ estado: "publicada", vista_at: "2026-09-01T10:00:00Z" })).toBe("vista");
-    expect(estadoVisible({ estado: "publicada", vista_at: "2026-09-01T10:00:00Z", recibida_at: "2026-09-02T10:00:00Z" })).toBe("confirmada");
+    expect(estadoVisible({ estado: "publicada", vista_at: "2026-09-01T10:00:00Z", recibida_at: "2026-09-02T10:00:00Z", firmada: true })).toBe("firmada");
+  });
+
+  it("quien confirmó ANTES de la 0532 (recibida, sin firma) sigue «confirmada», no «firmada»", () => {
+    // La firma es lo que distingue una de la otra: sin imagen en el acuse no se
+    // le puede decir «firmada» a algo que nunca se firmó.
+    expect(estadoVisible({ estado: "publicada", vista_at: "x", recibida_at: "y" })).toBe("confirmada");
+    expect(estadoVisible({ estado: "publicada", vista_at: "x", recibida_at: "y", firmada: false })).toBe("confirmada");
   });
 
   it("una fecha de acuse NO le cambia el estado a lo que no está publicado", () => {
@@ -173,14 +181,70 @@ describe("contarTablero", () => {
     const c = contarTablero([
       { estado: "publicada" },                                                 // con boleta
       { estado: "publicada", vista_at: "x" },                                  // con boleta
-      { estado: "publicada", vista_at: "x", recibida_at: "y" },                // con boleta, confirmada
+      { estado: "publicada", vista_at: "x", recibida_at: "y", firmada: true }, // con boleta, firmada
+      { estado: "publicada", vista_at: "x", recibida_at: "y" },                // con boleta, confirmó antes de la firma
       { estado: "papel" },                                                     // con boleta
       { estado: "borrador" },                                                  // sin publicar
       { estado: "falta", grupo_pagado: true },                                 // falta
       { estado: "anulada" },                                                   // falta
       { estado: "falta", grupo_pagado: false },                                // su grupo no está pagado: no «falta»
     ]);
-    expect(c).toEqual({ total: 8, conBoleta: 4, sinPublicar: 1, faltan: 2, confirmadas: 1 });
+    expect(c).toEqual({ total: 9, conBoleta: 5, sinPublicar: 1, faltan: 2, firmadas: 2 });
+  });
+});
+
+describe("esBoletaPorFirmar (0532)", () => {
+  it("publicada y sin firmar, abierta o no: espera la firma", () => {
+    expect(esBoletaPorFirmar({ estado: "publicada", recibida_at: null })).toBe(true);
+  });
+  it("firmada, en papel, anulada («en revisión») o sin publicar: no espera nada", () => {
+    expect(esBoletaPorFirmar({ estado: "publicada", recibida_at: "x" })).toBe(false);
+    expect(esBoletaPorFirmar({ estado: "papel", recibida_at: null })).toBe(false);
+    expect(esBoletaPorFirmar({ estado: "anulada", recibida_at: null })).toBe(false);
+    expect(esBoletaPorFirmar({ estado: null, recibida_at: null })).toBe(false);
+  });
+});
+
+describe("el motivo de una anulación (0532)", () => {
+  it("sin elegir un motivo no se puede anular", () => {
+    expect(motivoDeAnulacion("", "")).toBeNull();
+    expect(motivoDeAnulacion("", "Algo largo y escrito")).toBeNull();
+  });
+  it("un motivo de la lista sale con su texto, sin pedir nada más", () => {
+    expect(motivoDeAnulacion("otra_persona", "")).toBe("Se subió la boleta de otra persona");
+    // Lo escrito en «Otro» se ignora si eligió uno de la lista.
+    expect(motivoDeAnulacion("error", "texto suelto")).toBe("Se publicó por error");
+  });
+  it("«Otro» pide al menos 5 letras, sin contar los espacios de los bordes, y no tiene máximo", () => {
+    expect(motivoDeAnulacion("otro", "")).toBeNull();
+    expect(motivoDeAnulacion("otro", "  abcd  ")).toBeNull();
+    expect(motivoDeAnulacion("otro", "  abcde  ")).toBe("abcde");
+    const largo = "x".repeat(2000);
+    expect(motivoDeAnulacion("otro", largo)).toBe(largo);
+  });
+  it("todos los de la lista tienen al menos 5 letras: la base los rechazaría si no", () => {
+    for (const m of MOTIVOS_DE_ANULACION.filter((x) => x.clave !== "otro")) expect(m.texto.length).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe("el plazo de 48 horas para restablecer (0532)", () => {
+  const ANULADA = new Date("2026-10-17T15:00:00Z");
+  const hasta = new Date(ANULADA.getTime() + HORAS_PARA_RESTABLECER * 3_600_000).toISOString();
+  it("dura 48 horas", () => expect(HORAS_PARA_RESTABLECER).toBe(48));
+  it("antes del plazo se puede; justo en el plazo y después, no", () => {
+    expect(sePuedeRestablecer(hasta, new Date("2026-10-19T14:59:59Z"))).toBe(true);
+    expect(sePuedeRestablecer(hasta, new Date("2026-10-19T15:00:00Z"))).toBe(false);
+    expect(sePuedeRestablecer(hasta, new Date("2026-10-25T00:00:00Z"))).toBe(false);
+  });
+  it("sin fecha límite (una anulación anterior a la 0532) no se puede", () => {
+    expect(sePuedeRestablecer(null)).toBe(false);
+    expect(sePuedeRestablecer(undefined)).toBe(false);
+  });
+  it("dice cuánto queda, y nada cuando ya pasó", () => {
+    expect(tiempoParaRestablecer(hasta, new Date("2026-10-17T15:00:00Z"))).toBe("48 h 00 min");
+    expect(tiempoParaRestablecer(hasta, new Date("2026-10-19T13:48:00Z"))).toBe("1 h 12 min");
+    expect(tiempoParaRestablecer(hasta, new Date("2026-10-19T15:00:00Z"))).toBe("");
+    expect(tiempoParaRestablecer(null)).toBe("");
   });
 });
 

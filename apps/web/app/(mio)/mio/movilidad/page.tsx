@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { EMPRESA } from "@cayla-dynamic/shared";
+import { EMPRESA, hoyLima } from "@cayla-dynamic/shared";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
@@ -31,10 +32,15 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * `Campo` arriba— y un párrafo suelto abajo explicando lo que se firmaba. A
  * pedido de Felipe, esos campos ahora VIVEN dentro del propio papel: el mismo
  * documento con membrete que ya imprime `admin/documentacion` (mismo texto,
- * mismo orden de los cinco puntos, minus el del taxi —0426 lo quitó—), pero
- * en vez de rayas en blanco para llenar a mano, son inputs. Firmar deja de
+ * mismo orden de los cinco puntos), pero en vez de rayas en blanco para
+ * llenar a mano, son inputs. Firmar deja de
  * ser "llenar un formulario y confirmar" para ser "leer el documento, llenar
  * lo que falta y firmarlo" — la misma idea que ya usa `/mio/contrato`.
+ *
+ * EL PASAJE Y EL TAXI VOLVIERON (0489). La 0425 y la 0426 los habían quitado;
+ * se devolvieron para que la hoja digital diga lo mismo que el papel. Son
+ * DESCRIPTIVOS: lo que se paga sigue siendo la tarifa de la sede, nunca lo que
+ * la persona escribe acá. El gasto diario no se pide — se calcula.
  *
  * UNA VEZ FIRMADA Y AL DÍA, QUEDA FIJA (0425). Ya no hay "Declarar de nuevo":
  * `fn_confirmar_mi_declaracion_ruta` rechaza una segunda firma mientras la
@@ -44,6 +50,10 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * 0257). Sí se puede volver a firmar sola cuando la declaración quedó
  * DESFASADA (cambió la tarifa de la sede): ahí no hay nada que corregir de
  * tu parte, solo una fecha y un monto que actualizar.
+ *
+ * Y desde la 0492, también cuando quedó POR RENOVAR: INCOMPLETA (se firmó con
+ * la versión corta, sin pasaje) o VENCIDA (pasó un año). El criterio vive en
+ * `fn_ruta_por_renovar`; esta pantalla solo lee `ruta_por_renovar` del tablero.
  */
 
 interface MiDeclaracion {
@@ -53,6 +63,9 @@ interface MiDeclaracion {
   ruta_desfasada: boolean;
   ruta_firma_persona_confirmada_at: string | null;
   ruta_tarifa_vigente: number | null;
+  /** 0492 — null si está al día. Si la 0492 todavía no se pegó, la columna no
+   *  llega y queda `undefined`: se lee igual que «al día». */
+  ruta_por_renovar?: "incompleta" | "vencida" | null;
 }
 
 /** Una solicitud suya de revisión de la declaración de ruta (0425). */
@@ -67,7 +80,9 @@ interface MiRevision {
 /** El documento que ya firmó, para poder verlo y descargarlo — no solo el
  *  resumen de una línea que ya trae `MiDeclaracion`. Las cuatro piezas
  *  (distrito/provincia/medios) son `null` si firmó antes de la 0429: esa
- *  fecha vivían solo adentro de `declarada`, y ahí se muestra tal cual. */
+ *  fecha vivían solo adentro de `declarada`, y ahí se muestra tal cual. Las
+ *  del pasaje y el taxi son `null` si firmó antes de la 0489 — y las del
+ *  taxi también cuando declaró que no lo usa. */
 interface MiDocumento {
   declarada: string | null;
   firma: string | null;
@@ -75,6 +90,10 @@ interface MiDocumento {
   provincia: string | null;
   mediosIda: number | null;
   mediosVuelta: number | null;
+  costoPasaje: number | null;
+  gastoDiario: number | null;
+  costoTaxi: number | null;
+  frecuenciaTaxi: number | null;
 }
 
 interface Yo {
@@ -84,6 +103,25 @@ interface Yo {
   documento: string | null;
   funcion: string | null;
   sedeNombre: string | null;
+}
+
+const soles = (n: number) => Number(n).toFixed(2);
+
+/** Lo que cuesta ir y volver en un día: cada medio de ida y de regreso es un
+ *  pasaje. La MISMA fórmula con la que `fn_confirmar_mi_declaracion_ruta`
+ *  (0489) congela `ruta_gasto_diario` — esto solo la muestra mientras se llena. */
+function gastoDiario(ida: string, vuelta: string, pasaje: string): number | null {
+  const [i, v, p] = [aNumero(ida), aNumero(vuelta), aNumero(pasaje)];
+  if ([i, v, p].some((n) => !Number.isFinite(n) || n < 0)) return null;
+  return Math.round((i + v) * p * 100) / 100;
+}
+
+/** Lo que se escribió en una raya de la hoja, como número. Las rayas son
+ *  texto libre —sin flechitas de `type="number"`, a pedido—, así que acá se
+ *  acepta «2,50» igual que «2.50», y en blanco es NaN, nunca un 0 inventado. */
+function aNumero(texto: string): number {
+  const limpio = texto.trim().replace(",", ".");
+  return limpio === "" ? NaN : Number(limpio);
 }
 
 function fechaLarga(iso: string): string {
@@ -124,9 +162,15 @@ function MiMovilidadContenido() {
   // y al día: si le falta o quedó vieja, es lo primero que tiene que ver.
   const [formAbierto, setFormAbierto] = useState(false);
   const [distrito, setDistrito] = useState("");
-  const [provincia, setProvincia] = useState("Lima");
+  // En blanco: la escribe quien firma. Arrancaba en «Lima», que es falso
+  // para tres de las cuatro sedes.
+  const [provincia, setProvincia] = useState("");
   const [mediosIda, setMediosIda] = useState("1");
   const [mediosVuelta, setMediosVuelta] = useState("1");
+  const [costoPasaje, setCostoPasaje] = useState("");
+  // El taxi es opcional: los dos en blanco = no lo usa.
+  const [costoTaxi, setCostoTaxi] = useState("");
+  const [vecesTaxi, setVecesTaxi] = useState("");
   const [firmando, setFirmando] = useState(false);
 
   // Ver/descargar la declaración ya firmada (0430) — arranca cerrado para no
@@ -150,8 +194,9 @@ function MiMovilidadContenido() {
       router.replace("/mio");
       return;
     }
-    const { data: sesionAuth } = await supabase.auth.getUser();
-    const uid = sesionAuth.user?.id;
+    // Del almacén de la sesión, sin viajar a la red: `getUser()` es una ronda al servidor de
+    // autenticación por cada pantalla, y la base ya valida el token en cada consulta.
+    const uid = sesion.session.user.id;
     if (!uid) {
       setCargando(false);
       setError("No se pudo leer tu sesión. Vuelve a entrar.");
@@ -217,7 +262,8 @@ function MiMovilidadContenido() {
     }
     const propia = ((fila as MiDeclaracion[] | null) ?? [])[0] ?? null;
     setDeclaracion(propia);
-    setFormAbierto(propia === null ? false : propia.estado !== "ok" || propia.ruta_desfasada);
+    setFormAbierto(propia === null ? false
+      : propia.estado !== "ok" || propia.ruta_desfasada || !!propia.ruta_por_renovar);
     setMiFirma((fu as string | null) ?? null);
     setFirmaEmpresa((fe as string | null) ?? null);
     // La más reciente primero (fn_movilidad_revisiones_pedidas ya ordena por
@@ -227,6 +273,8 @@ function MiMovilidadContenido() {
       tipo: string; vigente: boolean; ruta_declarada: string | null; firma_persona: string | null;
       ruta_distrito: string | null; ruta_provincia: string | null;
       ruta_medios_ida: number | null; ruta_medios_vuelta: number | null;
+      ruta_costo_pasaje: number | null; ruta_gasto_diario: number | null;
+      ruta_costo_taxi: number | null; ruta_frecuencia_taxi: number | null;
     };
     const miRuta = ((docs as FilaDoc[] | null) ?? []).find((d) => d.tipo === "ruta" && d.vigente);
     setMiDocumento(miRuta ? {
@@ -236,6 +284,10 @@ function MiMovilidadContenido() {
       provincia: miRuta.ruta_provincia,
       mediosIda: miRuta.ruta_medios_ida,
       mediosVuelta: miRuta.ruta_medios_vuelta,
+      costoPasaje: miRuta.ruta_costo_pasaje,
+      gastoDiario: miRuta.ruta_gasto_diario,
+      costoTaxi: miRuta.ruta_costo_taxi,
+      frecuenciaTaxi: miRuta.ruta_frecuencia_taxi,
     } : null);
   }, [supabase, router]);
 
@@ -249,13 +301,30 @@ function MiMovilidadContenido() {
       setAviso({ tipo: "error", texto: "Todavía no configuraste tu firma. Bájala aquí abajo antes de confirmar." });
       return;
     }
+    // Las rayas son texto libre: lo que no sea un número entero en los medios
+    // o en las veces se ataja acá, con un mensaje, antes de que la base lo
+    // rechace con uno técnico al convertirlo a `integer`.
+    const [ida, vuelta, veces] = [aNumero(mediosIda), aNumero(mediosVuelta), aNumero(vecesTaxi)];
+    if (!Number.isInteger(ida) || !Number.isInteger(vuelta)) {
+      setAviso({ tipo: "error", texto: "Escribe cuántos medios de transporte usas de ida y de regreso, en números enteros." });
+      return;
+    }
+    if (vecesTaxi.trim() !== "" && !Number.isInteger(veces)) {
+      setAviso({ tipo: "error", texto: "Escribe cuántas veces por semana usas taxi, en un número entero." });
+      return;
+    }
     setFirmando(true);
     setAviso(null);
     const { error: eFirmar } = await supabase.rpc("fn_confirmar_mi_declaracion_ruta", {
       p_distrito: distrito.trim(),
       p_provincia: provincia.trim(),
-      p_medios_ida: Number(mediosIda),
-      p_medios_vuelta: Number(mediosVuelta),
+      p_medios_ida: ida,
+      p_medios_vuelta: vuelta,
+      p_costo_pasaje: aNumero(costoPasaje),
+      // En blanco = no usa taxi: se manda null, no 0, para que el servidor no
+      // tenga que adivinar si «0» fue una respuesta o un campo sin tocar.
+      p_costo_taxi: costoTaxi.trim() === "" ? null : aNumero(costoTaxi),
+      p_frecuencia_taxi: vecesTaxi.trim() === "" ? null : veces,
     });
     setFirmando(false);
     if (eFirmar) {
@@ -295,26 +364,31 @@ function MiMovilidadContenido() {
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
           {error} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
 
-  const vigenteYAlDia = declaracion != null && declaracion.estado === "ok" && !declaracion.ruta_desfasada;
+  // Desfasada manda sobre «por renovar»: las dos se arreglan firmando de
+  // nuevo, y la de la tarifa es la que explica un monto distinto.
+  const porRenovar = declaracion?.estado === "ok" && !declaracion.ruta_desfasada
+    ? (declaracion.ruta_por_renovar ?? null) : null;
+  const vigenteYAlDia = declaracion != null && declaracion.estado === "ok" && !declaracion.ruta_desfasada
+    && porRenovar === null;
   const tarifa = declaracion?.ruta_tarifa_vigente ?? null;
+  const gasto = gastoDiario(mediosIda, mediosVuelta, costoPasaje);
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <Link href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+    <main className="mx-auto w-full min-w-0 max-w-2xl px-4 py-6 sm:p-6">
+      <EnlaceVolver href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">
         ← Volver a Info
-      </Link>
-      <h1 className="mb-1 font-serif text-xl">Declaración de ruta y gasto de transporte</h1>
-      <p className="mb-6 text-sm text-taupe">
-        Es el papel que sostiene que tu movilidad no paga impuestos ni descuentos (D.S. 001-97-TR, art. 19 e).
-        Firmarla acá la reemplaza por completo: no hace falta imprimir, firmar a mano ni escanear nada.
-      </p>
+      </EnlaceVolver>
+      <CabeceraPagina
+        titulo="Declaración de ruta y gasto de transporte"
+        descripcion="Es el papel que sostiene que tu movilidad no paga impuestos ni descuentos (D.S. 001-97-TR, art. 19 e). Firmarla acá la reemplaza por completo: no hace falta imprimir, firmar a mano ni escanear nada."
+      />
 
       {declaracion === null ? (
         <p className="rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
@@ -337,7 +411,7 @@ function MiMovilidadContenido() {
 
           {/* ── ESTADO ACTUAL ──────────────────────────────────────────── */}
           <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
-            {declaracion!.estado === "ok" && !declaracion!.ruta_desfasada && (
+            {vigenteYAlDia && (
               <p className="text-verde">
                 Firmada el {fechaLarga(declaracion!.ruta_firmada_el!)}, declarando S/{" "}
                 {Number(declaracion!.ruta_monto).toFixed(2)} por día efectivamente asistido.
@@ -351,6 +425,22 @@ function MiMovilidadContenido() {
                 Firmada el {fechaLarga(declaracion!.ruta_firmada_el!)} declarando S/{" "}
                 {Number(declaracion!.ruta_monto).toFixed(2)}, pero hoy tu sede paga S/{" "}
                 {Number(declaracion!.ruta_tarifa_vigente).toFixed(2)}. Vuelve a firmarla con el monto vigente.
+              </p>
+            )}
+            {/* Por renovar (0492). No es un error de la persona: nada de rojo.
+                Y se dice que la movilidad no se detiene, porque es verdad —la
+                planilla no mira esto— y es lo primero que alguien se pregunta. */}
+            {porRenovar === "incompleta" && (
+              <p className="text-ambar">
+                Firmada el {fechaLarga(declaracion!.ruta_firmada_el!)} con la versión corta, que no preguntaba el
+                costo del pasaje ni el uso de taxi. Vuelve a firmarla con los cinco puntos. Tu movilidad se sigue
+                pagando igual mientras tanto.
+              </p>
+            )}
+            {porRenovar === "vencida" && (
+              <p className="text-ambar">
+                Firmada el {fechaLarga(declaracion!.ruta_firmada_el!)}: ya pasó un año. Vuelve a firmarla para
+                confirmar tu ruta de este año. Tu movilidad se sigue pagando igual mientras tanto.
               </p>
             )}
             {declaracion!.estado === "sin_ruta" && (
@@ -424,6 +514,29 @@ function MiMovilidadContenido() {
                         Para llegar a mi centro de labores utilizo <strong>{miDocumento.mediosIda}</strong>{" "}
                         medio(s) de transporte por tramo, y de regreso <strong>{miDocumento.mediosVuelta}</strong>.
                       </li>
+                      {/* Pasaje y taxi (0489): solo si se declararon. Lo
+                          firmado antes no los tenía, y no se inventan. */}
+                      {miDocumento.costoPasaje !== null && (
+                        <>
+                          <li>
+                            El costo de cada pasaje es de S/ <strong>{soles(miDocumento.costoPasaje)}</strong>, de
+                            modo que mi gasto diario habitual de ida y vuelta asciende a S/{" "}
+                            <strong>{soles(miDocumento.gastoDiario ?? 0)}</strong>.
+                          </li>
+                          <li>
+                            {miDocumento.costoTaxi !== null ? (
+                              <>
+                                Según el horario de mi turno, en ocasiones debo utilizar taxi u otro medio
+                                particular, cuyo costo por viaje asciende aproximadamente a S/{" "}
+                                <strong>{soles(miDocumento.costoTaxi)}</strong>. Esto ocurre alrededor de{" "}
+                                <strong>{miDocumento.frecuenciaTaxi}</strong> veces por semana.
+                              </>
+                            ) : (
+                              <>No utilizo taxi ni otro medio particular para este traslado.</>
+                            )}
+                          </li>
+                        </>
+                      )}
                       <li>
                         Declaro que la información consignada es veraz, y me comprometo a informar a{" "}
                         {EMPRESA.nombre} si cambio de domicilio o de ruta habitual.
@@ -581,19 +694,56 @@ function MiMovilidadContenido() {
                   <li>
                     Para llegar a mi centro de labores utilizo{" "}
                     <input
-                      type="number" min={0} max={10}
+                      inputMode="numeric" autoComplete="off"
                       value={mediosIda}
                       onChange={(e) => setMediosIda(e.target.value)}
                       className={`${CLASE_INPUT_HOJA} w-12`}
                     />{" "}
                     medio(s) de transporte por tramo, y de regreso{" "}
                     <input
-                      type="number" min={0} max={10}
+                      inputMode="numeric" autoComplete="off"
                       value={mediosVuelta}
                       onChange={(e) => setMediosVuelta(e.target.value)}
                       className={`${CLASE_INPUT_HOJA} w-12`}
                     />
                     .
+                  </li>
+                  <li>
+                    El costo de cada pasaje es de S/{" "}
+                    <input
+                      inputMode="decimal" autoComplete="off"
+                      value={costoPasaje}
+                      onChange={(e) => setCostoPasaje(e.target.value)}
+                      placeholder="0.00"
+                      className={`${CLASE_INPUT_HOJA} w-20`}
+                    />
+                    , de modo que mi gasto diario habitual de ida y vuelta asciende a S/{" "}
+                    {/* No se escribe: sale de los medios × el pasaje, igual
+                        que lo congela el servidor al firmar. */}
+                    <strong>{gasto !== null ? soles(gasto) : "—"}</strong>.
+                  </li>
+                  <li>
+                    Según el horario de mi turno, en ocasiones debo utilizar taxi u otro medio particular,
+                    cuyo costo por viaje asciende aproximadamente a S/{" "}
+                    <input
+                      inputMode="decimal" autoComplete="off"
+                      value={costoTaxi}
+                      onChange={(e) => setCostoTaxi(e.target.value)}
+                      placeholder="0.00"
+                      className={`${CLASE_INPUT_HOJA} w-20`}
+                    />
+                    . Esto ocurre alrededor de{" "}
+                    <input
+                      inputMode="numeric" autoComplete="off"
+                      value={vecesTaxi}
+                      onChange={(e) => setVecesTaxi(e.target.value)}
+                      placeholder="0"
+                      className={`${CLASE_INPUT_HOJA} w-12`}
+                    />{" "}
+                    veces por semana.
+                    <span className="mt-1 block text-xs text-taupe">
+                      Si no usas taxi, deja estos dos en blanco.
+                    </span>
                   </li>
                   <li>
                     Declaro que la información consignada es veraz, y me comprometo a informar a{" "}
@@ -611,7 +761,12 @@ function MiMovilidadContenido() {
                 </p>
 
                 <p className="mb-10 text-xs text-taupe">
-                  Suscrito en {yo?.sedeNombre ?? "—"}, el {fechaLarga(new Date().toISOString().slice(0, 10))}.
+                  {/* El día de la firma es hoy en Lima: el mismo que el
+                      servidor guarda con `fn_hoy_lima()` al firmar, y el que
+                      después muestra «Ver mi declaración firmada». Antes
+                      salía de `toISOString()`, que es UTC: después de las
+                      7 p. m. en Perú la hoja decía mañana. */}
+                  Suscrito en {yo?.sedeNombre ?? "—"}, el {fechaLarga(hoyLima())}.
                 </p>
 
                 <div className="grid grid-cols-2 gap-10 border-t border-sand pt-6">
@@ -648,7 +803,7 @@ function MiMovilidadContenido() {
                 <Boton
                   variante="primario"
                   cargando={firmando}
-                  disabled={!miFirma || !distrito.trim() || !provincia.trim()}
+                  disabled={!miFirma || !distrito.trim() || !provincia.trim() || gasto === null}
                   onClick={() => void firmar()}
                 >
                   Firmar mi declaración

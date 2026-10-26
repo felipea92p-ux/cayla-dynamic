@@ -19,15 +19,25 @@ export function clavePorCambiar(usuario: { app_metadata?: Record<string, unknown
 /**
  * Guarda la clave nueva. Devuelve `null` si salió bien, o el texto del problema.
  *
- * Refresca la sesión al terminar, y eso no es un detalle: la marca vive en el
- * token, así que sin refrescar el navegador seguiría creyendo que hay que
- * cambiar la clave que se acaba de cambiar — y el guardia del panel devolvería
- * a la persona a esta misma pantalla, en bucle.
+ * Al terminar, la persona ENTRA DE NUEVO con la clave que acaba de guardar, y
+ * eso no es un detalle por dos motivos:
+ *
+ * - La marca vive en el token: sin una sesión nueva el navegador seguiría
+ *   creyendo que hay que cambiar la clave que se acaba de cambiar, y el guardia
+ *   del panel devolvería a la persona a esta misma pantalla, en bucle.
+ * - Cambiar la clave con la llave de servicio (`updateUserById`) hace que el
+ *   servidor de acceso CIERRE TODAS las sesiones de esa cuenta, la actual
+ *   incluida. Medido contra GoTrue el 2026-10-06: `getUser` pasa de 200 a 403 y
+ *   el token de renovación deja de existir. Antes esto llamaba a
+ *   `refreshSession()`, que ahí no tiene nada que renovar: la primera vez que
+ *   una integrante nueva guardaba su clave desde el enlace de invitación, su
+ *   sesión quedaba muerta y «Lo mío» le decía «No se pudo leer tu sesión».
  */
 export async function guardarMiClave(clave: string): Promise<string | null> {
   const supabase = createAdminSupabaseClient();
   const { data: sesion } = await supabase.auth.getSession();
   const token = sesion.session?.access_token;
+  const correo = sesion.session?.user.email;
   if (!token) return "Tu sesión venció. Vuelve a entrar y prueba otra vez.";
 
   let res: Response;
@@ -46,9 +56,17 @@ export async function guardarMiClave(clave: string): Promise<string | null> {
   const datos = await res.json().catch(() => ({}));
   if (!res.ok) return datos.error ?? "No se pudo guardar la clave.";
 
-  await supabase.auth.refreshSession();
+  if (!correo) return AVISO_CLAVE_GUARDADA_SIN_SESION;
+  const { error } = await supabase.auth.signInWithPassword({ email: correo, password: clave });
+  // La clave YA está guardada: lo único que falló es volver a abrir la sesión
+  // (típicamente, la red). Decirlo así evita que la persona crea que no se
+  // guardó y la cambie otra vez.
+  if (error) return AVISO_CLAVE_GUARDADA_SIN_SESION;
   return null;
 }
+
+const AVISO_CLAVE_GUARDADA_SIN_SESION =
+  "Tu clave quedó guardada, pero no se pudo abrir tu sesión. Entra de nuevo con la clave que acabas de poner.";
 
 /**
  * Anota que la clave con la que esta persona ACABA de entrar no cumple la

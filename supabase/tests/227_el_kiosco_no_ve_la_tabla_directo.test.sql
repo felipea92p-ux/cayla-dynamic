@@ -7,7 +7,7 @@
 -- 227_el_kiosco_no_ve_la_tabla_directo.test.sql
 -- ============================================================================
 -- Defiende la 0291. La prueba 221 ya defiende `terminal_roster` —la vista con
--- seis columnas que el terminal SÍ debe ver— pero nunca preguntó por la tabla
+-- ocho columnas que el terminal SÍ debe ver (seis hasta la 0539)— pero nunca preguntó por la tabla
 -- de abajo. Y ahí seguía viva `personas_select_terminal_roster` (la 0008):
 -- RLS filtra filas, no columnas, así que esa policy dejaba leer la FILA
 -- entera con un `select * from personas` — documento y sueldo_base_legal
@@ -35,10 +35,10 @@ insert into terminales (id, sede_id, nombre_dispositivo, activo, auth_user_id) v
 
 -- Datos INVENTADOS: ni un DNI ni un sueldo real entra en una prueba.
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso,
-                      documento, sueldo_base_legal, tipo_vinculo, estado, auth_user_id)
+                      documento, tipo_documento, sueldo_base_legal, tipo_vinculo, estado, auth_user_id)
 values ('00000000-0000-0000-0000-000000022701', 'DeLaSede', 'Kiosco227',
         '00000000-0000-0000-0000-000000022700', 'x', '2024-01-01',
-        '99999999', 1130.00, 'planilla', 'activo', null);
+        '99999999', 'dni', 1130.00, 'planilla', 'activo', null);
 set session_replication_role = origin;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000002270f', true);

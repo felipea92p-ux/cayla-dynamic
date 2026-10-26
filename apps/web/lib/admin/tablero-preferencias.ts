@@ -26,7 +26,7 @@ export type PanelId = (typeof PANELES)[number];
 export const PANELES_NO_OCULTABLES: readonly PanelId[] = ["memos", "contratos"];
 
 /** Indicadores que se pueden agregar al resumen. La asistencia siempre está. */
-export const KPIS_EXTRA = ["pendientes", "personal"] as const;
+export const KPIS_EXTRA = ["pendientes", "personal", "casos"] as const;
 export type KpiExtra = (typeof KPIS_EXTRA)[number];
 
 export interface PreferenciasTablero {

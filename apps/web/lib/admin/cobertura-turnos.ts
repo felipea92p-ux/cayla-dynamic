@@ -115,25 +115,35 @@ export function etiquetaSedeSinTurnos(
   return { texto: SEDE_SIN_TURNOS, tono: "neutro" };
 }
 
-// Rojo → Verde según qué tan cerca está de la meta; a partir de la meta queda
-// verde sólido (el excedente ya no necesita más degradado).
+// De qué color se pinta una hora (o media hora) contra la meta de su tramo. Antes era un degradado continuo rojo→verde
+// con el texto en crema: a mitad de camino mezclaba el rojo y el verde en un café turbio, que no decía «falta» ni
+// «cubierto» y se leía igual que «sin meta». Ahora son cuatro estados con color propio, los mismos de las tarjetas
+// «Mañana y tarde» (verde = cubierto, rojo = falta, ámbar = sobra, taupe = sin meta), en un tono claro y con el
+// texto en tinta: se lee en claro y en oscuro sin sombras.
 //
-// SIN META no hay contra qué medir, y se distingue de dos maneras. Con gente:
-// taupe neutro (no rojo: el rojo sin significado solo mete ruido de alarma).
-// Sin nadie: arena tenue —el mismo criterio que ya usaba la vista Integrada—,
-// porque un bloque de taupe sólido de punta a punta, incluso en las horas en
-// que no trabaja nadie, se lee como «todo cubierto» y no como «no se mide».
+// SIN META no hay contra qué medir: con gente, taupe neutro (nunca rojo: el rojo sin significado solo mete ruido de
+// alarma); sin nadie, arena tenue —así un bloque de punta a punta no se lee como «todo cubierto»—.
 //
-// `color-mix()` en vez de interpolar RGB a mano: así el navegador resuelve el
-// color con los valores del tema activo en cada pintado (en oscuro esos tokens
-// son otros, y el texto de encima sigue leyéndose). Medido el 2026-09-07:
-// 4.70:1 a 6.26:1 contra el degradado completo.
-export function colorCobertura(n: number, meta: number): string {
+// `color-mix()` en vez de colores fijos: el navegador resuelve el tono con los valores del tema activo.
+export type EstadoDeHora = "sin_meta" | "vacio" | "falta" | "ok" | "sobra";
+
+export interface EstiloDeHora {
+  estado: EstadoDeHora;
+  fondo: string;
+  texto: string;
+}
+
+const tinte = (token: string, pct: number) => `color-mix(in srgb, var(--${token}) ${pct}%, var(--color-papel))`;
+
+export function estiloDeHora(n: number, meta: number): EstiloDeHora {
   if (meta <= 0) {
-    return n > 0 ? "var(--color-taupe)" : "color-mix(in srgb, var(--color-sand) 35%, transparent)";
+    return n > 0
+      ? { estado: "sin_meta", fondo: tinte("color-taupe", 24), texto: "var(--color-tinta)" }
+      : { estado: "vacio", fondo: "color-mix(in srgb, var(--color-sand) 35%, transparent)", texto: "var(--color-taupe)" };
   }
-  const ratioPct = Math.round(Math.min(n / meta, 1) * 100);
-  return `color-mix(in oklab, var(--color-verde) ${ratioPct}%, var(--color-rojo))`;
+  if (n < meta) return { estado: "falta", fondo: tinte("color-rojo", n === 0 ? 14 : 26), texto: "var(--color-tinta)" };
+  if (n > meta) return { estado: "sobra", fondo: tinte("color-ambar", 30), texto: "var(--color-tinta)" };
+  return { estado: "ok", fondo: tinte("color-verde", 30), texto: "var(--color-tinta)" };
 }
 
 // ----------------------------------------------------------------------------
@@ -146,15 +156,18 @@ export function colorCobertura(n: number, meta: number): string {
 // de rojo suave («meta puesta y nadie») y con el borde ámbar de «sin líder»:
 // dos alarmas sobre horas en que la tienda ya cerró, todos los domingos.
 //
-// La vista Semana nunca tuvo ese problema: su silueta y su porcentaje miden
-// solo dentro de la ventana DE CADA DÍA («así no se pinta rojo antes de abrir ni
-// después de cerrar»). Las dos vistas contestaban distinto a la misma pregunta;
-// ahora la Integrada usa la misma ventana.
+// Las vistas Día y Semana nunca tuvieron ese problema: sus tarjetas «Mañana y
+// tarde» (cobertura-tramos.ts) solo miden lo que va de la primera entrada a la
+// última salida del día. Las vistas contestaban distinto a la misma pregunta;
+// ahora la Integrada mide también dentro de la ventana de cada día.
 //
 // Y el borde ámbar se promete en la leyenda para una franja «con gente pero sin
 // ningún líder», y se dibujaba también sin nadie. Su razón de ser (ver la página)
 // es que un verde bien cubierto escondía la falta de líder; una franja vacía ya
 // dice lo suyo con el rojo, y el borde encima solo repetía la alarma.
+//
+// Los colores son los de estiloDeHora: esta función solo decide QUÉ celda se
+// mide, no de qué tono se pinta una hora medida.
 // ----------------------------------------------------------------------------
 
 /**
@@ -192,20 +205,18 @@ export interface CeldaIntegrada {
  * De qué se pinta una celda de la Integrada: su fondo, si lleva el borde ámbar
  * de «sin líder», y si queda fuera del horario de su día (para el título).
  */
-export function pintarCeldaIntegrada(c: CeldaIntegrada): { fondo: string; bordeSinLider: boolean; fueraDelDia: boolean } {
+export function pintarCeldaIntegrada(c: CeldaIntegrada): { fondo: string; texto: string; bordeSinLider: boolean; fueraDelDia: boolean } {
   if (c.operativas > 0) {
-    return {
-      fondo: colorCobertura(c.operativas, c.metaOperativas),
-      bordeSinLider: c.metaLideres > 0 && c.lideres === 0,
-      fueraDelDia: false,
-    };
+    const est = estiloDeHora(c.operativas, c.metaOperativas);
+    return { fondo: est.fondo, texto: est.texto, bordeSinLider: c.metaLideres > 0 && c.lideres === 0, fueraDelDia: false };
   }
+  const gris = "var(--color-taupe)";
   // Solo líderes esa hora: un tinte taupe, sin número.
-  if (c.lideres > 0) return { fondo: "color-mix(in srgb, var(--color-taupe) 12%, transparent)", bordeSinLider: false, fueraDelDia: false };
+  if (c.lideres > 0) return { fondo: "color-mix(in srgb, var(--color-taupe) 12%, transparent)", texto: gris, bordeSinLider: false, fueraDelDia: false };
   // Ni una ni otro. Fuera del horario del día, o sin meta: arena tenue.
   const arena = "color-mix(in srgb, var(--color-sand) 35%, transparent)";
-  if (!c.dentroDelDia) return { fondo: arena, bordeSinLider: false, fueraDelDia: true };
+  if (!c.dentroDelDia) return { fondo: arena, texto: gris, bordeSinLider: false, fueraDelDia: true };
   // Dentro del día y con meta: un hueco de verdad, falta suave.
-  if (c.metaOperativas > 0) return { fondo: "color-mix(in srgb, var(--color-rojo) 10%, transparent)", bordeSinLider: false, fueraDelDia: false };
-  return { fondo: arena, bordeSinLider: false, fueraDelDia: false };
+  if (c.metaOperativas > 0) return { fondo: "color-mix(in srgb, var(--color-rojo) 10%, transparent)", texto: gris, bordeSinLider: false, fueraDelDia: false };
+  return { fondo: arena, texto: gris, bordeSinLider: false, fueraDelDia: false };
 }
