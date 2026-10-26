@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0552 · SQL SIN PEGAR · rama `claude/stoic-archimedes-8h71yn`
+## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0552 · SQL PEGADO (2026-10-26) · FUSIONADO Y PUBLICADO (PR #602, 2026-10-26) · rama `claude/stoic-archimedes-8h71yn`
 
 **Qué es.** Felipe pidió un módulo donde DO cambie sin código los números que mueven el sistema (días de prueba, escalera
 disciplinaria, porcentajes, sueldo base, provisiones), con historial de quién y cuándo, y con la lista de a quién le afecta antes
@@ -42,6 +42,15 @@ reescrita, así que repegar no falla). La consulta (2) debe volver sin funciones
 (esas dejarían de poder); la (3) trae los valores de partida: `auto_cierre_horas` entre 1 y 12 y `avisar_desde` entre 1 y 20, porque
 el trigger exige esos límites cuando alguien cambie el valor. **No toca la planilla**: `fn_planilla_calcular` lee las mismas claves con
 la misma forma de siempre; por eso no hay md5 de la planilla.
+
+**Pegado el 2026-10-26** (Felipe devolvió las filas de comprobación, después de fusionar: el frontend salió antes que el SQL, como
+estaba previsto, y mientras tanto la pantalla decía «Falta pegar la migración 0552»). El `select` final dio lo esperado:
+`parametros_en_el_catalogo` = 4, `el_candado_esta_puesto` y `el_candado_corre_con_quien_escribe` en `true`, `dias_de_prueba_hoy` = 3,
+`la_funcion_lee_la_tabla` y `la_fila_existe` en `true`, `registro` = `552 · los_parametros_tienen_puerta_y_dejan_rastro`. La guardia
+de la migración dejó pasar la función de partida, o sea que la de producción era la de la 0536 (`select 3;`) tal como se esperaba.
+**No se vieron** las consultas (1)–(3) de «ANTES DE PEGAR» —se corrió directo la migración, que tiene su propia guardia—; la (2) sigue
+siendo útil: si alguna función de producción pegada a mano fuera del repo escribe esas claves sin ser `SECURITY DEFINER`, dejaría de
+poder hacerlo. Queda pendiente la primera prueba real de la pantalla en producción (ver una fila, y mejor un cambio reversible).
 
 **Si el código llega antes que el SQL.** `main` se publica sola. La pantalla lo detecta (PGRST202, la función no existe) y dice «Falta
 pegar la migración 0552» en vez de romperse; nada más depende de la 0552 hasta que se pegue. El renglón «Parámetros» y la novedad
