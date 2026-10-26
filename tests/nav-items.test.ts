@@ -163,7 +163,7 @@ describe("dónde quedó cada renglón después de reagrupar", () => {
     expect(TODOS.find((i) => i.href === "/admin/seguros")?.roles).toBe(ROLES_DO);
   });
 
-  it("«Parámetros» está en Configuración y solo lo ve DO: cada cambio mueve cómo funciona el sistema (0551)", () => {
+  it("«Parámetros» está en Configuración y solo lo ve DO: cada cambio mueve cómo funciona el sistema (0552)", () => {
     expect(grupoDe("/admin/parametros")).toBe("Configuración");
     expect(TODOS.find((i) => i.href === "/admin/parametros")?.roles).toBe(ROLES_DO);
   });

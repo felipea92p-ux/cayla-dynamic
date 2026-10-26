@@ -4,9 +4,9 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 443_los_parametros_tienen_puerta_y_dejan_rastro.test.sql — la 0551
+-- 444_los_parametros_tienen_puerta_y_dejan_rastro.test.sql — la 0552
 -- ============================================================================
--- Defiende la 0551: los números del sistema que se cambian desde «Parámetros».
+-- Defiende la 0552: los números del sistema que se cambian desde «Parámetros».
 -- Cuatro cosas, y las cuatro hacen falta:
 --   1. QUIÉN: DO cambia lo operativo; la líder de equipo y la integrante, ni
 --      ven ni cambian; lo normativo es solo de la dirección; lo que fija una
@@ -29,11 +29,11 @@
 -- silencio todos los triggers de la sesión, incluido el que esta prueba defiende.
 -- ============================================================================
 begin;
-select plan(52);
+select plan(55);
 
 -- ── Fixture: cuatro roles y una persona de prueba ───────────────────────────
 insert into sedes (id, codigo, nombre, activa) values
-  ('00000000-0000-0000-0000-000000044301', 'ZZ443', 'Sede de laboratorio', true);
+  ('00000000-0000-0000-0000-000000044301', 'ZZ444', 'Sede de laboratorio', true);
 
 set session_replication_role = replica;
 insert into auth.users (id, email) values
@@ -80,6 +80,18 @@ select is(
   fn_prueba_dias_plazo(),
   (select valor_defecto::int from parametros_catalogo where parametro = 'prueba_dias'),
   'Sin la fila, la función cae en el valor de partida del catálogo (el 3 de antes)');
+
+-- Pedir el valor que YA rige (aquí, el de partida, porque no hay fila) es un cambio vacío:
+-- no escribe nada, ni siquiera crea la fila. Un «cambio» que no cambia no deja huella.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000004431c', true);
+set role authenticated;
+select lives_ok(
+  $$ select fn_parametro_cambiar('prueba_dias', 3, 'Pedir lo que ya rige no escribe nada') $$,
+  'Pedir el valor que ya rige no falla');
+reset role;
+select is((select count(*)::int from configuracion where clave = 'prueba_dias'), 0,
+  'Y tampoco crea la fila: un cambio vacío no escribe');
+select is((select count(*)::int from parametros_historial), 0, 'Ni una fila de historial');
 insert into configuracion (clave, valor) values ('prueba_dias', '3'::jsonb);
 
 -- ── 1 · Quién ve y quién cambia ─────────────────────────────────────────────
@@ -218,12 +230,12 @@ select is(
 -- disciplinaria entra después, atada a una versión del RIT).
 insert into parametros_catalogo
   (parametro, nombre, descripcion, unidad, clase, tipo_valor, valor_min, valor_max, valor_defecto, almacen_clave, editable)
-values ('zz_normativo_443', 'Normativo de laboratorio', 'Solo para esta prueba.', 'veces', 'normativo', 'entero', 1, 9, 5, 'zz_normativo_443', true);
+values ('zz_normativo_444', 'Normativo de laboratorio', 'Solo para esta prueba.', 'veces', 'normativo', 'entero', 1, 9, 5, 'zz_normativo_444', true);
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000004431c', true);
 set role authenticated;
 select throws_ok(
-  $$ select fn_parametro_cambiar('zz_normativo_443', 7, 'DO intenta tocar lo normativo') $$,
+  $$ select fn_parametro_cambiar('zz_normativo_444', 7, 'DO intenta tocar lo normativo') $$,
   'Solo la dirección puede cambiar un parámetro normativo.',
   'DO NO cambia un parámetro normativo (decisión: solo la dirección)');
 reset role;
@@ -231,10 +243,10 @@ reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000004431d', true);
 set role authenticated;
 select lives_ok(
-  $$ select fn_parametro_cambiar('zz_normativo_443', 7, 'La dirección sí puede, con su motivo') $$,
+  $$ select fn_parametro_cambiar('zz_normativo_444', 7, 'La dirección sí puede, con su motivo') $$,
   'La dirección sí cambia un parámetro normativo editable');
 reset role;
-select is((select valor from configuracion where clave = 'zz_normativo_443'), '7'::jsonb,
+select is((select valor from configuracion where clave = 'zz_normativo_444'), '7'::jsonb,
   'Y si la fila no existía, la puerta la creó con el valor nuevo');
 
 -- ── 6 · El candado: nada de escrituras directas ─────────────────────────────
@@ -267,7 +279,7 @@ set role service_role;
 select throws_ok(
   $$ update configuracion set valor = '9'::jsonb where clave = 'prueba_dias' $$,
   'Este valor se cambia desde Parámetros, no con una escritura directa a la tabla.',
-  'BLOQUEADO · service_role tampoco escribe directo (decisión escrita en la 0551)');
+  'BLOQUEADO · service_role tampoco escribe directo (decisión escrita en la 0552)');
 reset role;
 
 -- ── 7 · A mano en el SQL Editor: se deja ver y se acota ─────────────────────

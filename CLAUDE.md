@@ -603,7 +603,7 @@ cuesta más que dejar pasar una falta real. Por eso las exclusiones
 (`en_planilla`, `sueldo_fijo`, vacaciones, feriados, sin horario) se aplican antes
 de contar, no después.
 
-**Un número que DO debería poder cambiar va al catálogo de parámetros, no a una constante** (0551, oct-2026). `parametros_catalogo`
+**Un número que DO debería poder cambiar va al catálogo de parámetros, no a una constante** (0552, oct-2026). `parametros_catalogo`
 dice qué se puede mirar y cambiar desde `/admin/parametros` (nombre, unidad, mínimo, máximo, clase) y el valor sigue viviendo donde ya
 vivía (`configuracion`). Se cambia por UNA puerta, `fn_parametro_cambiar`, que exige motivo y respeta los límites; un trigger sobre
 `configuracion` rechaza la escritura directa de esas claves y **escribe `parametros_historial` por cualquier camino**, también el

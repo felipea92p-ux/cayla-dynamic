@@ -1,5 +1,5 @@
 // ============================================================================
-// parametros.ts — los números del sistema que se cambian desde «Parámetros» (0551)
+// parametros.ts — los números del sistema que se cambian desde «Parámetros» (0552)
 // ============================================================================
 // QUÉ PROMETE · el vocabulario y la validación de lo que se teclea, en funciones
 //               puras: cómo se llama cada CLASE de parámetro y si un texto
@@ -17,7 +17,7 @@
 // ============================================================================
 
 /**
- * La clase decide quién lo toca y con qué cuidado (0551):
+ * La clase decide quién lo toca y con qué cuidado (0552):
  *   · operativo — lo decide DO; rige desde que se cambia.
  *   · plata     — mueve un pago: exige vigencia y vista previa (rebanada 2).
  *   · normativo — ley o RIT: solo la dirección, y solo si el catálogo lo declara

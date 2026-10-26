@@ -1,6 +1,6 @@
 "use client";
 
-// /admin/parametros — los números del sistema, con puerta y con rastro (0551).
+// /admin/parametros — los números del sistema, con puerta y con rastro (0552).
 //
 // Qué tiene que responder en diez segundos: qué vale hoy cada número, quién lo
 // movió por última vez y por qué, y qué pasaría si se cambiara. Cambiarlo es un
@@ -14,7 +14,7 @@
 //   · No deja editar la escalera disciplinaria: es del RIT, y entra atada a una
 //     versión del RIT. Lo que fija una norma se muestra aparte y sin botón.
 //
-// SI LA MIGRACIÓN TODAVÍA NO ESTÁ PEGADA. `main` se publica sola y la 0551 la
+// SI LA MIGRACIÓN TODAVÍA NO ESTÁ PEGADA. `main` se publica sola y la 0552 la
 // pega Felipe a mano, así que el código puede llegar antes. En vez de un error
 // crudo, la pantalla lo dice (PGRST202: la función no existe todavía).
 
@@ -55,7 +55,7 @@ function cuandoSeCambio(ts: string): string {
   return `${isoADiaMesAnio(fechaLima(ts))} · ${horaLimaLegible(ts)}`;
 }
 
-/** La función aún no existe en la base: la 0551 no está pegada. */
+/** La función aún no existe en la base: la 0552 no está pegada. */
 function faltaLaMigracion(error: { code?: string; message: string }): boolean {
   return error.code === "PGRST202" || /could not find the function/i.test(error.message);
 }
@@ -132,8 +132,8 @@ export default function ParametrosPage() {
         ) : !puedeVer ? (
           <BannerAviso variante="advertencia">Solo la dirección y Desarrollo Organizacional ven los parámetros.</BannerAviso>
         ) : sinMigracion ? (
-          <BannerAviso variante="informativo" titulo="Falta pegar la migración 0551">
-            Esta pantalla ya está lista, pero la base todavía no tiene los parámetros. En cuanto se pegue la 0551 en el SQL
+          <BannerAviso variante="informativo" titulo="Falta pegar la migración 0552">
+            Esta pantalla ya está lista, pero la base todavía no tiene los parámetros. En cuanto se pegue la 0552 en el SQL
             Editor de Supabase, aparecen aquí.
           </BannerAviso>
         ) : error ? (

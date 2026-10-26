@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0551 · LOS PARÁMETROS TIENEN PUERTA, CATÁLOGO Y RASTRO
+-- 0552 · LOS PARÁMETROS TIENEN PUERTA, CATÁLOGO Y RASTRO
 -- ============================================================================
 --
 -- QUÉ PROMETE (el contrato, en cinco líneas)
@@ -85,6 +85,11 @@
 --     los exige el trigger, no solo la función. Un 30 en vez de 3 por un dedo
 --     de más se rechaza también en el SQL Editor. El historial dice quién la
 --     cagó después; el límite la evita antes.
+--   · LA HORA DEL CAMBIO ES `clock_timestamp()`, no `now()`. Con `now()` dos cambios
+--     de una misma transacción empatan al microsegundo y «el último cambio» lo
+--     decidiría el orden de un uuid al azar: el empate sin desempatar que ya pasó
+--     con `fn_contratos_tablero` (0386). En producción cada cambio es su propia
+--     transacción y no se nota; en una prueba, que es una sola, sí.
 --   · EL HISTORIAL NO SE EDITA NI SE BORRA, ni siquiera como `postgres`
 --     (trigger propio). Volver atrás es un cambio nuevo.
 --   · `parametros_historial.cambiado_por` apunta a `personas`, no a
@@ -164,7 +169,8 @@
 -- ── 0 · Guardia ─────────────────────────────────────────────────────────────
 -- Se niega a entrar sobre una base que no sea la que esta migración espera. La
 -- comparación del cuerpo ignora los espacios y los saltos de línea; y acepta
--- también la versión ya reescrita, para que repegar no falle.
+-- también la versión ya reescrita (la que nombra `prueba_dias`: un marcador de
+-- contenido y no de número, para que renumerar la migración no la desarme).
 do $guardia$
 declare
   v_src text;
@@ -186,7 +192,7 @@ begin
     raise exception 'Falta la 0536: fn_prueba_dias_plazo() no existe. Pega primero la 0536 y vuelve a pegar esta.';
   end if;
 
-  if v_src !~ 'CAMBIO 0551' and regexp_replace(v_src, '\s', '', 'g') <> 'select3;' then
+  if v_src !~ 'prueba_dias' and regexp_replace(v_src, '\s', '', 'g') <> 'select3;' then
     raise exception 'fn_prueba_dias_plazo() de esta base no es la de la 0536 (la que devuelve 3): otra versión la cambió. NO se pega: reescribirla desde acá revertiría ese cambio. Mide con la consulta (1) de ANTES DE PEGAR.';
   end if;
 end
@@ -224,7 +230,7 @@ create table if not exists parametros_catalogo (
 );
 
 comment on table parametros_catalogo is
-  'Los números del sistema que se pueden mirar (y, si editable, cambiar) desde /admin/parametros, con su unidad, sus límites y su clase. La verdad del valor vive en almacen/almacen_clave (hoy configuracion); esto lo nombra y lo acota. 0551.';
+  'Los números del sistema que se pueden mirar (y, si editable, cambiar) desde /admin/parametros, con su unidad, sus límites y su clase. La verdad del valor vive en almacen/almacen_clave (hoy configuracion); esto lo nombra y lo acota. 0552.';
 comment on column parametros_catalogo.clase is
   'operativo = decide DO; plata = mueve un pago, exige vigencia y vista previa (rebanada 2); normativo = ley o RIT, solo la dirección y solo si editable.';
 comment on column parametros_catalogo.ruta is
@@ -252,13 +258,16 @@ create table if not exists parametros_historial (
   -- Null = alguien escribió en la base sin pasar por la pantalla.
   cambiado_por    uuid references personas(id),
   origen          text not null check (origen in ('pantalla', 'base')),
-  cambiado_at     timestamptz not null default now(),
+  -- `clock_timestamp()` y no `now()`: la hora REAL de escritura. `now()` vale lo mismo en toda
+  -- la transacción, y dos cambios en una misma transacción empatarían (la familia de falsos rojos
+  -- que CLAUDE.md documenta). En producción cada cambio va en su propia transacción: no se nota.
+  cambiado_at     timestamptz not null default clock_timestamp(),
   check (valor_anterior is distinct from valor_nuevo),
   check ((origen = 'pantalla') = (cambiado_por is not null))
 );
 
 comment on table parametros_historial is
-  'Quién cambió qué parámetro, cuándo, de qué valor a cuál y por qué. Se escribe solo por trigger (trg_parametros_guardar_cambio) y no se edita ni se borra. origen = base: se cambió a mano en la base de datos, sin pasar por la pantalla. 0551.';
+  'Quién cambió qué parámetro, cuándo, de qué valor a cuál y por qué. Se escribe solo por trigger (trg_parametros_guardar_cambio) y no se edita ni se borra. origen = base: se cambió a mano en la base de datos, sin pasar por la pantalla. 0552.';
 
 create index if not exists idx_parametros_historial_parametro
   on parametros_historial (parametro, cambiado_at desc, id desc);
@@ -356,7 +365,7 @@ drop trigger if exists trg_parametros_guardar_cambio on configuracion;
 -- elegido) no se pisa.
 insert into configuracion (clave, valor, descripcion)
 values ('prueba_dias', '3'::jsonb,
-        'Días trabajados (con jornada cerrada) que cumple quien está de prueba antes de hacerle el contrato. 0551.')
+        'Días trabajados (con jornada cerrada) que cumple quien está de prueba antes de hacerle el contrato. 0552.')
 on conflict (clave) do nothing;
 
 insert into parametros_catalogo
@@ -400,7 +409,7 @@ create trigger trg_parametros_guardar_cambio
   for each row execute function fn_parametros_guardar_cambio();
 
 comment on trigger trg_parametros_guardar_cambio on configuracion is
-  'Para las claves que usa algún parámetro del catálogo: rechaza escrituras directas (current_user <> postgres), exige mínimo, máximo y entero por cualquier camino y escribe parametros_historial. Las demás claves pasan sin tocarse. 0551.';
+  'Para las claves que usa algún parámetro del catálogo: rechaza escrituras directas (current_user <> postgres), exige mínimo, máximo y entero por cualquier camino y escribe parametros_historial. Las demás claves pasan sin tocarse. 0552.';
 
 -- ── 6 · La puerta ───────────────────────────────────────────────────────────
 create or replace function fn_parametro_cambiar(p_parametro text, p_valor numeric, p_motivo text)
@@ -482,7 +491,7 @@ end;
 $fn$;
 
 comment on function fn_parametro_cambiar(text, numeric, text) is
-  'Cambia un parámetro del catálogo. Solo admin o líder de DO (lo normativo, solo admin); exige motivo y respeta los límites del catálogo; el historial lo escribe trg_parametros_guardar_cambio. Si el valor no cambia, no hace nada. 0551.';
+  'Cambia un parámetro del catálogo. Solo admin o líder de DO (lo normativo, solo admin); exige motivo y respeta los límites del catálogo; el historial lo escribe trg_parametros_guardar_cambio. Si el valor no cambia, no hace nada. 0552.';
 
 revoke all on function fn_parametro_cambiar(text, numeric, text) from public, anon;
 grant execute on function fn_parametro_cambiar(text, numeric, text) to authenticated;
@@ -542,7 +551,7 @@ end;
 $fn$;
 
 comment on function fn_parametros_listar() is
-  'El catálogo de parámetros con el valor de hoy y el último cambio de cada uno. Solo admin o líder de DO. 0551.';
+  'El catálogo de parámetros con el valor de hoy y el último cambio de cada uno. Solo admin o líder de DO. 0552.';
 
 revoke all on function fn_parametros_listar() from public, anon;
 grant execute on function fn_parametros_listar() to authenticated;
@@ -588,7 +597,7 @@ end;
 $fn$;
 
 comment on function fn_parametros_historial(text, integer) is
-  'Los últimos cambios de parámetros (todos, o los de uno), del más nuevo al más viejo. Solo admin o líder de DO. 0551.';
+  'Los últimos cambios de parámetros (todos, o los de uno), del más nuevo al más viejo. Solo admin o líder de DO. 0552.';
 
 revoke all on function fn_parametros_historial(text, integer) from public, anon;
 grant execute on function fn_parametros_historial(text, integer) to authenticated;
@@ -604,10 +613,10 @@ stable
 security definer
 set search_path = public
 as $fn$
-  -- CAMBIO 0551 · el 3 de siempre deja de estar clavado: sale de
+  -- CAMBIO 0552 · el 3 de siempre deja de estar clavado: sale de
   -- configuracion.prueba_dias (se cambia desde Parámetros). El 3 del final es el
   -- que tenía antes de esta migración y el que el catálogo dice como valor de
-  -- partida; la prueba 443 comprueba que coincidan.
+  -- partida; la prueba 444 comprueba que coincidan.
   select coalesce(
     (select fn_parametro_numero_en(c.valor, null)::integer from configuracion c where c.clave = 'prueba_dias'),
     3);
@@ -618,7 +627,7 @@ grant  execute on function fn_prueba_dias_plazo() to authenticated;
 
 -- ── Registro ────────────────────────────────────────────────────────────────
 insert into migraciones_aplicadas (numero, nombre)
-values (551, 'los_parametros_tienen_puerta_y_dejan_rastro')
+values (552, 'los_parametros_tienen_puerta_y_dejan_rastro')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 -- ── Comprobación ────────────────────────────────────────────────────────────
@@ -636,4 +645,4 @@ select
     where proname = 'fn_prueba_dias_plazo'
       and pronamespace = 'public'::regnamespace)                              as la_funcion_lee_la_tabla,
   (select count(*) = 1 from configuracion where clave = 'prueba_dias')        as la_fila_existe,
-  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 551) as registro;
+  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 552) as registro;

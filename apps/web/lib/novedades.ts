@@ -128,6 +128,29 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-10-26-normas-cuenta-a-los-practicantes-en-sus-constancias",
+    fecha: "2026-10-26",
+    titulo: "Normas ya cuenta a los practicantes en la hoja de Constancias",
+    queMejoro:
+      "En Normas → Constancias ahora aparecen también los practicantes activos, tengan o no acceso: quien ya entró, quien fue " +
+      "invitado y todavía no abrió el correo, y quien no tiene cuenta —a esa persona se le registra el cargo en papel, como a " +
+      "cualquiera—. El «N de M» de cada documento y el número rojo de Constancias también los suman.\n\n" +
+      "Por eso ese número sube: es gente que antes no se contaba, no un retroceso. La hoja imprimible de constancias los incluye " +
+      "y su encabezado ya lo dice. La hoja de la Política salarial no cambia: sigue sin practicantes.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-26-cuentas-busca-por-nombre-o-correo-y-filtra-por-sede",
+    fecha: "2026-10-26",
+    titulo: "Cuentas: busca por nombre o correo y filtra por sede",
+    queMejoro:
+      "En «Cuentas del equipo» ya puedes escribir un nombre o un correo —sin tildes y en cualquier orden— y quedarte con una sola " +
+      "sede con un clic, en vez de recorrer la lista entera para llegar a una cuenta.\n\n" +
+      "Si el filtro no deja ver a nadie, la pantalla lo dice («Nadie coincide…») y trae el botón para quitarlo: no quiere decir que " +
+      "falte una cuenta. El filtro no se acuerda de la vez anterior: cada vez que entras vuelves a ver todas.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-25-bandeja-cuenta-lo-que-le-toca-a-una-persona-y-explica-los-correos",
     fecha: "2026-10-25",
     titulo: "La Bandeja cuenta lo que le toca a una persona y explica los correos que no salieron",

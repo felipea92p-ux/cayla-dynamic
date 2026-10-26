@@ -1,5 +1,5 @@
 /**
- * «PARÁMETROS» EN LO QUE UNA PANTALLA NECESITA SABER (0551).
+ * «PARÁMETROS» EN LO QUE UNA PANTALLA NECESITA SABER (0552).
  *
  * QUÉ PROMETE. Los tipos de lo que devuelven `fn_parametros_listar` y
  * `fn_parametros_historial`, la lectura segura de sus números, el reparto de la
@@ -25,7 +25,7 @@
 import { etiquetaDePrueba, situacionDePrueba, type ClaseParametro } from "@cayla-dynamic/shared";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 
-/** Una fila de `fn_parametros_listar` (0551), con los numéricos ya como número. */
+/** Una fila de `fn_parametros_listar` (0552), con los numéricos ya como número. */
 export interface ParametroFila {
   parametro: string;
   nombre: string;
@@ -47,7 +47,7 @@ export interface ParametroFila {
   ultimo_origen: "pantalla" | "base" | null;
 }
 
-/** Una fila de `fn_parametros_historial` (0551). */
+/** Una fila de `fn_parametros_historial` (0552). */
 export interface CambioParametro {
   id: string;
   parametro: string;

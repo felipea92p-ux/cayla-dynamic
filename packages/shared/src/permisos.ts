@@ -456,7 +456,7 @@ export function puedeGestionarParametros(rol: RolPosible): boolean {
 }
 
 /**
- * Cambiar UN parámetro, según su clase (0551). DO opera lo operativo y lo que
+ * Cambiar UN parámetro, según su clase (0552). DO opera lo operativo y lo que
  * mueve un pago; lo normativo —ley o RIT— es solo de la dirección. Un editable
  * que la base declara «fijado por norma» no lo cambia nadie: eso lo dice
  * `editable` del catálogo, no el rol.

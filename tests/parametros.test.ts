@@ -1,5 +1,5 @@
 // ============================================================================
-// parametros.test.ts — «Parámetros» (0551), en lo que se puede probar sin base
+// parametros.test.ts — «Parámetros» (0552), en lo que se puede probar sin base
 // ============================================================================
 // Defiende tres cosas, y las tres hacen falta:
 //   1. QUIÉN: DO cambia lo operativo y lo que mueve un pago; lo normativo es solo
@@ -10,7 +10,7 @@
 //   3. A QUIÉN AFECTA: la vista previa dice exactamente a quién le cambia la
 //      situación, sin inventar una segunda copia de la regla de «cumplida» y
 //      «vencida» (esa vive en packages/shared).
-// La base tiene su propia prueba (supabase/tests/443): acá no se repite lo que
+// La base tiene su propia prueba (supabase/tests/444): acá no se repite lo que
 // solo ella puede decir (el candado, el historial, los límites por cualquier camino).
 // ============================================================================
 import { describe, it, expect } from "vitest";

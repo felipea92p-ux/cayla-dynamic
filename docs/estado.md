@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0551 · SQL SIN PEGAR · rama `claude/stoic-archimedes-8h71yn`
+## 2026-10-26 — «Parámetros»: los números del sistema se cambian desde una pantalla, con puerta y con historial · migración 0552 · SQL SIN PEGAR · rama `claude/stoic-archimedes-8h71yn`
 
 **Qué es.** Felipe pidió un módulo donde DO cambie sin código los números que mueven el sistema (días de prueba, escalera
 disciplinaria, porcentajes, sueldo base, provisiones), con historial de quién y cuándo, y con la lista de a quién le afecta antes
@@ -34,7 +34,7 @@ RIT art. 31 f, que usa la planilla): el catálogo apunta a un campo y no a la cl
 - **Un UPDATE/DELETE directo desde el navegador** sobre una de esas claves ya se rechaza. Apariencia, Educación y la firma de la empresa
   no están en el catálogo y se escriben como siempre.
 
-**Antes de pegar (en el mismo mensaje en que se entrega el SQL; un md5 es una foto y caduca).** La 0551 reescribe UNA función,
+**Antes de pegar (en el mismo mensaje en que se entrega el SQL; un md5 es una foto y caduca).** La 0552 reescribe UNA función,
 `fn_prueba_dias_plazo()` (la de la 0536, `select 3;`). Su cuerpo no tiene saltos de línea, así que ni el CRLF de Windows lo cambia.
 **md5 de PRODUCCIÓN pendiente**: la consulta (1) del encabezado debe dar `2645ded8d962eebe8104370a3d5ac219`, 11 caracteres, `i` y
 `false`; la guardia de la migración compara el cuerpo sin espacios y **PARA** ante cualquier otra versión (y acepta la ya
@@ -44,16 +44,26 @@ el trigger exige esos límites cuando alguien cambie el valor. **No toca la plan
 la misma forma de siempre; por eso no hay md5 de la planilla.
 
 **Si el código llega antes que el SQL.** `main` se publica sola. La pantalla lo detecta (PGRST202, la función no existe) y dice «Falta
-pegar la migración 0551» en vez de romperse; nada más depende de la 0551 hasta que se pegue. El renglón «Parámetros» y la novedad
+pegar la migración 0552» en vez de romperse; nada más depende de la 0552 hasta que se pegue. El renglón «Parámetros» y la novedad
 (solo para DO) sí aparecen.
 
 **Probado.** Typecheck limpio en los tres paquetes; **2 907 pruebas vitest verdes** (32 nuevas en `tests/parametros.test.ts`, más el
 contador y el permiso del menú); ESLint limpio sobre lo nuevo. En un **Postgres 16 propio con las 524 migraciones de `main`** (solo
-fallaron `pg_cron` y una columna de storage de mi imitación de Supabase; ninguna toca esto): la **prueba 443 da 52 de 52**, y
-rompiéndola a propósito de **14 maneras** (sin trigger, trigger `SECURITY DEFINER`, sin límites, sin gate normativo, autor pegado a la
-transacción, historial editable, tabla legible directo, días de prueba clavados…) **se pone roja las 14 veces**; la migración se repegó
-dos veces y quedó igual (idempotente). En TypeScript, 6 mutaciones atrapadas, una de ellas (el borde de `>=` en el aviso) solo después
-de agregar el caso que la dejaba pasar.
+fallaron `pg_cron` y una columna de storage de mi imitación de Supabase; ninguna toca esto): la **prueba 444 da 55 de 55, seis veces
+seguidas**, y rompiendo la migración a propósito de **15 maneras** (sin trigger, trigger `SECURITY DEFINER`, sin límites, sin gate
+normativo, autor pegado a la transacción, historial editable, tabla legible directo, días de prueba clavados, la hora vuelta a
+`now()`…) **se pone roja las 15 veces**. «Revertir» (el del encabezado) se probó tal cual, y repegar la migración deja todo igual.
+En TypeScript, 6 mutaciones atrapadas, una de ellas (el borde de `>=` en el aviso) solo después de agregar el caso que la dejaba pasar.
+
+**Dos hallazgos de la prueba, ya corregidos.** (1) *El empate de `now()`*: la hora del historial era `now()`, que vale lo mismo en toda
+la transacción, y dos aserciones pasaban o fallaban según el orden de un uuid al azar (la familia de falsos rojos que este archivo ya
+documenta). Ahora es `clock_timestamp()`: la hora real de escritura, y la prueba ya no depende del azar. (2) *La guardia* comparaba un
+marcador con el **número** de la migración y se negó a repegar tras renumerar (0551→0552, ver abajo); ahora compara un marcador de
+**contenido** (`prueba_dias`).
+
+**Renumerada de 0551 a 0552 (prueba 443→444).** Mientras se construía, el PR #601 tomó el 0551. Se trajo `main` a esta rama (merge),
+se renumeraron solo estos archivos y se probó con **las dos migraciones aplicadas en orden** (0551 de Normas y luego esta). Las dos son
+independientes: no tocan las mismas funciones.
 
 **No probado.** pgTAP real ni el CI `db-tests` (el banco local usa un sustituto mínimo: lo fiable es `db-tests` de GitHub); nada
 contra producción (la consulta (1)–(3) la corre Felipe); los grants reales de Supabase (la migración revoca y concede explícito para no
@@ -64,6 +74,71 @@ Felipe los puede mover con una migración.
 rango envolviendo `fn_fijar_base_declarada`, con **vigencia y vista previa de a quién le cambia**. Rebanada 3: provisiones, que viven en
 `configuracion` **sin fecha** (cambiarlas reescribiría el historial) y necesitan vigencia antes de ser editables: eso reescribe
 `fn_planilla_calcular`, con su protocolo de md5. Rebanada 4: la escalera disciplinaria, atada a una versión del RIT.
+
+## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · **SQL SIN PEGAR EN PRODUCCIÓN** · AUTOMERGE ARMADO (PR #601) · rama `claude/epic-ramanujan-rr0p0u`
+
+**Qué es.** Felipe, con la captura de Normas → Constancias: «en normas también deberían aparecerme los practicantes, deben
+aparecer todos incluyendo los que cuenten con su correo dentro del sistema y los que fueron invitados». Medido, no supuesto:
+la lista sale de `fn_poblacion_obligada()` (activo y `tipo_vinculo = 'planilla'`) y el practicante, que es un vínculo propio desde la
+0322, quedaba fuera. Pero fuera **solo de la lista**: `fn_acusar_documento` no mira la población y el aviso «te falta el RIT» de «Lo
+mío» tampoco, así que un practicante con cuenta recibía el aviso, firmaba, y su constancia se guardaba **sin contarse en ningún
+sitio** (la prueba 443, sin la migración, cuenta 0 constancias en el numerador aunque la de la practicante ya está guardada). Y quien no tenía cuenta no tenía por dónde
+recibir su cargo en papel: «registrar en papel» vive en la fila de esa lista.
+
+**Lo que cambia.** Un solo cambio, en la única fuente: `fn_poblacion_obligada()` pasa a `planilla` **+ `practicante`** (activos y
+sin cuentas de servicio). De ahí cuelgan, sin tocarlas, la lista y el «N/M» de Normas, la insignia roja de Constancias, la
+Bandeja, la hoja imprimible y la alerta de Disciplina (60.5). Los tres estados de acceso entran: con cuenta que ya entró, invitado
+que no abrió el correo (`invitar` enlaza `auth_user_id` al aceptar GoTrue, así que sale como «con cuenta») y sin cuenta.
+En pantalla solo cambia una frase: la hoja imprimible decía «personal activo y en planilla» y con practicantes habría sido falso
+en un papel que se enseña a un inspector; ahora dice «con contrato de trabajo o convenio de prácticas».
+
+**El contrapeso.** `fn_acuses_politica_salarial(int)` también cuelga de esa función y habría arrastrado a los practicantes a la
+hoja de Política salarial, de la que están fuera **a propósito** (Ley 30709 no les alcanza, 2026-08-31; la pantalla ya los muestra
+aparte en «También dejaron constancia»). Se reescribe con una condición más, `p.tipo_vinculo = 'planilla'`, y devuelve la misma
+lista de antes. Es la única función reescrita además de la de población; ninguna de las tres que cambian de resultado se copió.
+
+**Qué NO cambia.** `prueba` (días de selección, 2026-08-18), `rxh`, `no_trabajador`, inactivos y cuentas de servicio siguen fuera.
+Ninguna constancia ya registrada se toca. `fn_reglamento_no_acusado` (el freno por persona) ya cubría a un practicante.
+
+**Antes de pegar.**
+1. **La 0551 reescribe dos funciones y NO se pidió su md5 a producción** (esta sesión no corre SQL contra producción). Lo comprueba
+   la guardia del bloque 0 al pegar: acepta el cuerpo de partida —tal cual, sin comentarios, con o sin `\r`— y el de llegada, y
+   **PARA sin tocar nada** ante cualquier otro. Se probó con 7 casos (cuerpo ajeno, versión previa a la 0491, política alterada: paran;
+   CRLF, sin comentarios, repegado: pasan). Partida medida sobre el repositorio: `fn_poblacion_obligada` 195 car. `1b69c217…`;
+   `fn_acuses_politica_salarial` 1 309 car. `e7e56114…`. Si el hook renumera, hay que volver a medir los md5 de llegada (los
+   marcadores `CAMBIO 0551` cambian con el número).
+2. **Pegarla ANTES de fusionar el PR** (fusionar es publicar). **Pero el orden no se va a cumplir:** Felipe pidió el automerge
+   (2026-10-26) y la sesión no puede pegar el SQL —el conector de Supabase de la sesión solo ve los proyectos Fructus, FastFruit y
+   vonatur, no el de CAYLA—, así que el PR se fusiona solo cuando `db-tests` y `ui-tests` den verde y **el frontend sale antes que el
+   SQL**. Es seguro: no llama a nada nuevo; solo se adelantan la frase del papel imprimible y la novedad (que dice «ya aparecen» y
+   hasta pegar no es cierto). **Hasta que Felipe pegue la 0551, Normas sigue sin mostrar a los practicantes**: pegarla cuanto antes.
+3. Para ver de antemano cuánto va a subir el contador (solo lectura, en el SQL Editor):
+   `select count(*) filter (where auth_user_id is not null) as con_cuenta, count(*) filter (where auth_user_id is null) as sin_cuenta
+   from personas where tipo_vinculo = 'practicante' and estado = 'activo' and not cuenta_de_servicio;`
+4. Después de pegar, el `select` del final de la migración: `practicantes_activos` = `practicantes_contados` y
+   `politica_sin_practicantes = true`.
+
+**Lo que se verá.** El «N de M» de cada documento y «constancias pendientes» suben en practicantes × documentos que piden
+constancia, hasta que cada uno la deje o DO registre su cargo en papel: es gente que faltaba contar, no un retroceso (la novedad
+`2026-10-26-normas-cuenta-a-los-practicantes-en-sus-constancias` lo dice así). En Disciplina, un practicante sin constancia del
+Reglamento vigente pasa a salir en la alerta previa.
+
+**Decisiones que quedaron tomadas por defecto (Felipe las puede revertir).** (a) La hoja imprimible incluye a los practicantes,
+porque sale de la misma función que la pantalla: un «19 de 21» en el papel y otro número en pantalla es el defecto que cerró la
+0265. Si se prefiere un papel solo con quien tiene contrato de trabajo —como hace Política salarial—, es un cambio aparte.
+(b) Disciplina los incluye (coherente con Normas). (c) Política salarial sigue sin ellos. (d) No se agregó una etiqueta
+«Practicante» a la fila: pediría una columna más, o sea `drop` + `create` de `fn_acuses_documento`, y no se pidió.
+
+**Probado.** Banco propio: Postgres 16 nativo con un shim de Supabase (roles, `auth`, `storage`, `cron`, mini-pgTAP) y las 550
+migraciones. **Prueba nueva 443: 20/20 con la 0551 y 12 en rojo sin ella** (las 8 verdes sin ella son las que deben quedarse
+quietas). 3 mutaciones de la migración ponen en rojo justo las aserciones que las custodian. **Suite entera (347 archivos) con y sin
+la 0551: la única diferencia es la 443**, aserción por aserción; las 5 rojas que quedan están igual en los dos lados (ruido del
+mini-pgTAP). Control previo en verde: 163, 170, 171, 203, 208 y 388. Typecheck limpio y 2 873 vitest verdes.
+**No probado:** pgTAP real ni el `db-tests` de GitHub (señal fiable), nada contra producción, el md5 real de producción (lo mide la
+guardia al pegar) y la pantalla en un navegador (el panel no levanta aquí sin `.env.local` ni Supabase): el único cambio visible es
+una frase del papel imprimible.
+
+---
 
 ## 2026-10-25 — La Bandeja cuenta 33 y no 96 · los 61 correos tienen salida · un pago único ya sustentado no pide calendario · migraciones 0548 y 0549 · SQL PEGADO (2026-10-25) · SIN FUSIONAR (PR #597, borrador) · rama `claude/notifications-calendar-errors-2e8886`
 
