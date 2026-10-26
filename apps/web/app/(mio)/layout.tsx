@@ -1,5 +1,6 @@
 import { SeguirRuta } from "@/components/enlace-volver";
 import { RegistrarSinConexion } from "@/components/registrar-sin-conexion";
+import { AvisoVersionNueva } from "@/components/aviso-version-nueva";
 import { GuardaCuentaDeServicio } from "@/lib/cuenta-de-servicio";
 
 // «Lo mío» no tenía marco propio: cada pantalla se monta sola. Este layout
@@ -14,6 +15,7 @@ export default function MioLayout({ children }: { children: React.ReactNode }) {
     <GuardaCuentaDeServicio>
       <SeguirRuta />
       <RegistrarSinConexion />
+      <AvisoVersionNueva />
       {children}
     </GuardaCuentaDeServicio>
   );
