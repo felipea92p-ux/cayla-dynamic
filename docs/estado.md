@@ -6,6 +6,68 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-26 — Normas cuenta a los practicantes (con cuenta, invitados y sin cuenta) · migración 0551 · ESCRITA Y PROBADA EN BANCO · SIN PEGAR · SIN FUSIONAR (PR borrador) · rama `claude/epic-ramanujan-rr0p0u`
+
+**Qué es.** Felipe, con la captura de Normas → Constancias: «en normas también deberían aparecerme los practicantes, deben
+aparecer todos incluyendo los que cuenten con su correo dentro del sistema y los que fueron invitados». Medido, no supuesto:
+la lista sale de `fn_poblacion_obligada()` (activo y `tipo_vinculo = 'planilla'`) y el practicante, que es un vínculo propio desde la
+0322, quedaba fuera. Pero fuera **solo de la lista**: `fn_acusar_documento` no mira la población y el aviso «te falta el RIT» de «Lo
+mío» tampoco, así que un practicante con cuenta recibía el aviso, firmaba, y su constancia se guardaba **sin contarse en ningún
+sitio** (la prueba 443, sin la migración, cuenta 0 constancias en el numerador aunque la de la practicante ya está guardada). Y quien no tenía cuenta no tenía por dónde
+recibir su cargo en papel: «registrar en papel» vive en la fila de esa lista.
+
+**Lo que cambia.** Un solo cambio, en la única fuente: `fn_poblacion_obligada()` pasa a `planilla` **+ `practicante`** (activos y
+sin cuentas de servicio). De ahí cuelgan, sin tocarlas, la lista y el «N/M» de Normas, la insignia roja de Constancias, la
+Bandeja, la hoja imprimible y la alerta de Disciplina (60.5). Los tres estados de acceso entran: con cuenta que ya entró, invitado
+que no abrió el correo (`invitar` enlaza `auth_user_id` al aceptar GoTrue, así que sale como «con cuenta») y sin cuenta.
+En pantalla solo cambia una frase: la hoja imprimible decía «personal activo y en planilla» y con practicantes habría sido falso
+en un papel que se enseña a un inspector; ahora dice «con contrato de trabajo o convenio de prácticas».
+
+**El contrapeso.** `fn_acuses_politica_salarial(int)` también cuelga de esa función y habría arrastrado a los practicantes a la
+hoja de Política salarial, de la que están fuera **a propósito** (Ley 30709 no les alcanza, 2026-08-31; la pantalla ya los muestra
+aparte en «También dejaron constancia»). Se reescribe con una condición más, `p.tipo_vinculo = 'planilla'`, y devuelve la misma
+lista de antes. Es la única función reescrita además de la de población; ninguna de las tres que cambian de resultado se copió.
+
+**Qué NO cambia.** `prueba` (días de selección, 2026-08-18), `rxh`, `no_trabajador`, inactivos y cuentas de servicio siguen fuera.
+Ninguna constancia ya registrada se toca. `fn_reglamento_no_acusado` (el freno por persona) ya cubría a un practicante.
+
+**Antes de pegar.**
+1. **La 0551 reescribe dos funciones y NO se pidió su md5 a producción** (esta sesión no corre SQL contra producción). Lo comprueba
+   la guardia del bloque 0 al pegar: acepta el cuerpo de partida —tal cual, sin comentarios, con o sin `\r`— y el de llegada, y
+   **PARA sin tocar nada** ante cualquier otro. Se probó con 7 casos (cuerpo ajeno, versión previa a la 0491, política alterada: paran;
+   CRLF, sin comentarios, repegado: pasan). Partida medida sobre el repositorio: `fn_poblacion_obligada` 195 car. `1b69c217…`;
+   `fn_acuses_politica_salarial` 1 309 car. `e7e56114…`. Si el hook renumera, hay que volver a medir los md5 de llegada (los
+   marcadores `CAMBIO 0551` cambian con el número).
+2. **Pegarla ANTES de fusionar el PR** (fusionar es publicar). Si el frontend llega antes no se rompe nada: solo la frase del papel
+   se adelanta a la lista.
+3. Para ver de antemano cuánto va a subir el contador (solo lectura, en el SQL Editor):
+   `select count(*) filter (where auth_user_id is not null) as con_cuenta, count(*) filter (where auth_user_id is null) as sin_cuenta
+   from personas where tipo_vinculo = 'practicante' and estado = 'activo' and not cuenta_de_servicio;`
+4. Después de pegar, el `select` del final de la migración: `practicantes_activos` = `practicantes_contados` y
+   `politica_sin_practicantes = true`.
+
+**Lo que se verá.** El «N de M» de cada documento y «constancias pendientes» suben en practicantes × documentos que piden
+constancia, hasta que cada uno la deje o DO registre su cargo en papel: es gente que faltaba contar, no un retroceso (la novedad
+`2026-10-26-normas-cuenta-a-los-practicantes-en-sus-constancias` lo dice así). En Disciplina, un practicante sin constancia del
+Reglamento vigente pasa a salir en la alerta previa.
+
+**Decisiones que quedaron tomadas por defecto (Felipe las puede revertir).** (a) La hoja imprimible incluye a los practicantes,
+porque sale de la misma función que la pantalla: un «19 de 21» en el papel y otro número en pantalla es el defecto que cerró la
+0265. Si se prefiere un papel solo con quien tiene contrato de trabajo —como hace Política salarial—, es un cambio aparte.
+(b) Disciplina los incluye (coherente con Normas). (c) Política salarial sigue sin ellos. (d) No se agregó una etiqueta
+«Practicante» a la fila: pediría una columna más, o sea `drop` + `create` de `fn_acuses_documento`, y no se pidió.
+
+**Probado.** Banco propio: Postgres 16 nativo con un shim de Supabase (roles, `auth`, `storage`, `cron`, mini-pgTAP) y las 550
+migraciones. **Prueba nueva 443: 20/20 con la 0551 y 12 en rojo sin ella** (las 8 verdes sin ella son las que deben quedarse
+quietas). 3 mutaciones de la migración ponen en rojo justo las aserciones que las custodian. **Suite entera (347 archivos) con y sin
+la 0551: la única diferencia es la 443**, aserción por aserción; las 5 rojas que quedan están igual en los dos lados (ruido del
+mini-pgTAP). Control previo en verde: 163, 170, 171, 203, 208 y 388. Typecheck limpio y 2 873 vitest verdes.
+**No probado:** pgTAP real ni el `db-tests` de GitHub (señal fiable), nada contra producción, el md5 real de producción (lo mide la
+guardia al pegar) y la pantalla en un navegador (el panel no levanta aquí sin `.env.local` ni Supabase): el único cambio visible es
+una frase del papel imprimible.
+
+---
+
 ## 2026-10-25 — La Bandeja cuenta 33 y no 96 · los 61 correos tienen salida · un pago único ya sustentado no pide calendario · migraciones 0548 y 0549 · SQL PEGADO (2026-10-25) · SIN FUSIONAR (PR #597, borrador) · rama `claude/notifications-calendar-errors-2e8886`
 
 **Qué es.** Felipe preguntó tres cosas con tres capturas: «si es pago único, ¿para qué me pide calendario?», «la mayoría
