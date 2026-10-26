@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — El periodo de prueba se pacta por persona y la etiqueta tiene fecha de corte (segunda rebanada) · migraciones 0556 y 0557 · SQL SIN PEGAR · EN PR (borrador) · rama `claude/nifty-knuth-n789e7`
+## 2026-10-26 — El periodo de prueba se pacta por persona y la etiqueta tiene fecha de corte (segunda rebanada) · migraciones 0556 y 0557 · las dos PEGADAS 2026-10-26 · EN PR #607 · rama `claude/nifty-knuth-n789e7`
 
 **Qué es.** Tres cosas que Felipe pidió el 2026-10-26, después de la primera rebanada:
 1. **Se puede dar un periodo de prueba menor que los 3 meses** (tres meses es el periodo ordinario de la ley, no un mínimo; ampliarlo
@@ -25,13 +25,13 @@ la planilla, ni los avisos de feriado (que miran la antigüedad), ni el texto de
 **Robert Cabrera y Emily Rico** (pasados a planilla por la 0554), y cualquiera que haya ingresado antes de hoy, **dejan de llevar la
 etiqueta** aunque su periodo legal siga corriendo. Si Felipe prefiere verla en toda la gente reciente, se cambia la fecha en Parámetros.
 
-**0556 · SQL SIN PEGAR · no toca planilla.** Columna `personas.prueba_pactada_dias` (null = la ley, 0 = sin prueba, 1–89 = menor, con
+**0556 · SQL PEGADO (2026-10-26) · no toca planilla.** Columna `personas.prueba_pactada_dias` (null = la ley, 0 = sin prueba, 1–89 = menor, con
 `check`), función guardián `fn_set_prueba_pactada(persona, dias, motivo)` (solo admin/DO, motivo ≥ 3, solo planilla, no sobre cesados,
 no-op si no cambia) y trigger `trg_personas_prueba_solo_por_rpc` que rechaza el `UPDATE` directo y el `INSERT` con pacto — el molde de
 `fn_set_sede_base` (0342). No reescribe ninguna función: **no hay md5 que pedir**. Prueba **448 → 23/23**, puesta en rojo a propósito de
 tres maneras (sin trigger, `check` ensanchado, sin la condición de planilla).
 
-**0557 · SQL SIN PEGAR · no toca planilla.** Parámetro operativo `prueba_etiqueta_desde` (unidad «fecha», tope 2026-01-01 a 2030-12-31) y
+**0557 · SQL PEGADO (2026-10-26) · no toca planilla.** Parámetro operativo `prueba_etiqueta_desde` (unidad «fecha», tope 2026-01-01 a 2030-12-31) y
 `fn_prueba_etiqueta_desde()`. **Se guarda como entero AAAAMMDD** porque el catálogo de Parámetros (0552) solo guarda números y abrirlo a
 otro tipo tocaba la puerta que protege los de plata; la pantalla lo dibuja y lo pide como fecha, y la función valida que sea un día real
 (20261340 o 20260230 caen en la fecha de partida, no se corren al mes siguiente). La siembra pone **el día en que se pega**, con
@@ -45,9 +45,9 @@ Contratos: la cláusula TERCERA dice el plazo **pactado** —«cuarenta y cinco 
 desde el ingreso (una renovación no lo reinicia); un valor raro se imprime como la ley. Parámetros: una fila de unidad «fecha» se dibuja
 y se edita como fecha, con vista previa de a quién le cambia (`impactoEtiquetaPrueba`, la misma función que usa Equipo).
 
-**Si el código llega antes que el SQL no se rompe nada:** las lecturas de `prueba_pactada_dias` y de `fn_prueba_etiqueta_desde` son
+**Pegado el 2026-10-26.** Felipe devolvió las comprobaciones: 0556 → `true · 0 · true · true · 556`; 0557 → `true · true · 2026-10-26 · true · 557` (la etiqueta alcanza desde el 26/10). Nadie tiene todavía un periodo pactado. **Si el código llegara antes que el SQL no se rompería nada:** las lecturas de `prueba_pactada_dias` y de `fn_prueba_etiqueta_desde` son
 aparte y tolerantes; sin la 0556 el selector queda apagado y dice qué falta, y sin la 0557 la etiqueta no tiene corte (se ve como hasta
-ahora). **Orden para pegar:** 0556, luego 0557 (la 0557 exige la 0553); las dos antes de fusionar.
+ahora).
 
 **Regla que queda dicha, «así en adelante».** Quien ya estaba con contrato no lleva etiqueta; quien ingresa desde la fecha de corte la lleva
 hasta que termina su periodo, sin que nadie la ponga ni la quite a mano. El periodo legal se pacta en el alta; el contrato lo imprime.
