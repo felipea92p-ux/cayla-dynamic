@@ -22,3 +22,4 @@ export * from "./pruebas";
 export * from "./capa-activa";
 export * from "./terminos";
 export * from "./liquidacion-constancias";
+export * from "./parametros";

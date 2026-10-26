@@ -1,4 +1,5 @@
 import type { Rol } from "./enums";
+import type { ClaseParametro } from "./parametros";
 
 /**
  * QUIÉN PUEDE QUÉ — el único lugar donde se decide.
@@ -444,6 +445,30 @@ export function puedeExportarListaDeAsegurados(rol: RolPosible): boolean {
 
 /** Solo la dirección. Ver arriba por qué esto no es lo mismo que DO. */
 const SOLO_DIRECCION: readonly Rol[] = ["admin"];
+
+/**
+ * Entrar a «Parámetros»: ver los números del sistema, su último cambio y su
+ * historial. DO y la dirección — la líder de equipo no (decidido el 2026-10-26).
+ * Espeja `fn_parametros_listar`, que se niega a quien no sea admin o líder de DO.
+ */
+export function puedeGestionarParametros(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
+ * Cambiar UN parámetro, según su clase (0552). DO opera lo operativo y lo que
+ * mueve un pago; lo normativo —ley o RIT— es solo de la dirección. Un editable
+ * que la base declara «fijado por norma» no lo cambia nadie: eso lo dice
+ * `editable` del catálogo, no el rol.
+ *
+ * Una clase desconocida NIEGA: el lado seguro de equivocarse es un botón que no
+ * se dibuja. Espeja `fn_parametro_cambiar`, donde manda la base.
+ */
+export function puedeCambiarParametro(rol: RolPosible, clase: ClaseParametro | string | null | undefined): boolean {
+  if (clase === "operativo" || clase === "plata") return tiene(DO, rol);
+  if (clase === "normativo") return tiene(SOLO_DIRECCION, rol);
+  return false;
+}
 
 /**
  * Bajarse en CSV el rastro de asistencia: el resumen de jornadas, los marcajes
