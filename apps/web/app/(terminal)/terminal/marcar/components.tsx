@@ -239,20 +239,20 @@ export function NombreGrid({
   );
 }
 
-/** «Prueba · 2 de 3», o null si la persona no está de prueba (0539). */
+/** «Preselección · 2 de 3», o null si la persona no está en preselección (0539). */
 function textoDePrueba(persona: RosterEntry): string | null {
   if (typeof persona.pruebaDias !== "number" || typeof persona.pruebaPlazo !== "number") return null;
   return etiquetaDePrueba({ dias_trabajados: persona.pruebaDias, dias_plazo: persona.pruebaPlazo }).texto;
 }
 
-/** ¿Está de prueba? Las dos columnas vienen juntas o no vienen (0539). */
+/** ¿Está en preselección? Las dos columnas vienen juntas o no vienen (0539). */
 function enPrueba(persona: RosterEntry): boolean {
   return typeof persona.pruebaDias === "number" && typeof persona.pruebaPlazo === "number";
 }
 
 /**
- * Quien está de prueba se distingue por DOS señales que no dependen del color: el borde de su tarjeta es
- * punteado y lleva una cinta «En prueba» (`CintaDePrueba`). El color solo refuerza. Las tarjetas necesitan
+ * Quien está en preselección se distingue por DOS señales que no dependen del color: el borde de su tarjeta es
+ * punteado y lleva una cinta «En preselección» (`CintaDePrueba`). El color solo refuerza. Las tarjetas necesitan
  * `relative` para anclar la cinta.
  */
 function claseDePrueba(persona: RosterEntry): string {
@@ -262,7 +262,7 @@ function claseDePrueba(persona: RosterEntry): string {
 /**
  * La cinta sobre el borde de la tarjeta. Usa `tinta` sobre `crema`, que se invierten juntas en el modo
  * oscuro (15.4:1 en claro, 14.1:1 en oscuro). Es decorativa para el lector de pantalla: el aria-label de la
- * tarjeta ya dice «Prueba · 2 de 3».
+ * tarjeta ya dice «Preselección · 2 de 3».
  */
 function CintaDePrueba({ persona }: { persona: RosterEntry }) {
   if (!enPrueba(persona)) return null;
@@ -271,13 +271,13 @@ function CintaDePrueba({ persona }: { persona: RosterEntry }) {
       aria-hidden
       className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-pildora bg-tinta px-3 py-0.5 font-sans text-xs font-medium text-crema"
     >
-      En prueba
+      En preselección
     </span>
   );
 }
 
 /**
- * La píldora junto al nombre (0539): «Prueba · 2 de 3». Es SIEMPRE del mismo color (pizarra sólida, 6.0:1 en
+ * La píldora junto al nombre (0539): «Preselección · 2 de 3». Es SIEMPRE del mismo color (pizarra sólida, 6.0:1 en
  * claro y 7.8:1 en oscuro): el avance lo dice el texto, no el tono. Ningún estado de presencia se pinta como
  * una píldora llena, así que no se confunde con el azul de la pausa ni con el ámbar del refrigerio. Y no usa
  * rojo ni ámbar a propósito: la pantalla está a la vista de todo el equipo, y «ya se pasó el plazo» es una

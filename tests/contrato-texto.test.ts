@@ -502,62 +502,6 @@ describe("período de prueba", () => {
   });
 });
 
-// 0556 · el período de prueba PACTADO con la persona. Acortarlo es renunciar por escrito a un derecho de CAYLA, así que el
-// contrato tiene que decir el plazo real: ni "tres meses" cuando se pactó menos, ni "sin causa" cuando se pactó no tener prueba.
-describe("período de prueba pactado (0556)", () => {
-  it("sin pacto sigue diciendo tres meses, como siempre", () => {
-    const html = construirContrato(datos({ tipo: "nuevo" }));
-    expect(html).toContain("El período de prueba es de tres (3) meses");
-    expect(construirContrato(datos({ tipo: "nuevo", pruebaPactadaDias: null }))).toContain("tres (3) meses");
-  });
-
-  it("un período menor se escribe en letras y cifras, con su fecha de término", () => {
-    const html = construirContrato(datos({ tipo: "nuevo", fechaInicio: "2026-10-26", pruebaPactadaDias: 45 }));
-    expect(html).toContain("cuarenta y cinco (45) días calendario");
-    expect(html).toContain("menor al máximo de tres (3) meses");
-    expect(html).toContain("culmina el 10 de diciembre de 2026");
-    expect(html).toContain("sin expresión de causa");
-    expect(html).not.toContain("El período de prueba es de tres (3) meses");
-  });
-
-  it("apocopa el uno delante de «días» (y en singular dice «día»)", () => {
-    expect(construirContrato(datos({ tipo: "nuevo", pruebaPactadaDias: 1 }))).toContain("un (1) día calendario");
-    expect(construirContrato(datos({ tipo: "nuevo", pruebaPactadaDias: 21 }))).toContain("veintiún (21) días calendario");
-    expect(construirContrato(datos({ tipo: "nuevo", pruebaPactadaDias: 31 }))).toContain("treinta y un (31) días calendario");
-  });
-
-  it("sin período de prueba pactado: lo dice y NO abre un tramo sin causa", () => {
-    const html = construirContrato(datos({ tipo: "nuevo", pruebaPactadaDias: 0 }));
-    expect(html).toContain("NO habrá período de prueba");
-    expect(html).not.toContain("sin expresión de causa");
-    expect(html).toContain("estabilidad laboral desde el inicio");
-  });
-
-  it("una renovación cuenta el pacto desde el ingreso y no lo reinicia", () => {
-    const html = construirContrato(
-      datos({ tipo: "renovacion", fechaIngresoOriginal: "2026-10-01", fechaInicio: "2026-10-15", pruebaPactadaDias: 30 }),
-    );
-    expect(html).toContain("treinta (30) días calendario");
-    expect(html).toContain("NO se reinicia");
-    expect(html).toContain("culmina el 31 de octubre de 2026");
-  });
-
-  it("una renovación con el pacto ya cumplido reconoce que lo superó, citando el plazo pactado", () => {
-    const html = construirContrato(
-      datos({ tipo: "renovacion", fechaIngresoOriginal: "2026-08-01", fechaInicio: "2026-10-01", pruebaPactadaDias: 30 }),
-    );
-    expect(html).toContain("ya superó el período de prueba de treinta (30) días calendario");
-    expect(html).not.toContain("sin expresión de causa");
-  });
-
-  it("un valor raro (90, negativo, decimal) se trata como la ley, no se imprime tal cual", () => {
-    for (const n of [90, -5, 10.5]) {
-      const html = construirContrato(datos({ tipo: "nuevo", pruebaPactadaDias: n }));
-      expect(html).toContain("tres (3) meses");
-    }
-  });
-});
-
 describe("finDelPeriodoDePrueba", () => {
   it("suma tres meses de calendario, no noventa días", () => {
     expect(finDelPeriodoDePrueba("2026-01-15")).toBe("2026-04-15");

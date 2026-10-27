@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-27-la-preseleccion-vuelve-como-vinculo-en-equipo",
+    fecha: "2026-10-27",
+    titulo: "«Preselección» vuelve como vínculo en Equipo: es lo que antes se llamaba «Prueba»",
+    queMejoro:
+      "Al dar de alta a alguien en Equipo vuelve a poder elegirse «Preselección» —los primeros días, antes de hacerle el " +
+      "contrato—, y con ese nombre aparece en todo el sistema: en Planilla, Bandeja, Contratos, Turnos, Horas y el terminal de " +
+      "marcaje, con su etiqueta «Preselección · 2 de 3». Donde antes decía «prueba» para esta gente, ahora dice «preselección».\n\n" +
+      "Lo que se había avisado el 26 de octubre sobre el alta (fecha de ingreso y periodo de prueba), la fecha de corte de la " +
+      "etiqueta y el aviso de feriado por antigüedad se deja como estaba antes: el aviso de feriado vuelve a mirar a quien está " +
+      "en preselección. En Seguros, quien está en preselección aparece como «Sin seguro que aplique», igual que los honorarios: " +
+      "ni póliza ni nada pendiente. El periodo de prueba que va escrito dentro de un contrato de trabajo no cambia de nombre.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-26-el-periodo-de-prueba-se-elige-al-dar-de-alta-y-la-etiqueta-tiene-fecha-de-corte",
     fecha: "2026-10-26",
     titulo: "El periodo de prueba se elige al dar de alta, y la etiqueta tiene fecha de corte",

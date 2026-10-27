@@ -102,7 +102,7 @@ const ROTULOS: Record<string, string> = {
   "turnos.horario": "Turno cambiado",
   horarios_asignados: "Horario cambiado",
   organos_titulo_x: "Nombramiento para investigar el Título X",
-  "pruebas.resultado": "Prueba de tres días cerrada",
+  "pruebas.resultado": "Preselección de tres días cerrada",
 };
 
 /** El nombre en español de un campo; si no lo conoce, el crudo sin guiones bajos. */

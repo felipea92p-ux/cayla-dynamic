@@ -30,7 +30,8 @@ import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 import { resumenDeLideres, resumenDelTramo, type ResumenTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
-import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, DIAS_AVISO_FERIADO_DEFECTO, diasDesdeIngreso, lineaDeSemana, TEXTO_CONFIRMAR_TRABAJO_EN_FERIADO, tituloDelAviso, type PersonaEnFeriado } from "@/lib/admin/feriado-recien-ingresado";
+import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, lineaDeSemana, TEXTO_CONFIRMAR_TRABAJO_EN_FERIADO, tituloDelAviso, type PersonaEnFeriado } from "@/lib/admin/prueba-en-feriado";
+import type { FilaPrueba } from "@/lib/admin/pruebas";
 import { CampoMeta, InsigniaTramo, Medidor, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
@@ -62,7 +63,7 @@ function etiquetaDia(iso: string): { abr: string; num: string } {
   return { abr: DIAS_ABR[d.getUTCDay()], num: `${d.getUTCDate()} ${MESES[d.getUTCMonth()]}` };
 }
 
-interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; tipoVinculo: string | null; fechaIngreso: string | null; }
+interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; tipoVinculo: string | null; }
 // El tramo de horario y "quién le tocaba trabajar ese día" viven en
 // jornada-esperada.ts — es la misma cascada que usa el backend
 // (fn_recalcular_jornada) y que ya adoptaron incidencias/horas/correcciones.
@@ -625,12 +626,11 @@ export default function TurnosPage() {
   const [copiarDisponibles, setCopiarDisponibles] = useState<number | null>(null);
   const [confirmarCopiar, setConfirmarCopiar] = useState(false);
   const [copiando, setCopiando] = useState(false);
-  // Feriados de la semana en pantalla (fecha → nombre) y desde cuántos días de antigüedad se avisa. Sirven SOLO para
-  // recomendar descanso a quien ingresó hace poco (feriado-recien-ingresado.ts); si fallan quedan vacíos y la
-  // pantalla se comporta como siempre.
+  // Feriados de la semana en pantalla (fecha → nombre) y las pruebas abiertas por persona. Sirven SOLO para
+  // recomendar descanso a quien está de prueba (prueba-en-feriado.ts); si fallan quedan vacíos y la pantalla
+  // se comporta como siempre, salvo que el vínculo ya dice «prueba» y entonces se avisa igual.
   const [feriadosSemana, setFeriadosSemana] = useState<Map<string, string>>(new Map());
-  // Umbral del aviso (Parámetros, 0553). Si la base todavía no lo tiene, rige el de partida.
-  const [umbralFeriado, setUmbralFeriado] = useState<number>(DIAS_AVISO_FERIADO_DEFECTO);
+  const [pruebas, setPruebas] = useState<Map<string, FilaPrueba>>(new Map());
   const [confirmaFeriado, setConfirmaFeriado] = useState(false);
 
   // edición de celda
@@ -690,14 +690,14 @@ export default function TurnosPage() {
       { data: f, error: fErr },
       { data: ar, error: arErr },
       { data: fer },
-      { data: umb },
+      { data: pru },
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
       // igual que cualquiera y cuenta para la meta de cobertura de la sede —
       // decisión de Felipe (2026-09-12) — así que entra a la grilla con el
       // mismo `OR` puntual, sin tocar `en_planilla` ni el escalafón
       // disciplinario, que siguen igual para las demás pantallas.
-      supabase.from("personas").select("id, nombres, apellidos, rol, fecha_ingreso")
+      supabase.from("personas").select("id, nombres, apellidos, rol")
         .eq("sede_base_id", sedeSel).eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .eq("sueldo_fijo", false).order("nombres"),
@@ -707,7 +707,7 @@ export default function TurnosPage() {
       supabase.rpc("fn_personas_funciones"), // "funcion" vía RPC: el schema cache de PostgREST no expone la columna
       supabase.rpc("fn_areas"), // catálogo dinámico de áreas (nunca .from("areas"): schema cache trabado)
       supabase.from("feriados").select("fecha, nombre").gte("fecha", lunes).lte("fecha", domingo),
-      supabase.rpc("fn_feriado_aviso_dias"), // 0553; si aún no está pegada, el error se ignora y rige el 15
+      supabase.rpc("fn_pruebas_abiertas"),
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (pErr || hErr || tErr || mErr) {
@@ -717,12 +717,12 @@ export default function TurnosPage() {
     }
     setAreas(parseAreas(ar, arErr));
     setFeriadosSemana(new Map(((fer as { fecha: string; nombre: string }[] | null) ?? []).map((x) => [x.fecha, x.nombre] as const)));
-    setUmbralFeriado(typeof umb === "number" && Number.isFinite(umb) && umb > 0 ? umb : DIAS_AVISO_FERIADO_DEFECTO);
+    setPruebas(new Map(((pru as FilaPrueba[] | null) ?? []).map((x) => [x.persona_id, x] as const)));
     // Si falla la RPC de funciones O la del catálogo de áreas, la cobertura puede
     // contar mal (degrada a defaults) — se avisa en pantalla en vez de fallar en silencio.
     setFuncionesFallo(Boolean(fErr) || Boolean(arErr));
     const mapF = new Map(((f as { persona_id: string; funcion: string; es_encargada_piso?: boolean; tipo_vinculo?: string | null }[] | null) ?? []).map((x) => [x.persona_id, { funcion: x.funcion, esEncargadaPiso: Boolean(x.es_encargada_piso), tipoVinculo: x.tipo_vinculo ?? null }]));
-    setPersonas((((p as unknown as (Omit<Persona, "funcion" | "esEncargadaPiso" | "tipoVinculo" | "fechaIngreso"> & { fecha_ingreso: string | null })[]) ?? []).map(({ fecha_ingreso, ...x }) => ({ ...x, fechaIngreso: fecha_ingreso ?? null, funcion: mapF.get(x.id)?.funcion ?? AREA_DEFAULT, esEncargadaPiso: mapF.get(x.id)?.esEncargadaPiso ?? false, tipoVinculo: mapF.get(x.id)?.tipoVinculo ?? null }))));
+    setPersonas((((p as Omit<Persona, "funcion" | "esEncargadaPiso" | "tipoVinculo">[]) ?? []).map((x) => ({ ...x, funcion: mapF.get(x.id)?.funcion ?? AREA_DEFAULT, esEncargadaPiso: mapF.get(x.id)?.esEncargadaPiso ?? false, tipoVinculo: mapF.get(x.id)?.tipoVinculo ?? null }))));
     const mapH = new Map<string, Horario[]>();
     for (const x of (h as HorarioTramo[]) ?? []) {
       const arr = mapH.get(x.persona_id) ?? [];
@@ -782,13 +782,10 @@ export default function TurnosPage() {
     await cargar();
   }
 
-  // Si la semana destino tiene feriado y la sede tiene gente que ingresó hace poco, la copia puede dejarle turno ese día.
+  // Si la semana destino tiene feriado y la sede tiene gente de prueba, la copia puede dejarle turno ese día.
   const avisoCopiar = useMemo(
-    () => avisoDeCopiar(
-      [...feriadosSemana.values()],
-      [...feriadosSemana.keys()].some((fecha) => personas.some((p) => conviveDarDescanso({ tipoVinculo: p.tipoVinculo, fechaIngreso: p.fechaIngreso }, fecha, true, umbralFeriado))),
-    ),
-    [feriadosSemana, personas, umbralFeriado],
+    () => avisoDeCopiar([...feriadosSemana.values()], personas.some((p) => p.tipoVinculo === "prueba" && conviveDarDescanso({ tipoVinculo: p.tipoVinculo, situacion: pruebas.get(p.id)?.situacion ?? null, dias: null, plazo: null }, true))),
+    [feriadosSemana, personas, pruebas],
   );
 
   const celda = useCallback((personaId: string, fecha: string): Celda => {
@@ -809,33 +806,31 @@ export default function TurnosPage() {
     return { tipo: "default", entrada: esp.entrada!, salida: esp.salida, refrigerio: tramo?.horario_por_dia?.[dow]?.r };
   }, [turnos, horarios]);
 
-  // ¿Conviene darle descanso este día? Solo quien lleva menos de N días calendario desde su ingreso, en un feriado
-  // (feriado-recien-ingresado.ts). N sale de Parámetros.
-  const ingresoRecienDeLaPersona = useCallback((personaId: string, fecha: string) => {
+  // ¿Conviene darle descanso este día? Solo quien está de prueba, en un feriado (prueba-en-feriado.ts).
+  const pruebaDeLaPersona = useCallback((personaId: string, fecha: string) => {
     const p = personas.find((x) => x.id === personaId);
+    const f = pruebas.get(personaId);
     const ok = conviveDarDescanso(
-      { tipoVinculo: p?.tipoVinculo ?? null, fechaIngreso: p?.fechaIngreso ?? null },
-      fecha,
+      { tipoVinculo: p?.tipoVinculo ?? null, situacion: f?.situacion ?? null, dias: f?.dias_trabajados ?? null, plazo: f?.dias_plazo ?? null },
       feriadosSemana.has(fecha),
-      umbralFeriado,
     );
-    return ok ? { nombreFeriado: feriadosSemana.get(fecha) ?? null, dias: diasDesdeIngreso(p?.fechaIngreso ?? null, fecha) } : null;
-  }, [personas, feriadosSemana, umbralFeriado]);
+    return ok ? { nombreFeriado: feriadosSemana.get(fecha) ?? null, dias: f?.dias_trabajados ?? null, plazo: f?.dias_plazo ?? null } : null;
+  }, [personas, pruebas, feriadosSemana]);
 
-  // Quién ingresó hace poco y queda trabajando un feriado de esta semana, sea por turno puesto, copiado o por su horario base.
-  const recienIngresadoEnFeriado = useMemo<PersonaEnFeriado[]>(() => {
+  // Quién de prueba queda trabajando un feriado de esta semana, sea por turno puesto, copiado o por su horario base.
+  const pruebaEnFeriado = useMemo<PersonaEnFeriado[]>(() => {
     const lista: PersonaEnFeriado[] = [];
     for (const [fecha, feriado] of feriadosSemana) {
       for (const p of personas) {
         const c = celda(p.id, fecha);
         if (c.tipo !== "turno" && c.tipo !== "default") continue;
-        const a = ingresoRecienDeLaPersona(p.id, fecha);
+        const a = pruebaDeLaPersona(p.id, fecha);
         if (!a) continue;
-        lista.push({ personaId: p.id, nombre: `${p.nombres} ${p.apellidos}`, fecha, feriado, dias: a.dias });
+        lista.push({ personaId: p.id, nombre: `${p.nombres} ${p.apellidos}`, fecha, feriado, dias: a.dias, plazo: a.plazo });
       }
     }
     return lista.sort((x, y) => x.fecha.localeCompare(y.fecha) || x.nombre.localeCompare(y.nombre));
-  }, [feriadosSemana, personas, celda, ingresoRecienDeLaPersona]);
+  }, [feriadosSemana, personas, celda, pruebaDeLaPersona]);
 
   // Cuántas personas (según `filtro`) cubren cada franja del día — reusada para
   // la franja de la Vista Día (operativas, 1h) y las 2 tablas de la Vista
@@ -995,7 +990,7 @@ export default function TurnosPage() {
 
   const guardarTurno = () => {
     if (!edit || !entrada) { avisar("error", "Pon al menos la hora de entrada."); return; }
-    if (ingresoRecienDeLaPersona(edit.personaId, edit.fecha) && !confirmaFeriado) { avisar("error", "Confirma que está de acuerdo en que trabaje el feriado, o dale descanso."); return; }
+    if (pruebaDeLaPersona(edit.personaId, edit.fecha) && !confirmaFeriado) { avisar("error", "Confirma que está de acuerdo en que trabaje el feriado, o dale descanso."); return; }
     return ejecutar(() => supabase.rpc("fn_set_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha, p_hora_entrada: entrada, p_hora_salida: salida || null }));
   };
   // "De aquí en adelante": el cambio NO es puntual, es la nueva regla. Toma el
@@ -1005,7 +1000,7 @@ export default function TurnosPage() {
   const guardarDesdeAqui = async () => {
     if (!edit) return;
     if (!entrada || !salida) { avisar("error", "Para cambiar el horario base necesito entrada y salida."); return; }
-    if (ingresoRecienDeLaPersona(edit.personaId, edit.fecha) && !confirmaFeriado) { avisar("error", "Confirma que está de acuerdo en que trabaje el feriado, o dale descanso."); return; }
+    if (pruebaDeLaPersona(edit.personaId, edit.fecha) && !confirmaFeriado) { avisar("error", "Confirma que está de acuerdo en que trabaje el feriado, o dale descanso."); return; }
     const tr = horarioVigente(horarios.get(edit.personaId) ?? [], edit.fecha);
     const semanal = horarioSemanalDesdeTramo(tr);
     const dow = String(diaSemana(edit.fecha));
@@ -1104,7 +1099,7 @@ export default function TurnosPage() {
               secciones={[
                 { titulo: "Poner un turno", texto: "Toca la fila de una persona en un día: eliges su hora de entrada y salida, o la marcas de descanso." },
                 { titulo: "La meta", texto: "Tiene dos tramos: mañana y tarde (el corte es 14:15). La franja de abajo de cada día compara la gente de cada hora contra la meta de su tramo." },
-                { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma." },
+                { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma. Quien está en preselección tampoco suma hasta que deje de estarlo: da igual si es practicante o tiene otro cargo." },
                 { titulo: "Las tres vistas", texto: "Día muestra la barra de cada persona; Semana, la silueta de cobertura de cada día; Integrada, la semana hora por hora." },
               ]}
             />
@@ -1162,14 +1157,14 @@ export default function TurnosPage() {
           </div>
         </div>
 
-        {/* Quien ingresó hace poco y queda trabajando un feriado: se recomienda descanso (feriado-recien-ingresado.ts).
+        {/* Quien está en preselección y queda trabajando un feriado: se recomienda descanso (prueba-en-feriado.ts).
             No frena nada; cada fila abre el editor de ese día, donde está «Dar descanso». */}
-        {!cargando && recienIngresadoEnFeriado.length > 0 && (
+        {!cargando && pruebaEnFeriado.length > 0 && (
           <BannerAviso enLinea variante="advertencia" className="mb-4 text-sm">
-            <p className="mb-1 font-medium">Alguien que ingresó hace poco queda trabajando un feriado.</p>
-            <p className="mb-2 text-xs">Un feriado trabajado sin día libre a cambio se paga más. Lo recomendable es darle descanso (el feriado se le paga igual); si debe venir, confírmalo al abrir el día.</p>
+            <p className="mb-1 font-medium">Alguien en preselección queda trabajando un feriado.</p>
+            <p className="mb-2 text-xs">Un feriado trabajado sin día libre a cambio se paga más. Lo recomendable es darle descanso; si debe venir, confírmalo al abrir el día.</p>
             <ul className="space-y-1">
-              {recienIngresadoEnFeriado.map((x) => (
+              {pruebaEnFeriado.map((x) => (
                 <li key={`${x.personaId}|${x.fecha}`} className="flex flex-wrap items-center gap-2 text-xs">
                   <span>{lineaDeSemana(x, `${etiquetaDia(x.fecha).abr} ${etiquetaDia(x.fecha).num}`)}</span>
                   <Boton variante="secundario" tamano="sm" onClick={() => abrir(x.personaId, x.fecha)}>Revisar ese día</Boton>
@@ -1731,8 +1726,8 @@ export default function TurnosPage() {
           const avisoDescansoDespues = descansoDespues !== null && descansoDespues < DESCANSO_MINIMO_HORAS;
           const avisoCiclo = cicloEdit !== null && cicloEdit.horas >= UMBRAL_AVISO_SOBRETIEMPO;
           const hayAviso = avisoDescansoAntes || avisoDescansoDespues || avisoCiclo;
-          // Quien ingresó hace poco, en un feriado: se recomienda descanso y, para dejarlo trabajar, hay que confirmarlo.
-          const avisoPrueba = ingresoRecienDeLaPersona(edit.personaId, edit.fecha);
+          // Quien está en preselección en un feriado: se recomienda descanso y, para dejarlo trabajar, hay que confirmarlo.
+          const avisoPrueba = pruebaDeLaPersona(edit.personaId, edit.fecha);
           const faltaConfirmar = avisoPrueba !== null && !confirmaFeriado;
 
           return (

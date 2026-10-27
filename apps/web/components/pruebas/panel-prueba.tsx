@@ -74,7 +74,7 @@ export function PanelPrueba({
       p_motivo: motivo.trim(),
     });
     setEnviando(false);
-    if (e) { setError(mensajeDeError(e, "cerrar la prueba")); return; }
+    if (e) { setError(mensajeDeError(e, "cerrar la preselección")); return; }
     avisar("ok", mensajeDeCierre(cerrando, nombre));
     setCerrando(null);
     alCambiar();
@@ -93,7 +93,7 @@ export function PanelPrueba({
 
       {!fila.registrada && (
         <BannerAviso enLinea variante="advertencia">
-          Esta prueba no quedó registrada al crear a la persona. Se registrará sola al cerrarla.
+          Esta preselección no quedó registrada al crear a la persona. Se registrará sola al cerrarla.
         </BannerAviso>
       )}
 
@@ -127,7 +127,7 @@ export function PanelPrueba({
           )}
         </section>
       ) : (
-        <p className="text-xs text-taupe">Solo Desarrollo Organizacional y las líderes de equipo deciden sobre una prueba.</p>
+        <p className="text-xs text-taupe">Solo Desarrollo Organizacional y las líderes de equipo deciden sobre una preselección.</p>
       )}
 
       <Modal

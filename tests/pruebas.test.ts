@@ -1,9 +1,10 @@
 // ============================================================================
-// pruebas.test.ts — lo que una pantalla dice de la prueba de tres días
+// pruebas.test.ts — lo que una pantalla dice de la preselección de tres días
 // ============================================================================
-// El texto que más importa es el de «se retiró»: es la única advertencia entre
-// quien decide y una hora de trabajo sin pagar. Se vigila que SIEMPRE diga que
-// no se paga y cuántas horas son, y que «no apto» diga lo contrario.
+// El texto que más importa es el de «se retiró» y «no apto»: es lo único que lee
+// quien decide antes de dar de baja a alguien. Se vigila que SIEMPRE diga qué se
+// paga y cuántas horas son, y que diga lo mismo que hace la planilla: desde la
+// 0555 quien se retiró cobra lo trabajado igual que quien no fue apto.
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import {
@@ -33,24 +34,24 @@ describe("la situación de una prueba", () => {
   });
 });
 
-describe("la etiqueta «Prueba · X de 3»", () => {
+describe("la etiqueta «Preselección · X de 3»", () => {
   it("en curso dice cuántos días lleva y es informativa", () => {
-    expect(etiquetaDePrueba(fila({ dias_trabajados: 2 }))).toEqual({ texto: "Prueba · 2 de 3", variante: "informativo" });
-    expect(etiquetaDePrueba(fila({ dias_trabajados: 0 }))).toEqual({ texto: "Prueba · 0 de 3", variante: "informativo" });
+    expect(etiquetaDePrueba(fila({ dias_trabajados: 2 }))).toEqual({ texto: "Preselección · 2 de 3", variante: "informativo" });
+    expect(etiquetaDePrueba(fila({ dias_trabajados: 0 }))).toEqual({ texto: "Preselección · 0 de 3", variante: "informativo" });
   });
 
   it("al completar el plazo avisa que toca decidir", () => {
     expect(etiquetaDePrueba(fila({ situacion: "cumplida", dias_trabajados: 3 })))
-      .toEqual({ texto: "Prueba · 3 de 3", variante: "advertencia" });
+      .toEqual({ texto: "Preselección · 3 de 3", variante: "advertencia" });
   });
 
   it("pasado el plazo sube a alerta y dice los días reales", () => {
     expect(etiquetaDePrueba(fila({ situacion: "vencida", dias_trabajados: 5 })))
-      .toEqual({ texto: "Prueba · 5 días", variante: "alerta" });
+      .toEqual({ texto: "Preselección · 5 días", variante: "alerta" });
   });
 
   it("el plazo no está escrito a mano: sale de la fila", () => {
-    expect(etiquetaDePrueba(fila({ dias_trabajados: 1, dias_plazo: 5 })).texto).toBe("Prueba · 1 de 5");
+    expect(etiquetaDePrueba(fila({ dias_trabajados: 1, dias_plazo: 5 })).texto).toBe("Preselección · 1 de 5");
   });
 });
 
@@ -100,10 +101,11 @@ describe("el orden", () => {
 });
 
 describe("lo que se lee antes de confirmar", () => {
-  it("«se retiró» dice SIEMPRE que no se paga, y cuántas horas son", () => {
+  it("«se retiró» dice SIEMPRE que se le paga lo trabajado (0555), y cuántas horas son", () => {
     const c = consecuenciaDelCierre("retirado", { dias_trabajados: 1, horas_marcadas: 5.35 });
-    expect(c.peligro).toBe(true);
-    expect(c.lineas[0]).toContain("NO se le paga");
+    expect(c.peligro).toBe(false);
+    expect(c.lineas[0]).toContain("Se le paga lo trabajado");
+    expect(c.lineas[0]).not.toContain("NO se le paga");
     expect(c.lineas[0]).toContain("5,35 h");
     expect(c.lineas[0]).toContain("1 día");
   });
@@ -129,7 +131,7 @@ describe("lo que se lee antes de confirmar", () => {
   });
 
   it("el aviso final dice qué pasó con el pago", () => {
-    expect(mensajeDeCierre("retirado", "Mariel")).toContain("no se paga");
+    expect(mensajeDeCierre("retirado", "Mariel")).toContain("se le pagará");
     expect(mensajeDeCierre("no_apto", "Mariel")).toContain("se le pagará");
   });
 });
@@ -161,8 +163,8 @@ describe("los cierres recientes", () => {
     cerrada_fecha: "2026-10-16", dias_trabajados: 1, horas_marcadas: 3.79, ...o,
   });
 
-  it("un retiro dice que quedó sin pagar; un no apto, que se paga", () => {
-    expect(resumenDeCierre(cierre())).toBe("Se retiró · decidió Ana Supervisora · 1 día, 3,79 h sin pagar");
+  it("un retiro y un no apto dicen lo mismo del pago: las horas se pagan (0555)", () => {
+    expect(resumenDeCierre(cierre())).toBe("Se retiró · decidió Ana Supervisora · 1 día, 3,79 h a pagar");
     expect(resumenDeCierre(cierre({ resultado: "no_apto", dias_trabajados: 3, horas_marcadas: 19.5 })))
       .toBe("No fue apto · decidió Ana Supervisora · 3 días, 19,5 h a pagar");
   });
@@ -188,7 +190,7 @@ describe("la constancia de consentimiento del DNI", () => {
   });
 
   it("el plazo sale del argumento, no está escrito a mano", () => {
-    expect(textoConsentimientoDni("A B", 5)).toContain("prueba de 5 días");
+    expect(textoConsentimientoDni("A B", 5)).toContain("preselección de 5 días");
   });
 
   it("dice cómo ejercer los derechos de acceso, rectificación, cancelación y oposición", () => {
