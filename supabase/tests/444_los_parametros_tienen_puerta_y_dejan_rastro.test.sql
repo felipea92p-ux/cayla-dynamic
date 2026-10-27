@@ -59,8 +59,8 @@ set session_replication_role = origin;
 -- ── 0 · Lo instalado ────────────────────────────────────────────────────────
 select is(
   (select array_agg(parametro order by orden) from parametros_catalogo),
-  array['periodo_prueba_meses', 'feriado_aviso_antiguedad_dias', 'auto_cierre_horas', 'descanso_medico_avisar_desde', 'descanso_medico_tope_essalud']::text[],
-  'El catálogo trae los cinco parámetros (0552 y 0553), en su orden');
+  array['periodo_prueba_meses', 'prueba_etiqueta_desde', 'feriado_aviso_antiguedad_dias', 'auto_cierre_horas', 'descanso_medico_avisar_desde', 'descanso_medico_tope_essalud']::text[],
+  'El catálogo trae los seis parámetros (0552, 0553 y 0557), en su orden');
 
 select is(
   (select count(*)::int from pg_trigger

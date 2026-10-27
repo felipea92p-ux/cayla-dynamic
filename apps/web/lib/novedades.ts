@@ -125,6 +125,21 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-10-26-el-periodo-de-prueba-se-elige-al-dar-de-alta-y-la-etiqueta-tiene-fecha-de-corte",
+    fecha: "2026-10-26",
+    titulo: "El periodo de prueba se elige al dar de alta, y la etiqueta tiene fecha de corte",
+    queMejoro:
+      "Al dar de alta a alguien en Equipo ahora se elige su fecha de ingreso (arranca en hoy) y, debajo, su periodo de prueba: " +
+      "tres meses como manda la ley, uno menor pactado por escrito, o ninguno. También se cambia al editar a la persona. Si se " +
+      "pacta uno menor o ninguno, se pide el motivo y queda en el historial, y la cláusula del contrato dice el plazo que se " +
+      "pactó en vez de «tres meses» a secas.\n\n" +
+      "La etiqueta «En periodo de prueba» ya no se le pone a todos los que llevan menos de tres meses: solo a quienes ingresaron " +
+      "desde una fecha de corte, que por defecto es el día en que se activó. En Parámetros puedes llevar esa fecha atrás para " +
+      "que también la lleve quien ya trabaja y tiene menos de tres meses; antes de confirmar te dice a quién se la pone. Es solo " +
+      "un rótulo: no cambia ningún pago ni ningún derecho.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-26-de-prueba-ya-no-es-un-vinculo-es-el-periodo-de-prueba-del-contrato",
     fecha: "2026-10-26",
     titulo: "«De prueba» ya no es un vínculo: es el periodo de prueba del contrato",

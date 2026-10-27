@@ -18,6 +18,9 @@ import {
   CLASES_PARAMETRO,
   ETIQUETA_CLASE_PARAMETRO,
   describirCambioDeParametro,
+  enteroDeFecha,
+  fechaDeEntero,
+  textoDeFechaEntera,
   puedeCambiarParametro,
   puedeGestionarParametros,
   validarValorParametro,
@@ -28,6 +31,7 @@ import {
   fuenteDeImpacto,
   impactoAvisoDescansoMedico,
   impactoAvisoFeriado,
+  impactoEtiquetaPrueba,
   normalizarCambios,
   normalizarParametros,
   notaDeEfecto,
@@ -298,5 +302,63 @@ describe("la lectura de lo que devuelve la base", () => {
     expect(editables.map((f) => f.parametro)).toEqual(["prueba_dias", "otro"]);
     expect(fijos.map((f) => f.parametro)).toEqual(["tope"]);
     expect(editables.length + fijos.length).toBe(filas.length);
+  });
+});
+
+describe("un parámetro de unidad «fecha» (0557)", () => {
+  const limites: LimitesParametro = { nombre: "Etiqueta desde", unidad: "fecha", tipo_valor: "entero", valor_min: 20260101, valor_max: 20301231 };
+  it("convierte entre AAAAMMDD y la fecha del campo, y rechaza días que no existen", () => {
+    expect(fechaDeEntero(20261026)).toBe("2026-10-26");
+    expect(enteroDeFecha("2026-10-26")).toBe(20261026);
+    expect(fechaDeEntero(20261340)).toBeNull();
+    expect(fechaDeEntero(20260230)).toBeNull();
+    expect(enteroDeFecha("2026-02-30")).toBeNull();
+    expect(enteroDeFecha("26/10/2026")).toBeNull();
+  });
+  it("se dibuja como dd/mm/aaaa, no como 20261026", () => {
+    expect(textoDeFechaEntera(20261026)).toBe("26/10/2026");
+    expect(valorConUnidad(20261026, "fecha")).toBe("26/10/2026");
+    expect(describirCambioDeParametro(20261026, 20260726, "fecha")).toBe("26/10/2026 → 26/07/2026");
+  });
+  it("un entero que no es día se muestra tal cual en vez de esconderse", () => {
+    expect(textoDeFechaEntera(20261340)).toBe("20261340");
+  });
+  it("valida lo que entrega el campo de fecha y devuelve el entero", () => {
+    expect(validarValorParametro(limites, "2026-07-26")).toEqual({ ok: true, valor: 20260726 });
+  });
+  it("rechaza vacío, basura, fecha inexistente y fuera de tope, diciéndolo en fechas", () => {
+    expect(validarValorParametro(limites, "")).toEqual({ ok: false, mensaje: "Elige la fecha." });
+    expect(validarValorParametro(limites, "mañana")).toEqual({ ok: false, mensaje: "Elige una fecha que exista." });
+    expect(validarValorParametro(limites, "2026-02-30")).toEqual({ ok: false, mensaje: "Elige una fecha que exista." });
+    expect(validarValorParametro(limites, "2062-07-26")).toEqual({ ok: false, mensaje: "Va del 01/01/2026 al 31/12/2030." });
+  });
+});
+
+describe("vista previa de la etiqueta de prueba (0557)", () => {
+  const hoy = "2026-10-26";
+  const filas = [
+    { persona: "Reciente A", fecha_ingreso: "2026-10-19", prueba_pactada_dias: null },
+    { persona: "Reciente B", fecha_ingreso: "2026-09-01", prueba_pactada_dias: null },
+    { persona: "Antigua", fecha_ingreso: "2025-02-03", prueba_pactada_dias: null },
+    { persona: "Nueva de hoy", fecha_ingreso: "2026-10-26", prueba_pactada_dias: null },
+    { persona: "Sin prueba pactada", fecha_ingreso: "2026-10-26", prueba_pactada_dias: 0 },
+  ];
+  it("llevar el corte atrás pone la etiqueta a quien ya trabaja y lleva menos de tres meses", () => {
+    const i = impactoEtiquetaPrueba(filas, 20261026, 20260726, hoy);
+    expect(i.filas.map((f) => f.persona).sort()).toEqual(["Reciente A", "Reciente B"]);
+    expect(i.filas.every((f) => f.despues === "Llevaría la etiqueta")).toBe(true);
+    expect(i.sinCambio).toBe(1); // la de hoy ya la llevaba y sigue
+  });
+  it("adelantar el corte se la quita a quien la llevaba", () => {
+    const i = impactoEtiquetaPrueba(filas, 20260726, 20261026, hoy);
+    expect(i.filas.map((f) => f.persona).sort()).toEqual(["Reciente A", "Reciente B"]);
+    expect(i.filas.every((f) => f.despues === "Dejaría de llevarla")).toBe(true);
+  });
+  it("quien ya salió de su periodo, o no tiene prueba, no cuenta ni como cambio ni como sin cambio", () => {
+    const i = impactoEtiquetaPrueba(filas, 20261026, 20260726, hoy);
+    expect(i.filas.some((f) => f.persona === "Antigua" || f.persona === "Sin prueba pactada")).toBe(false);
+  });
+  it("dice que es solo un rótulo", () => {
+    expect(impactoEtiquetaPrueba(filas, 20261026, 20260726, hoy).nota).toContain("ningún pago cambia");
   });
 });

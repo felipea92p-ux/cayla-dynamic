@@ -12,7 +12,7 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import {
-  diasEntreFechas, esIngresoReciente, finDelPeriodoDePruebaDe, MESES_PRUEBA_LEY, periodoDePrueba, sumarDiasFecha, sumarMesesFecha,
+  diasEntreFechas, esIngresoReciente, etiquetaPeriodoDePrueba, finDelPeriodoPactado, periodoDePruebaPactado, DIAS_PRUEBA_PACTADA_MAX, finDelPeriodoDePruebaDe, MESES_PRUEBA_LEY, periodoDePrueba, sumarDiasFecha, sumarMesesFecha,
   textoPeriodoDePrueba,
 } from "@cayla-dynamic/shared";
 
@@ -104,5 +104,66 @@ describe("recién ingresado, para el aviso de feriado", () => {
   it("el umbral por defecto es 15", () => {
     expect(esIngresoReciente("2026-10-26", "2026-11-09")).toBe(true);
     expect(esIngresoReciente("2026-10-26", "2026-11-10")).toBe(false);
+  });
+});
+
+describe("el periodo de prueba pactado con la persona (0556)", () => {
+  it("sin pacto rige la ley: tres meses", () => {
+    expect(finDelPeriodoPactado("2026-10-19", null)).toBe("2027-01-19");
+    expect(finDelPeriodoPactado("2026-10-19", undefined)).toBe("2027-01-19");
+  });
+  it("0 es sin periodo de prueba: no hay fin", () => {
+    expect(finDelPeriodoPactado("2026-10-19", 0)).toBeNull();
+    expect(periodoDePruebaPactado("2026-10-19", "2026-10-26", 0)).toBeNull();
+  });
+  it("N días: se excluye el día del ingreso y se incluye el del vencimiento (art. 183 CC)", () => {
+    expect(finDelPeriodoPactado("2026-10-01", 30)).toBe("2026-10-31");
+    expect(finDelPeriodoPactado("2026-10-26", 45)).toBe("2026-12-10");
+    expect(periodoDePruebaPactado("2026-10-26", "2026-12-10", 45)).toMatchObject({ enCurso: true, diasRestantes: 0 });
+    expect(periodoDePruebaPactado("2026-10-26", "2026-12-11", 45)).toMatchObject({ enCurso: false });
+  });
+  it("el tope es 89: de ahí en adelante rige la ley", () => {
+    expect(DIAS_PRUEBA_PACTADA_MAX).toBe(89);
+    expect(finDelPeriodoPactado("2026-10-26", 89)).toBe("2027-01-23");
+    expect(finDelPeriodoPactado("2026-10-26", 90)).toBe("2027-01-26");
+    expect(finDelPeriodoPactado("2026-10-26", -5)).toBe("2027-01-26");
+    expect(finDelPeriodoPactado("2026-10-26", 10.5)).toBe("2027-01-26");
+  });
+  it("sin ingreso legible no inventa nada", () => {
+    expect(periodoDePruebaPactado(null, "2026-10-26", 30)).toBeNull();
+    expect(finDelPeriodoPactado("2026-02-30", 30)).toBeNull();
+  });
+});
+
+describe("la etiqueta «en periodo de prueba» (0557)", () => {
+  const hoy = "2026-10-26";
+  it("rotula a quien ingresó desde la fecha de corte y sigue dentro de su periodo", () => {
+    expect(etiquetaPeriodoDePrueba("2026-10-26", hoy, { desde: "2026-10-26" })?.fin).toBe("2027-01-26");
+    expect(etiquetaPeriodoDePrueba("2026-11-02", "2026-11-03", { desde: "2026-10-26" })).not.toBeNull();
+  });
+  it("NO rotula a quien ingresó antes del corte, aunque lleve menos de tres meses", () => {
+    expect(etiquetaPeriodoDePrueba("2026-10-19", hoy, { desde: "2026-10-26" })).toBeNull();
+    expect(etiquetaPeriodoDePrueba("2026-09-01", hoy, { desde: "2026-10-26" })).toBeNull();
+  });
+  it("con el corte llevado atrás rotula a todos los que llevan menos de tres meses", () => {
+    expect(etiquetaPeriodoDePrueba("2026-09-01", hoy, { desde: "2026-07-26" })).not.toBeNull();
+    expect(etiquetaPeriodoDePrueba("2026-07-20", hoy, { desde: "2026-07-26" })).toBeNull(); // antes del corte
+    expect(etiquetaPeriodoDePrueba("2026-07-27", "2026-10-28", { desde: "2026-07-26" })).toBeNull(); // ya pasó el mes final
+  });
+  it("sin corte nadie queda fuera por la fecha del sistema; solo cuenta su periodo", () => {
+    expect(etiquetaPeriodoDePrueba("2026-09-01", hoy)).not.toBeNull();
+    expect(etiquetaPeriodoDePrueba("2026-01-05", hoy)).toBeNull();
+    expect(etiquetaPeriodoDePrueba("2026-09-01", hoy, { desde: null })).not.toBeNull();
+  });
+  it("un corte ilegible se ignora en vez de apagar la etiqueta a todos", () => {
+    expect(etiquetaPeriodoDePrueba("2026-09-01", hoy, { desde: "mañana" })).not.toBeNull();
+  });
+  it("respeta lo pactado: sin prueba o prueba corta ya vencida no rotula", () => {
+    expect(etiquetaPeriodoDePrueba("2026-10-26", hoy, { desde: "2026-10-26", pactadoDias: 0 })).toBeNull();
+    expect(etiquetaPeriodoDePrueba("2026-10-26", "2026-12-11", { desde: "2026-10-26", pactadoDias: 45 })).toBeNull();
+    expect(etiquetaPeriodoDePrueba("2026-10-26", "2026-12-10", { desde: "2026-10-26", pactadoDias: 45 })?.fin).toBe("2026-12-10");
+  });
+  it("sin ingreso no rotula", () => {
+    expect(etiquetaPeriodoDePrueba(null, hoy, { desde: "2026-10-26" })).toBeNull();
   });
 });

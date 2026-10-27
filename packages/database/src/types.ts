@@ -4677,6 +4677,7 @@ export type Database = {
           personal_direccion: boolean
           pin_hash: string
           practicante_modalidad: string | null
+          prueba_pactada_dias: number | null
           regimen_pension: string | null
           retencion_4ta: string | null
           rol: Database["public"]["Enums"]["rol_usuario"]
@@ -4721,6 +4722,7 @@ export type Database = {
           personal_direccion?: boolean
           pin_hash: string
           practicante_modalidad?: string | null
+          prueba_pactada_dias?: number | null
           regimen_pension?: string | null
           retencion_4ta?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
@@ -4765,6 +4767,7 @@ export type Database = {
           personal_direccion?: boolean
           pin_hash?: string
           practicante_modalidad?: string | null
+          prueba_pactada_dias?: number | null
           regimen_pension?: string | null
           retencion_4ta?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
@@ -8905,6 +8908,7 @@ export type Database = {
         Returns: string
       }
       fn_feriado_aviso_dias: { Args: never; Returns: number }
+      fn_prueba_etiqueta_desde: { Args: never; Returns: string }
       fn_feriado_devengado: {
         Args: {
           p_desde: string | null
@@ -10802,6 +10806,10 @@ export type Database = {
       }
       fn_set_sueldo_base_legal: {
         Args: { p_monto: number | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_prueba_pactada: {
+        Args: { p_dias: number | null; p_motivo: string | null; p_persona_id: string | null }
         Returns: undefined
       }
       fn_set_tipo_vinculo: {

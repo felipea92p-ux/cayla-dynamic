@@ -43,6 +43,9 @@
 /** Meses del periodo de prueba que fija la ley (art. 10, D.S. 003-97-TR). */
 export const MESES_PRUEBA_LEY = 3;
 
+/** Tope de un periodo de prueba pactado en días: de tres meses para arriba rige la ley (migración 0556). */
+export const DIAS_PRUEBA_PACTADA_MAX = 89;
+
 /** Días calendario desde el ingreso durante los que un feriado trabajado se avisa. Es política, no ley. */
 export const DIAS_AVISO_FERIADO_DEFECTO = 15;
 
@@ -142,6 +145,54 @@ export function esIngresoReciente(
   if (!fechaIngreso) return false;
   const antiguedad = diasEntreFechas(fechaIngreso, fecha);
   return antiguedad !== null && antiguedad >= 0 && antiguedad < umbral;
+}
+
+/**
+ * El fin de la prueba de una persona según lo que se pactó (`personas.prueba_pactada_dias`, 0556):
+ *   · `null`/`undefined` → rige la ley: tres meses desde el ingreso.
+ *   · `0` → sin periodo de prueba: no hay fin que decir (`null`).
+ *   · `N` (1–89) → N días calendario; el plazo por días excluye el día del ingreso y
+ *     cuenta el del vencimiento (art. 183 del Código Civil): 1/10 + 30 días = 31/10.
+ * Un valor fuera de 0–89 o no entero se trata como «rige la ley»: la base ya lo rechaza, y un
+ * dato raro que apaga la etiqueta de golpe sería peor que mostrar el plazo ordinario.
+ */
+export function finDelPeriodoPactado(fechaIngreso: string, pactadoDias: number | null | undefined): string | null {
+  if (pactadoDias === 0) return null;
+  const valido = pactadoDias != null && Number.isInteger(pactadoDias) && pactadoDias > 0 && pactadoDias <= DIAS_PRUEBA_PACTADA_MAX;
+  return valido ? sumarDiasFecha(fechaIngreso, pactadoDias) : finDelPeriodoDePruebaDe(fechaIngreso);
+}
+
+/** Como `periodoDePrueba`, pero respetando lo pactado con la persona. `null` si no hay prueba o no hay ingreso legible. */
+export function periodoDePruebaPactado(
+  fechaIngreso: string | null | undefined,
+  hoy: string,
+  pactadoDias: number | null | undefined,
+): PeriodoDePrueba | null {
+  if (!fechaIngreso) return null;
+  const fin = finDelPeriodoPactado(fechaIngreso, pactadoDias);
+  const restantes = fin === null ? null : diasEntreFechas(hoy, fin);
+  if (fin === null || restantes === null) return null;
+  return { fin, enCurso: restantes >= 0, diasRestantes: restantes };
+}
+
+/**
+ * La ETIQUETA «en periodo de prueba» que muestra el panel. Distinta del periodo legal: el
+ * periodo es una cláusula del contrato de cada persona; la etiqueta es un rótulo de la
+ * pantalla que decide CAYLA, y solo alcanza a quien ingresó en `desde` o después
+ * (Parámetros: «prueba_etiqueta_desde», 0557, por defecto el día en que se activó).
+ * `desde` null/undefined = sin corte (nadie queda fuera por antigüedad del sistema).
+ * Devuelve el periodo solo mientras está en curso; `null` si no corresponde rotular.
+ * Solo rotula: no cambia ningún pago ni ningún derecho de la persona.
+ */
+export function etiquetaPeriodoDePrueba(
+  fechaIngreso: string | null | undefined,
+  hoy: string,
+  opciones: { pactadoDias?: number | null; desde?: string | null } = {},
+): PeriodoDePrueba | null {
+  if (!fechaIngreso) return null;
+  if (opciones.desde && ISO.test(opciones.desde) && fechaIngreso < opciones.desde) return null; // ISO: el orden de texto es el de fechas
+  const p = periodoDePruebaPactado(fechaIngreso, hoy, opciones.pactadoDias);
+  return p && p.enCurso ? p : null;
 }
 
 /** «19/01/2027», o vacío si no hay periodo que decir. */

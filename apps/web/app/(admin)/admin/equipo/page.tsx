@@ -38,8 +38,9 @@ import {
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
   avisoDocumentoEnNombre, puedeMarcarCuentaDeServicio,
   TIPOS_DOCUMENTO, TIPO_DOCUMENTO_LABEL, AYUDA_DOCUMENTO, errorDeDocumento, normalizarDocumento, type TipoDocumento,
-  estaDePrueba, periodoDePrueba, textoPeriodoDePrueba,
+  estaDePrueba, etiquetaPeriodoDePrueba, periodoDePruebaPactado, textoPeriodoDePrueba, DIAS_PRUEBA_PACTADA_MAX,
 } from "@cayla-dynamic/shared";
+import { leerPruebaDelForm, pruebaDeLoGuardado, type ModoPrueba } from "@/lib/admin/prueba-pactada";
 
 const ROLES_OPCIONES = [
   { valor: "integrante", label: "Integrante" },
@@ -154,7 +155,12 @@ interface FormPersona {
   tipoVinculo: string; // planilla | prueba | rxh | no_trabajador | practicante — se escribe por RPC fn_set_tipo_vinculo
   practicanteModalidad: string; // "" | preprofesional | profesional — solo si tipoVinculo=practicante; se escribe por RPC fn_set_practicante_modalidad
   cargo: string;      // 0182 — cómo se la nombra en pantalla. Vacío = se muestra el rol
-  fechaIngreso: string; // decide qué feriados le corresponden — solo edición; se escribe por RPC fn_set_fecha_ingreso
+  fechaIngreso: string; // decide qué feriados le corresponden y desde cuándo corre su periodo de prueba; se escribe por RPC fn_set_fecha_ingreso
+  // Periodo de prueba (0556), solo planilla: la ley (3 meses), uno menor pactado por escrito, o sin prueba.
+  // Se escribe por RPC fn_set_prueba_pactada, con motivo, y solo si CAMBIÓ.
+  pruebaModo: ModoPrueba;
+  pruebaDias: string;
+  pruebaMotivo: string;
   visibleTodasSedes: boolean; // aparece en el terminal de cualquier sede — se escribe por RPC fn_set_visible_todas_sedes
   // Último día que trabaja por contrato (0144). Es un PLAN, no un cese: vacío es
   // lo normal. Se escribe por RPC fn_set_fin_contrato, y vacío la BORRA (null).
@@ -177,7 +183,13 @@ interface FormPersona {
   esEstacion: boolean;
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", practicanteModalidad: "", cargo: "", finContrato: "", motivoFinContrato: "", retencion4ta: "", constancia4ta: "", tipoDocumento: "dni", documento: "", esEstacion: false };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", pruebaModo: "ley", pruebaDias: "", pruebaMotivo: "", visibleTodasSedes: false, tipoVinculo: "planilla", practicanteModalidad: "", cargo: "", finContrato: "", motivoFinContrato: "", retencion4ta: "", constancia4ta: "", tipoDocumento: "dni", documento: "", esEstacion: false };
+
+// El alta arranca con la fecha de ingreso de HOY, visible y editable: un campo que condiciona lo que se manda
+// no nace vacío (regla de la casa). Función y no constante: «hoy» cambia a medianoche.
+function formVacio(): FormPersona {
+  return { ...FORM_VACIO, fechaIngreso: hoyLima() };
+}
 
 export default function EquipoPage() {
   const router = useRouter();
@@ -198,6 +210,12 @@ export default function EquipoPage() {
   // «contrato indefinido». Escribir sobre eso borraría una fecha real, así que
   // con la lectura en duda el campo va deshabilitado.
   const [finesOk, setFinesOk] = useState(false);
+  // Periodo de prueba (0556/0557). Consulta APARTE y tolerante, como la de fin de contrato: si la 0556 o la 0557 todavía
+  // no están pegadas, pedir la columna o la función haría fallar la lectura entera. Si falla, rige la ley para todos
+  // (`pactosOk` false apaga el selector, para no escribir sobre una lectura en duda) y la etiqueta no tiene corte.
+  const [pactos, setPactos] = useState<Map<string, number>>(new Map());
+  const [pactosOk, setPactosOk] = useState(false);
+  const [pruebaDesde, setPruebaDesde] = useState<string | null>(null);
   // Retención de 4ta por persona (0245). Se lee aparte y tolerante, por lo mismo
   // que el fin de contrato: si la 0245 todavía no está pegada en producción,
   // pedir columnas inexistentes haría fallar la consulta ENTERA y esta pantalla
@@ -379,6 +397,18 @@ export default function EquipoPage() {
           .map((f) => [f.id, f.fecha_fin_contrato] as const),
       ),
     );
+    const { data: pactosData, error: pactosError } = await supabase
+      .from("personas")
+      .select("id, prueba_pactada_dias")
+      .not("prueba_pactada_dias", "is", null);
+    setPactosOk(!pactosError);
+    setPactos(
+      new Map(
+        pactosError ? [] : ((pactosData as { id: string; prueba_pactada_dias: number }[] | null) ?? []).map((r) => [r.id, r.prueba_pactada_dias] as const),
+      ),
+    );
+    const { data: desdeData, error: desdeError } = await supabase.rpc("fn_prueba_etiqueta_desde");
+    setPruebaDesde(desdeError || typeof desdeData !== "string" ? null : desdeData);
     // Retención de 4ta (0245): consulta aparte y tolerante, igual que la de
     // arriba y por la misma razón. Sin filtro: llegan también quienes la tienen
     // en blanco, porque «en blanco» es una respuesta —no se le retiene— y no un
@@ -608,8 +638,11 @@ export default function EquipoPage() {
     // El periodo de prueba de verdad (0553): una CONDICIÓN del contrato, no un vínculo. Tres meses desde el
     // ingreso (art. 10, D.S. 003-97-TR); la fecha se deriva, no se guarda. Informativa: solo recuerda hasta
     // cuándo DO puede decidir sin indemnización.
-    const periodo = p.estado === "activo" && p.tipo_vinculo === "planilla" ? periodoDePrueba(ingresos.get(p.id)?.fecha_ingreso, hoy) : null;
-    if (periodo?.enCurso) {
+    // Es una ETIQUETA: solo alcanza a quien ingresó desde la fecha de corte de Parámetros (0557) y respeta lo pactado.
+    const periodo = p.estado === "activo" && p.tipo_vinculo === "planilla"
+      ? etiquetaPeriodoDePrueba(ingresos.get(p.id)?.fecha_ingreso, hoy, { pactadoDias: pactos.get(p.id) ?? null, desde: pruebaDesde })
+      : null;
+    if (periodo) {
       filas.push(
         <Insignia key="periodo" variante="informativo" tamano="sm" punto={false}>
           En periodo de prueba · hasta {textoPeriodoDePrueba(periodo)}
@@ -728,6 +761,15 @@ export default function EquipoPage() {
         return;
       }
     }
+    // El periodo de prueba elegido (0556) se valida ANTES de crear a nadie: si estuviera mal, la persona quedaría
+    // creada y el pacto sin escribir. Solo cuenta para quien puede ver salarios y la lectura de pactos es confiable.
+    const pruebaAlta = puedeSalarios && pactosOk && !form.esEstacion
+      ? leerPruebaDelForm({ modo: form.pruebaModo, dias: form.pruebaDias, motivo: form.pruebaMotivo })
+      : null;
+    if (pruebaAlta && !pruebaAlta.ok) {
+      avisar("error", pruebaAlta.mensaje);
+      return;
+    }
     setDocumentoDe(null);
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
@@ -802,8 +844,28 @@ export default function EquipoPage() {
     const nombreCorto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
     let texto = `${nombreCorto} agregado(a).`;
     let tipoAviso: "ok" | "error" = "ok";
+    const idCreada = (creada as { id: string } | null)?.id;
+    // Fecha de ingreso (se escribe la elegida, que es la de hoy salvo que se cambiara) y periodo de prueba pactado.
+    // Cada paso avisa en ROJO si falla: la persona ya existe y el resto se arregla editándola.
+    if (idCreada && puedeSalarios && !form.esEstacion) {
+      // Siempre que haya fecha: la base pone su CURRENT_DATE al crear, que de noche (hora de Lima) ya es mañana en UTC.
+      if (form.fechaIngreso) {
+        const { error: errorIngreso } = await supabase.rpc("fn_set_fecha_ingreso", { p_persona_id: idCreada, p_fecha: form.fechaIngreso });
+        if (errorIngreso) {
+          tipoAviso = "error";
+          texto += ` OJO: la fecha de ingreso no se pudo poner (${mensajeDeError(errorIngreso)}) — corrígela editando a la persona.`;
+        }
+      }
+      if (pruebaAlta?.ok && pruebaAlta.dias !== null) {
+        const { error: errorPrueba } = await supabase.rpc("fn_set_prueba_pactada", { p_persona_id: idCreada, p_dias: pruebaAlta.dias, p_motivo: pruebaAlta.motivo });
+        if (errorPrueba) {
+          tipoAviso = "error";
+          texto += ` OJO: el periodo de prueba pactado no se pudo guardar (${mensajeDeError(errorPrueba)}) — rige la ley (3 meses) hasta que lo pactes editándola.`;
+        }
+      }
+    }
     if (form.conHijos) {
-      const nuevaId = (creada as { id: string } | null)?.id;
+      const nuevaId = idCreada;
       const { error: errorHijos } = nuevaId
         ? await supabase.rpc("fn_set_con_hijos", { p_persona_id: nuevaId, p_con_hijos: true })
         : { error: { message: "no se recibió el id de la persona" } };
@@ -815,7 +877,7 @@ export default function EquipoPage() {
     }
     setGuardando(false);
     setMostrandoAlta(false);
-    setForm(FORM_VACIO);
+    setForm(formVacio());
     await cargar();
     avisar(tipoAviso, texto);
   }
@@ -832,6 +894,22 @@ export default function EquipoPage() {
     if (form.finContrato && form.fechaIngreso && form.finContrato < form.fechaIngreso) {
       avisar("error", `El contrato no puede terminar antes de su ingreso (${fmtFechaDMA(form.fechaIngreso)}). Revisa la fecha.`);
       return;
+    }
+    // Periodo de prueba (0556): se valida antes de escribir nada, como el fin de contrato.
+    const pruebaEdicion = puedeSalarios && pactosOk && form.tipoVinculo === "planilla"
+      ? leerPruebaDelForm({ modo: form.pruebaModo, dias: form.pruebaDias, motivo: form.pruebaMotivo })
+      : null;
+    const pruebaOriginal = editandoId ? pactos.get(editandoId) ?? null : null;
+    if (pruebaEdicion) {
+      if (!pruebaEdicion.ok) {
+        avisar("error", pruebaEdicion.mensaje);
+        return;
+      }
+      // Volver a la ley desde un pacto también es un cambio y también pide motivo (lo exige la base).
+      if (pruebaEdicion.dias !== pruebaOriginal && pruebaEdicion.motivo.length < 3) {
+        avisar("error", "Escribe el motivo del cambio en el periodo de prueba: queda en el historial.");
+        return;
+      }
     }
     // Misma regla que el alta y que la base (0512): el número no va en el nombre.
     const documentoEnNombreEdicion = avisoDocumentoEnNombre(form.nombres, form.apellidos);
@@ -984,6 +1062,7 @@ export default function EquipoPage() {
         return;
       }
     }
+    // (el pacto de prueba se escribe DESPUÉS del vínculo, más abajo: solo se pacta en planilla)
     // Tipo de vínculo: mismo patrón dirty-check. Es el campo con más consecuencias
     // de todo el formulario —decide si la persona acumula gratificación, CTS y
     // vacaciones, si recibe movilidad y si genera EsSalud— así que la RPC deja
@@ -998,6 +1077,20 @@ export default function EquipoPage() {
       if (errorVinculo) {
         setGuardando(false);
         avisar("error", "Datos guardados, pero el tipo de vínculo no se pudo cambiar: " + errorVinculo.message);
+        return;
+      }
+    }
+    // Periodo de prueba pactado (0556): dirty-check contra lo que se leyó, y DESPUÉS del vínculo porque solo se
+    // pacta en planilla. Lo valida y audita `fn_set_prueba_pactada`; acá solo se evita escribir si no cambió.
+    if (editandoId && pruebaEdicion?.ok && pruebaEdicion.dias !== pruebaOriginal) {
+      const { error: errorPrueba } = await supabase.rpc("fn_set_prueba_pactada", {
+        p_persona_id: editandoId,
+        p_dias: pruebaEdicion.dias,
+        p_motivo: pruebaEdicion.motivo,
+      });
+      if (errorPrueba) {
+        setGuardando(false);
+        avisar("error", "Datos guardados, pero el periodo de prueba no se pudo cambiar: " + mensajeDeError(errorPrueba));
         return;
       }
     }
@@ -1068,7 +1161,7 @@ export default function EquipoPage() {
     }
     setGuardando(false);
     setEditandoId(null);
-    setForm(FORM_VACIO);
+    setForm(formVacio());
     await cargar();
     avisar("ok", "Cambios guardados.");
   }
@@ -1174,6 +1267,9 @@ export default function EquipoPage() {
       practicanteModalidad: p.practicante_modalidad ?? "",
       cargo: p.cargo ?? "",
       fechaIngreso: ingresos.get(p.id)?.fecha_ingreso ?? "",
+      pruebaModo: pruebaDeLoGuardado(pactos.get(p.id)).modo,
+      pruebaDias: pruebaDeLoGuardado(pactos.get(p.id)).dias,
+      pruebaMotivo: "",
       visibleTodasSedes: p.visible_todas_sedes,
       finContrato: finesContrato.get(p.id) ?? "",
       motivoFinContrato: "",
@@ -1291,7 +1387,7 @@ export default function EquipoPage() {
   function cerrarFormulario() {
     setMostrandoAlta(false);
     setEditandoId(null);
-    setForm(FORM_VACIO);
+    setForm(formVacio());
     setParecidas(null);
     setDocumentoDe(null);
   }
@@ -1340,6 +1436,76 @@ export default function EquipoPage() {
   // fila en vez de estirarla a todas. Se vio en el celular: el panel entero
   // desbordaba 388px en una pantalla de 375, cortando "Cargo (…No cambia
   // ningún permiso)" contra el borde.
+  // ── EL PERIODO DE PRUEBA (0556) ─────────────────────────────────────────────
+  // No es un vínculo: es una cláusula DENTRO del contrato de trabajo (art. 10, D.S. 003-97-TR). Se elige aquí, debajo
+  // del vínculo, solo para quien está en planilla. Tres opciones: la ley (3 meses, lo normal), uno MENOR pactado por
+  // escrito (el contrato lo dirá en su cláusula TERCERA) o ninguno. Acortarlo es renunciar a un derecho de CAYLA,
+  // por eso pide motivo y queda en el historial. La etiqueta de la lista es otra cosa: la decide la fecha de
+  // corte de Parámetros (0557) y no cambia ningún derecho.
+  const bloquePrueba = () => {
+    if (!puedeSalarios || form.tipoVinculo !== "planilla") return null;
+    const diasVista = form.pruebaModo === "sin" ? 0 : form.pruebaModo === "menor" && /^\d+$/.test(form.pruebaDias.trim()) ? Number(form.pruebaDias.trim()) : null;
+    const periodo = form.pruebaModo === "menor" && diasVista === null ? null : periodoDePruebaPactado(form.fechaIngreso, hoy, diasVista);
+    const antesDelCorte = !!pruebaDesde && !!form.fechaIngreso && form.fechaIngreso < pruebaDesde;
+    const opciones: { valor: ModoPrueba; texto: string }[] = [
+      { valor: "ley", texto: "Sí — 3 meses, como manda la ley" },
+      { valor: "menor", texto: "Sí — uno menor, pactado por escrito" },
+      { valor: "sin", texto: "No tiene periodo de prueba" },
+    ];
+    return (
+      <fieldset className="flex flex-col gap-2 text-sm" disabled={!pactosOk}>
+        <legend className="mb-1">Periodo de prueba</legend>
+        {opciones.map((o) => (
+          <label key={o.valor} className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="pruebaModo"
+              checked={form.pruebaModo === o.valor}
+              onChange={() => setForm({ ...form, pruebaModo: o.valor })}
+              className="h-4 w-4 accent-tinta"
+            />
+            {o.texto}
+          </label>
+        ))}
+        {form.pruebaModo === "menor" && (
+          <Campo
+            etiqueta={`Días desde su ingreso (1 a ${DIAS_PRUEBA_PACTADA_MAX})`}
+            inputMode="numeric"
+            value={form.pruebaDias}
+            onChange={(e) => setForm({ ...form, pruebaDias: e.target.value })}
+          />
+        )}
+        {(form.pruebaModo !== "ley" || (!!editandoId && pactos.has(editandoId))) && (
+          <Campo
+            etiqueta="Motivo (queda en el historial)"
+            value={form.pruebaMotivo}
+            onChange={(e) => setForm({ ...form, pruebaMotivo: e.target.value })}
+          />
+        )}
+        {form.pruebaModo !== "ley" && (
+          <>
+            <BannerAviso enLinea variante="advertencia" titulo="Acortar la prueba es renunciar a un derecho de CAYLA.">
+              Pasado ese plazo la persona queda protegida contra el despido arbitrario. Tiene que constar por escrito en su contrato:
+              la cláusula TERCERA lo dirá así.
+            </BannerAviso>
+          </>
+        )}
+        <span className="text-xs text-taupe">
+          {!pactosOk
+            ? "Todavía no se puede elegir: falta la migración 0556. Mientras tanto rige la ley (3 meses) para todos."
+            : periodo
+              ? `Su periodo de prueba ${periodo.enCurso ? "termina" : "terminó"} el ${textoPeriodoDePrueba(periodo)}.`
+              : form.pruebaModo === "sin"
+                ? "Sin periodo de prueba: desde el primer día queda protegida contra el despido arbitrario."
+                : "Pon su fecha de ingreso para ver cuándo termina."}
+          {antesDelCorte && pruebaDesde
+            ? ` Ingresó antes del ${fmtFechaDMA(pruebaDesde)} (fecha de corte en Parámetros): su periodo legal corre igual, pero no llevará la etiqueta «En periodo de prueba» en la lista.`
+            : ""}
+        </span>
+      </fieldset>
+    );
+  };
+
   const formulario = (modo: "alta" | "edicion") => (
     <div className="grid grid-cols-1 gap-4">
       {/* Estos dos campos son el NOMBRE CORTO, no el nombre legal: «Elida» y
@@ -1511,13 +1677,15 @@ export default function EquipoPage() {
         Correo (opcional)
         <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-lg border px-3 py-2" />
       </label>
-      {modo === "edicion" && puedeSalarios && (
-        // La fecha de ingreso decide qué feriados le corresponden: un feriado anterior al ingreso
-        // no se paga. Se sugiere la primera entrada marcada, pero es editable a mano.
+      {puedeSalarios && (
+        // La fecha de ingreso decide qué feriados le corresponden (un feriado anterior al ingreso no se paga) y
+        // desde cuándo corre su periodo de prueba. En el alta arranca en HOY, visible y editable. Se sugiere la
+        // primera entrada marcada, pero es editable a mano. La base no deja ponerla en el futuro.
         <label className="flex flex-col gap-1 text-sm">
-          Fecha de ingreso <span className="text-taupe">(decide qué feriados le corresponden)</span>
+          Fecha de ingreso <span className="text-taupe">(decide qué feriados le corresponden y desde cuándo corre su periodo de prueba)</span>
           <input
             type="date"
+            max={hoy}
             value={form.fechaIngreso}
             onChange={(e) => setForm({ ...form, fechaIngreso: e.target.value })}
             className="rounded-lg border px-3 py-2"
@@ -1540,6 +1708,7 @@ export default function EquipoPage() {
           })()}
         </label>
       )}
+      {modo === "alta" && bloquePrueba()}
       {modo === "edicion" && puedeSalarios && (() => {
         // UN CONTRATO A PLAZO FIJO SABE CUÁNDO VENCE (0144). Hasta ahora la única
         // forma de llenar esta fecha era pegar SQL a mano, y un dato que depende
@@ -1667,18 +1836,19 @@ export default function EquipoPage() {
           </select>
           <span className="text-xs text-taupe">
             {form.tipoVinculo === "planilla"
-              ? "Todo trabajo se registra desde el primer minuto: alta en T-Registro antes de empezar, con contrato, boleta, EsSalud y pensión. Sus primeros 3 meses son su periodo de prueba (art. 10 del D.S. 003-97-TR): en ese tiempo CAYLA puede decidir no continuar sin indemnización. Acumula gratificación, CTS y vacaciones por mes cumplido, recibe movilidad y se le mide asistencia y disciplina. No hace falta probar a nadie fuera de planilla."
-                + ((() => { const per = periodoDePrueba(form.fechaIngreso, hoy); return per?.enCurso ? ` Su periodo de prueba va hasta el ${textoPeriodoDePrueba(per)}.` : ""; })())
+              ? "Todo trabajo se registra desde el primer minuto: alta en T-Registro antes de empezar, con contrato, boleta, EsSalud y pensión. Su periodo de prueba (art. 10 del D.S. 003-97-TR, 3 meses salvo pacto menor, ver abajo) es una cláusula de su contrato: en ese tiempo CAYLA puede decidir no continuar sin indemnización. Acumula gratificación, CTS y vacaciones por mes cumplido, recibe movilidad y se le mide asistencia y disciplina. No hace falta probar a nadie fuera de planilla."
+                
               : form.tipoVinculo === "prueba"
                 ? "Este vínculo se retira. «De prueba» no es un vínculo: es una condición del contrato, y quien trabaja se registra desde el primer día (trabajar sin estar registrado es infracción muy grave, num. 25.20 del RLGIT). Pásala a Planilla: su periodo de prueba corre desde su ingreso."
                 : form.tipoVinculo === "rxh"
                   ? "Locación de servicios: cobra sus horas, pero NO acumula beneficios, NO recibe movilidad y NO genera EsSalud. Tampoco se le mide disciplina — es lo que sostiene que no sea una relación laboral."
                   : form.tipoVinculo === "practicante"
-                    ? "Convenio de prácticas (Ley 28518): no es relación laboral. Cobra sus horas y SÍ genera EsSalud, pero NO acumula gratificación, CTS, vacaciones ni AFP, y tampoco se le mide disciplina. Jornada máxima 30h/semana (preprofesional) u 48h/semana (profesional) — el sistema todavía no la hace cumplir sola, revísala al armar su horario."
+                    ? "Convenio de prácticas (Ley 28518): no es relación laboral. Cobra sus horas y SÍ genera EsSalud, pero NO acumula gratificación, CTS, vacaciones ni AFP, y tampoco se le mide disciplina. Jornada máxima 30h/semana (preprofesional) u 48h/semana (profesional) — el sistema todavía no la hace cumplir sola, revísala al armar su horario. No tiene periodo de prueba: se rige por su convenio, y debe tener su póliza de seguro o EsSalud vigente desde el primer día."
                     : "Ni asistencia ni beneficios."}
           </span>
         </label>
       )}
+      {modo === "edicion" && bloquePrueba()}
       {/* ── LA MODALIDAD DE LA PRACTICANTE (0324) ───────────────────────────
           Solo aparece para quien es practicante, porque solo entonces tiene
           sentido: decide el máximo legal contra el que la pantalla de
@@ -2082,7 +2252,7 @@ export default function EquipoPage() {
               <Boton
                 variante="primario"
                 onClick={(e) => {
-                  setMostrandoAlta(true); setForm(FORM_VACIO); setParecidas(null); setSalEditId(null); setHistId(null); setCeseId(null);
+                  setMostrandoAlta(true); setForm(formVacio()); setParecidas(null); setSalEditId(null); setHistId(null); setCeseId(null);
                   focoAlAbrir.current = e.currentTarget;
                 }}
               >
