@@ -1654,7 +1654,7 @@ export default function EquipoPage() {
             {form.tipoVinculo === "planilla"
               ? "Acumula gratificación, CTS y vacaciones. Recibe movilidad y genera EsSalud. Se le mide asistencia y disciplina."
               : form.tipoVinculo === "prueba"
-                ? "Días de preselección antes de contratar: se le pagan sus horas y se le mide asistencia, pero NO acumula beneficios (decisión registrada en la 0085). Si se queda, pásala a Planilla — quien trabaja sin estar registrado es infracción muy grave (num. 25.20 del RLGIT)."
+                ? "Días de preselección antes de contratar: se le pagan sus horas y la movilidad de los días que asiste, y se le mide asistencia. NO acumula beneficios, no tiene seguro ni cobra asignación familiar (decisiones de la 0085 y la 0484). Si se queda, pásala a Planilla — quien trabaja sin estar registrado es infracción muy grave (num. 25.20 del RLGIT)."
                 : form.tipoVinculo === "rxh"
                   ? "Locación de servicios: cobra sus horas, pero NO acumula beneficios, NO recibe movilidad y NO genera EsSalud. Tampoco se le mide disciplina — es lo que sostiene que no sea una relación laboral."
                   : form.tipoVinculo === "practicante"

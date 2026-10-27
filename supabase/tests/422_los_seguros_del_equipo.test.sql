@@ -149,14 +149,14 @@ select is(
 select is(
   (select row(nombre, principal, con_poliza, aplica_a_vinculos, de_sistema, activo)::text
      from seguros_tipos where clave = 'essalud'),
-  row('EsSalud', true, false, array['planilla', 'prueba'], true, true)::text,
-  'EsSalud viene de sistema: principal, SIN póliza («por planilla») y automático para planilla y prueba');
+  row('EsSalud', true, false, array['planilla'], true, true)::text,
+  'EsSalud viene de sistema: principal, SIN póliza («por planilla») y automático solo para planilla (la preselección no tiene seguro, 0561)');
 
 select is(
   (select string_agg(v || '=' || coalesce(fn_seguro_tipo_por_vinculo(v), '-'), ',' order by v)
      from unnest(array['planilla', 'prueba', 'rxh', 'practicante', 'no_trabajador']) v),
-  'no_trabajador=-,planilla=essalud,practicante=salud_practicantes,prueba=essalud,rxh=-',
-  'cada vínculo cae en su seguro: honorarios y sin vínculo, en ninguno');
+  'no_trabajador=-,planilla=essalud,practicante=salud_practicantes,prueba=-,rxh=-',
+  'cada vínculo cae en su seguro: preselección, honorarios y sin vínculo, en ninguno');
 
 -- ── B · Quién llama qué ──────────────────────────────────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000528b004', true);
@@ -307,8 +307,8 @@ select is(fn_seguro_tipo_principal('00000000-0000-0000-0000-00000528a011', fn_ho
   'un practicante está en FOLA por su vínculo');
 select is(fn_seguro_tipo_principal('00000000-0000-0000-0000-00000528a014', fn_hoy_lima()), 'essalud',
   'alguien de planilla, en EsSalud');
-select is(fn_seguro_tipo_principal('00000000-0000-0000-0000-00000528a018', fn_hoy_lima()), 'essalud',
-  'y alguien en prueba también');
+select is(fn_seguro_tipo_principal('00000000-0000-0000-0000-00000528a018', fn_hoy_lima()), null,
+  'y quien está en preselección tampoco: no tiene seguro de la empresa (0561)');
 select is(fn_seguro_tipo_principal('00000000-0000-0000-0000-00000528a017', fn_hoy_lima()), null,
   'honorarios no tienen seguro de la empresa');
 
@@ -859,12 +859,12 @@ select is(
   row('essalud', false, null::boolean)::text, 'su fila ya dice EsSalud, sin hueco');
 
 -- Los cambios de vínculo que no mueven el seguro no escriben nada.
-update personas set tipo_vinculo = 'planilla' where id = '00000000-0000-0000-0000-00000528a018';
+update personas set tipo_vinculo = 'rxh' where id = '00000000-0000-0000-0000-00000528a018';
 update personas set tipo_vinculo = 'rxh' where id = '00000000-0000-0000-0000-00000528a019';
 select is(
   (select count(*)::int from seguros_cambios where persona_id in
      ('00000000-0000-0000-0000-00000528a018', '00000000-0000-0000-0000-00000528a019')),
-  0, 'prueba → planilla (los dos EsSalud) y sin vínculo → honorarios (ninguno) no mueven el seguro: no escriben nada');
+  0, 'preselección → honorarios (los dos sin seguro) y sin vínculo → honorarios (ninguno) no mueven el seguro: no escriben nada');
 
 -- Honorarios pasa a planilla: no tenía seguro y ahora EsSalud (solo hay alta).
 update personas set tipo_vinculo = 'planilla' where id = '00000000-0000-0000-0000-00000528a017';
@@ -1091,8 +1091,9 @@ select lives_ok(
   $$ select fn_set_tipo_vinculo('00000000-0000-0000-0000-00000528a024', 'prueba') $$,
   'DO pasa a Mara de planilla a prueba con la función de verdad');
 select is(
-  (select count(*)::int from seguros_cambios where persona_id = '00000000-0000-0000-0000-00000528a024'),
-  0, 'planilla → prueba no mueve su seguro (los dos son EsSalud): no deja cambio');
+  (select row(de_tipo, a_tipo, origen)::text from seguros_cambios where persona_id = '00000000-0000-0000-0000-00000528a024'),
+  row('essalud', null::text, 'vinculo')::text,
+  'planilla → preselección saca a Mara de EsSalud: deja el cambio «EsSalud → ninguno» (0561)');
 select lives_ok(
   $$ select fn_set_tipo_vinculo('00000000-0000-0000-0000-00000528a025', 'planilla') $$,
   'y pasa a Nico de honorarios a planilla');
@@ -1105,7 +1106,7 @@ select lives_ok(
   'DO cesa a Mara y en el mismo acto la deja como honorarios');
 select is(
   (select count(*)::int from seguros_cambios where persona_id = '00000000-0000-0000-0000-00000528a024'),
-  0, 'quien ya no está activa no deja cambio, aunque su vínculo cambie en el cese');
+  1, 'quien ya no está activa no deja otro cambio (sigue el de antes), aunque su vínculo cambie en el cese');
 
 -- ── O3 · Pólizas colectivas, topes con mensaje legible y textos de los avisos ──
 -- Un seguro de vida o una EPS suele ser UNA póliza de la empresa con un solo número, que

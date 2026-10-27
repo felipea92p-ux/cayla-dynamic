@@ -6,54 +6,63 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-27 — «Prueba» vuelve como vínculo y se llama «preselección» · migraciones 0558, 0559 y 0560 · SIN PEGAR · rama `claude/revert-function-previous-eb77c3`
+## 2026-10-27 — «Prueba» vuelve como vínculo y se llama «preselección» · migraciones 0558 a 0561 · 0558 PEGADA (no movió a nadie) · 0559, 0560 y 0561 SIN PEGAR · rama `claude/revert-function-previous-eb77c3`
 
 **Qué es.** Felipe lo decidió el 2026-10-27, un día después de la reforma de abajo: «volvamos a ponerlo como prueba; de momento
 mantengámoslo así como era antes, toda la función. Antes, para los nuevos colaboradores, se ponía de prueba y no se les pagaba EsSalud:
-volvamos a eso. Todo el apartado de prueba se llamará preselección.» Esto **deshace** lo de las dos secciones de abajo (0553, 0556,
-0557 y las pantallas de esos PR) y deja el vínculo `prueba` como estaba el 25/10, con otro nombre en pantalla.
+volvamos a eso. Todo el apartado de prueba se llamará preselección.» Y después: la preselección es **solo sueldo y movilidad asistida**
+—sin seguro, sin beneficios— y **en Seguros no tiene nada, ni póliza ni nada**. Esto **deshace** lo de las dos secciones de abajo (0553,
+0556, 0557 y las pantallas de esos PR) y deja el vínculo `prueba` como estaba el 25/10, con otro nombre en pantalla.
 
 - **El nombre.** En pantalla es **«preselección»** (una palabra, sin tilde de más): etiqueta «Preselección · 2 de 3», selector de
   vínculo de Equipo, pestaña de Planilla, módulo de la Bandeja, cinta del terminal, avisos de Turnos y de Liquidaciones, Contratos,
-  Parámetros, novedades nuevas y la constancia de consentimiento del DNI. **El valor interno sigue siendo `prueba`** (CHECK de la 0322,
-  columna, RPC, `pruebas`, `fn_pruebas_*`): se renombra lo que se ve, no lo que se guarda — el mismo trato que `supervisor_sede`
-  («líder de equipo»). **No se renombra** el periodo de prueba legal que va dentro de un contrato (art. 10 del D.S. 003-97-TR; la
-  cláusula TERCERA del contrato) ni el motivo de cese `fin_periodo_prueba` («No pasó el periodo de prueba»): son otra cosa.
+  Parámetros, ayuda de Seguros, novedades nuevas y la constancia de consentimiento del DNI. **El valor interno sigue siendo `prueba`**
+  (CHECK de la 0322, columna, RPC, `pruebas`, `fn_pruebas_*`): se renombra lo que se ve, no lo que se guarda — el mismo trato que
+  `supervisor_sede` («líder de equipo»). **No se renombra** el periodo de prueba legal que va dentro de un contrato (art. 10 del
+  D.S. 003-97-TR; la cláusula TERCERA del contrato) ni el motivo de cese `fin_periodo_prueba` («No pasó el periodo de prueba»).
 - **El código** vuelve a su estado previo a la 0553 (selector con «Preselección», aviso de feriado por vínculo + días trabajados,
   «Días de preselección» en Parámetros, cláusula del contrato sin plazo pactado, etiqueta sin fecha de corte). Dos retoques que NO son
   «como antes», a propósito: los textos de «se retiró» (Bandeja, panel de la preselección, Contratos, Equipo) dicen que **sí se paga
   lo trabajado** —desde la 0555 la planilla lo paga, y un cartel que dijera lo contrario mandaría a decidir con un dato falso—; y la
   novedad nueva explica el cambio en vez de borrar las del 26/10 (una novedad publicada no se edita).
-- **0558 · MUEVE PLATA.** Devuelve a `prueba` a quien la 0554 pasó a planilla sin contrato (Robert Cabrera y Emily Rico, medidas el
-  26/10): activas, `planilla`, no cuenta de servicio, prueba cerrada `contratada` el 26/10 y **sin contrato firmado**. Su preselección
-  se abre desde su ingreso. Se niega a mover a más de dos. Efecto en planilla (medido en la prueba 450, con las mismas horas): lo
-  pagado por lo trabajado no cambia, el aporte de EsSalud pasa a 0 y desaparece la asignación familiar de quien tiene hijos; quien
-  siempre fue planilla cobra exactamente igual. **El periodo 29/09–28/10 cierra mañana: conviene pegarla antes del cierre.**
+- **0558 · PEGADA por Felipe el 2026-10-27; no movió a nadie.** Buscaba a quien la 0554 pasó a planilla; Robert Cabrera y Emily Rico
+  **ya no estaban en planilla sino en `rxh`** (medido en producción), así que no los reconoció. Quedó registrada y es inofensiva.
+- **0561 · MUEVE PLATA.** Lo que la 0558 quiso hacer, buscando en `planilla` **y** en `rxh`: activas, no cuenta de servicio, prueba
+  cerrada `contratada` el 26/10 y **sin contrato firmado**, a lo sumo dos (si hay más, se niega). Vuelven a `prueba` con su
+  preselección abierta desde su ingreso. **Y en Seguros** quita `prueba` de `seguros_tipos.essalud.aplica_a_vinculos`: la preselección
+  queda «Sin seguro (no aplica)» como los honorarios, sin póliza ni «confirmar el alta en EsSalud». Va primero Seguros y después las
+  personas, para que RxH → preselección no deje un «alta en EsSalud» pendiente.
+  **La plata, medida con las mismas horas en un clon (RxH → preselección):** lo trabajado no cambia; **se SUMA la movilidad asistida**
+  —S/ 10 por día asistido en provincia, S/ 12 en Lima (`parametros_laborales`, 0142), el día que no asistió no cuenta— y **se
+  descuenta pensión** (13 % con ONP); EsSalud y asignación familiar siguen en cero. Con 6 días de 6,5 h y S/ 10: S/ 246,00 → S/ 274,02.
+  Quien siempre fue planilla cobra exactamente igual. Sin la declaración de ruta firmada (0159, si se exige) la movilidad no se suma.
+  **El periodo 29/09–28/10 cierra mañana: conviene pegarla antes del cierre.**
 - **0559 · sin plata.** Vuelve la fila `prueba_dias` («Días de preselección antes del contrato»), se retiran las filas de Parámetros que
   agregaron la 0553 y la 0557 (se borran si nadie las cambió; si tienen historial quedan fijas y «(retirado)») y se sueltan
   `fn_feriado_aviso_dias()` y `fn_prueba_etiqueta_desde()`. **No** se suelta `personas.prueba_pactada_dias` (0556): guarda datos y nada la
   usa; queda inerte.
 - **0560 · sin plata.** Reescribe `fn_avisos_vinculo()` (0169) solo en sus textos: «preselección» en vez de «prueba». Tiene guardia de
   md5 (1 223 caracteres, `036e01d3…`, o su variante CRLF): si producción tiene otra versión, se NIEGA y hay que pedirle el md5.
-- **Probado.** `tsc` limpio; vitest 2 924 de 2 924. En un Postgres clon con todas las migraciones hasta la 0557 más estas tres:
-  pgTAP **450 → 18/18**, **451 → 10/10**, **444 → 55/55** (restaurada a como estaba antes de la 0553, con el nombre nuevo), y sin
-  cambios 429, 430, 432, 446, 447, 448, 134, 221, 297, 302. Puestas en rojo a propósito: 450 sin la condición del contrato (aborta por la
-  guardia) y sin el tope de dos (2 fallas), 451 con una función sin soltar (1 falla). Se borraron las pruebas 445 y 449: probaban
-  justo lo que la 0559 retira. 0558, 0559 y 0560 se ensayaron en `begin … rollback` y se repegaron dos veces: no hacen nada la segunda vez.
+- **Probado.** `tsc` limpio; vitest 2 924 de 2 924. En un Postgres clon con todas las migraciones hasta la 0560 más la 0561: pgTAP
+  **450 → 18/18**, **451 → 10/10**, **452 → 24/24**, **444 → 55/55** (restaurada a como estaba antes de la 0553, con el nombre nuevo),
+  **422 → 312/312** y **423 → 116/116** (Seguros, adaptadas: «prueba» ya no cae en EsSalud), y sin cambios 429, 430, 432, 446, 447, 448,
+  134, 221, 297, 302. Puestas en rojo a propósito (450 sin la condición del contrato y sin el tope de dos; 451 con una función sin
+  soltar; 452 sin el tope de dos y buscando solo en planilla). Se borraron las pruebas 445 y 449: probaban justo lo que la 0559 retira.
+  Las migraciones se ensayaron en `begin … rollback` y se repegaron dos veces: no hacen nada la segunda vez.
 - **No verificado:** las pantallas no se miraron en el navegador (sin pila local ni sesión de administrador en esta sesión). El texto
   más largo de «Preselección · 2 de 3» puede apretar la píldora del terminal en una tarjeta angosta: mirarlo en la Mac mini.
 
 **Pendiente de Felipe.**
-1. Pegar la **0558 antes del cierre del 28/10**, tras correr la consulta (1) de su encabezado y devolver los nombres (deben ser
-   Robert y Emily). Luego 0559 y 0560, y recién ahí fusionar el PR (**fusionar ES publicar**).
-2. Decidir si «se retiró en preselección» sigue pagándose (0555, que **no** se tocó): Mariel Sarmiento y Noelia Ibarcena entran en
+1. Decidir si «se retiró en preselección» sigue pagándose (0555, que **no** se tocó): Mariel Sarmiento y Noelia Ibarcena entran en
    la planilla de este periodo. Revertirlo es otra migración que reescribe `fn_planilla_calcular_nucleo` y exige el md5 de producción.
-3. Quien se dio de alta como Planilla **después** del 26/10 (por el alta nueva) sigue en Planilla: si debían entrar por preselección,
-   se cambia desde Equipo («Tipo de vínculo»).
-4. Los textos que escribe la base y esta rama NO cambia: los errores de `fn_prueba_cerrar` y `fn_prueba_cargar_dni` («No puedes decidir
+2. Quien se dio de alta como Planilla **después** del 26/10 (por el alta nueva) sigue en Planilla: si debían entrar por preselección,
+   se cambia desde Equipo («Tipo de vínculo»). Ojo: cambiar planilla → preselección saca a esa persona de EsSalud en Seguros y deja el
+   pendiente «baja de EsSalud» para el contador.
+3. Los textos que escribe la base y esta rama NO cambia: los errores de `fn_prueba_cerrar` y `fn_prueba_cargar_dni` («No puedes decidir
    sobre la prueba…») y la frase «al registrar la prueba» de la constancia de DNI ya guardada. Reescribirlas toca funciones largas.
-5. Documentos que dicen «prueba» y no se cambiaron por ser de otro concepto: el contrato (cláusula del periodo de prueba) y el motivo
-   de cese «No pasó el periodo de prueba».
+4. `personas.en_planilla` (columna generada: planilla **y** prueba) sigue igual porque la planilla la necesita: el atajo «las de
+   planilla» del formulario de una póliza colectiva y la consulta `quienes_van_al_seguro_de_vida_ley.sql` todavía incluyen a la
+   preselección; quien registre una póliza la ve en la lista y la desmarca.
 
 ---
 

@@ -124,7 +124,8 @@ export const NOVEDADES: readonly Novedad[] = [
       "marcaje, con su etiqueta «Preselección · 2 de 3». Donde antes decía «prueba» para esta gente, ahora dice «preselección».\n\n" +
       "Lo que se había avisado el 26 de octubre sobre el alta (fecha de ingreso y periodo de prueba), la fecha de corte de la " +
       "etiqueta y el aviso de feriado por antigüedad se deja como estaba antes: el aviso de feriado vuelve a mirar a quien está " +
-      "en preselección. El periodo de prueba que va escrito dentro de un contrato de trabajo no cambia de nombre.",
+      "en preselección. En Seguros, quien está en preselección aparece como «Sin seguro que aplique», igual que los honorarios: " +
+      "ni póliza ni nada pendiente. El periodo de prueba que va escrito dentro de un contrato de trabajo no cambia de nombre.",
     audiencia: "panel",
   },
   {
