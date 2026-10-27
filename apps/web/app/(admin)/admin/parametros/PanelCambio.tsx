@@ -8,7 +8,7 @@
 // Los dos pasos son a propósito. Lo que Felipe pidió es que antes de guardar el
 // sistema diga a quién le cambia algo; un solo paso con un botón «Guardar» deja
 // esa lectura para después de hecho. Para los parámetros que tienen personas
-// detrás (aviso de feriado a quien ingresó hace poco, aviso de descanso médico) el paso 2 las lista con su
+// detrás (días de prueba, aviso de descanso médico) el paso 2 las lista con su
 // antes y su después; para los demás dice en palabras qué cambia y qué no.
 //
 // Nada de lo que se valida acá es la última palabra: la que manda es
@@ -19,10 +19,6 @@ import { useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
   describirCambioDeParametro,
-  esUnidadFecha,
-  fechaDeEntero,
-  hoyLima,
-  textoDeFechaEntera,
   validarValorParametro,
   valorConUnidad,
 } from "@cayla-dynamic/shared";
@@ -34,14 +30,12 @@ import { Rotulo } from "@/components/ui/rotulo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import type { FilaPrueba } from "@/lib/admin/pruebas";
 import {
   fuenteDeImpacto,
   impactoAvisoDescansoMedico,
-  impactoAvisoFeriado,
-  impactoEtiquetaPrueba,
+  impactoDiasDePrueba,
   notaDeEfecto,
-  type FilaEtiquetaPrueba,
-  type FilaIngreso,
   type FilaSubsidio,
   type Impacto,
   type ParametroFila,
@@ -64,11 +58,7 @@ export function PanelCambio({
   onGuardado: () => void;
 }) {
   const { avisar } = useToast();
-  // Un parámetro «fecha» (0557) vive como entero AAAAMMDD; el campo de fecha pide y entrega AAAA-MM-DD.
-  // Arranca SIEMPRE con la fecha de hoy del parámetro (nunca vacío) para que lo que se ve sea lo que se manda.
-  const esFecha = esUnidadFecha(fila.unidad);
-  const comoTexto = (n: number | string) => (esFecha ? (fechaDeEntero(Number(n)) ?? "") : String(n));
-  const [texto, setTexto] = useState(comoTexto(valorInicial ?? fila.valor_actual));
+  const [texto, setTexto] = useState(valorInicial ?? String(fila.valor_actual));
   const [motivo, setMotivo] = useState(motivoInicial ?? "");
   const [paso, setPaso] = useState<Paso>("formulario");
   const [errorValor, setErrorValor] = useState<string | undefined>();
@@ -81,9 +71,7 @@ export function PanelCambio({
 
   const rango =
     fila.valor_min !== null && fila.valor_max !== null
-      ? esFecha
-        ? `Del ${textoDeFechaEntera(fila.valor_min)} al ${textoDeFechaEntera(fila.valor_max)}.`
-        : `De ${fila.valor_min} a ${fila.valor_max} ${fila.unidad}.`
+      ? `De ${fila.valor_min} a ${fila.valor_max} ${fila.unidad}.`
       : null;
 
   async function verAQuienAfecta() {
@@ -102,48 +90,10 @@ export function PanelCambio({
     setImpacto(null);
     const supabase = createAdminSupabaseClient();
     const fuente = fuenteDeImpacto(fila.parametro);
-    if (fuente === "ingreso_reciente") {
-      // Quién está en planilla y cuándo ingresó: dos lecturas que la pantalla de Equipo ya hace.
-      const [ingresos, personas] = await Promise.all([
-        supabase.rpc("fn_ingresos"),
-        supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").eq("en_planilla", true),
-      ]);
-      const fallo = ingresos.error ?? personas.error;
-      if (fallo) setErrorImpacto(mensajeDeError(fallo, "ver quién ingresó hace poco"));
-      else {
-        const fechas = new Map(
-          ((ingresos.data as { persona_id: string; fecha_ingreso: string | null }[] | null) ?? []).map((r) => [r.persona_id, r.fecha_ingreso] as const),
-        );
-        const filas: FilaIngreso[] = (personas.data ?? []).map((x) => ({
-          persona: `${x.nombres} ${x.apellidos}`.trim(),
-          fecha_ingreso: fechas.get(x.id) ?? null,
-        }));
-        setImpacto(impactoAvisoFeriado(filas, fila.valor_actual, v.valor, hoyLima()));
-      }
-    } else if (fuente === "etiqueta_prueba") {
-      // Mismas lecturas que la etiqueta de Equipo: ingreso y, si la 0556 ya está pegada, lo pactado.
-      const [ingresos, personas, pactos] = await Promise.all([
-        supabase.rpc("fn_ingresos"),
-        supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").eq("en_planilla", true),
-        // Aparte y tolerante: si la columna aún no existe, la lectura falla sola y rige la ley para todos.
-        supabase.from("personas").select("id, prueba_pactada_dias").eq("estado", "activo"),
-      ]);
-      const fallo = ingresos.error ?? personas.error;
-      if (fallo) setErrorImpacto(mensajeDeError(fallo, "ver quién está en periodo de prueba"));
-      else {
-        const fechas = new Map(
-          ((ingresos.data as { persona_id: string; fecha_ingreso: string | null }[] | null) ?? []).map((r) => [r.persona_id, r.fecha_ingreso] as const),
-        );
-        const pactados = new Map(
-          pactos.error ? [] : ((pactos.data as { id: string; prueba_pactada_dias: number | null }[] | null) ?? []).map((r) => [r.id, r.prueba_pactada_dias] as const),
-        );
-        const filas: FilaEtiquetaPrueba[] = (personas.data ?? []).map((x) => ({
-          persona: `${x.nombres} ${x.apellidos}`.trim(),
-          fecha_ingreso: fechas.get(x.id) ?? null,
-          prueba_pactada_dias: pactados.get(x.id) ?? null,
-        }));
-        setImpacto(impactoEtiquetaPrueba(filas, fila.valor_actual, v.valor, hoyLima()));
-      }
+    if (fuente === "pruebas") {
+      const { data, error } = await supabase.rpc("fn_pruebas_abiertas");
+      if (error) setErrorImpacto(mensajeDeError(error, "ver quién está en preselección"));
+      else setImpacto(impactoDiasDePrueba((data ?? []) as unknown as FilaPrueba[], v.valor));
     } else if (fuente === "descanso_medico") {
       const { data, error } = await supabase.rpc("fn_ausencias_subsidio");
       if (error) setErrorImpacto(mensajeDeError(error, "ver los días de descanso médico"));
@@ -190,8 +140,8 @@ export function PanelCambio({
       {paso === "formulario" ? (
         <>
           <Campo
-            etiqueta={esFecha ? "Fecha nueva" : `Valor nuevo (${fila.unidad})`}
-            {...(esFecha ? { type: "date" } : { inputMode: fila.tipo_valor === "entero" ? ("numeric" as const) : ("decimal" as const) })}
+            etiqueta={`Valor nuevo (${fila.unidad})`}
+            inputMode={fila.tipo_valor === "entero" ? "numeric" : "decimal"}
             value={texto}
             onChange={(e) => {
               setTexto(e.target.value);

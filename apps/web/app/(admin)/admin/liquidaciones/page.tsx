@@ -664,12 +664,12 @@ export default function LiquidacionesPage() {
             </BannerAviso>
           )}
 
-          {/* ── El aviso del vínculo «prueba» ────────────────────────────────
+          {/* ── El aviso del vínculo «prueba» (en pantalla: preselección) ────────────────────────────────
               Va acá y no en Equipo porque lo que está en juego son beneficios, y
               esta es la pantalla que habla de beneficios. Solo aparece cuando ya
               pasó el mes: antes no cuesta nada y avisar sería ruido. */}
           {avisoUrgente.map((a) => (
-            <BannerAviso key={a.persona_id} variante="alerta" enLinea titulo={`${a.persona} lleva ${a.dias} días como «prueba».`} className="mb-4">
+            <BannerAviso key={a.persona_id} variante="alerta" enLinea titulo={`${a.persona} lleva ${a.dias} días como «preselección».`} className="mb-4">
               {a.aviso}
             </BannerAviso>
           ))}

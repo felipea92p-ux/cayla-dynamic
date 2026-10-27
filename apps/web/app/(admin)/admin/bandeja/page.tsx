@@ -426,7 +426,7 @@ export default function BandejaPage() {
       <Link href={p.contexto.href} className="text-sm text-rojo hover:underline">{p.contexto.texto} →</Link>
     );
 
-    // La prueba de tres días (0536): el MISMO panel que usa Contratos, para que la líder de
+    // La preselección de tres días (0536): el MISMO panel que usa Contratos, para que la líder de
     // equipo —que no abre Contratos— pueda decidir sobre su gente desde aquí.
     if (p.tipo === "prueba") {
       const prueba = fuentes.pruebas.find((x) => x.persona_id === p.itemId);
@@ -449,7 +449,7 @@ export default function BandejaPage() {
           </p>
           <p className="text-taupe">
             Último día trabajado: {diaYMes(cierre.cerrada_fecha)} · {cierre.dias_trabajados} {cierre.dias_trabajados === 1 ? "día" : "días"} ·
-            {" "}{textoDeHoras(cierre.horas_marcadas)} marcadas{cierre.resultado === "retirado" ? ", que no se pagan" : ", que se pagan"}.
+            {" "}{textoDeHoras(cierre.horas_marcadas)} marcadas, que se pagan.
           </p>
           <p className="text-xs text-taupe">
             Si fue un error, se corrige reactivando a la persona desde Equipo: queda rastro de quién y cuándo.

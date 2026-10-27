@@ -82,7 +82,7 @@ interface FilaFuera {
 // cual en vez de ocultarse.
 const VINCULO_LABEL: Record<string, string> = {
   planilla: "Planilla",
-  prueba: "Días de selección",
+  prueba: "Preselección",
   practicante: "Practicante",
   rxh: "Recibo por honorarios",
   no_trabajador: "No trabajador",

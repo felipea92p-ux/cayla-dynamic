@@ -142,7 +142,9 @@ export type TipoVinculo = (typeof TIPOS_VINCULO)[number];
 
 export const TIPO_VINCULO_LABEL: Record<TipoVinculo, string> = {
   planilla: "Planilla",
-  prueba: "Prueba",
+  // El valor interno sigue siendo `prueba` (CHECK de la 0322, columna, RPC): lo que
+  // cambia es cómo se llama en pantalla (decisión de Felipe, 2026-10-27).
+  prueba: "Preselección",
   rxh: "Honorarios · RxH",
   practicante: "Practicantes",
   no_trabajador: "Sin vínculo laboral",

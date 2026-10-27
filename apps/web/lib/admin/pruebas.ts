@@ -1,8 +1,10 @@
 /**
- * LA PRUEBA DE TRES DÍAS, EN LO QUE UNA PANTALLA NECESITA SABER (0536–0538).
+ * LA PRESELECCIÓN DE TRES DÍAS, EN LO QUE UNA PANTALLA NECESITA SABER (0536–0538).
+ * (En pantalla se llama «preselección»; en la base y en el código sigue siendo
+ * `prueba`: decisión de Felipe, 2026-10-27.)
  *
- * QUÉ PROMETE. Textos, orden y reglas de lo que dibujan los paneles de pruebas —la
- * Bandeja, Contratos, las etiquetas «Prueba · 2 de 3»—, en funciones puras que se
+ * QUÉ PROMETE. Textos, orden y reglas de lo que dibujan los paneles de preselección —la
+ * Bandeja, Contratos, las etiquetas «Preselección · 2 de 3»—, en funciones puras que se
  * prueban sin levantar nada. Los DATOS los trae la base (`fn_pruebas_abiertas`,
  * `fn_pruebas_cierres_recientes`); aquí solo se decide cómo se dicen.
  *
@@ -11,11 +13,13 @@
  * dejar pasar la llamada. Tampoco calcula cuántos días lleva alguien: la base los
  * cuenta de las jornadas cerradas y los entrega ya contados. Esto solo los dice.
  *
- * POR QUÉ LOS TEXTOS DE CONSECUENCIA VIVEN AQUÍ Y NO EN EL BOTÓN. La confirmación
- * de «se retiró» es lo único entre una persona y una hora de trabajo sin pagar
- * (decisión de Felipe, 2026-10-19). Escrita dentro de un componente, nadie la
- * prueba; escrita aquí, `tests/pruebas.test.ts` vigila que SIEMPRE diga que no se
- * paga y cuántas horas son.
+ * POR QUÉ LOS TEXTOS DE CONSECUENCIA VIVEN AQUÍ Y NO EN EL BOTÓN. Lo que dice la
+ * confirmación es lo único que lee quien decide antes de dar de baja a una persona,
+ * y tiene que decir lo que la planilla hace de verdad. Hasta la 0555 «se retiró» no
+ * cobraba lo trabajado (0537); desde la 0555 se le paga como a quien no fue apto
+ * (decisión de Felipe, 2026-10-26: quien trabaja cobra lo trabajado). Escrita dentro
+ * de un componente, nadie la prueba; escrita aquí, `tests/pruebas.test.ts` vigila
+ * que SIEMPRE diga qué se paga y cuántas horas son.
  */
 
 import { EMPRESA, etiquetaDePrueba, situacionDePrueba, type SituacionPrueba } from "@cayla-dynamic/shared";
@@ -116,8 +120,8 @@ export function ordenarPruebas<T extends FilaPrueba>(filas: readonly T[]): T[] {
 
 /**
  * Lo que la persona que decide tiene que leer ANTES de confirmar. «No apto» y «se
- * retiró» dan de baja con el mismo gesto; lo que cambia es el pago, y por eso lo
- * que cambia es lo primero que se dice.
+ * retiró» dan de baja con el mismo gesto y, desde la 0555, se pagan igual: lo
+ * trabajado, sin asignación familiar. Lo primero que se dice es el pago.
  */
 export function consecuenciaDelCierre(
   resultado: ResultadoCierre,
@@ -127,9 +131,9 @@ export function consecuenciaDelCierre(
   if (resultado === "retirado") {
     return {
       titulo: "Se retiró por su cuenta",
-      peligro: true,
+      peligro: false,
       lineas: [
-        `NO se le paga lo trabajado: ${trabajado} marcados.`,
+        `Se le paga lo trabajado: ${trabajado}. No cobra asignación familiar.`,
         "Se le da de baja con su último día trabajado.",
         "Queda registrado quién lo decidió y por qué.",
       ],
@@ -149,19 +153,19 @@ export function consecuenciaDelCierre(
 /** El aviso que se muestra al terminar: dice qué quedó escrito, no solo «listo». */
 export function mensajeDeCierre(resultado: ResultadoCierre, nombre: string): string {
   return resultado === "retirado"
-    ? `${nombre}: se retiró. Quedó dado de baja y su trabajo no se paga.`
+    ? `${nombre}: se retiró. Quedó dado de baja y se le pagará lo trabajado.`
     : `${nombre}: no fue apto. Quedó dado de baja y se le pagará lo trabajado.`;
 }
 
 /**
  * Cómo se dice un cierre reciente en la Bandeja: «Se retiró · decidió Ana · 1 día,
- * 5,35 h sin pagar». Para «no apto» las horas SÍ se pagan y se dice así.
+ * 5,35 h a pagar». Las horas se pagan en los dos cierres (0555) y se dice así.
  */
 export function resumenDeCierre(c: CierrePrueba): string {
   const dias = `${c.dias_trabajados} ${c.dias_trabajados === 1 ? "día" : "días"}, ${textoDeHoras(c.horas_marcadas)}`;
   const quien = c.decidida_por ? ` · decidió ${c.decidida_por}` : "";
   return c.resultado === "retirado"
-    ? `Se retiró${quien} · ${dias} sin pagar`
+    ? `Se retiró${quien} · ${dias} a pagar`
     : `No fue apto${quien} · ${dias} a pagar`;
 }
 
@@ -178,7 +182,7 @@ export function textoConsentimientoDni(nombre: string, diasPlazo: number): strin
   return (
     `${nombre} entregó su Documento Nacional de Identidad (DNI) en persona y autorizó a ${EMPRESA.nombre} ` +
     `(RUC ${EMPRESA.ruc}) a tratarlo, junto con sus demás datos personales, con la finalidad de verificar su ` +
-    `identidad durante su prueba de ${diasPlazo} días y, si continúa, dejar constancia de su contrato. Estos datos ` +
+    `identidad durante su preselección de ${diasPlazo} días y, si continúa, dejar constancia de su contrato. Estos datos ` +
     `se incorporarán al banco de datos personales de ${EMPRESA.nombre}. Su entrega es necesaria para continuar ` +
     `el proceso. Puede ejercer sus derechos de acceso, rectificación, cancelación y oposición escribiendo a info@cayla.pe.`
   );

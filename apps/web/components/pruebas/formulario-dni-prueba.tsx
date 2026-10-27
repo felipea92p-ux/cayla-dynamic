@@ -162,7 +162,7 @@ export function FormularioDniPrueba({
       <label className="flex items-start gap-2 rounded-control bg-hueso px-3 py-2 text-xs text-taupe">
         <input type="checkbox" checked={acepta} disabled={enviando} onChange={(e) => setAcepta(e.target.checked)} className="mt-0.5" />
         <span>
-          <span className="font-medium text-tinta">Confirmo, como quien registra la prueba, que:</span>{" "}
+          <span className="font-medium text-tinta">Confirmo, como quien registra la preselección, que:</span>{" "}
           {textoConsentimientoDni(nombre, diasPlazo)}
         </span>
       </label>

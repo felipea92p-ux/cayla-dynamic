@@ -320,6 +320,7 @@ migraciones. Los nombres de variables y funciones siguen la convención en ingl�
 | sede, tienda, boutique | sucursal |
 | Desarrollo Organizacional (DO) | RRHH |
 | clienta | cliente (para quien compra) |
+| preselección (el vínculo `prueba`) | prueba, de prueba — para quien trabaja antes de su contrato |
 
 El código tiene el rol `supervisor_sede` en la base por historia —y con él nombres
 como `esEncargada`, `es_encargada_piso` o `meta_encargadas`, que no se renombran—;
@@ -328,6 +329,13 @@ los contadores cortos («Líderes en piso»). Hasta el 2026-09-18 la pantalla de
 «encargada» en unos sitios y «líder de equipo» en otros (Equipo, Objetivos, la
 boleta): dos palabras para la misma persona. No se confunde con `lider_do`, que
 es «Líder DO» (Desarrollo Organizacional).
+
+Con `prueba` pasa lo mismo desde el 2026-10-27: el valor interno de `tipo_vinculo` sigue
+siendo `prueba` (CHECK de la 0322, la tabla `pruebas`, `fn_pruebas_*`) y en pantalla es
+**«preselección»** (decisión de Felipe). No se renombra el *periodo de prueba* legal que va
+dentro de un contrato de trabajo (art. 10 del D.S. 003-97-TR, cláusula TERCERA) ni el
+motivo de cese `fin_periodo_prueba`: son otra cosa, y un contrato que dijera
+«preselección» en esa cláusula estaría mal escrito.
 
 ---
 

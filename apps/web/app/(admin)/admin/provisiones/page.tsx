@@ -435,7 +435,7 @@ function ComoSeCalculan({ data }: { data: ProvData }) {
       </li>
       <li>
         <strong className="font-medium">Quién aparece:</strong> quien devenga algún beneficio, aunque hoy sume cero
-        (por ejemplo, quien entró esta semana). Quien cobra por recibo por honorarios o está en días de prueba no
+        (por ejemplo, quien entró esta semana). Quien cobra por recibo por honorarios o está en preselección no
         ocupa fila: no hay nada que reservarle.
       </li>
       <li>

@@ -43,7 +43,7 @@ export function AyudaDeSeguros() {
             <h3 className="mb-1 font-serif text-base text-tinta">En qué seguro está cada quien</h3>
             <p className="text-taupe">
               Cada colaborador está en el seguro que le toca por su vínculo —por ejemplo, los practicantes en FOLA y
-              planilla y prueba en EsSalud—, y Desarrollo Organizacional puede cambiárselo a una persona con «Cambiar su
+              planilla y preselección en EsSalud—, y Desarrollo Organizacional puede cambiárselo a una persona con «Cambiar su
               seguro». Si un colaborador tiene uno que el sistema no conoce, se agrega en «Tipos de seguro».
             </p>
           </section>
