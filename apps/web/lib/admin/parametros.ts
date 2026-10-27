@@ -26,7 +26,7 @@
  * así que se MUESTRA (normativa, sin botón) pero no se cambia desde esta pantalla.
  */
 
-import { diasEntreFechas, type ClaseParametro } from "@cayla-dynamic/shared";
+import { diasEntreFechas, etiquetaPeriodoDePrueba, fechaDeEntero, textoDeFechaEntera, type ClaseParametro } from "@cayla-dynamic/shared";
 
 /** Una fila de `fn_parametros_listar` (0552), con los numéricos ya como número. */
 export interface ParametroFila {
@@ -138,11 +138,12 @@ export interface Impacto {
 }
 
 /** Qué parámetros tienen personas detrás y de dónde se leen. El resto dice su efecto en palabras. */
-export type FuenteDeImpacto = "ingreso_reciente" | "descanso_medico" | "ninguna";
+export type FuenteDeImpacto = "ingreso_reciente" | "descanso_medico" | "etiqueta_prueba" | "ninguna";
 
 export function fuenteDeImpacto(parametro: string): FuenteDeImpacto {
   if (parametro === "feriado_aviso_antiguedad_dias") return "ingreso_reciente";
   if (parametro === "descanso_medico_avisar_desde") return "descanso_medico";
+  if (parametro === "prueba_etiqueta_desde") return "etiqueta_prueba";
   return "ninguna";
 }
 
@@ -192,6 +193,51 @@ export function impactoAvisoFeriado(
     nota: relevantes === 0
       ? "Hoy nadie ingresó hace tan poco: el cambio no mueve a nadie."
       : "Solo cambia el aviso al armar horarios, y mide la antigüedad de hoy (el aviso real la mide en la fecha del feriado). El feriado se paga igual.",
+  };
+}
+
+/** Lo que la vista previa de la etiqueta de prueba lee de cada persona en planilla (0557). */
+export interface FilaEtiquetaPrueba {
+  persona: string;
+  fecha_ingreso: string | null;
+  /** `personas.prueba_pactada_dias` (0556); `null` = rige la ley, o la columna todavía no existe. */
+  prueba_pactada_dias: number | null;
+}
+
+/**
+ * Con la etiqueta de prueba desde `nuevoDesde` (AAAAMMDD), ¿a quién se le pone o se le quita
+ * el rótulo «en periodo de prueba»? Mide con la misma función que Equipo
+ * (`etiquetaPeriodoDePrueba`), así que la vista previa no puede discrepar de la pantalla.
+ * Solo rotula: ningún pago ni derecho cambia con esta fecha.
+ */
+export function impactoEtiquetaPrueba(
+  filas: readonly FilaEtiquetaPrueba[],
+  desdeActual: number,
+  nuevoDesde: number,
+  hoy: string,
+): Impacto {
+  const a = fechaDeEntero(desdeActual);
+  const n = fechaDeEntero(nuevoDesde);
+  const cambian: FilaImpacto[] = [];
+  let sinCambio = 0;
+  for (const f of filas) {
+    const antes = etiquetaPeriodoDePrueba(f.fecha_ingreso, hoy, { pactadoDias: f.prueba_pactada_dias, desde: a });
+    const despues = etiquetaPeriodoDePrueba(f.fecha_ingreso, hoy, { pactadoDias: f.prueba_pactada_dias, desde: n });
+    if (!antes && !despues) continue; // fuera de su periodo: la fecha no le importa
+    if (!!antes === !!despues) {
+      sinCambio += 1;
+      continue;
+    }
+    cambian.push({
+      persona: f.persona,
+      antes: antes ? "Lleva la etiqueta" : "Sin etiqueta",
+      despues: despues ? "Llevaría la etiqueta" : "Dejaría de llevarla",
+    });
+  }
+  return {
+    filas: cambian,
+    sinCambio,
+    nota: `Desde ${textoDeFechaEntera(nuevoDesde)} la etiqueta alcanza a quien ingresó ese día o después y sigue dentro de su periodo. Es solo un rótulo en Equipo: el periodo de prueba legal lo fija el contrato de cada persona, y ningún pago cambia.`,
   };
 }
 

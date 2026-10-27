@@ -498,6 +498,10 @@ export default function ContratosPage() {
 
   const [cargando, setCargando] = useState(true);
   const [personas, setPersonas] = useState<Persona[]>([]);
+  // Período de prueba pactado por persona (0556). Consulta APARTE y tolerante: si la columna todavía no existe,
+  // pedirla junto con el resto haría fallar la lista entera. Sin dato rige la ley (3 meses), que es lo que el
+  // contrato decía siempre. Solo llegan quienes tienen un pacto.
+  const [pruebasPactadas, setPruebasPactadas] = useState<Map<string, number>>(new Map());
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [datosPersonales, setDatosPersonales] = useState<DatoPersonal[]>([]);
   const [salarios, setSalarios] = useState<Salario[]>([]);
@@ -922,6 +926,13 @@ export default function ContratosPage() {
       supabase.rpc("fn_firma_empresa"),
     ]);
 
+    const { data: pactadosData, error: pactadosError } = await supabase
+      .from("personas")
+      .select("id, prueba_pactada_dias")
+      .not("prueba_pactada_dias", "is", null);
+    setPruebasPactadas(
+      new Map(pactadosError ? [] : ((pactadosData as { id: string; prueba_pactada_dias: number }[] | null) ?? []).map((r) => [r.id, r.prueba_pactada_dias] as const)),
+    );
     setPersonas(
       ((ps.data as Persona[]) ?? []).filter((p) => p.en_planilla || p.tipo_vinculo === "practicante"),
     );
@@ -1418,6 +1429,7 @@ export default function ContratosPage() {
           fechaInicio,
           fechaFin,
           fechaIngresoOriginal: persona.fecha_ingreso,
+          pruebaPactadaDias: pruebasPactadas.get(persona.id) ?? null,
           remuneracionMensual: salarioVigente,
           cobraMovilidad: persona.cobra_movilidad,
           movilidadDiaria: movilidadTarifa,

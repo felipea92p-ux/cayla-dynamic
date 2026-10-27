@@ -42,6 +42,42 @@ export interface LimitesParametro {
   valor_max: number | null;
 }
 
+/**
+ * Un parámetro cuya unidad es «fecha» guarda el día como entero AAAAMMDD (20261026): el catálogo
+ * solo conoce números y abrirlo a otro tipo tocaría la puerta que protege los de plata (0557). La
+ * pantalla lo dibuja y lo pide como fecha; la base valida que sea un día real al leerlo.
+ */
+export const UNIDAD_FECHA = "fecha";
+
+export function esUnidadFecha(unidad: string): boolean {
+  return unidad === UNIDAD_FECHA;
+}
+
+/** 20261026 → «2026-10-26». `null` si no es un día que exista (20261340, 20260230). */
+export function fechaDeEntero(n: number): string | null {
+  if (!Number.isInteger(n) || n < 10000101 || n > 99991231) return null;
+  const t = String(n);
+  const y = Number(t.slice(0, 4)), m = Number(t.slice(4, 6)), d = Number(t.slice(6, 8));
+  const f = new Date(Date.UTC(y, m - 1, d));
+  if (f.getUTCFullYear() !== y || f.getUTCMonth() !== m - 1 || f.getUTCDate() !== d) return null;
+  return `${t.slice(0, 4)}-${t.slice(4, 6)}-${t.slice(6, 8)}`;
+}
+
+/** «2026-10-26» → 20261026. `null` si no es una fecha escrita así o no existe. */
+export function enteroDeFecha(iso: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const n = Number(iso.replace(/-/g, ""));
+  return fechaDeEntero(n) === iso ? n : null;
+}
+
+/** 20261026 → «26/10/2026»; si no es un día real, el número tal cual (no se esconde un dato raro). */
+export function textoDeFechaEntera(n: number): string {
+  const iso = fechaDeEntero(n);
+  if (!iso) return String(n);
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 export type ResultadoValidacion = { ok: true; valor: number } | { ok: false; mensaje: string };
 
 /**
@@ -49,6 +85,7 @@ export type ResultadoValidacion = { ok: true; valor: number } | { ok: false; men
  * acepta nada que no sea un número ni, en un entero, nada con decimales.
  */
 export function validarValorParametro(p: LimitesParametro, texto: string): ResultadoValidacion {
+  if (esUnidadFecha(p.unidad)) return validarFechaParametro(p, texto);
   const limpio = texto.trim().replace(",", ".");
   if (limpio === "") return { ok: false, mensaje: "Escribe el valor nuevo." };
   // Solo dígitos con un punto opcional: `Number("1e3")` o `Number("0x10")` no son lo que una persona quiso decir.
@@ -68,13 +105,32 @@ export function validarValorParametro(p: LimitesParametro, texto: string): Resul
   return { ok: true, valor };
 }
 
+/** El campo de fecha entrega «2026-10-26»; se guarda como entero y se acota con los mismos límites. */
+function validarFechaParametro(p: LimitesParametro, texto: string): ResultadoValidacion {
+  const limpio = texto.trim();
+  if (limpio === "") return { ok: false, mensaje: "Elige la fecha." };
+  const valor = enteroDeFecha(limpio);
+  if (valor === null) return { ok: false, mensaje: "Elige una fecha que exista." };
+  const { valor_min: min, valor_max: max } = p;
+  if ((min !== null && valor < min) || (max !== null && valor > max)) {
+    if (min !== null && max !== null) return { ok: false, mensaje: `Va del ${textoDeFechaEntera(min)} al ${textoDeFechaEntera(max)}.` };
+    return {
+      ok: false,
+      mensaje: min !== null ? `Tiene que ser el ${textoDeFechaEntera(min)} o después.` : `Tiene que ser el ${textoDeFechaEntera(max as number)} o antes.`,
+    };
+  }
+  return { ok: true, valor };
+}
+
 /** «3 días», «1 día», «4 horas»: la unidad en singular cuando el valor es 1. */
 export function valorConUnidad(valor: number, unidad: string): string {
+  if (esUnidadFecha(unidad)) return textoDeFechaEntera(valor);
   const unica = unidad.endsWith("s") && Math.abs(valor) === 1 ? unidad.slice(0, -1) : unidad;
   return `${valor} ${unica}`;
 }
 
 /** «3 → 5 días»: un cambio dicho en una línea. */
 export function describirCambioDeParametro(anterior: number, nuevo: number, unidad: string): string {
+  if (esUnidadFecha(unidad)) return `${textoDeFechaEntera(anterior)} → ${textoDeFechaEntera(nuevo)}`;
   return `${anterior} → ${valorConUnidad(nuevo, unidad)}`;
 }
