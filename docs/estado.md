@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-27 — «Prueba» vuelve como vínculo y se llama «preselección» · migraciones 0558 a 0561 · 0558 PEGADA (no movió a nadie) · 0559, 0560 y 0561 SIN PEGAR · rama `claude/revert-function-previous-eb77c3`
+## 2026-10-27 — «Prueba» vuelve como vínculo y se llama «preselección» · migraciones 0558 a 0561 · las cuatro PEGADAS 2026-10-27 · FUSIONADO (PR #608)
 
 **Qué es.** Felipe lo decidió el 2026-10-27, un día después de la reforma de abajo: «volvamos a ponerlo como prueba; de momento
 mantengámoslo así como era antes, toda la función. Antes, para los nuevos colaboradores, se ponía de prueba y no se les pagaba EsSalud:
@@ -27,7 +27,9 @@ volvamos a eso. Todo el apartado de prueba se llamará preselección.» Y despu�
   novedad nueva explica el cambio en vez de borrar las del 26/10 (una novedad publicada no se edita).
 - **0558 · PEGADA por Felipe el 2026-10-27; no movió a nadie.** Buscaba a quien la 0554 pasó a planilla; Robert Cabrera y Emily Rico
   **ya no estaban en planilla sino en `rxh`** (medido en producción), así que no los reconoció. Quedó registrada y es inofensiva.
-- **0561 · MUEVE PLATA.** Lo que la 0558 quiso hacer, buscando en `planilla` **y** en `rxh`: activas, no cuenta de servicio, prueba
+  **Producción cambia sola:** Felipe los pasó a mano por practicante → RxH → practicante el 26 y 27/10 (último cambio 18:30), y tienen una
+  asignación manual de FOLA en Seguros. Por eso la 0561 **tampoco los movió**: busca en `planilla` y `rxh`.
+- **0561 · PEGADA el 2026-10-27 (`{planilla} · null · 0 · 561`); hoy solo cambió Seguros. MUEVE PLATA cuando alguien coincide.** Lo que la 0558 quiso hacer, buscando en `planilla` **y** en `rxh`: activas, no cuenta de servicio, prueba
   cerrada `contratada` el 26/10 y **sin contrato firmado**, a lo sumo dos (si hay más, se niega). Vuelven a `prueba` con su
   preselección abierta desde su ingreso. **Y en Seguros** quita `prueba` de `seguros_tipos.essalud.aplica_a_vinculos`: la preselección
   queda «Sin seguro (no aplica)» como los honorarios, sin póliza ni «confirmar el alta en EsSalud». Va primero Seguros y después las
@@ -37,11 +39,11 @@ volvamos a eso. Todo el apartado de prueba se llamará preselección.» Y despu�
   descuenta pensión** (13 % con ONP); EsSalud y asignación familiar siguen en cero. Con 6 días de 6,5 h y S/ 10: S/ 246,00 → S/ 274,02.
   Quien siempre fue planilla cobra exactamente igual. Sin la declaración de ruta firmada (0159, si se exige) la movilidad no se suma.
   **El periodo 29/09–28/10 cierra mañana: conviene pegarla antes del cierre.**
-- **0559 · sin plata.** Vuelve la fila `prueba_dias` («Días de preselección antes del contrato»), se retiran las filas de Parámetros que
+- **0559 · PEGADA el 2026-10-27 (`true · 0 · true · 5 · 559`; el plazo vigente es 5 días, no 3). Sin plata.** Vuelve la fila `prueba_dias` («Días de preselección antes del contrato»), se retiran las filas de Parámetros que
   agregaron la 0553 y la 0557 (se borran si nadie las cambió; si tienen historial quedan fijas y «(retirado)») y se sueltan
   `fn_feriado_aviso_dias()` y `fn_prueba_etiqueta_desde()`. **No** se suelta `personas.prueba_pactada_dias` (0556): guarda datos y nada la
   usa; queda inerte.
-- **0560 · sin plata.** Reescribe `fn_avisos_vinculo()` (0169) solo en sus textos: «preselección» en vez de «prueba». Tiene guardia de
+- **0560 · PEGADA el 2026-10-27 (`true · true · 560`). Sin plata.** Reescribe `fn_avisos_vinculo()` (0169) solo en sus textos: «preselección» en vez de «prueba». Tiene guardia de
   md5 (1 223 caracteres, `036e01d3…`, o su variante CRLF): si producción tiene otra versión, se NIEGA y hay que pedirle el md5.
 - **Probado.** `tsc` limpio; vitest 2 924 de 2 924. En un Postgres clon con todas las migraciones hasta la 0560 más la 0561: pgTAP
   **450 → 18/18**, **451 → 10/10**, **452 → 24/24**, **444 → 55/55** (restaurada a como estaba antes de la 0553, con el nombre nuevo),
@@ -53,6 +55,10 @@ volvamos a eso. Todo el apartado de prueba se llamará preselección.» Y despu�
   más largo de «Preselección · 2 de 3» puede apretar la píldora del terminal en una tarjeta angosta: mirarlo en la Mac mini.
 
 **Pendiente de Felipe.**
+0. **Pasar a Robert y Emily a «Preselección»** (Equipo → Tipo de vínculo) y, en Seguros, «Volver al automático» para quitarles la asignación
+   manual de FOLA. Por Equipo la preselección cuenta desde HOY, no desde su ingreso (19 y 21/10); si quiere desde el ingreso, va en SQL.
+   Hoy no tienen régimen de pensión cargado: como preselección cobrarían movilidad (S/ 10 provincia, S/ 12 Lima, por día asistido) y no se
+   les descontaría pensión hasta cargarlo.
 1. Decidir si «se retiró en preselección» sigue pagándose (0555, que **no** se tocó): Mariel Sarmiento y Noelia Ibarcena entran en
    la planilla de este periodo. Revertirlo es otra migración que reescribe `fn_planilla_calcular_nucleo` y exige el md5 de producción.
 2. Quien se dio de alta como Planilla **después** del 26/10 (por el alta nueva) sigue en Planilla: si debían entrar por preselección,
