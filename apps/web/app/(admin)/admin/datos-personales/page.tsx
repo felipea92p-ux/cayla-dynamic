@@ -1031,6 +1031,42 @@ export default function DatosPersonalesPage() {
       </label>,
     );
   }
+  /**
+   * Entidad bancaria: BCP e Interbank son casi todo lo que hay hoy, y fijarlas
+   * evita que "BCP" y "Bcp" convivan en la misma columna como dos bancos
+   * distintos. "Por completar" no se guarda como texto — abre un campo libre,
+   * para el banco que no está en la lista o para dejarlo pendiente sin fingir
+   * que ya se llenó.
+   */
+  function campoBanco() {
+    const actual = form.entidad_bancaria;
+    const modo = actual === "BCP" || actual === "Interbank" ? actual : "manual";
+    return anclado(
+      "entidad_bancaria",
+      <div className="flex flex-col gap-1">
+        <CampoSelect
+          etiqueta="Entidad bancaria"
+          value={modo}
+          disabled={!editMode}
+          onChange={(e) => setForm((f) => ({ ...f, entidad_bancaria: e.target.value === "manual" ? "" : e.target.value }))}
+          className="disabled:cursor-default disabled:border-transparent disabled:bg-hueso"
+        >
+          <option value="BCP">BCP</option>
+          <option value="Interbank">Interbank</option>
+          <option value="manual">Por completar</option>
+        </CampoSelect>
+        {modo === "manual" && (
+          <Campo
+            value={actual}
+            onChange={(e) => setForm((f) => ({ ...f, entidad_bancaria: e.target.value }))}
+            placeholder="Nombre del banco"
+            disabled={!editMode}
+            className="disabled:cursor-default disabled:border-transparent disabled:bg-hueso disabled:text-tinta"
+          />
+        )}
+      </div>,
+    );
+  }
   function campoSiNo(label: string, key: "hijos_menores" | "discapacidad") {
     return (
       <CampoSelect
@@ -1740,7 +1776,7 @@ export default function DatosPersonalesPage() {
                   <Seccion titulo="Banco" icono={CreditCard}>
                     <Sensible>
                     <div className="grid gap-3 lg:grid-cols-2">
-                      {campo("Entidad bancaria", "entidad_bancaria")}
+                      {campoBanco()}
                       {campo("N.° de cuenta", "numero_cuenta")}
                     </div>
                     </Sensible>
