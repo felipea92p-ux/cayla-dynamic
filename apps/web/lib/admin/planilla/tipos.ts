@@ -293,6 +293,28 @@ export interface GrupoPago {
   pagado_por_nombre: string | null;
   personas: number;
 }
+// El checklist personal de Felipe para ir pagando persona por persona durante
+// el mes — NUNCA el pago oficial del grupo (GrupoPago, arriba). Sale de
+// fn_pago_personas_estado (0562): el último evento de cada persona en este
+// periodo. `monto` es el que se congeló AL MARCAR, no el de hoy — la pantalla
+// compara los dos para avisar si una corrección lo movió después.
+export interface EstadoPagoPersona {
+  persona_id: string;
+  grupo: TipoVinculo;
+  marcado: boolean;
+  monto: number;
+  marcado_at: string | null;
+  marcado_por_nombre: string | null;
+}
+// Un evento de la bitácora completa de una persona (planilla_pago_persona_eventos,
+// 0562) — para el historial que se ve al abrir «Ver historial» en su check.
+export interface EventoPagoPersona {
+  tipo: "marcado" | "desmarcado";
+  monto: number;
+  motivo: string | null;
+  creado_at: string;
+  creado_por_nombre: string | null;
+}
 export interface Proyeccion {
   periodo_id?: string;
   estado?: "abierto" | "pagado";

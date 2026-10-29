@@ -13,7 +13,7 @@ import {
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
   puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada, recibeAvisoDeLecturaPendiente,
   puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo, puedeGestionarSeguros,
-  puedeExportarListaDeAsegurados, puedeEstamparFirmaDeEmpresa, puedeDecidirPrueba,
+  puedeExportarListaDeAsegurados, puedeEstamparFirmaDeEmpresa, puedeDecidirPrueba, puedeMarcarPagoPersona,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS,
 } from "@cayla-dynamic/shared";
 
@@ -202,6 +202,20 @@ describe("null no pasa como autorizado", () => {
       expect(puedeGestionarBoletas(raro)).toBe(false);
       expect(puedeGestionarArchivo(raro)).toBe(false);
       expect(puedeGestionarSeguros(raro)).toBe(false);
+      expect(puedeMarcarPagoPersona(raro)).toBe(false);
+    });
+  }
+});
+
+describe("el checklist de pago por persona (0562) es solo de la dirección", () => {
+  // A diferencia del resto de Planilla (DO: admin + líder DO), este permiso
+  // deja afuera a líder_do a propósito — decidido con Felipe el 2026-10-29.
+  it("admin puede", () => {
+    expect(puedeMarcarPagoPersona("admin")).toBe(true);
+  });
+  for (const rol of ["lider_do", "supervisor_sede", "integrante"] as const) {
+    it(`${rol} no puede`, () => {
+      expect(puedeMarcarPagoPersona(rol)).toBe(false);
     });
   }
 });
