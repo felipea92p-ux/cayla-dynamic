@@ -104,6 +104,20 @@ export function useTema(cliente?: ClienteCayla): [Tema, (tema: Tema) => void] {
           .maybeSingle();
         const global = data?.valor as TemaGlobal | undefined;
         if (global === "claro" || global === "oscuro") {
+          // Puede haber más de un <SelectorTema> montado a la vez (p. ej. el
+          // cajón móvil y el de escritorio en /mio, cada uno con su propio
+          // useTema()). Si mientras esta consulta estaba en vuelo la persona
+          // ya eligió un tema a mano —en esta misma instancia o en la otra—,
+          // no lo pisamos: sin este reintento, aplicar el global aquí
+          // sobrescribiría `data-tema` con el valor viejo delante de sus ojos.
+          let personal: string | null = null;
+          try {
+            personal = localStorage.getItem(CLAVE);
+          } catch {
+            // sin localStorage no hay preferencia personal que respetar aquí.
+          }
+          if (personal === "claro" || personal === "oscuro") return;
+
           aplicarAtributo(global);
           setTemaState(global);
           try {
