@@ -6,6 +6,18 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-29 — Liquidaciones avisa cuando falta el periodo del cese · sin SQL · rama `claude/liquidacion-sin-periodo`
+
+**Qué pasó.** Emily Rico y Milagritos Zárate cesaron el 29/10 con el periodo 28/09–28/10 todavía abierto: ningún periodo contenía el 29/10.
+`fn_liquidacion` (0164) busca el periodo QUE CONTIENE el cese y, si no hay, no inventa uno: el sueldo del periodo sale en 0. La lista de
+pendientes solo mira el total, así que las dos aparecían en «Sin nada que cobrar» —donde se podía marcar pagada con S/ 0.00— teniendo un día
+trabajado por pagar. Lo que arregla el dato es crear el periodo siguiente en Planilla («+ Nuevo periodo»).
+
+**Qué cambia.** La pantalla lee `fn_periodos` y, a quien no pagó y cesó en un día sin periodo, lo saca de «Sin nada que cobrar» y lo nombra en un
+aviso rojo arriba, con el enlace a Planilla. Si no se pueden leer los periodos, no avisa (nada de falsa alarma). La regla es
+`apps/web/lib/admin/liquidacion-periodo.ts`, con `tests/liquidacion-periodo.test.ts` (6 casos, incluido el real). **No toca SQL ni cálculo de pago.**
+**No verificado:** la pantalla no se miró en el navegador (hace falta sesión de administrador).
+
 ## 2026-10-27 — «Prueba» vuelve como vínculo y se llama «preselección» · migraciones 0558 a 0561 · las cuatro PEGADAS 2026-10-27 · FUSIONADO (PR #608)
 
 **Qué es.** Felipe lo decidió el 2026-10-27, un día después de la reforma de abajo: «volvamos a ponerlo como prueba; de momento

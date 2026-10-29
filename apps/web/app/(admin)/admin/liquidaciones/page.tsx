@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
@@ -10,6 +11,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { generarCsv, descargarCsv } from "@/lib/admin/csv";
 import { formatSoles } from "@/lib/rangos";
+import { haySinPeriodoDelCese, type PeriodoFechas } from "@/lib/admin/liquidacion-periodo";
 import {
   APOYOS_CONSTANCIA, EMPRESA, ETIQUETA_APOYO, ETIQUETA_DECISION, decisionesPara, fechaLima, hoyLima,
   motivoDeConstanciaValido, nombreCorto, nombreOficial, puedeEstamparFirmaDeEmpresa, puedeVerPlanilla,
@@ -197,6 +199,8 @@ export default function LiquidacionesPage() {
 
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [avisos, setAvisos] = useState<AvisoVinculo[]>([]);
+  // null = no se pudieron leer: ahí no se avisa nada, para no dar una falsa alarma.
+  const [periodos, setPeriodos] = useState<PeriodoFechas[] | null>(null);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
@@ -261,19 +265,21 @@ export default function LiquidacionesPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
-    const [lista, av, sedesRes] = await Promise.all([
+    const [lista, av, per, sedesRes] = await Promise.all([
       supabase.rpc("fn_liquidaciones_pendientes"),
       supabase.rpc("fn_avisos_vinculo"),
+      supabase.rpc("fn_periodos"),
       supabase.from("sedes").select("id, codigo, nombre").order("codigo"),
     ]);
     setPendientes((lista.data as Pendiente[]) ?? []);
     setAvisos((av.data as AvisoVinculo[]) ?? []);
+    setPeriodos(!per.error && Array.isArray(per.data) ? (per.data as unknown as PeriodoFechas[]) : null);
     setSedes((sedesRes.data as Sede[]) ?? []);
     // Los dos RPC pueden fallar por separado, y los dos alimentan avisos que
     // importan: si `av` falla en silencio, el aviso de vínculo «prueba» —el
     // que habla de beneficios que se están por devengar— desaparece sin que
     // nada lo diga. Antes solo se miraba `lista.error`.
-    setCargaError(lista.error?.message ?? av.error?.message ?? null);
+    setCargaError(lista.error?.message ?? av.error?.message ?? per.error?.message ?? null);
     setCargando(false);
   }, [router, supabase]);
 
@@ -572,7 +578,14 @@ export default function LiquidacionesPage() {
   const enPlazo = pendientes.filter((p) => !p.pagada && !p.vencido && p.total > 0);
   const vencidas = pendientes.filter((p) => !p.pagada && p.vencido && p.total > 0);
   const pagadas  = pendientes.filter((p) => p.pagada);
-  const sinMonto = pendientes.filter((p) => !p.pagada && p.total === 0);
+  // Quien cesó en un día que ningún periodo contiene sale en S/ 0.00 porque FALTA el
+  // periodo, no porque no se le deba (ver `liquidacion-periodo.ts`): no va a «Sin
+  // nada que cobrar», donde se podía marcar pagada con cero, sino al aviso de arriba.
+  const sinPeriodo = periodos === null
+    ? []
+    : pendientes.filter((p) => !p.pagada && haySinPeriodoDelCese(p.fecha_cese, periodos));
+  const sinPeriodoIds = new Set(sinPeriodo.map((p) => p.persona_id));
+  const sinMonto = pendientes.filter((p) => !p.pagada && p.total === 0 && !sinPeriodoIds.has(p.persona_id));
   const avisoUrgente = avisos.filter((a) => a.ya_devenga);
 
   const coincideBusqueda = (p: Pendiente) =>
@@ -661,6 +674,25 @@ export default function LiquidacionesPage() {
           {cargaError && (
             <BannerAviso role="alert" variante="alerta" enLinea className="mb-4">
               No se pudo leer la lista: {cargaError}
+            </BannerAviso>
+          )}
+
+          {/* ── Cesó en un día que todavía no tiene periodo ─────────────────────
+              Su sueldo del periodo sale en cero porque falta calcularlo. No se
+              marca pagada hasta crear el periodo en Planilla. */}
+          {sinPeriodo.length > 0 && (
+            <BannerAviso
+              role="alert"
+              variante="alerta"
+              enLinea
+              titulo={`${sinPeriodo.map((p) => p.persona).join(" y ")}: falta crear el periodo de planilla de su cese.`}
+              className="mb-4"
+            >
+              {sinPeriodo.length === 1 ? "Cesó" : "Cesaron"} el{" "}
+              {[...new Set(sinPeriodo.map((p) => fechaLarga(p.fecha_cese)))].join(" y el ")}, y ningún periodo
+              contiene {sinPeriodo.length === 1 ? "ese día" : "esos días"}. Su sueldo del periodo sale en S/ 0.00 porque no
+              se pudo calcular, no porque no se le deba. {sinPeriodo.length === 1 ? "No la marques como pagada" : "No las marques como pagadas"} todavía: crea el siguiente periodo en{" "}
+              <Link href="/admin/planilla" className="underline">Planilla</Link> («+ Nuevo periodo») y vuelve a abrir esta pantalla.
             </BannerAviso>
           )}
 
