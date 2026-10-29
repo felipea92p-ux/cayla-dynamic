@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-29 — La baja tras una reactivación ni se bloquea ni pierde su último día · migración 0563 · ESCRITA Y PROBADA EN CLON · SQL SIN PEGAR · rama `claude/baja-prueba-liquidacion-6c5f3e`
+## 2026-10-29 — La baja tras una reactivación ni se bloquea ni pierde su último día · migración 0563 · SQL PEGADO EN PRODUCCIÓN (2026-10-29) · EN PR · rama `claude/baja-prueba-liquidacion-6c5f3e`
 
 **Qué pasó.** Robert Cabrera y Emily Rico (preselección) se dieron de baja, se reactivaron a las 23:01 y se repitió la baja. A Robert
 (ingreso 19/10, última jornada 28/10) le quedó cese el 19/10 y su liquidación pagaba un solo día (S/ 63.72); a los dos la baja se
@@ -24,7 +24,9 @@ con rastro en `correcciones_auditoria`). La 0563 es el arreglo general.
 **Probado.** Clon del Postgres local con todas las migraciones hasta la 0562 (salvo la 0551, ajena): prueba 453, 26/26. Control con las
 funciones viejas: fallan 13 de 26, los dos casos reales. Repegable. **md5 de producción medido el 2026-10-29** (coinciden con 0535/0536):
 `fn_prueba_cerrar` 3 284 · `b8161af7…`, `fn_cese_aplicar` 3 993 · `442ac680…`; la guardia de la migración se niega sobre otra versión.
-**Pendiente de Felipe:** pegar la 0563 (`./scripts/dame-el-sql.sh 563`) ANTES de fusionar. Sin pegarla, el código no cambia nada: es solo SQL.
+**PEGADA en producción el 2026-10-29** (guardia superada; comprobación `true · true · 1`; permisos intactos). md5 de llegada, medido en
+producción y igual al del archivo: `fn_prueba_cerrar` 3 306 · `24f3740b…`, `fn_cese_aplicar` 7 878 · `23251c75…`. Robert y Emily ya se
+habían arreglado a mano esa noche; esto evita que vuelva a pasar. No hay código que fusionar: solo SQL, prueba y este archivo.
 
 ## 2026-10-27 — «Prueba» vuelve como vínculo y se llama «preselección» · migraciones 0558 a 0561 · las cuatro PEGADAS 2026-10-27 · FUSIONADO (PR #608)
 
