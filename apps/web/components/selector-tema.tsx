@@ -18,9 +18,20 @@ const ETIQUETA: Record<Tema, string> = { sistema: "Sistema", claro: "Claro", osc
 // como un botón roto — el ciclo de 3 pasos garantiza que saltar una vez
 // siempre cae en una apariencia distinta, porque "claro" y "oscuro" nunca
 // resuelven igual entre sí.
-function siguienteVisible(actual: Tema): Tema {
+//
+// El salto es SOLO para "sistema" — por eso la condición exige
+// `candidato === "sistema"` además de comparar apariencias. Comparando para
+// cualquier candidato (como estaba antes), un sistema operativo ya en claro
+// vuelve "claro" explícito inalcanzable: al pasar de "sistema" a "claro" las
+// dos se ven iguales, el salto se dispara igual y el clic cae directo en
+// "oscuro". La persona cree haber elegido "vista clara" pero en realidad se
+// quedó en "sistema" —que no se guarda— y el tema vuelve al global (oscuro)
+// en cuanto recarga o cambia de pantalla.
+export function siguienteVisible(actual: Tema): Tema {
   const candidato = SIGUIENTE[actual];
-  if (apariencia(candidato) === apariencia(actual)) return SIGUIENTE[candidato];
+  if (candidato === "sistema" && apariencia(candidato) === apariencia(actual)) {
+    return SIGUIENTE[candidato];
+  }
   return candidato;
 }
 
