@@ -315,11 +315,20 @@ values (562, 'cada_persona_se_marca_pagada_sin_tocar_el_cierre_del_grupo')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 -- ── 8 · Comprobación de que la pegada llegó entera ──────────────────────────
+-- Sin el filtro de esquema, esto da un falso «no existe»: ya hay un
+-- retail.fn_es_admin() —de otro módulo, sin relación con este— y
+-- `count(*) from pg_proc where proname = 'fn_es_admin'` los cuenta juntos.
+-- Medido en producción el 2026-10-29: public.fn_es_admin() sí se creó bien;
+-- lo que falló fue esta comprobación, no la migración.
 select
-  (select count(*) from pg_proc where proname = 'fn_es_admin') = 1 as fn_es_admin_existe,
-  (select count(*) from pg_proc where proname = 'fn_pago_persona_marcar') = 1 as fn_marcar_existe,
-  (select count(*) from pg_proc where proname = 'fn_pago_persona_desmarcar') = 1 as fn_desmarcar_existe,
-  (select count(*) from pg_proc where proname = 'fn_pago_personas_estado') = 1 as fn_estado_existe,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'fn_es_admin') = 1 as fn_es_admin_existe,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'fn_pago_persona_marcar') = 1 as fn_marcar_existe,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'fn_pago_persona_desmarcar') = 1 as fn_desmarcar_existe,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'fn_pago_personas_estado') = 1 as fn_estado_existe,
   (select count(*) from pg_trigger where tgname = 'trg_pago_persona_eventos_solo_por_rpc'
      and tgrelid = 'planilla_pago_persona_eventos'::regclass) = 1 as el_trigger_existe,
   (select count(*) from information_schema.columns
