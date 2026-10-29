@@ -13,7 +13,10 @@
 // «bloquea» son los dos frenos que ya existen en `fn_planilla_congelar`
 // (0243/0244 y 0284/0326), con su misma condición: la pantalla los adelanta
 // para que el error se lea como una instrucción y no como una falla, pero quien
-// frena de verdad sigue siendo la base. Todo lo demás es «revisar» o «informa».
+// frena de verdad sigue siendo la base. Todo lo demás es «revisar» o
+// «informa» — salvo que la persona ya cesó dentro del periodo: ahí «revisar»
+// se apaga, porque no queda a quién corregirle un dato (ver «frenos y avisos»
+// en planilla-revision.test.ts, 2026-10-28).
 //
 // Por qué existe (auditoría 2026-09-15, hallazgo C2): hasta hoy la pantalla
 // contaba, sumaba y habilitaba el botón de pago sobre las filas FILTRADAS,
@@ -338,6 +341,14 @@ export function hallazgosDePersona(
   }
   if (ctx.cese && ctx.cese.tipo !== "despues") {
     h.push({ codigo: "ceso_en_periodo", severidad: "informa", texto: textoCese(ctx.cese)! });
+  }
+  // Quien ya se fue no tiene nada que "resolver": un régimen de pensión sin
+  // cargar, un salario sin asignar o un feriado sin tramo dejan de ser una
+  // tarea pendiente en cuanto la persona cesó — no hay a quién corregirle el
+  // dato. Lo que sí sigue (bloquea, y el propio aviso de cese) se queda:
+  // cerrar bien la cuenta de quien se fue importa igual que la de quien sigue.
+  if (ctx.cese && ctx.cese.tipo !== "despues") {
+    return h.filter((x) => x.severidad !== "revisar");
   }
   return h;
 }
