@@ -4954,6 +4954,81 @@ export type Database = {
           },
         ]
       }
+      planilla_pago_persona_eventos: {
+        Row: {
+          creado_at: string
+          creado_por: string
+          grupo: string
+          id: string
+          monto: number
+          motivo: string | null
+          periodo_id: string
+          persona_id: string
+          secuencia: number
+          tipo: string
+        }
+        Insert: {
+          creado_at?: string
+          creado_por: string
+          grupo: string
+          id?: string
+          monto: number
+          motivo?: string | null
+          periodo_id: string
+          persona_id: string
+          secuencia?: number
+          tipo: string
+        }
+        Update: {
+          creado_at?: string
+          creado_por?: string
+          grupo?: string
+          id?: string
+          monto?: number
+          motivo?: string | null
+          periodo_id?: string
+          persona_id?: string
+          secuencia?: number
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planilla_pago_persona_eventos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pago_persona_eventos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pago_persona_eventos_periodo_id_fkey"
+            columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pago_persona_eventos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pago_persona_eventos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       politica_salarial: {
         Row: {
           documento: string
@@ -8692,6 +8767,7 @@ export type Database = {
         Args: { p_mensaje: string | null }
         Returns: string
       }
+      fn_es_admin: { Args: never; Returns: boolean }
       fn_es_admin_o_lider: { Args: never; Returns: boolean }
       fn_es_dia_laborable: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
@@ -9490,6 +9566,25 @@ export type Database = {
           p_persona_id: string | null
         }
         Returns: string
+      }
+      fn_pago_persona_desmarcar: {
+        Args: { p_motivo: string | null; p_periodo_id: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_pago_persona_marcar: {
+        Args: { p_periodo_id: string | null; p_persona_id: string | null }
+        Returns: { creado_at: string; monto: number }[]
+      }
+      fn_pago_personas_estado: {
+        Args: { p_periodo_id: string | null }
+        Returns: {
+          grupo: string
+          marcado: boolean
+          marcado_at: string | null
+          marcado_por_nombre: string | null
+          monto: number
+          persona_id: string
+        }[]
       }
       fn_papeles_cese: { Args: { p_persona_id: string | null }; Returns: Json }
       fn_parametro_cambiar: {
