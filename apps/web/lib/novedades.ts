@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-28-planilla-deja-de-pedir-revision-a-quien-ya-ceso",
+    fecha: "2026-10-28",
+    titulo: "En Planilla, quien ya cesó deja de salir «por revisar» por datos que ya no importan",
+    queMejoro:
+      "En cualquiera de las cuatro pestañas de Planilla —incluida Preselección—, una persona que ya cesó dentro del periodo " +
+      "dejó de acumular avisos de «por revisar» por cosas como régimen de pensión sin cargar o salario sin asignar: si ya no " +
+      "está, no hay a quién corregirle ese dato. Sigue viéndose de cuándo cesó, y lo que de verdad frena el pago —un día sin " +
+      "confirmar, una liquidación sin descontar— no cambia.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-27-la-preseleccion-vuelve-como-vinculo-en-equipo",
     fecha: "2026-10-27",
     titulo: "«Preselección» vuelve como vínculo en Equipo: es lo que antes se llamaba «Prueba»",
