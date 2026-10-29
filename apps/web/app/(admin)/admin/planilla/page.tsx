@@ -28,7 +28,7 @@ import { cx } from "@/components/ui/cx";
 import { Check, ChevronDown, ChevronUp, MoreHorizontal, ReceiptText, Search } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  TIPOS_VINCULO, TIPO_VINCULO_LABEL, hoyLima, puedeVerPlanilla, type TipoVinculo,
+  TIPOS_VINCULO, TIPO_VINCULO_LABEL, hoyLima, puedeMarcarPagoPersona, puedeVerPlanilla, type TipoVinculo,
 } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
@@ -439,7 +439,7 @@ export default function PlanillaPage() {
     [pagosPersona],
   );
   // Solo admin, y solo mientras «tab» sigue abierto: una vez congelado el grupo, es de solo lectura.
-  const puedeMarcarPago = rol === "admin" && !grupoPagado;
+  const puedeMarcarPago = puedeMarcarPagoPersona(rol) && !grupoPagado;
   const resumenPago = useMemo(() => {
     let marcadas = 0, monto = 0;
     for (const f of filasGrupo) {
@@ -1150,7 +1150,7 @@ export default function PlanillaPage() {
               )}
 
               {/* ── El checklist personal de pago (0562): cuánto llevas marcado ── */}
-              {rol === "admin" && filasGrupo.length > 0 && (
+              {puedeMarcarPagoPersona(rol) && filasGrupo.length > 0 && (
                 <Cifra
                   tamano="sm"
                   etiqueta="Marcadas como pagadas"
