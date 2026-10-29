@@ -6,6 +6,26 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-29 — La baja tras una reactivación ni se bloquea ni pierde su último día · migración 0563 · ESCRITA Y PROBADA EN CLON · SQL SIN PEGAR · rama `claude/baja-prueba-liquidacion-6c5f3e`
+
+**Qué pasó.** Robert Cabrera y Emily Rico (preselección) se dieron de baja, se reactivaron a las 23:01 y se repitió la baja. A Robert
+(ingreso 19/10, última jornada 28/10) le quedó cese el 19/10 y su liquidación pagaba un solo día (S/ 63.72); a los dos la baja se
+negaba por el horario que dejó la reactivación. Se arreglaron a mano en producción esa noche (tramos retirados, cese de Robert a 28/10,
+con rastro en `correcciones_auditoria`). La 0563 es el arreglo general.
+
+**Dos causas, dos funciones.**
+- `fn_prueba_cerrar` (0536) buscaba el último día trabajado desde el inicio de la prueba ABIERTA; al reactivar, el trigger abre otra con
+  inicio HOY y las jornadas anteriores dejaban de verse, así que caía al día de ingreso. Ahora busca desde el ingreso.
+- `fn_cese_aplicar` (0535) se negaba a cesar con un tramo de salario u horario posterior al último día, que es justo el que deja
+  `fn_reactivar_persona` (0327, que no se toca: devolver el sueldo desde mañana es a propósito, 0209). Ahora retira SOLO los tramos
+  que esa reactivación creó (los reconoce su constancia en `correcciones_auditoria`), si nadie marcó desde ese día y no caen en un periodo
+  pagado; los deja escritos, y lleva el tramo que continuaban al nuevo último día. Un salario futuro cargado a propósito sigue frenando.
+
+**Probado.** Clon del Postgres local con todas las migraciones hasta la 0562 (salvo la 0551, ajena): prueba 453, 26/26. Control con las
+funciones viejas: fallan 13 de 26, los dos casos reales. Repegable. **md5 de producción medido el 2026-10-29** (coinciden con 0535/0536):
+`fn_prueba_cerrar` 3 284 · `b8161af7…`, `fn_cese_aplicar` 3 993 · `442ac680…`; la guardia de la migración se niega sobre otra versión.
+**Pendiente de Felipe:** pegar la 0563 (`./scripts/dame-el-sql.sh 563`) ANTES de fusionar. Sin pegarla, el código no cambia nada: es solo SQL.
+
 ## 2026-10-27 — «Prueba» vuelve como vínculo y se llama «preselección» · migraciones 0558 a 0561 · las cuatro PEGADAS 2026-10-27 · FUSIONADO (PR #608)
 
 **Qué es.** Felipe lo decidió el 2026-10-27, un día después de la reforma de abajo: «volvamos a ponerlo como prueba; de momento
