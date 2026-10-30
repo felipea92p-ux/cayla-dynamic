@@ -9216,6 +9216,16 @@ export type Database = {
         Args: { p_fecha_pago?: string | null; p_nota?: string | null; p_persona_id: string | null }
         Returns: Json
       }
+      fn_liquidacion_periodos_anteriores: {
+        Args: { p_fecha_cese?: string | null; p_persona_id: string | null }
+        Returns: {
+          estado: string
+          fecha_fin: string
+          fecha_ini: string
+          periodo_id: string
+          total: number
+        }[]
+      }
       fn_liquidaciones_del_periodo: {
         Args: { p_periodo_id: string | null }
         Returns: Json

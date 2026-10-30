@@ -6,6 +6,27 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-29 — Liquidaciones lista lo que se debe de periodos anteriores · migración 0565 · ESCRITA Y PROBADA EN CLON · SQL SIN PEGAR · rama `claude/liquidacion-periodos-sin-pagar`
+
+**Qué es.** Emily Rico y Milagritos Zarate cesaron el 29/10, que ya es el periodo NUEVO: su liquidación calculaba un día y el sueldo de
+28/09–28/10 —planilla todavía abierta, que sí las incluye— no aparecía en ningún lado de la pantalla. Nada se dejaba de pagar, pero
+quien mira Liquidaciones veía S/ 145 y podía creer que era todo. Felipe pidió ver «todo lo que no se pagó, desglosado por periodo».
+
+**Qué hace.** `fn_liquidacion_periodos_anteriores(persona, fecha_cese)` (0565, **solo lectura**, función nueva: no hay md5 de partida)
+lista los periodos COMPLETOS anteriores al del cese en los que trabajó y su grupo aún no cobró (`fn_fecha_en_periodo_pagado`), con el
+monto que calcula `fn_planilla_calcular`. La pantalla los pinta debajo del desglose, con el total entre planilla y liquidación.
+**NO se suman al total de la liquidación**: ese dinero sale por la planilla, y la planilla no sabe descontar lo que una liquidación pagó
+de un periodo anterior al del cese (la 0243/0244 solo lo hace con el del cese). Felipe eligió esto (opción A) el 2026-10-29 sobre
+«que la liquidación pague todo», que habría exigido reescribir `fn_planilla_calcular_nucleo`.
+
+**Medido en producción (solo lectura).** Entre las cesadas con liquidación sin pagar, el criterio lista exactamente dos filas —Emily
+y Milagritos, 28/09–28/10, abierto— y ninguna otra. **Probado.** Clon del Postgres local con todo hasta la 0565 (salvo la 0551, ajena):
+prueba 455, 16/16; con la condición de «pagado» quitada falla la 9, y con el periodo del cese incluido falla la 1. Vitest 2 942 de 2 942
+y typecheck en verde. **No verificado:** la pantalla no se miró en el navegador (sin pila local ni sesión de administrador).
+Si la 0565 no está pegada, el desglose avisa «no se pudo comprobar» en vez de callar.
+
+**Pendiente de Felipe:** pegar la 0565 (`./scripts/dame-el-sql.sh 565`) ANTES de fusionar, y mirar la pantalla con Emily y Milagritos.
+
 ## 2026-10-29 — La baja tras una reactivación ni se bloquea ni pierde su último día · migración 0563 · SQL PEGADO EN PRODUCCIÓN (2026-10-29) · EN PR · rama `claude/baja-prueba-liquidacion-6c5f3e`
 
 **Qué pasó.** Robert Cabrera y Emily Rico (preselección) se dieron de baja, se reactivaron a las 23:01 y se repitió la baja. A Robert

@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-29-liquidaciones-dice-lo-que-se-debe-de-periodos-anteriores",
+    fecha: "2026-10-29",
+    titulo: "En Liquidaciones, se ve también lo que se le debe de periodos anteriores, desglosado",
+    queMejoro:
+      "Si alguien cesa justo al empezar un periodo nuevo, su liquidación solo cuenta ese periodo, y el sueldo del anterior —que sigue " +
+      "sin pagarse— no aparecía. Ahora, al abrir su liquidación, un recuadro lista cada periodo anterior que se le debe y al final dice " +
+      "cuánto es en total. Ese dinero no se suma a la liquidación: sigue saliendo por la planilla de cada periodo.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-28-planilla-deja-de-pedir-revision-a-quien-ya-ceso",
     fecha: "2026-10-28",
     titulo: "En Planilla, quien ya cesó deja de salir «por revisar» por datos que ya no importan",

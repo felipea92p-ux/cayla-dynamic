@@ -13,6 +13,9 @@ import { generarCsv, descargarCsv } from "@/lib/admin/csv";
 import { formatSoles } from "@/lib/rangos";
 import { haySinPeriodoDelCese, type PeriodoFechas } from "@/lib/admin/liquidacion-periodo";
 import {
+  dondeSePaga, normalizarPeriodosAnteriores, resumenPeriodosAnteriores, type PeriodoAnterior,
+} from "@/lib/admin/liquidacion-periodos";
+import {
   APOYOS_CONSTANCIA, EMPRESA, ETIQUETA_APOYO, ETIQUETA_DECISION, decisionesPara, fechaLima, hoyLima,
   motivoDeConstanciaValido, nombreCorto, nombreOficial, puedeEstamparFirmaDeEmpresa, puedeVerPlanilla,
   queDibujarDeLaConstancia, usaNombreDelDni,
@@ -135,6 +138,10 @@ type Detalle = Record<string, unknown> & {
   vacaciones_truncas?: Record<string, unknown>;
   gratificacion_trunca?: Record<string, unknown>;
   cts_trunca?: Record<string, unknown>;
+  // Lo agrega `cargarDetalle` desde `fn_liquidacion_periodos_anteriores` (0565),
+  // no viene de `fn_liquidacion`: es informativo y NO está dentro de `total`.
+  // `null` = no se pudo leer (se dice, no se calla); `[]` = no hay nada anterior.
+  periodos_anteriores?: PeriodoAnterior[] | null;
 };
 
 // Lo que devuelve fn_papeles_cese (0400): identidad y tiempo de servicio para
@@ -345,15 +352,23 @@ export default function LiquidacionesPage() {
   }, [supabase]);
 
   async function cargarDetalle(personaId: string) {
-    const [liq, dif, papeles, con] = await Promise.all([
+    const [liq, dif, papeles, con, ant] = await Promise.all([
       supabase.rpc("fn_liquidacion", { p_persona_id: personaId }),
       supabase.rpc("fn_liquidacion_diferencias", { p_persona_id: personaId }),
       supabase.rpc("fn_papeles_cese", { p_persona_id: personaId }),
       // De una liquidación sin pagar devuelve cero filas, y barato.
       supabase.rpc("fn_liquidacion_constancia_estado", { p_persona_id: personaId }),
+      // Lo que se le debe de periodos ANTERIORES al del cese (0565). Informativo.
+      supabase.rpc("fn_liquidacion_periodos_anteriores", { p_persona_id: personaId }),
     ]);
     if (liq.error) { avisar("error", mensajeDeError(liq.error)); return; }
-    setDetalle(liq.data as Detalle);
+    // Si esto falla —por ejemplo, la 0565 todavía sin pegar— la liquidación se
+    // ve igual que siempre, pero se dice que no se comprobó: «no sé» no es «no
+    // hay nada anterior», y quien paga solo esta liquidación lo creería.
+    setDetalle({
+      ...(liq.data as Detalle),
+      periodos_anteriores: ant.error ? null : normalizarPeriodosAnteriores(ant.data),
+    });
     setDiferencias((dif.data as Diferencia[]) ?? []);
     // Antes solo se miraba `liq.error`: si `fn_liquidacion_diferencias`
     // fallaba, `diferencias` quedaba en `[]` y el bloque rojo de abajo
@@ -1292,6 +1307,51 @@ function Desglose({
           </tr>
         </tbody>
       </table>
+
+      {/* Lo que se le debe de periodos ANTERIORES al del cese (0565). Va aparte
+          del Total de arriba a propósito: ese dinero sale por la planilla de
+          cada periodo, y sumarlo a la liquidación lo pagaría dos veces. */}
+      {d.periodos_anteriores === null && (
+        <BannerAviso variante="advertencia" enLinea className="mt-3">
+          No se pudo comprobar si debe algo de periodos anteriores. No des esta liquidación por todo lo que se le debe.
+        </BannerAviso>
+      )}
+      {d.periodos_anteriores && d.periodos_anteriores.length > 0 && (() => {
+        const { totalGeneral } = resumenPeriodosAnteriores(d.periodos_anteriores, n(d.total));
+        return (
+          <BannerAviso variante="informativo" titulo="También se le debe de periodos anteriores" className="mt-3 p-3">
+            <p className="mb-2">
+              Esto no está en el total de arriba: se paga por la planilla de cada periodo, no por esta liquidación.
+            </p>
+            <table className="w-full text-sm">
+              <tbody>
+                {d.periodos_anteriores.map((pa) => (
+                  <tr key={pa.periodo_id} className="align-top">
+                    <td className="py-1 pr-3">
+                      Periodo del {fechaLarga(pa.fecha_ini)} al {fechaLarga(pa.fecha_fin)}
+                      <span className="block text-xs text-taupe">{dondeSePaga(pa.estado)}</span>
+                    </td>
+                    <td className="py-1 text-right tabular-nums">{formatSoles(pa.total)}</td>
+                  </tr>
+                ))}
+                {/* Una liquidación ya pagada no se «debe»: ahí solo queda la lista. */}
+                {!pagada && (
+                  <>
+                    <tr className="border-t border-sand">
+                      <td className="py-1 pr-3">Esta liquidación (periodo del cese y beneficios)</td>
+                      <td className="py-1 text-right tabular-nums">{formatSoles(n(d.total))}</td>
+                    </tr>
+                    <tr className="font-medium">
+                      <td className="py-1 pr-3">Se le debe en total, entre planilla y liquidación</td>
+                      <td className="py-1 text-right tabular-nums">{formatSoles(totalGeneral)}</td>
+                    </tr>
+                  </>
+                )}
+              </tbody>
+            </table>
+          </BannerAviso>
+        );
+      })()}
 
       {diferenciasError ? (
         // Antes, si `fn_liquidacion_diferencias` fallaba, este bloque entero
