@@ -416,7 +416,8 @@ with repo(numero, nombre, nunca) as (values
     (560, 'el_aviso_de_un_mes_dice_preseleccion', false),
     (561, 'la_preseleccion_no_tiene_seguro_y_vuelve_quien_quedo_como_rxh', false),
     (562, 'cada_persona_se_marca_pagada_sin_tocar_el_cierre_del_grupo', false),
-    (563, 'la_baja_tras_una_reactivacion_ni_se_bloquea_ni_pierde_su_ultimo_dia', false)
+    (563, 'la_baja_tras_una_reactivacion_ni_se_bloquea_ni_pierde_su_ultimo_dia', false),
+    (564, 'la_liquidacion_lista_lo_que_se_debe_de_periodos_anteriores', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
