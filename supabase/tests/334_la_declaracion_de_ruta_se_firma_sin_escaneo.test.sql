@@ -18,6 +18,10 @@
 -- declarando —eso no cambió—, así que el texto se sigue comprobando contra
 -- el distrito que la persona escribe.
 --
+-- Y por la 0489: el costo del pasaje vuelve a ser obligatorio (el taxi,
+-- opcional), así que cada llamada lleva un quinto argumento. Lo nuevo se
+-- prueba a fondo en la 387; acá solo se mantiene lo de siempre en verde.
+--
 -- Tres cosas se defienden acá, y las tres importan más que "la función
 -- inserta una fila":
 --
@@ -67,14 +71,14 @@ set session_replication_role = origin;
 -- ── 1 · La misma puerta que ya exigía fn_documento_registrar ───────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000334013', true);
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,2.50) $$,
   null, null,
   'RECHAZADO · fuera de planilla no tiene declaración que firmar, igual que en fn_documento_registrar');
 
 -- ── 2 · Sin firma guardada, tampoco hay firma que confirmar ────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000334011', true);
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,2.50) $$,
   null, null,
   'RECHAZADO · todavía no configuró su firma en firmas_escaneadas');
 
@@ -83,7 +87,7 @@ values ('00000000-0000-0000-0000-000000334001', 'data:image/png;base64,iVBORw0KG
 
 -- ── 3 · Firma su declaración, con todo en regla ─────────────────────────────
 select lives_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,2.50) $$,
   'OK · en planilla, activa, con firma guardada: la declaración se registra');
 
 select is(
@@ -130,7 +134,7 @@ select ok(
 -- Con OTRO distrito a propósito: el candado no mira qué escribiste, mira si
 -- el monto sigue siendo el vigente.
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('San Juan de Lurigancho','Lima',1,1) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('San Juan de Lurigancho','Lima',1,1,2.50) $$,
   null, null,
   'CANDADO · con una declaración vigente y al día, no se puede volver a firmar sola (0425)');
 

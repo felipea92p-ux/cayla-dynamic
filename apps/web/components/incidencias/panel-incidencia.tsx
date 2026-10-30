@@ -13,6 +13,8 @@ import { rangoDelDiaLima } from "@cayla-dynamic/shared";
 import { Drawer } from "@/components/ui/drawer";
 import { Insignia } from "@/components/ui/insignia";
 import { Boton } from "@/components/ui/boton";
+import { Rotulo } from "@/components/ui/rotulo";
+import { Cargando } from "@/components/cargando";
 import { CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { esperadoDelDia, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
@@ -73,7 +75,7 @@ export function EstadoInsignia({ incidencia }: { incidencia: Incidencia }) {
 function Bloque({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="etiqueta text-taupe">{titulo}</h3>
+      <Rotulo como="h3">{titulo}</Rotulo>
       {children}
     </section>
   );
@@ -372,7 +374,7 @@ export function PanelIncidencia({
         {esFaltaJustificada && (
           <Bloque titulo="Justificación">
             {!rastro ? (
-              <p className="text-taupe">Cargando…</p>
+              <Cargando compacto />
             ) : rastro.ausencia ? (
               <div className="flex flex-col gap-3">
                 <p className="text-tinta">
@@ -448,7 +450,7 @@ export function PanelIncidencia({
         {i.personaId && (deUnDia || i.aceptable) && (
           <Bloque titulo="Rastro">
             {!rastro ? (
-              <p className="text-taupe">Cargando…</p>
+              <Cargando compacto />
             ) : rastro.error ? (
               // No se dice «sin correcciones» si no se pudo comprobar.
               <p className="text-rojo-profundo">No se pudo cargar el rastro de este día: {rastro.error}</p>

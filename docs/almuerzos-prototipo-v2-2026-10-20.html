@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Almuerzos — prototipo v2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap">
+<!--
+  Prototipo v2 (2026-10-20): cómo llevar lo de los almuerzos a TRES sitios de la app, a pedido de Felipe. NO es código de la app ni toca ninguna base.
+    1 · Dashboard › pestaña «Jornada» (junto a Hoy y Tendencias): dos formas de armarla. Lleva A (línea), B (tabla), C (la franja «Almorzando ahora») y E (por sede), pero NO todo a la vez.
+    2 · Desempeño › detalle de una persona: la tabla de días con las columnas de almuerzo (como la B).
+    3 · Desempeño › «Horas por día»: las barras siguen en vertical; dos formas de mostrar cuándo salió a almorzar.
+  Datos: marcas REALES de la demo (1–19 oct). «Hoy» simulado a las 14:10 para mostrar quién almuerza ahora. CCO/DO es un EJEMPLO (la demo no los tiene).
+  Regla de sedes: la comparación es por sede. CCO y DO son independientes: no cuentan en las tiendas y se ven aparte, separados por área.
+  El tiempo permitido sale del horario (`refrigerio_min`); en la demo está en 0, así que aquí se usa 60 min.
+-->
+<style>
+  :root{--color-crema:#f5f0e8;--color-papel:#fbf8f2;--color-tinta:#1a1a18;--color-rojo:#b8412d;--color-rojo-profundo:#8b2a1f;--color-sand:#e8e0d0;--color-taupe:#805c4c;--color-hueso:#eae1d2;--color-pizarra:#4c5d6e;--color-verde:#48603f;--color-ambar:#74501a;--color-ceniza:#635f58;--font-sans:'DM Sans',system-ui,sans-serif;--font-serif:'EB Garamond',Georgia,serif;color-scheme:light}
+  *{box-sizing:border-box} body{margin:0;background:var(--color-crema);color:var(--color-tinta);font:14.5px/1.5 var(--font-sans)}
+  h1,h2,h3{font-family:var(--font-serif);font-weight:500;margin:0} button,select{font:inherit;color:inherit;cursor:pointer} p{margin:0}
+  .proto{position:sticky;top:0;z-index:50;background:var(--color-papel);border-bottom:1px solid var(--color-sand);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+  .vbtn{border:1px solid var(--color-sand);background:var(--color-crema);border-radius:10px;padding:6px 11px;font-weight:600;font-size:.82rem;display:inline-flex;gap:7px;align-items:center}
+  .vbtn b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--color-hueso);color:var(--color-taupe);font-size:.76rem}
+  .vbtn[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)} .vbtn[aria-pressed="true"] b{background:var(--color-crema);color:var(--color-tinta)}
+  .sub{display:flex;gap:6px;margin-left:12px;padding-left:12px;border-left:1px solid var(--color-sand)}
+  .lema{max-width:1180px;margin:10px auto 0;padding:0 16px;color:var(--color-taupe);font-size:.86rem} .lema strong{color:var(--color-tinta)}
+  .page{max-width:1180px;margin:0 auto;padding:14px 16px 80px}
+  .cab .sob{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-taupe);display:flex;gap:12px;align-items:center;margin-bottom:6px}.cab .sob::before{content:"";width:36px;height:1px;background:var(--color-taupe)}
+  .cab h1{font-size:1.75rem;line-height:1.15}.cab p{color:var(--color-taupe);font-size:.9rem;margin-top:3px}
+  .muted{color:var(--color-taupe);font-size:.8rem} .card{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;overflow:hidden}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-sand);margin:14px 0}.tab{border:0;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 12px;color:var(--color-taupe)}.tab[aria-current]{border-color:var(--color-tinta);color:var(--color-tinta);font-weight:600}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+  .fil{border:1px solid var(--color-sand);background:var(--color-papel);border-radius:8px;padding:4px 11px;font-size:.78rem;font-weight:600}.fil[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .ico{width:32px;height:32px;display:inline-grid;place-items:center;border:1px solid var(--color-sand);background:var(--color-papel);border-radius:8px;padding:0}.ico[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:999px;background:color-mix(in oklab,var(--c) 14%,var(--color-papel));color:var(--c)}.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+  .c-ok{--c:var(--color-verde)}.c-al{--c:var(--color-rojo-profundo)}.c-am{--c:var(--color-ambar)}.c-pi{--c:var(--color-pizarra)}.c-ne{--c:var(--color-ceniza)}
+  .para{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}.para .rot{text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--color-taupe);font-size:.72rem}
+  .pa{border-radius:999px;border:1px solid;padding:5px 12px;font-size:.78rem;font-weight:600;background:var(--color-papel)}.pa.am{border-color:color-mix(in oklab,var(--color-ambar) 40%,transparent);background:color-mix(in oklab,var(--color-ambar) 14%,var(--color-papel));color:var(--color-ambar)}.pa.al{border-color:color-mix(in oklab,var(--color-rojo) 30%,transparent);background:color-mix(in oklab,var(--color-rojo) 10%,var(--color-papel));color:var(--color-rojo-profundo)}
+  .grp{border:1px solid var(--color-sand);border-radius:16px;background:color-mix(in oklab,var(--color-crema) 40%,var(--color-papel));margin-bottom:10px;overflow:hidden}
+  .grp>header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;cursor:pointer}.grp>header h3{font-size:1.1rem}.grp .cuerpo{border-top:1px solid var(--color-sand);background:var(--color-papel)}
+  .eje{display:grid;grid-template-columns:170px 1fr;font-size:.7rem;color:var(--color-taupe);margin:8px 14px 2px}.horas{position:relative;height:16px}.horas span{position:absolute;transform:translateX(-50%)}
+  .fila{display:grid;grid-template-columns:170px 1fr;align-items:center;border-top:1px solid var(--color-sand);padding:7px 14px}.fila .n{font-size:.84rem;font-weight:500;line-height:1.2}.fila .n small{display:block;color:var(--color-taupe);font-weight:400;font-size:.72rem}
+  .pista{position:relative;height:26px;background:repeating-linear-gradient(90deg,transparent 0 calc(100%/11 - 1px),var(--color-sand) calc(100%/11 - 1px) calc(100%/11))}
+  .seg{position:absolute;top:3px;height:20px;border-radius:5px}.trab{background:color-mix(in oklab,var(--color-tinta) 78%,var(--color-papel))}
+  .alm{background:repeating-linear-gradient(135deg,color-mix(in oklab,var(--color-ambar) 55%,var(--color-papel)) 0 5px,color-mix(in oklab,var(--color-ambar) 28%,var(--color-papel)) 5px 10px);border:1px solid var(--color-ambar);display:grid;place-items:center;font-size:.68rem;font-weight:700;color:var(--color-ambar);overflow:hidden;white-space:nowrap}.alm.largo{border-color:var(--color-rojo-profundo);color:var(--color-rojo-profundo)}
+  .vivo{position:absolute;top:0;bottom:0;width:2px;background:var(--color-rojo)}
+  table{width:100%;border-collapse:collapse;font-size:.86rem}th{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--color-taupe);text-align:left;padding:9px 12px;background:var(--color-hueso)}td{padding:8px 12px;border-top:1px solid var(--color-sand)}td.n{font-weight:500}td small{color:var(--color-taupe);display:block}
+  .mini{height:6px;border-radius:4px;background:var(--color-sand);position:relative;width:90px;display:inline-block;vertical-align:middle;margin-left:8px}.mini i{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+  .tj{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:14px;padding:12px 14px}.tj h3{font-size:1.05rem}.grande{font-family:var(--font-serif);font-size:1.6rem;line-height:1.1;margin:6px 0 2px}
+  .sedes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:12px}.tj.sel{border-color:var(--color-taupe);background:var(--color-hueso)}
+  .leyenda{display:flex;gap:14px;flex-wrap:wrap;font-size:.75rem;color:var(--color-taupe);padding:8px 14px 12px}.leyenda i{display:inline-block;width:14px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+  .nota{background:var(--color-hueso);border-radius:10px;padding:8px 12px;font-size:.8rem;color:var(--color-taupe);margin:8px 0}
+  .dr{display:grid;grid-template-columns:1fr;gap:10px}
+  .graf{padding:14px 16px 8px}.cols{display:flex;gap:8px;align-items:flex-end;height:240px;position:relative;margin-left:44px;border-bottom:1px solid var(--color-sand)}
+  .y{position:absolute;left:-44px;font-size:.7rem;color:var(--color-taupe);transform:translateY(50%)}.grid{position:absolute;left:0;right:0;border-top:1px solid var(--color-sand)}
+  .col{flex:1;position:relative;height:100%;min-width:22px}.col .lbl{position:absolute;bottom:-28px;left:50%;transform:translateX(-50%) rotate(-40deg);font-size:.68rem;color:var(--color-taupe);white-space:nowrap}
+  .vb{position:absolute;left:12%;right:12%;border-radius:5px 5px 0 0}.v-ver{background:var(--color-verde)}.v-roj{background:var(--color-rojo)}
+  .vb.alm{border-radius:0;left:12%;right:12%}.vb.trab{background:color-mix(in oklab,var(--color-tinta) 78%,var(--color-papel))}
+  .meta{position:absolute;left:0;right:0;border-top:2px dashed var(--color-rojo);font-size:.68rem;color:var(--color-rojo)}
+  .s1,.s2,.s3{display:none}.m1 .s1,.m2 .s2,.m3 .s3{display:block}
+</style>
+</head>
+<body class="m1">
+<div class="proto">
+  <strong style="font-family:var(--font-serif);font-size:1rem">Almuerzos · v2</strong>
+  <button class="vbtn" data-m="1" aria-pressed="true"><b>1</b>Dashboard › Jornada</button>
+  <button class="vbtn" data-m="2" aria-pressed="false"><b>2</b>Desempeño › días</button>
+  <button class="vbtn" data-m="3" aria-pressed="false"><b>3</b>Desempeño › horas por día</button>
+  <span class="sub" id="sub"></span>
+</div>
+<p class="lema" id="lema"></p>
+<div class="page">
+ <div class="s1">
+  <header class="cab"><div class="sob">Asistencia · Martes, 20 de octubre</div><h1>Dashboard</h1></header>
+  <div class="tabs"><button class="tab">Hoy</button><button class="tab" aria-current="page">Jornada</button><button class="tab">Tendencias</button></div>
+  <div id="d1"></div>
+ </div>
+ <div class="s2">
+  <header class="cab"><div class="sob">Asistencia · Martes, 20 de octubre</div><h1>Gaby Integrante AQP</h1><p>Detalle de sus días · octubre · el almuerzo ahora se ve en la misma fila.</p></header>
+  <div class="card" style="margin-top:14px" id="d2"></div>
+ </div>
+ <div class="s3">
+  <header class="cab"><div class="sob">Asistencia · Martes, 20 de octubre</div><h1>Gaby Integrante AQP</h1></header>
+  <div class="card graf" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px"><h2 style="font-size:1.5rem">Horas por día <span class="muted" style="font-family:var(--font-sans);font-size:.9rem">· su jornada son 8 h 05</span></h2></div><div id="d3" style="margin-top:14px"></div></div>
+ </div>
+</div>
+<script>
+const SEMANA=[{"fecha": "2026-10-12", "nombre": "Franco Supervisor AQP", "sede": "AQP", "e": "08:54", "sa": "13:02", "ra": "14:05", "sf": "18:03"}, {"fecha": "2026-10-12", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:53", "sa": "13:09", "ra": "14:01", "sf": "18:05"}, {"fecha": "2026-10-12", "nombre": "Diego Supervisor LIM", "sede": "LIM", "e": "08:54", "sa": "13:06", "ra": "14:01", "sf": "18:01"}, {"fecha": "2026-10-12", "nombre": "Elena Integrante LIM", "sede": "LIM", "e": "08:54", "sa": "13:06", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-12", "nombre": "Ana Supervisora TRU", "sede": "TRU", "e": "08:53", "sa": "13:01", "ra": "14:02", "sf": "18:04"}, {"fecha": "2026-10-12", "nombre": "Bruno Integrante TRU", "sede": "TRU", "e": "08:58", "sa": "13:06", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-12", "nombre": "Carla Integrante TRU", "sede": "TRU", "e": "08:53", "sa": "13:01", "ra": "14:03", "sf": "18:03"}, {"fecha": "2026-10-13", "nombre": "Franco Supervisor AQP", "sede": "AQP", "e": "08:58", "sa": "13:04", "ra": "14:01", "sf": "18:03"}, {"fecha": "2026-10-13", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:58", "sa": "13:06", "ra": "14:01", "sf": "18:05"}, {"fecha": "2026-10-13", "nombre": "Diego Supervisor LIM", "sede": "LIM", "e": "08:56", "sa": "13:02", "ra": "14:04", "sf": "18:02"}, {"fecha": "2026-10-13", "nombre": "Elena Integrante LIM", "sede": "LIM", "e": "08:52", "sa": "13:00", "ra": "14:02", "sf": "18:00"}, {"fecha": "2026-10-13", "nombre": "Ana Supervisora TRU", "sede": "TRU", "e": "08:52", "sa": "13:00", "ra": "14:05", "sf": "18:05"}, {"fecha": "2026-10-13", "nombre": "Carla Integrante TRU", "sede": "TRU", "e": "08:52", "sa": "13:06", "ra": "14:05", "sf": "18:01"}, {"fecha": "2026-10-14", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:56", "sa": "13:08", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-14", "nombre": "Diego Supervisor LIM", "sede": "LIM", "e": "08:57", "sa": "13:05", "ra": "14:06", "sf": "18:02"}, {"fecha": "2026-10-14", "nombre": "Elena Integrante LIM", "sede": "LIM", "e": "08:57", "sa": "13:01", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-14", "nombre": "Ana Supervisora TRU", "sede": "TRU", "e": "08:56", "sa": "13:06", "ra": "14:00", "sf": "18:02"}, {"fecha": "2026-10-14", "nombre": "Bruno Integrante TRU", "sede": "TRU", "e": "09:40", "sa": "13:00", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-14", "nombre": "Carla Integrante TRU", "sede": "TRU", "e": "08:53", "sa": "13:07", "ra": "14:03", "sf": "18:03"}, {"fecha": "2026-10-15", "nombre": "Diego Supervisor LIM", "sede": "LIM", "e": "08:53", "sa": "13:05", "ra": "14:04", "sf": "18:02"}, {"fecha": "2026-10-15", "nombre": "Elena Integrante LIM", "sede": "LIM", "e": "08:54", "sa": "13:06", "ra": "14:02", "sf": "18:02"}, {"fecha": "2026-10-15", "nombre": "Ana Supervisora TRU", "sede": "TRU", "e": "08:52", "sa": "13:08", "ra": "14:07", "sf": "18:05"}, {"fecha": "2026-10-15", "nombre": "Bruno Integrante TRU", "sede": "TRU", "e": "08:58", "sa": "13:02", "ra": "14:07", "sf": "18:03"}, {"fecha": "2026-10-15", "nombre": "Carla Integrante TRU", "sede": "TRU", "e": "08:57", "sa": "13:02", "ra": "14:03", "sf": "23:59"}, {"fecha": "2026-10-16", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:52", "sa": "13:02", "ra": "14:01", "sf": "18:03"}, {"fecha": "2026-10-16", "nombre": "Diego Supervisor LIM", "sede": "LIM", "e": "08:56", "sa": "13:04", "ra": "14:04", "sf": "18:00"}, {"fecha": "2026-10-16", "nombre": "Elena Integrante LIM", "sede": "LIM", "e": "08:55", "sa": "13:00", "ra": "14:00", "sf": "18:00"}, {"fecha": "2026-10-16", "nombre": "Ana Supervisora TRU", "sede": "TRU", "e": "08:57", "sa": "13:07", "ra": "14:00", "sf": "18:04"}, {"fecha": "2026-10-16", "nombre": "Bruno Integrante TRU", "sede": "TRU", "e": "08:56", "sa": "13:00", "ra": "14:04", "sf": "18:02"}, {"fecha": "2026-10-16", "nombre": "Carla Integrante TRU", "sede": "TRU", "e": "08:55", "sa": "13:05", "ra": "14:03", "sf": "18:01"}], GABY=[{"fecha": "2026-10-02", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:56", "sa": "13:02", "ra": "14:01", "sf": "18:03"}, {"fecha": "2026-10-03", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:58", "sa": "13:09", "ra": "14:02", "sf": "17:30"}, {"fecha": "2026-10-04", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:58", "sa": "13:04", "ra": "14:01", "sf": "17:30"}, {"fecha": "2026-10-05", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:59", "sa": "13:05", "ra": "14:06", "sf": "18:02"}, {"fecha": "2026-10-06", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:59", "sa": "13:03", "ra": "14:07", "sf": "18:01"}, {"fecha": "2026-10-07", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:57", "sa": "13:03", "ra": "14:06", "sf": "18:00"}, {"fecha": "2026-10-08", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:53", "sa": "13:09", "ra": "14:04", "sf": "18:02"}, {"fecha": "2026-10-09", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:57", "sa": "13:03", "ra": "14:01", "sf": "18:01"}, {"fecha": "2026-10-10", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:58", "sa": "13:06", "ra": "14:02", "sf": "17:30"}, {"fecha": "2026-10-12", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:53", "sa": "13:09", "ra": "14:01", "sf": "18:05"}, {"fecha": "2026-10-13", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:58", "sa": "13:06", "ra": "14:01", "sf": "18:05"}, {"fecha": "2026-10-14", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:56", "sa": "13:08", "ra": "14:03", "sf": "18:05"}, {"fecha": "2026-10-16", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "08:52", "sa": "13:02", "ra": "14:01", "sf": "18:03"}, {"fecha": "2026-10-19", "nombre": "Gaby Integrante AQP", "sede": "AQP", "e": "09:01", "sa": null, "ra": null, "sf": "14:15"}], PERM=60, AHORA="14:10";
+const min=h=>h?(+h.slice(0,2))*60+(+h.slice(3,5)):null, dur=m=>m>=60?Math.floor(m/60)+" h"+(m%60?" "+String(m%60).padStart(2,"0"):""):m+" min";
+const HOY=[
+ {nombre:"Gaby Integrante AQP",sede:"AQP",e:"08:58",sa:"13:00",ra:"13:58",sf:null},
+ {nombre:"Franco Supervisor AQP",sede:"AQP",e:"08:50",sa:null,ra:null,sf:null},
+ {nombre:"Diego Supervisor LIM",sede:"LIM",e:"08:52",sa:"13:25",ra:null,sf:null},
+ {nombre:"Elena Integrante LIM",sede:"LIM",e:"08:55",sa:"12:50",ra:null,sf:null},
+ {nombre:"Ana Supervisora TRU",sede:"TRU",e:"08:49",sa:null,ra:null,sf:null},
+ {nombre:"Bruno Integrante TRU",sede:"TRU",e:"08:00",sa:"12:00",ra:"13:25",sf:null},
+ {nombre:"Carla Integrante TRU",sede:"TRU",e:"08:00",sa:null,ra:null,sf:"13:00"},
+ {nombre:"Carlos Espejo",sede:"CCO",area:"Administración",e:"08:30",sa:"13:30",ra:"14:30",sf:null},
+ {nombre:"Catherine Pereyra",sede:"CCO",area:"Desarrollo org.",e:"08:40",sa:"13:00",ra:"13:50",sf:null}
+];
+const ORD=["AQP","LIM","TRU"]; const OFI=r=>r.sede==="CCO";
+const estado=r=>{ if(r.sf) return {k:"fin",t:"Terminó",c:"c-ne"}; if(r.sa&&!r.ra){const m=min(AHORA)-min(r.sa); return {k:"alm",t:"Almorzando · "+dur(m),c:m>PERM?"c-al":"c-am",m}} return {k:"trab",t:"Trabajando",c:"c-ok"}};
+const almMin=r=>r.sa&&r.ra?min(r.ra)-min(r.sa):(r.sa?min(AHORA)-min(r.sa):null);
+let m=1,v1="a",lay=1,sedeSel="",v3="a";
+/* ---------- 1 · Dashboard ---------- */
+const X0=480,X1=1140,pct=x=>(x-X0)/(X1-X0)*100;
+function lineaDe(rs){ const hs=[8,9,10,11,12,13,14,15,16,17,18,19]; let h=`<div class="eje"><span></span><div class="horas">${hs.map(x=>`<span style="left:${pct(x*60)}%">${x}</span>`).join("")}</div></div>`;
+ for(const r of rs){ const e=min(r.e),sa=min(r.sa),ra=min(r.ra),sf=min(r.sf),ah=min(AHORA),fin=sf??ah; let s="";
+  if(sa){ s+=`<div class="seg trab" style="left:${pct(e)}%;width:${pct(sa)-pct(e)}%"></div>`; const fa=ra??ah,lg=(fa-sa)>PERM; s+=`<div class="seg alm ${lg?"largo":""}" style="left:${pct(sa)}%;width:${pct(fa)-pct(sa)}%">${dur(fa-sa)}${!ra?" …":""}</div>`; if(ra) s+=`<div class="seg trab" style="left:${pct(ra)}%;width:${pct(fin)-pct(ra)}%"></div>`; }
+  else s+=`<div class="seg trab" style="left:${pct(e)}%;width:${pct(fin)-pct(e)}%"></div>`;
+  h+=`<div class="fila"><div class="n">${r.nombre}<small>${r.area?r.area+" · ":""}${r.e}${r.sf?" – "+r.sf:""}</small></div><div class="pista">${s}${!sf?`<div class="vivo" style="left:${pct(ah)}%"></div>`:""}</div></div>`; }
+ return h; }
+function tablaDe(rs){ let h=`<table><thead><tr><th>Persona</th><th>Entró</th><th>Salió a almorzar</th><th>Volvió</th><th>Almuerzo</th><th>Salida</th><th>Estado</th></tr></thead><tbody>`;
+ for(const r of rs){ const mm=almMin(r),es=estado(r),pas=mm!=null&&mm>PERM;
+  h+=`<tr><td class="n">${r.nombre}<small>${r.area||r.sede}</small></td><td>${r.e}</td><td>${r.sa||"—"}</td><td>${r.ra||(r.sa?"<span class='chip c-am'>aún no</span>":"—")}</td><td>${mm==null?"—":`<b style="color:${pas?"var(--color-rojo-profundo)":"inherit"}">${dur(mm)}</b>${pas?` <span class="muted">+${mm-PERM}</span>`:""}<span class="mini"><i style="width:${Math.min(100,mm/PERM*66)}%;background:${pas?"var(--color-rojo)":"var(--color-verde)"}"></i></span>`}</td><td>${r.sf||"—"}</td><td><span class="chip ${es.c}">${es.t}</span></td></tr>`; }
+ return h+`</tbody></table>`; }
+const cuerpo=rs=>v1==="a"?lineaDe(rs):tablaDe(rs);
+function resumen(rs){ const ms=rs.map(almMin).filter(x=>x!=null); const pas=ms.filter(x=>x>PERM).length, prom=ms.length?Math.round(ms.reduce((a,b)=>a+b,0)/ms.length):0; return {prom,pas,n:ms.length,alm:rs.filter(r=>estado(r).k==="alm").length}; }
+function dash(){
+ const tienda=HOY.filter(r=>!OFI(r)), ofi=HOY.filter(OFI);
+ const all=tienda.map(r=>({r,e:estado(r)})), alm=all.filter(x=>x.e.k==="alm"), pasados=alm.filter(x=>x.e.m>PERM).length, tarde=tienda.filter(r=>r.sa&&r.ra&&min(r.ra)-min(r.sa)>PERM).length;
+ let h=`<div class="para"><span class="rot">Para atender</span>${alm.length?`<span class="pa am">${alm.length} almorzando ahora</span>`:""}${pasados?`<span class="pa al">${pasados} se pasó de ${PERM} min</span>`:""}${tarde?`<span class="pa al">${tarde} volvió tarde</span>`:""}</div>`;
+ h+=`<div class="bar"><select class="fil" style="padding:5px 9px"><option>Hoy · martes 20 (simulado 14:10)</option></select>
+   <span class="ico" style="border:0;width:auto;gap:6px;display:inline-flex"><button class="ico" title="Línea del día" aria-pressed="${v1==="a"}" data-v1="a">▭</button><button class="ico" title="Tabla" aria-pressed="${v1==="b"}" data-v1="b">☰</button></span>
+   <button class="fil" aria-pressed="${sedeSel===""}" data-s="">Todas</button>${ORD.map(s=>`<button class="fil" aria-pressed="${sedeSel===s}" data-s="${s}">${s}</button>`).join("")}<button class="fil" aria-pressed="${sedeSel==="OFI"}" data-s="OFI">Oficinas</button></div>`;
+ if(lay===2){ h+=`<div class="sedes">`+ORD.map(s=>{const rs=tienda.filter(r=>r.sede===s),x=resumen(rs);return `<div class="tj ${sedeSel===s?"sel":""}" data-s="${s}" style="cursor:pointer"><div style="display:flex;justify-content:space-between"><h3>${s}</h3><span class="muted">${rs.length} personas</span></div><div class="grande">${x.prom} min <span class="muted" style="font-family:var(--font-sans)">promedio</span></div><span class="muted">${x.alm} almorzando · ${x.pas} por encima de ${PERM}</span></div>`}).join("")+`</div>`; }
+ const grupos=ORD.filter(s=>!sedeSel||sedeSel===s).map(s=>({t:s,rs:tienda.filter(r=>r.sede===s)}));
+ const leyenda=`<div class="leyenda"><span><i style="background:color-mix(in oklab,var(--color-tinta) 78%,var(--color-papel))"></i>Trabajando</span><span><i style="background:repeating-linear-gradient(135deg,#d9b46e 0 4px,#ecd9ae 4px 8px);border:1px solid var(--color-ambar)"></i>Almuerzo (rojo si pasa de ${PERM} min)</span><span><i style="background:var(--color-rojo);width:3px"></i>Ahora</span></div>`;
+ if(lay===1){ h+=grupos.map(g=>{const x=resumen(g.rs);return `<section class="grp"><header><h3>${g.t} <span class="muted" style="font-family:var(--font-sans)">· ${g.rs.length} personas</span></h3><span>${x.alm?`<span class="chip c-am">${x.alm} almorzando</span> `:""}${x.pas?`<span class="chip c-al">${x.pas} se pasó</span> `:""}<span class="muted">promedio ${x.prom} min</span></span></header><div class="cuerpo">${cuerpo(g.rs)}</div></section>`}).join(""); }
+ else { const rs=grupos.flatMap(g=>g.rs); h+=`<section class="grp"><div class="cuerpo">${cuerpo(rs)}</div></section>`; }
+ if(!sedeSel||sedeSel==="OFI"){ const areas=[...new Set(ofi.map(r=>r.area))]; h+=`<section class="grp" style="opacity:.95"><header><h3>Oficinas <span class="muted" style="font-family:var(--font-sans)">· CCO · aparte, no cuentan en las tiendas</span></h3><span class="muted">por área</span></header><div class="cuerpo">${areas.map(a=>`<div style="padding:8px 14px 0" class="muted"><b style="color:var(--color-tinta)">${a}</b></div>${cuerpo(ofi.filter(r=>r.area===a))}`).join("")}</div></section>`; }
+ h+=leyenda;
+ document.getElementById("d1").innerHTML=h;
+ document.querySelectorAll("[data-v1]").forEach(b=>b.onclick=()=>{v1=b.dataset.v1;dash()});
+ document.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{sedeSel=b.dataset.s===sedeSel&&lay===2?"":b.dataset.s;dash()});
+}
+/* ---------- 2 · Desempeño › días ---------- */
+function dias(){
+ const nd=f=>{const d=new Date(f+"T12:00:00");return ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"][d.getDay()]+", "+(+f.slice(8))+" de octubre"};
+ let h=`<table><thead><tr><th>Fecha</th><th>Entrada</th><th>Salió a almorzar</th><th>Volvió</th><th>Almuerzo</th><th>Salida</th><th>Horas</th><th>Tardanza</th></tr></thead><tbody>`;
+ for(const r of GABY){ const mm=r.sa&&r.ra?min(r.ra)-min(r.sa):null, tr=r.sf?(min(r.sf)-min(r.e)-(mm||0)):null, tard=min(r.e)>min("09:00")?min(r.e)-min("09:00"):0;
+  h+=`<tr><td class="n">${nd(r.fecha)}</td><td>${r.e}</td><td>${r.sa||"—"}</td><td>${r.ra||"—"}</td><td>${mm==null?`<span class="muted">sin marcas</span>`:`<b>${mm} min</b><span class="mini"><i style="width:${Math.min(100,mm/PERM*66)}%;background:${mm>PERM?"var(--color-rojo)":"var(--color-verde)"}"></i></span>`}</td><td>${r.sf||"—"}</td><td>${tr==null?"—":Math.floor(tr/60)+"h "+String(tr%60).padStart(2,"0")+"m"}</td><td>${tard?`<span class="chip c-am">${tard} min</span>`:"—"}</td></tr>`; }
+ document.getElementById("d2").innerHTML=h+`</tbody></table><p class="nota" style="margin:12px">El día 19 sale «sin marcas»: no marcó almuerzo y el sistema cerró su día a las 14:15. Las columnas de almuerzo reemplazan lo que hoy solo se ve en Correcciones.</p>`;
+}
+/* ---------- 3 · Desempeño › horas por día ---------- */
+function horas(){
+ const dd=GABY.filter(r=>r.fecha!=="2026-10-19").concat([{fecha:"2026-10-19",e:"09:01",sa:null,ra:null,sf:"14:15"}]);
+ const T0=480,T1=1110; // 08:00 a 18:30 para la forma «horario»
+ let h=""; const H=240;
+ if(v3==="a"){ // horario: eje = hora del reloj
+  const ys=[8,10,12,14,16,18];
+  h=`<div class="cols">`+ys.map(y=>`<span class="y" style="bottom:${(1-(y*60-T0)/(T1-T0))*100*0+ (1-(y*60-T0)/(T1-T0))*100}%;display:none"></span>`).join("")
+   +ys.map(y=>{const top=(y*60-T0)/(T1-T0)*100;return `<div class="grid" style="top:${top}%"></div><span class="y" style="top:${top}%;transform:translateY(-50%)">${y}:00</span>`}).join("")
+   +dd.map(r=>{const e=min(r.e),sa=min(r.sa),ra=min(r.ra),sf=min(r.sf),p=x=>(x-T0)/(T1-T0)*100,lg=sa&&ra&&(ra-sa)>PERM;
+     const seg=(a,b,c)=>`<div class="vb ${c}" style="top:${p(a)}%;height:${p(b)-p(a)}%" title="${r.fecha}"></div>`;
+     const cuerpo=sa&&ra?seg(e,sa,"trab")+`<div class="vb alm ${lg?"largo":""}" style="top:${p(sa)}%;height:${p(ra)-p(sa)}%;display:grid;place-items:center;font-size:.6rem;font-weight:700">${ra-sa}</div>`+seg(ra,sf,"trab"):seg(e,sf,"trab");
+     return `<div class="col">${cuerpo}<span class="lbl">${+r.fecha.slice(8)}/10</span></div>`}).join("")+`</div>`;
+  h+=`<p class="nota" style="margin-top:40px"><b>Forma 1 · Horario:</b> cada barra va de la hora de entrada a la de salida sobre un eje de reloj (arriba 8:00, abajo 18:30); el almuerzo es el tramo rayado con sus minutos. Se pierde la comparación directa contra la meta de horas, pero se ve CUÁNDO fue el almuerzo y cuándo empezó y terminó el día.</p>`;
+ } else { // horas con marca de almuerzo
+  const y=(hrs)=>hrs/10*100;
+  h=`<div class="cols">`+[0,2,4,6,8,10].map(v=>`<div class="grid" style="bottom:${y(v)}%;border-top:1px solid var(--color-sand)"></div><span class="y" style="bottom:${y(v)}%">${v}h</span>`).join("")
+   +`<div class="meta" style="bottom:${y(8.08)}%"><span style="position:absolute;right:0;top:-14px">meta 8.08h</span></div>`
+   +dd.map(r=>{const e=min(r.e),sa=min(r.sa),ra=min(r.ra),sf=min(r.sf);const total=((sf-e)-(sa&&ra?ra-sa:0))/60, mañ=sa?(sa-e)/60:total, lg=sa&&ra&&(ra-sa)>PERM;
+     const col=total<7.5?"v-roj":"v-ver";
+     const tarde=total-mañ; const partes=sa&&ra?`<div class="vb v-ver" style="bottom:0;height:${y(mañ)}%"></div><div class="vb alm ${lg?"largo":""}" style="bottom:${y(mañ)}%;height:7px;border-width:1px 0" title="Almuerzo ${r.sa}–${r.ra}"></div><div class="vb v-ver" style="bottom:calc(${y(mañ)}% + 7px);height:calc(${y(tarde)}% - 7px);border-radius:5px 5px 0 0;background:color-mix(in oklab,var(--color-verde) 78%,#fff)"></div>`:`<div class="vb ${col}" style="bottom:0;height:${y(total)}%"></div>`;
+     return `<div class="col">${partes}<span class="lbl">${+r.fecha.slice(8)}/10</span></div>`}).join("")+`</div>`;
+  h+=`<p class="nota" style="margin-top:40px"><b>Forma 2 · Horas con almuerzo:</b> la barra sigue midiendo HORAS TRABAJADAS (igual que hoy, contra la meta), pero una raya ámbar la parte en dos: debajo lo trabajado por la mañana, arriba lo de la tarde; a qué altura cae la raya dice cuánto trabajó antes de salir a almorzar. Al pasar el cursor, la hora de salida y de vuelta. El 19/10 va en rojo y sin raya: no marcó almuerzo.</p>`;
+ }
+ document.getElementById("d3").innerHTML=h;
+}
+const LEMAS={
+ 1:()=>lay===1?"<strong>Dashboard › Jornada · Diseño 1 (recomendado)</strong>: arriba la franja «Para atender» (de C), luego un grupo plegable por sede con su resumen (de E: promedio y quién se pasó) y adentro la línea del día (A) o la tabla (B), que se cambia con los íconos. CCO y DO van aparte, por área.":"<strong>Dashboard › Jornada · Diseño 2</strong>: tarjetas por sede arriba (E, también filtran) y debajo UNA sola línea o tabla de la sede elegida. Más compacto, menos grupos que abrir.",
+ 2:()=>"<strong>Desempeño › días</strong>: la tabla de días de una persona gana tres columnas (salió, volvió, cuánto duró) con una barrita contra el tiempo permitido.",
+ 3:()=>v3==="a"?"<strong>Horas por día · Forma 1 (horario)</strong>":"<strong>Horas por día · Forma 2 (horas con almuerzo)</strong>"};
+function sub(){ const el=document.getElementById("sub"); el.innerHTML=
+  m===1?`<button class="vbtn" aria-pressed="${lay===1}" data-lay="1">Diseño 1</button><button class="vbtn" aria-pressed="${lay===2}" data-lay="2">Diseño 2</button>`:
+  m===3?`<button class="vbtn" aria-pressed="${v3==="a"}" data-v3="a">Horario</button><button class="vbtn" aria-pressed="${v3==="b"}" data-v3="b">Horas con almuerzo</button>`:"";
+  el.querySelectorAll("[data-lay]").forEach(b=>b.onclick=()=>{lay=+b.dataset.lay;todo()}); el.querySelectorAll("[data-v3]").forEach(b=>b.onclick=()=>{v3=b.dataset.v3;todo()}); }
+function todo(){ document.body.className="m"+m; sub(); dash(); dias(); horas(); document.getElementById("lema").innerHTML=LEMAS[m](); }
+document.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{m=+b.dataset.m;document.querySelectorAll("[data-m]").forEach(x=>x.setAttribute("aria-pressed",x===b));todo()});
+todo();
+</script>
+</body></html>

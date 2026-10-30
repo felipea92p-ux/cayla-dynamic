@@ -29,6 +29,9 @@ export const CAMPOS_DE_MARCAJE: readonly string[] = [
   "timestamp_marca", "tipo", "marcaje_agregado", "marcaje_anulado",
   "marcaje_reactivado", "marcaje_eliminado", "auto_cierre_confirmado",
   "auto_cierre_reemplazado", "marca_apartada", "dia_reabierto_desde_terminal",
+  // Perdonar una tardanza (0541) cambia qué cuenta como tardanza del día: se corrige
+  // desde esta pantalla y tiene que verse en el mismo historial que una hora corregida.
+  "tardanza_levantada", "tardanza_levantamiento_quitado",
 ];
 
 /** Cómo se dice cada tema, para el aviso «+N cambios de …». */
@@ -46,6 +49,8 @@ export const TEMA_AUDITORIA_LABELS: Record<TemaAuditoria, string> = {
 const PREFIJOS: readonly (readonly [string, TemaAuditoria])[] = [
   ["personas.", "persona"],
   ["datos_personales.", "persona"],
+  // El resultado de una prueba de tres días (0536): una decisión sobre la persona.
+  ["pruebas.", "persona"],
   ["asignaciones_regimen_pension.", "persona"],
   ["turnos.", "horario"],
   ["horarios_asignados", "horario"],
@@ -66,6 +71,9 @@ const EXACTOS: Record<string, TemaAuditoria> = {
   cargo: "persona",
   rango: "persona",
   descuentos_vivos_tras_anular: "liquidacion",
+  // Quién investiga el hostigamiento sexual en una sede (0488): un encargo
+  // que se le da a una persona, con acta.
+  organos_titulo_x: "persona",
 };
 
 export function temaDeCampo(campo: string): TemaAuditoria {
@@ -89,13 +97,18 @@ const ROTULOS: Record<string, string> = {
   auto_cierre_reemplazado: "Salida final repuesta",
   marca_apartada: "Marca apartada",
   dia_reabierto_desde_terminal: "Día reabierto desde el terminal",
+  tardanza_levantada: "Tardanza levantada",
+  tardanza_levantamiento_quitado: "Perdón de la tardanza quitado",
   "turnos.horario": "Turno cambiado",
   horarios_asignados: "Horario cambiado",
+  organos_titulo_x: "Nombramiento para investigar el Título X",
+  "pruebas.resultado": "Preselección de tres días cerrada",
 };
 
 /** El nombre en español de un campo; si no lo conoce, el crudo sin guiones bajos. */
 export function rotuloDeCampo(campo: string): string {
-  return ROTULOS[campo] ?? campo.replaceAll("_", " ").replaceAll(".", " · ");
+  const crudo = campo.replaceAll("_", " ").replaceAll(".", " · ");
+  return ROTULOS[campo] ?? crudo.charAt(0).toUpperCase() + crudo.slice(1);
 }
 
 /**

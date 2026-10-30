@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentación — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap">
+<!--
+  Prototipo (2026-10-19): cuatro formas de ordenar «Documentación». NO es código de la app. Datos ficticios, los mismos
+  casos que hay en la base local de prueba (10 personas, una negativa, una firma digital, un cargo de cumpleaños pendiente).
+
+  Lo que hay hoy en la pantalla (inventario):
+    · cuatro cifras que son filtros de la tabla («5 pendientes · 4 firmados · 1 negativa · 1 pendiente especial»);
+    · un aviso grande y rojo por la política de movilidad (un solo documento para toda la empresa);
+    · una tarjeta «Pendientes especiales» que repite lo que dice, más abajo, la tabla de cargos de cumpleaños;
+    · la tabla de Declaraciones de ruta (la sección central, 10 filas) con buscador, sede y estado;
+    · la tabla de Cargos de cumpleaños (otra familia de documentos) al pie;
+    · un panel de subida que se abre EN MEDIO de la página y empuja todo lo demás;
+    · «Generar documento» (papeles en blanco para imprimir).
+
+  Lo que NO cambia en ninguna variante:
+    · qué se guarda: ruta, cargo y política son tres documentos distintos; la política no es de nadie (es de CAYLA);
+    · una negativa a firmar deja constancia pero NO habilita el pago de movilidad;
+    · anular no borra: pide motivo y queda en el historial;
+    · una política firmada DESPUÉS del primer pago queda por escrito como tardía;
+    · el color nunca va solo: cada estado lleva palabra o símbolo.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18; --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f;
+    --color-sand:#e8e0d0; --color-taupe:#805c4c; --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-ceniza:#635f58;
+    --font-sans:'DM Sans',ui-sans-serif,system-ui,sans-serif; --font-serif:'EB Garamond',ui-serif,Georgia,serif; color-scheme:light;
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db; --color-rojo:#d4634a; --color-rojo-profundo:#e8836b;
+    --color-sand:#332e27; --color-taupe:#ab9080; --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-ceniza:#aaa59b; color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--color-crema);color:var(--color-tinta);font:14.5px/1.5 var(--font-sans)}
+  h1,h2,h3{font-family:var(--font-serif);font-weight:500;margin:0}
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  p{margin:0}
+  .proto{position:sticky;top:0;z-index:60;background:var(--color-papel);border-bottom:1px solid var(--color-sand);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+  .vbtn{border:1px solid var(--color-sand);background:var(--color-crema);border-radius:10px;padding:6px 11px;font-weight:600;font-size:.82rem;display:inline-flex;gap:7px;align-items:center}
+  .vbtn b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--color-hueso);color:var(--color-taupe);font-size:.76rem}
+  .vbtn[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .vbtn[aria-pressed="true"] b{background:var(--color-crema);color:var(--color-tinta)}
+  .vbtn small{font-weight:500;opacity:.8}
+  .ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto;font-size:.78rem;color:var(--color-taupe)}
+  .seg{display:inline-flex;border:1px solid var(--color-sand);border-radius:8px;overflow:hidden;background:var(--color-papel)}
+  .seg button{border:0;background:none;padding:5px 11px;font-size:.8rem;font-weight:600;color:var(--color-taupe)}
+  .seg button[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema)}
+  .lema{max-width:1240px;margin:10px auto 0;padding:0 16px;color:var(--color-taupe);font-size:.86rem}
+  .lema strong{color:var(--color-tinta)}
+  .marco{margin:12px auto 0;border:1px dashed var(--color-sand);border-radius:12px;padding:20px 24px 40px;background:var(--color-crema);position:relative;min-height:560px}
+  .cab .sob{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-taupe);display:flex;gap:12px;align-items:center;margin-bottom:6px}
+  .cab .sob::before{content:"";width:36px;height:1px;background:var(--color-taupe)}
+  .cab{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .cab h1{font-size:1.75rem;line-height:1.15}
+  .cab p{color:var(--color-taupe);font-size:.9rem;margin-top:3px}
+  .i{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:99px;border:1px solid var(--color-taupe);color:var(--color-taupe);font-size:.78rem;vertical-align:middle;margin-left:6px;background:none}
+  .btn{border:1px solid var(--color-tinta);background:var(--color-tinta);color:var(--color-crema);border-radius:8px;padding:6px 13px;font-weight:600;font-size:.82rem}
+  .btn.sec{background:transparent;color:var(--color-tinta);border-color:var(--color-taupe)}
+  .btn.sutil{background:transparent;border-color:transparent;color:var(--color-taupe)}
+  .btn.peligro{background:transparent;color:var(--color-rojo-profundo);border-color:color-mix(in oklab,var(--color-rojo) 50%,var(--color-sand))}
+  .btn.fino{padding:2px 10px;font-size:.76rem}
+  .campo{background:var(--color-hueso);border:1px solid transparent;border-radius:8px;padding:6px 10px;min-width:120px}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:999px;background:color-mix(in oklab,var(--c) 14%,var(--color-papel));color:var(--c);white-space:nowrap}
+  .c-ok{--c:var(--color-verde)} .c-al{--c:var(--color-rojo-profundo)} .c-am{--c:var(--color-ambar)} .c-pi{--c:var(--color-pizarra)} .c-ce{--c:var(--color-ceniza)}
+  .para{display:flex;gap:8px;align-items:center;margin:14px 0;flex-wrap:wrap}
+  .para .rot{text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--color-taupe);font-size:.72rem}
+  .pa{display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid;padding:5px 12px;font-size:.78rem;font-weight:600;background:var(--color-papel)}
+  .pa.rojo{border-color:color-mix(in oklab,var(--color-rojo) 30%,transparent);background:color-mix(in oklab,var(--color-rojo) 10%,var(--color-papel));color:var(--color-rojo-profundo)}
+  .pa.ambar{border-color:color-mix(in oklab,var(--color-ambar) 40%,transparent);background:color-mix(in oklab,var(--color-ambar) 15%,var(--color-papel));color:var(--color-ambar)}
+  .pa.pizarra{border-color:color-mix(in oklab,var(--color-pizarra) 40%,transparent);background:color-mix(in oklab,var(--color-pizarra) 10%,var(--color-papel));color:var(--color-pizarra)}
+  .pa.neutro{border-color:var(--color-sand);color:var(--color-tinta)}
+  .pa[aria-pressed="true"]{box-shadow:0 0 0 2px var(--color-tinta)}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-sand);margin-bottom:12px}
+  .tabs button{border:0;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 12px;color:var(--color-taupe);display:inline-flex;gap:6px;align-items:center}
+  .tabs button[aria-pressed="true"]{border-color:var(--color-tinta);color:var(--color-tinta);font-weight:600}
+  .tabs .n{background:var(--color-rojo);color:var(--color-crema);border-radius:99px;padding:0 6px;font-size:.7rem;line-height:1.1rem}
+  .card{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;overflow:hidden}
+  .card .in{padding:14px 16px}
+  .muted{color:var(--color-taupe);font-size:.8rem}
+  table.t{border-collapse:collapse;width:100%;font-size:.84rem}
+  table.t th,table.t td{padding:8px 12px;border-bottom:1px solid var(--color-sand);text-align:left;vertical-align:middle}
+  table.t th{font-size:.72rem;color:var(--color-taupe);font-weight:600;background:var(--color-hueso)}
+  .barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+  .grupo h3{font-family:var(--font-serif);font-size:1.1rem;margin:16px 0 6px;display:flex;gap:8px;align-items:baseline}
+  .grupo h3 small{font:400 .78rem var(--font-sans);color:var(--color-taupe)}
+  .fila{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--color-sand)}
+  .fila:last-child{border-bottom:0}
+  .fila .n{font-weight:500}
+  .fila .s{font-size:.76rem;color:var(--color-taupe)}
+  .punto{width:26px;height:26px;border-radius:8px;display:inline-grid;place-items:center;font-size:.8rem;font-weight:700;background:color-mix(in oklab,var(--c) 16%,var(--color-papel));color:var(--c);border:1px solid color-mix(in oklab,var(--c) 40%,transparent)}
+  .pol{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;padding:10px 14px;border-radius:12px;border:1px solid color-mix(in oklab,var(--c) 35%,transparent);background:color-mix(in oklab,var(--c) 7%,var(--color-papel))}
+  .drawer{position:absolute;top:0;right:0;bottom:0;width:min(400px,100%);background:var(--color-papel);border-left:1px solid var(--color-sand);box-shadow:-12px 0 30px rgba(0,0,0,.12);padding:18px;z-index:30;overflow:auto;border-radius:0 12px 12px 0}
+  .drawer h3{font-size:1.2rem;margin-bottom:4px}
+  .drawer label{display:block;margin-top:10px;font-size:.8rem;color:var(--color-taupe)}
+  .nota{max-width:1240px;margin:18px auto 0;padding:0 16px}
+  .nota details{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+  .nota summary{cursor:pointer;font-weight:600}
+  .nota ul{margin:8px 0 0;padding-left:18px;color:var(--color-taupe)}
+  .hoy{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+  .cifra{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:12px;padding:10px 14px}
+  .cifra b{font:500 1.5rem var(--font-serif);display:block}
+  @media (max-width:760px){ .hoy{grid-template-columns:repeat(2,1fr)} .marco{padding:14px} }
+</style>
+</head>
+<body>
+<div class="proto">
+  <strong style="font-family:var(--font-serif);font-size:1.05rem">Documentación · 4 formas</strong>
+  <div id="vars" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <div class="ctl">
+    <span class="seg" role="group" aria-label="Política"><button data-p="falta">Política: falta</button><button data-p="tarde">firmada tarde</button><button data-p="ok">firmada</button></span>
+    <span class="seg" role="group" aria-label="Ancho"><button data-w="1180">Escritorio</button><button data-w="420">Celular</button></span>
+    <button class="vbtn" id="tema">Modo oscuro</button>
+  </div>
+</div>
+<p class="lema" id="lema"></p>
+<div class="marco" id="marco"></div>
+<div class="nota" id="nota"></div>
+
+<script>
+const S={v:'A',p:'falta',w:1180,tema:false,tab:'rutas',filtro:'',sede:'',abierto:null,aten:''};
+const G=[ // personas y su declaración de ruta
+ ['Pulido Visual','LIM','pend'],['Ana Supervisora TRU','TRU','pend'],['Felipe Founder','TRU','pend'],['ZZ Demo Planilla','TRU','pend'],['ZZ Demo Practicante','TRU','pend'],
+ ['Franco Supervisor AQP','AQP','firm','3 ago 2026','Documento cargado','desf'],['Gaby Integrante AQP','AQP','firm','2 set 2026','Firma digital','desf'],
+ ['Elena Integrante LIM','LIM','neg'],['Bruno Integrante TRU','TRU','firm','20 set 2026','Documento cargado','desf'],['Carla Integrante TRU','TRU','firm','10 jun 2025','Documento cargado','desf']];
+const BONO={'Ana Supervisora TRU':'este_mes','Franco Supervisor AQP':'firm'};
+const ESTADO={pend:{t:'Pendiente',c:'c-pi',i:'○'},firm:{t:'Firmado',c:'c-ok',i:'✓'},neg:{t:'Se negó',c:'c-al',i:'▲'}};
+const nPend=G.filter(g=>g[2]==='pend').length, nFirm=G.filter(g=>g[2]==='firm').length, nNeg=G.filter(g=>g[2]==='neg').length;
+const nBono=Object.values(BONO).filter(x=>x==='este_mes').length;
+const pol=()=>({falta:{c:'c-al',t:'Falta la política de movilidad',d:'Es un solo documento, lo firma quien firma por CAYLA y sostiene a todo el equipo. Va fechada el 29 de julio de 2026 (cuando empezó a pagarse movilidad).'},
+  tarde:{c:'c-am',t:'Política firmada después del primer pago',d:'Se firmó el 10 de set. y la movilidad se paga desde el 29 de jul.: un documento posterior no justifica los pagos anteriores, y queda por escrito.'},
+  ok:{c:'c-ok',t:'Política de movilidad firmada',d:'Vigente desde el 29 de julio de 2026 · firma del sistema.'}})[S.p];
+const polOk=()=>S.p==='ok';
+const nAten=()=>nPend+nNeg+nBono+(polOk()?0:1);
+
+const cab=(extra='')=>`<div class="cab"><div><div class="sob">Personas · lunes, 19 de octubre</div><h1>Documentación<button class="i" title="Cómo funciona">i</button></h1><p>Quién firmó qué, y quién falta: movilidad, cargos de cumpleaños y papeles.</p></div><div><button class="btn">+ Generar documento</button></div></div>${extra}`;
+const filas=()=>G.filter(g=>(!S.sede||g[1]===S.sede)&&(!S.filtro||g[2]===S.filtro)&&(!S.buscar||g[0].toLowerCase().includes(S.buscar.toLowerCase())));
+const accion=g=>g[2]==='pend'?`<button class="btn fino" data-sub="${g[0]}">Subir firmada</button>`:`<button class="btn sec fino">Ver</button>`;
+const tablaRutas=()=>`<div class="barra"><input class="campo" placeholder="Buscar colaborador…" data-buscar value="${S.buscar||''}"><select class="campo" data-sede><option value="">Todas las sedes</option>${['AQP','LIM','TRU'].map(x=>`<option ${S.sede===x?'selected':''}>${x}</option>`).join('')}</select>${S.filtro||S.sede||S.buscar?'<button class="btn sutil fino" data-lim>Limpiar</button>':''}<span style="flex:1"></span><button class="btn sec fino">Imprimir pendientes · ${nPend}</button></div>
+ <div class="card"><table class="t"><tr><th>Persona</th><th>Sede</th><th>Estado</th><th>Fecha</th><th>Tipo de firma</th><th></th></tr>${filas().map(g=>`<tr><td>${g[0]}</td><td class="muted">${g[1]}</td><td><span class="chip ${ESTADO[g[2]].c}">${ESTADO[g[2]].i} ${ESTADO[g[2]].t}</span>${g[5]?' <span class="chip c-am">tarifa desfasada</span>':''}</td><td class="muted">${g[3]||'—'}</td><td class="muted">${g[4]||'—'}</td><td style="text-align:right">${accion(g)} <button class="btn sutil fino">•••</button></td></tr>`).join('')}</table></div>`;
+const tablaBono=()=>`<div class="card"><table class="t"><tr><th>Persona</th><th>Sede</th><th>Estado</th><th>Fecha</th><th></th></tr>${Object.entries(BONO).map(([n,e])=>{const g=G.find(x=>x[0]===n);return `<tr><td>${n}</td><td class="muted">${g[1]}</td><td><span class="chip ${e==='firm'?'c-ok':'c-am'}">${e==='firm'?'✓ Firmado':'● Cumple este mes'}</span></td><td class="muted">${e==='firm'?'6 ago 2026':'—'}</td><td style="text-align:right">${e==='firm'?'<button class="btn sec fino">Ver</button>':'<button class="btn fino" data-sub="'+n+'">Subir cargo</button>'}</td></tr>`}).join('')}</table></div>`;
+const polBloque=(compacto)=>{const p=pol();return `<div class="pol" style="--c:var(--${p.c==='c-ok'?'color-verde':p.c==='c-am'?'color-ambar':'color-rojo'})"><div style="min-width:0"><strong style="font-family:var(--font-serif);font-size:1.05rem">${p.t}</strong>${compacto?'':`<div class="muted" style="margin-top:2px;color:var(--color-tinta)">${p.d}</div>`}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${polOk()?'<button class="btn sec fino">Ver documento</button><button class="btn sutil fino">•••</button>':'<button class="btn sec fino">Imprimir</button><button class="btn fino" data-sub="política">Firmar la política</button>'}</div></div>`};
+const drawer=()=>S.abierto?`<aside class="drawer" role="dialog"><div style="display:flex;justify-content:space-between"><h3>${S.abierto==='política'?'Firmar la política de movilidad':'Subir la declaración firmada'}</h3><button class="btn sutil fino" data-cerrar>✕</button></div><p class="muted">${S.abierto==='política'?'Un solo documento para toda la empresa.':S.abierto}</p><label>Archivo<input class="campo" style="width:100%" type="file"></label><label>Fecha de la firma<input class="campo" style="width:100%" value="2026-10-19"></label><label>Nota (opcional)<input class="campo" style="width:100%" placeholder="ej. testigo: líder de equipo de TRU"></label><div style="margin-top:14px;display:flex;gap:8px"><button class="btn" data-cerrar>Guardar</button><button class="btn sec" data-cerrar>Cancelar</button></div></aside>`:'';
+
+/* A · Para atender + una pestaña por documento */
+const A={t:'Para atender + pestañas',
+ lema:'<strong>A · Para atender + una pestaña por documento.</strong> Las cuatro cifras y el aviso rojo se vuelven una sola franja de pastillas («falta la política», «5 sin firmar»…); cada familia de documento tiene su pestaña, y subir un papel abre un cajón en vez de empujar la página.',
+ r:()=>{const t=S.tab;const pa=(k,txt,c,n)=>n?`<button class="pa ${c}" data-aten="${k}" aria-pressed="${S.aten===k}">${txt}</button>`:'';
+  return cab(`<div class="para"><span class="rot">Para atender</span>${polOk()?'':'<button class="pa rojo" data-aten="pol" aria-pressed="'+(S.aten==='pol')+'">'+(S.p==='tarde'?'Política firmada tarde':'Falta la política')+'</button>'}${pa('pend',nPend+' sin firmar','pizarra',nPend)}${pa('neg',nNeg+' se negó','rojo',nNeg)}${pa('bono',nBono+' cargo de cumpleaños','ambar',nBono)}</div>
+  ${S.aten==='pol'?`<div style="margin-bottom:12px">${polBloque(false)}</div>`:''}
+  <div class="tabs"><button data-tab="rutas" aria-pressed="${t==='rutas'}">Declaraciones de ruta <span class="n">${nPend+nNeg}</span></button><button data-tab="bono" aria-pressed="${t==='bono'}">Cargos de cumpleaños <span class="n">${nBono}</span></button><button data-tab="pol" aria-pressed="${t==='pol'}">Política de movilidad ${polOk()?'':'<span class="n">1</span>'}</button></div>
+  ${t==='rutas'?tablaRutas():t==='bono'?tablaBono():polBloque(false)}`)+drawer()},
+ gana:['La política deja de ser un aviso gigante: es una pastilla, y la pestaña dice el resto.','Sin cifras duplicadas ni «Pendientes especiales» repitiendo la tabla de cumpleaños.','Subir un papel no empuja la página: abre un cajón.','Mismo lenguaje que Equipo, Contratos y Turnos.'],
+ paga:['Son tres pestañas: quien quiere «todo lo pendiente» las recorre una a una (la franja lo resume).','La política firmada pasa a vivir en su pestaña: hay que saber que está ahí.']};
+
+/* B · matriz persona × documento */
+const B={t:'Matriz persona × documento',
+ lema:'<strong>B · Una matriz.</strong> Cada persona es una fila y cada documento una columna con un símbolo de estado (✓ firmado · ○ pendiente · ▲ se negó · ● cumple este mes). La política queda como una franja arriba. Tocar un símbolo abre el cajón de ese documento.',
+ r:()=>cab(`<div style="margin:14px 0">${polBloque(true)}</div><div class="barra"><input class="campo" placeholder="Buscar colaborador…"><select class="campo"><option>Todas las sedes</option></select><span style="flex:1"></span><span class="muted"><span class="chip c-ok">✓ firmado</span> <span class="chip c-pi">○ pendiente</span> <span class="chip c-al">▲ se negó</span> <span class="chip c-am">● cumple este mes</span></span></div>
+  <div class="card"><table class="t"><tr><th>Persona</th><th>Sede</th><th style="text-align:center">Ruta</th><th style="text-align:center">Cargo de cumpleaños</th><th></th></tr>${G.map(g=>{const b=BONO[g[0]];const e=ESTADO[g[2]];return `<tr><td>${g[0]}</td><td class="muted">${g[1]}</td><td style="text-align:center"><button class="punto ${e.c}" data-sub="${g[0]}" title="${e.t}">${e.i}</button></td><td style="text-align:center">${b?`<button class="punto ${b==='firm'?'c-ok':'c-am'}" data-sub="${g[0]}">${b==='firm'?'✓':'●'}</button>`:'<span class="muted">—</span>'}</td><td style="text-align:right"><button class="btn sutil fino">•••</button></td></tr>`}).join('')}</table></div>`)+drawer(),
+ gana:['Se ve toda la plantilla de un vistazo: quién tiene qué y quién falta.','Una sola tabla en vez de dos y sin listas repetidas.','Natural para «¿cómo está Gaby?»: una fila con todo lo suyo.'],
+ paga:['Los símbolos hay que aprenderlos (la leyenda los acompaña).','Los datos de la firma (fecha, tipo) desaparecen de la fila: van al cajón.','Con una cuarta familia de documentos la matriz crece a lo ancho.']};
+
+/* C · por urgencia */
+const C={t:'Por urgencia',
+ lema:'<strong>C · Por urgencia.</strong> Mismo criterio que la variante elegida en Contratos: bandas de lo más urgente a lo que está al día («Falta la política», «Se negaron», «Sin firmar», «Cargos del mes», «Al día»). Cada fila trae su botón.',
+ r:()=>cab(`<div class="para"><span class="rot">Para atender</span><span class="muted">${nAten()?nAten()+' cosas por resolver':'<span style="color:var(--color-verde)">Nada pendiente</span>'}</span></div>
+  ${polOk()?'':`<div class="grupo"><h3>Toda la empresa</h3>${polBloque(false)}</div>`}
+  <div class="grupo"><h3>Se negaron a firmar <small>${nNeg} · queda constancia, no habilita el pago de movilidad</small></h3><div class="card">${G.filter(g=>g[2]==='neg').map(g=>`<div class="fila"><div><div class="n">${g[0]}</div><div class="s">${g[1]} · acta con testigo</div></div><button class="btn sec fino">Ver acta</button></div>`).join('')}</div></div>
+  <div class="grupo"><h3>Sin firmar su ruta <small>${nPend} personas</small></h3><div class="card">${G.filter(g=>g[2]==='pend').map(g=>`<div class="fila"><div><div class="n">${g[0]}</div><div class="s">${g[1]}</div></div><div style="display:flex;gap:6px"><button class="btn fino" data-sub="${g[0]}">Subir firmada</button><button class="btn sutil fino">•••</button></div></div>`).join('')}</div></div>
+  <div class="grupo"><h3>Cargo de cumpleaños de este mes <small>${nBono}</small></h3><div class="card">${Object.entries(BONO).filter(([n,e])=>e==='este_mes').map(([n])=>`<div class="fila"><div><div class="n">${n}</div><div class="s">cumple este mes</div></div><button class="btn fino" data-sub="${n}">Subir cargo</button></div>`).join('')}</div></div>
+  <details class="grupo" style="margin-top:14px"><summary style="cursor:pointer;font-family:var(--font-serif);font-size:1.1rem">Al día <small class="muted" style="font-family:var(--font-sans)"> · ${nFirm} rutas · 1 cargo</small></summary><div class="card" style="margin-top:8px">${G.filter(g=>g[2]==='firm').map(g=>`<div class="fila"><div><div class="n">${g[0]}</div><div class="s">${g[3]} · ${g[4]} <span class="chip c-am" style="margin-left:6px">tarifa desfasada</span></div></div><button class="btn sec fino">Ver</button></div>`).join('')}</div></details>`)+drawer(),
+ gana:['Lo urgente está arriba y no hay que filtrar para encontrarlo.','Cero tablas con 5 columnas: la lista cabe en celular tal cual.','Es el mismo orden que ya se usa en Contratos.'],
+ paga:['No hay una vista de «toda la plantilla» ordenada alfabéticamente (se pierde la tabla).','Si hay mucha gente sin firmar, la banda es larga (se puede plegar como «Al día»).']};
+
+/* D · conservadora */
+const D={t:'Conservadora',
+ lema:'<strong>D · Poco cambio.</strong> Se conserva la tabla central y las cifras como filtro, pero la política pasa a una franja de una línea, «Pendientes especiales» desaparece (ya está en la tabla de cumpleaños) y subir un papel abre un cajón.',
+ r:()=>cab(`<div style="margin:14px 0">${polBloque(true)}</div><div class="hoy"><button class="cifra" data-f="pend"><b>${nPend}</b><span class="muted">Pendientes de firma</span></button><button class="cifra" data-f="firm"><b>${nFirm}</b><span class="muted">Firmados</span></button><button class="cifra" data-f="neg"><b>${nNeg}</b><span class="muted">Negativas</span></button><button class="cifra" data-f="bono"><b>${nBono}</b><span class="muted">Cargos del mes</span></button></div>
+  <h2 style="font-size:1.2rem;margin:6px 0 8px">Declaraciones de ruta <span class="muted" style="font-family:var(--font-sans)"> · ${nFirm} / ${G.length} firmadas</span></h2>${tablaRutas()}
+  <h2 style="font-size:1.2rem;margin:20px 0 8px">Cargos de cumpleaños</h2>${tablaBono()}`)+drawer(),
+ gana:['Casi nada que reaprender: es la pantalla de hoy más liviana.','Se queda la tabla completa de 10 con sus columnas.','Cambio de bajo riesgo.'],
+ paga:['Sigue siendo una página larga con dos tablas.','Las cifras siguen duplicando lo que ya dice la tabla (aunque filtran).','No se parece a las demás pantallas rediseñadas.']};
+
+const V={A,B,C,D};
+function render(){
+  document.getElementById('vars').innerHTML=Object.entries(V).map(([k,v])=>`<button class="vbtn" data-v="${k}" aria-pressed="${S.v===k}"><b>${k}</b>${v.t}${k==='A'?' <small>recomendada</small>':''}</button>`).join('');
+  document.getElementById('lema').innerHTML=V[S.v].lema;
+  const m=document.getElementById('marco'); m.style.maxWidth=S.w+'px'; m.innerHTML=V[S.v].r();
+  document.querySelectorAll('[data-p]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.p===S.p)));
+  document.querySelectorAll('[data-w]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.w===S.w)));
+  const x=V[S.v];
+  document.getElementById('nota').innerHTML=`<details open><summary>Qué gana y qué paga la variante ${S.v}</summary><p style="margin-top:8px"><strong>Gana</strong></p><ul>${x.gana.map(i=>`<li>${i}</li>`).join('')}</ul><p style="margin-top:8px"><strong>Paga</strong></p><ul>${x.paga.map(i=>`<li>${i}</li>`).join('')}</ul></details><details><summary>Lo que ninguna variante cambia</summary><ul><li>Ruta, cargo y política son tres documentos distintos; la política es de CAYLA, no de una persona.</li><li>Una negativa deja constancia pero no habilita el pago de movilidad.</li><li>Anular no borra: pide motivo y queda en el historial.</li><li>Una política firmada después del primer pago queda por escrito como tardía.</li></ul></details>`;
+}
+document.addEventListener('input',e=>{if(e.target.matches('[data-buscar]')){S.buscar=e.target.value;const p=e.target.selectionStart;render();const n=document.querySelector('[data-buscar]');n&&(n.focus(),n.setSelectionRange(p,p))}});
+document.addEventListener('change',e=>{if(e.target.matches('[data-sede]')){S.sede=e.target.value;render()}});
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.v){S.v=b.dataset.v;S.abierto=null;render()} else if(b.dataset.p){S.p=b.dataset.p;render()} else if(b.dataset.w){S.w=+b.dataset.w;render()}
+  else if(b.dataset.tab){S.tab=b.dataset.tab;render()} else if(b.dataset.aten){S.aten=S.aten===b.dataset.aten?'':b.dataset.aten;if(S.aten==='pend'||S.aten==='neg'){S.tab='rutas';S.filtro=S.aten==='pend'?'pend':'neg'}else if(S.aten==='bono')S.tab='bono';if(!S.aten)S.filtro='';render()}
+  else if(b.dataset.f){const f=b.dataset.f;if(f!=='bono')S.filtro=S.filtro===f?'':f;render()} else if(b.hasAttribute('data-lim')){S.filtro='';S.sede='';S.buscar='';render()}
+  else if(b.dataset.sub){S.abierto=b.dataset.sub;render()} else if(b.hasAttribute('data-cerrar')){S.abierto=null;render()}
+  else if(b.id==='tema'){S.tema=!S.tema;document.documentElement.dataset.theme=S.tema?'dark':'light';b.textContent=S.tema?'Modo claro':'Modo oscuro'}});
+render();
+</script>
+</body>
+</html>

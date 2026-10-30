@@ -56,6 +56,9 @@ async function respaldoLocal(): Promise<RosterCargado> {
  * `respaldoLocal` justo arriba para por qué esa distinción tiene que llegar a la
  * pantalla.
  */
+/** Las columnas que la vista tiene desde siempre (0490); las de la prueba (0539) se piden aparte. */
+const COLUMNAS_BASE = "id, nombres, apellidos, sede_codigo, sede_nombre, foto_url";
+
 export async function cargarRoster(): Promise<RosterCargado> {
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     return respaldoLocal();
@@ -68,11 +71,23 @@ export async function cargarRoster(): Promise<RosterCargado> {
   // postgrest lanza en vez de devolver { error }.
   let data: unknown[] | null = null;
   try {
-    const res = await supabase
+    let res = await supabase
       .from("terminal_roster")
-      .select("id, nombres, apellidos, sede_codigo, sede_nombre, foto_url")
+      .select(`${COLUMNAS_BASE}, prueba_dias, prueba_plazo`)
       .abortSignal(topeDeRed())
       .order("nombres");
+    // SI LA BASE TODAVÍA NO TIENE LA 0539, el terminal SIGUE MARCANDO. El frontend se publica solo al
+    // fusionar y el SQL lo pega Felipe a mano: hay ventanas en las que la pantalla nueva corre contra una
+    // base que aún no tiene las dos columnas, y pedirlas haría fallar la consulta ENTERA —un terminal recién
+    // instalado, sin copia guardada, se quedaría sin lista—. Solo en ESE error (columna inexistente) se
+    // vuelve a pedir sin ellas; cualquier otro fallo sigue el camino de siempre, hacia la copia guardada.
+    if (res.error && (res.error.code === "42703" || /prueba_(dias|plazo)/.test(res.error.message ?? ""))) {
+      res = await supabase
+        .from("terminal_roster")
+        .select(COLUMNAS_BASE)
+        .abortSignal(topeDeRed())
+        .order("nombres") as unknown as typeof res;
+    }
     if (res.error) return respaldoLocal();
     data = res.data;
   } catch {
@@ -110,6 +125,10 @@ export async function cargarRoster(): Promise<RosterCargado> {
     sedeCodigo: p.sede_codigo ?? "?",
     sedeNombre: p.sede_nombre ?? "?",
     fotoUrl: p.foto_url ?? null,
+    // 0539 · null si no está de prueba. Contra una base que todavía no tiene la 0539 la consulta
+    // entera fallaría (columna inexistente) y el terminal seguiría con su copia guardada.
+    pruebaDias: typeof p.prueba_dias === "number" ? p.prueba_dias : null,
+    pruebaPlazo: typeof p.prueba_plazo === "number" ? p.prueba_plazo : null,
   }));
   await guardarRoster(roster);
   return { entradas: roster, fuente: "servidor" };

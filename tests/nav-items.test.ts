@@ -14,7 +14,7 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import { GRUPOS, esActivo, RUTAS_SIN_MARCO, type Item } from "@/app/(admin)/admin/nav-items";
-import { ROLES_CON_PANEL, ROLES_DO } from "@cayla-dynamic/shared";
+import { ROLES_CON_PANEL, ROLES_DO, ROLES_GESTIONAN_BOLETAS } from "@cayla-dynamic/shared";
 
 const TODOS: Item[] = GRUPOS.flatMap((g) => g.items);
 
@@ -62,12 +62,12 @@ describe("la lista no tiene agujeros", () => {
     }
   });
 
-  it("son siete grupos y treinta pantallas", () => {
-    expect(GRUPOS).toHaveLength(7);
-    expect(TODOS).toHaveLength(30);
+  it("son ocho grupos y treinta y cinco pantallas", () => {
+    expect(GRUPOS).toHaveLength(8);
+    expect(TODOS).toHaveLength(35);
   });
 
-  it("solo el primer grupo va sin título — los otros seis se anuncian", () => {
+  it("solo el primer grupo va sin título — los otros siete se anuncian", () => {
     expect(GRUPOS[0].label).toBeUndefined();
     for (const g of GRUPOS.slice(1)) expect(g.label).toBeTruthy();
   });
@@ -131,11 +131,41 @@ describe("dónde quedó cada renglón después de reagrupar", () => {
     const pago = GRUPOS.find((g) => g.label === "Pago");
     // Todo lo que quedó en Pago es de DO. Si algún día vuelve a colarse un
     // renglón de rol SEDE, para una encargada el grupo entero es un solo ítem.
-    for (const item of pago?.items ?? []) expect(item.roles).toBe(ROLES_DO);
+    // Se compara el contenido y no la referencia: «Boletas» trae su propia
+    // lista (ROLES_GESTIONAN_BOLETAS), que hoy dice lo mismo que DO.
+    for (const item of pago?.items ?? []) expect([...(item.roles ?? [])].sort(), item.href).toEqual([...ROLES_DO].sort());
+  });
+
+  it("«Boletas» vive en Pago, justo debajo de Planilla, con la lista de quien entrega boletas", () => {
+    expect(grupoDe("/admin/planilla/boletas")).toBe("Pago");
+    const pago = GRUPOS.find((g) => g.label === "Pago")?.items.map((i) => i.href) ?? [];
+    expect(pago.indexOf("/admin/planilla/boletas")).toBe(pago.indexOf("/admin/planilla") + 1);
+    expect(TODOS.find((i) => i.href === "/admin/planilla/boletas")?.roles).toBe(ROLES_GESTIONAN_BOLETAS);
+  });
+
+  it("la líder de equipo no ve «Boletas»: es lo que cobra su equipo", () => {
+    const item = TODOS.find((i) => i.href === "/admin/planilla/boletas");
+    expect(item?.roles?.includes("supervisor_sede")).toBe(false);
+    expect(item?.roles?.includes("lider_do")).toBe(true);
   });
 
   it("«Apariencia» está en Configuración, con lo demás que se toca una vez al año", () => {
     expect(grupoDe("/admin/apariencia")).toBe("Configuración");
+  });
+
+  it("«Archivo» vive en Empresa y solo lo ve DO: guarda papeles con el DNI del representante (0503)", () => {
+    expect(grupoDe("/admin/archivo")).toBe("Empresa");
+    expect(TODOS.find((i) => i.href === "/admin/archivo")?.roles).toBe(ROLES_DO);
+  });
+
+  it("«Seguros» vive en Personas, junto a los demás papeles por persona, y solo lo ve DO: el PDF lleva DNI (0528)", () => {
+    expect(grupoDe("/admin/seguros")).toBe("Personas");
+    expect(TODOS.find((i) => i.href === "/admin/seguros")?.roles).toBe(ROLES_DO);
+  });
+
+  it("«Parámetros» está en Configuración y solo lo ve DO: cada cambio mueve cómo funciona el sistema (0552)", () => {
+    expect(grupoDe("/admin/parametros")).toBe("Configuración");
+    expect(TODOS.find((i) => i.href === "/admin/parametros")?.roles).toBe(ROLES_DO);
   });
 
   it("la cabecera sin título son las tres pantallas de mirar a diario", () => {
@@ -160,6 +190,23 @@ describe("qué renglón se resalta", () => {
 
   it("el enlace viejo de vacaciones resalta «Ausencias», que se lo absorbió (0101)", () => {
     expect(esActivo("/admin/vacaciones", "/admin/ausencias")).toBe(true);
+  });
+
+  // Las dos rutas cuelgan una de la otra; sin la regla del más específico,
+  // en Boletas se encendían «Planilla» y «Boletas» a la vez.
+  const activosEn = (pathname: string) => TODOS.filter((i) => esActivo(pathname, i.href)).map((i) => i.href);
+
+  it("en Boletas se resalta solo «Boletas», no también «Planilla»", () => {
+    expect(activosEn("/admin/planilla/boletas")).toEqual(["/admin/planilla/boletas"]);
+  });
+
+  it("la boleta del sistema (/admin/planilla/boleta, sin renglón propio) sigue resaltando «Planilla»", () => {
+    expect(activosEn("/admin/planilla/boleta")).toEqual(["/admin/planilla"]);
+    expect(activosEn("/admin/planilla")).toEqual(["/admin/planilla"]);
+  });
+
+  it("ninguna ruta del menú enciende dos renglones a la vez", () => {
+    for (const item of TODOS) expect(activosEn(item.href), item.href).toEqual([item.href]);
   });
 });
 

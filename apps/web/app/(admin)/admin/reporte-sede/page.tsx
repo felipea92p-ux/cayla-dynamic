@@ -12,12 +12,14 @@ import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
-import { causaMetaImposible, enPausaAhora, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
+import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, esSedeCentral, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
+import { causaMetaImposible, enPausaAhora, metaOperativasSinMedir, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
 import { diaDeLaSedeDe, type DiaDeLaSede, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { coberturaDeHoyApagada, hojaIncluyeHoy, textoCoberturaApagada, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
 import { traerSiEsFeriado } from "@/lib/admin/feriado-de-hoy";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 
@@ -55,7 +57,8 @@ interface Fila {
   estadoHoy: string; // abierta / en_pausa / cerrada / sin_marcar
   // Desde cuándo está en pausa, si `estadoHoy` es `en_pausa` y se pudo saber.
   pausa?: PausaAbierta | null;
-  esOperativa: boolean; esEncargada: boolean;
+  // Cuenta contra la meta de «operativas»: en una central, cualquiera del equipo (ver `cuentaEnCobertura`).
+  cuentaEnMetaOp: boolean; esEncargada: boolean;
   dias: number; horas: number; tardanzas: number; minTarde: number; salidasTemp: number;
 }
 interface Meta { man: number; tar: number; enc: number }
@@ -69,7 +72,17 @@ interface FaltaRow { persona_id: string; nombre: string; sede: string; nivel: st
 // render se vuelve a crear en cada render y reinicia su estado (la regla
 // `react-hooks/static-components`). No usa nada de la pantalla, solo sus propias
 // propiedades, así que moverlo no cambia lo que dibuja.
-const Cobertura = ({ label, n, m }: { label: string; n: number; m: number }) => {
+const Cobertura = ({ label, n, m, sinEquipo = false }: { label: string; n: number; m: number; sinEquipo?: boolean }) => {
+  // Hay meta y nadie del equipo cuenta para ella: «0 / meta 4 · faltan 4» se leería como gente que
+  // falta, en un papel que se firma. La causa va escrita debajo (`causasMeta`).
+  if (sinEquipo) {
+    return (
+      <span className="flex items-center gap-1.5 text-sm">
+        <span className="text-taupe">{label}</span>
+        <span className="text-xs font-medium" style={{ color: "var(--color-ambar)" }}>meta de {m} por revisar</span>
+      </span>
+    );
+  }
   const sinMeta = m <= 0; const ok = !sinMeta && n >= m;
   const color = sinMeta ? "var(--color-taupe)" : ok ? "var(--color-verde)" : "var(--color-rojo)";
   return (
@@ -195,7 +208,7 @@ function ReporteSedeContenido() {
       // (fn_tardanzas_resumen/fn_faltas_resumen, más abajo) lo siga
       // excluyendo — esta hoja solo lo muestra, no lo sanciona.
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .eq("sueldo_fijo", false).eq("sede_base_id", sedeId).order("nombres"),
       // Por lotes: sin esto PostgREST cortaba en 1000 filas en silencio y la
@@ -296,7 +309,7 @@ function ReporteSedeContenido() {
         personaId: p.id,
         nombre: `${p.nombres} ${p.apellidos}`,
         estadoHoy: hoyJ?.estado ?? "sin_marcar",
-        esOperativa: cuenta.operativa,
+        cuentaEnMetaOp: cuenta.cuentaEnMetaOp,
         esEncargada: cuenta.lider,
         dias: reales.filter((j) => (j.horas_trabajadas ?? 0) > 0).length,
         horas: js.reduce((s, j) => s + (j.horas_trabajadas ?? 0), 0),
@@ -362,16 +375,19 @@ function ReporteSedeContenido() {
   // imprime y la pantalla no digan números distintos a la misma hora.
   const trabajando = filas.filter((f) => trabajandoAhora(f.estadoHoy));
   const enPausa = filas.filter((f) => enPausaAhora(f.estadoHoy));
-  const opPiso = trabajando.filter((f) => f.esOperativa).length;
+  const opPiso = trabajando.filter((f) => f.cuentaEnMetaOp).length;
   const encPiso = trabajando.filter((f) => f.esEncargada).length;
   const metaOp = tramoTarde ? meta.tar : meta.man;
   // El equipo que PODRÍA cubrir cada meta (esté hoy o no): ver causaMetaImposible.
-  const equipoOperativas = filas.filter((f) => f.esOperativa).length;
+  const equipoOperativas = filas.filter((f) => f.cuentaEnMetaOp).length;
   const equipoLideres = filas.filter((f) => f.esEncargada).length;
-  const mostrarOperativas = !(equipoOperativas === 0 && metaOp <= 0);
+  // En una central la meta se mide en integrantes en la sede: sin meta no se imprime esa línea
+  // (contaría a todo el equipo contra nada), igual que cuando no había equipo operativo.
+  const metaEnIntegrantes = esSedeCentral(sede?.tipo);
+  const mostrarOperativas = !(metaOp <= 0 && (equipoOperativas === 0 || metaEnIntegrantes));
   const mostrarLideres = !(equipoLideres === 0 && meta.enc <= 0);
   const causasMeta = [
-    { quien: "Operativas", causa: causaMetaImposible("operativas", metaOp, equipoOperativas) },
+    { quien: metaEnIntegrantes ? "Integrantes" : "Operativas", causa: causaMetaImposible("operativas", metaOp, equipoOperativas) },
     { quien: "Líderes", causa: causaMetaImposible("lideres", meta.enc, equipoLideres) },
   ].flatMap((c) => (c.causa ? [{ quien: c.quien, detalle: c.causa.detalle }] : []));
   const rango = rangoLabel(desde, hasta);
@@ -397,14 +413,15 @@ function ReporteSedeContenido() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <main className="flex-1 p-6 sm:p-8 print:p-0">
+      <main className="flex-1 p-6 print:p-0">
         {/* Controles — no salen en el PDF */}
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4 print:hidden">
-          <div>
-            <h1 className="font-serif text-2xl leading-tight">Hoja de sede</h1>
-            <p className="mt-1 text-sm text-taupe">El estado de una sede en una página: hoy, el periodo elegido y lo que necesita atención.</p>
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
+        <div className="print:hidden">
+          <CabeceraPagina
+            sobretitulo={sobretituloDeHoy("Reportes")}
+            titulo="Hoja de sede"
+            descripcion="El estado de una sede en una página: hoy, el periodo elegido y lo que necesita atención."
+            accion={
+            <div className="flex flex-wrap items-end gap-3">
             <CampoSelect
               etiqueta="Sede"
               value={sedeId}
@@ -439,6 +456,8 @@ function ReporteSedeContenido() {
               Descargar PDF
             </Boton>
           </div>
+            }
+          />
         </div>
 
         {/* El aviso SÍ se imprime — no lleva `no-print` a propósito. Si alguien
@@ -549,7 +568,7 @@ function ReporteSedeContenido() {
                   </div>
                 ) : (mostrarOperativas || mostrarLideres) && (
                   <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">
-                    {mostrarOperativas && <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} />}
+                    {mostrarOperativas && <Cobertura label={metaEnIntegrantes ? "Integrantes en la sede" : "Operativas en piso"} n={opPiso} m={metaOp} sinEquipo={metaOperativasSinMedir(metaOp, equipoOperativas)} />}
                     {mostrarLideres && <Cobertura label="Líderes en piso" n={encPiso} m={meta.enc} />}
                   </div>
                 )}

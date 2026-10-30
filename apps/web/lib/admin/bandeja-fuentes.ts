@@ -1,17 +1,23 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import {
-  fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeGestionarCatalogos, puedeGestionarContratos,
-  puedeOperarEquipo, puedeVerPlanilla, puedeVerSaludDeAlertas,
+  esRolEncargada, fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeDecidirPrueba, puedeGestionarCatalogos, puedeGestionarContratos,
+  puedeGestionarSeguros, puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas, recibeAvisoDeConductaRegistrada,
+  recibeAvisoDeLecturaPendiente,
+  esTipoDocumento, TIPO_DOCUMENTO_LABEL,
 } from "@cayla-dynamic/shared";
+import { etiquetaDeVia } from "../reportes";
+import { nombreDe, resumenDeCierre, textoDelDia, type CierrePrueba, type FilaPrueba } from "./pruebas";
 import { diaYMes } from "../bandeja-mia";
 import { formatSoles } from "../rangos";
+import { pendientesDeSeguros, seguroPorPersona, type CambioSeguro, type FilaEquipoSeguro, type Poliza } from "./seguros";
 import {
-  etapaDelBorrador, pendientesDeEntregado, type Adjunto, type DocDisciplina,
+  etapaDelBorrador, lecturaPendienteParaAviso, pendientesDeEntregado, type Adjunto, type DocDisciplina, type LecturaMemo,
 } from "./disciplina";
 import {
   compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
-  urgenciaBono, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
-  urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaRecordVacaciones, urgenciaSinHorario,
+  urgenciaBono, urgenciaCaso, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
+  urgenciaCierrePrueba, urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaPrueba, urgenciaRecordVacaciones, urgenciaSeguroCambio,
+  urgenciaSeguroPapeleo, urgenciaSeguroPorVencer, urgenciaSeguroSinPoliza, urgenciaSinHorario,
   type FilaContrato, type FilaFeriado, type PeriodoDePago, type Urgencia,
 } from "./bandeja-urgencia";
 
@@ -44,7 +50,7 @@ import {
 /** De qué módulo viene cada pendiente. */
 export type ModuloBandeja =
   | "contratos" | "correcciones" | "disciplina" | "documentacion" | "feriados"
-  | "educacion" | "ausencias" | "horarios" | "datos_personales" | "liquidaciones";
+  | "educacion" | "ausencias" | "horarios" | "datos_personales" | "liquidaciones" | "casos" | "seguros" | "pruebas";
 
 /**
  * Los módulos que la Bandeja revisa, en el orden de sus tarjetas, y quién puede
@@ -52,15 +58,25 @@ export type ModuloBandeja =
  */
 export const MODULOS_BANDEJA: readonly { clave: ModuloBandeja; etiqueta: string; puedeVer: (rol: string | null | undefined) => boolean }[] = [
   { clave: "contratos", etiqueta: "Contratos", puedeVer: puedeGestionarContratos },
+  // La prueba de tres días (0536): DO, administración y la líder de equipo, que no abre
+  // Contratos. Cada una ve lo de su alcance (la base lo decide con `fn_prueba_puede_actuar`).
+  { clave: "pruebas", etiqueta: "Preselección", puedeVer: puedeDecidirPrueba },
   { clave: "correcciones", etiqueta: "Correcciones", puedeVer: puedeOperarEquipo },
   { clave: "disciplina", etiqueta: "Disciplina", puedeVer: puedeOperarEquipo },
   { clave: "documentacion", etiqueta: "Documentación", puedeVer: puedeGestionarCatalogos },
+  // Los seguros del equipo (0528): quién no tiene póliza hoy, cuál está por vencer,
+  // qué papeleo falta y qué cambios de seguro siguen pendientes. Solo DO, como la pantalla.
+  { clave: "seguros", etiqueta: "Seguros", puedeVer: puedeGestionarSeguros },
   { clave: "feriados", etiqueta: "Feriados", puedeVer: puedeGestionarCatalogos },
   { clave: "educacion", etiqueta: "Educación", puedeVer: puedeVerPlanilla },
   { clave: "ausencias", etiqueta: "Ausencias", puedeVer: puedeOperarEquipo },
   { clave: "horarios", etiqueta: "Horarios", puedeVer: puedeOperarEquipo },
   { clave: "datos_personales", etiqueta: "Datos personales", puedeVer: puedeOperarEquipo },
   { clave: "liquidaciones", etiqueta: "Liquidaciones", puedeVer: puedeVerPlanilla },
+  // Reportes (0483/0488). `puedeVerCasos` abre la puerta por rol; la base
+  // decide qué casos ve cada quien, y a un admin sin la marca de Gerencia
+  // General no le devuelve ninguno: su tarjeta sale «Al día», que es cierto.
+  { clave: "casos", etiqueta: "Casos", puedeVer: puedeVerCasos },
 ];
 
 export const ETIQUETA_MODULO = Object.fromEntries(MODULOS_BANDEJA.map((m) => [m.clave, m.etiqueta])) as Record<ModuloBandeja, string>;
@@ -80,6 +96,10 @@ export interface FilaEducacionBandeja {
   institucion: string;
   vigencia: string;
   estado_constancia: string;
+  /** Solo para las palabras (0549): quién entra a la Bandeja lo decide la base, no esto. */
+  frecuencia_pago?: string | null;
+  /** Las constancias aprobadas del estudio (`fn_educacion_situacion` ya lo devuelve). Solo para las palabras (0549). */
+  aprobadas?: number | null;
   fecha_pago_constancia: string | null;
   plazo: string | null;
   pago_proximo: boolean;
@@ -259,6 +279,66 @@ export interface ResumenAlertas {
   motivos_definitivos: string[];
 }
 
+/**
+ * Un caso de Reportes con un plazo del Reglamento pendiente, de
+ * `fn_reportes_bandeja` (0488). Solo lo que la fila necesita: ni el relato ni
+ * a quién menciona — eso se lee en su ficha, que deja rastro al abrirse.
+ */
+export interface ItemCaso {
+  id: string;
+  codigo: string;
+  tipo: string;
+  via: string;
+  estado: string;
+  urgente: boolean;
+  sede_codigo: string;
+  proximo_plazo: string | null;
+  proximo_norma: string | null;
+  proximo_vence_at: string | null;
+}
+
+/**
+ * Una falta de conducta que registró una líder de equipo y que la líder DO
+ * todavía no abrió (0515). Se va de la Bandeja al abrir el caso: DO «solo
+ * visualiza», decidido el 2026-10-06.
+ */
+export interface ItemConductaRegistrada {
+  id: string; persona_id: string; persona: string; sede: string;
+  nivel: string; creado_at: string; creador: string; falta: string;
+}
+
+/**
+ * DO tomó o devolvió un caso que inició esta líder, y ella todavía no lo
+ * abrió (0515). Uno por caso: el último traspaso, que es su estado de hoy.
+ */
+export interface ItemCasoTraspasado {
+  id: string; expediente_id: string; persona_id: string; persona: string; sede: string;
+  accion: "tomar" | "devolver"; motivo: string; hecho_at: string;
+}
+
+/**
+ * Un documento entregado en papel hace más de una semana cuya persona no dejó
+ * constancia de haberlo leído (0516). Se va de la Bandeja cuando la deja: no
+ * hay marca de «visto», porque lo que quita el aviso es que la persona lea, no
+ * que DO lo mire.
+ */
+export interface ItemLecturaPendiente {
+  id: string; persona_id: string; persona: string; sede: string;
+  nivel: string; entregado_at: string; dias: number;
+  /** Lo abrió pero no confirmó que lo leyó. */
+  abierto: boolean;
+}
+
+/**
+ * Lo que la Bandeja trae de los seguros (0528): tres consultas que `lib/admin/seguros.ts`
+ * junta por persona. `cambios` trae solo los que todavía piden un paso.
+ */
+export interface FuentesSeguros {
+  equipo: FilaEquipoSeguro[];
+  polizas: Poliza[];
+  cambios: CambioSeguro[];
+}
+
 export interface FuentesBandeja {
   educacion: FilaEducacionBandeja[];
   entregasEducacion: ItemEntregaEducacion[];
@@ -281,6 +361,16 @@ export interface FuentesBandeja {
   bonosPorTransferir: ItemBonoPorTransferir[];
   feriados: ItemFeriado[];
   disciplina: ItemDisciplina[];
+  conductaRegistrada: ItemConductaRegistrada[];
+  casosTraspasados: ItemCasoTraspasado[];
+  lecturasPendientes: ItemLecturaPendiente[];
+  casos: ItemCaso[];
+  /** Las pruebas de tres días abiertas (`fn_pruebas_abiertas`, 0536). */
+  pruebas: FilaPrueba[];
+  /** Las que se cerraron hace poco, para que DO se entere (`fn_pruebas_cierres_recientes`, 0538). */
+  cierresPruebas: CierrePrueba[];
+  /** Lo que contestan las tres consultas de seguros (0528), TAL CUAL: quién tiene hueco y qué piden se decide en `lib/admin/seguros.ts`. */
+  seguros: FuentesSeguros;
   resumenAlertas: ResumenAlertas | null;
   /**
    * Módulos con al menos una consulta que falló. La pantalla NO los pinta
@@ -294,12 +384,24 @@ export const FUENTES_VACIAS: FuentesBandeja = {
   educacion: [], entregasEducacion: [], avisosFinEducacion: [], solicitudesEducacion: [], vacaciones: [], sinHorario: [],
   liquidacionesVencidas: [], revisiones: [], revisionesMovilidad: [], revisionesContrato: [],
   solicitudesVacaciones: [], solicitudesPerfil: [], contratos: [], diasPorRevisar: [], marcasApartadas: [],
-  periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], resumenAlertas: null, fallidas: [],
+  periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], conductaRegistrada: [], casosTraspasados: [], lecturasPendientes: [],
+  casos: [], seguros: { equipo: [], polizas: [], cambios: [] }, pruebas: [], cierresPruebas: [], resumenAlertas: null, fallidas: [],
 };
 
-/** Cuántos avisos por correo necesitan a una persona. Lo que se reintenta solo no cuenta. */
+/**
+ * Cuántos avisos por correo necesitan a una persona: los que fallaron las tres
+ * veces (`fallidas_definitivas`) y los que caducaron sin salir (`caducadas`).
+ * LO QUE SE REINTENTA SOLO NO CUENTA: una `atascada` (quedó a medio despachar
+ * hace más de una hora) la recoge el próximo despacho sin que nadie haga nada,
+ * así que ni enciende el menú ni entra al titular de la tarjeta Sistema; la
+ * tarjeta, si está a la vista por otro motivo, la nombra como línea informativa.
+ * Un corte transitorio de una hora no puede encender la Bandeja.
+ *
+ * Son AVISOS (la tarjeta Sistema dice «61 avisos»), no tareas: en la insignia
+ * pesan 1 por problema, no 1 por aviso (ver `cuentaDeLaBandeja`).
+ */
 export function alertasConProblema(r: ResumenAlertas | null): number {
-  return r ? r.atascadas + r.fallidas_definitivas + r.caducadas : 0;
+  return r ? (r.fallidas_definitivas ?? 0) + (r.caducadas ?? 0) : 0;
 }
 
 // ── Cargar ──────────────────────────────────────────────────────────────────
@@ -353,6 +455,20 @@ export async function traerFuentesBandeja(
     pedir<ItemLiquidacion>(supabase.rpc("fn_liquidaciones_vencidas_bandeja"), "liquidaciones", "liquidaciones vencidas", (xs) => { f.liquidacionesVencidas = xs.filter(esLiquidacionParaBandeja); });
   }
 
+  if (puedeDecidirPrueba(rol)) {
+    pedir<FilaPrueba>(supabase.rpc("fn_pruebas_abiertas"), "pruebas", "las preselecciones de tres días", (xs) => { f.pruebas = xs; });
+  }
+  // Los cierres recientes son para ENTERARSE: DO ve cada «no apto» y cada «se retiró» que
+  // una líder decidió sola (decidido con Felipe el 2026-10-19). La líder no se avisa a sí
+  // misma. Se usa el mismo permiso que ve plata porque el cierre decide cómo se da de baja a alguien y qué se le paga.
+  if (puedeVerPlanilla(rol)) {
+    pedir<CierrePrueba>(supabase.rpc("fn_pruebas_cierres_recientes", { p_horas: 48 }), "pruebas", "los cierres de preselección", (xs) => { f.cierresPruebas = xs; });
+  }
+
+  if (puedeVerCasos(rol)) {
+    pedir<ItemCaso>(supabase.rpc("fn_reportes_bandeja"), "casos", "los casos de Reportes", (xs) => { f.casos = xs; });
+  }
+
   if (puedeOperarEquipo(rol)) {
     pedir<ItemVacacion>(supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }), "ausencias", "vacaciones por vencer", (xs) => { f.vacaciones = xs; });
     pedir<ItemSinHorario>(supabase.rpc("fn_personas_sin_horario_vigente", { p_dias: 60 }), "horarios", "personas sin horario", (xs) => { f.sinHorario = xs; }, true);
@@ -368,6 +484,15 @@ export async function traerFuentesBandeja(
         .then(({ data }) => { f.periodo = (data as PeriodoDePago | null) ?? null; }),
     );
     tareas.push(traerDisciplina(supabase, fallo).then((xs) => { f.disciplina = xs; }));
+    if (recibeAvisoDeConductaRegistrada(rol)) {
+      tareas.push(traerConductaRegistrada(supabase, fallo).then((xs) => { f.conductaRegistrada = xs; }));
+    }
+    if (recibeAvisoDeLecturaPendiente(rol)) {
+      tareas.push(traerLecturasPendientes(supabase, fallo).then((xs) => { f.lecturasPendientes = xs; }));
+    }
+    if (esRolEncargada(rol)) {
+      tareas.push(traerCasosTraspasados(supabase, fallo).then((xs) => { f.casosTraspasados = xs; }));
+    }
   }
 
   if (puedeGestionarCatalogos(rol)) {
@@ -380,6 +505,16 @@ export async function traerFuentesBandeja(
       supabase.rpc("fn_feriados_laborados", { p_desde: sumarDias(hoy, -DIAS_ATRAS_FERIADOS), p_hasta: hoy }),
       "feriados", "los feriados trabajados", (xs) => { f.feriados = xs.filter(esFeriadoParaBandeja); },
     );
+  }
+
+  if (puedeGestionarSeguros(rol)) {
+    // Tres consultas, un módulo. Cada una asigna una copia nueva de `f.seguros`: el objeto
+    // de partida es el de `FUENTES_VACIAS`, compartido, y no se escribe adentro.
+    // Si alguna falla, las otras valen lo que cargaron: una que falta nunca inventa un hueco
+    // (el hueco lo dice `fn_seguros_equipo`), solo deja de avisar de lo suyo.
+    pedir<FilaEquipoSeguro>(supabase.rpc("fn_seguros_equipo"), "seguros", "los seguros del equipo", (xs) => { f.seguros = { ...f.seguros, equipo: xs }; });
+    pedir<Poliza>(supabase.rpc("fn_seguros_tablero"), "seguros", "las pólizas de seguro", (xs) => { f.seguros = { ...f.seguros, polizas: xs }; });
+    pedir<CambioSeguro>(supabase.rpc("fn_seguros_cambios", { p_solo_pendientes: true }), "seguros", "los cambios de seguro", (xs) => { f.seguros = { ...f.seguros, cambios: xs }; });
   }
 
   if (puedeGestionarContratos(rol)) {
@@ -454,6 +589,147 @@ async function traerDisciplina(
   return items;
 }
 
+/**
+ * Hasta cuándo atrás se avisa una falta registrada. No es un plazo legal: es
+ * para que una persona nueva en DO no herede como «por ver» todo el historial.
+ * Un documento de hace más de tres meses ya no se puede «tomar a tiempo».
+ */
+const DIAS_AVISO_CONDUCTA = 90;
+
+/** Los nombres de las personas y el código de su sede, para las filas de la Bandeja. */
+async function nombresYSedes(supabase: ClienteCayla, ids: string[]) {
+  const [per, sed] = await Promise.all([
+    supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id").in("id", ids),
+    supabase.from("sedes").select("id, codigo"),
+  ]);
+  const codigo = new Map(((sed.data ?? []) as { id: string; codigo: string }[]).map((x) => [x.id, x.codigo] as const));
+  const personas = new Map(((per.data ?? []) as { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string | null }[])
+    .map((p) => [p.id, { nombre: `${p.nombres} ${p.apellidos}`, rol: p.rol, sede: (p.sede_base_id && codigo.get(p.sede_base_id)) || "—" }] as const));
+  return { personas, error: per.error };
+}
+
+/**
+ * Para la líder DO: las faltas de conducta que registraron las líderes de
+ * equipo y que ella todavía no abrió. Lo que ya tomó no se avisa: si lo tomó,
+ * lo vio.
+ */
+async function traerConductaRegistrada(
+  supabase: ClienteCayla,
+  fallo: (modulo: ModuloBandeja, que: string, error: unknown) => void,
+): Promise<ItemConductaRegistrada[]> {
+  const desde = new Date(Date.now() - DIAS_AVISO_CONDUCTA * 864e5).toISOString();
+  const [docs, vistos, rot] = await Promise.all([
+    supabase.from("expediente_disciplinario")
+      .select("id, persona_id, nivel, creado_at, creado_por, falta_rit_version, falta_numeral, falta_literal, tomado_por")
+      .eq("tipo_causal", "conducta").neq("estado", "anulado").is("tomado_por", null).gte("creado_at", desde),
+    supabase.from("bandeja_vistos").select("item_id").eq("tipo_item", "conducta_registrada"),
+    supabase.from("faltas_rotulos").select("rit_version, numeral, literal, rotulo"),
+  ]);
+  if (docs.error || vistos.error) { fallo("disciplina", "las faltas registradas por las líderes", docs.error ?? vistos.error); return []; }
+  const visto = new Set(((vistos.data ?? []) as { item_id: string }[]).map((v) => v.item_id));
+  const filas = ((docs.data ?? []) as Array<{ id: string; persona_id: string; nivel: string; creado_at: string; creado_por: string;
+    falta_rit_version: number | null; falta_numeral: string | null; falta_literal: string | null }>).filter((d) => !visto.has(d.id));
+  if (filas.length === 0) return [];
+  const { personas, error } = await nombresYSedes(supabase, Array.from(new Set(filas.flatMap((d) => [d.persona_id, d.creado_por]))));
+  if (error) { fallo("disciplina", "las faltas registradas por las líderes", error); return []; }
+  const rotulo = new Map(((rot.data ?? []) as { rit_version: number; numeral: string; literal: string; rotulo: string }[])
+    .map((r) => [`${Number(r.rit_version)}:${r.numeral}.${r.literal}`, r.rotulo] as const));
+  return filas
+    .filter((d) => esRolEncargada(personas.get(d.creado_por)?.rol))
+    .map((d) => {
+      const cita = d.falta_numeral && d.falta_literal ? `${d.falta_numeral} ${d.falta_literal})` : "";
+      const nombre = rotulo.get(`${Number(d.falta_rit_version)}:${d.falta_numeral}.${d.falta_literal}`);
+      return {
+        id: d.id, persona_id: d.persona_id, persona: personas.get(d.persona_id)?.nombre ?? "—",
+        sede: personas.get(d.persona_id)?.sede ?? "—", nivel: d.nivel, creado_at: d.creado_at,
+        creador: personas.get(d.creado_por)?.nombre ?? "Una líder de equipo",
+        falta: nombre ? `${nombre} (${cita})` : cita,
+      };
+    });
+}
+
+/**
+ * Para la líder de equipo: lo que DO hizo con los casos que ella inició —los
+ * tomó o se los devolvió— y que ella todavía no abrió. Uno por caso: el último
+ * traspaso dice dónde está hoy.
+ */
+async function traerCasosTraspasados(
+  supabase: ClienteCayla,
+  fallo: (modulo: ModuloBandeja, que: string, error: unknown) => void,
+): Promise<ItemCasoTraspasado[]> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return [];
+  const { data: yo } = await supabase.from("personas").select("id").eq("auth_user_id", u.user.id).maybeSingle();
+  if (!yo) return [];
+  const { data: mios, error: eM } = await supabase.from("expediente_disciplinario")
+    .select("id, persona_id").eq("creado_por", (yo as { id: string }).id);
+  if (eM) { fallo("disciplina", "los casos que tomó Desarrollo Organizacional", eM); return []; }
+  const docs = new Map(((mios ?? []) as { id: string; persona_id: string }[]).map((d) => [d.id, d.persona_id] as const));
+  if (docs.size === 0) return [];
+  const [tr, vistos] = await Promise.all([
+    supabase.from("expediente_traspasos").select("id, expediente_id, accion, motivo, hecho_at")
+      .in("expediente_id", Array.from(docs.keys())).order("hecho_at", { ascending: false }),
+    supabase.from("bandeja_vistos").select("item_id").eq("tipo_item", "caso_traspasado"),
+  ]);
+  if (tr.error || vistos.error) { fallo("disciplina", "los casos que tomó Desarrollo Organizacional", tr.error ?? vistos.error); return []; }
+  const visto = new Set(((vistos.data ?? []) as { item_id: string }[]).map((v) => v.item_id));
+  // El último de cada caso (vienen del más nuevo al más viejo), y solo si no lo vio.
+  const ultimo = new Map<string, { id: string; expediente_id: string; accion: "tomar" | "devolver"; motivo: string; hecho_at: string }>();
+  for (const t of (tr.data ?? []) as Array<{ id: string; expediente_id: string; accion: "tomar" | "devolver"; motivo: string; hecho_at: string }>) {
+    if (!ultimo.has(t.expediente_id)) ultimo.set(t.expediente_id, t);
+  }
+  const pendientes = [...ultimo.values()].filter((t) => !visto.has(t.id));
+  if (pendientes.length === 0) return [];
+  const { personas } = await nombresYSedes(supabase, pendientes.map((t) => docs.get(t.expediente_id)!));
+  return pendientes.map((t) => {
+    const pid = docs.get(t.expediente_id)!;
+    return { ...t, persona_id: pid, persona: personas.get(pid)?.nombre ?? "—", sede: personas.get(pid)?.sede ?? "—" };
+  });
+}
+
+/**
+ * Para la líder DO: lo entregado en papel hace más de una semana que su persona
+ * no ha dejado constancia de haber leído (0516, decidido el 2026-10-06).
+ *
+ * El filtro grueso va en la consulta y la regla fina en `lecturaPendienteParaAviso`,
+ * la misma que muestra el caso: lo recibido por Info no cuenta (recibir ya es la
+ * constancia), ni lo que la persona firmó, ni lo de más de doce meses, que ya no
+ * pesa y por eso `fn_mi_disciplina` tampoco le pide leerlo.
+ */
+async function traerLecturasPendientes(
+  supabase: ClienteCayla,
+  fallo: (modulo: ModuloBandeja, que: string, error: unknown) => void,
+): Promise<ItemLecturaPendiente[]> {
+  const ahora = new Date();
+  const hace12m = new Date(ahora); hace12m.setUTCMonth(hace12m.getUTCMonth() - 12);
+  const { data: docs, error } = await supabase.from("expediente_disciplinario")
+    .select("id, persona_id, nivel, estado, medio_entrega, entregado_at, firma_sancionado_confirmada_at")
+    .eq("estado", "entregado").neq("medio_entrega", "digital")
+    .in("nivel", ["verbal", "amonestacion", "suspension"])
+    .gte("entregado_at", hace12m.toISOString());
+  if (error) { fallo("disciplina", "los documentos sin leer", error); return []; }
+  const filas = (docs ?? []) as unknown as Array<Pick<DocDisciplina, "id" | "persona_id" | "nivel" | "estado" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at">>;
+  if (filas.length === 0) return [];
+
+  const { data: lect, error: eL } = await supabase.from("lecturas_memo")
+    .select("expediente_id, abierto_at, leido_at").in("expediente_id", filas.map((d) => d.id));
+  if (eL) { fallo("disciplina", "las constancias de lectura", eL); return []; }
+  const lecturas = new Map(((lect ?? []) as LecturaMemo[]).map((l) => [l.expediente_id, l] as const));
+
+  const pendientes = filas.filter((d) => lecturaPendienteParaAviso(d, lecturas.get(d.id), ahora));
+  if (pendientes.length === 0) return [];
+  const { personas, error: eP } = await nombresYSedes(supabase, Array.from(new Set(pendientes.map((d) => d.persona_id))));
+  if (eP) { fallo("disciplina", "los documentos sin leer", eP); return []; }
+
+  return pendientes.map((d) => ({
+    id: d.id, persona_id: d.persona_id,
+    persona: personas.get(d.persona_id)?.nombre ?? "—", sede: personas.get(d.persona_id)?.sede ?? "—",
+    nivel: d.nivel, entregado_at: d.entregado_at!,
+    dias: Math.floor((ahora.getTime() - Date.parse(d.entregado_at!)) / 864e5),
+    abierto: Boolean(lecturas.get(d.id)),
+  }));
+}
+
 // ── Armar ───────────────────────────────────────────────────────────────────
 
 /** Los tipos que llevan «Nuevo desde tu última visita» (bandeja_vistos, 0436/0450). */
@@ -465,7 +741,9 @@ export type TipoItemVisto =
 export type TipoPendiente =
   | TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida"
   | "contrato" | "dia_por_revisar" | "marca_apartada" | "documento_ruta" | "documento_bono" | "bono_por_transferir"
-  | "feriado" | "disciplina";
+  | "feriado" | "disciplina" | "caso" | "conducta_registrada" | "caso_traspasado" | "lectura_pendiente"
+  | "seguro_sin_poliza" | "seguro_por_vencer" | "seguro_papeleo" | "seguro_baja" | "seguro_cambio_baja" | "seguro_cambio_alta"
+  | "prueba" | "prueba_cierre";
 
 /**
  * Un pendiente, sea del tipo que sea. Quién, qué, dónde, de qué módulo, cuándo
@@ -501,6 +779,8 @@ export function resumenValorPerfil(v: Record<string, unknown>): string {
     if (typeof val === "string" && val.startsWith("solicitud/")) {
       return `${k.replace(/^foto_dni_|_ruta$/g, "")}: imagen adjunta`;
     }
+    // 0513 · «tipo: DNI», no «tipo_documento: dni».
+    if (k === "tipo_documento" && esTipoDocumento(val)) return `tipo: ${TIPO_DOCUMENTO_LABEL[val]}`;
     return `${k}: ${typeof val === "boolean" ? (val ? "Sí" : "No") : String(val)}`;
   }).join(" · ");
 }
@@ -687,6 +967,42 @@ export function armarPendientes(
       ir: { texto: "Asignar horario", href: "/admin/horarios" }, contexto: null,
     });
   }
+  // Casos de Reportes: se nombran por su código, nunca por quién reportó ni a
+  // quién. La Bandeja es de un vistazo; lo confidencial se lee en la ficha.
+  for (const c of f.casos) {
+    agregar({
+      clave: `caso:${c.id}`, tipo: "caso", itemId: c.id,
+      personaId: null, persona: `Caso ${c.codigo}`, sede: c.sede_codigo, modulo: "casos",
+      titulo: etiquetaDeVia(c.via, c.tipo),
+      detalle: c.proximo_plazo ? `${c.proximo_plazo}${c.proximo_norma ? ` (${c.proximo_norma})` : ""}` : null,
+      urgencia: urgenciaCaso(c, hoy), resolucion: "afuera",
+      ir: { texto: "Abrir el caso", href: `/admin/casos/${c.id}` }, contexto: null,
+    });
+  }
+  // Seguros (0528). Quién tiene hueco, qué falta y qué cambios siguen pendientes lo dice
+  // `lib/admin/seguros.ts` sobre lo que la base contestó; acá solo se pinta. «Afuera»: se
+  // resuelve en la pantalla de Seguros, que abre ya parada en esa persona.
+  // Si el módulo falló (alguna de sus tres consultas), el hueco sigue valiendo pero su razón no se sabe.
+  const sinDetalleDePolizas = f.fallidas.includes("seguros");
+  for (const s of pendientesDeSeguros(seguroPorPersona(f.seguros.equipo, f.seguros.polizas, f.seguros.cambios, hoy), hoy, { sinDetalleDePolizas })) {
+    const verbo = {
+      sin_poliza: "Registrar póliza", por_vencer: "Registrar renovación", papeleo: "Completar", baja: "Ver la póliza",
+      cambio_baja: "Marcar la baja", cambio_alta: "Marcar el alta",
+    }[s.tipo];
+    agregar({
+      clave: `seguro_${s.clave}`, tipo: `seguro_${s.tipo}`, itemId: s.cambioId ?? s.polizaId ?? s.personaId,
+      personaId: s.personaId, persona: s.persona, sede: s.sede, modulo: "seguros",
+      titulo: s.titulo, detalle: s.detalle,
+      urgencia: s.tipo === "sin_poliza" ? urgenciaSeguroSinPoliza(s.motivoHueco, s.dias)
+        : s.tipo === "por_vencer" ? urgenciaSeguroPorVencer(s.dias ?? 0, s.hasta ?? hoy)
+        : s.tipo === "papeleo" ? urgenciaSeguroPapeleo(s.prima, s.pasos)
+        : s.tipo === "cambio_baja" ? urgenciaSeguroCambio("baja", s.dias ?? 0)
+        : s.tipo === "cambio_alta" ? urgenciaSeguroCambio("alta", s.dias ?? 0)
+        : { grupo: "sin_plazo", plazo: "Pedir la baja", nota: null, orden: 0 },
+      resolucion: "afuera",
+      ir: { texto: verbo, href: `/admin/seguros?persona=${s.personaId}` }, contexto: null,
+    });
+  }
   for (const l of f.liquidacionesVencidas) {
     agregar({
       clave: `liquidacion_vencida:${l.persona_id}`, tipo: "liquidacion_vencida", itemId: l.persona_id,
@@ -697,8 +1013,33 @@ export function armarPendientes(
       ir: { texto: "Revisar", href: `/admin/liquidaciones?persona=${l.persona_id}` }, contexto: null,
     });
   }
+  // Quien está en preselección no «le falta un contrato»: la preselección EXISTE para no hacérselo
+  // todavía. Esa fila la cuenta la preselección (que además trae el botón de hacerlo cuando
+  // completa el plazo), así que el «sin contrato» de Contratos se calla para ella —y solo
+  // ese estado: un borrador sin firmar o un vencido siguen siendo pendientes de verdad.
+  const enPrueba = new Set(f.pruebas.map((x) => x.persona_id));
+  for (const p of f.pruebas) {
+    const sinDni = p.dni_cargado ? "" : " · falta el DNI";
+    agregar({
+      clave: `prueba:${p.persona_id}`, tipo: "prueba", itemId: p.persona_id, personaId: p.persona_id,
+      persona: nombreDe(p), sede: p.sede_codigo ?? "—", modulo: "pruebas",
+      titulo: "Preselección de tres días",
+      detalle: `${textoDelDia(p)}${sinDni}`,
+      urgencia: urgenciaPrueba(p), resolucion: "aqui", ir: null, contexto: null,
+    });
+  }
+  for (const c of f.cierresPruebas) {
+    agregar({
+      clave: `prueba_cierre:${c.prueba_id}`, tipo: "prueba_cierre", itemId: c.prueba_id, personaId: c.persona_id,
+      persona: nombreDe(c), sede: c.sede_codigo ?? "—", modulo: "pruebas",
+      titulo: c.resultado === "retirado" ? "Se retiró en su preselección" : "No fue apto en su preselección",
+      detalle: resumenDeCierre(c),
+      urgencia: urgenciaCierrePrueba(c), resolucion: "aqui", ir: null, contexto: null,
+    });
+  }
   for (const c of f.contratos) {
     const t = textoContrato(c);
+    if (c.estado === "sin_contrato" && enPrueba.has(c.persona_id)) continue;
     agregar({
       clave: `contrato:${c.persona_id}`, tipo: "contrato", itemId: c.persona_id, personaId: c.persona_id,
       persona: c.persona, sede: c.sede ?? "—", modulo: "contratos",
@@ -789,16 +1130,80 @@ export function armarPendientes(
       ir: { texto: t.accion, href: t.href }, contexto: null,
     });
   }
+  for (const c of f.conductaRegistrada) {
+    const nivel = ((NIVEL_DISCIPLINARIO_LABELS as Record<string, string>)[c.nivel] ?? c.nivel).toLowerCase();
+    agregar({
+      clave: `conducta_registrada:${c.id}`, tipo: "conducta_registrada", itemId: c.id, personaId: c.persona_id,
+      persona: c.persona, sede: c.sede, modulo: "disciplina",
+      titulo: `${c.creador} registró una ${nivel}`, detalle: c.falta || null,
+      urgencia: urgenciaEspera(c.creado_at, hoy), resolucion: "afuera",
+      ir: { texto: "Ver el caso", href: `/admin/disciplina#doc-${c.id}` }, contexto: null,
+    });
+  }
+  for (const t of f.casosTraspasados) {
+    agregar({
+      clave: `caso_traspasado:${t.id}`, tipo: "caso_traspasado", itemId: t.id, personaId: t.persona_id,
+      persona: t.persona, sede: t.sede, modulo: "disciplina",
+      titulo: t.accion === "tomar" ? "Desarrollo Organizacional tomó tu caso" : "Desarrollo Organizacional te devolvió el caso",
+      detalle: `«${t.motivo}»`,
+      urgencia: urgenciaEspera(t.hecho_at, hoy), resolucion: "afuera",
+      ir: { texto: "Ver el caso", href: `/admin/disciplina#doc-${t.expediente_id}` }, contexto: null,
+    });
+  }
+  for (const l of f.lecturasPendientes) {
+    const nivel = ((NIVEL_DISCIPLINARIO_LABELS as Record<string, string>)[l.nivel] ?? l.nivel).toLowerCase();
+    agregar({
+      clave: `lectura_pendiente:${l.id}`, tipo: "lectura_pendiente", itemId: l.id, personaId: l.persona_id,
+      persona: l.persona, sede: l.sede, modulo: "disciplina",
+      titulo: `No dejó constancia de haber leído su ${nivel}`,
+      detalle: l.abierto
+        ? `Lo abrió, pero no confirmó que lo leyó. Se lo entregaron hace ${l.dias} días.`
+        : `Todavía no lo abrió. Se lo entregaron hace ${l.dias} días.`,
+      urgencia: urgenciaEspera(l.entregado_at, hoy), resolucion: "afuera",
+      ir: { texto: "Ver el caso", href: `/admin/disciplina#doc-${l.id}` }, contexto: null,
+    });
+  }
   return lista.sort(compararPendientes);
 }
 
+/** De qué se compone el número de la Bandeja. Ver `cuentaDeLaBandeja`. */
+export interface CuentaBandeja {
+  /** Filas de la lista (`armarPendientes`): una por pendiente, cada una la resuelve alguien. */
+  tareas: number;
+  /** 0 o 1: hay un problema con los correos de aviso. Un problema, no uno por correo. */
+  sistema: number;
+  /** 0 o 1: hay constancias de Normas por recoger. Una señal, no una por constancia. */
+  normas: number;
+  /** `tareas + sistema + normas`: el número del menú Y el del Dashboard. */
+  total: number;
+}
+
 /**
- * El número del ítem «Bandeja» del menú: exactamente las filas que se pintan,
- * más los avisos por correo con problema. Sale de la MISMA lista, así que no
- * puede discrepar de la pantalla.
+ * LA cuenta de «lo pendiente de la Bandeja», definida una sola vez. La usan el
+ * bolito del menú y el indicador del Dashboard, así que no pueden discrepar.
+ *
+ * QUÉ PROMETE. Cada fila de la lista cuenta una vez. Cada franja o tarjeta de
+ * SISTEMA de la pantalla cuenta una vez, como unidad: los correos con problema
+ * y las constancias de Normas valen 1 cada una, no una por correo ni una por
+ * constancia.
+ *
+ * POR QUÉ ASÍ (medido el 2026-10-25). El menú decía 96 = 31 filas + 61 correos
+ * fallidos + 4 de Normas. Los 61 correos eran UN problema —el envío está
+ * caído— contado 61 veces, y tapaban las 31 cosas que sí necesitan a una
+ * persona. Con esta cuenta son 31 + 1 + 1 = 33. «61 avisos» sigue diciéndose
+ * dentro de la tarjeta Sistema: lo que cambia es cuánto pesa en la insignia.
+ *
+ * Normas se queda (no se quita del todo): no tiene insignia propia en el menú
+ * y, sin esta unidad, las constancias del Reglamento no darían ninguna señal.
+ *
+ * QUÉ ASUME. `constanciasNormas` lo trae quien llama (solo DO; ver
+ * `bandeja-equipo.ts`): Normas no encaja en `Pendiente`. Cero o negativo = nada.
  */
-export function contarPendientesBandeja(f: FuentesBandeja, hoy: string = hoyLima()): number {
-  return armarPendientes(f, { hoy }).length + alertasConProblema(f.resumenAlertas);
+export function cuentaDeLaBandeja(f: FuentesBandeja, constanciasNormas = 0, hoy: string = hoyLima()): CuentaBandeja {
+  const tareas = armarPendientes(f, { hoy }).length;
+  const sistema = alertasConProblema(f.resumenAlertas) > 0 ? 1 : 0;
+  const normas = constanciasNormas > 0 ? 1 : 0;
+  return { tareas, sistema, normas, total: tareas + sistema + normas };
 }
 
 /**

@@ -6,12 +6,16 @@ import { ROLES_DO } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { SubnavPoliticaSalarial } from "../_subnav";
 import { NOMBRE_RANGO, categoriasFueraDeOrden, type CategoriaCuadro, type Cuadro } from "@/lib/politica-salarial";
 
@@ -118,9 +122,9 @@ export default function CategoriasPoliticaSalarialPage() {
   if (persona !== null && !esDO) {
     return (
       <main className="mx-auto max-w-2xl px-4 py-8">
-        <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+        <EstadoVacio>
           Esta pantalla es solo para quien puede administrar el cuadro de categorías.
-        </p>
+        </EstadoVacio>
       </main>
     );
   }
@@ -128,21 +132,21 @@ export default function CategoriasPoliticaSalarialPage() {
   const fueraDeOrden = cuadro ? categoriasFueraDeOrden(cuadro.categorias) : [];
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
-      <CabeceraPagina titulo="Categorías" descripcion="Propósito, funciones, requisitos, criterio y monto declarado de cada categoría." />
+    <main className="flex-1 p-4 pt-6 sm:p-6">
+      <CabeceraPagina sobretitulo={sobretituloDeHoy("Publicaciones")} titulo="Categorías" descripcion="Propósito, funciones, requisitos, criterio y monto declarado de cada categoría." />
       <SubnavPoliticaSalarial />
 
-      {error !== null && <p className="mb-4 rounded-control border border-rojo/30 bg-rojo/10 px-4 py-3 text-sm text-rojo">{error}</p>}
-      {aviso !== null && <p className="mb-4 rounded-control border border-verde/25 bg-verde/10 px-4 py-3 text-sm text-verde">{aviso}</p>}
+      {error !== null && <BannerAviso enLinea variante="alerta" role="alert" className="mb-4">{error}</BannerAviso>}
+      {aviso !== null && <BannerAviso enLinea variante="positivo" role="status" className="mb-4">{aviso}</BannerAviso>}
       {fueraDeOrden.length > 0 && (
-        <p className="mb-4 rounded-control border border-ambar/40 bg-ambar/10 px-4 py-3 text-sm text-ambar">
+        <BannerAviso enLinea variante="advertencia" className="mb-4">
           La escala no sube con la categoría en: {fueraDeOrden.join(", ")}.
-        </p>
+        </BannerAviso>
       )}
 
       <div className="flex flex-col gap-3">
         {cuadro?.categorias.map((c) => (
-          <div key={c.rango} className="flex flex-wrap items-start justify-between gap-4 rounded-superficie border border-sand bg-papel p-4">
+          <TarjetaInfo key={c.rango} className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="font-serif text-lg text-tinta">{NOMBRE_RANGO[c.rango] ?? c.rango}</div>
               <p className="mt-1 text-sm text-taupe">{c.proposito || "Sin propósito escrito."}</p>
@@ -152,7 +156,7 @@ export default function CategoriasPoliticaSalarialPage() {
               )}
             </div>
             <Boton variante="secundario" tamano="sm" onClick={() => setEditando(aFormulario(c))}>Editar</Boton>
-          </div>
+          </TarjetaInfo>
         ))}
       </div>
 

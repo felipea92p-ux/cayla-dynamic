@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cuentaEnCobertura, esRolAdministrativo } from "@cayla-dynamic/shared";
+import { cuentaEnCobertura, esRolAdministrativo, esSedeCentral, estaDePrueba } from "@cayla-dynamic/shared";
 
 // Los casos son los de producción del 2026-09-19: CCO (cinco administradores en
 // áreas de oficina) y OTRU (cuatro practicantes en «Crecimiento y expansión» y
@@ -8,24 +8,74 @@ const persona = (o: Partial<Parameters<typeof cuentaEnCobertura>[0]> = {}) => ({
   rol: "integrante", tipoVinculo: "planilla", esEncargadaPiso: false, areaOperativa: false, ...o,
 });
 
-describe("cuentaEnCobertura — operativa", () => {
-  it("un practicante en un área de oficina cuenta como operativo (OTRU)", () => {
-    expect(cuentaEnCobertura(persona({ tipoVinculo: "practicante" }), "central").operativa).toBe(true);
-  });
-
-  it("el practicante cuenta en cualquier tipo de sede, no solo en una central", () => {
-    for (const tipo of ["tienda", "taller", "central"]) {
-      expect(cuentaEnCobertura(persona({ tipoVinculo: "practicante" }), tipo).operativa).toBe(true);
+describe("cuentaEnCobertura — operativa (el área manda; la prueba no suma, 2026-10-20)", () => {
+  it("quien está en un área operativa cuenta, sea cual sea su vínculo", () => {
+    for (const tipoVinculo of ["planilla", "practicante", "rxh", "no_trabajador"]) {
+      expect(cuentaEnCobertura(persona({ tipoVinculo, areaOperativa: true }), "tienda").operativa).toBe(true);
     }
   });
 
-  it("quien no es practicante sigue contando solo si su área es operativa", () => {
-    expect(cuentaEnCobertura(persona({ areaOperativa: true }), "tienda").operativa).toBe(true);
-    expect(cuentaEnCobertura(persona({ areaOperativa: false }), "tienda").operativa).toBe(false);
+  it("un practicante en un área de oficina YA NO cuenta: el área manda (revierte lo del 2026-09-19)", () => {
+    for (const tipo of ["tienda", "taller", "central"]) {
+      expect(cuentaEnCobertura(persona({ tipoVinculo: "practicante", areaOperativa: false }), tipo).operativa).toBe(false);
+    }
+  });
+
+  it("quien está de prueba NO cuenta, aunque su área sea operativa (revierte lo del 2026-10-19)", () => {
+    for (const tipo of ["tienda", "taller", "central"]) {
+      expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba", areaOperativa: true }), tipo).operativa).toBe(false);
+      expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba", areaOperativa: false }), tipo).operativa).toBe(false);
+    }
+  });
+
+  it("cuando deja de estar de prueba, suma: cambia el vínculo y la regla lo toma sola", () => {
+    expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba", areaOperativa: true }), "tienda").operativa).toBe(false);
+    expect(cuentaEnCobertura(persona({ tipoVinculo: "planilla", areaOperativa: true }), "tienda").operativa).toBe(true);
+  });
+
+  it("estaDePrueba solo es cierto para el vínculo «prueba»", () => {
+    expect(estaDePrueba("prueba")).toBe(true);
+    for (const v of ["planilla", "practicante", "rxh", null, undefined, ""]) expect(estaDePrueba(v)).toBe(false);
+  });
+
+  it("estar de prueba no hace líder a nadie", () => {
+    expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba" }), "central").lider).toBe(false);
   });
 
   it("un integrante en planilla de un área de oficina NO cuenta como operativo", () => {
     expect(cuentaEnCobertura(persona({ tipoVinculo: "planilla" }), "central").operativa).toBe(false);
+  });
+});
+
+describe("cuentaEnCobertura — qué cuenta contra la meta de «operativas» (cuentaEnMetaOp, 2026-10-21)", () => {
+  it("en una central cuenta cualquiera del equipo, esté su área marcada como operativa o no", () => {
+    // Oficina TRU: cuatro practicantes en áreas de oficina y una líder. Ninguno es «operativo», todos cuentan.
+    for (const tipoVinculo of ["practicante", "planilla", "rxh"]) {
+      const c = cuentaEnCobertura(persona({ tipoVinculo, areaOperativa: false }), "central");
+      expect(c.cuentaEnMetaOp).toBe(true);
+      expect(c.operativa).toBe(false); // «operativa» sigue diciendo solo lo del área
+    }
+  });
+
+  it("en una central quien está de prueba tampoco suma: la prueba manda sobre el tipo de sede", () => {
+    expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba", areaOperativa: false }), "central").cuentaEnMetaOp).toBe(false);
+    expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba", areaOperativa: true }), "central").cuentaEnMetaOp).toBe(false);
+  });
+
+  it("en una tienda, un taller o un tipo desconocido sigue mandando el área: nada cambia", () => {
+    for (const tipo of ["tienda", "taller", "almacen", null, undefined]) {
+      expect(cuentaEnCobertura(persona({ areaOperativa: false }), tipo).cuentaEnMetaOp).toBe(false);
+      expect(cuentaEnCobertura(persona({ areaOperativa: true }), tipo).cuentaEnMetaOp).toBe(true);
+    }
+  });
+
+  it("la persona operativa cuenta en cualquier sede, también en una central", () => {
+    expect(cuentaEnCobertura(persona({ areaOperativa: true }), "central").cuentaEnMetaOp).toBe(true);
+  });
+
+  it("esSedeCentral: solo el tipo «central»", () => {
+    expect(esSedeCentral("central")).toBe(true);
+    for (const t of ["tienda", "taller", "", null, undefined]) expect(esSedeCentral(t)).toBe(false);
   });
 });
 

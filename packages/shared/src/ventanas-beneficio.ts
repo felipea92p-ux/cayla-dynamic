@@ -123,6 +123,23 @@ export function periodoAnterior(p: PeriodoDeBeneficio): PeriodoDeBeneficio {
   return periodoQueContiene(p.beneficio, diaAnterior);
 }
 
+/**
+ * El periodo que contiene la fecha y los `cuantos - 1` que lo preceden, del
+ * más reciente al más viejo. Vacaciones y los dos de modalidad formativa no
+ * tienen periodo anterior: devuelven solo el suyo.
+ *
+ * Existe porque con solo «el actual y el anterior» una CTS de mayo que se
+ * quedó sin depositar dejaba de poder anotarse el 1 de noviembre: desde esa
+ * fecha el actual es mayo del año siguiente, el anterior es noviembre, y el
+ * depósito atrasado quedaba a dos periodos de distancia, fuera del formulario.
+ */
+export function periodosHasta(p: PeriodoDeBeneficio, cuantos: number): PeriodoDeBeneficio[] {
+  const out = [p];
+  if (!p.desde) return out;
+  while (out.length < cuantos) out.push(periodoAnterior(out[out.length - 1]!));
+  return out;
+}
+
 function mesAnio(iso: string, meses: string[]): string {
   const { y, m } = partes(iso);
   return `${meses[m - 1]} ${y}`;

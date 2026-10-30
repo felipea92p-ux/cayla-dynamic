@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima } from "@cayla-dynamic/shared";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { Insignia } from "@/components/ui/insignia";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import {
   DIAS_NOVEDAD, diaYMes, traerBandeja,
   type Bandeja, type EstadoBandeja, type MensajeBandeja,
@@ -142,8 +144,9 @@ export default function MiBandejaPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) return { tipo: "sin-sesion" };
 
-    const { data: sesionAuth } = await supabase.auth.getUser();
-    const uid = sesionAuth.user?.id;
+    // Del almacén de la sesión, sin viajar a la red: `getUser()` es una ronda al servidor de
+    // autenticación por cada pantalla, y la base ya valida el token en cada consulta.
+    const uid = sesion.session.user.id;
     if (!uid) return { tipo: "error", texto: "No se pudo leer tu sesión. Vuelve a entrar." };
 
     const { data: p } = await supabase
@@ -200,15 +203,16 @@ export default function MiBandejaPage() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-2xl bg-crema px-5 py-8 text-tinta">
-      <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
+      <EnlaceVolver href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
         ← Volver a Info
-      </Link>
+      </EnlaceVolver>
 
-      <h1 className="mt-3 font-serif text-2xl">Bandeja</h1>
-      <p className="mt-1 mb-6 text-sm text-taupe">
-        Lo que te falta hacer y lo que te respondieron: tu contrato, los documentos por firmar, tus
-        cambios de ficha, tus vacaciones y tus pedidos de revisar un día.
-      </p>
+      <div className="mt-3">
+        <CabeceraPagina
+          titulo="Bandeja"
+          descripcion="Lo que te falta hacer y lo que te respondieron: tu contrato, los documentos por firmar, tus cambios de ficha, tus vacaciones y tus pedidos de revisar un día."
+        />
+      </div>
 
       {cargando && <Cargando texto="Cargando tu bandeja…" />}
 

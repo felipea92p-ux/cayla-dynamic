@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -8,11 +8,18 @@ import { CargandoFila, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { CampoClave } from "@/components/ui/campo-clave";
+import { Filtro } from "@/components/ui/filtro";
 import { Tabla } from "@/components/ui/tabla";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { Pestanas } from "@/components/ui/pestanas";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
+import { filtrarCuentas, sedesDe } from "@/lib/admin/filtrar-cuentas";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { guardarMiClave } from "@/lib/admin/mi-clave";
 import { REQUISITOS_CLAVE, problemasDeClave, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 interface Cuenta {
   id: string;
@@ -82,6 +89,8 @@ export default function CuentasPage() {
 
   const { avisar } = useToast();
 
+  const [pestana, setPestana] = useFiltroGuardado<"cuentas" | "invitar" | "lideres" | "clave">("cuentas.pestana", "cuentas");
+
   // cambiar mi contraseña
   const [nueva, setNueva] = useState("");
   const [confirma, setConfirma] = useState("");
@@ -120,6 +129,12 @@ export default function CuentasPage() {
   // —«nadie tiene cuenta todavía»— y sobre esa lectura se crean cuentas
   // duplicadas.
   const [errListado, setErrListado] = useState<string | null>(null);
+
+  // El filtro de «Cuentas del equipo». NO se guarda entre visitas, a diferencia de la pestaña:
+  // en esta pantalla «no veo a nadie» se lee como «no tiene cuenta», y un filtro de la vez pasada
+  // que esconde gente sin que se note es justo esa mala lectura. `null` es «todas las sedes».
+  const [busca, setBusca] = useState("");
+  const [fSede, setFSede] = useState<string | null>(null);
 
   const token = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -192,6 +207,14 @@ export default function CuentasPage() {
       if (esAdmin) void listar();
     });
   }, [router, esAdmin, listar]);
+
+  const sedes = useMemo(() => sedesDe(cuentas), [cuentas]);
+  // Si la sede elegida ya no está entre las cuentas (al recargar la lista se fue la última persona de
+  // esa sede), vale «todas»: un chip encendido que ya no existe dejaría la tabla vacía sin explicación.
+  const sedeVigente = fSede !== null && sedes.includes(fSede) ? fSede : null;
+  const visibles = useMemo(() => filtrarCuentas(cuentas, { busca, sede: sedeVigente }), [cuentas, busca, sedeVigente]);
+  const filtrando = busca.trim() !== "" || sedeVigente !== null;
+  function quitarFiltros() { setBusca(""); setFSede(null); }
 
   async function cambiarMiClave() {
     // Una sola política, un solo sitio (`packages/shared/src/clave.ts`). Acá
@@ -297,7 +320,7 @@ export default function CuentasPage() {
     return (
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
-          <h1 className="mb-1 font-serif text-2xl">Mi cuenta</h1>
+          <CabeceraPagina sobretitulo={sobretituloDeHoy("Configuración")} titulo="Mi cuenta" descripcion="Cambia tu contraseña." />
           <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
         </main>
       </div>
@@ -307,12 +330,33 @@ export default function CuentasPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <h1 className="mb-1 font-serif text-2xl">Cuentas</h1>
-        <p className="mb-6 text-sm text-taupe">Cambia tu contraseña y gestiona los accesos del equipo al panel.</p>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Configuración")}
+          titulo="Cuentas"
+          descripcion="Cambia tu contraseña y gestiona los accesos del equipo al panel."
+        />
 
-        <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
+        {/* Cuatro pestañas en vez de una pantalla larga por la que bajar: quien viene a invitar no tiene por qué pasar
+            por la lista de cuentas, ni quien viene a cambiar su clave por todo lo demás. */}
+        <Pestanas
+          etiqueta="Secciones de Cuentas"
+          pestanas={[
+            { clave: "cuentas", texto: "Cuentas del equipo" },
+            { clave: "invitar", texto: `Invitar${invitables.length + pendientes.length > 0 ? ` (${invitables.length + pendientes.length})` : ""}` },
+            { clave: "lideres", texto: `Líderes${promovibles.length > 0 ? ` (${promovibles.length})` : ""}` },
+            { clave: "clave", texto: "Mi contraseña" },
+          ] as const}
+          activa={pestana}
+          alElegir={setPestana}
+        />
 
-        <h2 className="mb-3 mt-8 font-serif text-lg">Gestionar cuentas del equipo</h2>
+        {pestana === "clave" && (
+          <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
+        )}
+
+        {pestana === "cuentas" && (
+          <div>
+        <h2 className="mb-3 font-serif text-lg">Gestionar cuentas del equipo</h2>
         {/* Persistente a propósito: no es un aviso que se va solo. Mientras la
             lista no cargue, todo lo que se ve debajo puede estar incompleto. */}
         {errListado && (
@@ -326,6 +370,26 @@ export default function CuentasPage() {
         )}
         {msgGestion && (
           <p className={`mb-3 text-sm ${msgGestion.tipo === "ok" ? "text-verde" : "text-rojo"}`}>{msgGestion.texto}</p>
+        )}
+        {cuentas.length > 0 && (
+          <TarjetaInfo className="mb-3 flex flex-wrap items-center gap-2 p-3 sm:p-3">
+            <div className="min-w-48 flex-1">
+              <Campo tamano="sm" aria-label="Buscar por nombre o correo" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nombre o correo" />
+            </div>
+            {sedes.length > 1 && (
+              <div role="group" aria-label="Filtrar por sede" className="flex flex-wrap gap-1.5">
+                <Filtro tamano="sm" activo={sedeVigente === null} onClick={() => setFSede(null)}>Todas</Filtro>
+                {sedes.map((s) => (
+                  <Filtro key={s} tamano="sm" activo={sedeVigente === s} onClick={() => setFSede(s)}>{s}</Filtro>
+                ))}
+              </div>
+            )}
+            {filtrando && (
+              <Boton variante="enlace" className="text-xs text-taupe" onClick={quitarFiltros}>
+                {visibles.length} de {cuentas.length} — quitar filtros
+              </Boton>
+            )}
+          </TarjetaInfo>
         )}
         <Tabla>
           <thead className="bg-sand/70 text-left">
@@ -346,8 +410,16 @@ export default function CuentasPage() {
                     No se pudo cargar la lista. Esto <strong>no</strong> quiere decir que nadie tenga cuenta.
                   </td>
                 </tr>
+              ) : cuentas.length > 0 && visibles.length === 0 ? (
+                // Aparte del error de arriba, a propósito: acá la lista SÍ cargó y ninguna cuenta pasa el filtro.
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-taupe">
+                    Nadie coincide{busca.trim() ? ` con «${busca.trim()}»` : ""}{sedeVigente ? ` en ${sedeVigente}` : ""}.{" "}
+                    <Boton variante="enlace" onClick={quitarFiltros}>Quitar filtros</Boton>
+                  </td>
+                </tr>
               ) : (
-                cuentas.map((c) => (
+                visibles.map((c) => (
                   <tr key={c.id} className="border-t border-sand align-top">
                     <td className="px-4 py-3">{c.nombre}</td>
                     <td className="px-4 py-3 text-taupe">{ROL_LABEL[c.rol] ?? c.rol}</td>
@@ -445,7 +517,12 @@ export default function CuentasPage() {
             </tbody>
         </Tabla>
 
-        <h2 className="mb-1 mt-8 font-serif text-lg">Invitar para que dejen constancia</h2>
+          </div>
+        )}
+
+        {pestana === "invitar" && (
+          <div>
+        <h2 className="mb-1 font-serif text-lg">Invitar para que dejen constancia</h2>
         <p className="mb-3 text-sm text-taupe">
           La Ley 30709 obliga a informar la política salarial a cada persona y a poder probarlo. Para dejar
           su constancia necesitan entrar con su propia cuenta. Al invitarles reciben un correo y{" "}
@@ -491,7 +568,7 @@ export default function CuentasPage() {
           </div>
         )}
 
-        <h2 className="mb-1 mt-8 font-serif text-lg">Volver a invitar — todavía no han entrado</h2>
+        <h2 className="mb-1 mt-10 font-serif text-lg">Volver a invitar — todavía no han entrado</h2>
         <p className="mb-3 text-sm text-taupe">
           Tienen cuenta creada pero <strong>nunca han iniciado sesión</strong>: el correo se perdió, llegó a spam
           o quedó pendiente. A quien fue invitada le llega otra vez la invitación; a quien ya tenía clave le llega
@@ -539,7 +616,12 @@ export default function CuentasPage() {
           </div>
         )}
 
-        <h2 className="mb-1 mt-8 font-serif text-lg">Convertir en líder de equipo</h2>
+          </div>
+        )}
+
+        {pestana === "lideres" && (
+          <div>
+        <h2 className="mb-1 font-serif text-lg">Convertir en líder de equipo</h2>
         <p className="mb-3 text-sm text-taupe">
           Da acceso al panel de su sede a una integrante. Al convertirla, aparece arriba para crearle su cuenta.
         </p>
@@ -565,6 +647,8 @@ export default function CuentasPage() {
                 </Boton>
               </div>
             ))}
+          </div>
+        )}
           </div>
         )}
       </main>

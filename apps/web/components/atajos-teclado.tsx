@@ -35,7 +35,7 @@ const ATAJOS: { tecla: string; href: string }[] = [
 
 const VENTANA_CORDE_MS = 1200;
 
-function enCampoDeTexto(destino: EventTarget | null): boolean {
+export function enCampoDeTexto(destino: EventTarget | null): boolean {
   if (!(destino instanceof HTMLElement)) return false;
   const etiqueta = destino.tagName;
   return etiqueta === "INPUT" || etiqueta === "TEXTAREA" || etiqueta === "SELECT" || destino.isContentEditable;

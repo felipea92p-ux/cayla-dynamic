@@ -1,26 +1,32 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  ARCHIVOS_POR_ENTREGA, ESTADO_CONSTANCIA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIA_PAGO_LABELS,
-  MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, hoyLima, problemaDeArchivo,
-  sugerirProximaFecha,
+  ARCHIVOS_POR_ENTREGA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIA_PAGO_LABELS,
+  MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, VIGENCIA_CORTA_DIAS, diasDeVigencia,
+  esPagoUnicoSustentado, finDeCicloSugerido, hoyLima, insigniaDeEstadoConstancia, problemaDeArchivo, sugerirProximaFecha,
   type EstadoConstancia, type EstadoEntrega, type EstadoSolicitud, type FrecuenciaPago, type MotivoRechazo,
-  type TipoConstancia,
+  type TipoConstancia, nombreDelMesLima,
 } from "@cayla-dynamic/shared";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Rotulo } from "@/components/ui/rotulo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { enDias } from "@/lib/admin/bandeja-urgencia";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { mesDe, sumarMeses } from "@/lib/admin/educacion-meses";
+import { mesesParaLaBase, problemaDelPago, repartirPago, sumaDelPago, type Correccion } from "@/lib/educacion-adelantado";
+import { HistorialEducacion } from "@/components/educacion/historial-educacion";
 import {
   BUCKET_COMPROBANTES, elegido, fechaCorta, subirArchivosDeEntrega, type ArchivoElegido,
 } from "@/lib/educacion";
@@ -67,6 +73,7 @@ interface Situacion {
   entrega_archivos: number | null;
   motivo_categoria: MotivoRechazo | null;
   motivo_comentario: string | null;
+  aprobadas: number;
   aviso_fin_id: string | null;
 }
 
@@ -136,10 +143,22 @@ function fraseDeConstancia(s: Situacion, hoy: string): string {
     case "falta_enviar":
       return `Tu pago del ${fechaCorta(s.fecha_pago_constancia)} necesita su constancia.${plazo}`;
     case "al_dia":
+      // Lo que la base contestó, no una cuenta nueva (0549): un pago único con su constancia aprobada.
+      if (esPagoUnicoSustentado(s)) return "Tu pago único ya está registrado: no tienes más constancias que subir.";
+      if (s.frecuencia_pago === "unico" && s.proxima_fecha_pago && s.proxima_fecha_pago > hoy) {
+        return `Tu pago es el ${fechaCorta(s.proxima_fecha_pago)}. Cuando pagues, sube aquí la constancia.`;
+      }
       return s.proxima_fecha_pago && s.proxima_fecha_pago > hoy
         ? `Tu próximo pago es el ${fechaCorta(s.proxima_fecha_pago)}. Cuando pagues, sube aquí la constancia.`
         : "No tienes constancias pendientes.";
     case "sin_calendario":
+      // Un pago único no tiene «próxima fecha de pago»: es una sola. Si ya tiene su constancia aprobada
+      // (la base de antes de la 0549 todavía lo cuenta como «sin calendario»), no se le pide nada.
+      if (s.frecuencia_pago === "unico") {
+        return s.aprobadas > 0
+          ? "Tu pago único ya tiene su constancia aprobada."
+          : "Todavía no está registrado cuándo pagas a tu institución. Cuando pagues, sube aquí la constancia.";
+      }
       return "Todavía no está registrado cuándo pagas a tu institución. Cuando pagues, sube aquí la constancia e indica tu próxima fecha de pago.";
   }
 }
@@ -220,21 +239,28 @@ function EducacionContenido() {
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
           {error} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</Link>
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</EnlaceVolver>
       </main>
     );
   }
 
   const activas = situaciones.filter((s) => s.vigencia !== "terminada");
   const anteriores = situaciones.filter((s) => s.vigencia === "terminada");
+  // De la que terminó más tarde sale la renovación: es la que la persona
+  // reconoce como «mi apoyo».
+  const ultimoTerminado = anteriores.reduce<Situacion | null>(
+    (m, s) => (!m || s.vigente_hasta > m.vigente_hasta ? s : m), null);
+  // Con algo por corregir adentro, «Estudios anteriores» nace abierto: cerrado,
+  // lo único que ella tiene que hacer quedaría escondido.
+  const anteriorPorCorregir = anteriores.some(corregibleTerminado);
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
-      <Link href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</Link>
-      <h1 className="mb-1 font-serif text-2xl">Educación</h1>
-      <p className="mb-6 text-sm text-taupe">
-        El apoyo de CAYLA para tus estudios o los de tus hijos, y las constancias que lo respaldan.
-      </p>
+      <EnlaceVolver href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</EnlaceVolver>
+      <CabeceraPagina
+        titulo="Educación"
+        descripcion="El apoyo de CAYLA para tus estudios o los de tus hijos, y las constancias que lo respaldan."
+      />
 
       {aviso && (
         <p role="status" className={`mb-4 rounded-xl px-4 py-3 text-sm ${aviso.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo-profundo"}`}>
@@ -245,6 +271,7 @@ function EducacionContenido() {
       {situaciones.length === 0 ? (
         <SolicitudApoyo
           solicitud={solicitud}
+          ultimoTerminado={null}
           personaId={personaId!}
           hoy={hoy}
           onCambio={async (texto) => { setAviso({ tipo: "ok", texto }); await cargar(); }}
@@ -267,6 +294,7 @@ function EducacionContenido() {
           {activas.length === 0 && (
             <SolicitudApoyo
               solicitud={solicitud}
+              ultimoTerminado={ultimoTerminado}
               personaId={personaId!}
               hoy={hoy}
               onCambio={async (texto) => { setAviso({ tipo: "ok", texto }); await cargar(); }}
@@ -274,18 +302,32 @@ function EducacionContenido() {
             />
           )}
           {anteriores.length > 0 && (
-            <details className="rounded-2xl border border-sand p-5 text-sm">
+            <details open={anteriorPorCorregir} className="rounded-2xl border border-sand p-5 text-sm">
               <summary className="cursor-pointer font-medium">Estudios anteriores ({anteriores.length})</summary>
               <div className="mt-4 flex flex-col gap-4">
                 {anteriores.map((s) => (
-                  <Historial key={s.familia_id} titulo={`${s.institucion} · hasta el ${fechaCorta(s.vigente_hasta)}`}
-                    entregas={historial[s.familia_id] ?? []} />
+                  <EstudioTerminado
+                    key={s.familia_id}
+                    situacion={s}
+                    historial={historial[s.familia_id] ?? []}
+                    personaId={personaId!}
+                    textoValido={textoValido}
+                    hoy={hoy}
+                    onCambio={async (texto) => { setAviso({ tipo: "ok", texto }); await cargar(); }}
+                  />
                 ))}
               </div>
             </details>
           )}
         </div>
       )}
+
+      {/* Su recorrido en Educación (0529): lo que envió, qué se aprobó o rechazó y por qué. Sin nombres
+          de quién de DO lo hizo: eso lo decide la base, no esta pantalla. */}
+      <details className="mt-6 rounded-2xl border border-sand p-4">
+        <summary className="cursor-pointer font-serif text-base">Tu historial</summary>
+        <div className="mt-3"><HistorialEducacion modo="ella" /></div>
+      </details>
     </main>
   );
 }
@@ -307,7 +349,7 @@ function Estudio({
   const [confirmarRetiro, setConfirmarRetiro] = useState(false);
   const [avisoFin, setAvisoFin] = useState(false);
 
-  const estado = ESTADO_CONSTANCIA[s.estado_constancia];
+  const estado = insigniaDeEstadoConstancia(s.estado_constancia, s.frecuencia_pago, s.aprobadas);
   const pendiente = historial.find((e) => e.estado === "pendiente") ?? null;
   const rechazada = s.estado_constancia === "rechazada" ? historial.find((e) => e.id === s.entrega_id) ?? null : null;
 
@@ -477,6 +519,26 @@ function FormularioConstancia({
   const [proxima, setProxima] = useState<string>(sugerirProximaFecha(fechaInicial, s.frecuencia_pago) ?? "");
   const [proximaTocada, setProximaTocada] = useState(false);
   const [ultimoPago, setUltimoPago] = useState(false);
+  // Pago adelantado (0529): un solo pago que cubre varios meses. Los meses nacen llenos —del mes en
+  // que pagó a cuatro meses después— para que nada que bloquee el envío arranque vacío.
+  const [cuantos, setCuantos] = useState<"uno" | "varios">("uno");
+  const [desdeMes, setDesdeMes] = useState(mesDe(fechaInicial));
+  const [hastaMes, setHastaMes] = useState(sumarMeses(mesDe(fechaInicial), 4));
+  const [sabe, setSabe] = useState<"total" | "cada">("total");
+  const [total, setTotal] = useState("");
+  const [cada, setCada] = useState("");
+  const [correcciones, setCorrecciones] = useState<Record<string, Correccion>>({});
+  const [corrigiendo, setCorrigiendo] = useState<{ mes: string; monto: string; motivo: string } | null>(null);
+  const reparto = useMemo(
+    () => repartirPago({ desde: desdeMes, hasta: hastaMes, sabe, total: Number(total) || 0, cada: Number(cada) || 0, correcciones }),
+    [desdeMes, hastaMes, sabe, total, cada, correcciones],
+  );
+  const problemaAdelantado = cuantos === "varios" ? problemaDelPago(reparto, sabe, Number(total) || 0) : null;
+  const opcionesDeMes = useMemo(() => {
+    const r: string[] = [];
+    for (let m = sumarMeses(mesDe(hoy), -12); m <= sumarMeses(mesDe(hoy), 18); m = sumarMeses(m, 1)) r.push(m);
+    return r;
+  }, [hoy]);
   const [nota, setNota] = useState("");
   const [archivos, setArchivos] = useState<ArchivoElegido[]>([]);
   const [progreso, setProgreso] = useState<Record<string, number>>({});
@@ -525,7 +587,8 @@ function FormularioConstancia({
     if (archivos.length === 0) { setFallo({ clave: null, texto: "Agrega al menos una foto o un PDF de la constancia." }); return; }
     if (!fechaPago) { setFallo({ clave: null, texto: "Indica en qué fecha pagaste." }); return; }
     if (fechaPago > hoy) { setFallo({ clave: null, texto: "La fecha de pago no puede ser posterior a hoy: la constancia se sube después de pagar." }); return; }
-    if (!ultimoPago && proxima && proxima <= fechaPago) {
+    if (cuantos === "varios" && problemaAdelantado) { setFallo({ clave: null, texto: problemaAdelantado }); return; }
+    if (cuantos === "uno" && !ultimoPago && proxima && proxima <= fechaPago) {
       setFallo({ clave: null, texto: "Tu próximo pago tiene que ser después del que estás respaldando." });
       return;
     }
@@ -542,7 +605,16 @@ function FormularioConstancia({
       return;
     }
 
-    const { error } = await supabase.rpc("fn_educacion_enviar_entrega", {
+    const { error } = cuantos === "varios" ? await supabase.rpc("fn_educacion_enviar_adelantado", {
+      p_id: entregaId,
+      p_asignacion_id: s.asignacion_id,
+      p_fecha_pago: fechaPago,
+      p_tipo: tipo,
+      p_meses: mesesParaLaBase(reparto),
+      p_archivos: subida.archivos,
+      p_nota: nota.trim() || null,
+      p_reemplaza_a: reemplazaA,
+    }) : await supabase.rpc("fn_educacion_enviar_entrega", {
       p_id: entregaId,
       p_asignacion_id: s.asignacion_id,
       p_fecha_pago: fechaPago,
@@ -563,7 +635,7 @@ function FormularioConstancia({
   const enCurso = enviando;
 
   return (
-    <div className="mt-4 rounded-2xl border border-sand bg-papel p-4 sm:p-5">
+    <TarjetaInfo className="mt-4">
       <h4 className="font-serif text-lg">{reemplazaA ? "Enviar la constancia corregida" : "Subir constancia"}</h4>
 
       {textoValido && <p className="mt-2 rounded-xl bg-hueso p-3 text-xs leading-relaxed text-tinta">{textoValido}</p>}
@@ -575,6 +647,95 @@ function FormularioConstancia({
           {TIPOS_CONSTANCIA.map((t) => <option key={t} value={t}>{TIPO_CONSTANCIA_LABELS[t]}</option>)}
         </CampoSelect>
         <div className="flex flex-col gap-1 sm:col-span-2">
+          <span className="text-sm text-taupe">¿Cuántos meses cubre este pago?</span>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Cuántos meses cubre este pago">
+            {([["uno", "Un solo mes", "Como siempre."], ["varios", "Varios meses de una vez", "Ej. de agosto a diciembre."]] as const).map(([k, t, d]) => (
+              <button key={k} type="button" aria-pressed={cuantos === k} disabled={enCurso}
+                onClick={() => { setCuantos(k); setFallo(null); }}
+                className={`rounded-xl border px-3 py-2 text-left ${cuantos === k ? "border-tinta ring-1 ring-tinta" : "border-sand"}`}>
+                <span className="block text-sm font-medium">{t}</span>
+                <span className="block text-xs text-taupe">{d}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {cuantos === "varios" ? (
+          <div className="flex flex-col gap-3 sm:col-span-2">
+            <div className="grid grid-cols-2 gap-3">
+              <CampoSelect etiqueta="Desde" value={desdeMes} disabled={enCurso}
+                onChange={(e) => { setDesdeMes(e.target.value); setCorrecciones({}); }}>
+                {opcionesDeMes.map((m) => <option key={m} value={m}>{nombreDelMesLima(`${m}-15`)} {m.slice(0, 4)}</option>)}
+              </CampoSelect>
+              <CampoSelect etiqueta="Hasta" value={hastaMes} disabled={enCurso}
+                onChange={(e) => { setHastaMes(e.target.value); setCorrecciones({}); }}>
+                {opcionesDeMes.map((m) => <option key={m} value={m}>{nombreDelMesLima(`${m}-15`)} {m.slice(0, 4)}</option>)}
+              </CampoSelect>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-taupe">¿Sabes cuánto pagaste por cada mes?</span>
+              {([["total", "Solo sé el total"], ["cada", "Sé el de cada mes"]] as const).map(([k, t]) => (
+                <button key={k} type="button" aria-pressed={sabe === k} disabled={enCurso}
+                  onClick={() => { setSabe(k); setCorrecciones({}); }}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium ${sabe === k ? "border-tinta bg-tinta text-crema" : "border-sand"}`}>{t}</button>
+              ))}
+            </div>
+            {sabe === "total"
+              ? <Campo etiqueta="Total que pagaste (S/)" inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} disabled={enCurso} />
+              : <Campo etiqueta="Monto de cada mes (S/)" inputMode="decimal" value={cada} onChange={(e) => setCada(e.target.value)} disabled={enCurso} />}
+            <div>
+              <p className="mb-1 text-sm font-medium">El sistema sacó {reparto.length} {reparto.length === 1 ? "mes" : "meses"}:</p>
+              <table className="w-full text-sm">
+                <tbody>
+                  {reparto.map((x) => (
+                    <tr key={x.mes} className="border-t border-sand">
+                      <td className="py-1.5">
+                        {nombreDelMesLima(`${x.mes}-15`)} {x.mes.slice(0, 4)}
+                        <span className={`block text-xs ${x.origen === "manual" ? "text-ambar" : "text-taupe"}`}>
+                          {x.origen === "manual" ? `Lo corregiste: «${x.motivo}»` : x.origen === "puesto" ? "El que pusiste" : "El resto del total, repartido"}
+                        </span>
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums">S/ {x.monto.toFixed(2)}</td>
+                      <td className="py-1.5 text-right">
+                        <Boton variante="sutil" tamano="sm" disabled={enCurso}
+                          onClick={() => setCorrigiendo({ mes: x.mes, monto: String(x.monto), motivo: correcciones[x.mes]?.motivo ?? "" })}>Corregir</Boton>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-sand font-medium"><td className="py-1.5">Suma</td><td className="py-1.5 text-right tabular-nums">S/ {sumaDelPago(reparto).toFixed(2)}</td><td /></tr>
+                </tbody>
+              </table>
+              {corrigiendo && (
+                <div className="mt-2 flex flex-col gap-2 rounded-xl border border-ambar/40 bg-ambar/10 p-3">
+                  <p className="text-sm font-medium">Corregir {nombreDelMesLima(`${corrigiendo.mes}-15`)}</p>
+                  <Campo etiqueta="Monto de ese mes (S/)" inputMode="decimal" value={corrigiendo.monto}
+                    onChange={(e) => setCorrigiendo({ ...corrigiendo, monto: e.target.value })} />
+                  <Campo etiqueta="¿Por qué lo cambias? (mínimo 3 letras)" value={corrigiendo.motivo} placeholder="ej. agosto incluía la matrícula"
+                    onChange={(e) => setCorrigiendo({ ...corrigiendo, motivo: e.target.value })} />
+                  <div className="flex justify-end gap-2">
+                    <Boton tamano="sm" onClick={() => setCorrigiendo(null)}>Cancelar</Boton>
+                    <Boton tamano="sm" variante="primario"
+                      disabled={corrigiendo.motivo.trim().length < 3 || !(Number(corrigiendo.monto) >= 0) || corrigiendo.monto === ""}
+                      onClick={() => {
+                        setCorrecciones((c) => ({ ...c, [corrigiendo.mes]: { monto: Number(corrigiendo.monto), motivo: corrigiendo.motivo.trim() } }));
+                        setCorrigiendo(null);
+                      }}>Guardar</Boton>
+                  </div>
+                </div>
+              )}
+              <p className="mt-1 text-xs text-taupe">
+                Lo que corrijas se respeta y el resto del total se reparte entre los otros meses. Desarrollo Organizacional
+                ve qué meses calculó el sistema y cuáles cambiaste tú. Aprobada, no tendrás que enviar constancia de esos meses.
+              </p>
+              {problemaAdelantado && (total || cada) && <p className="mt-1 text-xs text-rojo-profundo">{problemaAdelantado}</p>}
+            </div>
+          </div>
+        ) : (
+        s.frecuencia_pago === "unico" ? (
+          // Un pago único no tiene «próximo pago» ni «último pago»: es uno solo. Preguntarlo era pedirle una
+          // fecha que no existe, y `proxima` queda vacía (sugerirProximaFecha solo sugiere para mensual).
+          <p className="text-xs text-taupe sm:col-span-2">Es un pago único: no hay un próximo pago que indicar.</p>
+        ) : (
+        <div className="flex flex-col gap-1 sm:col-span-2">
           <Campo etiqueta="¿Cuándo es tu próximo pago?" type="date" value={ultimoPago ? "" : proxima}
             onChange={(e) => { setProxima(e.target.value); setProximaTocada(true); }} disabled={enCurso || ultimoPago} />
           <label className="flex items-center gap-2 text-xs text-taupe">
@@ -584,6 +745,8 @@ function FormularioConstancia({
           </label>
           <span className="text-xs text-taupe">Si todavía no sabes la fecha, déjala vacía: Desarrollo Organizacional te la preguntará.</span>
         </div>
+        )
+        )}
       </div>
 
       {/* Dos botones grandes y no un solo campo de archivo: en el celular,
@@ -643,7 +806,7 @@ function FormularioConstancia({
           {fallo && archivos.some((a) => a.subido) ? "Reintentar" : "Enviar para revisión"}
         </Boton>
       </div>
-    </div>
+    </TarjetaInfo>
   );
 }
 
@@ -666,6 +829,91 @@ function ListaArchivos({ archivos }: { archivos: Entrega["archivos"] }) {
         ))}
       </ul>
       {fallo && <p className="mt-1 text-xs text-rojo-profundo">{fallo}</p>}
+    </div>
+  );
+}
+
+/**
+ * ¿Le queda algo por hacer en un estudio que ya terminó? Solo una cosa: la
+ * constancia RECHAZADA de un pago hecho dentro de la vigencia.
+ */
+function corregibleTerminado(s: Situacion): boolean {
+  return s.vigencia === "terminada" && s.estado_constancia === "rechazada" && s.entrega_id !== null
+    && s.fecha_pago_constancia !== null && s.fecha_pago_constancia <= s.vigente_hasta;
+}
+
+/**
+ * Un estudio que ya terminó: su historial y una sola puerta abierta, corregir
+ * la constancia rechazada de un pago hecho DENTRO de la vigencia.
+ *
+ * Por qué esa y ninguna otra. Ese pago CAYLA ya lo acompañó con el apoyo, y la
+ * constancia es su respaldo: cerrarla al día siguiente del fin lo dejaba sin
+ * respaldo para siempre. La base ya lo aceptaba —`fn_educacion_enviar_entrega`
+ * no mira la vigencia—; el candado era solo de esta pantalla.
+ *
+ * Una constancia NUEVA, en cambio, no va aquí: un pago posterior al fin no lo
+ * acompaña este apoyo, y aprobarla le diría «Aprobada» a quien ya no lo cobra —
+ * se leería como «me lo pagan». Para seguir, está la renovación
+ * (`SolicitudApoyo`, arriba).
+ */
+function EstudioTerminado({
+  situacion: s, historial, personaId, textoValido, hoy, onCambio,
+}: {
+  situacion: Situacion;
+  historial: Entrega[];
+  personaId: string;
+  textoValido: string;
+  hoy: string;
+  onCambio: (texto: string) => Promise<void>;
+}) {
+  const [corrigiendo, setCorrigiendo] = useState(false);
+  const rechazada = corregibleTerminado(s) ? historial.find((e) => e.id === s.entrega_id) ?? null : null;
+  const enRevision = s.estado_constancia === "pendiente_revision"
+    ? historial.find((e) => e.estado === "pendiente") ?? null : null;
+
+  return (
+    <div>
+      {rechazada && (
+        <div className="mb-3 rounded-xl border border-rojo/30 bg-rojo/5 p-3">
+          <p className="font-medium text-rojo-profundo">
+            La constancia de tu pago del {fechaCorta(rechazada.fecha_pago)} no se pudo aprobar.
+          </p>
+          <p className="mt-1">
+            Motivo: {rechazada.motivo_categoria ? MOTIVO_RECHAZO_LABELS[rechazada.motivo_categoria] : "—"}
+            {rechazada.motivo_comentario && <> · «{rechazada.motivo_comentario}»</>}
+          </p>
+          <p className="mt-1 text-xs text-taupe">
+            Ese pago lo hiciste mientras tu apoyo estaba vigente, así que puedes corregirla aunque el apoyo ya haya terminado.
+          </p>
+          {!corrigiendo && (
+            <Boton variante="primario" className="mt-3 w-full sm:w-auto" onClick={() => setCorrigiendo(true)}>
+              Corregir y volver a enviar
+            </Boton>
+          )}
+        </div>
+      )}
+      {rechazada && corrigiendo && (
+        <div className="mb-3">
+          <FormularioConstancia
+            situacion={s}
+            personaId={personaId}
+            textoValido={textoValido}
+            reemplazaA={rechazada.id}
+            hoy={hoy}
+            onCancelar={() => setCorrigiendo(false)}
+            onEnviada={async () => {
+              setCorrigiendo(false);
+              await onCambio("Constancia corregida y enviada. Desarrollo Organizacional la va a revisar y te avisamos en tu Bandeja.");
+            }}
+          />
+        </div>
+      )}
+      {enRevision && (
+        <p className="mb-3 text-xs text-taupe">
+          Tu constancia del pago del {fechaCorta(enRevision.fecha_pago)} está en revisión. Te avisamos en tu Bandeja cuando termine.
+        </p>
+      )}
+      <Historial titulo={`${s.institucion} · hasta el ${fechaCorta(s.vigente_hasta)}`} entregas={historial} />
     </div>
   );
 }
@@ -761,20 +1009,56 @@ function AvisoFin({
  * formulario que usa DO para dar de alta, sin el monto — eso lo sigue
  * calculando el sistema al aprobar. Mientras está pendiente puede verla y
  * retirarla; si la rechazan, ve el motivo y puede corregir y reenviar.
+ *
+ * Y quien lo TUVO y ya terminó, lo renueva acá. Hasta octubre de 2026 una
+ * solicitud aprobada cuyo apoyo había terminado dejaba esta tarjeta con
+ * «Aprobada» y ni un botón, mientras la tarjeta de Info mandaba aquí con
+ * «Solicitar apoyo educativo →»: dos puertas a la misma pared. Una solicitud
+ * aprobada ya no es algo vivo —el apoyo que nació de ella se ve en su estudio—,
+ * así que cuenta igual que no tener ninguna, y la tarjeta ofrece renovar con lo
+ * que ya declaró adentro.
  */
 function SolicitudApoyo({
-  solicitud, personaId, hoy, onCambio, onError,
+  solicitud, ultimoTerminado, personaId, hoy, onCambio, onError,
 }: {
   solicitud: Solicitud | null;
+  ultimoTerminado: Situacion | null;
   personaId: string;
   hoy: string;
   onCambio: (texto: string) => Promise<void>;
   onError: (texto: string) => void;
 }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
-  const [formulario, setFormulario] = useState(false);
+  const [formulario, setFormulario] = useState<"nueva" | "renovar" | "corregir" | null>(null);
   const [retirando, setRetirando] = useState(false);
   const [confirmarRetiro, setConfirmarRetiro] = useState(false);
+  // Adjuntar (o cambiar) el comprobante mientras la solicitud sigue pendiente (0522).
+  const [adjuntando, setAdjuntando] = useState(false);
+  const [archivoNuevo, setArchivoNuevo] = useState<File | null>(null);
+  const [progresoNuevo, setProgresoNuevo] = useState<number | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+
+  async function adjuntar() {
+    if (!solicitud || !archivoNuevo) return;
+    setSubiendo(true);
+    // Una carpeta nueva por subida, como en el formulario: nunca se escribe
+    // encima del archivo anterior.
+    const ext = archivoNuevo.name.split(".").pop()?.toLowerCase() ?? "bin";
+    const ruta = `educacion/${personaId}/solicitudes/${crypto.randomUUID()}/comprobante.${ext}`;
+    const errorSubida = await subirArchivoConProgreso(supabase, BUCKET_COMPROBANTES, ruta, archivoNuevo, setProgresoNuevo);
+    if (errorSubida) {
+      setSubiendo(false);
+      onError(`El comprobante no subió: ${errorSubida}`);
+      return;
+    }
+    const { error } = await supabase.rpc("fn_educacion_solicitud_adjuntar", { p_id: solicitud.id, p_ruta: ruta });
+    setSubiendo(false);
+    setProgresoNuevo(null);
+    if (error) { onError(mensajeDeError(error, "adjuntar el comprobante")); return; }
+    setAdjuntando(false);
+    setArchivoNuevo(null);
+    await onCambio("Listo: tu comprobante quedó adjunto. Desarrollo Organizacional lo verá al revisar tu solicitud.");
+  }
 
   async function retirar() {
     if (!solicitud) return;
@@ -786,41 +1070,76 @@ function SolicitudApoyo({
     await onCambio("Retiraste tu solicitud. Puedes enviarla de nuevo cuando quieras.");
   }
 
-  // Sin solicitud viva (nunca pidió, o la retiró): la tarjeta vacía, o el
-  // formulario si ya lo abrió.
-  if (!solicitud || solicitud.estado === "retirada") {
-    if (formulario) {
+  // Sin solicitud viva (nunca pidió, la retiró, o ya se la aprobaron y ese
+  // apoyo terminó): renovar el último, la tarjeta vacía, o el formulario si ya
+  // lo abrió.
+  if (!solicitud || solicitud.estado === "retirada" || solicitud.estado === "aprobada") {
+    const u = ultimoTerminado;
+    if (formulario === "nueva" || (formulario === "renovar" && u)) {
+      const renovando = formulario === "renovar" && u;
       return (
         <FormularioSolicitud
           personaId={personaId}
           hoy={hoy}
-          onCancelar={() => setFormulario(false)}
+          modo={renovando ? "renovar" : "nueva"}
+          valoresIniciales={renovando ? {
+            institucion: u.institucion,
+            beneficiario: u.beneficiario === "hijo" ? "hijo" : "trabajador",
+            beneficiario_nombre: u.beneficiario_nombre,
+            // El costo no vive en la asignación: sale de lo que ella declaró
+            // la última vez, si fue para esta misma institución.
+            costo_declarado: solicitud && solicitud.institucion === u.institucion ? solicitud.costo_declarado : undefined,
+          } : undefined}
+          onCancelar={() => setFormulario(null)}
           onEnviada={async () => {
-            setFormulario(false);
+            setFormulario(null);
             await onCambio("Solicitud enviada. Desarrollo Organizacional la va a revisar y te avisamos en tu Bandeja.");
           }}
         />
       );
     }
+    if (u) {
+      return (
+        <TarjetaInfo como="section" className="text-sm">
+          <Rotulo>Apoyo educativo terminado</Rotulo>
+          <h2 className="mt-1 font-serif text-xl">{u.institucion}</h2>
+          <p className="mt-2">
+            Tu apoyo terminó el {fechaCorta(u.vigente_hasta)}: ya no aparece en tus próximas boletas ni recibe constancias nuevas.
+          </p>
+          <p className="mt-2 text-taupe">
+            ¿Sigues estudiando? Renuévalo hasta el fin de tu ciclo. Se pide una sola vez: después, cada mes subes aquí la
+            constancia de tu pago, sin volver a pedirlo. Si ya pagaste este mes, adjunta esa constancia en la renovación.
+          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Boton variante="primario" className="w-full sm:w-auto" onClick={() => setFormulario("renovar")}>
+              Sigo estudiando: renovar mi apoyo
+            </Boton>
+            <Boton variante="sutil" className="w-full sm:w-auto" onClick={() => setFormulario("nueva")}>
+              Es otro estudio
+            </Boton>
+          </div>
+        </TarjetaInfo>
+      );
+    }
     return (
-      <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
-        <h2 className="mb-1 font-serif text-lg">No tienes una asignación educativa activa</h2>
+      <TarjetaInfo como="section" titulo="No tienes una asignación educativa activa" className="text-sm">
         <p className="mb-4 text-taupe">
           Si estudias tú o tu hijo o hija y CAYLA cubre parte del costo, pide aquí tu apoyo educativo.
         </p>
-        <Boton variante="primario" onClick={() => setFormulario(true)}>Solicitar apoyo educativo</Boton>
-      </section>
+        <Boton variante="primario" onClick={() => setFormulario("nueva")}>Solicitar apoyo educativo</Boton>
+      </TarjetaInfo>
     );
   }
 
   const estado = ESTADO_SOLICITUD[solicitud.estado];
 
   return (
-    <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-serif text-lg">{solicitud.institucion}</h2>
-        <Insignia variante={estado.tono}>{estado.etiqueta}</Insignia>
-      </div>
+    <TarjetaInfo
+      como="section"
+      titulo={solicitud.institucion}
+      accion={<Insignia variante={estado.tono}>{estado.etiqueta}</Insignia>}
+      className="text-sm"
+    >
       <p className="text-taupe">
         Pediste este apoyo el {fechaCorta(solicitud.enviada_at)} · costo declarado {soles(solicitud.costo_declarado)}
       </p>
@@ -839,7 +1158,38 @@ function SolicitudApoyo({
           <p className="mt-3 text-xs text-taupe">
             Desarrollo Organizacional la está revisando. Te avisamos en tu Bandeja cuando termine.
           </p>
-          <Boton variante="sutil" className="mt-4" onClick={() => setConfirmarRetiro(true)}>Retirar solicitud</Boton>
+
+          {!solicitud.comprobante_url && !adjuntando && (
+            <div className="mt-3 rounded-xl border border-ambar/40 bg-ambar/10 p-3 text-sm text-tinta">
+              Todavía no adjuntaste el comprobante. Sin él, Desarrollo Organizacional no puede aprobar tu solicitud:
+              adjúntalo aquí, no hace falta pedirla de nuevo.
+            </div>
+          )}
+
+          {adjuntando && (
+            <div className="mt-3 rounded-xl border border-sand bg-hueso p-3">
+              <Campo etiqueta={solicitud.comprobante_url ? "Nuevo comprobante" : "Comprobante"}
+                type="file" accept="application/pdf,image/jpeg,image/png"
+                onChange={(e) => setArchivoNuevo(e.target.files?.[0] ?? null)} disabled={subiendo} />
+              {progresoNuevo !== null && <p className="mt-1 text-xs text-taupe">Subiendo… {progresoNuevo}%</p>}
+              <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Boton onClick={() => { setAdjuntando(false); setArchivoNuevo(null); }} disabled={subiendo}>Cancelar</Boton>
+                <Boton variante="primario" cargando={subiendo} disabled={!archivoNuevo} onClick={() => void adjuntar()}>
+                  Adjuntar
+                </Boton>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {!adjuntando && (
+              <Boton variante={solicitud.comprobante_url ? "sutil" : "primario"} className="w-full sm:w-auto"
+                onClick={() => setAdjuntando(true)}>
+                {solicitud.comprobante_url ? "Cambiar comprobante" : "Adjuntar comprobante"}
+              </Boton>
+            )}
+            <Boton variante="sutil" className="w-full sm:w-auto" onClick={() => setConfirmarRetiro(true)}>Retirar solicitud</Boton>
+          </div>
         </>
       )}
 
@@ -848,18 +1198,19 @@ function SolicitudApoyo({
           <div className="mt-3 rounded-xl border border-rojo/30 bg-rojo/5 p-3 text-sm">
             <p className="font-medium text-rojo-profundo">Motivo: {solicitud.motivo_rechazo}</p>
           </div>
-          <Boton variante="primario" className="mt-4" onClick={() => setFormulario(true)}>Corregir y volver a enviar</Boton>
+          <Boton variante="primario" className="mt-4" onClick={() => setFormulario("corregir")}>Corregir y volver a enviar</Boton>
         </>
       )}
 
-      {formulario && (
+      {formulario === "corregir" && (
         <FormularioSolicitud
           personaId={personaId}
           hoy={hoy}
+          modo="corregir"
           valoresIniciales={solicitud}
-          onCancelar={() => setFormulario(false)}
+          onCancelar={() => setFormulario(null)}
           onEnviada={async () => {
-            setFormulario(false);
+            setFormulario(null);
             await onCambio("Solicitud enviada. Desarrollo Organizacional la va a revisar y te avisamos en tu Bandeja.");
           }}
         />
@@ -875,16 +1226,26 @@ function SolicitudApoyo({
           <Boton variante="peligro" cargando={retirando} onClick={() => void retirar()}>Retirar solicitud</Boton>
         </div>
       </Modal>
-    </section>
+    </TarjetaInfo>
   );
 }
 
+type ValoresSolicitud = Partial<Pick<Solicitud,
+  "institucion" | "beneficiario" | "beneficiario_nombre" | "costo_declarado" | "vigente_desde" | "vigente_hasta" | "nota">>;
+
+const TITULO_SOLICITUD = {
+  nueva: "Solicitar apoyo educativo",
+  corregir: "Corregir y volver a enviar",
+  renovar: "Renovar mi apoyo educativo",
+} as const;
+
 function FormularioSolicitud({
-  personaId, hoy, valoresIniciales, onCancelar, onEnviada,
+  personaId, hoy, modo, valoresIniciales, onCancelar, onEnviada,
 }: {
   personaId: string;
   hoy: string;
-  valoresIniciales?: Solicitud;
+  modo: keyof typeof TITULO_SOLICITUD;
+  valoresIniciales?: ValoresSolicitud;
   onCancelar: () => void;
   onEnviada: () => Promise<void>;
 }) {
@@ -894,17 +1255,23 @@ function FormularioSolicitud({
   const [institucion, setInstitucion] = useState(valoresIniciales?.institucion ?? "");
   const [beneficiario, setBeneficiario] = useState<"trabajador" | "hijo">(valoresIniciales?.beneficiario ?? "trabajador");
   const [beneficiarioNombre, setBeneficiarioNombre] = useState(valoresIniciales?.beneficiario_nombre ?? "");
-  const [costo, setCosto] = useState(valoresIniciales ? String(valoresIniciales.costo_declarado) : "");
-  // Fecha que nace con valor, nunca vacía (CLAUDE.md, 2026-08-26).
-  const [desde, setDesde] = useState(valoresIniciales?.vigente_desde ?? hoy);
-  const [hasta, setHasta] = useState(valoresIniciales?.vigente_hasta ?? hoy);
+  const [costo, setCosto] = useState(valoresIniciales?.costo_declarado !== undefined ? String(valoresIniciales.costo_declarado) : "");
+  // Fechas que nacen con valor, nunca vacías (CLAUDE.md, 2026-08-26). El fin
+  // nace en el fin del semestre y no en hoy: ver `finDeCicloSugerido`.
+  const desdeInicial = valoresIniciales?.vigente_desde ?? hoy;
+  const [desde, setDesde] = useState(desdeInicial);
+  const [hasta, setHasta] = useState(valoresIniciales?.vigente_hasta ?? finDeCicloSugerido(desdeInicial));
+  // Un estudio de menos de un mes se pregunta una vez antes de enviar; tocar
+  // cualquiera de las dos fechas vuelve a preguntar.
+  const [avisoCorto, setAvisoCorto] = useState<number | null>(null);
+  const [cortoConfirmado, setCortoConfirmado] = useState(false);
   const [nota, setNota] = useState(valoresIniciales?.nota ?? "");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [progreso, setProgreso] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
 
-  async function enviar() {
+  async function enviar(aceptaCorto = false) {
     setFallo(null);
     if (institucion.trim().length < 3) { setFallo("Escribe qué institución emite el comprobante."); return; }
     const costoNum = Number(costo);
@@ -912,9 +1279,12 @@ function FormularioSolicitud({
     if (beneficiario === "hijo" && beneficiarioNombre.trim().length < 3) {
       setFallo("Escribe a nombre de quién está el comprobante."); return;
     }
-    if (!desde || !hasta) { setFallo("Indica desde y hasta cuándo vale."); return; }
+    if (!desde || !hasta) { setFallo("Indica desde cuándo y hasta cuándo dura tu estudio."); return; }
     if (hasta < desde) { setFallo("La fecha de fin es anterior a la de inicio."); return; }
+    const dias = diasDeVigencia(desde, hasta);
+    if (dias < VIGENCIA_CORTA_DIAS && !cortoConfirmado && !aceptaCorto) { setAvisoCorto(dias); return; }
 
+    setAvisoCorto(null);
     setEnviando(true);
 
     let comprobanteUrl: string | null = null;
@@ -947,9 +1317,7 @@ function FormularioSolicitud({
 
   return (
     <div className="mt-4 rounded-2xl border border-sand bg-hueso p-4 sm:p-5">
-      <h4 className="font-serif text-lg">
-        {valoresIniciales ? "Corregir y volver a enviar" : "Solicitar apoyo educativo"}
-      </h4>
+      <h4 className="font-serif text-lg">{TITULO_SOLICITUD[modo]}</h4>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Campo etiqueta="Institución" value={institucion} placeholder="ej. Instituto San Ignacio"
@@ -966,14 +1334,22 @@ function FormularioSolicitud({
         <Campo etiqueta="Costo que dice el comprobante" type="number" min="0" step="0.01" inputMode="decimal"
           value={costo} onChange={(e) => setCosto(e.target.value)} disabled={enviando} />
         <Campo etiqueta="Se paga desde" type="date" value={desde}
-          onChange={(e) => setDesde(e.target.value)} disabled={enviando} />
-        <Campo etiqueta="Hasta cuándo vale" type="date" value={hasta}
-          onChange={(e) => setHasta(e.target.value)} disabled={enviando} />
+          onChange={(e) => { setDesde(e.target.value); setAvisoCorto(null); setCortoConfirmado(false); }} disabled={enviando} />
+        <Campo etiqueta="Hasta cuándo dura tu estudio" type="date" value={hasta}
+          onChange={(e) => { setHasta(e.target.value); setAvisoCorto(null); setCortoConfirmado(false); }} disabled={enviando} />
+        {/* La etiqueta vieja decía «Hasta cuándo vale», y se leía como «hasta
+            cuándo vale ESTE pago»: un apoyo pedido para todo un ciclo quedó
+            registrado por once días. */}
+        <p className="text-xs text-taupe sm:col-span-2">
+          El fin de tu ciclo, semestre o curso, no el de este mes. El apoyo se pide una sola vez; después, cada mes
+          subes la constancia de tu pago sin volver a pedirlo.
+        </p>
         <div className="flex flex-col gap-1 sm:col-span-2">
-          <Campo etiqueta="Comprobante (opcional)" type="file" accept="application/pdf,image/jpeg,image/png"
+          <Campo etiqueta={modo === "renovar" ? "Constancia de tu último pago (opcional)" : "Comprobante (opcional)"}
+            type="file" accept="application/pdf,image/jpeg,image/png"
             onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} disabled={enviando} />
           <span className="text-xs text-taupe">
-            Puedes enviarlo después. El monto no lo escribes tú: lo calcula Desarrollo Organizacional al aprobar,
+            Puedes adjuntarlo después, desde tu solicitud pendiente. El monto no lo escribes tú: lo calcula Desarrollo Organizacional al aprobar,
             según tu rango.
           </span>
           {progreso !== null && <span className="text-xs text-taupe">Subiendo… {progreso}%</span>}
@@ -986,9 +1362,27 @@ function FormularioSolicitud({
 
       {fallo && <p role="alert" className="mt-3 rounded-xl bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">{fallo}</p>}
 
+      {avisoCorto !== null && (
+        <div role="alert" className="mt-3 rounded-xl border border-ambar/40 bg-ambar/10 px-3 py-3 text-sm text-tinta">
+          <p>
+            Tu apoyo duraría {avisoCorto === 1 ? "un solo día" : `solo ${avisoCorto} días`}: terminaría el {fechaCorta(hasta)}.
+            Esa fecha es el fin de tu estudio, no de este mes. Si estudias más tiempo, cámbiala: el día que termina ya no
+            se pueden subir constancias nuevas.
+          </p>
+          <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Boton tamano="sm" onClick={() => setAvisoCorto(null)}>Cambiar la fecha</Boton>
+            <Boton tamano="sm" variante="secundario" onClick={() => { setCortoConfirmado(true); void enviar(true); }}>
+              Sí, mi estudio dura eso: enviar
+            </Boton>
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Boton onClick={onCancelar} disabled={enviando}>Cancelar</Boton>
-        <Boton variante="primario" cargando={enviando} onClick={() => void enviar()}>Enviar para revisión</Boton>
+        <Boton variante="primario" cargando={enviando} onClick={() => void enviar()} disabled={avisoCorto !== null}>
+          Enviar para revisión
+        </Boton>
       </div>
     </div>
   );

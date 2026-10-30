@@ -1,0 +1,1311 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turnos y cobertura — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<!--
+  Prototipo de «Turnos y cobertura» (2026-10-19). Cinco formas de ubicar la misma pantalla.
+
+  NO es código de la app y no toca ninguna base. Datos ficticios. «Hoy» es el miércoles 21 de
+  octubre de 2026 para que la semana tenga días que ya pasaron y días por venir.
+
+  Lo que NO cambia en ninguna variante (reglas de CLAUDE.md y de jornada-esperada.ts):
+    · el turno puntual de un día MANDA sobre el horario base, y de él salen la tardanza y la falta;
+    · Dynamic avisa, nunca sanciona: los avisos de 12 h y de 48 h no bloquean el guardado;
+    · la cobertura solo cuenta áreas operativas; quien está en otra área se ve en ámbar y no suma;
+    · el corte de la meta es 14:15 (mañana / tarde); la meta de líderes es plana todo el día;
+    · en Trujillo se trabaja domingo; la meta vale para todos los «jueves», no para una fecha;
+    · una líder no fija su propio turno.
+  Colores: tokens de globals.css, claro y oscuro. Ningún estado va solo en color: lleva ícono o palabra.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18;
+    --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f; --color-sand:#e8e0d0; --color-taupe:#805c4c;
+    --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-azul:#2f5f9e; --color-ceniza:#635f58;
+    --font-sans:'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-serif:'EB Garamond', ui-serif, Georgia, "Times New Roman", serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+      --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080;
+      --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+      --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+    --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080;
+    --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+    color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; max-width:100%; overflow-x:hidden; }
+  body{ background:var(--color-crema); color:var(--color-tinta); font-family:var(--font-sans); font-size:14.5px; line-height:1.5; }
+  h1,h2,h3,h4{ font-family:var(--font-serif); font-weight:600; margin:0; text-wrap:balance; }
+  p{ margin:0; }
+  button,input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
+  button{ cursor:pointer; }
+  :focus-visible{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+  .oculto{ display:none !important; }
+  .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  svg.i{ width:1em; height:1em; flex:none; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vertical-align:-.12em; }
+
+  /* ── barra del prototipo (no es parte de la pantalla) ── */
+  .proto{ position:sticky; top:0; z-index:50; background:var(--color-papel); border-bottom:1px solid var(--color-sand); padding:8px 16px; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
+  .proto .vars{ display:flex; flex-wrap:wrap; gap:6px; }
+  .vbtn{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:10px; padding:6px 11px; font-weight:600; font-size:.82rem; display:inline-flex; gap:7px; align-items:center; }
+  .vbtn b{ display:inline-grid; place-items:center; width:20px; height:20px; border-radius:6px; background:var(--color-hueso); color:var(--color-taupe); font-size:.76rem; }
+  .vbtn[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); border-color:var(--color-tinta); }
+  .vbtn[aria-pressed="true"] b{ background:var(--color-crema); color:var(--color-tinta); }
+  .vbtn small{ font-weight:500; opacity:.8; }
+  .proto .ctl{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-left:auto; font-size:.78rem; color:var(--color-taupe); }
+  .proto label{ display:inline-flex; gap:6px; align-items:center; }
+  .proto select{ background:var(--color-hueso); border:1px solid var(--color-sand); border-radius:8px; padding:4px 8px; }
+  .demo-badge{ font-size:.7rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-pizarra) 35%, transparent); padding:3px 9px; border-radius:100px; }
+  .lema{ padding:10px 16px 0; max-width:1240px; margin-inline:auto; color:var(--color-taupe); font-size:.84rem; }
+  .lema strong{ color:var(--color-tinta); }
+
+  /* ── la pantalla ── */
+  .page{ max-width:1240px; margin-inline:auto; padding:18px 16px 80px; display:flex; flex-direction:column; gap:14px; }
+  .cab{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px 18px; align-items:flex-start; }
+  .cab h1{ font-size:1.75rem; font-weight:500; line-height:1.15; }
+  .cab .desc{ color:var(--color-taupe); margin-top:3px; font-size:.9rem; }
+  .acciones{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .btn{ border:1px solid var(--color-tinta); background:var(--color-tinta); color:var(--color-crema); border-radius:8px; padding:7px 13px; font-weight:600; font-size:.84rem; min-height:36px; display:inline-flex; align-items:center; gap:6px; }
+  .btn.sec{ background:transparent; color:var(--color-tinta); border-color:var(--color-taupe); }
+  .btn.sutil{ background:transparent; border-color:transparent; color:var(--color-taupe); }
+  .btn.peligro{ background:transparent; color:var(--color-rojo-profundo); border-color:color-mix(in oklab, var(--color-rojo) 50%, var(--color-sand)); }
+  .btn.fino{ min-height:30px; padding:4px 10px; font-size:.78rem; }
+  .btn.grande{ min-height:44px; }
+  .btn[disabled]{ opacity:.4; cursor:not-allowed; }
+  .seg{ display:inline-flex; border:1px solid var(--color-sand); border-radius:8px; overflow:hidden; background:var(--color-papel); }
+  .seg button{ border:0; background:none; padding:7px 12px; font-size:.84rem; font-weight:600; color:var(--color-taupe); min-height:36px; }
+  .seg button[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); }
+  .seg .et{ padding:7px 10px; font-size:.82rem; color:var(--color-taupe); display:grid; place-items:center; border-inline:1px solid var(--color-sand); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .sel{ background:var(--color-papel); border:1px solid var(--color-taupe); border-radius:8px; padding:7px 10px; min-height:36px; }
+  .ins{ display:inline-flex; align-items:center; gap:5px; font-size:.7rem; font-weight:600; padding:2px 8px; border-radius:100px; white-space:nowrap; }
+  .ins.aviso{ color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 15%, var(--color-papel)); }
+  .ins.alerta{ color:var(--color-rojo-profundo); background:color-mix(in oklab, var(--color-rojo) 10%, var(--color-papel)); }
+  .ins.neutro{ color:var(--color-ceniza); background:color-mix(in oklab, var(--color-ceniza) 12%, var(--color-papel)); }
+  .ins.ok{ color:var(--color-verde); background:color-mix(in oklab, var(--color-verde) 15%, var(--color-papel)); }
+  .ins.info{ color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 15%, var(--color-papel)); }
+  .confirma{ display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; border:1px solid color-mix(in oklab, var(--color-ambar) 40%, transparent); background:color-mix(in oklab, var(--color-ambar) 8%, var(--color-papel)); border-radius:8px; padding:5px 10px; font-size:.78rem; color:var(--color-ambar); max-width:100%; }
+
+  /* Para atender */
+  .atender{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .atender .rot{ font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--color-taupe); }
+  .atender .nada{ font-size:.86rem; color:var(--color-verde); display:inline-flex; gap:6px; align-items:center; }
+  .pa{ display:inline-flex; align-items:center; gap:6px; border-radius:999px; border:1px solid; padding:5px 12px; font-size:.78rem; font-weight:600; font-variant-numeric:tabular-nums; background:var(--color-papel); }
+  .pa.rojo{ border-color:color-mix(in oklab, var(--color-rojo) 30%, transparent); background:color-mix(in oklab, var(--color-rojo) 10%, var(--color-papel)); color:var(--color-rojo-profundo); }
+  .pa.ambar{ border-color:color-mix(in oklab, var(--color-ambar) 40%, transparent); background:color-mix(in oklab, var(--color-ambar) 15%, var(--color-papel)); color:var(--color-ambar); }
+  .pa[aria-pressed="true"]{ box-shadow:0 0 0 2px var(--color-tinta); }
+  /* buscador, Filtros y chips */
+  .barra{ display:flex; gap:8px; align-items:center; position:relative; flex-wrap:wrap; }
+  .busca{ flex:1 1 220px; max-width:420px; display:flex; align-items:center; gap:8px; background:var(--color-hueso); border:1px solid var(--color-taupe); border-radius:8px; padding:0 10px; min-height:38px; color:var(--color-taupe); }
+  .busca input{ flex:1; min-width:0; border:0; background:none; outline:0; padding:8px 0; color:var(--color-tinta); }
+  .btn-filtros b{ background:var(--color-tinta); color:var(--color-crema); border-radius:100px; min-width:18px; height:18px; display:inline-grid; place-items:center; font-size:.7rem; padding:0 5px; }
+  .pop{ position:absolute; top:44px; left:0; z-index:20; width:min(320px,100%); background:var(--color-papel); border:1px solid var(--color-sand); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.18); padding:14px; display:flex; flex-direction:column; gap:12px; }
+  .pop h4{ font-size:.9rem; font-family:var(--font-sans); font-weight:600; margin-bottom:6px; }
+  .pop .fila{ display:flex; flex-wrap:wrap; gap:6px; }
+  .pop label.chk{ display:flex; gap:8px; align-items:flex-start; font-size:.84rem; }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{ border:1px solid var(--color-sand); background:var(--color-papel); border-radius:8px; padding:6px 12px; font-size:.84rem; color:var(--color-tinta); min-height:34px; }
+  .chip b{ margin-left:6px; font-weight:600; color:var(--color-taupe); font-variant-numeric:tabular-nums; }
+  .chip[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); border-color:var(--color-tinta); }
+  .chip[aria-pressed="true"] b{ color:var(--color-crema); }
+  .chip.sm{ min-height:28px; padding:3px 10px; font-size:.78rem; }
+
+  /* avisos y tarjetas */
+  .aviso{ border-radius:12px; border:1px solid; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
+  .aviso.rojo{ border-color:color-mix(in oklab, var(--color-rojo) 30%, transparent); background:color-mix(in oklab, var(--color-rojo) 6%, var(--color-papel)); }
+  .aviso.ambar{ border-color:color-mix(in oklab, var(--color-ambar) 40%, transparent); background:color-mix(in oklab, var(--color-ambar) 7%, var(--color-papel)); }
+  .aviso.ok{ border-color:color-mix(in oklab, var(--color-verde) 30%, transparent); background:color-mix(in oklab, var(--color-verde) 6%, var(--color-papel)); }
+  .aviso.info{ border-color:color-mix(in oklab, var(--color-pizarra) 30%, transparent); background:color-mix(in oklab, var(--color-pizarra) 6%, var(--color-papel)); }
+  .aviso .tit{ font-weight:700; display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+  .aviso.rojo .tit{ color:var(--color-rojo-profundo); } .aviso.ambar .tit{ color:var(--color-ambar); } .aviso.ok .tit{ color:var(--color-verde); } .aviso.info .tit{ color:var(--color-pizarra); }
+  .aviso .txt{ color:var(--color-tinta); font-size:.88rem; }
+  .aviso .acc{ display:flex; flex-wrap:wrap; gap:6px; }
+  .tarj{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:16px; }
+  .tarj > h3{ font-size:1.12rem; margin-bottom:8px; }
+  .muted{ color:var(--color-taupe); }
+  .dot{ display:inline-block; width:9px; height:9px; border-radius:50%; flex:none; }
+  .dot.ok{ background:var(--color-verde); } .dot.falta{ background:var(--color-rojo); } .dot.sobra{ background:var(--color-pizarra); } .dot.warn{ background:var(--color-ambar); } .dot.neutro{ background:var(--color-ceniza); }
+
+  /* chips de cobertura: ícono + número + palabra */
+  .cobs{ display:flex; flex-direction:column; gap:3px; align-items:stretch; }
+  .cob{ display:inline-flex; align-items:center; gap:5px; font-size:.7rem; font-weight:600; border-radius:6px; padding:2px 6px; line-height:1.25; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .cob.ok{ color:var(--color-verde); background:color-mix(in oklab, var(--color-verde) 13%, var(--color-papel)); }
+  .cob.falta{ color:var(--color-rojo-profundo); background:color-mix(in oklab, var(--color-rojo) 12%, var(--color-papel)); box-shadow:inset 0 0 0 1px color-mix(in oklab, var(--color-rojo) 40%, transparent); }
+  .cob.sobra{ color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 13%, var(--color-papel)); }
+  .cob.neutro{ color:var(--color-ceniza); background:color-mix(in oklab, var(--color-ceniza) 11%, var(--color-papel)); }
+  .cob.pasado{ opacity:.6; }
+  .cob .g{ font-weight:800; }
+
+  /* cuadrícula */
+  .grid-wrap{ overflow-x:auto; border:1px solid var(--color-sand); border-radius:14px; background:var(--color-papel); max-width:100%; }
+  table.gr{ border-collapse:separate; border-spacing:0; width:100%; min-width:1010px; }
+  .gr td:not(.quien):not(.hrs){ min-width:112px; }
+  .gr th, .gr td{ border-top:1px solid var(--color-sand); padding:6px 5px; vertical-align:top; background:var(--color-papel); }
+  .gr thead th{ border-top:0; background:var(--color-hueso); text-align:left; font-weight:500; padding:8px 6px 7px; }
+  .gr th.quien, .gr td.quien{ position:sticky; left:0; z-index:2; min-width:158px; max-width:170px; padding-left:12px; box-shadow:1px 0 0 var(--color-sand); }
+  .gr thead th.quien{ background:var(--color-hueso); z-index:3; }
+  .gr td.quien b{ display:block; font-size:.88rem; font-weight:600; }
+  .gr td.quien small{ display:block; color:var(--color-taupe); font-size:.72rem; margin-top:1px; }
+  .gr td.quien .ins{ margin-top:3px; }
+  .dh{ display:flex; align-items:baseline; gap:6px; background:none; border:0; padding:0 0 5px; font-family:var(--font-serif); font-size:1.12rem; font-weight:600; text-align:left; }
+  .dh{ flex-wrap:wrap; row-gap:0; }
+  .dh small{ font-family:var(--font-sans); font-size:.74rem; color:var(--color-taupe); font-weight:500; white-space:nowrap; }
+  .dh em{ font-family:var(--font-sans); font-style:normal; font-size:.62rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--color-rojo-profundo); }
+  .gr th.hoy{ box-shadow:inset 0 -3px 0 var(--color-rojo); }
+  .gr th.hl, .gr td.hl{ background:color-mix(in oklab, var(--color-tinta) 6%, var(--color-papel)); }
+  .gr thead th.hl{ background:color-mix(in oklab, var(--color-tinta) 10%, var(--color-hueso)); }
+  .gr td.hrs{ text-align:right; padding-right:12px; font-variant-numeric:tabular-nums; color:var(--color-taupe); font-size:.8rem; white-space:nowrap; vertical-align:middle; }
+  .gr tfoot td, .gr tfoot th{ background:var(--color-hueso); }
+  .gr tfoot th{ text-align:left; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--color-taupe); padding-left:12px; vertical-align:middle; position:sticky; left:0; z-index:2; }
+  .gr tr.dim td{ opacity:.35; }
+  .gr tr.dim td.quien{ opacity:1; }
+
+  /* la celda de un turno: hora + tramo en palabra e ícono */
+  .cel{ position:relative; display:flex; flex-direction:column; gap:1px; align-items:flex-start; width:100%; min-height:44px; text-align:left; border:1px solid var(--bt, var(--color-sand)); background:var(--bg, var(--color-papel)); color:var(--color-tinta); border-radius:8px; padding:5px 8px; line-height:1.2; justify-content:center; }
+  .cel .h{ font-weight:700; font-size:.8rem; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .cel .w{ font-size:.68rem; color:var(--color-taupe); display:inline-flex; align-items:center; gap:3px; }
+  .cel:hover, .cel:focus-visible{ box-shadow:0 0 0 2px var(--color-tinta); }
+  .cel.m{ --bg:color-mix(in oklab, var(--color-azul) 11%, var(--color-papel)); --bt:color-mix(in oklab, var(--color-azul) 45%, var(--color-sand)); }
+  .cel.t{ --bg:color-mix(in oklab, var(--color-taupe) 12%, var(--color-papel)); --bt:color-mix(in oklab, var(--color-taupe) 45%, var(--color-sand)); }
+  .cel.l{ --bg:var(--color-hueso); --bt:color-mix(in oklab, var(--color-ceniza) 50%, var(--color-sand)); }
+  .cel.otra{ --bg:color-mix(in oklab, var(--color-ambar) 20%, var(--color-papel)); --bt:var(--color-ambar); }
+  .cel.base{ border-style:dashed; }
+  .cel.turno{ box-shadow:inset 4px 0 0 var(--color-tinta); padding-left:11px; }
+  .cel.turno:hover{ box-shadow:inset 4px 0 0 var(--color-tinta), 0 0 0 2px var(--color-tinta); }
+  .cel.desc{ --bg:repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in oklab, var(--color-ceniza) 20%, transparent) 6px 7px); --bt:var(--color-ceniza); background:var(--bg); background-color:var(--color-papel); color:var(--color-ceniza); }
+  .cel.desc .h{ font-weight:600; }
+  .cel.libre{ border-color:transparent; background:transparent; color:var(--color-ceniza); }
+  .cel .neq{ position:absolute; top:1px; right:5px; font-weight:800; font-size:1rem; line-height:1; color:var(--color-ambar); }
+  .cel.mini{ min-height:38px; padding:3px 6px; } .cel.mini.turno{ padding-left:9px; }
+
+  .leyenda{ display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.76rem; color:var(--color-taupe); background:var(--color-hueso); border-radius:12px; padding:9px 12px; align-items:center; }
+  .leyenda span{ display:inline-flex; align-items:center; gap:6px; }
+  .sw{ display:inline-block; width:22px; height:14px; border-radius:4px; border:1px solid var(--color-ceniza); background:var(--color-papel); flex:none; }
+  .sw.tu{ box-shadow:inset 4px 0 0 var(--color-tinta); } .sw.ba{ border-style:dashed; } .sw.de{ background:repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in oklab, var(--color-ceniza) 30%, transparent) 4px 5px); }
+  .sw.ot{ border-color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 16%, var(--color-papel)); }
+
+  /* línea de tiempo */
+  .tira{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; }
+  .tira button{ border:1px solid var(--color-sand); background:var(--color-papel); border-radius:12px; padding:8px 4px; display:flex; flex-direction:column; align-items:center; gap:2px; min-width:0; }
+  .tira button .n{ font-family:var(--font-serif); font-weight:600; font-size:1.08rem; line-height:1; }
+  .tira button small{ color:var(--color-taupe); font-size:.7rem; }
+  .tira button .e{ font-size:.68rem; font-weight:700; display:inline-flex; gap:3px; align-items:center; }
+  .tira button .e.ok{ color:var(--color-verde);} .tira button .e.falta{ color:var(--color-rojo-profundo);} .tira button .e.sobra{ color:var(--color-pizarra);} .tira button .e.neutro{ color:var(--color-ceniza);}
+  .tira button[aria-pressed="true"]{ border-color:var(--color-tinta); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+  .tira button.hoy small::after{ content:" · hoy"; color:var(--color-rojo-profundo); font-weight:700; }
+  .tl{ --nc:158px; position:relative; border:1px solid var(--color-sand); border-radius:14px; background:var(--color-papel); padding:8px 10px 6px; }
+  .tl-eje{ position:relative; height:22px; margin-left:var(--nc); font-size:.68rem; color:var(--color-taupe); }
+  .tl-eje span{ position:absolute; transform:translateX(-50%); }
+  .tl-fila{ display:flex; align-items:center; min-height:38px; border-top:1px solid var(--color-sand); }
+  .tl-fila .nc{ width:var(--nc); flex:none; padding-right:8px; font-size:.82rem; font-weight:600; line-height:1.2; }
+  .tl-fila .nc small{ display:block; font-weight:400; color:var(--color-taupe); font-size:.7rem; }
+  .pista{ position:relative; flex:1; height:30px; min-width:0; background-image:linear-gradient(to right, color-mix(in oklab, var(--color-sand) 80%, transparent) 1px, transparent 1px); background-size:calc(100% / 14) 100%; }
+  .bar{ position:absolute; top:3px; height:24px; border:1px solid var(--bt, var(--color-sand)); background:var(--bg, var(--color-papel)); border-radius:6px; display:flex; align-items:center; padding:0 7px; font-size:.7rem; font-weight:700; font-variant-numeric:tabular-nums; overflow:hidden; white-space:nowrap; color:var(--color-tinta); min-width:6px; }
+  .bar.m{ --bg:color-mix(in oklab, var(--color-azul) 16%, var(--color-papel)); --bt:color-mix(in oklab, var(--color-azul) 50%, var(--color-sand)); }
+  .bar.t{ --bg:color-mix(in oklab, var(--color-taupe) 17%, var(--color-papel)); --bt:color-mix(in oklab, var(--color-taupe) 50%, var(--color-sand)); }
+  .bar.l{ --bg:var(--color-hueso); --bt:var(--color-ceniza); }
+  .bar.otra{ --bg:color-mix(in oklab, var(--color-ambar) 26%, var(--color-papel)); --bt:var(--color-ambar); }
+  .bar.base{ border-style:dashed; }
+  .bar.turno{ box-shadow:inset 4px 0 0 var(--color-tinta); padding-left:10px; }
+  .bar:hover{ outline:2px solid var(--color-tinta); }
+  .seg-c{ position:absolute; top:3px; height:24px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; font-variant-numeric:tabular-nums; overflow:hidden; white-space:nowrap; gap:3px; }
+  .seg-c.ok{ background:color-mix(in oklab, var(--color-verde) 20%, var(--color-papel)); color:var(--color-verde); }
+  .seg-c.falta{ background:repeating-linear-gradient(135deg, color-mix(in oklab, var(--color-rojo) 26%, var(--color-papel)) 0 5px, color-mix(in oklab, var(--color-rojo) 12%, var(--color-papel)) 5px 10px); color:var(--color-rojo-profundo); box-shadow:inset 0 0 0 1px color-mix(in oklab, var(--color-rojo) 45%, transparent); }
+  .seg-c.sobra{ background:color-mix(in oklab, var(--color-pizarra) 17%, var(--color-papel)); color:var(--color-pizarra); }
+  .tl-cap{ position:absolute; top:30px; bottom:6px; left:calc(var(--nc) + 10px); right:10px; pointer-events:none; }
+  .tl-cap i{ position:absolute; top:0; bottom:0; border-inline:1.5px dashed color-mix(in oklab, var(--color-rojo) 60%, transparent); background:color-mix(in oklab, var(--color-rojo) 7%, transparent); }
+  .tl-cap i b{ position:absolute; top:-1px; left:50%; transform:translate(-50%,-100%); font-style:normal; font-size:.62rem; color:var(--color-rojo-profundo); white-space:nowrap; background:var(--color-papel); padding:0 4px; border-radius:4px; display:none; }
+  .corte{ position:absolute; top:22px; bottom:6px; border-left:1.5px dotted var(--color-taupe); pointer-events:none; }
+  .corte::before{ content:"14:15"; position:absolute; top:-15px; transform:translateX(-50%); font-size:.62rem; color:var(--color-taupe); }
+  .tl.compacto{ --nc:0px; padding:8px 8px 6px; }
+  .tl.compacto .tl-fila{ flex-direction:column; align-items:stretch; padding:5px 0 3px; }
+  .tl.compacto .tl-fila .nc{ width:auto; padding:0 0 2px; font-size:.78rem; }
+  .tl.compacto .tl-cap{ left:8px; right:8px; }
+  .tl.compacto .pista{ flex:none; width:100%; }
+  @media (max-width:760px){
+    .tl{ --nc:0px; padding:8px 8px 6px; }
+    .tl-fila{ flex-direction:column; align-items:stretch; padding:5px 0 3px; }
+    .tl-fila .nc{ width:auto; padding:0 0 2px; font-size:.78rem; }
+    .tl-cap{ left:8px; right:8px; }
+    .pista{ flex:none; width:100%; }
+  }
+
+  /* Para decidir (C) */
+  .decide{ display:flex; flex-direction:column; gap:10px; }
+  .dec{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px 14px; border:1px solid var(--color-sand); border-left-width:5px; background:var(--color-papel); border-radius:14px; padding:14px 16px; }
+  .dec.rojo{ border-left-color:var(--color-rojo); } .dec.ambar{ border-left-color:var(--color-ambar); }
+  .dec .ico{ grid-row:1 / span 3; width:34px; height:34px; border-radius:10px; display:grid; place-items:center; font-size:1.1rem; }
+  .dec.rojo .ico{ background:color-mix(in oklab, var(--color-rojo) 12%, var(--color-papel)); color:var(--color-rojo-profundo); }
+  .dec.ambar .ico{ background:color-mix(in oklab, var(--color-ambar) 15%, var(--color-papel)); color:var(--color-ambar); }
+  .dec .tt{ font-weight:700; font-size:.98rem; }
+  .dec .cu{ font-size:.86rem; color:var(--color-taupe); }
+  .dec .acc{ display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .dec .aj{ display:inline-block; font-size:.74rem; font-weight:700; color:var(--color-taupe); text-transform:uppercase; letter-spacing:.05em; margin-right:4px; }
+  .barra48{ height:8px; border-radius:6px; background:var(--color-hueso); position:relative; overflow:hidden; margin-top:6px; max-width:340px; }
+  .barra48 i{ position:absolute; inset:0 auto 0 0; background:var(--color-ambar); }
+  details.pleg{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; }
+  details.pleg > summary{ cursor:pointer; padding:12px 16px; font-weight:600; list-style:none; display:flex; gap:10px; align-items:center; }
+  details.pleg > summary::-webkit-details-marker{ display:none; }
+  details.pleg > summary::before{ content:"▸"; color:var(--color-taupe); transition:transform .15s; }
+  details.pleg[open] > summary::before{ transform:rotate(90deg); }
+  details.pleg .in{ padding:0 14px 14px; display:flex; flex-direction:column; gap:12px; }
+  .vacio{ border:1px dashed var(--color-taupe); border-radius:14px; padding:26px 16px; text-align:center; background:var(--color-papel); }
+  .vacio .big{ font-size:1.6rem; color:var(--color-verde); }
+  .vacio h3{ font-size:1.2rem; margin:4px 0; }
+
+  /* por persona (D) */
+  .dtabs{ display:flex; gap:5px; overflow-x:auto; padding-bottom:4px; scrollbar-width:thin; }
+  .dtabs button{ flex:1 0 46px; border:1px solid var(--color-sand); background:var(--color-papel); border-radius:10px; padding:6px 2px; display:flex; flex-direction:column; align-items:center; gap:1px; font-size:.7rem; color:var(--color-taupe); }
+  .dtabs button b{ font-family:var(--font-serif); font-size:1.05rem; color:var(--color-tinta); line-height:1; }
+  .dtabs button[aria-pressed="true"]{ border-color:var(--color-tinta); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+  .dtabs button .e{ font-size:.7rem; font-weight:800; }
+  .dtabs .e.ok{ color:var(--color-verde);} .dtabs .e.falta{ color:var(--color-rojo-profundo);} .dtabs .e.sobra{ color:var(--color-pizarra);} .dtabs .e.neutro{ color:var(--color-ceniza);}
+  .resdia{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .pcards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr)); gap:10px; }
+  .pc{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:12px; display:flex; flex-direction:column; gap:9px; min-width:0; }
+  .pc.yo{ border-color:var(--color-tinta); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+  .pc .top{ display:flex; gap:10px; align-items:center; }
+  .avatar{ width:38px; height:38px; border-radius:50%; background:var(--color-hueso); display:grid; place-items:center; font-family:var(--font-serif); font-weight:600; flex:none; }
+  .pc .top .nm{ min-width:0; flex:1; } .pc .top b{ display:block; font-size:.96rem; } .pc .top small{ color:var(--color-taupe); font-size:.76rem; }
+  .pc .hoy-l{ text-align:right; font-size:.76rem; color:var(--color-taupe); }
+  .pc .hoy-l b{ display:block; color:var(--color-tinta); font-variant-numeric:tabular-nums; font-size:.86rem; }
+  .sem7{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; }
+  .sem7 .col{ display:flex; flex-direction:column; gap:3px; align-items:stretch; min-width:0; }
+  .sem7 .col > small{ text-align:center; font-size:.66rem; color:var(--color-taupe); line-height:1.1; }
+  .sem7 .col > small b{ display:block; font-family:var(--font-serif); font-size:.95rem; color:var(--color-tinta); }
+  .sem7 .col.act > small b{ text-decoration:underline; text-decoration-color:var(--color-rojo); text-underline-offset:3px; text-decoration-thickness:2px; }
+  .sem7 .cel{ min-height:46px; padding:4px 3px; align-items:center; text-align:center; gap:0; }
+  .sem7 .cel .h{ font-size:.68rem; letter-spacing:-.02em; }
+  .sem7 .cel .w{ font-size:.58rem; }
+  .sem7 .cel.turno{ padding-left:7px; }
+  .sem7 .cel .neq{ top:0; right:2px; font-size:.7rem; }
+  .pc .pie{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 8px; font-size:.74rem; color:var(--color-taupe); }
+
+  /* cajón lateral */
+  .vel{ position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60; }
+  .cajon{ position:fixed; top:0; right:0; bottom:0; width:min(470px,100%); background:var(--color-papel); border-left:1px solid var(--color-sand); z-index:61; display:flex; flex-direction:column; box-shadow:-12px 0 40px rgba(0,0,0,.2); animation:entra .18s ease-out; }
+  @keyframes entra{ from{ transform:translateX(26px); opacity:0; } to{ transform:none; opacity:1; } }
+  @media (prefers-reduced-motion: reduce){ .cajon{ animation:none; } }
+  .cajon > header{ padding:16px 18px 12px; border-bottom:1px solid var(--color-sand); display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .cajon > header h3{ font-size:1.35rem; line-height:1.15; }
+  .cajon > header small{ color:var(--color-taupe); font-size:.84rem; display:block; margin-top:2px; }
+  .cajon .cerrar{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:8px; width:36px; height:36px; display:grid; place-items:center; flex:none; }
+  .cajon .cuerpo{ overflow:auto; padding:14px 18px; flex:1; display:flex; flex-direction:column; gap:14px; }
+  .cajon > footer{ border-top:1px solid var(--color-sand); padding:12px 18px; display:flex; flex-wrap:wrap; gap:8px; background:var(--color-papel); }
+  .rotulo{ font-size:.78rem; font-weight:600; color:var(--color-taupe); margin-bottom:4px; }
+  .dos{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .campo{ display:flex; flex-direction:column; gap:4px; font-size:.84rem; color:var(--color-taupe); }
+  .campo input{ background:var(--color-hueso); border:1px solid var(--color-taupe); border-radius:8px; padding:9px 10px; color:var(--color-tinta); min-height:42px; font-variant-numeric:tabular-nums; }
+  .campo input:disabled{ opacity:.5; }
+  .efecto{ border:1px solid var(--color-sand); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:8px; background:var(--color-crema); }
+  .efecto .fila{ display:flex; gap:9px; align-items:flex-start; font-size:.86rem; }
+  .efecto .fila svg{ margin-top:3px; color:var(--color-taupe); }
+  .efecto .fila b{ font-weight:700; }
+  .pregunta{ border:1px solid var(--color-sand); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .pregunta p{ font-size:.8rem; color:var(--color-taupe); }
+  .metas-t{ width:100%; border-collapse:collapse; font-size:.88rem; }
+  .metas-t th{ text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--color-taupe); padding:4px 4px; }
+  .metas-t td{ border-top:1px solid var(--color-sand); padding:6px 4px; }
+  .metas-t input{ width:52px; background:var(--color-hueso); border:1px solid var(--color-taupe); border-radius:8px; padding:6px; text-align:center; }
+  .metas-t input:disabled{ border-color:var(--color-sand); background:transparent; }
+
+  .toast{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:80; background:var(--color-tinta); color:var(--color-crema); padding:10px 16px; border-radius:12px; font-size:.86rem; max-width:min(560px, calc(100% - 24px)); box-shadow:0 8px 28px rgba(0,0,0,.3); display:flex; gap:12px; align-items:center; }
+  .toast button{ background:none; border:1px solid color-mix(in oklab, var(--color-crema) 50%, transparent); color:var(--color-crema); border-radius:8px; padding:3px 10px; font-weight:700; }
+
+  /* notas */
+  .notas{ display:flex; flex-direction:column; gap:10px; margin-top:8px; }
+  .notas details{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; }
+  .notas summary{ cursor:pointer; padding:12px 16px; font-weight:700; font-family:var(--font-serif); font-size:1.12rem; }
+  .notas .in{ padding:0 18px 16px; display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px 24px; }
+  .notas h4{ font-family:var(--font-sans); font-size:.72rem; letter-spacing:.07em; text-transform:uppercase; color:var(--color-taupe); margin-bottom:4px; }
+  .notas ul{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px; font-size:.86rem; }
+  .notas .ancho{ grid-column:1 / -1; }
+  .notas table{ border-collapse:collapse; width:100%; font-size:.82rem; }
+  .notas th{ text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--color-taupe); padding:6px 8px; border-bottom:1px solid var(--color-sand); }
+  .notas td{ border-top:1px solid var(--color-sand); padding:6px 8px; vertical-align:top; }
+  .notas .tw{ overflow-x:auto; max-width:100%; }
+  .notas code{ background:var(--color-hueso); padding:1px 5px; border-radius:5px; font-size:.82em; }
+  .etq{ display:inline-block; font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:1px 7px; border-radius:100px; white-space:nowrap; }
+  .etq.con{ background:color-mix(in oklab, var(--color-verde) 15%, var(--color-papel)); color:var(--color-verde); }
+  .etq.fus{ background:color-mix(in oklab, var(--color-pizarra) 15%, var(--color-papel)); color:var(--color-pizarra); }
+  .etq.des{ background:color-mix(in oklab, var(--color-rojo) 10%, var(--color-papel)); color:var(--color-rojo-profundo); }
+  .etq.mej{ background:color-mix(in oklab, var(--color-ambar) 15%, var(--color-papel)); color:var(--color-ambar); }
+
+  @media (max-width:760px){
+    .proto{ position:static; }
+    .proto .vars{ flex-wrap:nowrap; overflow-x:auto; width:100%; padding-bottom:2px; }
+    .vbtn{ flex:none; }
+    .proto .ctl{ margin-left:0; }
+  }
+  @media (max-width:640px){
+    .gr th.quien, .gr td.quien{ min-width:100px; max-width:108px; padding-left:8px; }
+    .gr td.quien .ins{ white-space:normal; }
+    .gr td.quien b{ font-size:.82rem; }
+    .cab h1{ font-size:1.5rem; }
+    .proto{ padding:8px 12px; }
+    .vbtn small{ display:none; }
+    .page{ padding:14px 12px 80px; }
+    .dos{ grid-template-columns:1fr 1fr; }
+    .dec{ grid-template-columns:1fr; } .dec .ico{ grid-row:auto; }
+    .pcards{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-luna" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-dia" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M12 3a9 9 0 0 1 0 18" fill="currentColor" stroke="none" opacity=".3"/></symbol>
+    <symbol id="i-cafe" viewBox="0 0 24 24"><path d="M10 2v2M14 2v2M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/></symbol>
+    <symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-filtros" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-alerta" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-ok" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-izq" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-der" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-copia" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+    <symbol id="i-meta" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></symbol>
+    <symbol id="i-gente" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
+  </defs>
+</svg>
+
+<div class="proto" id="proto">
+  <span class="demo-badge">Prototipo · datos ficticios</span>
+  <div class="vars" role="group" aria-label="Variantes del prototipo">
+    <button class="vbtn" data-v="A" aria-pressed="true"><b>A</b>Cuadrícula <small>semana</small></button>
+    <button class="vbtn" data-v="B" aria-pressed="false"><b>B</b>Línea de tiempo <small>un día</small></button>
+    <button class="vbtn" data-v="C" aria-pressed="false"><b>C</b>Para decidir <small>primero</small></button>
+    <button class="vbtn" data-v="D" aria-pressed="false"><b>D</b>Por persona <small>celular</small></button>
+    <button class="vbtn" data-v="E" aria-pressed="false"><b>E</b>Híbrida <small>recomendada</small></button>
+  </div>
+  <div class="ctl">
+    <label>Ver como
+      <select id="selRol">
+        <option value="lider">Líder de equipo (Carla, TRU)</option>
+        <option value="do">DO o dirección (todas las sedes)</option>
+        <option value="integrante">Integrante de sede (Gaby, TRU)</option>
+      </select>
+    </label>
+    <label>Tema
+      <select id="selTema"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Oscuro</option></select>
+    </label>
+    <button class="btn sec fino" id="btnReset">Reiniciar demo</button>
+  </div>
+</div>
+
+<div class="lema" id="lema"></div>
+<div class="page" id="app"></div>
+<div id="capa"></div>
+<div id="toast-capa"></div>
+
+<script>
+(() => {
+/* ═════════ utilidades ═════════ */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const ic = (n, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const parse = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+const toISO = (d) => d.toISOString().slice(0, 10);
+const add = (iso, n) => { const d = parse(iso); d.setUTCDate(d.getUTCDate() + n); return toISO(d); };
+const dow = (iso) => parse(iso).getUTCDay();
+const lunesDe = (iso) => add(iso, dow(iso) === 0 ? -6 : 1 - dow(iso));
+const DIA = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const DIAL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const DIAPL = ['domingos','lunes','martes','miércoles','jueves','viernes','sábados'];
+const MES = ['ene','feb','mar','abr','may','jun','jul','ago','set','oct','nov','dic'];
+const MESL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','setiembre','octubre','noviembre','diciembre'];
+const num = (iso) => parse(iso).getUTCDate();
+const mesDe = (iso) => parse(iso).getUTCMonth();
+const fCorta = (iso) => `${DIA[dow(iso)]} ${num(iso)} ${MES[mesDe(iso)]}`;
+const fLarga = (iso) => `${DIAL[dow(iso)]} ${num(iso)} de ${MESL[mesDe(iso)]}`;
+const mayus = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+const HOY = '2026-10-21', LUN0 = '2026-10-19', PERIODO_INI = '2026-09-29';
+const hm = (t) => { const [h, m] = t.split(':').map(Number); return h + (m || 0) / 60; };
+const hh = (dec) => { const h = Math.floor(dec + 1e-9); const m = Math.round((dec - h) * 60); return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0'); };
+const horasEntre = (e, s, r) => { let m = Math.round(hm(s) * 60) - Math.round(hm(e) * 60); if (m <= 0) m += 1440; return Math.max(0, (m - Math.max(0, r || 0)) / 60); };
+const durTxt = (h) => { const t = Math.round(h * 60); const H = Math.floor(t / 60), M = t % 60; return M ? `${H} h ${M} min` : `${H} h`; };
+const dec1 = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
+const H0 = 7, H1 = 21, SLOT = 0.25, NS = (H1 - H0) / SLOT, CORTE = 14.25, I_CORTE = (CORTE - H0) / SLOT;
+const pct = (h) => ((Math.min(H1, Math.max(H0, h)) - H0) / (H1 - H0)) * 100;
+
+/* ═════════ datos ficticios ═════════ */
+// base: por persona, por día de la semana (0=domingo): {e, s, r} o ausente = descansa.
+const dias = (lista, e, s, r = 0) => Object.fromEntries(lista.map((d) => [d, { e, s, r }]));
+function datos(){
+  const P = [
+    { id:'carla',  n:'Carla',  a:'Rojas',   sede:'TRU', lider:true,  op:false, area:'Venta de tienda' },
+    { id:'elena',  n:'Elena',  a:'Vargas',  sede:'TRU', lider:true,  op:false, area:'Venta de tienda' },
+    { id:'bruno',  n:'Bruno',  a:'Salas',   sede:'TRU', lider:false, op:true,  area:'Venta de tienda' },
+    { id:'diego',  n:'Diego',  a:'Mena',    sede:'TRU', lider:false, op:true,  area:'Venta de tienda' },
+    { id:'gaby',   n:'Gaby',   a:'Paredes', sede:'TRU', lider:false, op:true,  area:'Venta de tienda' },
+    { id:'franco', n:'Franco', a:'Soto',    sede:'TRU', lider:false, op:true,  area:'Venta de tienda' },
+    { id:'ana',    n:'Ana',    a:'Quispe',  sede:'TRU', lider:false, op:false, area:'Expansión' },
+    { id:'hugo',   n:'Hugo',   a:'Díaz',    sede:'LIM', lider:true,  op:false, area:'Producción' },
+    { id:'irene',  n:'Irene',  a:'Soto',    sede:'LIM', lider:false, op:true,  area:'Producción' },
+    { id:'jorge',  n:'Jorge',  a:'Luna',    sede:'LIM', lider:false, op:true,  area:'Producción' },
+    { id:'karla',  n:'Karla',  a:'Vega',    sede:'LIM', lider:false, op:true,  area:'Producción' },
+    { id:'luz',    n:'Luz',    a:'Ramos',   sede:'LIM', lider:false, op:true,  area:'Producción' },
+    { id:'nora',   n:'Nora',   a:'Lima',    sede:'AQP', lider:true,  op:false, area:'Venta de tienda' },
+    { id:'raul',   n:'Raúl',   a:'Vera',    sede:'AQP', lider:true,  op:false, area:'Venta de tienda' },
+    { id:'oscar',  n:'Óscar',  a:'Pinto',   sede:'AQP', lider:false, op:true,  area:'Venta de tienda' },
+    { id:'paula',  n:'Paula',  a:'Ríos',    sede:'AQP', lider:false, op:true,  area:'Venta de tienda' },
+  ];
+  const M = '08:00', MF = '14:15', TF = '21:00';
+  const base = {
+    carla:  dias([1,2,3,4,5,6], M, MF),
+    elena:  dias([2,3,4,5,6,0], MF, TF),
+    bruno:  dias([1,3,4,5,6,0], M, MF),
+    diego:  dias([1,2,4,5,6,0], M, MF),
+    gaby:   dias([1,3,4,5,6,0], MF, TF),
+    franco: dias([1,2,3,4,5,6], MF, TF),
+    ana:    dias([1,2,3,4,5], M, '17:00', 60),
+    hugo:   dias([1,2,3,4,5], M, '17:00'),
+    irene:  dias([1,2,3,4,5], M, '17:00'), jorge: dias([1,2,3,4,5], M, '17:00'),
+    karla:  dias([1,2,3,4,5], M, '17:00'), luz:   dias([1,2,3,4,5], M, '17:00'),
+    nora:   dias([1,2,3,4,5,6], M, MF), raul: dias([1,2,3,4,5,6], MF, TF),
+    oscar:  dias([1,2,3,4,5,6], M, MF), paula: dias([1,2,3,4,5,6], MF, TF),
+  };
+  // Metas por sede y día de la semana (0=domingo): m = mañana, t = tarde, l = líderes.
+  const mt = (m, t, l) => ({ m, t, l });
+  const metas = {
+    TRU: { 0:mt(2,1,0), 1:mt(2,2,0), 2:mt(1,1,1), 3:mt(1,2,1), 4:mt(2,2,1), 5:mt(2,2,1), 6:mt(2,2,1) },
+    LIM: { 0:mt(0,0,0), 1:mt(3,3,1), 2:mt(3,3,1), 3:mt(3,3,1), 4:mt(3,3,1), 5:mt(3,3,1), 6:mt(0,0,0) },
+    AQP: { 0:mt(0,0,0), 1:mt(1,1,1), 2:mt(1,1,1), 3:mt(1,1,1), 4:mt(1,1,1), 5:mt(1,1,1), 6:mt(1,1,1) },
+  };
+  // Turnos puntuales: la excepción de una fecha. {e,s} trabaja · {d:true} descanso.
+  const turnos = {
+    'carla|2026-10-13': { e:'08:00', s:'14:15' }, 'elena|2026-10-14': { e:'14:15', s:'21:00' },
+    'diego|2026-10-15': { e:'08:00', s:'14:15' }, 'franco|2026-10-18': { e:'14:15', s:'21:00' },
+    'diego|2026-10-20': { e:'07:45', s:'14:00' },
+    'gaby|2026-10-22':  { d:true },
+  };
+  // Horarios que la persona ya NO tiene vigentes (para reconocer un «probable espejo viejo»).
+  const viejo = [ { pid:'diego', dow:2, e:'07:45', s:'14:00' } ];
+  // Ciclo de 7 días vigente HOY (de sus marcajes): racha sin descanso y horas acumuladas.
+  const ciclo = { franco:{ h:40.5, dia:6 } };
+  return { P, base, metas, turnos, viejo, ciclo, cambios:[] };
+}
+const SEDES = { TRU:'Tienda TRU', LIM:'Taller LIM', AQP:'Tienda AQP' };
+
+let D, S;
+function reiniciar(conservarV){
+  const v = conservarV && S ? S.v : 'A';
+  const rol = conservarV && S ? S.rol : 'lider';
+  D = datos();
+  S = { v, rol, sede:'TRU', sem:0, chip:'todos', q:'', fil:{ tramo:'', novedad:false }, pop:false, atender:null,
+        dia:HOY, drawer:null, form:null, copiar:false, hlDia:null, foco:null, undo:null };
+  if (rol === 'lider' || rol === 'integrante') S.sede = 'TRU';
+  render();
+}
+
+/* ═════════ el modelo: la misma cascada que jornada-esperada.ts ═════════ */
+const personaDe = (id) => D.P.find((p) => p.id === id);
+const pers = () => D.P.filter((p) => p.sede === S.sede);
+const lunesSel = () => add(LUN0, 7 * S.sem);
+const diasSel = () => Array.from({ length:7 }, (_, i) => add(lunesSel(), i));
+const yo = () => (S.rol === 'integrante' ? 'gaby' : S.rol === 'lider' ? 'carla' : null);
+const puedeEditar = () => S.rol === 'lider' || S.rol === 'do';
+const esAdmin = () => S.rol === 'do';
+const verSedes = () => S.rol === 'do';
+
+function baseDow(pid, d, ref){ // horario base de ese día de la semana, vigente en la fecha `ref`
+  let v = D.base[pid][d] || null, mejor = '';
+  for (const c of D.cambios) if (c.pid === pid && c.dow === d && c.desde <= ref && c.desde >= mejor) { v = c.val; mejor = c.desde; }
+  return v;
+}
+const baseDe = (pid, f) => baseDow(pid, dow(f), f);
+// Qué le toca: 1) el turno del día manda, 2) el horario base, 3) nada.
+function esperado(pid, f, hip){
+  const k = pid + '|' + f;
+  const t = hip && k in hip ? hip[k] : D.turnos[k] || null;
+  const b = baseDe(pid, f);
+  if (t) {
+    if (t.d) return { tipo:'descanso', origen:'turno' };
+    if (t.e) return { tipo:'turno', e:t.e, s:t.s || (b && b.s) || null, r:(b && b.r) || 0, origen:'turno' };
+  }
+  if (!b) return { tipo:'libre', origen:'horario' };
+  return { tipo:'base', e:b.e, s:b.s, r:b.r || 0, origen:'horario' };
+}
+const trabaja = (c) => c.tipo === 'turno' || c.tipo === 'base';
+function tramoDe(c){ const e = hm(c.e), s = c.s ? hm(c.s) : H1; if (s <= 14.5) return 'm'; if (e >= CORTE) return 't'; return 'l'; }
+const TRAMO_N = { m:'Mañana', t:'Tarde', l:'Día completo' };
+const TRAMO_I = { m:'sol', t:'luna', l:'dia' };
+
+// Cobertura en franjas de 15 min (7:00–21:00). El código real usa 1 h y 30 min según la vista.
+function cov(f, filtro, hip){
+  const arr = Array(NS).fill(0);
+  for (const p of pers()) {
+    if (!filtro(p)) continue;
+    const c = esperado(p.id, f, hip); if (!trabaja(c)) continue;
+    const e = hm(c.e), s = c.s ? hm(c.s) : H1;
+    for (let i = 0; i < NS; i++) { const a = H0 + i * SLOT, b = a + SLOT; if (e < b - 1e-9 && s > a + 1e-9) arr[i]++; }
+  }
+  return arr;
+}
+function analiza(f, hip){
+  const m = D.metas[S.sede][dow(f)];
+  const ops = cov(f, (p) => p.op, hip), lid = cov(f, (p) => p.lider, hip);
+  const metaOps = (i) => (H0 + i * SLOT >= CORTE ? m.t : m.m);
+  const metaLid = () => m.l;
+  let i0 = -1, i1 = -1;
+  for (let i = 0; i < NS; i++) if (ops[i] > 0 || lid[i] > 0) { if (i0 < 0) i0 = i; i1 = i; }
+  const alguien = pers().some((p) => trabaja(esperado(p.id, f, hip)));
+  const huecos = [];
+  const corre = (arr, metaFn, g) => {
+    let ini = -1, key = null;
+    for (let i = i0; i <= i1 + 1; i++) {
+      let falta = false, k = null;
+      if (i <= i1) { const mt = metaFn(i); if (mt > 0 && arr[i] < mt) { falta = true; k = `${arr[i]}/${mt}/${g === 'ops' && H0 + i * SLOT >= CORTE ? 't' : 'm'}`; } }
+      if (falta && ini >= 0 && k === key) continue;
+      if (ini >= 0) huecos.push({ g, i0:ini, i1:i, n:arr[ini], meta:metaFn(ini), tramo:g === 'ops' ? (H0 + ini * SLOT >= CORTE ? 't' : 'm') : null });
+      if (falta) { ini = i; key = k; } else { ini = -1; key = null; }
+    }
+  };
+  if (i0 >= 0) { corre(ops, metaOps, 'ops'); corre(lid, metaLid, 'lid'); }
+  const resumen = (arr, metaFn, a, b) => {
+    const meta = metaFn(Math.max(a, 0));
+    if (b < a) return meta > 0 ? { est:'falta', n:0, meta, falta:meta } : null;
+    let min = 99, max = 0; for (let i = a; i <= b; i++) { min = Math.min(min, arr[i]); max = Math.max(max, arr[i]); }
+    if (meta <= 0) return { est:'sinmeta', n:max, meta:0 };
+    if (min < meta) {
+      // ¿falta en todo el tramo o solo en una parte? Un «0/1» sobre 15 minutos sin cubrir engaña.
+      const fs = []; for (let i = a; i <= b; i++) if (arr[i] < meta) fs.push(i);
+      const parcial = fs.length < (b - a + 1) ? `${hh(H0 + fs[0] * SLOT)}–${hh(H0 + (fs[fs.length - 1] + 1) * SLOT)}` : null;
+      return { est:'falta', n:min, meta, falta:meta - min, parcial };
+    }
+    if (max > meta) return { est:'sobra', n:max, meta, sobra:max - meta };
+    return { est:'ok', n:min, meta };
+  };
+  let tm = null, tt = null, tl = null;
+  if (i0 >= 0) {
+    tm = resumen(ops, () => m.m, i0, Math.min(i1, I_CORTE - 1));
+    tt = resumen(ops, () => m.t, Math.max(i0, I_CORTE), i1);
+    tl = resumen(lid, () => m.l, i0, i1);
+    if (tm && tm.est === 'sinmeta' && tm.n === 0) tm = null;
+    if (tt && tt.est === 'sinmeta' && tt.n === 0) tt = null;
+    if (tl && tl.est === 'sinmeta') tl = null;
+  } else {
+    if (m.m > 0) tm = { est:'falta', n:0, meta:m.m, falta:m.m };
+    if (m.t > 0) tt = { est:'falta', n:0, meta:m.t, falta:m.t };
+    if (m.l > 0) tl = { est:'falta', n:0, meta:m.l, falta:m.l };
+  }
+  const sinTurnos = !alguien && m.m === 0 && m.t === 0 && m.l === 0;
+  return { m, ops, lid, i0, i1, huecos, tm, tt, tl, sinTurnos, alguien };
+}
+const horaOk = (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v || '');
+const mascara = (v) => { const d = String(v).replace(/\D/g, '').slice(0, 4); return d.length > 2 ? d.slice(0, 2) + ':' + d.slice(2) : d; };
+const rango = (a, b) => `${hh(H0 + a * SLOT)}–${hh(H0 + b * SLOT)}`;
+
+/* ═════════ qué pide atención ═════════ */
+function divergencia(pid, f){
+  const t = D.turnos[pid + '|' + f]; if (!t || f < PERIODO_INI) return null;
+  const b = baseDe(pid, f);
+  const tE = t.d ? null : t.e, tS = t.d ? null : (t.s || null);
+  const txt = (e, s) => (e ? `${e}${s ? '–' + s : ''}` : 'descanso');
+  let diverge = false;
+  if (tE === null) diverge = !!b;
+  else if (!b) diverge = true;
+  else diverge = tE !== b.e || (tS && b.s && tS !== b.s);
+  if (!diverge) return null;
+  const espejo = D.viejo.some((v) => v.pid === pid && v.dow === dow(f) && v.e === tE && v.s === tS);
+  return { pid, f, turnoTxt:txt(tE, tS), baseTxt: b ? txt(b.e, b.s) : 'descanso', espejo };
+}
+function causaHueco(f){
+  const out = [];
+  for (const p of pers()) {
+    const t = D.turnos[p.id + '|' + f]; if (!t) continue;
+    const b = baseDe(p.id, f);
+    if (t.d && b) out.push({ p, tipo:'descanso', baseTxt:`${b.e}–${b.s}` });
+  }
+  return out;
+}
+function items(){
+  const out = [];
+  for (const f of diasSel()) {
+    if (f < HOY) continue;
+    const an = analiza(f);
+    for (const h of an.huecos) out.push({ k:'hueco', f, h, causas:causaHueco(f) });
+  }
+  for (const key of Object.keys(D.turnos)) {
+    const [pid, f] = key.split('|'); const p = personaDe(pid);
+    if (p.sede !== S.sede) continue;
+    const dv = divergencia(pid, f); if (dv) out.push({ k:'diverge', ...dv });
+  }
+  for (const p of pers()) { const c = D.ciclo[p.id]; if (c && c.h >= 40) out.push({ k:'tope', pid:p.id, c }); }
+  const orden = { hueco:0, tope:1, diverge:2 };
+  const pasado = (x) => (x.k === 'diverge' && x.f < HOY ? 1 : 0);
+  out.sort((a, b) => orden[a.k] - orden[b.k] || pasado(a) - pasado(b) || (a.f || '').localeCompare(b.f || ''));
+  return out;
+}
+
+/* ═════════ piezas compartidas ═════════ */
+function chipCob(r, nombre, pasado, corto){
+  if (!r) return '';
+  const g = { ok:'✓', falta:'▲', sobra:'＋', sinmeta:'–' }[r.est];
+  const est = r.est === 'sinmeta' ? 'neutro' : r.est;
+  const palabra = r.est === 'falta' ? (r.parcial ? `falta ${r.falta} de ${r.parcial}` : r.n === 0 && r.meta > 0 ? `ninguna, meta ${r.meta}` : `falta ${r.falta}`) : r.est === 'sobra' ? `sobra ${r.sobra}` : r.est === 'ok' ? 'completa' : 'sin meta';
+  const cuerpo = r.est === 'sinmeta' ? `${nombre} sin meta` : r.parcial ? `${nombre} ${r.parcial}` : `${nombre} ${r.n}/${r.meta}`;
+  return `<span class="cob ${est}${pasado ? ' pasado' : ''}" title="${esc(nombre)}: ${esc(palabra)}"><span class="g">${g}</span>${esc(cuerpo)}${corto ? '' : `<span class="sr"> ${esc(palabra)}</span>`}</span>`;
+}
+function chipsDia(f, corto){
+  const an = analiza(f), pasado = f < HOY;
+  if (an.sinTurnos) return `<span class="cob neutro"><span class="g">–</span>Sin turnos</span>`;
+  return chipCob(an.tm, corto ? 'M' : 'Mañana', pasado, corto) + chipCob(an.tt, corto ? 'T' : 'Tarde', pasado, corto) + chipCob(an.tl, corto ? 'L' : 'Líder', pasado, corto);
+}
+function peorEstado(f){
+  const an = analiza(f); if (an.sinTurnos) return { est:'neutro', g:'–', t:'Sin turnos' };
+  const rs = [an.tm, an.tt, an.tl].filter(Boolean);
+  if (rs.some((r) => r.est === 'falta')) return { est:'falta', g:'▲', t:'falta' };
+  if (rs.some((r) => r.est === 'sobra')) return { est:'sobra', g:'＋', t:'sobra' };
+  if (!rs.length) return { est:'neutro', g:'–', t:'sin meta' };
+  return { est:'ok', g:'✓', t:'cubierto' };
+}
+function celdaHTML(p, f, mini){
+  const c = esperado(p.id, f), dv = divergencia(p.id, f);
+  const otra = !p.op && !p.lider;
+  let cls, inner, txt;
+  if (trabaja(c)) {
+    const tr = tramoDe(c);
+    cls = `cel ${tr} ${c.tipo}${otra ? ' otra' : ''}`;
+    const rng = `${c.e}–${c.s || '…'}`;
+    inner = `<span class="h">${mini ? c.e : rng}</span><span class="w">${ic(TRAMO_I[tr])}${mini ? '' : TRAMO_N[tr]}${otra && !mini ? ' · no suma' : ''}</span>`;
+    txt = `${rng}, ${TRAMO_N[tr].toLowerCase()}, ${c.tipo === 'turno' ? 'turno del día' : 'horario base'}${otra ? ', no suma a la cobertura' : ''}`;
+  } else if (c.tipo === 'descanso') {
+    cls = 'cel desc turno'; inner = `<span class="h">Descanso</span><span class="w">${mini ? '' : 'turno del día'}</span>`; txt = 'descanso, turno del día';
+  } else {
+    cls = 'cel desc base'; inner = `<span class="h">${mini ? 'Desc.' : 'Descanso'}</span><span class="w">${mini ? '' : 'horario base'}</span>`; txt = 'descanso de su horario base';
+  }
+  if (mini) cls += ' mini';
+  const bloq = '';
+  return `<button class="${cls}" data-act="celda" data-pid="${p.id}" data-f="${f}" aria-label="${esc(`${p.n} ${p.a}, ${fLarga(f)}: ${txt}${dv ? '. No coincide con el horario base' : ''}`)}">${inner}${dv ? `<span class="neq" title="No coincide con el horario base (${esc(dv.baseTxt)})" aria-hidden="true">≠</span>` : ''}${bloq}</button>`;
+}
+function subPersona(p){
+  if (p.lider) return 'Líder de equipo';
+  if (!p.op) return `<span class="ins aviso">${esc(p.area)} · no suma</span>`;
+  return esc(p.area);
+}
+function horasSemana(p){
+  let h = 0; for (const f of diasSel()) { const c = esperado(p.id, f); if (trabaja(c) && c.s) h += horasEntre(c.e, c.s, c.r); } return h;
+}
+
+/* filtros */
+function tienenNovedad(){
+  const set = new Set();
+  for (const it of items()) if (it.pid) set.add(it.pid);
+  for (const it of items()) if (it.k === 'hueco') for (const c of it.causas) set.add(c.p.id);
+  return set;
+}
+function visibles(){
+  let L = pers();
+  if (S.chip === 'hoy') L = L.filter((p) => trabaja(esperado(p.id, HOY)));
+  if (S.chip === 'op') L = L.filter((p) => p.op);
+  if (S.chip === 'lider') L = L.filter((p) => p.lider);
+  if (S.chip === 'otra') L = L.filter((p) => !p.op && !p.lider);
+  if (S.q.trim()) L = L.filter((p) => `${p.n} ${p.a}`.toLowerCase().includes(S.q.trim().toLowerCase()));
+  if (S.fil.tramo) L = L.filter((p) => diasSel().some((f) => { const c = esperado(p.id, f); return trabaja(c) && tramoDe(c) === S.fil.tramo; }));
+  if (S.fil.novedad) { const nv = tienenNovedad(); L = L.filter((p) => nv.has(p.id)); }
+  return L;
+}
+const nFiltros = () => (S.fil.tramo ? 1 : 0) + (S.fil.novedad ? 1 : 0);
+
+function cabeceraHTML(){
+  const its = items();
+  const nH = its.filter((i) => i.k === 'hueco').length, nD = its.filter((i) => i.k === 'diverge').length, nT = its.filter((i) => i.k === 'tope').length;
+  const l = lunesSel(), d = add(l, 6);
+  const rangoTxt = mesDe(l) === mesDe(d) ? `${num(l)} al ${num(d)} de ${MESL[mesDe(d)]}` : `${num(l)} de ${MESL[mesDe(l)]} al ${num(d)} de ${MESL[mesDe(d)]}`;
+  const partes = [];
+  if (nH) partes.push(`${nH} hueco${nH > 1 ? 's' : ''} de cobertura`);
+  if (nD) partes.push(`${nD} turno${nD > 1 ? 's' : ''} por revisar`);
+  if (nT) partes.push(`${nT} cerca de las 48 h`);
+  const resumen = partes.length ? partes.join(' · ') : 'todo cubierto';
+  const copiables = copiablesN();
+  const copia = puedeEditar() && copiables > 0 ? (S.copiar
+    ? `<span class="confirma"><span>¿Copiar hasta ${copiables} turno${copiables > 1 ? 's' : ''} de la semana pasada?${copiaDetalle()}</span><button class="btn fino" data-act="copiar-si">Sí, copiar</button><button class="btn sec fino" data-act="copiar-no">Cancelar</button></span>`
+    : `<button class="btn sec" data-act="copiar">${ic('copia')}Copiar semana anterior</button>`) : '';
+  return `<header class="cab">
+    <div><h1>Turnos y cobertura</h1><p class="desc">${esc(SEDES[S.sede])} · ${rangoTxt} · ${resumen}</p></div>
+    <div class="acciones">
+      ${verSedes() ? `<select class="sel" data-act="sede" aria-label="Sede">${Object.keys(SEDES).map((k) => `<option value="${k}"${k === S.sede ? ' selected' : ''}>${SEDES[k]}</option>`).join('')}</select>` : ''}
+      <div class="seg" role="group" aria-label="Semana">
+        <button data-act="sem" data-d="-1" aria-label="Semana anterior">${ic('izq')}</button>
+        <span class="et">${num(l)}–${num(d)} ${MES[mesDe(d)]}</span>
+        <button data-act="sem" data-d="1" aria-label="Semana siguiente">${ic('der')}</button>
+      </div>
+      <button class="btn sec" data-act="hoy">Hoy</button>
+      <button class="btn sec" data-act="metas">${ic('meta')}Metas</button>
+      ${copia}
+    </div>
+  </header>`;
+}
+function copiablesN(){
+  const l = add(lunesSel(), -7), fin = add(l, 6);
+  return Object.keys(D.turnos).filter((k) => { const [pid, f] = k.split('|'); return personaDe(pid).sede === S.sede && f >= l && f <= fin; }).length;
+}
+function copiaDetalle(){
+  const l = add(lunesSel(), -7), fin = add(l, 6); let d = 0, x = 0;
+  for (const k of Object.keys(D.turnos)) { const [pid, f] = k.split('|'); if (personaDe(pid).sede !== S.sede || f < l || f > fin) continue; if (D.turnos[k].d) d++; if (divergencia(pid, f)) x++; }
+  const partes = []; if (d) partes.push(`${d} descanso${d > 1 ? 's' : ''}`); if (x) partes.push(`${x} que no coincide${x > 1 ? 'n' : ''} con el horario base`);
+  return partes.length ? ` <strong>Incluye ${partes.join(' y ')}.</strong>` : '';
+}
+function atenderHTML(){
+  const its = items();
+  const n = (k) => its.filter((i) => i.k === k).length;
+  const pills = [];
+  if (n('hueco')) pills.push({ k:'hueco', t:`${n('hueco')} hueco${n('hueco') > 1 ? 's' : ''} de cobertura`, tono:'rojo', i:'alerta' });
+  if (n('tope')) pills.push({ k:'tope', t:`${n('tope')} cerca de las 48 h`, tono:its.some((i) => i.k === 'tope' && i.c.h >= 48) ? 'rojo' : 'ambar', i:'reloj' });
+  if (n('diverge')) pills.push({ k:'diverge', t:`${n('diverge')} turno${n('diverge') > 1 ? 's' : ''} no coincide${n('diverge') > 1 ? 'n' : ''} con el horario base`, tono:'ambar', i:'info' });
+  const cuerpo = pills.length ? pills.map((p) => `<button class="pa ${p.tono}" data-act="pa" data-k="${p.k}" aria-pressed="${S.atender === p.k}">${ic(p.i)}${esc(p.t)}</button>`).join('') : `<span class="nada">${ic('ok')}Nada pendiente en esta sede</span>`;
+  let panel = '';
+  if (S.atender) { const sel = its.filter((i) => i.k === S.atender); if (sel.length) panel = `<div class="decide" style="margin-top:2px">${sel.map(cardAtender).join('')}</div>`; }
+  return `<section aria-label="Para atender"><div class="atender"><span class="rot">Para atender</span>${cuerpo}</div>${panel}</section>`;
+}
+function barraHTML(){
+  const L = pers();
+  const cuenta = { todos:L.length, hoy:L.filter((p) => trabaja(esperado(p.id, HOY))).length, op:L.filter((p) => p.op).length, lider:L.filter((p) => p.lider).length, otra:L.filter((p) => !p.op && !p.lider).length };
+  const chips = [['todos','Todos'], ['hoy','Trabajan hoy'], ['op','Operativas'], ['lider','Líderes'], ['otra','Otra área']].filter(([k]) => k === 'todos' || cuenta[k] > 0);
+  const nf = nFiltros();
+  const pop = S.pop ? `<div class="pop" id="pop" role="dialog" aria-label="Filtros">
+      <div><h4>Turno que trabaja esta semana</h4><div class="fila">${[['', 'Cualquiera'], ['m', 'Mañana'], ['t', 'Tarde']].map(([v, t]) => `<button class="chip sm" data-act="f-tramo" data-v="${v}" aria-pressed="${S.fil.tramo === v}">${t}</button>`).join('')}</div></div>
+      <label class="chk"><input type="checkbox" data-act="f-nov" ${S.fil.novedad ? 'checked' : ''}><span><strong>Solo con novedad</strong><br><span class="muted">Turno que no coincide, cerca de 48 h o que causa un hueco.</span></span></label>
+      <p class="muted" style="font-size:.76rem">Los filtros cambian lo que ves, no los números de cobertura: esos siempre cuentan a toda la sede.</p>
+      <div class="fila"><button class="btn sec fino" data-act="f-limpiar">Quitar filtros</button><button class="btn fino" data-act="f-cerrar">Listo</button></div>
+    </div>` : '';
+  return `<section aria-label="Buscar y filtrar"><div class="barra">
+      <label class="busca">${ic('buscar')}<span class="sr">Buscar persona</span><input id="q" type="search" placeholder="Buscar persona…" value="${esc(S.q)}" autocomplete="off"></label>
+      <button class="btn sec btn-filtros" data-act="filtros" aria-expanded="${S.pop}">${ic('filtros')}Filtros${nf ? ` <b>${nf}</b>` : ''}</button>
+      ${pop}
+    </div>
+    <div class="chips" style="margin-top:8px" role="group" aria-label="Quién">${chips.map(([k, t]) => `<button class="chip" data-act="chip" data-k="${k}" aria-pressed="${S.chip === k}">${t}<b>${cuenta[k]}</b></button>`).join('')}</div></section>`;
+}
+function leyendaHTML(){
+  return `<div class="leyenda" aria-label="Cómo leer"><span><i class="sw tu"></i>Turno del día (manda)</span><span><i class="sw ba"></i>Horario base</span><span><i class="sw de"></i>Descanso</span><span><i class="sw ot"></i>Otra área: no suma</span><span><b style="color:var(--color-ambar)">≠</b>No coincide con el horario base</span><span>☀ mañana · ☾ tarde · hasta 14:15 / desde 14:15</span></div>`;
+}
+
+/* la tarjeta de «algo que decidir» (la usan C y el panel de Para atender) */
+function cardAtender(it){
+  if (it.k === 'hueco') {
+    const g = it.h.g === 'ops' ? 'operativas' : 'líderes';
+    const cau = it.causas.map((c) => `<strong>${esc(c.p.n)}</strong> tiene descanso ese día (turno del día; su horario base trabaja ${esc(c.baseTxt)})`).join('. ');
+    const acc = it.causas.map((c) => `<button class="btn fino" data-act="quitar-turno" data-pid="${c.p.id}" data-f="${it.f}">${esc(c.p.n)} vuelve a su horario</button>`).join('');
+    return `<article class="dec rojo"><div class="ico">${ic('alerta')}</div>
+      <div class="tt">${mayus(fLarga(it.f))}: falta ${it.h.meta - it.h.n} ${g === 'líderes' ? 'líder' : 'persona'} de ${rango(it.h.i0, it.h.i1)}</div>
+      <div class="cu">Hay ${it.h.n} de ${it.h.meta} ${g} ${it.h.tramo === 't' ? 'en la tarde' : it.h.tramo === 'm' ? 'en la mañana' : 'ese día'}. ${cau ? cau + '.' : 'Nadie más tiene turno ahí.'}</div>
+      <div class="acc">${acc}<button class="btn sec fino" data-act="ir-dia" data-f="${it.f}">Ver el día</button></div></article>`;
+  }
+  if (it.k === 'tope') {
+    const p = personaDe(it.pid), pc = Math.min(100, Math.round(it.c.h / 48 * 100));
+    return `<article class="dec ambar"><div class="ico">${ic('reloj')}</div>
+      <div class="tt">${esc(p.n)} ${esc(p.a)}: ${dec1(it.c.h)} de 48 h · día ${it.c.dia} de 7</div>
+      <div class="cu">Va por el ciclo de 7 días desde que empezó su racha sin descanso (no es la semana calendario). Conviene darle descanso antes de que siga sumando.
+        <div class="barra48" role="img" aria-label="${dec1(it.c.h)} de 48 horas"><i style="width:${pc}%"></i></div></div>
+      <div class="acc"><button class="btn sec fino" data-act="ver-persona" data-pid="${it.pid}">Ver su semana</button></div></article>`;
+  }
+  const p = personaDe(it.pid), pasado = it.f < HOY;
+  return `<article class="dec ambar"><div class="ico" style="font-weight:800">≠</div>
+    <div class="tt">${esc(p.n)} ${esc(p.a)} · ${fCorta(it.f)} ${pasado ? '<span class="ins neutro">ya pasó</span>' : ''} ${it.espejo ? '<span class="ins alerta">probable espejo viejo</span>' : '<span class="ins neutro">excepción a propósito</span>'}</div>
+    <div class="cu">Turno del día <strong>${esc(it.turnoTxt)}</strong> · horario base ${esc(it.baseTxt)}. El turno manda; de él sale la tardanza.</div>
+    <div class="acc"><button class="btn fino" data-act="permanente" data-pid="${it.pid}" data-f="${it.f}">Hacer permanente</button><button class="btn sec fino" data-act="quitar-turno" data-pid="${it.pid}" data-f="${it.f}">Usar el horario base</button><button class="btn sutil fino" data-act="celda" data-pid="${it.pid}" data-f="${it.f}">Abrir</button></div></article>`;
+}
+
+/* ═════════ VARIANTE A · cuadrícula de la semana ═════════ */
+function gridHTML(modo){
+  const L = visibles(), ds = diasSel();
+  const nv = S.atender ? tienenNovedad() : null;
+  const thDias = ds.map((f) => {
+    const hoy = f === HOY, hl = S.hlDia === f;
+    const cab = modo === 'E'
+      ? `<button class="dh" data-act="dia" data-f="${f}" aria-label="Ver el detalle de ${fLarga(f)}">${DIA[dow(f)]} <small>${num(f)} ${MES[mesDe(f)]}</small>${hoy ? '<em>hoy</em>' : ''}</button>`
+      : `<div class="dh">${DIA[dow(f)]} <small>${num(f)} ${MES[mesDe(f)]}</small>${hoy ? '<em>hoy</em>' : ''}</div>`;
+    return `<th class="${hoy ? 'hoy' : ''}${hl ? ' hl' : ''}" scope="col" data-col="${f}">${cab}${modo === 'E' ? '' : `<div class="cobs">${chipsDia(f)}</div>`}</th>`;
+  }).join('');
+  const filas = L.map((p) => `<tr${nv && !nv.has(p.id) ? ' class="dim"' : ''}>
+      <td class="quien"><b>${esc(p.n)} ${esc(p.a)}</b><small>${subPersona(p)}</small></td>
+      ${ds.map((f) => `<td class="${S.hlDia === f ? 'hl' : ''}">${celdaHTML(p, f, modo === 'C')}</td>`).join('')}
+      <td class="hrs" title="Horas programadas esta semana (sin refrigerio). El tope legal de 48 h se mide por ciclo de 7 días, no por semana.">${dec1(horasSemana(p))} h</td></tr>`).join('');
+  const pie = modo === 'E' ? `<tfoot>
+      <tr><th scope="row">Mañana</th>${ds.map((f) => `<td class="${S.hlDia === f ? 'hl' : ''}"><div class="cobs">${(() => { const an = analiza(f); return an.sinTurnos ? '<span class="cob neutro"><span class="g">–</span>Sin turnos</span>' : chipCob(an.tm, 'Mañana', f < HOY) || '<span class="muted">—</span>'; })()}</div></td>`).join('')}<td></td></tr>
+      <tr><th scope="row">Tarde</th>${ds.map((f) => `<td class="${S.hlDia === f ? 'hl' : ''}"><div class="cobs">${(() => { const an = analiza(f); return an.sinTurnos ? '' : chipCob(an.tt, 'Tarde', f < HOY) || '<span class="muted">—</span>'; })()}</div></td>`).join('')}<td></td></tr>
+      <tr><th scope="row">Líderes</th>${ds.map((f) => `<td class="${S.hlDia === f ? 'hl' : ''}"><div class="cobs">${(() => { const an = analiza(f); return an.sinTurnos ? '' : chipCob(an.tl, 'Líder', f < HOY) || '<span class="muted">sin meta</span>'; })()}</div></td>`).join('')}<td></td></tr>
+    </tfoot>` : '';
+  return `<div class="grid-wrap"><table class="gr"><caption class="sr">Turnos de la semana por persona y día</caption>
+    <thead><tr><th class="quien" scope="col"><span class="muted" style="font-size:.74rem;font-weight:600">Persona</span></th>${thDias}<th scope="col" style="text-align:right;padding-right:12px"><span class="muted" style="font-size:.7rem;font-weight:600">Horas</span></th></tr></thead>
+    <tbody>${filas || `<tr><td colspan="9" style="padding:22px;text-align:center" class="muted">Nadie coincide con lo que buscaste.</td></tr>`}</tbody>${pie}</table></div>`;
+}
+function vistaA(){
+  return `${cabeceraHTML()}${atenderHTML()}${barraHTML()}${gridHTML('A')}${leyendaHTML()}`;
+}
+
+/* ═════════ VARIANTE B · un día a la vez en línea de tiempo ═════════ */
+function tlHTML(f, compacto){
+  const an = analiza(f), L = visibles();
+  const eje = [7,9,11,13,15,17,19,21].map((h) => `<span style="left:${pct(h)}%">${h}</span>`).join('');
+  const segs = (arr, metaFn) => {
+    let out = '', i = an.i0; if (i < 0) return '';
+    while (i <= an.i1) {
+      let j = i; while (j + 1 <= an.i1 && arr[j + 1] === arr[i] && metaFn(j + 1) === metaFn(i)) j++;
+      const mt = metaFn(i), n = arr[i];
+      const est = mt <= 0 ? null : n < mt ? 'falta' : n > mt ? 'sobra' : 'ok';
+      const w = pct(H0 + (j + 1) * SLOT) - pct(H0 + i * SLOT);
+      if (est) out += `<div class="seg-c ${est}" style="left:${pct(H0 + i * SLOT)}%;width:${w}%" title="${hh(H0 + i * SLOT)}–${hh(H0 + (j + 1) * SLOT)}: ${n} de ${mt}">${w > 7 ? `${est === 'falta' ? '▲ ' : est === 'sobra' ? '＋ ' : ''}${n}/${mt}` : ''}</div>`;
+      i = j + 1;
+    }
+    return out;
+  };
+  const filaCob = (nom, sub, arr, metaFn, meta) => `<div class="tl-fila"><div class="nc">${nom}<small>${sub}</small></div><div class="pista">${meta === 0 && !arr.some((x) => x > 0) ? '' : segs(arr, metaFn)}</div></div>`;
+  const barra = (p) => {
+    const c = esperado(p.id, f), otra = !p.op && !p.lider, dv = divergencia(p.id, f);
+    let cont = '';
+    if (trabaja(c)) {
+      const tr = tramoDe(c), e = hm(c.e), s = c.s ? hm(c.s) : H1, w = pct(s) - pct(e);
+      cont = `<button class="bar ${tr} ${c.tipo}${otra ? ' otra' : ''}" style="left:${pct(e)}%;width:${w}%" data-act="celda" data-pid="${p.id}" data-f="${f}" aria-label="${esc(`${p.n} ${p.a}: ${c.e} a ${c.s || 'sin salida'}, ${c.tipo === 'turno' ? 'turno del día' : 'horario base'}`)}">${w > 12 ? `${c.e}–${c.s || '…'}` : ''}${dv ? ' <span style="color:var(--color-ambar);margin-left:4px">≠</span>' : ''}</button>`;
+    } else {
+      cont = `<button class="bar l ${c.tipo === 'descanso' ? 'turno' : 'base'}" style="left:1%;width:auto;background:repeating-linear-gradient(135deg,transparent 0 6px,color-mix(in oklab,var(--color-ceniza) 22%,transparent) 6px 7px),var(--color-papel);color:var(--color-ceniza)" data-act="celda" data-pid="${p.id}" data-f="${f}" aria-label="${esc(`${p.n} ${p.a}: descanso`)}">Descanso${c.tipo === 'descanso' ? ' · turno del día' : ' · horario base'}${dv ? ' <span style="color:var(--color-ambar);margin-left:4px">≠</span>' : ''}</button>`;
+    }
+    return `<div class="tl-fila"><div class="nc">${esc(p.n)} ${esc(p.a)}<small>${p.lider ? 'Líder de equipo' : !p.op ? esc(p.area) + ' · no suma' : esc(p.area)}</small></div><div class="pista">${cont}</div></div>`;
+  };
+  const caps = an.huecos.map((h) => `<i style="left:${pct(H0 + h.i0 * SLOT)}%;width:${pct(H0 + h.i1 * SLOT) - pct(H0 + h.i0 * SLOT)}%"><b>${h.g === 'ops' ? 'Falta' : 'Sin líder'} ${rango(h.i0, h.i1)}</b></i>`).join('');
+  return `<div class="tl${compacto ? ' compacto' : ''}" aria-label="Línea de tiempo del ${fLarga(f)}">
+    <div class="tl-eje">${eje}</div>
+    <div class="corte" style="left:calc(var(--nc) + 10px + (100% - var(--nc) - 20px) * ${pct(CORTE) / 100})" aria-hidden="true"></div>
+    ${filaCob('Cobertura', 'operativas vs meta', an.ops, (i) => (H0 + i * SLOT >= CORTE ? an.m.t : an.m.m), an.m.m + an.m.t)}
+    ${an.m.l > 0 || an.lid.some((x) => x > 0) ? filaCob('Líderes', `meta ${an.m.l}`, an.lid, () => an.m.l, an.m.l) : ''}
+    ${L.map(barra).join('') || '<p class="muted" style="padding:12px">Nadie coincide con lo que buscaste.</p>'}
+    <div class="tl-cap" aria-hidden="true">${caps}</div></div>`;
+}
+function resumenDiaHTML(f){
+  const an = analiza(f);
+  const frases = an.huecos.map((h) => `${h.g === 'ops' ? 'Falta' : 'Sin líder'} ${h.meta - h.n} de ${rango(h.i0, h.i1)} (${h.n} de ${h.meta})`);
+  const causas = causaHueco(f);
+  let aviso = '';
+  if (f < HOY && frases.length) aviso = `<div class="aviso info"><div class="tit">${ic('info')}Este día ya pasó</div><div class="txt">${frases.join(' · ')}. Corregir un día pasado se hace en Correcciones.</div></div>`;
+  else if (frases.length) aviso = `<div class="aviso rojo"><div class="tit">${ic('alerta')}${frases.join(' · ')}</div><div class="txt">${causas.length ? causas.map((c) => `<strong>${esc(c.p.n)}</strong> tiene descanso ese día (su horario base trabaja ${esc(c.baseTxt)}).`).join(' ') : 'Nadie más tiene turno en esa franja.'}</div><div class="acc">${causas.map((c) => `<button class="btn fino" data-act="quitar-turno" data-pid="${c.p.id}" data-f="${f}">${esc(c.p.n)} vuelve a su horario</button>`).join('')}</div></div>`;
+  else if (an.sinTurnos) aviso = `<div class="aviso info"><div class="tit">${ic('info')}Sin turnos</div><div class="txt">Ese día la sede no se labora y las tres metas valen 0.</div></div>`;
+  return `<div class="cobs" style="flex-direction:row;flex-wrap:wrap;gap:6px">${chipsDia(f)}</div>${aviso}`;
+}
+function vistaB(){
+  const ds = diasSel(); if (!ds.includes(S.dia)) S.dia = ds.includes(HOY) ? HOY : ds[0];
+  const f = S.dia;
+  const tira = ds.map((d) => { const pe = peorEstado(d); return `<button data-act="dia-sel" data-f="${d}" aria-pressed="${d === f}" class="${d === HOY ? 'hoy' : ''}"><small>${DIA[dow(d)]}</small><span class="n">${num(d)}</span><span class="e ${pe.est}">${pe.g} <span class="sr">${pe.t}</span></span></button>`; }).join('');
+  return `${cabeceraHTML()}${atenderHTML()}
+    <section aria-label="Días de la semana"><div class="tira">${tira}</div></section>
+    <section class="tarj" style="padding:14px"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:10px"><h3 style="font-size:1.35rem">${mayus(fLarga(f))}</h3><span class="muted" style="font-size:.82rem">Toca una barra para cambiar el turno de esa persona</span></div>
+      ${resumenDiaHTML(f)}<div style="margin-top:10px">${barraHTML()}</div><div style="margin-top:10px">${tlHTML(f, false)}</div><div style="margin-top:10px">${leyendaHTML()}</div></section>`;
+}
+
+/* ═════════ VARIANTE C · primero lo que hay que decidir ═════════ */
+function vistaC(){
+  const its = items();
+  const lista = its.length
+    ? `<div class="decide">${its.map(cardAtender).join('')}</div>`
+    : `<div class="vacio"><div class="big">${ic('ok')}</div><h3>Nada que decidir en ${esc(SEDES[S.sede])}</h3><p class="muted">Todas las horas llegan a la meta, los turnos coinciden con el horario base y nadie está cerca de las 48 h.</p></div>`;
+  return `${cabeceraHTML()}
+    <section aria-label="Para decidir"><div class="atender" style="margin-bottom:8px"><span class="rot">Para decidir</span><span class="muted" style="font-size:.84rem">${its.length ? `${its.length} cosa${its.length > 1 ? 's' : ''}, la más urgente primero` : ''}</span></div>${lista}</section>
+    <details class="pleg" id="semC"${S.semAbierta ? ' open' : ''}><summary>La semana completa <span class="muted" style="font-weight:400;font-size:.84rem">· quién trabaja cuándo, y cobertura por día</span></summary><div class="in">${barraHTML()}${gridHTML('E').replace('data-act="dia"', 'data-act="dia"')}${leyendaHTML()}</div></details>`;
+}
+
+/* ═════════ VARIANTE D · por persona (pensada para el celular de la líder) ═════════ */
+function vistaD(){
+  const ds = diasSel(); if (!ds.includes(S.dia)) S.dia = ds.includes(HOY) ? HOY : ds[0];
+  const f = S.dia;
+  const tabs = ds.map((d) => { const pe = peorEstado(d); return `<button data-act="dia-sel" data-f="${d}" aria-pressed="${d === f}"><small>${DIA[dow(d)]}${d === HOY ? ' · hoy' : ''}</small><b>${num(d)}</b><span class="e ${pe.est}">${pe.g}<span class="sr"> ${pe.t}</span></span></button>`; }).join('');
+  let L = visibles();
+  // quien trabaja ese día primero, por hora de entrada; el resto después
+  const orden = (p) => { const c = esperado(p.id, f); return trabaja(c) ? hm(c.e) : 99; };
+  L = [...L].sort((a, b) => (b.id === yo()) - (a.id === yo()) || orden(a) - orden(b));
+  const card = (p) => {
+    const c = esperado(p.id, f), esYo = p.id === yo();
+    const hoyTxt = trabaja(c) ? `${c.e}–${c.s || '…'}` : 'Descansa';
+    const col = (d) => `<div class="col${d === f ? ' act' : ''}"><small>${DIA[dow(d)].charAt(0)}<b>${num(d)}</b></small>${celdaHTML(p, d, true)}</div>`;
+    return `<article class="pc${esYo ? ' yo' : ''}">
+      <div class="top"><div class="avatar" aria-hidden="true">${esc(p.n[0])}${esc(p.a[0])}</div><div class="nm"><b>${esc(p.n)} ${esc(p.a)}${esYo ? ' · tú' : ''}</b><small>${p.lider ? 'Líder de equipo' : !p.op ? esc(p.area) + ' · no suma a la cobertura' : esc(p.area)}</small></div>
+        <div class="hoy-l">${mayus(DIAL[dow(f)])}<b>${hoyTxt}</b></div></div>
+      <div class="sem7">${ds.map(col).join('')}</div>
+      <div class="pie"><span>${dec1(horasSemana(p))} h programadas</span>${divergenciasDe(p.id) ? `<span class="ins aviso">≠ ${divergenciasDe(p.id)} no coincide${divergenciasDe(p.id) > 1 ? 'n' : ''}</span>` : ''}${D.ciclo[p.id] && D.ciclo[p.id].h >= 40 ? `<span class="ins aviso">${ic('reloj')}${dec1(D.ciclo[p.id].h)}/48 h</span>` : ''}</div></article>`;
+  };
+  return `${cabeceraHTML()}<section aria-label="Día"><div class="dtabs">${tabs}</div></section>
+    <section class="resdia" aria-label="Cobertura del día"><strong style="font-family:var(--font-serif);font-size:1.12rem">${mayus(fLarga(f))}</strong>${chipsDia(f)}</section>
+    ${(() => { const an = analiza(f); return an.huecos.length && f >= HOY ? `<div class="aviso rojo"><div class="tit">${ic('alerta')}${an.huecos.map((h) => `${h.g === 'ops' ? 'Falta' : 'Sin líder'} ${h.meta - h.n} de ${rango(h.i0, h.i1)}`).join(' · ')}</div><div class="acc">${causaHueco(f).map((c) => `<button class="btn fino" data-act="quitar-turno" data-pid="${c.p.id}" data-f="${f}">${esc(c.p.n)} vuelve a su horario</button>`).join('')}</div></div>` : ''; })()}
+    ${atenderHTML()}${barraHTML()}
+    <section class="pcards" aria-label="Personas">${L.map(card).join('') || '<p class="muted">Nadie coincide con lo que buscaste.</p>'}</section>`;
+}
+function divergenciasDe(pid){ return Object.keys(D.turnos).filter((k) => k.startsWith(pid + '|') && divergencia(pid, k.split('|')[1])).length; }
+
+/* ═════════ VARIANTE E · híbrida: Para atender + cuadrícula con pie de cobertura + cajones ═════════ */
+function vistaE(){
+  return `${cabeceraHTML()}${atenderHTML()}${barraHTML()}${gridHTML('E')}${leyendaHTML()}
+    <p class="muted" style="font-size:.8rem">Toca el nombre de un día para ver su línea de tiempo hora por hora. Toca una casilla para cambiar un turno.</p>`;
+}
+
+/* ═════════ cajones ═════════ */
+function drawerTurno(){
+  const { pid, f } = S.drawer, p = personaDe(pid), F = S.form;
+  const c0 = esperado(pid, f), b = baseDe(pid, f), dv = divergencia(pid, f);
+  const propio = S.rol === 'lider' && pid === yo();
+  const lectura = S.rol === 'integrante' || propio;
+  const orig = c0.tipo === 'turno' ? 'Turno del día' : c0.tipo === 'descanso' ? 'Descanso del día' : c0.tipo === 'base' ? 'Horario base' : 'Descanso de su horario';
+  const guardado = D.turnos[pid + '|' + f];
+  const motivoLectura = propio ? 'No puedes fijar tu propio turno: la hora de entrada define tu tardanza. Pídeselo a Desarrollo Organizacional.' : 'Solo tu líder de equipo o Desarrollo Organizacional pueden cambiar turnos. Si algo no está bien, avísale.';
+  return `<div class="vel" data-act="cerrar"></div>
+  <aside class="cajon" role="dialog" aria-modal="true" aria-label="Turno de ${esc(p.n)}">
+    <header><div><h3>${esc(p.n)} ${esc(p.a)}</h3><small>${mayus(fLarga(f))} · ${esc(SEDES[p.sede])}${!p.op && !p.lider ? ' · ' + esc(p.area) + ' (no suma a la cobertura)' : ''}</small>
+      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><span class="ins ${guardado ? 'info' : 'neutro'}">${orig}</span>${dv ? `<span class="ins aviso">≠ no coincide con el horario base</span>` : ''}${dv && dv.espejo ? '<span class="ins alerta">probable espejo viejo</span>' : ''}</div></div>
+      <button class="cerrar" data-act="cerrar" aria-label="Cerrar">${ic('x')}</button></header>
+    <div class="cuerpo">
+      ${lectura ? `<div class="aviso info"><div class="tit">${ic('info')}Solo lectura</div><div class="txt">${motivoLectura}</div></div>` : ''}
+      ${dv ? `<div class="aviso ambar"><div class="tit">≠ El turno del día manda sobre el horario base</div><div class="txt">Turno <strong>${esc(dv.turnoTxt)}</strong> · horario base <strong>${esc(dv.baseTxt)}</strong>. ¿Cuál tiene la razón?</div>${lectura ? '' : `<div class="acc"><button class="btn fino" data-act="permanente" data-pid="${pid}" data-f="${f}">Hacer permanente</button><button class="btn sec fino" data-act="quitar-turno" data-pid="${pid}" data-f="${f}">Usar el horario base</button></div>`}</div>` : ''}
+      <div>
+        <div class="rotulo">¿Trabaja ese día?</div>
+        <div class="seg" role="group" aria-label="Trabaja o descansa"><button data-act="modo" data-v="trabaja" aria-pressed="${F.modo === 'trabaja'}" ${lectura ? 'disabled' : ''}>Trabaja</button><button data-act="modo" data-v="descanso" aria-pressed="${F.modo === 'descanso'}" ${lectura ? 'disabled' : ''}>Descanso</button></div>
+      </div>
+      <div class="dos"><label class="campo">Entrada (24 h)<input type="text" inputmode="numeric" maxlength="5" placeholder="08:00" id="fe" value="${esc(F.e)}" autocomplete="off" ${F.modo === 'descanso' || lectura ? 'disabled' : ''}></label><label class="campo">Salida (24 h)<input type="text" inputmode="numeric" maxlength="5" placeholder="14:15" id="fs" value="${esc(F.s)}" autocomplete="off" ${F.modo === 'descanso' || lectura ? 'disabled' : ''}></label></div>
+      <p class="muted" style="font-size:.8rem;margin-top:-6px">Su horario base los ${DIAPL[dow(f)]}: <strong>${b ? `${b.e}–${b.s}` : 'descansa'}</strong>${b && b.r ? ` · refrigerio ${b.r} min` : ''}.</p>
+      <div class="efecto" id="efectos">${efectosHTML()}</div>
+      ${lectura ? '' : `<div class="pregunta"><div class="rotulo" style="margin:0">¿Este cambio es solo por este día, o de ahora en adelante?</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px"><button class="btn grande" data-act="guardar-solo">Solo este día</button><button class="btn sec grande" data-act="guardar-desde">De aquí en adelante</button></div>
+        <p><strong>Solo este día</strong> deja un turno puntual y no toca su horario. <strong>De aquí en adelante</strong> cambia su horario base de los ${DIAPL[dow(f)]} desde ${f > HOY ? 'esta fecha' : 'hoy'}${f < HOY ? ' (un horario nuevo no reescribe días que ya pasaron)' : ''} y no deja turno puntual.</p></div>`}
+      <p class="muted" style="font-size:.76rem">Cada cambio queda en el historial y ${esc(p.n)} recibe un aviso en «Lo mío». Dynamic avisa; la decisión de conversar o amonestar es siempre de una persona.</p>
+    </div>
+    <footer>${lectura ? '' : `<button class="btn sutil" data-act="quitar-turno-d" ${guardado ? '' : 'disabled'} title="Quita el turno del día y vuelve al horario base">Volver al horario base</button>`}<button class="btn sec" data-act="cerrar" style="margin-left:auto">Cerrar</button></footer>
+  </aside>`;
+}
+function hipDe(){
+  const { pid, f } = S.drawer, F = S.form, k = pid + '|' + f;
+  const h = {};
+  h[k] = F.modo === 'descanso' ? { d:true } : (horaOk(F.e) ? { e:F.e, s:horaOk(F.s) ? F.s : null } : null);
+  return { k, hip:h };
+}
+function efectosHTML(){
+  const { pid, f } = S.drawer, p = personaDe(pid), F = S.form;
+  const { hip } = hipDe(), c = esperado(pid, f, hip), b = baseDe(pid, f);
+  const filas = [];
+  // 1 · tardanza
+  if (F.modo === 'descanso' || !trabaja(c)) {
+    filas.push(`${ic('reloj')}<div><b>Ese día no le toca trabajar.</b> Si marca igual, se registra como día extra: no cuenta como falta ni como tardanza.</div>`);
+  } else {
+    const mas1 = hh(hm(c.e) + 1 / 60);
+    filas.push(`${ic('reloj')}<div><b>La tardanza se mide contra ${c.e}.</b> No hay tolerancia: llegar a las ${mas1} cuenta 1 minuto. Jornada: ${c.s ? durTxt(horasEntre(c.e, c.s, c.r)) : 'sin hora de salida'}${c.r ? ` (menos ${c.r} min de refrigerio)` : ''}.</div>`);
+    if (b && (c.e !== b.e || (c.s && c.s !== b.s))) filas.push(`${ic('info')}<div>Este turno <b>pisa</b> el horario base (${b.e}–${b.s}) solo ese día.</div>`);
+    if (!p.op && !p.lider) filas.push(`${ic('gente')}<div>${esc(p.n)} está en <b>${esc(p.area)}</b>: su turno no suma a la cobertura de piso.</div>`);
+  }
+  // 2 · cobertura del día (antes → después)
+  const an0 = analiza(f), an1 = analiza(f, hip);
+  const t = (r, n) => (r ? `${n} ${r.n}/${r.meta}${r.est === 'falta' ? ' ▲' : ''}` : null);
+  const lin = (an) => [t(an.tm, 'Mañana'), t(an.tt, 'Tarde'), t(an.tl, 'Líder')].filter(Boolean).join(' · ') || 'sin metas';
+  if (p.op || p.lider) {
+    const cambio = lin(an0) !== lin(an1);
+    filas.push(`${ic('gente')}<div><b>Cobertura del ${DIAL[dow(f)]}:</b> ${cambio ? `${esc(lin(an0))} <span class="muted">→</span> <b>${esc(lin(an1))}</b>` : esc(lin(an1))}${an1.huecos.length ? `<br><span style="color:var(--color-rojo-profundo)">Quedaría sin cubrir: ${an1.huecos.map((h) => `${rango(h.i0, h.i1)} (${h.n} de ${h.meta})`).join(', ')}.</span>` : ''}</div>`);
+  }
+  // 3 · avisos que no bloquean
+  const av = [];
+  if (F.modo === 'trabaja' && horaOk(F.e)) {
+    const ant = esperado(pid, add(f, -1), null), sig = esperado(pid, add(f, 1), null);
+    if (trabaja(ant) && ant.s) { const d = (24 - hm(ant.s)) + hm(F.e); if (d < 12) av.push(`Deja solo ${dec1(d)} h de descanso desde la salida del día anterior (mínimo recomendado: 12 h).`); }
+    if (horaOk(F.s) && trabaja(sig)) { const d = (24 - hm(F.s)) + hm(sig.e); if (d < 12) av.push(`Deja solo ${dec1(d)} h de descanso hasta la entrada del día siguiente (mínimo recomendado: 12 h).`); }
+  }
+  const ci = D.ciclo[pid];
+  if (ci && ci.h >= 40) av.push(`Ya lleva ${dec1(ci.h)}/48 h en su ciclo de 7 días vigente hoy (día ${ci.dia} de 7). Antes de guardar, revisa si le conviene más descanso.`);
+  if (F.modo === 'trabaja' && !b) { const dd = [0,1,2,3,4,5,6].filter((d) => baseDow(pid, d, f)).length; if (dd >= 6) av.push(`Si lo haces «de aquí en adelante», ya no tendría ningún día de descanso en su horario base.`); }
+  if (av.length) filas.push(`<div class="aviso ambar" style="padding:8px 10px;margin:0"><div class="txt" style="color:var(--color-ambar)">${av.map((x) => `<p>${ic('alerta')} ${esc(x)}</p>`).join('')}<p class="muted" style="font-size:.76rem;margin-top:4px">Es un aviso: no bloquea el guardado. Decide quien conoce a la persona y el día.</p></div></div>`);
+  return filas.map((x) => x.startsWith('<div class="aviso') ? x : `<div class="fila">${x}</div>`).join('');
+}
+function drawerDia(){
+  const f = S.drawer.f, an = analiza(f);
+  const faltan = pers().filter((p) => !trabaja(esperado(p.id, f)));
+  return `<div class="vel" data-act="cerrar"></div>
+  <aside class="cajon" role="dialog" aria-modal="true" aria-label="${esc(fLarga(f))}" style="width:min(640px,100%)">
+    <header><div><h3>${mayus(fLarga(f))}</h3><small>${esc(SEDES[S.sede])} · ${f === HOY ? 'hoy' : f < HOY ? 'ya pasó' : 'por venir'}</small></div><button class="cerrar" data-act="cerrar" aria-label="Cerrar">${ic('x')}</button></header>
+    <div class="cuerpo">${resumenDiaHTML(f)}
+      <div class="tl-wrap">${tlHTML(f, true)}</div>
+      ${leyendaHTML()}
+      ${faltan.length && puedeEditar() ? `<label class="campo">Agregar a este día<select class="sel" data-act="agregar" data-f="${f}"><option value="">Elegir persona…</option>${faltan.map((p) => `<option value="${p.id}">${esc(p.n)} ${esc(p.a)}</option>`).join('')}</select></label>` : ''}
+    </div>
+    <footer><button class="btn sec" data-act="metas">${ic('meta')}Metas de la sede</button><button class="btn sec" data-act="cerrar" style="margin-left:auto">Cerrar</button></footer>
+  </aside>`;
+}
+function drawerMetas(){
+  const mt = D.metas[S.sede], ed = esAdmin();
+  const orden = [1,2,3,4,5,6,0];
+  return `<div class="vel" data-act="cerrar"></div>
+  <aside class="cajon" role="dialog" aria-modal="true" aria-label="Metas de la sede">
+    <header><div><h3>Metas de ${esc(SEDES[S.sede])}</h3><small>Cuántas personas hacen falta. Vale para <strong>todos</strong> los lunes, martes…, no para una fecha.</small></div><button class="cerrar" data-act="cerrar" aria-label="Cerrar">${ic('x')}</button></header>
+    <div class="cuerpo">
+      ${ed ? '' : `<div class="aviso info"><div class="tit">${ic('info')}Solo lectura</div><div class="txt">Las metas las cambia Desarrollo Organizacional.</div></div>`}
+      <table class="metas-t"><thead><tr><th>Día</th><th title="Operativas hasta las 14:15">Mañana</th><th title="Operativas desde las 14:15">Tarde</th><th>Líderes</th></tr></thead>
+        <tbody>${orden.map((d) => `<tr><td><strong>${mayus(DIAPL[d])}</strong></td>${['m','t','l'].map((k) => `<td><input type="number" min="0" value="${mt[d][k]}" ${ed ? '' : 'disabled'} data-act="meta" data-d="${d}" data-k="${k}" aria-label="${esc(`${DIAPL[d]}, ${k === 'm' ? 'mañana' : k === 't' ? 'tarde' : 'líderes'}`)}"></td>`).join('')}</tr>`).join('')}</tbody></table>
+      <p class="muted" style="font-size:.8rem">Mañana va hasta las 14:15 y tarde desde las 14:15 (corte fijo para todas las sedes). La meta de líderes es plana todo el día. Con las tres en 0 y nadie con turno, el día dice «Sin turnos» y no avisa nada.</p>
+      <p class="muted" style="font-size:.8rem">Hoy estas metas se editan <em>dentro de cada día</em>, siete veces por semana, aunque valen para todas las semanas. Aquí quedan en un solo lugar.</p>
+    </div>
+    <footer><button class="btn sec" data-act="cerrar" style="margin-left:auto">Cerrar</button></footer>
+  </aside>`;
+}
+function renderCapa(){
+  const c = $('#capa');
+  if (!S.drawer) { c.innerHTML = ''; return; }
+  const previo = $('#capa .cajon .cuerpo'), sc = previo ? previo.scrollTop : 0;
+  c.innerHTML = S.drawer.tipo === 'turno' ? drawerTurno() : S.drawer.tipo === 'dia' ? drawerDia() : drawerMetas();
+  const nuevo = $('#capa .cajon .cuerpo'); if (nuevo) nuevo.scrollTop = sc;
+}
+
+/* ═════════ acciones ═════════ */
+function toast(txt, undo){
+  const t = $('#toast-capa');
+  t.innerHTML = `<div class="toast" role="status"><span>${esc(txt)}</span>${undo ? '<button data-act="deshacer">Deshacer</button>' : ''}</div>`;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.innerHTML = ''; }, undo ? 7000 : 4200);
+}
+function snapshot(){ S.undo = JSON.stringify({ t:D.turnos, c:D.cambios }); }
+function deshacer(){ if (!S.undo) return; const s = JSON.parse(S.undo); D.turnos = s.t; D.cambios = s.c; S.undo = null; $('#toast-capa').innerHTML = ''; render(); }
+function abrirTurno(pid, f){
+  const c = esperado(pid, f);
+  S.drawer = { tipo:'turno', pid, f };
+  S.form = { modo: c.tipo === 'descanso' || c.tipo === 'libre' ? 'descanso' : 'trabaja', e: trabaja(c) ? c.e : '', s: trabaja(c) && c.s ? c.s : '' };
+  if (c.tipo === 'libre' || (c.tipo === 'descanso')) { const b = baseDe(pid, f); S.form.e = b ? b.e : ''; S.form.s = b ? b.s : ''; }
+  renderCapa();
+}
+function fijarBase(pid, f, val){
+  const d = dow(f);
+  const quedan = [0,1,2,3,4,5,6].filter((x) => (x === d ? !!val : !!baseDow(pid, x, f)));
+  if (!quedan.length) return { error:`No puedo dejar a ${personaDe(pid).n} sin ningún día de trabajo. Ajusta su horario en Horarios.` };
+  const desde = f > HOY ? f : HOY, esPasado = desde !== f;
+  D.cambios.push({ pid, dow:d, desde, val });
+  if (!esPasado) delete D.turnos[pid + '|' + f];
+  return { desde, esPasado, siete: quedan.length === 7 };
+}
+function hacerPermanente(pid, f){
+  const t = D.turnos[pid + '|' + f]; if (!t) return;
+  const b = baseDe(pid, f);
+  snapshot();
+  const r = fijarBase(pid, f, t.d ? null : { e:t.e, s:t.s || (b && b.s) || t.e, r:(b && b.r) || 0 });
+  const p = personaDe(pid);
+  if (r.error) { S.undo = null; toast(r.error); return; }
+  if (r.esPasado) toast(`El horario base de ${p.n} rige desde hoy, no desde el ${fCorta(f)}: un horario nuevo no reescribe días que ya pasaron. Ese día se queda con su turno.${r.siete ? ' Ojo: ya no tendría día de descanso en su horario.' : ''}`, true);
+  else toast(`${p.n}: su horario base de los ${DIAPL[dow(f)]} cambió desde el ${fCorta(f)}.${r.siete ? ' Ojo: ya no tiene día de descanso en su horario.' : ''}`, true);
+  render();
+}
+function quitarTurno(pid, f){
+  if (!D.turnos[pid + '|' + f]) return;
+  snapshot(); delete D.turnos[pid + '|' + f];
+  const c = esperado(pid, f), p = personaDe(pid);
+  toast(`${p.n} vuelve a su horario el ${fCorta(f)}${trabaja(c) ? ` (${c.e}–${c.s})` : ''}. Se recalcula esa jornada.`, true);
+  render();
+}
+function guardarSolo(){
+  const { pid, f } = S.drawer, F = S.form, p = personaDe(pid);
+  if (F.modo === 'trabaja' && !horaOk(F.e)) { toast('Pon la hora de entrada como 08:00 (24 horas).'); return; }
+  if (F.s && !horaOk(F.s)) { toast('La salida va como 14:15 (24 horas), o déjala vacía.'); return; }
+  snapshot();
+  D.turnos[pid + '|' + f] = F.modo === 'descanso' ? { d:true } : { e:F.e, s:F.s || null };
+  S.drawer = null; toast(`${p.n}: ${F.modo === 'descanso' ? 'descanso' : `${F.e}${F.s ? '–' + F.s : ''}`} el ${fCorta(f)}. Se avisó a ${p.n} en «Lo mío».`, true); render();
+}
+function guardarDesde(){
+  const { pid, f } = S.drawer, F = S.form, p = personaDe(pid);
+  if (F.modo === 'trabaja' && (!horaOk(F.e) || !horaOk(F.s))) { toast('Para cambiar el horario base necesito entrada y salida, como 08:00 y 14:15.'); return; }
+  snapshot();
+  const prev = baseDe(pid, f);
+  const r = fijarBase(pid, f, F.modo === 'descanso' ? null : { e:F.e, s:F.s, r:(prev && prev.r) || 0 });
+  if (r.error) { S.undo = null; toast(r.error); return; }
+  S.drawer = null;
+  toast(r.esPasado ? `Horario base de ${p.n}: los ${DIAPL[dow(f)]} desde hoy. El ${fCorta(f)} ya pasó y se queda como estaba.${r.siete ? ' Ojo: ya no tendría día de descanso en su horario.' : ''}` : `Horario base de ${p.n}: los ${DIAPL[dow(f)]} desde el ${fCorta(f)}.${r.siete ? ' Ojo: ya no tiene día de descanso en su horario.' : ''}`, true);
+  render();
+}
+function copiarSemana(){
+  const l = add(lunesSel(), -7), fin = add(l, 6); let c = 0, s = 0;
+  snapshot();
+  for (const k of Object.keys(D.turnos)) {
+    const [pid, f] = k.split('|'); if (personaDe(pid).sede !== S.sede || f < l || f > fin) continue;
+    const nk = pid + '|' + add(f, 7);
+    if (D.turnos[nk]) { s++; continue; }
+    D.turnos[nk] = { ...D.turnos[k] }; c++;
+  }
+  S.copiar = false;
+  toast(`Se copiaron ${c} turno${c === 1 ? '' : 's'} de la semana pasada.${s ? ` ${s} ya tenía${s === 1 ? '' : 'n'} turno propio y no se tocaron.` : ''}`, true);
+  render();
+}
+function irDia(f){
+  const v = S.v;
+  if (!diasSel().includes(f)) S.sem = Math.round((parse(lunesDe(f)) - parse(LUN0)) / (7 * 86400000));
+  if (v === 'E') { S.drawer = { tipo:'dia', f }; renderCapa(); render(); return; }
+  S.dia = f; S.hlDia = f; if (v === 'C') S.semAbierta = true;
+  render();
+  setTimeout(() => { const el = $(v === 'A' || v === 'C' ? `th[data-col="${f}"]` : '.tarj, .dtabs'); if (el) el.scrollIntoView({ behavior:'smooth', block:'center', inline:'center' }); }, 30);
+}
+
+/* ═════════ notas ═════════ */
+const conectadas = `<table><thead><tr><th>Pantalla</th><th>Qué lee o escribe de Turnos</th><th>Qué revisar si Turnos cambia</th></tr></thead><tbody>
+  <tr><td><strong>Lo mío</strong> (<code>/mio</code>, «Cuándo te toca»)</td><td>Lee <code>turnos</code> y <code>horarios_asignados</code> de la propia persona con <code>esperadoDelDia</code>. La bandeja de avisos lee de <code>correcciones_auditoria</code> (<code>campo_modificado = 'turnos.horario'</code>) lo que escriben <code>fn_set_turno</code>, <code>fn_set_descanso</code> y <code>fn_quitar_turno</code>.</td><td>Todo cambio de turno debe seguir pasando por esas tres funciones, o la integrante no se entera. Cualquier botón nuevo («vuelve a su horario», «hacer permanente», deshacer) reutiliza esas llamadas.</td></tr>
+  <tr><td><strong>Terminal de marcaje</strong></td><td><code>lib/terminal/sugerencias.ts</code> lee el turno de hoy para sugerir la salida y el refrigerio.</td><td>Ninguna si no se toca la forma de <code>turnos</code> (hora_entrada, hora_salida, es_descanso).</td></tr>
+  <tr><td><strong>Dashboard</strong></td><td>Lee <code>turnos</code> de hoy y <code>metas_cobertura</code> (meta, meta_tarde, meta_encargadas); manda a <code>/admin/turnos</code> con «Ver turnos» y «Revisar meta» (sin fecha).</td><td>Que <code>/admin/turnos</code> sin parámetros caiga en la semana de hoy y en la sede del usuario. «Revisar meta» debería abrir el cajón de metas.</td></tr>
+  <tr><td><strong>Reporte y Hoja de sede</strong> (impresa)</td><td>Turnos de hoy + metas del día; «faltan N».</td><td>Misma definición de operativa y de líder (<code>cuentaEnCobertura</code>): ninguna variante la cambia.</td></tr>
+  <tr><td><strong>Incidencias</strong></td><td>Lee <code>turnos</code> (semana actual y siguiente) y <code>metas_cobertura.meta_encargadas</code> para el déficit de líderes; enlaza a <code>/admin/turnos?fecha=</code> («Ver turnos»). El panel de incidencia lee el turno del día.</td><td>Conservar el parámetro <code>?fecha=</code>: salta a la semana de esa fecha. Idealmente también abre ese día (cajón en E, día seleccionado en B y D).</td></tr>
+  <tr><td><strong>Correcciones</strong></td><td>Lee el turno de un día (fuente «turnos» o «horarios_asignados»), usa <code>esTurnoEspejoViejo</code> y dice «Revísalo en Turnos»; enlaza a <code>/admin/turnos?fecha=</code>.</td><td>Mismo <code>?fecha=</code>. Hoy corregir un día PASADO se hace aquí, no en Turnos: ninguna variante lo mueve.</td></tr>
+  <tr><td><strong>Horas / Desempeño</strong></td><td>Lee turnos de un rango para saber qué le tocaba; «días sospechosos» enlaza a <code>/admin/turnos?fecha=</code>.</td><td>Mismo <code>?fecha=</code>.</td></tr>
+  <tr><td><strong>Horarios</strong> (horario base)</td><td>Lee turnos para <code>turnosDesactualizadosPor</code> (avisa si al cambiar el horario quedan «espejos viejos»); dice que «el único camino para corregir es Turnos». Escribe con <code>fn_set_horario_semanal</code>, la misma que usa «De aquí en adelante» y «Hacer permanente».</td><td>El aviso de espejo viejo seguirá mandando a Turnos: conviene que caiga directo en «Para atender → no coinciden».</td></tr>
+  <tr><td><strong>Menú y atajos</strong></td><td><code>nav-items.ts</code> (<code>/admin/turnos</code>, roles de sede) y el atajo de teclado <kbd>t</kbd>.</td><td>Solo si cambia la ruta.</td></tr>
+  <tr><td><strong>Backend</strong></td><td><code>fn_recalcular_jornada</code>, <code>fn_faltas</code>, <code>fn_auto_cierre</code> y la planilla leen <code>turnos</code> con la cascada turno → horario_por_dia → dias_laborables.</td><td>Ninguna variante cambia datos ni cascada: solo la presentación. La cascada vive en <code>jornada-esperada.ts</code>; no se escribe una quinta copia.</td></tr>
+</tbody></table>`;
+const inventario = `<table><thead><tr><th>Función de hoy</th><th>Qué hace</th><th>Propuesta</th></tr></thead><tbody>
+  <tr><td>Permisos y alcance</td><td>La ven DO, dirección y líderes (<code>puedeOperarEquipo</code>); la líder queda fija en su sede; solo DO/dirección elige sede y edita metas; nadie fija su propio turno.</td><td><span class="etq con">Se conserva</span> En el prototipo, «Ver como» lo demuestra. La integrante hoy NO tiene esta pantalla (ve «Cuándo te toca» en Lo mío); verla de solo lectura es una decisión de permisos, no de diseño.</td></tr>
+  <tr><td>Semana ← Hoy →, sede, <code>?fecha=</code></td><td>Navega por semanas de lunes a domingo; la sede se recuerda; el enlace salta a la semana de una fecha.</td><td><span class="etq con">Se conserva</span></td></tr>
+  <tr><td>Vista <strong>Día</strong></td><td>Una sección por cada uno de los 7 días: metas editables, frase de cobertura, sugerencia, barra por persona, banda de calor por hora.</td><td><span class="etq fus">Se fusiona</span> en la línea de tiempo de un día (B, E) y en las casillas de la cuadrícula (A, E).</td></tr>
+  <tr><td>Vista <strong>Semana</strong> (siluetas)</td><td>Una silueta SVG de cobertura por día, para operativas y para líderes, con la meta punteada y verde/rojo/ámbar.</td><td><span class="etq des">Se descarta</span> Responde lo mismo que Integrada con otro dibujo. Se reemplaza por chips «Mañana 2/2 · Tarde 1/2 · Líder 1/1» con ícono y por el rango exacto del hueco.</td></tr>
+  <tr><td>Vista <strong>Integrada</strong> (sábana hora × día)</td><td>Hora por hora de toda la semana; el número es cuántas cubren; puntos = líderes; al tocar una media hora, un modal dice quién cubre y deja agregar a alguien.</td><td><span class="etq fus">Se fusiona</span> La información vive en la línea de tiempo del día; «agregar a este día» pasa al cajón del día (E) o a la fila de cada persona.</td></tr>
+  <tr><td>Metas por tramo y de líderes</td><td>Se editan dentro de CADA día (siete veces por semana) aunque valen para todos los lunes, martes…</td><td><span class="etq mej">Se mejora</span> Un solo cajón «Metas de la sede» con los 7 días × 3 metas (mismas funciones <code>fn_set_meta_cobertura</code> y <code>fn_set_meta_encargadas</code>). Lo conserva todo; quita el riesgo de editar «el jueves» creyendo que es solo este jueves.</td></tr>
+  <tr><td>Cobertura solo de áreas operativas; ámbar para otra área</td><td>Quien está en otra área tiene barra ámbar con su área al lado y no suma.</td><td><span class="etq con">Se conserva</span> Ahora además con palabra en la casilla: «no suma».</td></tr>
+  <tr><td>«% cubierto» y sugerencias de redistribuir</td><td>Promedio del día topado a 100 % por franja; frase «sobra gente en la tarde y falta en la mañana» con un candidato.</td><td><span class="etq mej">Se mejora</span> Se dice el rango exacto del hueco y quién lo causa («14:15–21:00, 1 de 2; Gaby tiene descanso») con el botón que lo resuelve. El promedio no se pierde: se calcula igual, solo deja de ser el titular. El «redistribuir» se conserva como texto del hueco.</td></tr>
+  <tr><td>Hueco de refrigerio dibujado en la barra</td><td>Un corte «aproximado, a la mitad del turno», que el propio código reconoce que no es literal.</td><td><span class="etq des">Se descarta</span> Dibuja una hora de refrigerio que nadie fijó. Se dice en texto en el cajón («menos 60 min de refrigerio»).</td></tr>
+  <tr><td>Aviso «N personas cerca de las 48 h» (<code>AlertaSobretiempo</code>)</td><td>Banner con lista; verde «nadie está cerca» si no hay; 40 h es el umbral, 48 h en rojo.</td><td><span class="etq fus">Se fusiona</span> Pasa a una pastilla de «Para atender» y a un aviso dentro del cajón de esa persona. Misma regla (<code>cicloVigente</code>).</td></tr>
+  <tr><td>Aviso «N turnos no coinciden con el horario base» (<code>RevisionTurnos</code>)</td><td>Lista desde el inicio del periodo abierto; «probable espejo viejo» o «excepción a propósito»; <em>Hacer permanente</em>, <em>Usar el horario base</em>, <em>Quitar los espejos</em> en bloque, nota «sin horario base».</td><td><span class="etq fus">Se fusiona</span> en «Para atender». Las dos acciones se conservan tal cual (<code>fn_set_horario_semanal</code> + <code>fn_quitar_turno</code>, con el tope «un horario nuevo no reescribe días pasados»). «Quitar los espejos» se conserva como acción de la lista cuando hay más de uno.</td></tr>
+  <tr><td>Editar turno (modal): entrada/salida, «Solo este día» / «De aquí en adelante», Descanso, Quitar</td><td>Un modal centrado con cinco botones y dos avisos (12 h entre jornadas y 48 h) que no bloquean.</td><td><span class="etq mej">Se mejora</span> Cajón lateral con «¿Trabaja? Trabaja / Descanso» (reemplaza el botón suelto «Descanso»), el efecto sobre tardanza y sobre cobertura mostrado antes de guardar, y «Volver al horario base» (= Quitar). Sin bloqueo nuevo.</td></tr>
+  <tr><td>Copiar semana anterior</td><td>Copia los turnos puntuales de la semana pasada (hasta N); salta los días que ya tienen turno propio.</td><td><span class="etq con">Se conserva</span> y <span class="etq mej">se mejora</span>: la confirmación dice cuántos son descansos o turnos que no coinciden con el horario base, porque la copia también arrastra esos.</td></tr>
+  <tr><td>Estados vacíos y «Sin turnos»</td><td>Sede sin gente / sin turnos / día sin labor con las tres metas en 0.</td><td><span class="etq con">Se conserva</span> (<code>etiquetaSedeSinTurnos</code>). Los sábados y domingos de LIM y AQP lo muestran.</td></tr>
+  <tr><td>Aviso «no se pudo cargar el área del personal»</td><td>Si falla <code>fn_personas_funciones</code> o <code>fn_areas</code>, la cobertura cuenta a todos como operativos.</td><td><span class="etq con">Se conserva</span> como <em>aviso en línea</em> rojo encima de «Para atender» (no se dibuja en el prototipo).</td></tr>
+  <tr><td>Color ámbar también para «sobra gente»</td><td>Ámbar sirve a la vez para «otra área», «sobra» y «aviso».</td><td><span class="etq mej">Se mejora</span> «Sobra» pasa a pizarra (informativo); ámbar queda para «mira esto».</td></tr>
+</tbody></table>`;
+
+const NOTAS = {
+  A: { lema:'<strong>A · Cuadrícula de la semana.</strong> Persona × día. La cobertura cuelga del encabezado de cada día.',
+    gana:['La semana se lee de un golpe, que es como se arma un horario.','Cada casilla dice hora, tramo (☀ / ☾) y si es turno del día o base, sin depender del color.','Mañana, tarde y líder de cada día están arriba de la columna, con número, ícono y palabra.'],
+    paga:['En celular la tabla se desplaza dentro de su caja (la página no).','Hay que abrir una casilla o una pastilla para saber QUÉ horas exactas quedan sin cubrir.','Con más de 12 personas la columna de nombres se vuelve larga.'],
+    conserva:['Editar por casilla (<code>fn_set_turno</code>, <code>fn_set_descanso</code>, <code>fn_quitar_turno</code>), «Solo este día» / «De aquí en adelante», avisos de 12 h y 48 h, copiar semana, ámbar para otra área, metas por tramo.'],
+    fusiona:['Día + Semana + Integrada → una sola cuadrícula.','Los dos banners (48 h y no coinciden) → pastillas de «Para atender».'],
+    descarta:['Siluetas SVG, banda de calor por hora, hueco de refrigerio dibujado.'],
+    afecta:['Dashboard y Reporte/Hoja de sede (lo que leen no cambia); Incidencias, Correcciones y Horas (el <code>?fecha=</code> debe seguir llevando a esta semana y resaltar la columna).'] },
+  B: { lema:'<strong>B · Un día a la vez.</strong> Una tira de siete días arriba y, debajo, el día elegido hora por hora.',
+    gana:['El hueco se ve donde está: una franja rayada de 14:15 a 21:00 sobre las barras de todas las personas, con su causa.','Es la vista que mejor explica «por qué falta gente»: se ve quién entra y quién sale a cada hora.','La tira de días muestra con un solo símbolo (✓ ▲ ＋ –) cuál día tiene problema.'],
+    paga:['Para comparar dos días hay que ir y volver; no hay semana completa de un vistazo.','Armar una semana desde cero es más lento: es un día por vez.'],
+    conserva:['Todo lo de A en el cajón de edición; metas por tramo; corte 14:15 marcado en el eje.'],
+    fusiona:['Día + Integrada → la línea de tiempo (que es la Integrada de UN día, con nombres).','«Agregar a este día» de la Integrada → por ahora, tocar la fila de la persona.'],
+    descarta:['Siluetas de la vista Semana; sábana de 28 filas × 7 columnas.'],
+    afecta:['Incidencias / Correcciones / Horas: el <code>?fecha=</code> abre directamente ese día (mejor que hoy, que abre la semana y hay que buscar).','Reporte de sede (mismo concepto de hueco, ahora con rango).'] },
+  C: { lema:'<strong>C · Primero lo que hay que decidir.</strong> Las decisiones arriba, la semana plegada debajo.',
+    gana:['Quien entra no tiene que buscar el problema: cada tarjeta dice qué, cuándo, por qué y trae el botón que lo resuelve (el de Gaby es «vuelve a su horario»).','Es la forma más cercana a Educación (franja «Para atender»).','Si no hay nada, la pantalla lo dice y se acabó: ideal para el CEO.'],
+    paga:['Quien viene a ARMAR la semana tiene un clic más: debe desplegar «La semana completa».','Un botón que resuelve en un clic exige buen texto de por qué (el «Deshacer» ayuda).','La cuadrícula plegada pierde el pie de cobertura por día si no se abre.'],
+    conserva:['Las mismas acciones y reglas; todo lo de la cuadrícula está dentro de «La semana completa».'],
+    fusiona:['Los dos banners + el aviso de hueco → una sola lista ordenada por urgencia.','Sugerencias de «redistribuir» → el texto de cada tarjeta de hueco.'],
+    descarta:['Las tres vistas como pestañas.'],
+    afecta:['Dashboard («Meta sin turnos», «Cobertura insuficiente») aterriza directo en la tarjeta correspondiente. Incidencias: el <code>?fecha=</code> abre la semana plegada con ese día resaltado.'] },
+  D: { lema:'<strong>D · Por persona, pensada para el celular.</strong> Una tarjeta por integrante con su semana en una fila.',
+    gana:['Con el dedo: tocar el día arriba y ver quién entra a qué hora, ordenado.','La líder revisa «cómo le va a Gaby esta semana» sin leer una tabla de 8 columnas.','La integrante (si Felipe le da lectura) encuentra su tarjeta primero: «Mañana a las 14:15».'],
+    paga:['Dos personas se comparan peor (hay que bajar entre tarjetas).','La hora de salida no cabe en cada casilla: se ve en el cajón.','Los huecos de cobertura se leen en el resumen del día, no en la fila.'],
+    conserva:['Toda la edición, vía cajón (en celular, pantalla completa).'],
+    fusiona:['Día + Semana + Integrada → selector de día + tarjetas.'],
+    descarta:['Silueta, sábana, banda de calor.'],
+    afecta:['Lo mío («Cuándo te toca»): pueden compartir el mismo bloque de «mi semana». Terminal: nada.'] },
+  E: { lema:'<strong>E · Híbrida (la recomendada).</strong> «Para atender» + buscador con un solo «Filtros» + la cuadrícula con la cobertura al pie + cajón del día y cajón de la persona.',
+    gana:['Es la forma de Educación: resumen de una línea, «Para atender», buscador, chips con contador y detalle en cajón.','Una sola vista de trabajo (adiós a las tres) y dos cajones: el DÍA (línea de tiempo, para entender por qué falta) y la PERSONA (para cambiarlo).','La cobertura queda al pie, como un total de planilla: se lee de arriba abajo, se compara de lado a lado.','Las metas salen del medio de cada día y viven en un cajón propio.'],
+    paga:['Es la variante con más piezas: grid + dos cajones + metas. Más trabajo que A.','En celular conviene que D sea la forma de mirar, y E la de computadora: dos diseños que mantener (se comparten celdas y cajones).'],
+    conserva:['Todas las funciones del inventario; cada una en una sola ubicación.'],
+    fusiona:['Día + Semana + Integrada + los dos banners + el modal de la Integrada.'],
+    descarta:['Siluetas, banda de calor, hueco de refrigerio dibujado, metas repetidas siete veces.'],
+    afecta:['Las de la lista de abajo; el <code>?fecha=</code> debe abrir el cajón del día.'] },
+};
+function notasHTML(){
+  const n = NOTAS[S.v];
+  const lis = (a) => `<ul>${a.map((x) => `<li>${x}</li>`).join('')}</ul>`;
+  return `<section class="notas" aria-label="Notas">
+    <details><summary>Notas de la variante ${S.v}: qué gana, qué paga, qué conserva</summary><div class="in">
+      <div><h4>Qué gana</h4>${lis(n.gana)}</div><div><h4>Qué paga</h4>${lis(n.paga)}</div>
+      <div><h4>Qué funciones conserva</h4>${lis(n.conserva)}</div><div><h4>Qué fusiona</h4>${lis(n.fusiona)}</div>
+      <div><h4>Qué descarta</h4>${lis(n.descarta)}</div><div><h4>A qué pantallas afecta</h4>${lis(n.afecta)}</div></div></details>
+    <details><summary>Inventario de funciones de hoy y qué se propone con cada una</summary><div class="in"><div class="ancho tw">${inventario}</div></div></details>
+    <details><summary>Pantallas conectadas a Turnos (revisar si se implementa)</summary><div class="in"><div class="ancho tw">${conectadas}</div></div></details>
+    <details><summary>Lo que ninguna variante cambia, y lo que queda por decidir</summary><div class="in">
+      <div><h4>No cambia</h4><ul><li>La cascada: turno del día → <code>horario_por_dia</code> → <code>dias_laborables</code> (<code>jornada-esperada.ts</code>). De ahí sale la tardanza, sin tolerancia, y la falta.</li><li>«Dynamic avisa, nunca sanciona»: los avisos de 12 h y de 48 h no bloquean.</li><li>Cobertura solo de áreas operativas; corte 14:15; meta de líderes plana.</li><li>Los marcajes siguen siendo la verdad; este cajón nunca corrige una jornada por debajo.</li></ul></div>
+      <div><h4>Decisiones abiertas (propuestas, no cambian cómo funciona hoy)</h4><ul>
+        <li><strong>¿La integrante ve esta pantalla de solo lectura?</strong> Hoy no. Es una decisión de permisos (¿puede ver los turnos de sus compañeras?). D está lista si dices que sí.</li>
+        <li><strong>«Hacer permanente» a un día de descanso que deja 7 días de trabajo:</strong> hoy no avisa. El prototipo avisa (Franco, domingo).</li>
+        <li><strong>La alerta de 48 h mira el ciclo vigente HOY</strong>, no proyecta lo programado. El código lo decidió así a propósito; aquí se respeta.</li>
+        <li><strong>Los domingos de rotación de TRU</strong> llegan como turnos puntuales y salen como «no coinciden». Una marca de «rotación planeada» los sacaría de la lista, pero es un dato nuevo: no se propone sin medir cuántos son.</li>
+        <li><strong>El borde de la ventana operativa:</strong> la cobertura se mide desde la primera hora en que alguien entra hasta la última en que alguien sale. Quien entra media hora antes que todos hace aparecer un «hueco» en esa media hora (pruébalo: Bruno el jueves a las 07:30). Hoy pasa igual en la sábana; aquí se dice con rango en vez de esconderse. Una tolerancia sería una regla nueva: no se propone.</li>
+        <li><strong>Franjas de 15 min</strong> para decir el rango del hueco (el código usa 1 h o 30 min según la vista). Solo cambia lo que se dice, no cómo se cuenta.</li></ul></div></div></details>
+  </section>`;
+}
+
+/* ═════════ render ═════════ */
+function render(){
+  const app = $('#app');
+  const f = document.activeElement && document.activeElement.id === 'q' ? { pos:document.activeElement.selectionStart } : null;
+  app.innerHTML = ({ A:vistaA, B:vistaB, C:vistaC, D:vistaD, E:vistaE })[S.v]() + notasHTML();
+  document.querySelectorAll('.vbtn').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === S.v));
+  $('#lema').innerHTML = NOTAS[S.v].lema;
+  $('#selRol').value = S.rol;
+  if (f) { const i = $('#q'); if (i) { i.focus(); i.setSelectionRange(f.pos, f.pos); } }
+  renderCapa();
+}
+
+/* ═════════ eventos ═════════ */
+document.addEventListener('click', (e) => {
+  const v = e.target.closest('.vbtn'); if (v) { S.v = v.dataset.v; S.drawer = null; S.pop = false; render(); window.scrollTo({ top:0 }); return; }
+  if (S.pop && !e.target.closest('.pop') && !e.target.closest('[data-act="filtros"]')) { S.pop = false; render(); }
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const a = el.dataset.act;
+  if (el.tagName === 'SELECT' || el.tagName === 'INPUT') return;
+  if (a === 'celda') { abrirTurno(el.dataset.pid, el.dataset.f); return; }
+  if (a === 'cerrar') { S.drawer = null; renderCapa(); return; }
+  if (a === 'sem') { S.sem += Number(el.dataset.d); S.dia = diasSel().includes(HOY) ? HOY : diasSel()[0]; S.hlDia = null; render(); return; }
+  if (a === 'hoy') { S.sem = 0; S.dia = HOY; S.hlDia = null; render(); return; }
+  if (a === 'metas') { S.drawer = { tipo:'metas' }; renderCapa(); return; }
+  if (a === 'copiar') { S.copiar = true; render(); return; }
+  if (a === 'copiar-no') { S.copiar = false; render(); return; }
+  if (a === 'copiar-si') { copiarSemana(); return; }
+  if (a === 'pa') { S.atender = S.atender === el.dataset.k ? null : el.dataset.k; render(); return; }
+  if (a === 'filtros') { S.pop = !S.pop; render(); return; }
+  if (a === 'f-tramo') { S.fil.tramo = el.dataset.v; render(); return; }
+  if (a === 'f-limpiar') { S.fil = { tramo:'', novedad:false }; render(); return; }
+  if (a === 'f-cerrar') { S.pop = false; render(); return; }
+  if (a === 'chip') { S.chip = el.dataset.k; render(); return; }
+  if (a === 'dia') { irDia(el.dataset.f); return; }
+  if (a === 'ir-dia') { irDia(el.dataset.f); return; }
+  if (a === 'dia-sel') { S.dia = el.dataset.f; render(); return; }
+  if (a === 'ver-persona') { S.q = personaDe(el.dataset.pid).n; if (S.v === 'C') S.semAbierta = true; render(); return; }
+  if (a === 'permanente') { hacerPermanente(el.dataset.pid, el.dataset.f); if (S.drawer) { S.drawer = null; renderCapa(); } return; }
+  if (a === 'quitar-turno') { quitarTurno(el.dataset.pid, el.dataset.f); if (S.drawer) { S.drawer = null; renderCapa(); } return; }
+  if (a === 'quitar-turno-d') { const d = S.drawer; quitarTurno(d.pid, d.f); S.drawer = null; renderCapa(); return; }
+  if (a === 'modo') { S.form.modo = el.dataset.v; renderCapa(); return; }
+  if (a === 'guardar-solo') { guardarSolo(); return; }
+  if (a === 'guardar-desde') { guardarDesde(); return; }
+  if (a === 'deshacer') { deshacer(); return; }
+});
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.id === 'q') { S.q = t.value; render(); return; }
+  if (t.id === 'fe' || t.id === 'fs') { t.value = mascara(t.value); S.form[t.id === 'fe' ? 'e' : 's'] = t.value; $('#efectos').innerHTML = efectosHTML(); return; }
+  if (t.dataset && t.dataset.act === 'meta') {
+    const d = Number(t.dataset.d), k = t.dataset.k, val = Math.max(0, Math.round(Number(t.value) || 0));
+    D.metas[S.sede][d][k] = val;
+  }
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset && t.dataset.act === 'sede') { S.sede = t.value; S.chip = 'todos'; S.q = ''; S.atender = null; render(); return; }
+  if (t.dataset && t.dataset.act === 'f-nov') { S.fil.novedad = t.checked; render(); return; }
+  if (t.dataset && t.dataset.act === 'agregar') { if (t.value) { const f = t.dataset.f, pid = t.value; S.drawer = null; abrirTurno(pid, f); const b = baseDe(pid, f); S.form = { modo:'trabaja', e:b ? b.e : '08:00', s:b ? b.s : '14:15' }; renderCapa(); } return; }
+  if (t.dataset && t.dataset.act === 'meta') { render(); return; }
+  if (t.id === 'selRol') { S.rol = t.value; if (S.rol !== 'do') S.sede = 'TRU'; S.drawer = null; S.copiar = false; render(); }
+  if (t.id === 'selTema') { if (t.value === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t.value); }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (S.drawer) { S.drawer = null; renderCapa(); } else if (S.pop) { S.pop = false; render(); } } });
+$('#btnReset').addEventListener('click', () => { reiniciar(true); toast('Demo reiniciada.'); });
+
+reiniciar(false);
+})();
+</script>
+</body>
+</html>

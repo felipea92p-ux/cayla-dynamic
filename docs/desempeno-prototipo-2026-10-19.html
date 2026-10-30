@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desempeño del equipo — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap">
+<!--
+  Prototipo (2026-10-19): cuatro formas de ordenar «Desempeño del equipo». NO es código de la app ni toca ninguna base. Datos ficticios.
+
+  Lo que la pantalla real hace hoy y NINGUNA variante quita:
+    · una fila por persona con días, horas contra las que tocaban, tardanzas (cuántas y la peor), faltas, por revisar y ausencias;
+    · una franja de cuadritos con CADA día del periodo (la firma de esta pantalla) y tocar un día abre su detalle;
+    · los rangos (semana, mes, mes pasado, periodo de planilla, año), la sede, «Filtros» y «Exportar lo que ves»;
+    · una tardanza levantada se ve tachada y no cuenta; los días con motivo (vacaciones, permiso…) no cuentan como falta;
+    · Dynamic avisa y no sanciona: nada de aquí decide una medida.
+  Lo que SÍ pesa hoy (visto con datos): la tabla se sale de la pantalla —la franja de días queda cortada a la derecha—;
+  «Días» y «Horas» se parten en dos renglones; y al abrir una fila, seis tarjetas y dos avisos se despliegan DENTRO de la tabla
+  (que además se desplaza de lado), con las tarjetas de la derecha fuera de vista.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18; --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f;
+    --color-sand:#e8e0d0; --color-taupe:#805c4c; --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-ceniza:#635f58;
+    --font-sans:'DM Sans',ui-sans-serif,system-ui,sans-serif; --font-serif:'EB Garamond',ui-serif,Georgia,serif; color-scheme:light;
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db; --color-rojo:#d4634a; --color-rojo-profundo:#e8836b;
+    --color-sand:#332e27; --color-taupe:#ab9080; --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-ceniza:#aaa59b; color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--color-crema);color:var(--color-tinta);font:14.5px/1.5 var(--font-sans)}
+  h1,h2,h3{font-family:var(--font-serif);font-weight:500;margin:0}
+  button,input,select{font:inherit;color:inherit} button{cursor:pointer} p{margin:0}
+  .proto{position:sticky;top:0;z-index:50;background:var(--color-papel);border-bottom:1px solid var(--color-sand);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+  .vbtn{border:1px solid var(--color-sand);background:var(--color-crema);border-radius:10px;padding:6px 11px;font-weight:600;font-size:.82rem;display:inline-flex;gap:7px;align-items:center}
+  .vbtn b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--color-hueso);color:var(--color-taupe);font-size:.76rem}
+  .vbtn[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .vbtn[aria-pressed="true"] b{background:var(--color-crema);color:var(--color-tinta)}
+  .vbtn small{font-weight:500;opacity:.8}
+  .ctl{display:flex;gap:8px;align-items:center;margin-left:auto}
+  .lema{max-width:1240px;margin:10px auto 0;padding:0 16px;color:var(--color-taupe);font-size:.86rem} .lema strong{color:var(--color-tinta)}
+  .page{max-width:1240px;margin:0 auto;padding:14px 16px 80px}
+  .cab .sob{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-taupe);display:flex;gap:12px;align-items:center;margin-bottom:6px}
+  .cab .sob::before{content:"";width:36px;height:1px;background:var(--color-taupe)}
+  .cab h1{font-size:1.75rem;line-height:1.15} .cab p{color:var(--color-taupe);font-size:.9rem;margin-top:3px}
+  .muted{color:var(--color-taupe);font-size:.8rem}
+  .card{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;overflow:hidden}
+  .btn{border:1px solid var(--color-tinta);background:var(--color-tinta);color:var(--color-crema);border-radius:8px;padding:5px 12px;font-weight:600;font-size:.8rem}
+  .btn.sec{background:transparent;color:var(--color-tinta);border-color:var(--color-taupe)}
+  .campo{background:var(--color-hueso);border:1px solid transparent;border-radius:8px;padding:6px 10px}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:999px;background:color-mix(in oklab,var(--c) 14%,var(--color-papel));color:var(--c);white-space:nowrap}
+  .c-ok{--c:var(--color-verde)} .c-al{--c:var(--color-rojo-profundo)} .c-am{--c:var(--color-ambar)} .c-pi{--c:var(--color-pizarra)} .c-ne{--c:var(--color-ceniza)}
+  .para{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0}
+  .para .rot{text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--color-taupe);font-size:.72rem}
+  .pa{border-radius:999px;border:1px solid;padding:5px 12px;font-size:.78rem;font-weight:600;background:var(--color-papel)}
+  .pa.al{border-color:color-mix(in oklab,var(--color-rojo) 30%,transparent);background:color-mix(in oklab,var(--color-rojo) 10%,var(--color-papel));color:var(--color-rojo-profundo)}
+  .pa.am{border-color:color-mix(in oklab,var(--color-ambar) 40%,transparent);background:color-mix(in oklab,var(--color-ambar) 15%,var(--color-papel));color:var(--color-ambar)}
+  .pa.pi{border-color:color-mix(in oklab,var(--color-pizarra) 40%,transparent);background:color-mix(in oklab,var(--color-pizarra) 10%,var(--color-papel));color:var(--color-pizarra)}
+  .barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .barra .campo{min-width:200px;flex:1}
+  .rangos{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .rangos button{border:1px solid var(--color-sand);background:var(--color-papel);border-radius:8px;padding:5px 12px;font-size:.82rem}
+  .rangos button[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  /* día */
+  .dias{display:flex;gap:2px;align-items:center}
+  .d{width:11px;height:14px;border-radius:3px;display:block;background:var(--color-hueso)}
+  .d.ok{background:var(--color-verde)} .d.t1{background:color-mix(in oklab,var(--color-ambar) 70%,var(--color-papel))} .d.t2{background:color-mix(in oklab,var(--color-rojo) 60%,var(--color-papel))}
+  .d.f{background:var(--color-rojo)} .d.a{background:color-mix(in oklab,var(--color-pizarra) 55%,var(--color-papel))} .d.lev{background:var(--color-papel);box-shadow:inset 0 0 0 2px var(--color-verde)}
+  .d.rev{box-shadow:0 0 0 2px var(--color-ambar)} .d.fut{background:transparent;box-shadow:inset 0 0 0 1px var(--color-sand)}
+  .dias.g .d{width:16px;height:22px}
+  .leyenda{display:flex;gap:12px;flex-wrap:wrap;font-size:.74rem;color:var(--color-taupe);margin:10px 4px 0}
+  .leyenda i{display:inline-block;width:11px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-2px}
+  table.t{border-collapse:collapse;width:100%;font-size:.84rem}
+  table.t th,table.t td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--color-sand);vertical-align:middle}
+  table.t th{font-size:.72rem;color:var(--color-taupe);font-weight:600;background:var(--color-hueso)}
+  table.t tr.fila{cursor:pointer} table.t tr.fila:hover td{background:color-mix(in oklab,var(--color-crema) 70%,transparent)}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .bar{height:6px;border-radius:99px;background:var(--color-hueso);overflow:hidden;min-width:70px} .bar i{display:block;height:100%;background:color-mix(in oklab,var(--color-verde) 65%,var(--color-papel))}
+  .bar.sub i{background:color-mix(in oklab,var(--color-ambar) 65%,var(--color-papel))}
+  .tarj{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+  .tarj .card{padding:14px 16px}
+  .velo{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:60;display:none} .velo.on{display:block}
+  .cajon{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--color-papel);z-index:61;padding:20px;overflow:auto;transform:translateX(100%);transition:transform .2s} .cajon.on{transform:none}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+  .stat{border:1px solid var(--color-sand);border-radius:12px;padding:8px 10px;background:var(--color-crema)} .stat .e{font-size:.72rem;color:var(--color-taupe)} .stat .v{font-family:var(--font-serif);font-size:1.25rem}
+  .ico{border:1px solid var(--color-sand);background:var(--color-papel);border-radius:8px;width:30px;height:30px;color:var(--color-taupe)}
+  .nota{max-width:1240px;margin:18px auto 0;padding:0 16px}
+  .nota details{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+  .nota summary{cursor:pointer;font-weight:600} .nota ul{margin:8px 0 0;padding-left:18px;color:var(--color-taupe)}
+  .escroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<div class="proto">
+  <strong style="font-family:var(--font-serif);font-size:1.05rem">Desempeño del equipo · 4 formas</strong>
+  <div id="vars" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <div class="ctl"><button class="vbtn" id="tema">Modo oscuro</button></div>
+</div>
+<p class="lema" id="lema"></p>
+<div class="page" id="pantalla"></div>
+<div class="nota" id="nota"></div>
+<div class="velo" id="velo"></div>
+<aside class="cajon" id="cajon" aria-label="Detalle de la persona"></aside>
+
+<script>
+const S={v:'A',tema:false};
+const HOY=19; // lunes 19 de octubre de 2026; el periodo es 1–19 oct (jue 1 … lun 19)
+const NOMDIA=['D','L','M','X','J','V','S'];
+const dow=d=>(4+d-1)%7; // 1 oct 2026 = jueves(4)
+// códigos: o=ok  1=tardanza leve  2=tardanza grave  f=falta  a=ausencia con motivo  l=tardanza levantada  r=por revisar  d=descanso
+function patron(cadena){ // 19 caracteres
+  return cadena.split('').map(c=>c);
+}
+const P=[
+ {n:'Gaby Integrante',s:'AQP',z:'Calidad y servicio',d:'o o d d o o o o o d d o o o 2 f o d d'.split(' ').join('').slice(0,19), dias:14,de:12,h:109.5,hd:97.0,tard:1,peor:'1 h 01 min',falt:1,rev:1,aus:'1 d'},
+ {n:'Bruno Integrante',s:'TRU',z:'Calidad y servicio',d:'o1ddooooo1ddoooo1dd',dias:11,de:12,h:88.1,hd:99.0,tard:2,peor:'40 min',falt:1,rev:0,aus:''},
+ {n:'Carla Integrante',s:'TRU',z:'Calidad y servicio',d:'ooddoooooddoooolodd',dias:13,de:13,h:108.3,hd:104.5,tard:1,peor:'12 min',falt:0,rev:2,aus:''},
+ {n:'Ana Supervisora',s:'TRU',z:'Taller',d:'aaddaaaaaddoooooodd',dias:7,de:8,h:57.2,hd:66.0,tard:0,peor:'',falt:0,rev:0,aus:'5 d'},
+ {n:'Diego Supervisor',s:'LIM',z:'Taller',d:'ooddooooooddooooodd'.replace(/o{0}/,''),dias:12,de:12,h:103.8,hd:99.0,tard:0,peor:'',falt:0,rev:0,aus:''},
+ {n:'Elena Integrante',s:'LIM',z:'Taller',d:'ooddoo1ooodoooooodd',dias:12,de:12,h:94.9,hd:99.0,tard:1,peor:'8 min',falt:0,rev:0,aus:''},
+ {n:'Franco Supervisor',s:'AQP',z:'Calidad y servicio',d:'ooddooooo1ddoaaaodd',dias:9,de:9,h:73.0,hd:74.3,tard:0,peor:'',falt:0,rev:0,aus:'3 d'},
+];
+// normalizo los patrones a 19 caracteres sin espacios
+P.forEach(p=>{p.d=p.d.replace(/\s/g,'').padEnd(19,'o').slice(0,19)});
+const cls=c=>({o:'ok','1':'t1','2':'t2',f:'f',a:'a',l:'lev',d:'',r:'rev'}[c]??'');
+const celdas=(p,g)=>`<span class="dias ${g?'g':''}">${p.d.split('').map((c,i)=>`<i class="d ${cls(c)} ${i+1>HOY?'fut':''}" title="${i+1} oct · ${({o:'puntual',1:'tardanza leve',2:'tardanza',f:'falta',a:'ausencia con motivo',l:'tardanza levantada',d:'descanso'})[c]}"></i>`).join('')}</span>`;
+const barra=(h,hd)=>`<div class="bar ${h<hd?'sub':''}"><i style="width:${Math.min(100,Math.round(h/hd*100))}%"></i></div>`;
+const chips=p=>[p.tard?`<span class="chip c-am">${p.tard} tardanza${p.tard>1?'s':''}${p.peor?' · '+p.peor:''}</span>`:'',p.falt?`<span class="chip c-al">${p.falt} falta${p.falt>1?'s':''}</span>`:'',p.rev?`<span class="chip c-pi">${p.rev} por revisar</span>`:'',p.aus?`<span class="chip c-ne">${p.aus} ausencia</span>`:''].join(' ')||'<span class="chip c-ok">al día</span>';
+const cab=()=>`<div class="cab"><div class="sob">Asistencia · lunes, 19 de octubre</div><h1>Desempeño del equipo</h1><p>Toca una fila para ver sus días · 635 h de 738 h que tocaban · 7 personas · 9 d de ausencia (8 pagados) <span title="Cómo se mide">ⓘ</span></p></div>`;
+const para=()=>`<div class="para"><span class="rot">Para atender</span><span class="pa al">2 faltas</span><span class="pa am">4 tardanzas · la peor, 1 h 01 min</span><span class="pa pi">3 por revisar</span></div>`;
+const rangos=()=>`<div class="barra"><input class="campo" placeholder="Buscar persona…"><select class="campo"><option>Todas las sedes</option></select><button class="btn sec">Filtros ▾</button><button class="ico" title="Exportar lo que ves (CSV)">⤓</button></div><div class="rangos">${['Esta semana','Este mes','Mes pasado','Periodo de planilla','Todo el año'].map((r,i)=>`<button aria-pressed="${i===1}">${r}</button>`).join('')}</div>`;
+const leyenda=()=>`<div class="leyenda"><span><i style="background:var(--color-verde)"></i>puntual</span><span><i style="background:color-mix(in oklab,var(--color-ambar) 70%,var(--color-papel))"></i>tardanza leve</span><span><i style="background:color-mix(in oklab,var(--color-rojo) 60%,var(--color-papel))"></i>tardanza</span><span><i style="background:var(--color-rojo)"></i>falta</span><span><i style="background:color-mix(in oklab,var(--color-pizarra) 55%,var(--color-papel))"></i>ausencia con motivo</span><span><i style="box-shadow:inset 0 0 0 2px var(--color-verde)"></i>tardanza levantada</span><span><i style="background:var(--color-hueso)"></i>descanso</span></div>`;
+
+const V={
+ A:{t:'Tabla compacta + cajón',rec:true,lema:'<strong>A · Tabla compacta y un cajón por persona.</strong> Cabe en una pantalla: persona, horas (con barra), una celda «Atención» con lo que importa en pastillas y la franja de días entera. Tocar una fila abre un cajón a la derecha con las seis tarjetas, los avisos y los días — en vez de desplegarlos dentro de la tabla.',
+  r:()=>cab()+para()+rangos()+`<div class="card"><table class="t"><tr><th>Persona</th><th>Horas</th><th>Atención</th><th>Días del periodo</th></tr>${P.map((p,i)=>`<tr class="fila" data-p="${i}"><td><b style="font-weight:500">${p.n}</b><div class="muted">${p.s} · ${p.z}</div></td><td style="min-width:150px"><span class="num">${p.h.toFixed(1)}</span> <span class="muted">de ${p.hd.toFixed(1)} h</span>${barra(p.h,p.hd)}</td><td>${chips(p)}</td><td>${celdas(p)}</td></tr>`).join('')}</table></div>`+leyenda(),
+  gana:['Entra en una pantalla de 1280 px sin desplazarse de lado: la franja de días deja de quedar cortada.','«Atención» junta tardanzas, faltas y por revisar en una celda: se lee por exclusión («al día» o lo que falta).','El detalle ya no revienta la tabla: vive en un cajón con espacio.'],
+  paga:['Se pierde la columna ordenable de cada número (tardanzas, faltas…): habría que ordenar por «atención» (más graves primero) o dejar un selector de orden.','Cuenta de días «14 de 12» desaparece de la fila; pasa al cajón.']},
+ B:{t:'Dos líneas por persona',lema:'<strong>B · Dos líneas por persona.</strong> Línea 1: nombre, sede, horas y pastillas. Línea 2: la franja de días, a todo el ancho y con cuadritos más grandes (más fáciles de tocar). Nada se sale de la pantalla.',
+  r:()=>cab()+para()+rangos()+`<div class="card">${P.map((p,i)=>`<div data-p="${i}" style="padding:12px 16px;border-top:1px solid var(--color-sand);cursor:pointer"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div style="min-width:200px"><b style="font-weight:500">${p.n}</b> <span class="muted">· ${p.s}</span></div><div style="min-width:170px"><span class="num">${p.h.toFixed(1)}</span> <span class="muted">de ${p.hd.toFixed(1)} h · ${p.dias} de ${p.de} días</span></div><div style="flex:1">${chips(p)}</div></div><div style="margin-top:8px">${celdas(p,true)}</div></div>`).join('')}</div>`+leyenda(),
+  gana:['Los cuadritos grandes se tocan y se leen: es la señal que el equipo de DO mira primero.','Sin desplazamiento horizontal y con todos los datos de cada persona a la vista.'],
+  paga:['Ocupa más alto: con 30 personas son ~1 800 px (hoy ~900).','Comparar una columna entre personas (quién tiene más faltas) es más difícil que en tabla.']},
+ C:{t:'Tarjetas',lema:'<strong>C · Tarjetas por persona.</strong> Una tarjeta cada una: nombre, horas con barra, pastillas de lo que importa y la franja de días. Pensada para mirar el estado de todo el equipo de un vistazo, no para comparar columnas.',
+  r:()=>cab()+para()+rangos()+`<div class="tarj">${P.map((p,i)=>`<div class="card" data-p="${i}" style="cursor:pointer"><div style="display:flex;justify-content:space-between"><div><b style="font-weight:500">${p.n}</b><div class="muted">${p.s} · ${p.z}</div></div><div style="text-align:right"><span class="num" style="font-family:var(--font-serif);font-size:1.3rem">${p.h.toFixed(1)}</span><div class="muted">de ${p.hd.toFixed(1)} h</div></div></div><div style="margin:8px 0">${barra(p.h,p.hd)}</div><div style="margin-bottom:10px">${chips(p)}</div>${celdas(p)}</div>`).join('')}</div>`+leyenda(),
+  gana:['Se parece a «Equipo» y «Contratos»: una forma conocida para quien ya los usa.','Buena para pocas personas (≤ 12 por sede).'],
+  paga:['Con 30 personas es un muro de tarjetas; no se ordenan por una columna.','Peor para exportar y para comparar.']},
+ D:{t:'Calendario del equipo',lema:'<strong>D · Calendario del equipo.</strong> La franja de días pasa a ser LA pantalla: filas = personas, columnas = días (con el día de la semana), cuadritos grandes, y a la derecha solo tres números (horas, tardanzas, faltas). Se ven patrones: quién falta los lunes, qué día llega tarde medio equipo.',
+  r:()=>cab()+para()+rangos()+`<div class="card escroll"><table class="t" style="min-width:880px"><tr><th>Persona</th>${Array.from({length:19},(_,i)=>`<th class="num" style="padding:6px 2px;text-align:center;${[0,5].includes(dow(i+1)%6)||dow(i+1)===0||dow(i+1)===6?'opacity:.6':''}">${NOMDIA[dow(i+1)]}<div style="font-weight:400">${i+1}</div></th>`).join('')}<th class="num">Horas</th><th class="num">Tard.</th><th class="num">Faltas</th></tr>${P.map((p,i)=>`<tr class="fila" data-p="${i}"><td style="white-space:nowrap"><b style="font-weight:500">${p.n.split(' ')[0]}</b> <span class="muted">${p.s}</span></td>${p.d.split('').map((c,k)=>`<td style="padding:6px 2px;text-align:center"><i class="d ${cls(c)} ${k+1>HOY?'fut':''}" style="width:18px;height:22px;display:inline-block"></i></td>`).join('')}<td class="num">${p.h.toFixed(0)}<span class="muted">/${p.hd.toFixed(0)}</span></td><td class="num">${p.tard||'—'}</td><td class="num">${p.falt||'—'}</td></tr>`).join('')}</table></div>`+leyenda(),
+  gana:['Los patrones entre personas saltan a la vista: dos faltas el mismo día, un lunes malo.','Casi no hay texto: se lee en un segundo.'],
+  paga:['Con un mes completo (30 columnas) necesita desplazarse de lado o cuadritos más chicos.','Los números exactos y los motivos solo salen al tocar.']}
+};
+
+function cajon(i){
+  const c=document.getElementById('cajon'),v=document.getElementById('velo');
+  if(i==null){c.classList.remove('on');v.classList.remove('on');return}
+  const p=P[i];
+  c.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:start"><div><h2 style="font-size:1.4rem">${p.n}</h2><p class="muted">${p.s} · ${p.z} · 1–19 oct</p></div><button class="ico" data-cerrar>✕</button></div>
+  <div class="stats"><div class="stat"><div class="e">Total del periodo</div><div class="v">${p.h.toFixed(1)} h</div></div><div class="stat"><div class="e">Días trabajados</div><div class="v">${p.dias} de ${p.de}</div></div><div class="stat"><div class="e">Promedio por día</div><div class="v">${(p.h/p.dias).toFixed(1)} h</div></div><div class="stat"><div class="e">Días con tardanza</div><div class="v">${p.tard}</div></div><div class="stat"><div class="e">Salidas anticipadas</div><div class="v">${p.falt?3:0}</div></div><div class="stat"><div class="e">Tiempo adicional</div><div class="v">—</div></div></div>
+  <p style="margin:10px 0">${chips(p)}</p>
+  ${p.rev?`<p class="muted" style="background:var(--color-hueso);border-radius:10px;padding:8px 12px">${p.rev} día${p.rev>1?'s':''} se midió contra su horario base y no contra el turno: si rotó turno en la práctica, esos minutos dicen más de lo que fue. <u>Ir a Turnos</u></p>`:''}
+  <h3 style="font-size:1.05rem;margin:14px 0 6px">Días</h3>${celdas(p,true)}
+  <div style="margin-top:10px">${p.d.split('').map((ch,k)=>({ch,k})).filter(x=>x.ch!=='d'&&x.k+1<=HOY).slice(-6).map(x=>`<div style="display:flex;justify-content:space-between;border-top:1px solid var(--color-sand);padding:6px 0;font-size:.84rem"><span>${NOMDIA[dow(x.k+1)]} ${x.k+1} oct</span><span class="muted">${({o:'puntual',1:'tardanza leve',2:'tardanza',f:'falta',a:'ausencia con motivo',l:'levantada'})[x.ch]}</span></div>`).join('')}</div>
+  <p style="margin-top:12px"><a href="#" class="muted">Corregir marcajes de ${p.n.split(' ')[0]} →</a></p>`;
+  c.classList.add('on');v.classList.add('on');
+}
+function render(){
+  const x=V[S.v];
+  document.getElementById('vars').innerHTML=Object.entries(V).map(([k,v])=>`<button class="vbtn" data-v="${k}" aria-pressed="${S.v===k}"><b>${k}</b>${v.t}${v.rec?' <small>recomendada</small>':''}</button>`).join('');
+  document.getElementById('lema').innerHTML=x.lema;
+  document.getElementById('pantalla').innerHTML=x.r();
+  document.getElementById('nota').innerHTML=`<details open><summary>Qué gana y qué paga la variante ${S.v}</summary><p style="margin-top:8px"><strong>Gana</strong></p><ul>${x.gana.map(i=>`<li>${i}</li>`).join('')}</ul><p style="margin-top:8px"><strong>Paga</strong></p><ul>${x.paga.map(i=>`<li>${i}</li>`).join('')}</ul></details><details><summary>Lo que ninguna variante cambia</summary><ul><li>Los rangos, la sede, «Filtros» y «Exportar lo que ves».</li><li>Una tardanza levantada se tacha y no cuenta; los días con motivo no cuentan como falta.</li><li>La franja de días es la firma de esta pantalla: en todas está, y tocar un día abre su detalle.</li><li>Dynamic avisa, no sanciona.</li></ul></details>`;
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button,[data-p]'); if(!b)return;
+  if(b.dataset.v){S.v=b.dataset.v;render()}
+  else if(b.hasAttribute('data-cerrar'))cajon(null)
+  else if(b.dataset.p!==undefined)cajon(+b.dataset.p)
+  else if(b.id==='tema'){S.tema=!S.tema;document.documentElement.dataset.theme=S.tema?'dark':'light';b.textContent=S.tema?'Modo claro':'Modo oscuro'}
+});
+document.getElementById('velo').addEventListener('click',()=>cajon(null));
+render();
+</script>
+</body>
+</html>

@@ -122,6 +122,21 @@ echo "→ el nombre del PDF al imprimir…"
 echo "→ fechas que arrancan vacías…"
 "$(dirname "$0")/fecha-que-bloquea.sh" || exit 1
 
+# ── La receta vieja de una pieza que ya tiene componente ───────────────────
+#
+# El ADR 0004 (2026-10-13) puso una sola forma para cada pieza del panel —tarjeta,
+# cifra, filtro, aviso, rótulo, título, tabla, carga, cajón— en
+# apps/web/components/ui. Cuatro días después ya había siete archivos nuevos con
+# la tarjeta escrita a mano: la pantalla de al lado tiene la receta vieja y
+# copiarla es lo que menos cuesta. Mismo patrón que "rol" y "America/Lima".
+#
+# Solo juzga lo que el push AGREGA: quedan 270 recetas a mano en 82 archivos y
+# frenar por ellas volvería este freno un trámite. Una línea vieja que solo
+# cambió tampoco cuenta; ver su cabecera para esa y para la salida legítima
+# (`receta-propia: <motivo>`). Bloquea. Su prueba: probar-receta-suelta.sh.
+echo "→ la receta suelta de cada pieza (ADR 0004)…"
+"$(dirname "$0")/receta-suelta.sh" || exit 1
+
 # ── El linter, pero solo sobre lo que este push agrega ─────────────────────
 #
 # ESLint llevaba instalado y apagado desde julio. La auditoría de agosto lo

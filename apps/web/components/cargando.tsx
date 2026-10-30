@@ -20,9 +20,9 @@
  * cuenta haber tardado meses en deshacer. El valor por defecto es el de
  * siempre, así que ninguna de las pantallas que ya lo usan cambia.
  */
-export function Cargando({ texto = "Cargando…", clase = "text-sm" }: { texto?: string; clase?: string }) {
+export function Cargando({ texto = "Cargando…", clase = "text-sm", compacto = false }: { texto?: string; clase?: string; compacto?: boolean }) {
   return (
-    <div className="flex flex-col items-center gap-4 py-20 text-taupe" role="status" aria-live="polite">
+    <div className={`flex flex-col items-center gap-4 text-taupe ${compacto ? "py-6" : "py-20"}`} role="status" aria-live="polite">
       <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
       <span className={clase}>{texto}</span>
     </div>

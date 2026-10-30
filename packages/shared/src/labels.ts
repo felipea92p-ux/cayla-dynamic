@@ -1,7 +1,29 @@
+import type { ClaveEstadoPresencia } from "./attendance-state-machine";
 import type {
   EstadoCivil, Genero, GradoInstruccion, MotivoCese, NivelDisciplinario, RegimenPension, TipoMarca,
   VinculoDerechohabiente,
 } from "./enums";
+
+/**
+ * Cómo se llama en pantalla cada punto del día de una persona (ver
+ * `estadoPresencia`). Un solo sitio: la leyenda del terminal, el filtro y la
+ * etiqueta que lee un lector de pantalla tienen que decir lo mismo.
+ */
+export const ESTADO_PRESENCIA_LABELS: Record<ClaveEstadoPresencia, string> = {
+  sin_entrada: "Sin entrada",
+  laborando: "Laborando",
+  refrigerio: "En refrigerio",
+  pausa: "En pausa",
+  termino: "Turno terminado",
+};
+
+/** El motivo de una pausa, en corto, para una casilla («Trámite · 14:08»). */
+export const MOTIVO_PAUSA_LABELS: Partial<Record<TipoMarca, string>> = {
+  salida_personal: "Personal",
+  salida_tramite: "Trámite",
+  salida_medico: "Médico",
+  salida_otro: "Otro motivo",
+};
 
 export const TIPO_MARCA_LABELS: Record<TipoMarca, string> = {
   entrada: "Entrada",

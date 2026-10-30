@@ -8,7 +8,7 @@
 // el nombre con que se guarda una hoja no lleve nada que rompa en un teléfono.
 // ============================================================================
 import { describe, expect, it } from "vitest";
-import { contarBoletasNuevas, nombreDeArchivoDeBoleta, nombreDelPeriodo } from "@/lib/mis-boletas";
+import { contarBoletasNuevas, contarBoletasPorFirmar, nombreDeArchivoDeBoleta, nombreDelPeriodo } from "@/lib/mis-boletas";
 
 describe("nombreDelPeriodo", () => {
   it("se llama por el mes en que termina, no por el que empieza", () => {
@@ -51,5 +51,22 @@ describe("contarBoletasNuevas", () => {
 
   it("sin filas, cero", () => {
     expect(contarBoletasNuevas([])).toBe(0);
+  });
+});
+
+describe("contarBoletasPorFirmar (0532)", () => {
+  it("cuenta las publicadas sin firmar, abiertas o no: es lo que dice el globito", () => {
+    expect(contarBoletasPorFirmar([
+      { estado: "publicada", recibida_at: null },
+      { estado: "publicada", recibida_at: null },
+      { estado: "publicada", recibida_at: "2026-09-06T10:00:00Z" },
+      { estado: "papel", recibida_at: null },
+      { estado: "anulada", recibida_at: null },
+      { estado: null, recibida_at: null },
+    ])).toBe(2);
+  });
+
+  it("sin filas, cero", () => {
+    expect(contarBoletasPorFirmar([])).toBe(0);
   });
 });

@@ -15,6 +15,10 @@ export default defineConfig({
     alias: {
       // Mismos atajos que usa la app, para que las pruebas importen igual que el código real.
       "@cayla-dynamic/shared": path.resolve(raiz, "packages/shared/src/index.ts"),
+      // Sin este alias un `vi.mock("@cayla-dynamic/database")` no intercepta nada:
+      // el paquete se resuelve por el enlace del workspace y la prueba y el código
+      // terminan viendo dos módulos distintos (tests/sync-terminal.test.ts).
+      "@cayla-dynamic/database": path.resolve(raiz, "packages/database/src/index.ts"),
       "@": path.resolve(raiz, "apps/web"),
     },
   },

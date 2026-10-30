@@ -13,6 +13,8 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 type TipoSede = "central" | "taller" | "tienda";
 interface Sede { id: string; codigo: string; nombre: string; activa: boolean; tipo: TipoSede }
@@ -185,12 +187,16 @@ export default function SedesPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="font-serif text-2xl">Sedes</h1>
-          {puedeGestionar && edicionHabilitada && !mostrandoAlta && !editandoCodigo && (
-            <Boton variante="primario" onClick={empezarAlta}>+ Agregar sede</Boton>
-          )}
-        </div>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Empresa")}
+          titulo="Sedes"
+          descripcion="Las sedes del equipo, con su código y su tipo."
+          accion={
+            puedeGestionar && edicionHabilitada && !mostrandoAlta && !editandoCodigo ? (
+              <Boton variante="primario" onClick={empezarAlta}>+ Agregar sede</Boton>
+            ) : undefined
+          }
+        />
 
         {rol === null ? (
           <Cargando />

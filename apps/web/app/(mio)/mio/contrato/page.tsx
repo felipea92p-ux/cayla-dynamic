@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto } from "@/components/ui/area-texto";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { MARCADOR_FIRMA_EMPRESA, MARCADOR_FIRMA_PERSONA } from "@/lib/admin/contrato-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -91,8 +92,9 @@ function MiContratoContenido() {
       return;
     }
 
-    const { data: sesionAuth } = await supabase.auth.getUser();
-    const uid = sesionAuth.user?.id;
+    // Del almacén de la sesión, sin viajar a la red: `getUser()` es una ronda al servidor de
+    // autenticación por cada pantalla, y la base ya valida el token en cada consulta.
+    const uid = sesion.session.user.id;
     if (!uid) {
       setCargando(false);
       setError("No se pudo leer tu sesión. Vuelve a entrar.");
@@ -226,9 +228,9 @@ function MiContratoContenido() {
             Reintentar
           </Boton>
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -240,9 +242,9 @@ function MiContratoContenido() {
           Todavía no tienes un contrato registrado en el sistema. Si crees que deberías tener uno, avisa a
           Desarrollo Organizacional.
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -252,11 +254,11 @@ function MiContratoContenido() {
     .replaceAll(MARCADOR_FIRMA_PERSONA, miFirma ? `<img src="${miFirma}" alt="Tu firma" />` : "&nbsp;");
 
   return (
-    <main className="mx-auto max-w-2xl p-6 print:p-0">
+    <main className="mx-auto w-full min-w-0 max-w-2xl px-4 py-6 sm:p-6 print:p-0">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
         <div className="flex flex-wrap items-center gap-3">
           {contrato.storage_path && (
             // Nativo a propósito: Boton variante="enlace" no aplica tamaño (solo
@@ -288,8 +290,7 @@ function MiContratoContenido() {
           mano ni subir ningún escaneo (0430, mismo criterio que Movilidad).
           Desarrollo Organizacional conserva la vía del escaneo como
           respaldo para quien no pueda autoservirse desde aquí. */}
-      <div className="mb-4 rounded-lg border border-sand bg-papel p-4 print:hidden">
-        <h2 className="mb-1 font-serif text-base">Tu firma</h2>
+      <TarjetaInfo titulo="Tu firma" className="mb-4 print:hidden">
         <p className="mb-3 text-xs text-taupe">
           Al confirmar, tu firma queda estampada en el documento de abajo, junto a la de la empresa, y el
           contrato queda firmado.
@@ -332,7 +333,7 @@ function MiContratoContenido() {
                 : "Firmar este contrato"}
           </button>
         </div>
-      </div>
+      </TarjetaInfo>
 
       {/* ── ¿ALGO ESTÁ MAL? (0427) ─────────────────────────────────────────
           Mismo mecanismo que «¿Algo cambió?» en /mio/movilidad, pero SIN su
@@ -410,7 +411,7 @@ function MiContratoContenido() {
 
       <div
         id="documento"
-        className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0"
+        className="hoja rounded-lg border border-sand p-4 text-sm sm:p-8 leading-relaxed print:rounded-none print:border-0 print:p-0"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </main>

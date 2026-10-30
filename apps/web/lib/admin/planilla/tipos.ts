@@ -97,6 +97,9 @@ export interface FeriadoDetalle {
   horas_trabajadas: number;
   proporcional_horas: number;
   antes_ingreso: boolean;
+  /** Desde la 0505 · el feriado cae después de su cese: no corresponde, igual
+   *  que uno anterior al ingreso. Opcional porque sin la 0505 pegada no llega. */
+  despues_cese?: boolean;
   /** Desde la 0276 · lo que ese feriado devengó, SIN redondear. Quien lo
    *  muestre redondea: la boleta lo mete crudo en la base de provisión. */
   monto?: number;
@@ -263,6 +266,22 @@ export interface FactoresProvision {
   cts: number;
   vacaciones: number;
 }
+// Lo que una practicante lleva devengado de los dos beneficios propios de la
+// Ley 28518 art. 42 — media subvención por cada 6 meses continuos, y 15 días
+// de descanso al cumplir 12 (0465/0467). VIVEN FUERA de `Fila` a propósito:
+// no salen de fn_proyeccion_periodo/fn_planilla_calcular_persona (el cálculo
+// del pago del periodo) sino de una función APARTE, `fn_subvenciones_
+// practicante` (admin) / `fn_mis_subvenciones_practicante` (autoservicio,
+// 0485) — mezclarlo en `Fila` sugeriría que es parte del mismo cálculo, y no
+// lo es: son dos relojes distintos que nunca se suman entre sí.
+export interface SubvencionPracticante {
+  sinSubvencion: boolean;
+  mediaSubSaldo: number;
+  semestreHasta: string;
+  descansoSaldo: number;
+  descansoGanado: boolean;
+  descansoCumple: string;
+}
 // El estado de pago de UN grupo (tipo_vinculo) dentro del periodo — 0323.
 // Sale de fn_proyeccion_periodo (clave 'grupos'), siempre las 5 aunque un
 // grupo no tenga a nadie ese periodo: `personas` en 0 es la señal de que la
@@ -273,6 +292,28 @@ export interface GrupoPago {
   pagado_at: string | null;
   pagado_por_nombre: string | null;
   personas: number;
+}
+// El checklist personal de Felipe para ir pagando persona por persona durante
+// el mes — NUNCA el pago oficial del grupo (GrupoPago, arriba). Sale de
+// fn_pago_personas_estado (0562): el último evento de cada persona en este
+// periodo. `monto` es el que se congeló AL MARCAR, no el de hoy — la pantalla
+// compara los dos para avisar si una corrección lo movió después.
+export interface EstadoPagoPersona {
+  persona_id: string;
+  grupo: TipoVinculo;
+  marcado: boolean;
+  monto: number;
+  marcado_at: string | null;
+  marcado_por_nombre: string | null;
+}
+// Un evento de la bitácora completa de una persona (planilla_pago_persona_eventos,
+// 0562) — para el historial que se ve al abrir «Ver historial» en su check.
+export interface EventoPagoPersona {
+  tipo: "marcado" | "desmarcado";
+  monto: number;
+  motivo: string | null;
+  creado_at: string;
+  creado_por_nombre: string | null;
 }
 export interface Proyeccion {
   periodo_id?: string;

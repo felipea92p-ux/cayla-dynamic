@@ -45,7 +45,10 @@ export async function abrirArchivoFirmado(
 
   if (error || !data) {
     pestana?.close();
-    return `No se pudo abrir el archivo: ${error?.message ?? "sin URL"}`;
+    // El texto de `error.message` es de Storage y sale en inglés («fetch failed», «Object not found»): a quien
+    // mira no le dice qué hacer. Se deja un mensaje que sí, y el detalle queda para quien abra la consola.
+    if (error) console.error("abrirArchivoFirmado:", error.message);
+    return "No se pudo abrir el archivo. Revisa tu conexión y vuelve a intentarlo; si sigue igual, es posible que ya no esté.";
   }
 
   if (!pestana) {

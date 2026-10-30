@@ -128,6 +128,15 @@ mismo Windows probablemente reproduce el `\r`, y no arregla nada que esté mal)
 y anotarlo acá, que es lo que evita que la próxima sesión pare en seco o —peor—
 aprenda a ignorar un aviso de md5.
 
+Y desde el 2026-10-13 `donde-vive.sh` imprime también las dos variantes con
+`\r\n` —`crlf_tal_cual` y `crlf_sin_comentarios`— junto a las de siempre, y el
+cuarto desenlace: coincide una variante CRLF → mismo código pegado desde
+Windows; seguir, y declarar en la migración el md5 de PRODUCCIÓN. Se agregó
+porque ese día, antes de pegar la 0518, `fn_documentos_tablero` devolvió en
+producción `56aff7b1…` / `d138aae9…` —ninguno de los dos del script— y hubo que
+demostrar a mano, con la 0492 dentro de `begin … rollback`, que era este caso y
+no otra versión.
+
 Distinguir esta causa de la grave importa: si la diferencia **no** cuadra con el
 número de líneas ni con los comentarios, entonces sí es otra versión y hay que
 parar. Ver también `docs/estado.md`, que documenta el CRLF en disco — es el
@@ -178,9 +187,46 @@ Lo que eso significa, y hay que tenerlo presente al pedir permiso:
   despliegues que salen de un `git push`. Misma forma que el agujero de la 0177
   y la 0243 con `dame-el-sql.sh`: el freno está bien, el camino cómodo no pasa
   por él.
-- **No hay garantía de «CI verde antes de publicar».** El 2026-09-10 producción
-  sirvió el código de tres merges durante ~20 minutos mientras `db-tests`
-  todavía corría.
+- **Desde el 2026-09-21, fusionar un PR exige `db-tests` y `ui-tests` en verde
+  — pero eso no es lo mismo que «CI verde sobre lo que se publica».** Lo exige
+  el ruleset «main: pruebas obligatorias» de GitHub (qué cubre y quién lo
+  salta: ver «La red de seguridad»). Antes no había nada: el 2026-09-10
+  producción sirvió el código de tres merges durante ~20 minutos mientras
+  `db-tests` todavía corría. Lo que el ruleset todavía NO garantiza, medido el
+  2026-10-01:
+  - **Cuentan las pruebas del PR, no las del commit que llega a `main`.** El
+    ruleset tiene `strict=false`: no exige que la rama esté al día con `main`.
+    Las pruebas de un PR corren sobre su mezcla con el `main` *del momento en
+    que arrancaron*; si otro PR se fusiona en el medio, el tuyo entra con
+    pruebas que nunca vieron ese cambio. Pasó 1 vez en las 25 fusiones del
+    21-sep al #482: el #468 se probó a las 17:45 (UTC) y se fusionó a las
+    17:51, un minuto después que el #466. La corrida de `main` sobre los dos
+    juntos dio verde — después de publicados. Donde esto duele es la forma del
+    accidente de la 0261: dos PR que reescriben la misma función partiendo de
+    la misma versión pasan cada uno en verde, y juntos el de número mayor
+    revierte al otro sin que ninguna prueba lo haya visto antes de publicar.
+  - **La corrida de `main` después de fusionar sigue sin frenar nada.** Vercel
+    publica en menos de un minuto; `db-tests` tarda unos cinco.
+  - Exigir ramas al día (`strict=true`) cerraría el primer hueco, a cambio de
+    volver a correr el CI de todos los PR listos cada vez que uno se fusiona —
+    con diez worktrees, y con el plan de Actions que ya se agotó una vez el
+    2026-08-26. No está decidido; es de Felipe.
+- **`gh pr merge N --merge` a secas ya no fusiona si las pruebas no
+  terminaron**: se niega y ofrece `--auto` (medido el 2026-10-01 con el #482).
+  - **`--auto` es publicar en diferido**: deja la fusión armada y GitHub la
+    hace solo en cuanto las dos pruebas den verde, sin que nadie mire. Es la
+    forma correcta de «fusiona cuando esté verde», y por eso **se arma solo
+    cuando Felipe lo pidió para ESE PR**, con la migración ya pegada y con
+    `--merge` (`main` va con commits de fusión). El riesgo no es teórico:
+    encender «Auto-fix pull requests» en la app de escritorio la ha armado
+    sola, en squash, sin que nadie lo pidiera —el #464 el 2026-09-27 y el
+    #483 el 2026-10-01—, y en el #483 el panel de la app siguió diciendo que
+    no estaba armada. Lo único fiable es
+    `gh pr view N --json autoMergeRequest`: `null` es desarmada. Si aparece
+    armada sin que nadie la pidiera, se desarma (`gh pr merge N --disable-auto`)
+    y se avisa con la hora y quién la armó.
+  - **`--admin` salta el ruleset.** No es otra forma de fusionar: es la salida
+    de emergencia, y va con OK explícito de Felipe para ese PR.
 - **Y de aquí sale el orden que importa: la migración se pega ANTES de fusionar
   el PR que la usa.** Después de fusionar, el frontend ya está en el aire. Ese
   día falló dos veces —la 0404 dejó el envío del DNI rompiéndose *después* de
@@ -189,6 +235,30 @@ Lo que eso significa, y hay que tenerlo presente al pedir permiso:
 
 Así que pedir permiso para fusionar y pedirlo para publicar son la misma
 petición. Dilo así cuando lo pidas.
+
+**Y una sesión de Claude comenta en el PR ANTES de fusionarlo.** Todas las
+sesiones trabajan con la cuenta de Felipe, así que para GitHub «lo fusionó
+Felipe» y «lo fusionó una sesión» son lo mismo. El 2026-10-06 el #505 se fusionó
+diez minutos después de abrirse y no hubo forma de saber cuál de las dos cosas
+pasó. Estaba bien hecho —por PR, con `db-tests` y `ui-tests` en verde— y aun así
+quedó sin respuesta la pregunta que importa: ¿alguien lo pidió?
+
+El comentario lleva la marca `<!-- cayla:fusion-sesion -->` y cuatro líneas:
+**Sesión** (worktree y rama), **Pidió** (quién, con sus palabras, y cuándo),
+**Pruebas** (estado de `db-tests` y `ui-tests` al fusionar) y **SQL** («no hay»,
+o qué migración se pegó antes y quién lo confirmó). Tiene que ser POSTERIOR al
+último commit del PR: un comentario de las 10:00 no avala un commit de las
+10:30, así que si empujas algo después —o traes `main` a la rama— se comenta de
+nuevo.
+
+Lo vigila `.claude/hooks/comentar-antes-de-fusionar.sh`, registrado en
+`.claude/settings.json`: frena `gh pr merge` —también con `--auto`, que es
+publicar en diferido— si falta el comentario, e imprime el formato exacto. Dos
+límites, y conviene saberlos: solo cubre a las sesiones de Claude que parten de
+una rama con este archivo (una web de GitHub o `gh api …/merge` no pasan por
+él), y si no puede leer el PR **frena**, no deja pasar. Que no lo vea un freno
+no es permiso: la regla es la de arriba, el freno solo la hace difícil de
+olvidar.
 
 **Ojo con el entorno.** El panel apunta al Supabase **local** (127.0.0.1), no a
 producción. Para diagnosticar prod, Felipe corre SELECTs en el SQL Editor. Nunca
@@ -250,6 +320,7 @@ migraciones. Los nombres de variables y funciones siguen la convención en ingl�
 | sede, tienda, boutique | sucursal |
 | Desarrollo Organizacional (DO) | RRHH |
 | clienta | cliente (para quien compra) |
+| preselección (el vínculo `prueba`) | prueba, de prueba — para quien trabaja antes de su contrato |
 
 El código tiene el rol `supervisor_sede` en la base por historia —y con él nombres
 como `esEncargada`, `es_encargada_piso` o `meta_encargadas`, que no se renombran—;
@@ -258,6 +329,13 @@ los contadores cortos («Líderes en piso»). Hasta el 2026-09-18 la pantalla de
 «encargada» en unos sitios y «líder de equipo» en otros (Equipo, Objetivos, la
 boleta): dos palabras para la misma persona. No se confunde con `lider_do`, que
 es «Líder DO» (Desarrollo Organizacional).
+
+Con `prueba` pasa lo mismo desde el 2026-10-27: el valor interno de `tipo_vinculo` sigue
+siendo `prueba` (CHECK de la 0322, la tabla `pruebas`, `fn_pruebas_*`) y en pantalla es
+**«preselección»** (decisión de Felipe). No se renombra el *periodo de prueba* legal que va
+dentro de un contrato de trabajo (art. 10 del D.S. 003-97-TR, cláusula TERCERA) ni el
+motivo de cese `fin_periodo_prueba`: son otra cosa, y un contrato que dijera
+«preselección» en esa cláusula estaría mal escrito.
 
 ---
 
@@ -340,8 +418,8 @@ Quedan tres campos así de antes —`contratos` y `documentacion` ya arreglados,
 paga en su lote y no a costa de que el freno mienta.
 
 Y una sexta, del 2026-08-31: **nunca un color de Tailwind por defecto
-—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los once
-`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos once
+—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los trece
+`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos trece
 nombres (`bg-crema`, `text-tinta`, `bg-papel`…) precisamente para que el modo
 oscuro pudiera llegar redefiniéndolos, sin tocar un componente. Un color de
 Tailwind por defecto no sigue esa redefinición: se queda con su valor fijo,
@@ -357,6 +435,18 @@ y por eso se apilaba sin distinguirse sobre `sand`). Los dos se midieron
 contra la fórmula de contraste WCAG antes de aceptarse (≥4.5:1 en los pares
 que los usan) — el mismo criterio que ya exige este archivo para planilla:
 medir, no asumir.
+
+Y trece desde el 2026-10-05: `--color-azul` (en pausa por un trámite, un
+médico u otro motivo) y `--color-ceniza` (turno terminado), para el estado de
+cada integrante en el terminal. «En refrigerio» y «En pausa» compartían ámbar
+y no se distinguían, y ninguno de los once cubría un azul franco ni un gris de
+«ya terminó». Se midieron como se pintan de verdad —sobre la casilla teñida y
+como insignia sobre crema— y uno de los dos **falló la primera vez**:
+`#68645c` daba 4.27:1 como insignia, así que se oscureció a `#635f58`. El
+detalle y las cifras están junto a los tokens en `globals.css`, incluida la
+separación entre los cuatro colores del estado para quien tiene daltonismo (la
+más ajustada, verde/ceniza, es 10.6 bajo deuteranopía: por eso el color nunca
+va solo, cada estado lleva además ícono y palabra).
 
 Se midió al escribirlo: ~20 usos sueltos en 11 archivos, casi todos insignias
 de aviso (`amber-100`/`amber-800` para "sin ficha", "valor antiguo", "fuera de
@@ -521,6 +611,17 @@ cuesta más que dejar pasar una falta real. Por eso las exclusiones
 (`en_planilla`, `sueldo_fijo`, vacaciones, feriados, sin horario) se aplican antes
 de contar, no después.
 
+**Un número que DO debería poder cambiar va al catálogo de parámetros, no a una constante** (0552, oct-2026). `parametros_catalogo`
+dice qué se puede mirar y cambiar desde `/admin/parametros` (nombre, unidad, mínimo, máximo, clase) y el valor sigue viviendo donde ya
+vivía (`configuracion`). Se cambia por UNA puerta, `fn_parametro_cambiar`, que exige motivo y respeta los límites; un trigger sobre
+`configuracion` rechaza la escritura directa de esas claves y **escribe `parametros_historial` por cualquier camino**, también el
+SQL Editor (marcado «base», sin autor). Para sumar uno: una migración que inserta su fila del catálogo (con mínimo y máximo: un
+editable sin tope no se acepta), y el código lee el valor de la tabla, no lo repite. Tres clases, tres cuidados: *operativo* (lo decide DO),
+*plata* (exige **vigencia** y vista previa de a quién le cambia —un valor sin fecha reescribe los periodos ya pagados, como pasó con
+`tasa_afp`—; entra en la rebanada 2) y *normativo* (ley o RIT; solo la dirección, y nada hoy es editable). **La escalera disciplinaria
+no es un parámetro libre**: es del RIT y solo se mueve atada a una versión del RIT, porque aplicar una escalera distinta a la que la
+persona recibió firmada vuelve impugnable la sanción. El trigger no es `SECURITY DEFINER` y no debe serlo (el mismo motivo de la 0550).
+
 **Guards `SECURITY DEFINER` null-safe.** Siempre `if fn_es_admin_o_lider() is not true`,
 nunca `if not fn_es_admin_o_lider()` — un `null` no debe pasar como autorizado.
 Desde la 0078 los booleanos de permiso ya no devuelven `null`, pero la forma
@@ -629,7 +730,8 @@ art. 19 e) y f).
 
 **Un cambio que el equipo va a notar lleva su novedad en el MISMO pull
 request.** La lista vive en `apps/web/lib/novedades.ts`. Se lee en
-`/admin/anuncios`, debajo de los comunicados de DO, y en «Lo mío», donde solo
+`/admin/anuncios`, debajo de los comunicados de DO, y en el «Resumen» de «Lo
+mío» —solo ahí, no en sus otras secciones—, donde solo
 aparecen las que a esa persona le faltan por entender (las tres más recientes,
 con su primer párrafo). El encabezado del archivo dice qué va, qué no y cómo se
 escribe una entrada.
@@ -679,6 +781,7 @@ siguiente es medir cuántos cambios notables hubo sin entrada antes de decidir.
 | Ruta | Qué es |
 |---|---|
 | `estado.md` | **Dónde estamos hoy.** Se sobrescribe, no se acumula. |
+| `easter-eggs.md` | **Los secretos del sistema** y cómo activarlos: el código Konami, «colibrí» en el buscador, los clics del login, los toques de fecha y el colibrí sin internet. Si agregas uno, se anota ahí en el mismo PR. |
 | `cerrar-el-mes-sin-pagar-dos-veces.md` | El día 28, al cerrar la planilla: qué avisa el sistema cuando alguien cesó a mitad de mes y ya cobró su liquidación, y qué apretar. |
 | `prueba-restauracion-backup.md` | Cómo comprobar, con `scripts/probar-restauracion-backup.sh`, que el respaldo de producción se puede restaurar de verdad — no solo que existe. |
 | `terminales-mac-mini.md` | Manual para dejar la Mac mini de una sede como terminal. |
@@ -801,6 +904,69 @@ existente. Mismo criterio en lo demás: solo los archivos que el push toca
 —hoy no queda ninguno con este defecto, así que no hay deuda vieja que
 pagar—, y bloquea, no avisa.
 
+**Y desde el 2026-10-17, que un push no pueda volver a escribir a mano una pieza
+que ya tiene componente** (`scripts/hooks/receta-suelta.sh`, paso 2 del
+[ADR 0004](docs/adr/0004-diseno-unificado.md)). El ADR decidió una sola forma
+para cada pieza del panel y la puso en `apps/web/components/ui`; cuatro días
+después ya había siete archivos nuevos con la tarjeta escrita a mano
+(`components/educacion/*`, `components/boletas/hoja-constancia-boleta.tsx`).
+Nadie lo hizo mal a propósito: la pantalla de al lado trae la receta vieja y
+copiarla cuesta menos. Es la historia de `rol === "admin"` otra vez.
+
+Busca nueve recetas y bloquea cuando el push **suma** una: tarjeta
+(`rounded-superficie border border-sand bg-papel` → `<TarjetaInfo>`, `<EstadoVacio>`
+o `<Tabla>`), cifra (→ `<Cifra>`), filtro (`<button aria-pressed>`, o un botón que
+se enciende con `bg-tinta text-crema` → `<Filtro>`), aviso (borde y fondo del
+mismo color → `<BannerAviso>`), la clase `etiqueta` (→ `<Rotulo>` y compañía),
+`<h1>` de pantalla (→ `<CabeceraPagina>`), encabezado/fila de tabla (→
+`<TablaEncabezado>`, `<Fila>`), «Cargando…» como texto (→ `<Cargando />`) y el
+cajón por la derecha (→ `<Drawer>`). Exentos: `components/ui`, el terminal, y los
+papeles que se imprimen (una clase `print:` exime la tarjeta y el aviso; la clase
+`hoja` en el archivo exime cifra, rótulo y tabla). Al 2026-10-17 quedaban **270 recetas en 82
+archivos**: `RECETA_TODO=1 RECETA_RESUMEN=1 python3 scripts/hooks/receta-suelta.py`
+las recuenta sin frenar nada.
+
+Cuatro cosas que conviene saber antes de que frene tu push:
+
+- **Solo cuenta lo que se SUMA.** Se compara por *hunk*: si una línea que ya tenía
+  la receta solo cambió (un hotfix que toca el `className` de una tarjeta vieja),
+  no cuenta. Quitar tarjetas viejas, migrar una pantalla o renombrar un archivo
+  tampoco. Lo que sí: un archivo nuevo, una receta donde no había, y mover una
+  tarjeta de un archivo a otro (cuenta como nueva).
+- **La salida legítima no es `--no-verify`.** Una caja que de verdad no es la
+  pieza —un `<details>`, un acordeón— se declara en esa línea o en una de las dos
+  de arriba: `{/* receta-propia: es un <details> y TarjetaInfo no puede serlo */}`.
+  El motivo es obligatorio y se busca con grep. No sirve para «el componente casi
+  sirve»: eso se arregla en el componente, que es el punto del ADR.
+- **No ve todo.** Una receta partida en dos cadenas de un `cx()`, un borde
+  condicional o un `<Link>` con forma de tarjeta se le escapan. Es un escáner de
+  cadenas y etiquetas, no un compilador, y está dicho en su cabecera.
+- **Sin Python 3 avisa y deja pasar**, como `lint-de-lo-nuevo.sh`.
+
+**Qué familias entran y cuáles no** salió de un segundo barrido (2026-10-17) que
+el ADR pedía antes de poner el freno —«un freno sobre un inventario incompleto
+bloquea lo equivocado»—. *Entran* los estados de carga (`components/cargando.tsx`
+existe desde el 27-jul y no está en `ui`, así que el ADR no lo vio: 36 usos del
+componente contra 20 «Cargando…» a mano) y el cajón derecho. *No entran* los
+avisos emergentes (`useToast()` ya es el único: ningún aviso `fixed bottom-` suelto fuera de él) ni
+los esqueletos (cero `animate-pulse`). Y las **pestañas no entran por una razón
+que es una decisión abierta, no un descuido**: el ADR las unió a los filtros, pero
+cuatro de las cinco `tablist` del panel son pestañas *subrayadas* (la quinta es un
+segmentado) y `<Filtro>` no es el destino de las cuatro; bloquear sin destino es bloquear lo equivocado. Queda en el
+ADR como pendiente. Tampoco `<Insignia>` ni `<Modal>` (anteriores al ADR) ni la
+escala de radios (`rounded-lg`/`rounded-xl` es otra regla).
+
+Medido contra la historia antes de entregarlo (cada merge simulado como un push):
+de los últimos 30 merges habrían frenado **6** (los 4 del rediseño de Educación,
+las modales de Boletas y el rótulo del saludo de cumpleaños, todos sumando recetas
+de verdad); de los últimos 30 commits sueltos, **1**; de los últimos 150 merges
+(15-sep → 17-oct), **36**, y de 175 hallazgos solo 9 eran código movido de sitio.
+La migración de cinco secciones (#552, que quitó 71 recetas) pasa. Su prueba es
+`scripts/hooks/probar-receta-suelta.sh`: 36 casos —18 que **deben bloquear**,
+11 que deben pasar, 5 de hunk y 2 de entorno— con cada intérprete (177
+comprobaciones). Y se confirmó rompiendo el hook a propósito de ocho maneras
+distintas: la prueba se puso en rojo las ocho veces.
+
 **Y hay una cosa que ese hook arregla solo, en vez de pedírtela.** La consulta
 `scripts/sql-manual/que_falta_pegar.sql` lleva dentro la lista de migraciones del
 repo, así que cada migración nueva la deja corta. Si la encuentra vieja, **la
@@ -915,9 +1081,57 @@ Solo mira lo que el push agrega, y esa es la razón de que sirva: comparar el á
 entero contra todas las ramas encuentra choques históricos de ramas abandonadas y
 falla en cualquier push. Un freno que chilla siempre se desactiva a la semana.
 
-Se eligió un hook local y **no** la protección de rama de GitHub porque esa
-habría exigido abrir un pull request por cada cambio — fricción constante para
-quien trabaja sola, a cambio de la misma garantía.
+**Y del lado de GitHub, desde el 2026-09-21: el ruleset «main: pruebas
+obligatorias».** Al principio se eligió solo el hook local y **no** proteger
+`main` en GitHub, porque eso habría exigido abrir un pull request por cada
+cambio — fricción constante para quien trabaja sola. Ese razonamiento caducó:
+para entonces todo entraba ya por PR, y el 2026-09-21 a las 09:34 (hora de
+Lima) se creó un ruleset sobre la rama por defecto. Tampoco era «la misma
+garantía»: el hook corre en esta Mac, se salta con `--no-verify` y no corre
+las pgTAP; el ruleset vive en GitHub y mira el CI. No se reemplazan: el hook
+frena lo que sale de la Mac, el ruleset lo que entra a `main`.
+
+Ojo al buscarlo: **no es la protección de rama clásica** —
+`gh api repos/felipea92p-ux/cayla-dynamic/branches/main/protection` da 404 y
+eso NO significa que `main` esté desprotegida—. Se mira así:
+
+```bash
+gh api repos/felipea92p-ux/cayla-dynamic/rulesets/23773404
+gh api repos/felipea92p-ux/cayla-dynamic/rules/branches/main   # las reglas que aplican hoy
+```
+
+Tiene tres reglas: no se puede borrar `main` (`deletion`), no se le puede
+reescribir la historia (`non_fast_forward`, o sea `push --force`), y nada
+entra sin `db-tests` y `ui-tests` en verde (`required_status_checks`, las dos
+de GitHub Actions, con `strict=false` — qué deja pasar eso está en «Desplegar
+a producción»). Y una excepción que lo cambia todo, medida el 2026-10-01:
+
+| | Colaborador con permiso de escritura (hoy hay uno) | Admin (hoy solo la cuenta de Felipe) |
+|---|---|---|
+| Fusionar un PR sin las dos pruebas en verde | bloqueado | bloqueado por defecto; `gh pr merge --admin` lo salta |
+| `git push` directo a `main` | bloqueado sin las dos pruebas en verde | **pasa** |
+| `push --force` o borrar `main` | bloqueado | pasa |
+
+La columna de la derecha sale de `bypass_actors`: el rol de repositorio
+`admin` con `bypass_mode: always` — «always» quiere decir que el salto vale
+también para un push directo, no solo dentro de un PR. **Y toda sesión de
+Claude trabaja con la cuenta de Felipe**, así que para el ruleset cada sesión
+es admin. Lo que de verdad protege a `main` de una sesión no es el ruleset:
+es que el camino normal (`gh pr merge`) pasa por él, y que `--admin` y el
+push directo a `main` no se usan sin OK explícito de Felipe. Lo del push
+directo no se probó con un push real, porque ese push publica.
+
+Lo que sí se midió es que hasta hoy nadie lo saltó. En septiembre, hasta el
+día 21, entraron a `main` 32 commits sin pull request (los últimos el 10-sep);
+desde el ruleset, **cero**: las 25 fusiones del 21-sep al #482 (1-oct)
+entraron por PR, y GitHub no registra ni una evaluación en `bypass`. Se
+vuelve a comprobar en una línea — si devuelve algo distinto de `[]`, algo
+llegó a producción sin pruebas. El `time_period` no es adorno: sin él, la API mira solo las últimas
+24 horas y un `[]` no dice nada del resto del mes.
+
+```bash
+gh api "repos/felipea92p-ux/cayla-dynamic/rulesets/rule-suites?ref=refs/heads/main&rule_suite_result=bypass&time_period=month"
+```
 
 Para que el hook funcione en un clon nuevo hay que activarlo una vez:
 ```bash
@@ -1071,5 +1285,8 @@ columna `now()` necesita desempate explícito, aunque en producción nunca empat
 En producción no empata porque cada escritura entra en su propia transacción; en
 una prueba siempre empata. Un orden que depende del orden físico no es un orden.
 
-En una urgencia real ambos se saltan: `git push --no-verify` y `npx vercel --prod`.
+En una urgencia real los tres se saltan: `git push --no-verify` (el hook),
+`npx vercel --prod` (`desplegar.sh`) y `gh pr merge --admin` (el ruleset — o
+un push directo a `main`, que con la cuenta de Felipe también pasa).
 Que se pueda saltar a propósito es parte del diseño; que se salte sin querer, no.
+Y el tercero publica en el acto, así que lo decide Felipe, nunca una sesión.

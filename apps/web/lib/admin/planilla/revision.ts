@@ -13,7 +13,10 @@
 // «bloquea» son los dos frenos que ya existen en `fn_planilla_congelar`
 // (0243/0244 y 0284/0326), con su misma condición: la pantalla los adelanta
 // para que el error se lea como una instrucción y no como una falla, pero quien
-// frena de verdad sigue siendo la base. Todo lo demás es «revisar» o «informa».
+// frena de verdad sigue siendo la base. Todo lo demás es «revisar» o
+// «informa» — salvo que la persona ya cesó dentro del periodo: ahí «revisar»
+// se apaga, porque no queda a quién corregirle un dato (ver «frenos y avisos»
+// en planilla-revision.test.ts, 2026-10-28).
 //
 // Por qué existe (auditoría 2026-09-15, hallazgo C2): hasta hoy la pantalla
 // contaba, sumaba y habilitaba el botón de pago sobre las filas FILTRADAS,
@@ -64,6 +67,10 @@ export interface Totales {
   pago_base: number;
   feriados: number;
   asignacion: number;
+  /** Movilidad por asistencia y asignación por educación: conceptos propios del
+   *  total (0110 / 0120), que la tabla de Planilla muestra en su columna. */
+  movilidad: number;
+  educacion: number;
   bonos: number;
   descuentos: number;
   /** Lo que se transfiere a las personas. */
@@ -82,7 +89,8 @@ export interface Totales {
 
 export function sumarFilas(filas: Fila[]): Totales {
   const t: Totales = {
-    personas: filas.length, horas: 0, pago_base: 0, feriados: 0, asignacion: 0, bonos: 0, descuentos: 0,
+    personas: filas.length, horas: 0, pago_base: 0, feriados: 0, asignacion: 0, movilidad: 0, educacion: 0,
+    bonos: 0, descuentos: 0,
     total: 0, pension: 0, essalud: 0, retencion_4ta: 0, sale_del_banco: 0,
     provision_gratificacion: 0, provision_cts: 0, provision_vacaciones: 0, provision_total: 0,
   };
@@ -91,6 +99,10 @@ export function sumarFilas(filas: Fila[]): Totales {
     t.pago_base += f.pago_base;
     t.feriados += f.monto_feriados;
     t.asignacion += f.asignacion_familiar;
+    // Opcionales (`?? 0`) por lo mismo que pensión y EsSalud: una base sin la
+    // 0110 o la 0120 pegadas no manda la clave, y `undefined` sumaría «NaN».
+    t.movilidad += f.monto_movilidad ?? 0;
+    t.educacion += f.monto_educacion ?? 0;
     t.bonos += f.bonos;
     t.descuentos += f.descuentos;
     t.total += f.total;
@@ -329,6 +341,14 @@ export function hallazgosDePersona(
   }
   if (ctx.cese && ctx.cese.tipo !== "despues") {
     h.push({ codigo: "ceso_en_periodo", severidad: "informa", texto: textoCese(ctx.cese)! });
+  }
+  // Quien ya se fue no tiene nada que "resolver": un régimen de pensión sin
+  // cargar, un salario sin asignar o un feriado sin tramo dejan de ser una
+  // tarea pendiente en cuanto la persona cesó — no hay a quién corregirle el
+  // dato. Lo que sí sigue (bloquea, y el propio aviso de cese) se queda:
+  // cerrar bien la cuenta de quien se fue importa igual que la de quien sigue.
+  if (ctx.cese && ctx.cese.tipo !== "despues") {
+    return h.filter((x) => x.severidad !== "revisar");
   }
   return h;
 }

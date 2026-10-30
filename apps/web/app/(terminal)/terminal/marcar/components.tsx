@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MarcajeDelDia, SiguienteAccion, TipoMarca } from "@cayla-dynamic/shared";
+import { etiquetaDePrueba, type TipoMarca } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
-import { Insignia } from "@/components/ui/insignia";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
-import { siguienteAccionPara } from "@/lib/terminal/estado-dia";
+import type { ClavePresencia, PresenciaCasilla } from "@/lib/terminal/presencia";
 import { inicialesDe, urlPublicaFotoPerfil } from "@/lib/foto-perfil";
+import {
+  ConEtiqueta,
+  ESTILO_PRESENCIA,
+  REPOSO_PRESENCIA,
+  etiquetaDePresencia,
+  type EstiloPresencia,
+} from "./presencia-visual";
 
 // Estilos compartidos de la superficie clara del terminal (crema, líneas finas Sand).
 //
@@ -33,6 +39,13 @@ import { inicialesDe, urlPublicaFotoPerfil } from "@/lib/foto-perfil";
 // se repone donde se puede.
 const TILE =
   "cursor-pointer rounded-control border border-borde-control bg-papel transition-colors hover:border-rojo hover:bg-sand active:scale-95";
+// La tarjeta que SÍ dice en qué punto del día está la persona: un solo botón, igual
+// que la de siempre —tocar en cualquier parte marca, el ícono de la foto incluido—.
+// El color lo pone `REPOSO_PRESENCIA` o, si el estado está iluminado desde la
+// píldora, el del estado. Al presionar, el borde se va a rojo y la caja se encoge,
+// igual que en TILE: es el feedback que se ve a un metro de la pantalla.
+const CAJA_PRESENCIA =
+  "cursor-pointer rounded-control border-[1.5px] transition-all hover:border-rojo active:scale-95";
 const BTN_PRIMARIO =
   "cursor-pointer rounded-control bg-rojo px-5 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo active:scale-95";
 const BTN_SECUNDARIO =
@@ -89,51 +102,31 @@ export function SelectorSede({
  */
 export type EstadoRoster = "cargando" | "listo" | "error";
 
-// Traduce la siguiente acción disponible —la MISMA máquina de estados que
-// decide qué se ofrece al tocar el nombre, `siguienteAccionPara`— a lo que se
-// ve en la casilla ANTES de tocarla. Sin esto, tocar era la única forma de
-// consultar en qué estado está alguien, y tocar arranca la cuenta atrás de
-// 3 s que marca sola: una duda se volvía un marcaje.
-function estadoDeLaCasilla(accion: SiguienteAccion): {
-  variante: "neutral" | "advertencia" | "positivo" | "informativo";
-  texto: string;
-} {
-  switch (accion.modo) {
-    case "unico":
-      // "entrada": todavía no llegó hoy. Cualquier otro "unico" es el retorno
-      // de una salida temporal (almuerzo, trámite…) que quedó abierta.
-      return accion.tipo === "entrada"
-        ? { variante: "neutral", texto: "Entrar" }
-        : { variante: "advertencia", texto: "Volver" };
-    case "elegir_salida":
-      // Ya entró, no tiene una salida abierta pendiente de retorno: está
-      // trabajando y lo único que le queda hoy es elegir cómo sale.
-      return { variante: "positivo", texto: "Salir" };
-    case "cerrado":
-      return { variante: "informativo", texto: "Día cerrado" };
-  }
-}
-
 export function NombreGrid({
   roster,
   estado,
-  marcajesPorPersona,
+  presencia,
+  resaltado = null,
   onSeleccionar,
   onReintentar,
 }: {
   roster: RosterEntry[];
   estado: EstadoRoster;
   /**
-   * Marcajes de HOY por persona — el mismo mapa que `page.tsx` ya trae en
-   * `marcajesHoyRef` con `cargarMarcajesHoyPorPersona()`, sin ninguna consulta
-   * nueva. Opcional: sin él la grilla vuelve a como estaba, todas las
-   * casillas iguales — pero entonces la única forma de saber si alguien ya
-   * marcó su entrada es tocar su nombre, y eso ya arranca la cuenta atrás que
-   * marca sola. Para que el punto de color se vea al día, quien llame a este
-   * componente necesita que este mapa se actualice cuando cambian los
-   * marcajes (hoy es un `ref`, que no fuerza un nuevo render por sí solo).
+   * En qué punto del día está cada persona (ver `lib/terminal/presencia.ts`),
+   * ya calculado. Opcional a propósito: sin él, la grilla es la de siempre —todas
+   * las casillas iguales—. Quien llama lo omite mientras NO pudo confirmar el
+   * estado de hoy contra el servidor: un mapa vacío significa «todavía no lo
+   * sé», no «nadie ha entrado», y pintar a todo el equipo como «sin entrada»
+   * sería acusar de más (el peor error de este sistema).
    */
-  marcajesPorPersona?: Map<string, MarcajeDelDia[]>;
+  presencia?: Map<string, PresenciaCasilla>;
+  /**
+   * El estado iluminado desde la píldora de arriba: quienes lo tienen se destacan
+   * y los demás se atenúan. Ilumina, no oculta —nadie pierde su nombre de la
+   * pantalla—. Sin `presencia` no hace nada.
+   */
+  resaltado?: ClavePresencia | null;
   onSeleccionar: (persona: RosterEntry) => void;
   onReintentar: () => void;
 }) {
@@ -192,31 +185,112 @@ export function NombreGrid({
     // la pantalla y la fila 13 caía por debajo del borde sin que nada avisara
     // que había más gente. `lg:`/`xl:` dejan que el ancho del monitor sume
     // columnas en vez de apilar filas.
-    <div className="grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid w-full max-w-5xl grid-cols-2 content-start gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {roster.map((persona) => {
-        const accion = marcajesPorPersona
-          ? siguienteAccionPara(marcajesPorPersona.get(persona.id) ?? [])
-          : null;
-        const casilla = accion ? estadoDeLaCasilla(accion) : null;
+        const pres = presencia?.get(persona.id);
+
+        // Sin estado confirmado: la casilla de siempre, un solo botón, sin nada
+        // que decir de nadie.
+        if (!pres) {
+          return (
+            <button
+              key={persona.id}
+              onClick={() => onSeleccionar(persona)}
+              className={`${TILE} ${claseDePrueba(persona)} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`}
+            >
+              <CintaDePrueba persona={persona} />
+              <AvatarPersona persona={persona} />
+              <span>
+                {persona.nombres} {persona.apellidos}
+              </span>
+              <EtiquetaDePrueba persona={persona} />
+            </button>
+          );
+        }
+
+        const estilo = ESTILO_PRESENCIA[pres.clave];
+        const etiqueta = etiquetaDePresencia(pres.clave);
+        const nombre = `${persona.nombres} ${persona.apellidos}`;
+        const encendida = resaltado === pres.clave;
+        const atenuada = resaltado !== null && !encendida;
         return (
           <button
             key={persona.id}
+            type="button"
             onClick={() => onSeleccionar(persona)}
-            className={`${TILE} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`}
+            // El estado ya no se dice con una palabra en la tarjeta —lo dicen el
+            // ícono de la foto y, al pasar el mouse, su etiqueta—, así que quien
+            // usa lector de pantalla lo escucha acá completo.
+            aria-label={`${nombre}${textoDePrueba(persona) ? `, ${textoDePrueba(persona)}` : ""}: ${etiqueta}, ${pres.detalle}${pres.detalle2 ? `, ${pres.detalle2}` : ""}`}
+            className={`${CAJA_PRESENCIA} ${claseDePrueba(persona)} ${encendida ? estilo.iluminada : REPOSO_PRESENCIA} ${
+              atenuada ? "opacity-30" : ""
+            } flex flex-col items-center gap-1 px-3 pb-4 pt-5 text-center font-serif text-xl`}
           >
-            <AvatarPersona persona={persona} />
-            <span>
-              {persona.nombres} {persona.apellidos}
-            </span>
-            {casilla && (
-              <Insignia variante={casilla.variante} tamano="sm" className="font-sans">
-                {casilla.texto}
-              </Insignia>
-            )}
+            <CintaDePrueba persona={persona} />
+            <AvatarPersona persona={persona} presencia={estilo} etiqueta={etiqueta} />
+            <span className={estilo.apagada ? "text-taupe" : undefined}>{nombre}</span>
+            <EtiquetaDePrueba persona={persona} />
+            <span className="font-sans text-sm text-taupe">{pres.detalle}</span>
+            {pres.detalle2 && <span className="font-sans text-sm text-taupe">{pres.detalle2}</span>}
           </button>
         );
       })}
     </div>
+  );
+}
+
+/** «Preselección · 2 de 3», o null si la persona no está en preselección (0539). */
+function textoDePrueba(persona: RosterEntry): string | null {
+  if (typeof persona.pruebaDias !== "number" || typeof persona.pruebaPlazo !== "number") return null;
+  return etiquetaDePrueba({ dias_trabajados: persona.pruebaDias, dias_plazo: persona.pruebaPlazo }).texto;
+}
+
+/** ¿Está en preselección? Las dos columnas vienen juntas o no vienen (0539). */
+function enPrueba(persona: RosterEntry): boolean {
+  return typeof persona.pruebaDias === "number" && typeof persona.pruebaPlazo === "number";
+}
+
+/**
+ * Quien está en preselección se distingue por DOS señales que no dependen del color: el borde de su tarjeta es
+ * punteado y lleva una cinta «En preselección» (`CintaDePrueba`). El color solo refuerza. Las tarjetas necesitan
+ * `relative` para anclar la cinta.
+ */
+function claseDePrueba(persona: RosterEntry): string {
+  return enPrueba(persona) ? "relative border-dashed" : "";
+}
+
+/**
+ * La cinta sobre el borde de la tarjeta. Usa `tinta` sobre `crema`, que se invierten juntas en el modo
+ * oscuro (15.4:1 en claro, 14.1:1 en oscuro). Es decorativa para el lector de pantalla: el aria-label de la
+ * tarjeta ya dice «Preselección · 2 de 3».
+ */
+function CintaDePrueba({ persona }: { persona: RosterEntry }) {
+  if (!enPrueba(persona)) return null;
+  return (
+    <span
+      aria-hidden
+      className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-pildora bg-tinta px-3 py-0.5 font-sans text-xs font-medium text-crema"
+    >
+      En preselección
+    </span>
+  );
+}
+
+/**
+ * La píldora junto al nombre (0539): «Preselección · 2 de 3». Es SIEMPRE del mismo color (pizarra sólida, 6.0:1 en
+ * claro y 7.8:1 en oscuro): el avance lo dice el texto, no el tono. Ningún estado de presencia se pinta como
+ * una píldora llena, así que no se confunde con el azul de la pausa ni con el ámbar del refrigerio. Y no usa
+ * rojo ni ámbar a propósito: la pantalla está a la vista de todo el equipo, y «ya se pasó el plazo» es una
+ * decisión de Desarrollo Organizacional que se ve en el panel, no un color que se le pone a una persona
+ * delante de sus compañeras. Solo INFORMA: marcar sigue siendo tocar la casilla, sin pedir nada más.
+ */
+function EtiquetaDePrueba({ persona }: { persona: RosterEntry }) {
+  if (typeof persona.pruebaDias !== "number" || typeof persona.pruebaPlazo !== "number") return null;
+  const e = etiquetaDePrueba({ dias_trabajados: persona.pruebaDias, dias_plazo: persona.pruebaPlazo });
+  return (
+    <span className="rounded-pildora bg-pizarra px-2 py-0.5 font-sans text-xs font-medium text-crema">
+      {e.texto}
+    </span>
   );
 }
 
@@ -227,7 +301,16 @@ export function NombreGrid({
  * parecidos, pero NO es una prueba de identidad: el terminal sigue marcando
  * sin PIN, a propósito (decisión de Felipe, jul-2026).
  */
-function AvatarPersona({ persona }: { persona: RosterEntry }) {
+function AvatarPersona({
+  persona,
+  presencia,
+  etiqueta,
+}: {
+  persona: RosterEntry;
+  presencia?: EstiloPresencia | null;
+  /** La palabra del estado: es lo que sale al pasar el mouse por el ícono. */
+  etiqueta?: string;
+}) {
   // El cliente es un singleton cacheado por storageKey (client.ts): pedirlo
   // acá no crea una conexión nueva por cada tile de la grilla.
   const supabase = useMemo(() => createTerminalSupabaseClient(), []);
@@ -241,20 +324,53 @@ function AvatarPersona({ persona }: { persona: RosterEntry }) {
   // terminal está funcionando de memoria.
   const [fotoFallo, setFotoFallo] = useState(false);
 
-  if (url && !fotoFallo) {
-    return (
+  // Quien ya terminó o hoy no trabaja se ve apagado: ahí no hay nada que hacer.
+  const apagada = presencia?.apagada ? "opacity-50" : "";
+
+  const foto =
+    url && !fotoFallo ? (
       // eslint-disable-next-line @next/next/no-img-element -- foto de un bucket externo, no un asset local
       <img
         src={url}
         alt=""
-        className="h-14 w-14 rounded-pildora object-cover"
+        className={`h-full w-full rounded-pildora object-cover ${apagada}`}
         onError={() => setFotoFallo(true)}
       />
+    ) : (
+      <span
+        className={`flex h-full w-full items-center justify-center rounded-pildora bg-sand text-lg text-taupe ${apagada}`}
+      >
+        {inicialesDe(persona.nombres, persona.apellidos)}
+      </span>
     );
-  }
+
   return (
-    <span className="flex h-14 w-14 items-center justify-center rounded-pildora bg-sand text-lg text-taupe">
-      {inicialesDe(persona.nombres, persona.apellidos)}
+    <span className={`relative block h-14 w-14 shrink-0 ${presencia ? "mb-2" : ""}`}>
+      {foto}
+      {/* El ícono solo INFORMA: dice el estado, y su palabra sale al pasar el mouse.
+          No es un control —tocarlo marca, como tocar cualquier parte de la tarjeta—:
+          el filtro vive únicamente en la píldora de arriba. */}
+      {presencia && (
+        <ConEtiqueta texto={etiqueta ?? ""} className="absolute -bottom-2 -right-2">
+          <InsigniaDeEstado presencia={presencia} />
+        </ConEtiqueta>
+      )}
+    </span>
+  );
+}
+
+/**
+ * El círculo del estado, en la esquina de la foto. Su borde es del color del
+ * FONDO de la tarjeta (`--anillo`), así que parece recortado de la foto en vez de
+ * pegado encima.
+ */
+function InsigniaDeEstado({ presencia }: { presencia: EstiloPresencia }) {
+  const Icono = presencia.Icono;
+  return (
+    <span
+      className={`grid h-7 w-7 place-items-center rounded-pildora border-2 border-[var(--anillo)] ${presencia.punto}`}
+    >
+      <Icono size={15} strokeWidth={2.5} aria-hidden />
     </span>
   );
 }

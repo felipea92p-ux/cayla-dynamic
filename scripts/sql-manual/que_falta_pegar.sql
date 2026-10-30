@@ -344,7 +344,81 @@ with repo(numero, nombre, nunca) as (values
     (480, 'las_novedades_del_sistema_se_marcan_como_vistas', false),
     (481, 'la_tienda_de_lima_sabe_su_ciudad', false),
     (482, 'las_boletas_oficiales_se_suben_y_se_publican', false),
-    (484, 'el_periodo_de_prueba_deja_de_generar_essalud', false)
+    (483, 'los_reportes_y_quien_puede_verlos', false),
+    (484, 'el_periodo_de_prueba_deja_de_generar_essalud', false),
+    (485, 'el_practicante_ve_su_descanso_y_subvencion_semestral', false),
+    (486, 'el_memo_se_entrega_por_info', false),
+    (487, 'la_imputacion_lleva_la_firma_escaneada', false),
+    (488, 'los_reportes_se_escriben_y_sus_plazos_corren', false),
+    (489, 'la_declaracion_de_ruta_vuelve_a_preguntar_pasaje_y_taxi', false),
+    (490, 'una_cuenta_de_servicio_no_es_una_persona', false),
+    (491, 'la_planilla_y_las_listas_dejan_fuera_a_las_cuentas_de_servicio', false),
+    (492, 'la_declaracion_de_ruta_se_renueva', false),
+    (493, 'estadisticas_de_casos_para_el_dashboard', false),
+    (494, 'casos_resumen_filtra_por_medianoche_de_lima', false),
+    (495, 'se_repone_el_filtro_de_cuentas_de_servicio', false),
+    (496, 'un_periodo_con_todo_pagado_deja_de_leerse_como_a_medias', false),
+    (499, 'liquidada_es_de_su_cese_actual', false),
+    (501, 'la_rmv_sube_a_1230_y_la_escala_la_sigue', false),
+    (502, 'la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230', false),
+    (503, 'el_archivo_de_la_empresa', false),
+    (504, 'los_practicantes_pasan_de_essalud_a_seguro_privado', false),
+    (505, 'el_feriado_posterior_al_cese_no_corresponde', false),
+    (506, 'un_alta_que_se_parece_a_alguien_pide_confirmacion', false),
+    (507, 'el_alta_de_una_persona_solo_entra_por_fn_crear_persona', false),
+    (508, 'el_rastro_de_correcciones_solo_lo_escriben_las_funciones', false),
+    (509, 'tres_tablas_que_solo_se_escriben_por_sus_funciones', false),
+    (510, 'la_lider_registra_una_falta_de_conducta', false),
+    (511, 'do_toma_el_caso_y_lo_devuelve', false),
+    (512, 'el_dni_no_va_en_el_nombre', false),
+    (513, 'el_alta_pide_el_documento', false),
+    (514, 'las_faltas_se_eligen_por_nombre_corto', false),
+    (515, 'do_se_entera_y_la_lider_tambien', false),
+    (516, 'la_persona_deja_constancia_de_haber_leido', false),
+    (517, 'la_persona_ve_como_va_con_sus_tardanzas', false),
+    (518, 'a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez', false),
+    (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', true),
+    (520, 'el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia', false),
+    (521, 'el_bono_del_practicante_vuelve_a_la_boleta', false),
+    (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false),
+    (524, 'un_estudio_de_educacion_no_tapa_a_otro', false),
+    (525, 'una_aprobacion_de_constancia_se_puede_revertir', false),
+    (527, 'pagar_antes_de_la_fecha_tambien_corre_el_calendario', false),
+    (528, 'los_seguros_del_equipo_entran_al_sistema', false),
+    (529, 'un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion', false),
+    (530, 'mi_seguro_cada_colaborador_ve_su_seguro_y_abre_sus_pdf', false),
+    (531, 'la_politica_de_movilidad_se_firma_con_la_firma_del_sistema', false),
+    (532, 'las_boletas_se_firman_y_una_anulacion_se_restablece', false),
+    (533, 'la_constancia_de_la_boleta_trae_sus_datos', false),
+    (534, 'la_asistencia_por_sede_y_semana', false),
+    (535, 'el_cese_separa_quien_puede_pedirlo_de_como_se_hace', false),
+    (536, 'la_prueba_de_tres_dias', false),
+    (537, 'en_la_prueba_se_paga_lo_trabajado_y_quien_se_retira_no_cobra', false),
+    (538, 'el_dni_de_quien_esta_de_prueba_lo_sube_quien_lo_registra', false),
+    (539, 'el_terminal_sabe_quien_esta_de_prueba', false),
+    (540, 'las_aceptaciones_de_terminos_por_modulo', false),
+    (541, 'levantar_una_tardanza_deja_rastro_en_el_historial', false),
+    (542, 'la_diferencia_de_una_liquidacion_pagada_se_cierra_con_constancia', false),
+    (543, 'vida_ley_es_un_seguro_del_sistema', false),
+    (544, 'una_cuenta_de_servicio_no_queda_en_planilla', false),
+    (548, 'los_avisos_que_fallaron_para_siempre_tienen_salida', false),
+    (549, 'un_pago_unico_ya_sustentado_no_pide_calendario', false),
+    (550, 'una_alerta_solo_se_marca_leida', false),
+    (551, 'los_practicantes_tambien_reciben_las_normas', false),
+    (552, 'los_parametros_tienen_puerta_y_dejan_rastro', false),
+    (553, 'el_periodo_de_prueba_es_una_condicion_del_contrato', false),
+    (554, 'quien_figuraba_de_prueba_pasa_a_planilla', false),
+    (555, 'quien_se_retiro_en_prueba_cobra_lo_que_trabajo', false),
+    (556, 'el_periodo_de_prueba_se_pacta_por_persona', false),
+    (557, 'la_etiqueta_de_prueba_tiene_fecha_de_corte', false),
+    (558, 'quien_paso_a_planilla_sin_contrato_vuelve_a_preseleccion', false),
+    (559, 'vuelven_los_dias_de_preseleccion_en_parametros', false),
+    (560, 'el_aviso_de_un_mes_dice_preseleccion', false),
+    (561, 'la_preseleccion_no_tiene_seguro_y_vuelve_quien_quedo_como_rxh', false),
+    (562, 'cada_persona_se_marca_pagada_sin_tocar_el_cierre_del_grupo', false),
+    (563, 'la_baja_tras_una_reactivacion_ni_se_bloquea_ni_pierde_su_ultimo_dia', false),
+    (564, 'se_puede_acortar_la_asignacion_de_educacion_de_quien_ya_no_esta_activo', false),
+    (565, 'la_liquidacion_lista_lo_que_se_debe_de_periodos_anteriores', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -382,13 +456,18 @@ diff as (
 --   b) El número se anotó pero su contenido quedó SUPERADO por migraciones
 --      posteriores que sí están guardadas → NO commitear el archivo viejo, que
 --      podría crear una sobrecarga y repetir el «function is not unique» de la
---      0297/0299. Se anota el número en `huecos-conocidos.txt` con su razón.
---      Es el caso de la 0393, medido el 2026-09-08.
+--      0297/0299. Se anota en `huecos-conocidos.txt` con su razón y la marca
+--      `[sobra la fila: <nombre>]`: desde entonces sale acá como «ya
+--      explicada» y deja de contar como alarma. Es el caso de la 0393, medido
+--      el 2026-09-08.
 --
 -- Para distinguirlas hay que mirar si lo que esa migración creaba sigue vigente
--- en producción con la misma firma. Cero filas es lo normal.
+-- en producción con la misma firma. Cero filas SIN EXPLICAR es lo normal.
+explicadas(numero, nombre) as (values (393, 'cualquiera_guarda_su_propia_firma')),
 huerfanas as (
-  select a.numero, a.nombre, a.aplicada_at
+  select a.numero, a.nombre, a.aplicada_at,
+         exists (select 1 from explicadas e
+                  where e.numero = a.numero and e.nombre = a.nombre) as explicada
   from migraciones_aplicadas a
   where a.numero >= (select min(numero) from repo)
     and not exists (select 1 from repo r where r.numero = a.numero)
@@ -406,11 +485,14 @@ select * from (
 
   union all
 
-  -- Las huérfanas, una fila cada una y ANTES del resumen. Si hay alguna, es lo
-  -- único que importa de toda esta consulta.
+  -- Las huérfanas, una fila cada una y ANTES del resumen. Si hay alguna sin
+  -- explicar, es lo único que importa de toda esta consulta. Las explicadas se
+  -- siguen viendo —como las que no se pegan—, pero con su razón al lado.
   select a.numero::text,
          a.nombre,
-         '⚠️  SOBRA LA FILA — revísala (ver abajo)',
+         case when a.explicada
+              then '—   sobra la fila, ya explicada (ver scripts/hooks/huecos-conocidos.txt)'
+              else '⚠️  SOBRA LA FILA — revísala (ver abajo)' end,
          to_char(a.aplicada_at, 'DD/MM/YYYY'),
          999997
   from huerfanas a
@@ -425,13 +507,13 @@ select * from (
          (select count(*) filter (where not falta and not nunca_ira) from diff)::text || ' aplicadas · ' ||
          (select count(*) filter (where nunca_ira) from diff)::text || ' que no se pegan · ' ||
          (select count(*) from diff)::text || ' en git' ||
-         case when (select count(*) from huerfanas) > 0
-              then ' · ⚠️ ' || (select count(*) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
+         case when (select count(*) filter (where not explicada) from huerfanas) > 0
+              then ' · ⚠️ ' || (select count(*) filter (where not explicada) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
               else '' end,
-         -- Una huérfana manda sobre todo lo demás: que falte pegar algo es
-         -- atraso normal; que algo esté pegado y sin guardar es lo que costó
-         -- tres sustos y no avisa solo.
-         case when (select count(*) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
+         -- Una huérfana sin explicar manda sobre todo lo demás: que falte pegar
+         -- algo es atraso normal; que algo esté pegado y sin guardar es lo que
+         -- costó tres sustos y no avisa solo.
+         case when (select count(*) filter (where not explicada) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
               when (select count(*) filter (where falta) from diff) = 0
               then '✓   al día' else '❌  hay pendientes' end,
          '', 999999

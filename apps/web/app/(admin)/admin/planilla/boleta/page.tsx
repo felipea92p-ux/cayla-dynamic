@@ -10,8 +10,8 @@ import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { BoletaHoja } from "@/components/boleta-hoja";
 import { MESES_LARGO } from "@/lib/admin/planilla/formato";
-import type { Fila, Proyeccion } from "@/lib/admin/planilla/tipos";
-import { puedeVerPlanilla } from "@cayla-dynamic/shared";
+import type { Fila, Proyeccion, SubvencionPracticante } from "@/lib/admin/planilla/tipos";
+import { nombreOficial, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // Boleta INTERNA de CAYLA: resumen para que la persona vea cómo se calculó su
 // sueldo del mes, e imprimirlo/entregarlo (Ctrl+P → Guardar como PDF). NO es
@@ -44,6 +44,8 @@ function BoletaContenido() {
   const [baseLegal, setBaseLegal] = useState<number | null>(null);
   const [documento, setDocumento] = useState<string | null>(null);
   const [fechaIngreso, setFechaIngreso] = useState<string | null>(null);
+  const [nombreDni, setNombreDni] = useState<string | null>(null);
+  const [subvencionPracticante, setSubvencionPracticante] = useState<SubvencionPracticante | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,7 +65,39 @@ function BoletaContenido() {
       setError(e.message);
       return;
     }
-    setProy(data as unknown as Proyeccion);
+    const proyeccion = data as unknown as Proyeccion;
+    setProy(proyeccion);
+
+    // Los dos beneficios propios de la Ley 28518 (0465/0467) no salen de
+    // fn_proyeccion_periodo — viven en su propia función, `fn_subvenciones_
+    // practicante` (0467), que ya usa Provisiones. Se pide aparte y solo
+    // cuando esta persona es practicante; si falla, la boleta sigue saliendo
+    // sin esas dos líneas — no es un requisito para ver el pago.
+    const filaPersona = proyeccion.filas.find((x) => x.persona_id === personaId);
+    if (filaPersona?.tipo_vinculo === "practicante") {
+      // `as never`: la función nace con la 0467/0485 y los tipos generados de
+      // Supabase no la conocen hasta que la migración esté pegada y se
+      // regeneren — mismo recurso que ya usa provisiones/page.tsx.
+      const { data: sub } = await supabase.rpc("fn_subvenciones_practicante" as never);
+      const filas = (sub as { personas?: unknown[] } | null)?.personas ?? [];
+      const fila0 = (filas as Array<Record<string, unknown>>).find(
+        (x) => x.persona_id === personaId,
+      );
+      setSubvencionPracticante(
+        fila0
+          ? {
+              sinSubvencion: fila0.sin_subvencion as boolean,
+              mediaSubSaldo: fila0.media_sub_saldo as number,
+              semestreHasta: fila0.semestre_hasta as string,
+              descansoSaldo: fila0.descanso_saldo as number,
+              descansoGanado: fila0.descanso_ganado as boolean,
+              descansoCumple: fila0.descanso_cumple as string,
+            }
+          : null,
+      );
+    } else {
+      setSubvencionPracticante(null);
+    }
 
     // La base legal contractual (0103) es un atributo de la PERSONA, no un
     // resultado del cálculo, así que se lee de personas y no de
@@ -83,6 +117,16 @@ function BoletaContenido() {
     // sin ellos — es identificación añadida, no un requisito para ver el pago.
     setDocumento(persona?.documento ?? null);
     setFechaIngreso(persona?.fecha_ingreso ?? null);
+    // El nombre completo del DNI, por el mismo camino y el mismo argumento:
+    // `fn_proyeccion_periodo` arma `nombre` como «nombres apellidos» (el corto,
+    // el del terminal) y no se reescribe una función de pago por un nombre. Si
+    // la lectura falla o la ficha no lo tiene, la boleta cae al corto.
+    const { data: ficha } = await supabase
+      .from("datos_personales")
+      .select("nombre_dni")
+      .eq("persona_id", personaId)
+      .maybeSingle();
+    setNombreDni((ficha?.nombre_dni as string | null | undefined) ?? null);
   }, [periodoId, personaId, router]);
 
   useEffect(() => {
@@ -106,7 +150,7 @@ function BoletaContenido() {
         : "Boleta interna";
   useTituloDocumento(
     proy && filaTitulo
-      ? `${filaTitulo.nombre} — ${tituloDocumento} ${MESES_LARGO[proy.mes_etiqueta - 1]} ${proy.anio_etiqueta}`
+      ? `${nombreOficial(nombreDni, filaTitulo.nombre)} — ${tituloDocumento} ${MESES_LARGO[proy.mes_etiqueta - 1]} ${proy.anio_etiqueta}`
       : null,
   );
 
@@ -183,7 +227,15 @@ function BoletaContenido() {
       </div>
 
       {/* ── Boleta ── */}
-      <BoletaHoja f={f} proy={proy} baseLegal={baseLegal} documento={documento} fechaIngreso={fechaIngreso} />
+      <BoletaHoja
+        f={f}
+        proy={proy}
+        baseLegal={baseLegal}
+        documento={documento}
+        fechaIngreso={fechaIngreso}
+        nombreDni={nombreDni}
+        subvencionPracticante={subvencionPracticante}
+      />
     </main>
   );
 }

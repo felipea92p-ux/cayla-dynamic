@@ -17,7 +17,7 @@ const CHROME: Record<Variante, string> = {
   // hover:bg-* o duration-* acá sería código muerto que nadie vería aplicarse.
   primario: "rounded-control bg-tinta text-crema active:scale-[0.98]",
   secundario:
-    "rounded-control border transition-colors duration-150 hover:border-taupe/40 hover:bg-sand/50 active:scale-[0.98]",
+    "rounded-control border border-borde-control transition-colors duration-150 hover:bg-sand/50 active:scale-[0.98]",
   peligro:
     "rounded-control border border-rojo/30 text-rojo transition-colors duration-150 hover:bg-rojo/10 active:scale-[0.98]",
   // Para acciones de bajo énfasis (marcar/desmarcar, agregar una fila, ver un

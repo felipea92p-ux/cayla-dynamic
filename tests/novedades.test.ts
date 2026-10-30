@@ -87,6 +87,22 @@ describe("la lista real de novedades: lo que no debe existir", () => {
   });
 });
 
+describe("la novedad de Vida Ley en «Mi seguro»", () => {
+  const n = NOVEDADES.find((x) => x.id === "2026-10-22-ya-puedes-ver-tu-seguro-de-vida-ley-en-mi-seguro");
+
+  it("existe, es para todo el equipo y su primer párrafo cuenta lo que SÍ se ve", () => {
+    expect(n).toBeDefined();
+    expect(n!.audiencia).toBe("todos");
+    expect(primerParrafo(n!)).toMatch(/Vida Ley/);
+    expect(primerParrafo(n!)).toMatch(/PDF de tu certificado/);
+  });
+
+  it("no dice que la persona esté cubierta ni habla de la prima, de montos o de beneficiarios", () => {
+    const texto = `${n!.titulo} ${n!.queMejoro}`;
+    expect(texto).not.toMatch(/cubr|cubiert|cobertura|\bprima\b|beneficiari|reclam/i);
+  });
+});
+
 describe("novedadesPara: cada rol ve lo suyo, lo más reciente primero", () => {
   const lista: Novedad[] = [
     nov({ id: "2026-09-10-a", fecha: "2026-09-10", audiencia: "todos" }),
@@ -158,6 +174,9 @@ describe("fechaDeNovedad: el día que se escribió es el que se ve", () => {
 });
 
 describe("el formato del id es UNO: el de la lista y el check de la base no se separan", () => {
+  // Lee el CONTENIDO de todas las migraciones (~490, algunas de 100 KB+). En un
+  // disco lento y con la suite entera en paralelo pasó de los 5 s por defecto
+  // (8,5 s medido en Windows, 2026-09-28) sin que nada estuviera mal.
   it("el patrón de FORMATO_ID_NOVEDAD está, tal cual, en la migración vigente de novedades_vistas", () => {
     // Por CONTENIDO y no por nombre de archivo; y la última que lo define, no
     // cualquiera: si un día otra migración cambia el `check`, esa es la que manda.
@@ -170,7 +189,7 @@ describe("el formato del id es UNO: el de la lista y el check de la base no se s
     const sql = readFileSync(path.join(carpeta, definen[definen.length - 1]), "utf8");
     expect(sql).toContain(`'${FORMATO_ID_NOVEDAD.source}'`);
     expect(sql).toContain(`char_length(novedad_id) <= ${LARGO_MAXIMO_ID_NOVEDAD}`);
-  });
+  }, 30_000);
 
   it("y lo que la base rechaza, el patrón también", () => {
     for (const malo of ["", "Sin-Fecha", "2026-09-19", "2026-09-19-", "2026-09-19-Con-Mayus", "2026-09-19-con espacio", "2026-09-19--doble"]) {

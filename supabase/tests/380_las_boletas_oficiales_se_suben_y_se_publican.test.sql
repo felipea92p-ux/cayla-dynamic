@@ -7,7 +7,7 @@
 -- Lo que hay que proteger acá no es que se pueda insertar una fila: es que
 -- (a) NADIE ve un archivo que no le toca —ni un borrador, ni una versión vieja,
 --     ni la boleta de otra persona—,
--- (b) la constancia de recepción no cae sobre una versión que la persona no vio
+-- (b) la firma (0532; antes, la confirmación) no cae sobre una versión que la persona no vio
 --     y no se borra cuando después cambian el documento,
 -- (c) si cambió el CONTENIDO de una boleta publicada, avisar es obligatorio
 --     aunque DO diga que no,
@@ -16,7 +16,7 @@
 -- (f) todos los grupos reciben boleta, también quien no tiene cuenta.
 -- ============================================================================
 begin;
-select plan(86);
+select plan(87);
 
 -- ── Sedes, personas y periodos ───────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -34,6 +34,12 @@ insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_
 insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, fecha_ingreso, tipo_vinculo, estado, fecha_cese) values
   ('00000000-0000-0000-0000-0000000ea007', 'InactBol', 'Lab', '00000000-0000-0000-0000-0000000e0001', 'integrante', 'x', '2023-01-01', 'planilla', 'inactivo', '2024-01-31');
 set session_replication_role = origin;
+
+-- Desde la 0532 una boleta se da por recibida FIRMÁNDOLA, con la firma que la
+-- persona ya tiene guardada: Ana y la practicante la tienen; Bea no.
+insert into firmas_escaneadas (persona_id, imagen, tipo) values
+  ('00000000-0000-0000-0000-0000000ea002', 'data:image/png;base64,AAAA', 'imagen'),
+  ('00000000-0000-0000-0000-0000000ea005', 'data:image/png;base64,BBBB', 'imagen');
 
 -- P1 pagado para planilla y practicante; P2 sin ninguna fila de pago (= abierto).
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado) values
@@ -205,7 +211,7 @@ select is((select count(*)::int from storage.objects where bucket_id = 'boletas'
   0, 'Bea no abre ningún archivo de Ana');
 reset role;
 
--- ── D · Primera apertura y confirmación, por versión ─────────────────────
+-- ── D · Primera apertura y firma, por versión ─────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb002', true);
 select is((select count(*)::int from fn_boleta_partes(current_setting('t.v1')::uuid)),
   1, 'Ana pide las hojas de su boleta y le llega 1');
@@ -224,15 +230,16 @@ select is((select vista_at from boletas_acuses), '2020-01-01 00:00:00+00'::times
   'y no corre la fecha de la primera apertura');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb003', true);
-select throws_ok($$ select fn_boleta_confirmar_recibo(current_setting('t.v1')::uuid) $$,
-  'P0001', 'Esa boleta no es tuya.', 'Bea no confirma la boleta de Ana');
+select throws_ok($$ select fn_boleta_firmar(current_setting('t.v1')::uuid) $$,
+  'P0001', 'Esa boleta no es tuya.', 'Bea no firma la boleta de Ana');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb002', true);
-select lives_ok($$ select fn_boleta_confirmar_recibo(current_setting('t.v1')::uuid) $$,
-  'Ana confirma que la recibió');
-select is((select recibida_at is not null from boletas_acuses), true, 'queda escrita la confirmación');
-select lives_ok($$ select fn_boleta_confirmar_recibo(current_setting('t.v1')::uuid) $$,
-  'confirmar dos veces no falla');
+select lives_ok($$ select fn_boleta_firmar(current_setting('t.v1')::uuid) $$,
+  'Ana firma su boleta');
+select is((select recibida_at is not null and firma = 'data:image/png;base64,AAAA' from boletas_acuses), true,
+  'queda escrita la firma, copiada de la que tiene guardada');
+select lives_ok($$ select fn_boleta_firmar(current_setting('t.v1')::uuid) $$,
+  'firmar dos veces no falla');
 
 select throws_ok($$ update boletas_acuses set recibida_at = '2001-01-01' $$,
   'P0001', 'La fecha de la confirmación no se corre.', 'ni siquiera desde dentro se corre la fecha de la confirmación');
@@ -264,33 +271,33 @@ select is((select count(*)::int from boletas_acuses), 1,
   'la constancia de la versión 1 sigue ahí, y la 2 empieza sin acuse');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb002', true);
-select throws_ok($$ select fn_boleta_confirmar_recibo(current_setting('t.v1')::uuid) $$,
-  'P0001', 'Tu boleta se actualizó: ábrela de nuevo antes de confirmar.',
-  'confirmar la versión que ya no es la vigente se rechaza: el «recibí» no cae sobre lo que no vio');
+select throws_ok($$ select fn_boleta_firmar(current_setting('t.v1')::uuid) $$,
+  'P0001', 'Tu boleta se actualizó: ábrela de nuevo antes de firmar.',
+  'firmar la versión que ya no es la vigente se rechaza: la firma no cae sobre lo que no vio');
 select is(
   (select version_n::text || ' · vista=' || coalesce(vista_at::text, 'nunca') || ' · recibida=' || coalesce(recibida_at::text, 'nunca')
      from fn_mis_boletas() where periodo_id = '00000000-0000-0000-0000-0000000ef001'),
   '2 · vista=nunca · recibida=nunca', 'Ana ve la versión 2, limpia');
 select is((select actualizada from fn_mis_boletas() where periodo_id = '00000000-0000-0000-0000-0000000ef001'), true,
-  'y su boleta figura «actualizada» mientras no confirme la versión nueva');
+  'y su boleta figura «actualizada» mientras no firme la versión nueva');
 
 -- Solo reordenar: con «no avisar» se conserva la constancia.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb002', true);
-select throws_ok($$ select fn_boleta_confirmar_recibo(
+select throws_ok($$ select fn_boleta_firmar(
     (select v.id from boletas_versiones v join boletas b on b.id = v.boleta_id
       where b.persona_id = '00000000-0000-0000-0000-0000000ea002' and v.n = 2)) $$,
-  'P0001', 'Ábrela con «Ver» antes de confirmar que la recibiste.',
-  'no se confirma recibo de una versión que nunca se abrió (lo exige la base, no solo la pantalla)');
+  'P0001', 'Ábrela con «Ver» antes de firmarla.',
+  'no se firma una versión que nunca se abrió (lo exige la base, no solo la pantalla)');
 select lives_ok($$ select * from fn_boleta_partes(
     (select v.id from boletas_versiones v join boletas b on b.id = v.boleta_id
       where b.persona_id = '00000000-0000-0000-0000-0000000ea002' and v.n = 2)) $$,
   'Ana abre la versión 2');
-select lives_ok($$ select fn_boleta_confirmar_recibo(
+select lives_ok($$ select fn_boleta_firmar(
     (select v.id from boletas_versiones v join boletas b on b.id = v.boleta_id
       where b.persona_id = '00000000-0000-0000-0000-0000000ea002' and v.n = 2)) $$,
-  'Ana confirma la versión 2');
+  'Ana firma la versión 2');
 select is((select actualizada from fn_mis_boletas() where periodo_id = '00000000-0000-0000-0000-0000000ef001'), false,
-  'y al confirmarla, «actualizada» se apaga sola');
+  'y al firmarla, «actualizada» se apaga sola');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb001', true);
 select lives_ok(
   $$ select fn_boleta_guardar_version('00000000-0000-0000-0000-0000000ef001','00000000-0000-0000-0000-0000000ea002','imagen',
@@ -301,7 +308,11 @@ select is((select avisar from boletas_versiones where n = 3), false, 'la versió
 select is(
   (select count(*)::int from boletas_acuses a join boletas_versiones v on v.id = a.version_id
     where v.n = 3 and a.recibida_at is not null),
-  1, 'y hereda la confirmación: el contenido es el mismo');
+  1, 'y hereda la constancia: el contenido es el mismo');
+select is(
+  (select count(*)::int from boletas_acuses a join boletas_versiones v on v.id = a.version_id
+    where v.n = 3 and a.firma = 'data:image/png;base64,AAAA'),
+  1, 'con su firma: sin firma no hay «recibida»');
 
 select throws_ok(
   $$ select fn_boleta_guardar_version('00000000-0000-0000-0000-0000000ef001','00000000-0000-0000-0000-0000000ea002','imagen',
@@ -365,8 +376,8 @@ select is(
     where persona_id = '00000000-0000-0000-0000-0000000ea002' and campo_modificado = 'boletas.estado' and valor_nuevo = 'anulada'),
   1, 'y queda en la auditoría');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb002', true);
-select is((select estado from fn_mis_boletas() where periodo_id = '00000000-0000-0000-0000-0000000ef001'), null,
-  'Ana deja de verla');
+select is((select estado || ' · version=' || coalesce(version_id::text, 'ninguna') from fn_mis_boletas() where periodo_id = '00000000-0000-0000-0000-0000000ef001'), 'anulada · version=ninguna',
+  'Ana ve que su boleta está en revisión, sin versión ni archivos');
 set local role authenticated;
 select is((select count(*)::int from storage.objects where bucket_id = 'boletas'), 0, 'y de abrir sus archivos');
 reset role;
@@ -389,10 +400,10 @@ select is((select fn_boletas_publicar('00000000-0000-0000-0000-0000000ef001', ar
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb005', true);
 select is((select estado from fn_mis_boletas() where periodo_id = '00000000-0000-0000-0000-0000000ef001'), 'publicada',
   'la practicante la ve');
-select throws_ok($$ select fn_boleta_confirmar_recibo(
+select throws_ok($$ select fn_boleta_firmar(
     (select v.id from boletas_versiones v join boletas b on b.id = v.boleta_id
       where b.persona_id = '00000000-0000-0000-0000-0000000ea005')) $$,
-  'P0001', 'Ábrela con «Ver» antes de confirmar que la recibiste.', 'la practicante tampoco confirma sin abrirla');
+  'P0001', 'Ábrela con «Ver» antes de firmarla.', 'la practicante tampoco firma sin abrirla');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb001', true);
 select lives_ok($$ select fn_boleta_marcar_papel('00000000-0000-0000-0000-0000000ef001','00000000-0000-0000-0000-0000000ea006') $$,

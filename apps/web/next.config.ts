@@ -1,8 +1,13 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // La versión de este despliegue, horneada en el navegador al construir. La
+  // compara `components/aviso-version-nueva.tsx` con la que contesta
+  // `/api/version`. Vacía fuera de Vercel: ver lib/version-despliegue.ts.
+  env: {
+    NEXT_PUBLIC_VERSION_DESPLIEGUE: process.env.VERCEL_DEPLOYMENT_ID ?? "",
+  },
 };
 
 export default withSentryConfig(nextConfig, {

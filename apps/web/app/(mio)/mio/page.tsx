@@ -3,25 +3,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  CalendarClock, CalendarDays, Car, FileSignature, GraduationCap, History, IdCard, Inbox, LayoutDashboard,
-  ReceiptText, ScrollText, Target, TreePalm, UserRound,
-} from "lucide-react";
+import { Inbox } from "lucide-react";
 import { ResumenEducacionMia } from "./educacion/resumen";
+import { MiSeguro } from "./seguro/mi-seguro";
 import { BoletasMias } from "./boletas/boletas-mias";
+import { ReportesMios } from "./reportes/reportes-mios";
+import { CambiosMios } from "./cambios-mios";
+import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
+import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
+import { PASOS_GUIA_BOLETAS, PASOS_GUIA_EDUCACION, PASOS_GUIA_MOVILIDAD } from "./guias-de-pago";
+import {
+  PASOS_GUIA_CONTRATO, PASOS_GUIA_DATOS, PASOS_GUIA_DNI, PASOS_GUIA_FIRMA, PASOS_GUIA_SEGURO,
+} from "./guias-de-documentos";
+import { PASOS_GUIA_HISTORIAL, PASOS_GUIA_OBJETIVOS, PASOS_GUIA_REPORTES } from "./guias-de-seguimiento";
+import { SaludoCumpleanos } from "./saludo-cumpleanos";
+import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { NovedadesWidget } from "@/components/novedades-widget";
 import { SelectorTema } from "@/components/selector-tema";
-import { MenuDetalle, type SeccionDetalle } from "@/components/nav/menu-detalle";
+import { MenuDetalle } from "@/components/nav/menu-detalle";
+import { GRUPOS_MIO, TABS, type Tab } from "@/lib/mio-secciones";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Modal } from "@/components/ui/modal";
+import { Rotulo } from "@/components/ui/rotulo";
 import { useToast } from "@/components/toast";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -33,24 +44,29 @@ import {
   urlFirmadaSolicitudPerfil, type CaraDni,
 } from "@/lib/foto-dni";
 import {
-  EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, NIVEL_DISCIPLINARIO_LABELS, formatoMinutos,
+  EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, formatoMinutos,
   ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, VINCULO_DERECHOHABIENTE_LABELS,
   TIPO_VINCULO_LABEL,
 } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
-  esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
+  esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia, esJornadaEnCurso,
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
+import { compartirMientrasVuela } from "@/lib/compartir-mientras-vuela";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
-import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
+import { traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
-import { esBoletaNueva } from "@/lib/boletas";
-import { contarBoletasNuevas, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
+import { esMesDeCumpleanos } from "@/lib/saludos-cumpleanos";
+import { esBoletaPorFirmar } from "@/lib/boletas";
+import { contarBoletasPorFirmar, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
+import { contarSinLeer, traerMisReportes, type FilaMiReporte } from "@/lib/reportes";
 import { formatSoles } from "@/lib/rangos";
+import { direccionDeSeccion, seccionAlLlegar, seccionDeLaDireccion } from "@/lib/seccion-en-la-direccion";
 import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
+import { usePuertaDeModulo } from "@/lib/use-puerta-de-modulo";
+import { PuertaDeModuloVista } from "@/components/mio/puerta-de-modulo";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -116,11 +132,6 @@ import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guia
 interface Yo {
   id: string;
   nombre: string;
-  /** El nombre tal como aparece en el DNI (`datos_personales.nombre_dni`),
-   *  con reserva a `nombre` si todavía no cargó su ficha. Es el que se usa
-   *  para firmar documentos — nunca `nombre` a secas, que es de uso diario
-   *  y puede no coincidir con el oficial (ver FirmaEditor). */
-  nombreOficial: string;
   nombres: string;
   apellidos: string;
   fechaIngreso: string | null;
@@ -179,24 +190,6 @@ interface Revision {
   respuesta: string | null;
 }
 
-/**
- * Una corrección que alguien le aplicó a uno de sus marcajes. Vive en
- * `correcciones_auditoria` desde la 0001; `auditoria_select_propia` ya le deja
- * leer sus propias filas desde la 0003 — nadie lo mostraba, no porque faltara
- * permiso, sino porque ninguna pantalla lo pedía.
- */
-interface Correccion {
-  id: string;
-  campo_modificado: string;
-  valor_anterior: string | null;
-  valor_nuevo: string | null;
-  motivo: string;
-  corregido_at: string;
-  // Puede no haber marcaje asociado (ej. un ajuste de contrato): entonces
-  // PostgREST lo embebe como null, no como error.
-  marcajes: { tipo: string; timestamp_marca: string } | null;
-}
-
 /** Una petición suya de vacaciones. La escribe `fn_solicitar_vacaciones`. */
 interface SolicitudVacacion {
   id: string;
@@ -225,6 +218,8 @@ interface SolicitudDni {
  *  más — ver la cabecera del archivo sobre por qué se filtra siempre por
  *  `persona_id` explícito. */
 interface MisDatos {
+  /** `datos_personales.nombre_dni`: el nombre tal como aparece en el DNI. Ver `nombreOficial`. */
+  nombreDni: string | null;
   documento: string | null;
   tipoVinculo: string;
   conHijos: boolean;
@@ -258,84 +253,73 @@ interface Derechohabiente {
   vidaLey: boolean;
 }
 
-/** Las diez secciones de la pantalla. Ver el comentario de `tab`. */
-type Tab =
-  | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad" | "educacion"
-  | "firma" | "objetivos" | "historial";
+// Las secciones de la pantalla —cuáles son, en qué grupo va cada una, con qué
+// ícono y con qué palabras se buscan— viven en `lib/mio-secciones.ts`.
 
 /**
- * Las mismas diez, con su icono y en el orden en que se leen.
- *
- * Los iconos NO se eligieron sueltos: cada uno es el que el menú del panel
- * (`admin/nav-items.ts`) ya usa para esa misma idea — Turnos, Datos personales,
- * Ausencias, Contratos, Documentación, Objetivos —, así quien ve las dos
- * superficies reconoce la sección sin leer la etiqueta. Las cuatro que el panel
- * no tiene así: «Mis días» y «Historial», que no existen allá como pantalla,
- * «Movilidad» (0423), que allá es una sub-vista de Documentación —junto con la
- * política y el bono— y no una pantalla propia con su propio ícono, y «Tus
- * datos»: el panel junta ficha y DNI en una sola pantalla con `IdCard`, y ese
- * ícono ya lo usa acá «Mi DNI» — se le da uno propio para no repetirlo dentro
- * de la misma pantalla.
+ * Si «Lo mío» ya apareció alguna vez desde que se cargó este documento. Vive
+ * fuera del componente a propósito: tiene que sobrevivir a que la pantalla se
+ * desmonte al abrir un reporte y se vuelva a montar al volver «atrás», y
+ * volver a `false` solo con una carga de página entera. Es lo que distingue
+ * una recarga de un «atrás» que cae en la misma dirección (ver
+ * `esRecargaDeEstaDireccion`).
  */
-const SECCIONES: readonly SeccionDetalle<Tab>[] = [
-  { valor: "resumen", label: "Resumen", Icon: LayoutDashboard },
-  { valor: "dias", label: "Mis días", Icon: CalendarDays },
-  { valor: "turnos", label: "Mis turnos", Icon: CalendarClock },
-  { valor: "dni", label: "Mi DNI", Icon: IdCard },
-  { valor: "datos", label: "Tus datos", Icon: UserRound },
-  { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm },
-  { valor: "contrato", label: "Contrato", Icon: ScrollText },
-  // Las boletas OFICIALES del contador (0482), no la boleta en vivo de
-  // `/mio/boleta`. Icono de recibo: es lo que es, y no repite ninguno del menú.
-  { valor: "boletas", label: "Boletas", Icon: ReceiptText },
-  { valor: "movilidad", label: "Movilidad", Icon: Car },
-  // Mismo ícono que «Educación» en el menú del panel (nav-items.ts).
-  { valor: "educacion", label: "Educación", Icon: GraduationCap },
-  { valor: "firma", label: "Firma", Icon: FileSignature },
-  { valor: "objetivos", label: "Objetivos", Icon: Target },
-  { valor: "historial", label: "Historial", Icon: History },
-];
+let mioYaAparecio = false;
 
 /**
- * El recorrido de primera vez de «Resumen» — Fase 1 (ver CLAUDE.md). Solo esta
- * pestaña: las otras ocho quedan para cuando se sepa si el patrón funciona.
+ * El recorrido de primera vez de «Resumen»: tres pasos (2026-10-19).
  *
- * En el mismo orden en que las tarjetas aparecen en pantalla. Tres de los
- * siete pasos (`mio-resumen-pago`, `-semana`, `-vacaciones`) apuntan a
- * tarjetas que no siempre existen —piden sus propios datos, o dependen de que
- * haya vacaciones pendientes—: `useRecorridoGuiado` los salta solos si no
- * aparecen a tiempo, no hace falta condicionarlos acá.
+ * Eran siete —información, periodo, pago, semana, vacaciones, turno y
+ * objetivos—, y de esos tres apuntaban a tarjetas que no siempre existen
+ * (`-pago`, `-semana`, `-vacaciones`): el contador saltaba de «3 de 7» a «6 de
+ * 7» en una cuenta nueva y se leía como un error. Un recorrido de siete pasos
+ * sobre una pantalla que se explica sola era, además, lo más pesado del
+ * sistema para una persona que acaba de aceptar unos términos.
  *
- * Dos cosas decididas a propósito el 2026-09-12, después de verlo saltar del
- * paso 3 al 6 en una cuenta con menos de un mes (sin ciclo de semana cerrado
- * ni vacaciones que le apliquen todavía) — para que una sesión futura no lo
- * lea como un bug y lo "arregle":
- * - El contador "Paso X de Y" no se recalcula para ocultar el salto. Hacerlo
- *   bien exigiría esperar a que las tarjetas lentas carguen ANTES de arrancar
- *   el recorrido, retrasando el inicio para todo el mundo, no solo para quien
- *   tiene menos tarjetas. El salto es cosmético, no un error.
- * - "Tu semana" y "Tus vacaciones" no se sacan del recorrido ni se explican
- *   por adelantado con una tarjeta que no existe: no le sirven a quien
- *   todavía no las tiene, y explicarlas antes de tiempo confunde más de lo
- *   que ayuda. Si la persona no marca "no volver a mostrar", el recorrido se
- *   las muestra solo el día que le aparezcan de verdad.
+ * Se dejaron los tres que la pantalla NO dice por sí sola: de quién es lo que
+ * ve, que el pago es un estimado y no la boleta, y qué le toca trabajar. Las
+ * demás tarjetas siguen con su ancla `data-tour` por si el recorrido crece; no
+ * cuestan nada, y quitarlas sería deshacer trabajo para volver a hacerlo.
+ *
+ * `-pago` sigue pudiendo no existir (pide sus propios datos): `useRecorridoGuiado`
+ * lo salta solo si no aparece a tiempo, y ahora el contador es de tres, así
+ * que un salto se nota poco. Quien quiera repetirlo tiene «Ver guía».
  */
 const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
   { selector: '[data-tour="mio-resumen-header"]', titulo: "Tu información",
     texto: "Tu nombre, tu cargo y tu sede. Si algo está mal, corrígelo desde «Editar datos»." },
-  { selector: '[data-tour="mio-resumen-periodo"]', titulo: "Tu periodo de pago",
-    texto: "Cuándo cierra tu periodo actual y si te falta algún día por revisar." },
   { selector: '[data-tour="mio-resumen-pago"]', titulo: "Cómo va tu pago",
     texto: "Un estimado en vivo, con lo marcado hasta hoy. No es tu boleta final hasta que cierre el periodo." },
-  { selector: '[data-tour="mio-resumen-semana"]', titulo: "Tu semana",
-    texto: "Cuántas horas llevas trabajadas en tu semana actual." },
-  { selector: '[data-tour="mio-resumen-vacaciones"]', titulo: "Tus vacaciones",
-    texto: "Tus días pendientes, y si alguno está por vencer." },
   { selector: '[data-tour="mio-resumen-turno"]', titulo: "Tu próximo turno",
     texto: "Tu horario y el próximo feriado que le toca a tu sede." },
-  { selector: '[data-tour="mio-resumen-objetivos"]', titulo: "Tus objetivos",
-    texto: "Los conversa contigo tu líder de equipo. Aquí solo ves el avance." },
 ];
+
+/**
+ * Qué secciones tienen guía, y cuál. Una sección que no está aquí no tiene guía
+ * y `usePuertaDeModulo` lo sabe (no hay capa de guía que esperar). Se agregan de
+ * a una, cada una con sus propios pasos y sus anclas `data-tour`; el
+ * identificador del recorrido es `mio-<sección>`, que para Resumen es
+ * `mio-resumen`, la llave que ya existe en los navegadores.
+ */
+const SIN_GUIA: readonly PasoRecorrido[] = [];
+const GUIAS_POR_SECCION: Partial<Record<Tab, readonly PasoRecorrido[]>> = {
+  resumen: PASOS_TOUR_RESUMEN,
+  objetivos: PASOS_GUIA_OBJETIVOS,
+  reportes: PASOS_GUIA_REPORTES,
+  historial: PASOS_GUIA_HISTORIAL,
+  contrato: PASOS_GUIA_CONTRATO,
+  firma: PASOS_GUIA_FIRMA,
+  dni: PASOS_GUIA_DNI,
+  seguro: PASOS_GUIA_SEGURO,
+  datos: PASOS_GUIA_DATOS,
+  boletas: PASOS_GUIA_BOLETAS,
+  movilidad: PASOS_GUIA_MOVILIDAD,
+  educacion: PASOS_GUIA_EDUCACION,
+  dias: PASOS_GUIA_DIAS,
+  turnos: PASOS_GUIA_TURNOS,
+  ausencias: PASOS_GUIA_AUSENCIAS,
+  disciplina: PASOS_GUIA_DISCIPLINA,
+};
 
 /**
  * Lo mínimo para saber si tiene contrato y a dónde llevarla a verlo. El texto
@@ -353,20 +337,6 @@ interface MiContrato {
   fecha_firma: string | null;
 }
 
-/** Fila de `fn_mis_memos()` (0404) — ya filtrada a `estado = 'entregado'`,
- *  nunca un borrador ni uno firmado-pero-no-entregado. */
-interface MiMemo {
-  id: string;
-  correlativo: string | null;
-  tipo_causal: string;
-  nivel: string;
-  entregado_at: string | null;
-  medio_entrega: string | null;
-  firma_sancionado_confirmada_at: string | null;
-  sancionado_rechazo_firma_at: string | null;
-}
-
-const CAUSAL_LABEL_MIO: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -428,77 +398,10 @@ function hora(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-/** Fecha y hora de un timestamp, en Lima: «20 ago, 1:15 p. m.». */
-function fechaYHora(iso: string): string {
-  return new Intl.DateTimeFormat("es-PE", {
-    timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true,
-  }).format(new Date(iso));
-}
-
 /** El día de Lima (YYYY-MM-DD) al que pertenece un timestamp — nunca el UTC
  *  crudo, que puede caer un día antes o después cerca de medianoche. */
 function fechaLimaDeMarca(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date(iso));
-}
-
-// Qué dice `campo_modificado` en `correcciones_auditoria` — vocabulario real,
-// tomado de los `insert` de las migraciones 0009/0010/0081/0084, no inventado.
-// Un campo nuevo que aparezca mañana no rompe nada: cae al fallback de abajo.
-const ETIQUETA_CAMPO: Record<string, string> = {
-  timestamp_marca: "Hora del marcaje",
-  tipo: "Tipo de marcaje",
-  marcaje_agregado: "Marcaje agregado",
-  marcaje_eliminado: "Marcaje eliminado",
-  marcaje_anulado: "Marcaje anulado",
-  marcaje_reactivado: "Marcaje reactivado",
-  auto_cierre_confirmado: "Cierre automático confirmado",
-  marca_apartada: "Un marcaje tuyo que no llegó a registrarse",
-};
-function etiquetaCampo(campo: string): string {
-  return ETIQUETA_CAMPO[campo] ?? campo.replaceAll("_", " ");
-}
-
-/**
- * ⚠ EL ERROR TÉCNICO NO SE LE ENSEÑA A LA PERSONA.
- *
- * `fn_marca_apartada_resolver` (0304) guarda en `valor_anterior` la marca Y el
- * error de Postgres que la apartó, separados por « · ». Eso está bien: DO
- * necesita ese texto para saber por qué el terminal no pudo registrarla.
- *
- * Pero esta pantalla la abre la persona desde su celular, y ahí ese texto salía
- * crudo — media pantalla de «Could not choose the best candidate function
- * between: public.fn_registrar_marcaje(p_persona_id => uuid, …)» en el sitio
- * donde esperaba leer qué pasó con su marcaje del jueves. No es una fuga: es
- * ruido que hace ilegible lo único que sí le importa. Se recorta acá, en la
- * presentación, y no en la base: el dato completo sigue donde tiene que estar.
- */
-function limpiaErrorTecnico(campo: string, valor: string | null): string | null {
-  if (campo !== "marca_apartada" || valor === null) return valor;
-  return valor.split(" · ")[0];
-}
-
-/** «repuesta» / «improcedente» dicho como se lo diría una persona a otra. */
-const RESOLUCION_APARTADA: Record<string, string> = {
-  repuesta: "se registró después, con su hora original",
-  improcedente: "se revisó y no correspondía registrarla",
-};
-// Dos formas reales de valor_anterior/valor_nuevo, tomadas de los mismos
-// insert: un timestamp a secas (`timestamp_marca`), o "tipo @ timestamp"
-// (marcaje_agregado/eliminado/anulado). Las dos traen la hora en su offset
-// crudo (+00), no en hora de Lima — reformatear es lo mismo que hace `hora()`
-// para cualquier otro timestamp de esta pantalla, no un caso aparte.
-function valorLegible(campo: string, valor: string | null): string {
-  if (valor === null) return "—";
-  if (campo === "timestamp_marca") {
-    const d = new Date(valor);
-    return Number.isNaN(d.getTime()) ? valor : fechaYHora(valor);
-  }
-  const conMarca = valor.match(/^(.+) @ (.+)$/);
-  if (conMarca) {
-    const d = new Date(conMarca[2]);
-    if (!Number.isNaN(d.getTime())) return `${conMarca[1]} · ${fechaYHora(conMarca[2])}`;
-  }
-  return valor; // "anulada", "revisada", un tipo de marcaje a secas, etc.
 }
 
 /** «2025-08-14» → «agosto de 2025». Para el «desde cuándo» del perfil. */
@@ -593,7 +496,7 @@ function colorDia(d: Dia): string {
  * ventana de horas del terminal, y esa regla ya vive en un solo sitio.
  */
 function enJornadaAbierta(d: Dia, hoy: string): boolean {
-  return d.fecha === hoy && (d.jornada?.estado === "abierta" || d.jornada?.estado === "en_pausa");
+  return esJornadaEnCurso(d.fecha, hoy, d.jornada?.estado);
 }
 
 function explicaDia(d: Dia): string {
@@ -618,6 +521,15 @@ export default function MioPage() {
   const router = useRouter();
   const [sesion, setSesion] = useState<boolean | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
+  // PRIMERO LO QUE SE VE, DESPUÉS LO QUE SE CUENTA. Abrir /mio disparaba unas 64
+  // consultas a la vez (medido el 2026-10-24), y las que pintan el Resumen —el
+  // periodo, los turnos, los objetivos— esperaban en la misma cola que las que
+  // solo alimentan un globito del menú o una pestaña que todavía nadie abrió.
+  // `segundaOla` se enciende cuando termina lo primero (`cargar`), cuando alguien
+  // sale del Resumen —ya no hay un «primero lo que se ve» que proteger— o a los
+  // 2,5 s si lo primero se atascó. Las lecturas que dependen de ella solo se
+  // POSPONEN: ninguna se quitó, y ninguna cambia lo que dice cuando llega.
+  const [segundaOla, setSegundaOla] = useState(false);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [errorFoto, setErrorFoto] = useState<string | null>(null);
 
@@ -688,7 +600,7 @@ export default function MioPage() {
    *  abajo, nunca el mecanismo (ver la cabecera del archivo). */
   const cargarDni = useCallback(async () => {
     if (!yo?.id) { setDniVigente({ anverso: null, reverso: null }); setSolicitudDni(null); return; }
-    const [ficha, solicitud, campo] = await Promise.all([
+    const [ficha, solicitud] = await Promise.all([
       supabase.from("datos_personales")
         .select("foto_dni_anverso_ruta, foto_dni_reverso_ruta")
         .eq("persona_id", yo.id).maybeSingle(),
@@ -696,18 +608,27 @@ export default function MioPage() {
         .select("estado, creada_at, resuelta_at, motivo")
         .eq("persona_id", yo.id).eq("campo", "foto_dni")
         .order("creada_at", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("catalogo_campos_perfil").select("campo").eq("campo", "foto_dni").maybeSingle(),
     ]);
     setDniVigente({
       anverso: ficha.data?.foto_dni_anverso_ruta ?? null,
       reverso: ficha.data?.foto_dni_reverso_ruta ?? null,
     });
     setSolicitudDni((solicitud.data as SolicitudDni | null) ?? null);
-    setHayCampoDni(campo.data !== null);
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarDni(); }, [cargarDni]);
+  useEffect(() => { if (segundaOla) void cargarDni(); }, [cargarDni, segundaOla]);
+
+  // Si existe el campo «foto_dni» decide si el menú lleva «Mi DNI». Va en la primera ola
+  // y no con el resto de lo del DNI: una fila que aparece en el menú después de pintarlo
+  // mueve lo que hay debajo justo cuando alguien ya iba a hacer clic.
+  useEffect(() => {
+    if (!yo?.id) return;
+    let vivo = true;
+    void supabase.from("catalogo_campos_perfil").select("campo").eq("campo", "foto_dni").maybeSingle()
+      .then(({ data }) => { if (vivo) setHayCampoDni(data !== null); });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id]);
 
   const [misDatos, setMisDatos] = useState<MisDatos | null>(null);
   const [derechohabientes, setDerechohabientes] = useState<Derechohabiente[]>([]);
@@ -725,13 +646,14 @@ export default function MioPage() {
         .select("documento, tipo_vinculo, con_hijos, email, funcion")
         .eq("id", yo.id).maybeSingle(),
       supabase.from("datos_personales")
-        .select("fecha_nacimiento, estado_civil, genero, grado_instruccion, celular, direccion, entidad_bancaria, numero_cuenta, discapacidad, discapacidad_conadis, emergencia_nombre, emergencia_telefono, emergencia_vinculo")
+        .select("nombre_dni, fecha_nacimiento, estado_civil, genero, grado_instruccion, celular, direccion, entidad_bancaria, numero_cuenta, discapacidad, discapacidad_conadis, emergencia_nombre, emergencia_telefono, emergencia_vinculo")
         .eq("persona_id", yo.id).maybeSingle(),
       supabase.from("derechohabientes")
         .select("id, nombres, apellidos, vinculo, documento, fecha_nacimiento, essalud, vida_ley")
         .eq("persona_id", yo.id).order("created_at", { ascending: true }),
     ]);
     setMisDatos({
+      nombreDni: (ficha.data?.nombre_dni as string | null | undefined) ?? null,
       documento: persona.data?.documento ?? null,
       tipoVinculo: persona.data?.tipo_vinculo ?? "",
       conHijos: persona.data?.con_hijos ?? false,
@@ -766,7 +688,13 @@ export default function MioPage() {
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarMisDatos(); }, [cargarMisDatos]);
+  useEffect(() => { if (segundaOla) void cargarMisDatos(); }, [cargarMisDatos, segundaOla]);
+
+  // El nombre que firma es el del DNI, no el de uso diario, con reserva a este por si todavía
+  // no cargó su ficha (mismo criterio que /mio/contrato; ver FirmaEditor). Vacío mientras
+  // `misDatos` no llega: la Firma y las Boletas ya tratan el vacío como «todavía no se puede
+  // firmar», y es mejor eso que firmar un instante con el nombre de uso diario.
+  const nombreOficial = yo && misDatos ? (misDatos.nombreDni || yo.nombre) : "";
 
   /** El bucket es privado —un DNI no se sirve por URL pública, a diferencia del
    *  retrato del terminal—, así que para pintarlas hace falta firmarlas. Se
@@ -910,7 +838,6 @@ export default function MioPage() {
   const [periodo, setPeriodo] = useState<{ fecha_ini: string; fecha_fin: string } | null>(null);
   const [feriados, setFeriados] = useState<{ fecha: string; nombre: string }[]>([]);
   const [revisiones, setRevisiones] = useState<Map<string, Revision>>(new Map());
-  const [correcciones, setCorrecciones] = useState<Correccion[]>([]);
   // ¿Existe ya la tabla de la 0257? Mientras la migración no esté pegada,
   // PostgREST responde con error y pedir una revisión fallaría con un mensaje
   // que no significa nada para quien lo lee. Sin la tabla, ese trozo no sale.
@@ -948,6 +875,8 @@ export default function MioPage() {
    *
    * Las cuatro cifras —periodo de pago, vacaciones, próximo turno, objetivos—
    * viven por eso en «Resumen», que es la sección con la que ABRE la pantalla.
+   * Las novedades del sistema también (2026-10-06): no piden nada, así que no
+   * son «lo que te exige actuar hoy» y no tienen por qué seguirte.
    * Ese detalle es lo que sostiene la otra mitad de la regla: una acción no se
    * esconde nunca detrás de un renglón del menú, y «Pedir vacaciones» sigue
    * siendo de lo primero que se ve al entrar, sin tocar nada. Lo que cambió es
@@ -956,7 +885,20 @@ export default function MioPage() {
    * Si algún día «Resumen» deja de ser la sección inicial, esa acción queda
    * escondida y hay que sacarla de ahí antes.
    */
-  const [tab, setTab] = useState<Tab>("resumen");
+  const [tab, fijarSeccion] = useState<Tab>("resumen");
+
+  // Las secciones que piden sus datos al abrirse (Educación, Mi seguro) se quedan montadas,
+  // escondidas, después de la primera visita. Si se desmontan, cada vuelta a la misma sección
+  // repite sus consultas con un «Cargando…» delante: es lo que se sentía lento al ir y venir
+  // entre secciones. Se conservan hasta que la pantalla se vuelva a abrir, que es lo que ya
+  // pasaba con todas las demás secciones (sus datos se piden una vez por apertura).
+  const [visitadas, setVisitadas] = useState<ReadonlySet<Tab>>(() => new Set<Tab>(["resumen"]));
+  const mostrarSeccion = useCallback((t: Tab) => {
+    fijarSeccion(t);
+    setVisitadas((v) => (v.has(t) ? v : new Set(v).add(t)));
+    // Quien sale del Resumen ya no espera «lo que se ve primero»: se pide el resto sin demora.
+    if (t !== "resumen") setSegundaOla(true);
+  }, []);
 
   // El día abierto desde la cuadrícula. En un teléfono no hay `hover`, así que
   // sin esto los cuadritos de colores son decoración: se ve que el 12 está en
@@ -981,17 +923,50 @@ export default function MioPage() {
     void supabase.auth.getSession().then(({ data }) => setSesion(Boolean(data.session)));
   }, [supabase]);
 
-  // Deep-link: al llegar con ?tab=<sección> (ej. desde la Bandeja, al avisar
-  // de un cambio de turno) abre directo esa sección en vez de Resumen. Mismo
-  // patrón que ?fecha= en Turnos — se valida contra SECCIONES para no dejar
-  // `tab` en un valor que no exista si el enlace viene mal escrito.
+  // La sección vive en la dirección (`?tab=`), y de ahí salen tres cosas que
+  // se pidieron el 2026-10-06 y tiran en direcciones opuestas: un enlace con
+  // ?tab=<sección> —la Bandeja, «← Tus reportes»— abre esa sección; «atrás»
+  // (en el teléfono, el gesto) devuelve a la sección en la que estabas; y
+  // recargar abre SIEMPRE Resumen. La regla y sus dos trampas viven en
+  // `lib/seccion-en-la-direccion.ts`, con sus pruebas.
+  //
+  // Recargar abre Resumen porque es lo único que esta pantalla esconde detrás
+  // de una sección y no debe esconder: las novedades y «Pedir vacaciones» (ver
+  // el comentario de `tab`). Antes la recarga volvía a la última sección
+  // enlazada, y quien llegaba desde un aviso de la Bandeja no las veía más.
   useEffect(() => {
     void (() => {
-      const sp = new URLSearchParams(window.location.search);
-      const t = sp.get("tab");
-      if (t && SECCIONES.some((s) => s.valor === t)) setTab(t as Tab);
+      const carga = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+      const { seccion, reemplazarPor } = seccionAlLlegar({
+        direccion: window.location.href,
+        carga: carga ? { tipo: carga.type, direccion: carga.name } : null,
+        primeraVez: !mioYaAparecio,
+      }, TABS, "resumen");
+      mioYaAparecio = true;
+      mostrarSeccion(seccion);
+      // `null` y no `window.history.state`: Next.js solo se entera del cambio
+      // de dirección si el estado que recibe NO trae ya el suyo.
+      if (reemplazarPor) window.history.replaceState(null, "", reemplazarPor);
     })();
-  }, []);
+    // «Atrás» y «adelante» entre secciones no vuelven a montar la pantalla:
+    // solo cambian la dirección. Hay que leerla de nuevo.
+    const alMoverseEnElHistorial = () =>
+      mostrarSeccion(seccionDeLaDireccion(window.location.href, TABS, "resumen"));
+    window.addEventListener("popstate", alMoverseEnElHistorial);
+    return () => window.removeEventListener("popstate", alMoverseEnElHistorial);
+  }, [mostrarSeccion]);
+
+  /**
+   * Toda forma de cambiar de sección pasa por aquí —el menú, los botones de
+   * Resumen, los avisos de «necesita que hagas algo»—, y cada cambio es un paso
+   * del «atrás». Por eso NO se llama a `mostrarSeccion` directo desde un botón:
+   * la dirección dejaría de decir dónde estás y «atrás» te llevaría a otra parte.
+   */
+  function cambiarSeccion(valor: Tab) {
+    mostrarSeccion(valor);
+    const destino = direccionDeSeccion(window.location.href, valor, "resumen");
+    if (destino !== window.location.href) window.history.pushState(null, "", destino);
+  }
 
   async function entrar(e: FormEvent) {
     e.preventDefault();
@@ -1009,8 +984,10 @@ export default function MioPage() {
   useEffect(() => {
     if (!sesion) return;
     void (async () => {
-      const { data: sesionAuth } = await supabase.auth.getUser();
-      const uid = sesionAuth.user?.id;
+      // Del almacén de la sesión: `getUser()` era una ronda entera al servidor de
+      // autenticación ANTES de poder pedir nada más. La base valida el token en cada consulta.
+      const { data: sesionLocal } = await supabase.auth.getSession();
+      const uid = sesionLocal.session?.user.id;
       if (!uid) { setAviso("No se pudo leer tu sesión. Vuelve a entrar."); return; }
 
       const { data: p } = await supabase
@@ -1024,14 +1001,11 @@ export default function MioPage() {
         return;
       }
       const nombre = `${p.nombres as string} ${p.apellidos as string}`;
-      // Mismo criterio que /mio/contrato: el nombre que firma es el del DNI,
-      // no el de uso diario — con reserva por si todavía no cargó su ficha.
-      const { data: ficha } = await supabase
-        .from("datos_personales").select("nombre_dni").eq("persona_id", p.id as string).maybeSingle();
+      // El nombre oficial (`nombre_dni`) ya no se pide acá: era una tercera ronda en fila
+      // antes de pintar nada, y solo lo usan la Firma y las Boletas. Viaja con `misDatos`.
       setYo({
         id: p.id as string,
         nombre,
-        nombreOficial: (ficha?.nombre_dni as string | null) || nombre,
         nombres: p.nombres as string,
         apellidos: p.apellidos as string,
         fechaIngreso: (p.fecha_ingreso as string | null) ?? null,
@@ -1057,7 +1031,6 @@ export default function MioPage() {
       { data: js, error: errJornadas }, { data: perd }, { data: hs, error: errHs }, { data: ts, error: errTs },
       { data: fl }, { data: objs }, { data: aus }, { data: tipos },
       { data: per }, { data: fer }, { data: revs, error: errRevs },
-      { data: corrs },
     ] = await Promise.all([
       supabase.from("jornadas")
         .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, estado")
@@ -1110,15 +1083,6 @@ export default function MioPage() {
       supabase.from("revisiones_pedidas")
         .select("fecha, comentario, atendida_at, respuesta")
         .eq("persona_id", yo.id),         // ← explícito, como todo lo de acá
-      // Igual que revisiones_pedidas: SIN filtro de fechas y con un límite fijo
-      // en vez de uno por rango. Una corrección de hace dos meses sigue siendo
-      // algo que le pasó a su marcaje; recortarla al mes que mira hoy la
-      // esconde justo del único lugar donde puede enterarse de que existió.
-      supabase.from("correcciones_auditoria")
-        .select("id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_at, marcajes(tipo, timestamp_marca)")
-        .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
-        .order("corregido_at", { ascending: false })
-        .limit(20),
     ]);
 
     // Estas tres alimentan las tarjetas y la cuadrícula de «Tu mes». Si alguna
@@ -1151,11 +1115,18 @@ export default function MioPage() {
     // revisión y todo lo demás sigue igual. Se degrada, no se cae.
     setRevisiones(new Map(((revs as Revision[] | null) ?? []).map((r) => [r.fecha, r])));
     setPuedePedirRevision(!errRevs);
-    setCorrecciones((corrs as unknown as Correccion[] | null) ?? []);
     setCargando(false);
+    setSegundaOla(true);
   }, [supabase, yo, desde, hasta]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // Si lo primero se atasca, lo segundo no espera para siempre.
+  useEffect(() => {
+    if (!yo?.id) return;
+    const t = setTimeout(() => setSegundaOla(true), 2500);
+    return () => clearTimeout(t);
+  }, [yo?.id]);
 
   // Se pide aparte y no dentro del bloque grande: es una sola pregunta, depende
   // solo de quién es, y si falla no debe llevarse por delante el resto de la
@@ -1181,7 +1152,7 @@ export default function MioPage() {
   const [contrato, setContrato] = useState<MiContrato | null>(null);
   const [contratoCargado, setContratoCargado] = useState(false);
   useEffect(() => {
-    if (!yo?.id) return;
+    if (!yo?.id || !segundaOla) return;
     let vivo = true;
     void supabase
       .from("contratos_generados")
@@ -1200,7 +1171,7 @@ export default function MioPage() {
         setContratoCargado(true);
       });
     return () => { vivo = false; };
-  }, [supabase, yo?.id]);
+  }, [supabase, yo?.id, segundaOla]);
 
   // Su propia declaración de ruta (0423). Aparte del bloque grande por la
   // misma razón que `contrato`: depende solo de quién es. `p_solo_mi_fila =>
@@ -1210,19 +1181,25 @@ export default function MioPage() {
   // comentario CAMBIO 0423 en la migración).
   const [miMovilidad, setMiMovilidad] = useState<{
     estado: "sin_ruta" | "se_nego" | "ok"; ruta_firmada_el: string | null; ruta_desfasada: boolean;
+    ruta_por_renovar?: "incompleta" | "vencida" | null;   // 0492
   } | null>(null);
   const [miMovilidadCargada, setMiMovilidadCargada] = useState(false);
   useEffect(() => {
-    if (!yo?.id) return;
+    if (!yo?.id || !segundaOla) return;
     let vivo = true;
-    void supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }).then(({ data }) => {
+    // Compartida con la Bandeja, que pide la misma fila para contar sus avisos.
+    void compartirMientrasVuela("fn_documentos_tablero:mi_fila",
+      async () => await supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true })).then(({ data }) => {
       if (!vivo) return;
-      type Fila = { estado: "sin_ruta" | "se_nego" | "ok"; ruta_firmada_el: string | null; ruta_desfasada: boolean };
+      type Fila = {
+        estado: "sin_ruta" | "se_nego" | "ok"; ruta_firmada_el: string | null; ruta_desfasada: boolean;
+        ruta_por_renovar?: "incompleta" | "vencida" | null;
+      };
       setMiMovilidad(((data as Fila[] | null) ?? [])[0] ?? null);
       setMiMovilidadCargada(true);
     });
     return () => { vivo = false; };
-  }, [supabase, yo?.id]);
+  }, [supabase, yo?.id, segundaOla]);
 
   // Su bono de cumpleaños (0478). Aparte del bloque grande por la misma razón
   // que la ruta: depende solo de quién es. Qué le toca lo contesta la base
@@ -1230,11 +1207,11 @@ export default function MioPage() {
   // no puede ofrecer algo que el servidor después rechace.
   const [miBono, setMiBono] = useState<MiBono | null>(null);
   useEffect(() => {
-    if (!yo?.id) return;
+    if (!yo?.id || !segundaOla) return;
     let vivo = true;
     void traerMiBono(supabase).then(({ bono }) => { if (vivo) setMiBono(bono); });
     return () => { vivo = false; };
-  }, [supabase, yo?.id]);
+  }, [supabase, yo?.id, segundaOla]);
 
   // Sus boletas OFICIALES, las que entrega el contador (0482). Se traen acá y no
   // dentro de la pestaña porque el globito del menú y el aviso del Resumen tienen
@@ -1256,44 +1233,59 @@ export default function MioPage() {
   // no de forma síncrona; el linter no lo distingue. Mismo permiso que
   // `cargarAvisosDeBandeja`, más abajo.
   useEffect(() => {
-    if (!yo?.id) return;
+    if (!yo?.id || !segundaOla) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void cargarMisBoletas();
-  }, [cargarMisBoletas, yo?.id]);
-  const boletasNuevas = useMemo(() => (misBoletas ? contarBoletasNuevas(misBoletas) : 0), [misBoletas]);
+  }, [cargarMisBoletas, yo?.id, segundaOla]);
+  const boletasPorFirmar = useMemo(() => (misBoletas ? contarBoletasPorFirmar(misBoletas) : 0), [misBoletas]);
 
-  // Sus propios memos disciplinarios ya entregados (0404). Aparte del bloque
-  // grande por la misma razón que `contrato`/`vacas`: depende solo de quién
-  // es. `fn_mis_memos()` ya filtra `estado = 'entregado'` del lado del
-  // servidor — nunca un borrador ni uno firmado-pero-no-entregado, que es
-  // justo lo que el comentario de cabecera de este archivo advierte que
-  // `exp_select_propia` por sí sola no evita.
-  const [misMemos, setMisMemos] = useState<MiMemo[]>([]);
-  const cargarMisMemos = useCallback(async () => {
-    if (!yo?.id) { setMisMemos([]); return; }
-    const { data } = await supabase.rpc("fn_mis_memos");
-    setMisMemos((data as MiMemo[] | null) ?? []);
+  // Sus reportes (0488): igual que las boletas, se leen aquí y no en la
+  // pestaña, para que el globito del menú se vea antes de abrirla.
+  const [misReportes, setMisReportes] = useState<FilaMiReporte[] | null>(null);
+  const [misReportesError, setMisReportesError] = useState<string | null>(null);
+  const cargarMisReportes = useCallback(async () => {
+    const r = await traerMisReportes(supabase);
+    if (r.error) { setMisReportesError(r.error); return; }
+    setMisReportesError(null);
+    setMisReportes(r.filas);
+  }, [supabase]);
+  useEffect(() => {
+    if (!yo?.id || !segundaOla) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void cargarMisReportes();
+  }, [cargarMisReportes, yo?.id, segundaOla]);
+  const reportesSinLeer = useMemo(() => (misReportes ? contarSinLeer(misReportes) : 0), [misReportes]);
+
+  // Su disciplina: lo entregado, lo enviado a su Info que todavía no recibió, y cómo va
+  // este mes con sus tardanzas (0516, 0517). UNA sola lectura para la sección, el contador
+  // del menú y las tarjetas del Resumen: escrita tres veces, un día el número y la lista
+  // dirían distinto. La base filtra del lado del servidor —nunca un borrador ni uno firmado
+  // y sin enviar—, que es justo lo que `exp_select_propia` por sí sola no evita (ver el
+  // comentario de cabecera de este archivo).
+  //
+  // Las dos son tolerantes por separado: si «cómo vas» falla, la lista se ve igual; si falla
+  // la lista, se dice, y no se pinta «no tienes nada» sobre algo que no se pudo mirar.
+  const [miDisciplina, setMiDisciplina] = useState<DocMio[] | null>(null);
+  const [miDisciplinaError, setMiDisciplinaError] = useState(false);
+  const [miCuenta, setMiCuenta] = useState<CuentaMia | null>(null);
+  const cargarMiDisciplina = useCallback(async () => {
+    if (!yo?.id) { setMiDisciplina(null); setMiCuenta(null); return; }
+    const [{ data, error }, { data: cuenta }] = await Promise.all([
+      supabase.rpc("fn_mi_disciplina"),
+      supabase.rpc("fn_mi_cuenta_de_tardanzas", {}),
+    ]);
+    setMiCuenta((cuenta as unknown as CuentaMia | null) ?? null);
+    if (error) { setMiDisciplinaError(true); return; }
+    setMiDisciplinaError(false);
+    setMiDisciplina(((data as unknown as { documentos?: DocMio[] } | null)?.documentos) ?? []);
   }, [supabase, yo?.id]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarMisMemos(); }, [cargarMisMemos]);
+  useEffect(() => { if (segundaOla) void cargarMiDisciplina(); }, [cargarMiDisciplina, segundaOla]);
 
-  // El criterio vive en lib/bandeja-mia.ts, que es de donde sale también el
-  // número del botón «Bandeja». Escrito dos veces, un día uno de los dos
-  // dejaría de contar los verbales y el recuadro y el número dirían distinto.
-  const memosPorFirmar = useMemo(() => misMemos.filter(esMemoPorFirmar), [misMemos]);
-
-  async function firmarMemo(id: string) {
-    const { error } = await supabase.rpc("fn_firmar_memo_como_sancionado", { p_id: id });
-    if (error) { avisar("error", mensajeDeError(error, "firmar el memo")); return; }
-    avisar("ok", "Firma guardada en el memo.");
-    void cargarMisMemos();
-  }
-  async function rechazarFirmaMemo(id: string) {
-    const { error } = await supabase.rpc("fn_rechazar_firma_memo", { p_id: id });
-    if (error) { avisar("error", mensajeDeError(error, "registrar tu respuesta")); return; }
-    avisar("ok", "Quedó anotado que prefieres no firmar digitalmente.");
-    void cargarMisMemos();
-  }
+  // Lo que le pide algo: recibir lo enviado a su Info, o leer lo entregado en papel.
+  const memosPorRecibir = useMemo(() => (miDisciplina ?? []).filter((d) => d.estado === "por_recibir"), [miDisciplina]);
+  const memosPorLeer = useMemo(() => (miDisciplina ?? []).filter(porLeer), [miDisciplina]);
+  const disciplinaPide = useMemo(() => cuantosPiden(miDisciplina ?? []), [miDisciplina]);
 
   // Sus propias solicitudes de vacaciones. Aparte del bloque grande de arriba
   // por la misma razón que `vacas`: depende solo de quién es, no del rango de
@@ -1309,7 +1301,7 @@ export default function MioPage() {
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarSolicitudesVacas(); }, [cargarSolicitudesVacas]);
+  useEffect(() => { if (segundaOla) void cargarSolicitudesVacas(); }, [cargarSolicitudesVacas, segundaOla]);
 
   // Cuántos avisos le esperan en la Bandeja: lo que le falta hacer (su contrato
   // sin firmar, un documento por firmar, una constancia de ley, sus días con el
@@ -1331,7 +1323,7 @@ export default function MioPage() {
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarAvisosDeBandeja(); }, [cargarAvisosDeBandeja]);
+  useEffect(() => { if (segundaOla) void cargarAvisosDeBandeja(); }, [cargarAvisosDeBandeja, segundaOla]);
 
   /** Pedir un rango de vacaciones. No dice si alcanza el saldo: eso lo decide
    *  el servidor con el mismo cálculo que ya se le muestra arriba. */
@@ -1463,7 +1455,7 @@ export default function MioPage() {
    * media altura de una sección que ya no es la que estás mirando.
    */
   function elegirSeccion(valor: Tab) {
-    setTab(valor);
+    cambiarSeccion(valor);
     requestAnimationFrame(() => {
       const el = document.getElementById("detalle");
       if (el && el.getBoundingClientRect().top < 0) {
@@ -1476,24 +1468,38 @@ export default function MioPage() {
   // migración no esté pegada, esa sección no se ofrece (mismo criterio que ya
   // usaba la pestaña).
   //
-  // «Boletas» lleva el globito con las publicadas que aún no abrió: sale de la
+  // «Boletas» lleva el globito con las publicadas que aún no firmó: sale de la
   // misma lectura que pinta la pestaña (`misBoletas`), no de una cuenta aparte.
-  const secciones = useMemo(
-    () => SECCIONES
-      .filter((s) => s.valor !== "dni" || hayCampoDni)
-      .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s)),
-    [hayCampoDni, boletasNuevas],
+  const grupos = useMemo(
+    () => GRUPOS_MIO.map((g) => ({
+      ...g,
+      secciones: g.secciones
+        .filter((s) => s.valor !== "dni" || hayCampoDni)
+        .map((s) => (s.valor === "boletas" && boletasPorFirmar > 0 ? { ...s, contador: boletasPorFirmar } : s))
+        .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s))
+        .map((s) => (s.valor === "disciplina" && disciplinaPide > 0 ? { ...s, contador: disciplinaPide } : s)),
+    })),
+    [hayCampoDni, boletasPorFirmar, reportesSinLeer, disciplinaPide],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
   // el hook solo necesita saber SI ya hay una persona cargada, no memorizar el
   // objeto entero — comparado por referencia, `yo` cambia en cada refetch
   // aunque los datos sean los mismos, y reiniciaría el efecto sin motivo.
-  useRecorridoGuiado("mio-resumen", PASOS_TOUR_RESUMEN, tab === "resumen" && Boolean(yo));
+  //
+  // «Términos primero, guía después» (2026-10-19): la guía solo arranca cuando
+  // `capaActiva` dice que le toca — es decir, cuando ya no hay unos términos por
+  // delante. Con todos los textos en borrador (hoy) no los hay y esto es
+  // exactamente lo de antes. Ver lib/use-puerta-de-modulo.ts.
+  const pasosDeGuia = GUIAS_POR_SECCION[tab] ?? SIN_GUIA;
+  const puerta = usePuertaDeModulo(tab, pasosDeGuia.length > 0, Boolean(yo));
+  const { iniciar: verGuia } = useRecorridoGuiado(
+    `mio-${tab}`, pasosDeGuia, Boolean(yo) && puerta.capa === "guia",
+  );
 
   /** Desde un aviso de arriba hasta el día concreto del que habla. */
   function abrirDia(fecha: string) {
-    setTab("dias");
+    cambiarSeccion("dias");
     setDiaAbierto(fecha);
     setComentario("");
     setAvisoRevision(null);
@@ -1641,7 +1647,7 @@ export default function MioPage() {
         clave: "vacaciones",
         texto: `Tus vacaciones más antiguas vencen el ${diaYMes(vacas.vence_el)}`,
         detalle: `Te quedan ${vacas.dias_pendientes} días sin tomar. Después de esa fecha esos días ya no se pueden tomar como descanso.`,
-        ir: () => { setTab("ausencias"); irArriba(); },
+        ir: () => { cambiarSeccion("ausencias"); irArriba(); },
       });
     }
     // El bono de cumpleaños: solo cuando pedirlo es posible. Un «ya lo pediste»
@@ -1653,24 +1659,34 @@ export default function MioPage() {
         detalle: `${miBono?.monto != null ? `${formatSoles(miBono.monto)}. ` : ""}${
           miBono?.estado === "vencido"
             ? "Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo."
-            : "Es el mes de tu cumpleaños: pídelo y se suma a tu boleta."}`,
+            : "Es el mes de tu cumpleaños: pídelo firmando tu constancia."}`,
         ir: () => router.push("/mio/cumpleanos"),
       });
     }
     // Genérica a propósito: ni el nivel ni el motivo de la sanción van acá.
     // Esta tarjeta puede verla de reojo cualquiera que pase cerca de la
-    // pantalla — el detalle recién se ve al entrar al documento mismo.
-    if (memosPorFirmar.length > 0) {
-      const n = memosPorFirmar.length;
+    // pantalla — el detalle recién se ve al abrir el documento, en Disciplina.
+    if (memosPorLeer.length > 0) {
+      const n = memosPorLeer.length;
       out.push({
         clave: "memos",
-        texto: `Tienes ${n} documento${n === 1 ? "" : "s"} por revisar y firmar`,
-        ir: () => { setTab("historial"); irArriba(); },
+        texto: `Tienes ${n} documento${n === 1 ? "" : "s"} por leer`,
+        ir: () => { cambiarSeccion("disciplina"); irArriba(); },
+      });
+    }
+    // Uno por documento, y no «tienes N»: cada uno se abre por su cuenta y lo
+    // que se confirma es ESE documento. Genérico igual que el de arriba.
+    for (const m of memosPorRecibir) {
+      out.push({
+        clave: `memo-recibir:${m.id}`,
+        texto: "Tienes un documento por recibir",
+        detalle: "Ábrelo, léelo y confirma que lo recibiste. Recibirlo no es aceptar lo que dice: puedes firmarlo o recibirlo sin firmar.",
+        ir: () => router.push(`/mio/memo/${m.id}`),
       });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, pendientesRevision, vacas, memosPorFirmar, miBono]);
+  }, [resumen, respondidas, pendientesRevision, vacas, memosPorLeer, memosPorRecibir, miBono]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -1715,7 +1731,10 @@ export default function MioPage() {
     // pegajosa de arriba que abre el cajón.
     <div className="flex min-h-screen flex-col bg-crema text-tinta md:flex-row">
       <MenuDetalle
-        secciones={secciones}
+        grupos={grupos}
+        // Su propia memoria de grupos cerrados, no la del panel: los dos
+        // menús tienen un «Pago» y una «Asistencia» con cosas distintas.
+        memoriaGrupos="cayla-mio-grupos-cerrados"
         activo={tab}
         onSel={elegirSeccion}
         etiqueta="Secciones de tu perfil"
@@ -1727,23 +1746,19 @@ export default function MioPage() {
         // ve: crema sobre rojo da 4.83:1 en claro y 4.70:1 en oscuro, medido
         // como se pinta. El mismo enlace vive en la tarjeta para escritorio,
         // donde esta barra no existe.
-        //
-        // El tema va a su izquierda, en el mismo grupo: es lo que hace la
-        // cabecera del panel (tema arriba a la derecha), y en teléfono la
-        // tarjeta queda bajo el pliegue, que es justo donde estaba.
-        accion={
-          <div className="flex shrink-0 items-center gap-2">
-            <SelectorTema />
-            {yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
-              <Link
-                href="/admin/dashboard"
-                className="whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97]"
-              >
-                Volver al panel
-              </Link>
-            )}
-          </div>
-        }
+        accion={yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
+          <Link
+            href="/admin/dashboard"
+            className="whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97]"
+          >
+            Volver al panel
+          </Link>
+        )}
+        // El tema estaba a la izquierda de «Volver al panel», en la barra. Desde
+        // el 2026-10-06 va en la cabecera del cajón: se cambia una vez, y en la
+        // barra le quitaba al nombre de la sección el espacio para quedar al
+        // centro. En escritorio sigue en la tarjeta, como siempre.
+        accionCajon={<SelectorTema />}
         // «Salir» vive al pie del menú —cajón en teléfono, columna en
         // escritorio— y no en la tarjeta: es donde el panel tiene «Cerrar
         // sesión». Manda a /admin/login en vez de dejar el formulario de esta
@@ -1797,6 +1812,16 @@ export default function MioPage() {
                 <p className="mt-0.5 text-xs text-taupe">
                   En CAYLA desde {mesYAnio(yo.fechaIngreso)} · {antiguedad(yo.fechaIngreso)}
                 </p>
+              )}
+              {/* Para quien omitió la guía y la quiere de nuevo. Un texto y no un botón:
+                  es una ayuda, no una acción de esta pantalla. Es el ÚNICO enlace de «Ver
+                  guía»: esta cabecera se ve en todas las secciones, `verGuia` lanza la de
+                  la que se está mirando, y en una sección sin guía no sale. */}
+              {yo && pasosDeGuia.length > 0 && (
+                <button type="button" onClick={verGuia}
+                  className="mt-1 text-xs text-taupe underline underline-offset-2 transition-colors hover:text-tinta">
+                  Ver guía de esta pantalla
+                </button>
               )}
             </div>
           </div>
@@ -1866,7 +1891,7 @@ export default function MioPage() {
               </Link>
             )}
             {yo && (
-              <Link href="/mio/editar"
+              <Link href="/mio/editar" data-tour="mio-editar-datos"
                 className="flex items-center justify-center whitespace-nowrap rounded-control border border-sand px-3 py-2 text-sm text-tinta transition-colors hover:bg-hueso">
                 Editar datos
               </Link>
@@ -1888,11 +1913,28 @@ export default function MioPage() {
           salarial y a PODER PROBARLO, y el reglamento interno igual. Un acuse
           que no le llega a su destinataria no prueba nada. */}
       <AcusesPendientes />
+      <PuertaDeModuloVista puerta={puerta} onSalir={() => cambiarSeccion("resumen")} />
+
+      {/* El mes de su cumpleaños, del día 1 al último y en cualquier sección,
+          para TODO el mundo — también para quien la base le contestaba
+          `no_aplica` al bono, que es el caso que se quedaba en silencio
+          (Daniel Ruiz, oct-2026). Arriba y no dentro de «Resumen»: ahí quedaba
+          debajo de las novedades y de «Necesita que hagas algo», fuera de la
+          primera vista. Solo el acuse va antes, por la razón escrita arriba. */}
+      {yo && miBono && esMesDeCumpleanos(miBono, hoyLima()) && (
+        <SaludoCumpleanos nombre={yo.nombres.split(" ")[0]} bono={miBono} hoy={hoyLima()} />
+      )}
 
       <AnunciosWidget />
 
-      {/* Lo que mejoró en el sistema. No pide nada: se entiende y desaparece. */}
-      <NovedadesWidget />
+      {/* Lo que mejoró en el sistema. No pide nada: se entiende y desaparece.
+          Por eso vive SOLO en «Resumen» (2026-10-06) y no arriba de todas las
+          secciones como los acuses y los anuncios: no tiene fecha ni exige
+          actuar, así que cae en la otra mitad de la regla de `tab` — quien
+          elige «Mis turnos» pide ver sus turnos, no cuatro tarjetas sobre el
+          terminal. Una pendiente sigue esperando en «Resumen», que es la
+          sección con la que abre la pantalla. */}
+      {tab === "resumen" && <NovedadesWidget />}
 
       {aviso && <div className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-4 text-sm">{aviso}</div>}
 
@@ -1965,15 +2007,19 @@ export default function MioPage() {
         // DESPUÉS del ancla `#detalle` (regla de hermandad en globals.css), y
         // esta vive antes.
         <div className="entra-seccion mb-6 grid gap-3 sm:grid-cols-2">
-          {/* Una boleta oficial publicada y sin abrir. Solo aparece mientras haya
-              una: en cuanto se abre, `vista_at` queda escrito y esto se va. Lleva
-              a «Boletas», no a `/mio/boleta` (esa es la boleta en vivo). */}
-          {boletasNuevas > 0 && misBoletas && (
+          {/* Una boleta oficial publicada y sin firmar. Solo aparece mientras haya
+              una: en cuanto se firma (0532), esto se va. Lleva a «Boletas», no a
+              `/mio/boleta` (esa es la boleta en vivo). */}
+          {boletasPorFirmar > 0 && misBoletas && (
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4 text-sm sm:col-span-2">
               <p className="text-tinta">
-                {boletasNuevas === 1
-                  ? `Tu boleta de ${nombreDelPeriodo(misBoletas.find(esBoletaNueva)!.fecha_fin, { minuscula: true })} ya está disponible.`
-                  : `Tienes ${boletasNuevas} boletas nuevas.`}
+                {boletasPorFirmar === 1
+                  ? (() => {
+                      const f = misBoletas.find(esBoletaPorFirmar)!;
+                      const mes = nombreDelPeriodo(f.fecha_fin, { minuscula: true });
+                      return f.vista_at ? `Tu boleta de ${mes} espera tu firma.` : `Tu boleta de ${mes} ya está disponible: ábrela y fírmala.`;
+                    })()
+                  : `Tienes ${boletasPorFirmar} boletas por firmar.`}
               </p>
               <button onClick={() => elegirSeccion("boletas")}
                 className="min-h-11 text-tinta underline underline-offset-2 hover:text-rojo-profundo">
@@ -1983,7 +2029,7 @@ export default function MioPage() {
           )}
           {/* El periodo de pago. Sin montos: la boleta vive en su propia pantalla
               porque es un documento que se imprime, y el print de esta imprimiría
-              las quince secciones de arriba con él. */}
+              las dieciséis secciones de arriba con él. */}
           {periodo && estadoDelPeriodo ? (
             <TarjetaClave
               dataTour="mio-resumen-periodo"
@@ -2020,7 +2066,7 @@ export default function MioPage() {
                 : "Días pendientes de tomar."}
               alerta={(vacas.dias_para_vencer ?? 999) <= 60 && vacas.records_sin_gozar > 0}
               accion={
-                <button onClick={() => { setTab("ausencias"); irArriba(); }}
+                <button onClick={() => { cambiarSeccion("ausencias"); irArriba(); }}
                   className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
                   Pedir vacaciones →
                 </button>
@@ -2040,18 +2086,18 @@ export default function MioPage() {
               pie={miBono.estado === "pedido"
                 ? `Lo pediste el ${diaYMes(miBono.pedido_el!)}. Desarrollo Organizacional te lo transfiere y aquí verás la fecha.`
                 : miBono.estado === "en_boleta"
-                  ? `Ya está en tu boleta${miBono.periodo_fin ? ` del periodo que cierra el ${diaYMes(miBono.periodo_fin)}` : ""} y se paga junto con tu planilla.`
+                  ? `Ya está en tu boleta${miBono.periodo_fin ? ` del periodo que cierra el ${diaYMes(miBono.periodo_fin)}` : ""} y se paga junto con ${misDatos?.tipoVinculo === "practicante" ? "tu subvención" : "tu planilla"}.`
                   : miBono.estado === "entregado"
                     // Por la boleta no hay «día en que se transfirió»: la
                     // planilla no lo guarda por persona, solo el periodo.
                     ? miBono.via === "boleta"
-                      ? `Pagado con tu planilla${miBono.periodo_fin ? ` del periodo que cerró el ${diaYMes(miBono.periodo_fin)}` : ""}${
+                      ? `Pagado con ${misDatos?.tipoVinculo === "practicante" ? "tu subvención" : "tu planilla"}${miBono.periodo_fin ? ` del periodo que cerró el ${diaYMes(miBono.periodo_fin)}` : ""}${
                           miBono.monto != null ? `: ${formatSoles(miBono.monto)}` : ""}. ¡Feliz cumpleaños!`
                       : `${miBono.pedido_el ? "Transferido" : "Recibido"} el ${miBono.entregado_el ? diaYMes(miBono.entregado_el) : "—"}${
                           miBono.monto != null ? `: ${formatSoles(miBono.monto)}` : ""}. ¡Feliz cumpleaños!`
                     : miBono.estado === "vencido"
                       ? "Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo."
-                      : "Es el mes de tu cumpleaños. Pídelo firmando tu constancia y se suma a tu boleta."}
+                      : "Es el mes de tu cumpleaños. Pídelo firmando tu constancia."}
               alerta={puedePedirBono(miBono)}
               accion={
                 <Link href="/mio/cumpleanos" className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
@@ -2073,7 +2119,7 @@ export default function MioPage() {
               ? `Te toca ${cuando(proximos[0].fecha)}.${feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
               : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo."}
             accion={
-              <button onClick={() => { setTab("turnos"); irArriba(); }}
+              <button onClick={() => { cambiarSeccion("turnos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
                 Ver mis próximos días →
               </button>
@@ -2089,7 +2135,7 @@ export default function MioPage() {
               ? "Los marca tu líder de equipo cuando los conversan."
               : `Todavía no tienes objetivos cargados para ${mesLabel}. Los acuerda contigo tu líder de equipo.`}
             accion={objetivos.length > 0 ? (
-              <button onClick={() => { setTab("objetivos"); irArriba(); }}
+              <button onClick={() => { cambiarSeccion("objetivos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
                 Verlos →
               </button>
@@ -2132,7 +2178,7 @@ export default function MioPage() {
               está porque es el tramo con el que se le paga —del 29 al 28, leído
               de la base y nunca calculado— y es contra el que va a querer cuadrar
               su boleta. */}
-          <section className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-sand px-4 py-3">
+          <section data-tour="mio-dias-filtro" className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-sand px-4 py-3">
             <Campo etiqueta="Desde" type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} />
             <Campo etiqueta="Hasta" type="date" value={hasta} min={desde} max={hoyLima()} onChange={(e) => setHasta(e.target.value)} />
             <div className="flex flex-wrap gap-2">
@@ -2154,7 +2200,7 @@ export default function MioPage() {
               No se pudieron calcular tus días y horas de este rango — ver el aviso de arriba.
             </div>
           ) : (
-            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div data-tour="mio-dias-cifras" className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Tarjeta titulo="Días trabajados" valor={String(resumen.trabajados)}
                 pie={resumen.diasEsperados > 0 ? `de ${resumen.diasEsperados} que te tocaban` : "sin horario cargado"} />
               <Tarjeta titulo="Total de horas" valor={comoReloj(resumen.total)}
@@ -2171,7 +2217,7 @@ export default function MioPage() {
               Un cuadrito por día, con los MISMOS colores que ve su encargada. Que
               las dos vean el mismo día del mismo color es lo que les deja hablar
               de él sin traducirse la una a la otra. */}
-          <section className="mb-5 rounded-2xl border border-sand p-5">
+          <section data-tour="mio-dias-mes" className="mb-5 rounded-2xl border border-sand p-5">
             <h2 className="mb-3 font-serif text-lg">Tu mes</h2>
             {cargando ? <p className="text-sm text-taupe">Cargando…</p>
               : noSePudo.length > 0 ? (
@@ -2384,7 +2430,7 @@ export default function MioPage() {
 
       {/* ── MIS TURNOS ───────────────────────────────────────────────────── */}
       {tab === "turnos" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-turnos-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Cuándo te toca</h2>
           <p className="mb-3 text-sm text-taupe">Tus próximos días de trabajo, de hoy en adelante.</p>
           {proximos.length === 0 ? (
@@ -2392,7 +2438,7 @@ export default function MioPage() {
               No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo.
             </p>
           ) : (
-            <ul className="flex flex-wrap gap-2">
+            <ul data-tour="mio-turnos-proximos" className="flex flex-wrap gap-2">
               {proximos.map(({ fecha, esperado }) => (
                 <li key={fecha}
                   className={`rounded-xl border px-3 py-2 ${fecha === hoyLima() ? "border-tinta bg-papel" : "border-sand"}`}>
@@ -2404,7 +2450,7 @@ export default function MioPage() {
             </ul>
           )}
           {feriados.length > 0 && (
-            <ul className="mt-4 space-y-1 border-t border-sand pt-3 text-sm">
+            <ul data-tour="mio-turnos-feriados" className="mt-4 space-y-1 border-t border-sand pt-3 text-sm">
               {feriados.map((f) => (
                 <li key={f.fecha} className="text-taupe">
                   Feriado: <strong className="text-tinta">{diaYMes(f.fecha)}</strong>, {f.nombre}.
@@ -2426,7 +2472,7 @@ export default function MioPage() {
           pestaña promete—, y nadie entendería por qué su encargada sigue viendo
           la anterior. */}
       {tab === "dni" && hayCampoDni && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-dni-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Tu DNI</h2>
           {/* Quién las ve NO es una frase de relleno: es una promesa sobre un
               documento de identidad, y tiene que decir la verdad. Decía «solo
@@ -2459,7 +2505,7 @@ export default function MioPage() {
           )}
 
           <form onSubmit={(e) => void enviarDni(e)}>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div data-tour="mio-dni-caras" className="grid gap-3 sm:grid-cols-2">
               {CARAS_DNI.map((cara) => {
                 const elegido = dniElegido[cara.clave];
                 const urlGuardada = dniUrls[cara.clave];
@@ -2522,7 +2568,7 @@ export default function MioPage() {
                 se lee acá es lo que se guarda como constancia, palabra por
                 palabra — por eso el texto es una constante y no se arma en el
                 JSX. */}
-            <label className="mt-4 flex items-start gap-2 rounded-xl border border-sand bg-hueso p-3 text-xs leading-relaxed text-tinta">
+            <label data-tour="mio-dni-autorizacion" className="mt-4 flex items-start gap-2 rounded-xl border border-sand bg-hueso p-3 text-xs leading-relaxed text-tinta">
               <input
                 type="checkbox"
                 checked={aceptoDatos}
@@ -2575,7 +2621,7 @@ export default function MioPage() {
           0399 — no se construye el formulario de propuesta acá sin que
           Felipe lo pida. */}
       {tab === "datos" && (
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section data-tour="mio-datos-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tus datos</h2>
           <p className="mb-4 text-taupe">
             Lo que Desarrollo Organizacional tiene registrado de ti. Si algo está mal o falta, avísales — esta
@@ -2584,7 +2630,7 @@ export default function MioPage() {
           {!misDatos ? (
             <p className="text-taupe">Cargando…</p>
           ) : (
-            <div className="space-y-5">
+            <div data-tour="mio-datos-bloques" className="space-y-5">
               <div>
                 <h3 className="mb-2 text-xs font-medium tracking-wide text-taupe uppercase">Identidad</h3>
                 <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
@@ -2708,7 +2754,7 @@ export default function MioPage() {
               empresa debe una indemnización (art. 23 del D. Leg. 713) y la persona
               se quedó sin su descanso — que es lo que de verdad importa acá. */}
           {vacas ? (
-            <section className="mb-5 rounded-2xl border border-sand p-5 text-sm">
+            <section data-tour="mio-ausencias-pedir" className="mb-5 rounded-2xl border border-sand p-5 text-sm">
               <h2 className="mb-3 font-serif text-lg">Pedir vacaciones</h2>
               <p className="mb-3 text-taupe">
                 Tienes <strong className="text-tinta">{vacas.dias_pendientes} días</strong> pendientes. Elige el rango y avisa —tu
@@ -2768,7 +2814,7 @@ export default function MioPage() {
               )}
             </section>
           ) : (
-            <section className="mb-5 rounded-2xl border border-sand p-5 text-sm text-taupe">
+            <section data-tour="mio-ausencias-pedir" className="mb-5 rounded-2xl border border-sand p-5 text-sm text-taupe">
               Todavía no te corresponden vacaciones. Se acumulan por año trabajado; si crees que ya te tocan,
               avísale a Desarrollo Organizacional.
             </section>
@@ -2778,7 +2824,7 @@ export default function MioPage() {
               «El descanso médico que presenté, ¿quedó registrado?» es una pregunta
               que hoy se responde preguntando. Y el aviso del documento que falta la
               protege a ella: sin documento, ese permiso no cuenta igual. */}
-          <section className="rounded-2xl border border-sand p-5">
+          <section data-tour="mio-ausencias-lista" className="rounded-2xl border border-sand p-5">
             {/* Incluye las vacaciones: la vista `vacaciones` no es otra tabla,
                 es un SELECT sobre `ausencias` con tipo='vacaciones'. Consultarla
                 aparte traería las mismas filas dos veces. */}
@@ -2818,7 +2864,7 @@ export default function MioPage() {
           Solo dice si tiene uno y lleva a verlo. El documento en sí —que se
           imprime— vive en /mio/contrato, mismo criterio que la boleta. */}
       {tab === "contrato" && (
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section data-tour="mio-contrato-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tu contrato</h2>
           {!contratoCargado ? (
             <p className="text-taupe">Cargando…</p>
@@ -2844,7 +2890,7 @@ export default function MioPage() {
                   : "Pendiente de firma."}
               </p>
               <Link
-                href="/mio/contrato"
+                href="/mio/contrato" data-tour="mio-contrato-ver"
                 className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
               >
                 Ver mi contrato →
@@ -2854,21 +2900,29 @@ export default function MioPage() {
         </section>
       )}
 
+      {/* ── MI SEGURO (0530) ─────────────────────────────────────────────────
+          En qué seguro está cada colaborador y, si lleva póliza, la póliza y sus
+          PDF. Es de todo el equipo: no se filtra por vínculo. El componente vive
+          aparte, como Educación, y pide sus datos cuando se abre. */}
+      {visitadas.has("seguro") && <div hidden={tab !== "seguro"}><MiSeguro /></div>}
+
       {/* ── BOLETAS (0482) ───────────────────────────────────────────────────
           Las boletas oficiales del contador, por periodo pagado. NO es
           `/mio/boleta` (el cálculo del periodo en curso). El componente vive
           aparte, como Educación, y pinta la lectura de `fn_mis_boletas` que esta
           pantalla ya trajo para el globito del menú. */}
       {tab === "boletas" && (
-        <BoletasMias filas={misBoletas} error={misBoletasError} onRecargar={cargarMisBoletas} />
+        <BoletasMias filas={misBoletas} error={misBoletasError} onRecargar={cargarMisBoletas} miNombre={nombreOficial} />
       )}
+
+      {tab === "reportes" && <ReportesMios filas={misReportes} error={misReportesError} />}
 
       {/* ── MOVILIDAD ────────────────────────────────────────────────────────
           Solo dice si le falta o si quedó desactualizada, y lleva a firmarla.
           El formulario en sí vive en /mio/movilidad, mismo criterio que el
           contrato de arriba. */}
       {tab === "movilidad" && (
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section data-tour="mio-movilidad-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tu declaración de ruta</h2>
           {!miMovilidadCargada ? (
             <p className="text-taupe">Cargando…</p>
@@ -2876,8 +2930,15 @@ export default function MioPage() {
             <p className="text-taupe">Esto no te corresponde por ahora.</p>
           ) : (
             <div>
-              <p className={miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada ? "text-verde" : "text-rojo"}>
-                {miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada
+              <p className={
+                miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada
+                  ? (miMovilidad.ruta_por_renovar ? "text-ambar" : "text-verde")
+                  : "text-rojo"}>
+                {miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada && miMovilidad.ruta_por_renovar === "incompleta"
+                  ? `Firmada el ${diaYMes(miMovilidad.ruta_firmada_el!)}, con la versión corta. Toca renovarla.`
+                  : miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada && miMovilidad.ruta_por_renovar === "vencida"
+                  ? `Firmada el ${diaYMes(miMovilidad.ruta_firmada_el!)}: ya pasó un año. Toca renovarla.`
+                  : miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada
                   ? `Firmada el ${diaYMes(miMovilidad.ruta_firmada_el!)}.`
                   : miMovilidad.estado === "ok"
                     ? "Firmada, pero con una tarifa que ya no es la vigente."
@@ -2886,7 +2947,7 @@ export default function MioPage() {
                       : "Todavía te falta firmarla."}
               </p>
               <Link
-                href="/mio/movilidad"
+                href="/mio/movilidad" data-tour="mio-movilidad-ir"
                 className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
               >
                 Ir a mi declaración de ruta →
@@ -2899,7 +2960,9 @@ export default function MioPage() {
       {/* ── EDUCACIÓN (0450) ─────────────────────────────────────────────────
           Solo dice en qué está su constancia y lleva a subirla. El flujo en
           sí vive en /mio/educacion, mismo criterio que contrato y movilidad. */}
-      {tab === "educacion" && <ResumenEducacionMia />}
+      {visitadas.has("educacion") && (
+        <div hidden={tab !== "educacion"}><ResumenEducacionMia personaId={yo?.id ?? null} /></div>
+      )}
 
       {/* ── FIRMA ────────────────────────────────────────────────────────────
           Mismo componente que usa Felipe en su ficha de Equipo (FirmaEditor:
@@ -2911,14 +2974,16 @@ export default function MioPage() {
           anticipación — en cuanto DO genere el contrato, la firma ya está
           lista sin que haga falta volver a hacer nada. */}
       {tab === "firma" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-firma-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
           <p className="mb-3 text-sm text-taupe">
             Aparecerá en tu contrato de trabajo, en tu propio apartado. Si además firmas documentos por la
             empresa (memos, política salarial), es la misma firma la que se usa ahí.
           </p>
           {yo ? (
-            <FirmaEditor supabase={supabase} nombreOficial={yo.nombreOficial} avisar={avisar} />
+            <div data-tour="mio-firma-editor">
+              <FirmaEditor supabase={supabase} nombreOficial={nombreOficial} avisar={avisar} />
+            </div>
           ) : (
             <p className="text-sm text-taupe">Cargando…</p>
           )}
@@ -2930,7 +2995,7 @@ export default function MioPage() {
           razón por la que valen. Sin lenguaje de premio — desde la 0171 los
           objetivos NO pagan, así que nada de «plus» ni de verde de recompensa. */}
       {tab === "objetivos" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-objetivos-seccion" className="rounded-2xl border border-sand p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-serif text-lg">Tus objetivos de {mesLabel}</h2>
             {objetivos.length > 0 && (
@@ -2947,7 +3012,7 @@ export default function MioPage() {
                 <div className="h-full rounded-full bg-verde"
                   style={{ width: `${Math.round((objCumplidos / objetivos.length) * 100)}%` }} />
               </div>
-              <ul className="space-y-1.5 text-sm">
+              <ul data-tour="mio-objetivos-lista" className="space-y-1.5 text-sm">
                 {objetivos.map((o) => (
                   <li key={o.id} className="flex items-start gap-2">
                     <span className={o.cumplido ? "text-verde" : "text-taupe/50"}>{o.cumplido ? "✓" : "○"}</span>
@@ -2976,100 +3041,29 @@ export default function MioPage() {
 
           Va en la ÚLTIMA pestaña y no arriba: es lo que ya pasó y está resuelto.
           Estaba de tercera sección de la pantalla, ocupándole media vista a algo
-          que se consulta una vez al mes. */}
+          que se consulta una vez al mes.
+
+          Desde el 2026-10-06 vive en `cambios-mios.tsx`: plegado, de a 10 por
+          página y traducido con el mismo `describirCambio` del panel. Antes
+          tenía su propio traductor, que no conocía el horario y lo pintaba
+          como JSON crudo, y un tope de 20 que escondía la 21. */}
+      {/* ── DISCIPLINA ───────────────────────────────────────────────────────
+          Sus memos, el mensaje cuando no hay nada, la constancia de lectura y
+          cómo va este mes (entrega 4, 2026-10-06). Antes los memos vivían al
+          principio de «Historial», que no decía que ahí estaba la disciplina.
+          Todo vive en `disciplina-mia.tsx` y recibe los datos hechos: el menú y
+          el Resumen cuentan lo mismo que esta sección. */}
+      {tab === "disciplina" && yo && (
+        <DisciplinaMia
+          supabase={supabase} personaId={yo.id}
+          docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta}
+          onCambio={() => void cargarMiDisciplina()}
+        />
+      )}
+
       {tab === "historial" && (
         <>
-          {/* Solo visible si tiene al menos un memo entregado — nada que
-              mostrar, nada que ocupe pantalla. `fn_mis_memos()` (0404) ya
-              garantiza que nunca llegue acá un borrador. */}
-          {misMemos.length > 0 && (
-            <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
-              <h2 className="mb-1 font-serif text-lg">Tus memos disciplinarios</h2>
-              <p className="mb-3 text-taupe">
-                Los que ya te entregaron. Firmarlos digitalmente (o dejar constancia de que prefieres no
-                hacerlo) no reemplaza el trámite en físico — es evidencia adicional, con su propia fecha y hora.
-              </p>
-              <ul className="space-y-3">
-                {misMemos.map((m) => {
-                  const puedeFirmar = ["verbal", "amonestacion", "suspension"].includes(m.nivel);
-                  const resuelto = Boolean(m.firma_sancionado_confirmada_at || m.sancionado_rechazo_firma_at);
-                  return (
-                    <li key={m.id} className="border-t border-sand pt-3 first:border-t-0 first:pt-0">
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                        <span className="font-medium">
-                          {NIVEL_DISCIPLINARIO_LABELS[m.nivel as keyof typeof NIVEL_DISCIPLINARIO_LABELS] ?? m.nivel}
-                        </span>
-                        <span className="text-xs text-taupe">
-                          {m.entregado_at ? diaYMes(fechaLimaDeMarca(m.entregado_at)) : "—"}
-                        </span>
-                      </div>
-                      <p className="text-taupe">
-                        {CAUSAL_LABEL_MIO[m.tipo_causal] ?? m.tipo_causal}
-                        {m.correlativo ? ` · ${m.correlativo}` : ""}
-                      </p>
-                      {m.firma_sancionado_confirmada_at && (
-                        <p className="mt-1 text-verde">
-                          Firmaste este documento el {diaYMes(fechaLimaDeMarca(m.firma_sancionado_confirmada_at))}.
-                        </p>
-                      )}
-                      {m.sancionado_rechazo_firma_at && (
-                        <p className="mt-1 text-taupe">
-                          Quedó anotado que preferiste no firmarlo digitalmente, el{" "}
-                          {diaYMes(fechaLimaDeMarca(m.sancionado_rechazo_firma_at))}.
-                        </p>
-                      )}
-                      {!resuelto && puedeFirmar && (
-                        <div className="mt-2 flex flex-wrap items-center gap-3">
-                          <Boton variante="primario" tamano="sm" onClick={() => void firmarMemo(m.id)}>Firmar</Boton>
-                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => void rechazarFirmaMemo(m.id)}>
-                            Prefiero no firmar digitalmente
-                          </Boton>
-                        </div>
-                      )}
-                      {!resuelto && !puedeFirmar && (
-                        <p className="mt-1 text-xs text-taupe">
-                          Este documento se firma en físico o vía notarial — no admite firma digital.
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
-        <section className="rounded-2xl border border-sand p-5 text-sm">
-          <h2 className="mb-1 font-serif text-lg">Correcciones a tus marcajes</h2>
-          <p className="mb-3 text-taupe">
-            Cuando alguien corrige uno de tus marcajes queda anotado acá, con el motivo. Son las 20 más recientes.
-          </p>
-          {correcciones.length === 0 ? (
-            <p className="text-taupe">Nadie ha corregido ningún marcaje tuyo.</p>
-          ) : (
-            <ul className="space-y-3">
-              {correcciones.map((c) => {
-                const antes = limpiaErrorTecnico(c.campo_modificado, c.valor_anterior);
-                const despues = c.campo_modificado === "marca_apartada"
-                  ? RESOLUCION_APARTADA[c.valor_nuevo ?? ""] ?? c.valor_nuevo
-                  : null;
-                return (
-                  <li key={c.id} className="border-t border-sand pt-3 first:border-t-0 first:pt-0">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                      <span className="font-medium">{etiquetaCampo(c.campo_modificado)}</span>
-                      <span className="text-xs text-taupe">{fechaYHora(c.corregido_at)}</span>
-                    </div>
-                    <p className="text-taupe">
-                      {despues !== null
-                        ? <>{valorLegible(c.campo_modificado, antes)} · {despues}</>
-                        : <>{valorLegible(c.campo_modificado, antes)} → {valorLegible(c.campo_modificado, c.valor_nuevo)}</>}
-                      {c.marcajes && <> · marcaje del {diaYMes(fechaLimaDeMarca(c.marcajes.timestamp_marca))}</>}
-                    </p>
-                    <p className="mt-0.5 italic">«{c.motivo}»</p>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+        {yo && <CambiosMios supabase={supabase} personaId={yo.id} />}
 
         {yo && <TusUltimosPeriodos personaId={yo.id} />}
         </>
@@ -3339,7 +3333,7 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
   if (!periodos || periodos.length < 2) return null;   // una tendencia necesita al menos dos puntos
 
   return (
-    <section className="mt-5 rounded-2xl border border-sand p-5 text-sm">
+    <section data-tour="mio-historial-periodos" className="mt-5 rounded-2xl border border-sand p-5 text-sm">
       <h2 className="mb-1 font-serif text-lg">Tus últimos periodos</h2>
       <p className="mb-3 text-taupe">
         Sin montos: un periodo ya cerrado puede tener su foto de pago desactualizada — para eso está tu boleta.
@@ -3369,7 +3363,7 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
 function Tarjeta({ titulo, valor, pie }: { titulo: string; valor: string; pie?: string }) {
   return (
     <div className="rounded-2xl border border-sand px-4 py-3">
-      <div className="etiqueta text-taupe">{titulo}</div>
+      <Rotulo como="div">{titulo}</Rotulo>
       <div className="mt-1 font-serif text-2xl leading-none">{valor}</div>
       {pie && <div className="mt-1 text-[11px] text-taupe">{pie}</div>}
     </div>
@@ -3399,7 +3393,7 @@ function TarjetaClave({
   return (
     <div data-tour={dataTour} className={`flex flex-col rounded-2xl border p-4 ${
       alerta ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand bg-papel"}`}>
-      <div className="etiqueta text-taupe">{titulo}</div>
+      <Rotulo como="div">{titulo}</Rotulo>
       <div className="mt-1 font-serif text-2xl leading-tight">{valor}</div>
       {pie && <p className="mt-1 flex-1 text-xs leading-relaxed text-taupe">{pie}</p>}
       {accion && <div className="mt-3 text-sm font-medium">{accion}</div>}

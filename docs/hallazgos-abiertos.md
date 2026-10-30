@@ -60,17 +60,19 @@ hallazgo original, pero eso no prueba por sí solo que el defecto sobreviva:
 otras dieciséis migraciones tocaron el bloque de sobretiempo desde entonces
 sin que se haya revisado si alguna ya lo neutralizó por otro lado).
 
+**Actualizado el 2026-09-19.** Las cinco filas 🔴 de esta tabla y cuatro viñetas de más abajo ya tienen migración o arreglo en el repositorio (0416, 0417, 0418, 0419, 0283, 0278, 0346 y el CSV rehecho el 15-set): la tabla se escribió el 05-set y nadie la tachó. Están **cerradas en el código, no confirmadas en producción**: la línea PLANILLA de `scripts/sql-manual/que_falta_pegar.sql` dice qué versión de `fn_planilla_calcular` corre de verdad. Antes de dar por abierta CUALQUIER otra fila, contrastarla con `donde-vive.sh` (la última vez, una lista armada solo con esta tabla se equivocó en casi todo).
+
 | Qué | Cuánto | Dónde |
 |---|---|---|
 | ~~**No existe la sobretasa del 100 % por trabajar el día de descanso semanal**~~ ✅ **CERRADO por la 0280** (2026-08-20, ver `CAMBIO 0280` en `fn_planilla_calcular_nucleo`, vigente en la 0349): agrega el lateral `dsw` que paga el recargo del descanso semanal trabajado, excluyendo RxH y sueldo fijo, incluyendo personal de dirección por decisión de Felipe. Verificado leyendo el código vigente, no solo el mensaje de commit | ~~S/44–58 por episodio~~ · cerrado | ~~`fn_planilla_calcular` no lee `turnos` ni una vez~~ |
 | ~~**Un feriado dentro de unas vacaciones se paga dos veces**~~ ✅ **REFUTADO el 2026-09-05** (auditoría dedicada, verificación + refutación adversarial independiente): `fer` no paga "el día completo" del feriado, calcula un PRORRATEO del periodo completo — el mismo patrón que la 0293 ya midió para descanso médico y concluyó explícitamente "no había doble pago que evitar". Esa conclusión se reafirma, textual, en al menos 7 migraciones posteriores (0276, 0302, 0308, 0310, 0338, 0365, 0372): "`vacd` no lo excluye: el feriado se cuenta como día de vacaciones. Simétrico, no se toca." Es decisión de diseño verificada con datos reales, no un descuido | ~~S/51.99 por feriado~~ · refutado | ~~`vacd` no lo excluye y `fer` sí lo paga~~ |
 | ~~**La remuneración vacacional no entra a la base de EsSalud ni de pensión**~~ ✅ **CERRADO el 2026-08-26 por la [0317](../supabase/migrations/0317_la_remuneracion_vacacional_tambien_se_declara.sql)**, y con ella la familia entera: los TRES conceptos que la planilla paga sin marcaje —descanso médico (0263), licencia con goce y duelo directo (0316), vacaciones (0317)— ya se declaran igual. Medido antes de cerrar: quien pasaba el periodo entero de vacaciones cobraba S/3.000 y se le declaraba S/1.130 con básica legal en CERO; ahora declara S/3.223 y su aporte de pensión pasa de S/29 a S/419. Y la simetría que lo confirma: dos personas que faltan los mismos días y cobran lo mismo, una de vacaciones y otra de descanso médico, ahora dan **la misma base exacta**. No le costó un sol a nadie: cero personas con vacaciones en el periodo abierto y cero periodos ya pagados afectados | ~~S/94 + S/43 por persona~~ · cerrado | ~~va a `pago_base` pero no a `pb.basica`~~ |
-| 🔴 Se pagan **ausencias posteriores al cese** — CONFIRMADO ABIERTO 2026-09-05 | S/193.55 medidos | `fn_planilla_calcular_nucleo` (0349): `vacd`/`dmd`/`lic`/`mat` no miran `fecha_cese`; `fn_cesar_persona` (0327) cierra `asignaciones_salario`/`horarios_asignados` al cesar pero NO revisa `ausencias` con fecha posterior — la misma asimetría que deja el hueco |
-| 🔴 **Sueldo fijo cobra el mes íntegro** aunque entre o cese a mitad — CONFIRMADO ABIERTO 2026-09-05 | S/1,306.45 medidos | `fn_planilla_calcular_nucleo` (0349) línea ~1131: `sf.salario` ignora `p_ini`/`p_fin` por completo. Golpea incluso a `fn_liquidacion` (0244), que SÍ pasa `p_fin = fecha_cese` con el comentario "ni un día más" — la rama `sueldo_fijo` lo viola en silencio |
-| 🔴 **Quien cesa sin marcas desaparece** de la planilla y cobra S/0 del mes — CONFIRMADO ABIERTO 2026-09-05 | S/1,509.64 medidos | `fn_planilla_calcular_nucleo` (0349), CTE `pers`: excluye a quien cesó sin ninguna `jornada` ni `movimientos_planilla` ese `periodo_id`. Ya hay un parche en el REPORTE de variación (`fn_que_cambio_respecto_al_mes_pasado`, prueba 255) pero el cálculo real de planilla sigue sin la persona |
+| ~~Se pagan **ausencias posteriores al cese**~~ ✅ **CERRADO EN EL CÓDIGO por la 0418** (2026-09-11; prueba 330; era CONFIRMADO ABIERTO 2026-09-05) — ¿pegada en producción? mirar la línea PLANILLA de `que_falta_pegar.sql` | S/193.55 medidos | `fn_planilla_calcular_nucleo` (0349): `vacd`/`dmd`/`lic`/`mat` no miran `fecha_cese`; `fn_cesar_persona` (0327) cierra `asignaciones_salario`/`horarios_asignados` al cesar pero NO revisa `ausencias` con fecha posterior — la misma asimetría que deja el hueco |
+| ~~**Sueldo fijo cobra el mes íntegro** aunque entre o cese a mitad~~ ✅ **CERRADO EN EL CÓDIGO por la 0417** (2026-09-11; era CONFIRMADO ABIERTO 2026-09-05) — ¿pegada en producción? mirar la línea PLANILLA de `que_falta_pegar.sql` | S/1,306.45 medidos | `fn_planilla_calcular_nucleo` (0349) línea ~1131: `sf.salario` ignora `p_ini`/`p_fin` por completo. Golpea incluso a `fn_liquidacion` (0244), que SÍ pasa `p_fin = fecha_cese` con el comentario "ni un día más" — la rama `sueldo_fijo` lo viola en silencio |
+| ~~**Quien cesa sin marcas desaparece** de la planilla y cobra S/0 del mes~~ ✅ **CERRADO EN EL CÓDIGO por la 0416** (2026-09-11; era CONFIRMADO ABIERTO 2026-09-05) — ¿pegada en producción? mirar la línea PLANILLA de `que_falta_pegar.sql` | S/1,509.64 medidos | `fn_planilla_calcular_nucleo` (0349), CTE `pers`: excluye a quien cesó sin ninguna `jornada` ni `movimientos_planilla` ese `periodo_id`. Ya hay un parche en el REPORTE de variación (`fn_que_cambio_respecto_al_mes_pasado`, prueba 255) pero el cálculo real de planilla sigue sin la persona |
 | ~~**Sin régimen de pensión → aporte cero**~~ ✅ **REFUTADO el 2026-09-11**: la medición del 2026-09-08 no excluía RxH ni practicante — dos vínculos sin obligación de AFP/ONP por diseño (`en_planilla` es `tipo_vinculo in ('planilla','prueba')`, y `descuento_afp` ya se calcula bajo `pe.en_planilla is not true`). Corregida la consulta con `and en_planilla`, en producción hoy: **0 filas** — nadie que esté realmente en planilla está sin régimen asignado. Los "al menos una persona" del 2026-09-08 eran RxH/practicante, no un hueco real | ~~S/160-208/mes~~ · refutado | La UI que faltaba (`tasa_es_del_regimen` visible en Planilla/boleta/`fn_vacaciones_truncas`) sigue sin construirse, pero como mejora preventiva, no como corrección de un caso real de hoy |
-| 🔴 El **sobretiempo pierde el exceso** del ciclo que cruza el borde del periodo — CONFIRMADO ABIERTO 2026-09-05, mecanismo verificado con ejemplo de fechas | S/14–19 (no remedido hoy) | `ot_dias`/`ot_islas`/`ot_ciclos` en `fn_planilla_calcular_nucleo` (0349) siguen leyendo `p_ini - 7`: una racha real de 8+ días que cruza ese borde pierde el exceso del ciclo que cae del lado equivocado. Sin ninguna prueba pgTAP que cubra una racha cruzando el borde |
-| 🔴 La **pantalla de Feriados y la planilla dividen por bases distintas** — CONFIRMADO ABIERTO 2026-09-05 | 3.33–10.7 % de cada sobretasa según el par de meses | `fn_feriados_laborados` (0238, pantalla) sigue usando mes calendario; `fn_feriado_devengado_nucleo` (0349, el que realmente paga) usa el periodo 29→28 desde hace ~15 migraciones. Nunca se reconciliaron |
+| ~~El **sobretiempo pierde el exceso** del ciclo que cruza el borde del periodo~~ ✅ **CERRADO EN EL CÓDIGO por la 0418** (2026-09-11; el corte pasa de 7 a 28 días, y es una constante: se rompe con una racha real de más de 28 días seguidos) — ¿pegada en producción? mirar la línea PLANILLA de `que_falta_pegar.sql`. Era CONFIRMADO ABIERTO 2026-09-05, mecanismo verificado con ejemplo de fechas | S/14–19 (no remedido hoy) | `ot_dias`/`ot_islas`/`ot_ciclos` en `fn_planilla_calcular_nucleo` (0349) siguen leyendo `p_ini - 7`: una racha real de 8+ días que cruza ese borde pierde el exceso del ciclo que cae del lado equivocado. Sin ninguna prueba pgTAP que cubra una racha cruzando el borde |
+| ~~La **pantalla de Feriados y la planilla dividen por bases distintas**~~ ✅ **CERRADO EN EL CÓDIGO por la 0419** (2026-09-11; era CONFIRMADO ABIERTO 2026-09-05) — ¿pegada en producción? mirar la línea PLANILLA de `que_falta_pegar.sql` | 3.33–10.7 % de cada sobretasa según el par de meses | `fn_feriados_laborados` (0238, pantalla) sigue usando mes calendario; `fn_feriado_devengado_nucleo` (0349, el que realmente paga) usa el periodo 29→28 desde hace ~15 migraciones. Nunca se reconciliaron |
 
 **Método de esta reverificación (2026-09-05):** workflow dedicado de 13 agentes —
 uno lee el código vigente por hallazgo, otro intenta refutarlo de forma
@@ -84,13 +86,13 @@ se confirmó el mecanismo razonando sobre el SQL vigente.
 
 ### Confirmado y pendiente · muerde el día que alguien cese
 
-- **Los récords vacacionales ya ganados y no gozados no se pagan nunca.**
+- ~~**Los récords vacacionales ya ganados y no gozados no se pagan nunca.**~~ ✅ **CERRADO por la 0283** (2026-08-22: `fn_vacaciones_truncas` cuenta TODA la vida y paga los récords completos sin gozar). Del récord VENCIDO solo avisa, no lo indemniza: eso sigue abierto (ver «vacaciones vencidas» abajo). Lo que sigue describe el defecto anterior:
   `fn_vacaciones_truncas` arranca en el último aniversario. S/2,243 medidos en un
   caso de tres años. Emparentado con [V1](#v1--la-trunca-de-vacaciones-cobra-dos-veces-los-mismos-días).
 - **La CTS de un semestre cerrado y no depositado desaparece al cesar.**
   S/406.25 por semestre perdido. Población determinista: quien cese entre el 1 y
   el 15 de mayo o de noviembre.
-- **`fn_remuneracion_computable` mete descuentos y la propia gratificación** al
+- ~~**`fn_remuneracion_computable` mete descuentos y la propia gratificación**~~ ✅ **CERRADO por la 0278** (2026-08-22: ni los descuentos ni los beneficios inflan la liquidación; un bono genuino en 3 o más meses del semestre sigue entrando, art. 16 del D.S. 001-97-TR). Lo que sigue describe el defecto anterior — mete descuentos y la propia gratificación al
   promedio de «conceptos variables»: filtra `where mp.monto > 0` sin mirar
   `mp.tipo`. Infla las tres truncas (+S/220.83 de base medidos).
 - **Las truncas se calculan sobre el sueldo de la escala**, no sobre lo percibido.
@@ -105,7 +107,7 @@ se confirmó el mecanismo razonando sobre el SQL vigente.
 
 ### Confirmado y pendiente · gratificación
 
-- **El 9 % de la Ley 30334 no entra en el monto que propone la pantalla.**
+- ~~**El 9 % de la Ley 30334 no entra en el monto que propone la pantalla.**~~ ✅ **CERRADO por la 0346** (2026-09-03: «Bonificación extraordinaria (9%)» sale en su propia línea, con su monto autocalculado, al pagar la gratificación de julio o diciembre). Lo que sigue describe el defecto anterior:
   `fn_grati_cts_periodo` devuelve solo `grati`, no `be`. ~S/59.40 por persona y
   semestre. Atenuante fuerte: la cabecera de la 0134 dice que lo calcula el
   contador. La próxima ocasión es el 15/12/2026.
@@ -126,10 +128,10 @@ se confirmó el mecanismo razonando sobre el SQL vigente.
 - **El deslinde legal nombra «Rendimiento Extraordinario» e «Incentivo Variable
   por Metas»**, conceptos retirados de la tabla a propósito.
 - **El pie promete grati, CTS y vacaciones sin consultar `fn_devenga`.**
-- **El CSV que se le pasa al contador no exporta cuatro de las once partidas** que
+- ~~**El CSV que se le pasa al contador no exporta cuatro de las once partidas**~~ ✅ **CERRADO el 2026-09-15** (`csv-planilla.ts`, commit 58fc4374: sale siempre completo y con todas las partidas que suman al total). Lo que sigue describe el defecto anterior — cuatro de las once partidas que
   componen el `total` que sí exporta: movilidad, educación, sobretiempo y
   descuento de pensión. La fila no cuadra.
-- **El CSV de Exportar saca una columna `horas_extra` que NO es sobretiempo:** es
+- ~~**El CSV de Exportar saca una columna `horas_extra` que NO es sobretiempo**~~ ✅ **CERRADO el 2026-09-15** (el generador actual ya no tiene esa columna). Lo que sigue describe el defecto anterior — la columna era
   `horas_extra_detectadas`, lo que se trabajó por encima del horario de ESE día.
   Toca sobre todo a LIM, cuyo horario programado es de 9 h.
 - **La política salarial publicada cita el art. 8** para la sobretasa del feriado,
@@ -211,6 +213,10 @@ muestra (carril 1: sin SQL, sin reglas, sin textos legales); el resto sigue abie
   renumeración del 15-ago pueden citarlo mal, incluido un antecedente vigente de
   setiembre (no se vio el papel entregado: comprobar con el cargo archivado).
   Dos líneas de código; los papeles ya entregados van a la Consulta 7.
+  ✅ *El código, corregido el 2026-10-06* (`components/disciplina/memo-documento.tsx`:
+  19.2 b) y 21.2 b), y además la falta del 53.2 b) y la gradación del 21.2 a),
+  que el 55.3 también pide). Lo vigila `tests/memo-citas-rit.test.ts`.
+  **Sigue abierto:** los papeles ya entregados con la cita vieja.
 - **El conteo suma tardanzas en días con permiso, licencia o vacaciones
   aprobados**, y el RIT 17.3 y 17.4 c) dicen que no cuentan. Solo se excluye lo
   «levantado» a mano. La 0455 lo dejó así a propósito para tardanzas

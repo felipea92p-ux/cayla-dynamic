@@ -24,10 +24,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, MoreHorizontal, ReceiptText, Search } from "lucide-react";
+import { cx } from "@/components/ui/cx";
+import { Check, ChevronDown, ChevronUp, MoreHorizontal, ReceiptText, Search } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  TIPOS_VINCULO, TIPO_VINCULO_LABEL, hoyLima, puedeVerPlanilla, type TipoVinculo,
+  TIPOS_VINCULO, TIPO_VINCULO_LABEL, hoyLima, puedeMarcarPagoPersona, puedeVerPlanilla, type TipoVinculo,
 } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
@@ -35,12 +36,22 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { accionPrincipalDelPeriodo } from "@/lib/admin/planilla/accion-principal";
 import { Insignia } from "@/components/ui/insignia";
+import { usePruebasPorPersona } from "@/components/pruebas/etiqueta-prueba";
 import { Modal } from "@/components/ui/modal";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
+import { Cifra } from "@/components/ui/cifra";
+import { Filtro } from "@/components/ui/filtro";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
 import { TablaPlanilla } from "@/components/planilla/tabla-planilla";
@@ -57,7 +68,7 @@ import {
 } from "@/lib/admin/planilla/revision";
 import { filasCsvPlanilla } from "@/lib/admin/planilla/csv-planilla";
 import type {
-  Desvio, Fila, GratiCts, GrupoPago, Liquidada, PeriodoInfo, Proyeccion, Variacion,
+  Desvio, EstadoPagoPersona, EventoPagoPersona, Fila, GratiCts, GrupoPago, Liquidada, PeriodoInfo, Proyeccion, Variacion,
 } from "@/lib/admin/planilla/tipos";
 
 // ── Utilidades de esta pantalla ─────────────────────────────────────────────
@@ -104,20 +115,11 @@ interface DatosDelPeriodo {
   liquidadas: Record<string, Liquidada>;
   fechasCese: Record<string, string | null>;
   historial: Reversa[] | null;
-}
-
-// Una tarjeta del resumen: una cifra y su «de cuánto» (criterio de auditoría de pantallas, pregunta 3).
-function Cifra({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; detalle?: string }) {
-  return (
-    <div className="rounded-superficie border border-sand bg-papel px-4 py-3">
-      <p className="text-xs text-taupe">{etiqueta}</p>
-      <p className="mt-0.5 font-serif text-xl tabular-nums text-tinta">{valor}</p>
-      {detalle && <p className="mt-0.5 text-xs text-taupe">{detalle}</p>}
-    </div>
-  );
+  pagos: EstadoPagoPersona[] | null;
 }
 
 export default function PlanillaPage() {
+  const pruebas = usePruebasPorPersona();
   const router = useRouter();
   const rol = useRolActual();
   const puedeVer = puedeVerPlanilla(rol);
@@ -147,6 +149,7 @@ export default function PlanillaPage() {
   const [liquidadas, setLiquidadas] = useState<Record<string, Liquidada>>({});
   const [fechasCese, setFechasCese] = useState<Record<string, string | null>>({});
   const [historial, setHistorial] = useState<Reversa[] | null>(null);
+  const [pagosPersona, setPagosPersona] = useState<EstadoPagoPersona[] | null>(null);
   const [recargando, setRecargando] = useState(false);
   // El error guarda de qué periodo es: uno viejo no puede pintarse sobre el periodo recién elegido.
   const [errorCarga, setErrorCarga] = useState<{ id: string; mensaje: string } | null>(null);
@@ -178,6 +181,8 @@ export default function PlanillaPage() {
 
   // ── Acciones con diálogo ───────────────────────────────────────────────────
   const [revisandoGrupo, setRevisandoGrupo] = useState<TipoVinculo | null>(null);
+  // El detalle de «qué frena / qué revisar» arranca plegado: la franja de arriba ya dice cuántos hay y cuál frena el pago.
+  const [atencionAbierta, setAtencionAbierta] = useState(false);
   const [reabrirModal, setReabrirModal] = useState<TipoVinculo | null>(null);
   const [reabrirMotivo, setReabrirMotivo] = useState("");
   const [repagoModal, setRepagoModal] = useState(false);
@@ -185,6 +190,15 @@ export default function PlanillaPage() {
   const [eliminarModal, setEliminarModal] = useState(false);
   const [eliminarTexto, setEliminarTexto] = useState("");
   const [confirmBulk, setConfirmBulk] = useState(false);
+  // El checklist personal de pago por persona (0562) — nunca el pago oficial del grupo.
+  const [confirmandoPago, setConfirmandoPago] = useState<Fila | null>(null);
+  const [desmarcandoPago, setDesmarcandoPago] = useState<Fila | null>(null);
+  const [desmarcarMotivo, setDesmarcarMotivo] = useState("");
+  const [guardandoPago, setGuardandoPago] = useState(false);
+  const [verHistorialPago, setVerHistorialPago] = useState<Fila | null>(null);
+  const [historialPago, setHistorialPago] = useState<EventoPagoPersona[] | null>(null);
+  const [errorHistorialPago, setErrorHistorialPago] = useState<string | null>(null);
+  const [pagoFiltro, setPagoFiltro] = useState<"todas" | "pendientes" | "pagadas">("todas");
   const [guardandoBulk, setGuardandoBulk] = useState(false);
 
   // ── Simulador (solo lectura, nada se guarda) ───────────────────────────────
@@ -255,7 +269,7 @@ export default function PlanillaPage() {
   // Igual que los periodos: se TRAE sin tocar el estado y se APLICA aparte.
   const traerPeriodo = useCallback(async (id: string): Promise<DatosDelPeriodo> => {
     const { data, error } = await supabase.rpc("fn_proyeccion_periodo", { p_periodo_id: id });
-    if (error) return { id, error: error.message, proy: null, grupos: null, gc: null, liquidadas: {}, fechasCese: {}, historial: null };
+    if (error) return { id, error: error.message, proy: null, grupos: null, gc: null, liquidadas: {}, fechasCese: {}, historial: null, pagos: null };
     const proyeccion = data as unknown as Proyeccion;
     const ids = (proyeccion.filas ?? []).map((f) => f.persona_id);
 
@@ -267,7 +281,9 @@ export default function PlanillaPage() {
     // · La fecha de cese no viaja en la fila del cálculo: se lee de `personas`;
     //   sin ella, la insignia dice «inactiva, sin fecha» en vez de inventar una.
     // · Historial de reaperturas y repagos (reversas_pago, 0066/0323).
-    const [gruposR, gcR, liqR, cesesR, revR] = await Promise.all([
+    // · El checklist personal de pago por persona (fn_pago_personas_estado, 0562) — sin
+    //   esto, la columna «Pagado» no se dibuja; no frena nada más si falla.
+    const [gruposR, gcR, liqR, cesesR, revR, pagosR] = await Promise.all([
       supabase.rpc("fn_periodo_grupos_estado", { p_periodo_id: id }),
       supabase.rpc("fn_grati_cts_periodo", { p_periodo_id: id }),
       supabase.rpc("fn_liquidaciones_del_periodo", { p_periodo_id: id }),
@@ -279,6 +295,7 @@ export default function PlanillaPage() {
         .select("id, revertido_at, motivo, tipo, grupo, personas(nombres, apellidos)")
         .eq("periodo_id", id)
         .order("revertido_at", { ascending: false }),
+      supabase.rpc("fn_pago_personas_estado", { p_periodo_id: id }),
     ]);
 
     const g = (gcR.error ? null : gcR.data) as unknown as {
@@ -299,6 +316,7 @@ export default function PlanillaPage() {
       liquidadas: (liqR.error ? null : (liqR.data as unknown as Record<string, Liquidada> | null)) ?? {},
       fechasCese: Object.fromEntries(((cesesR.data ?? []) as { id: string; fecha_cese: string | null }[]).map((c) => [c.id, c.fecha_cese])),
       historial: revR.error ? null : ((revR.data as unknown as Reversa[] | null) ?? null),
+      pagos: pagosR.error ? null : ((pagosR.data as unknown as EstadoPagoPersona[] | null) ?? null),
     };
   }, [supabase]);
 
@@ -312,6 +330,7 @@ export default function PlanillaPage() {
     setLiquidadas(r.liquidadas);
     setFechasCese(r.fechasCese);
     setHistorial(r.historial);
+    setPagosPersona(r.pagos);
   }, []);
 
   /** Recarga el periodo que se está viendo — después de una escritura. */
@@ -413,18 +432,38 @@ export default function PlanillaPage() {
   const estadoGrupo = useMemo(() => grupos?.find((g) => g.grupo === tab) ?? null, [grupos, tab]);
   const grupoPagado = estadoGrupo?.estado === "pagado";
 
+  // El checklist personal de pago por persona (0562): por persona_id, de TODO el periodo
+  // (como hallazgos/ceses) — cada tabla busca ahí lo suyo por persona_id.
+  const pagosPorPersona = useMemo(
+    () => new Map((pagosPersona ?? []).map((p) => [p.persona_id, p] as const)),
+    [pagosPersona],
+  );
+  // Solo admin, y solo mientras «tab» sigue abierto: una vez congelado el grupo, es de solo lectura.
+  const puedeMarcarPago = puedeMarcarPagoPersona(rol) && !grupoPagado;
+  const resumenPago = useMemo(() => {
+    let marcadas = 0, monto = 0;
+    for (const f of filasGrupo) {
+      const e = pagosPorPersona.get(f.persona_id);
+      if (e?.marcado) { marcadas++; monto += f.total; }
+    }
+    return { marcadas, monto };
+  }, [filasGrupo, pagosPorPersona]);
+  const todosPagadosDelGrupo = filasGrupo.length > 0 && resumenPago.marcadas === filasGrupo.length;
+
   // Filtros: SOLO la tabla.
   const sedes = useMemo(() => Array.from(new Set(filasTodas.map((f) => f.sede))).sort(), [filasTodas]);
   const nombreBuscado = nombreFiltro.trim().normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-  const filtrado = sedeFiltro !== "todas" || nombreBuscado !== "" || soloRevisar;
+  const filtrado = sedeFiltro !== "todas" || nombreBuscado !== "" || soloRevisar || pagoFiltro !== "todas";
   const filasVisibles = useMemo(
     () => filasGrupo.filter((f) =>
       (sedeFiltro === "todas" || f.sede === sedeFiltro)
       && (!nombreBuscado || f.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes(nombreBuscado))
-      && (!soloRevisar || (hallazgos.get(claveFila(f)) ?? []).some((h) => h.severidad !== "informa"))),
-    [filasGrupo, sedeFiltro, nombreBuscado, soloRevisar, hallazgos],
+      && (!soloRevisar || (hallazgos.get(claveFila(f)) ?? []).some((h) => h.severidad !== "informa"))
+      && (pagoFiltro === "todas"
+          || (pagoFiltro === "pagadas") === (pagosPorPersona.get(f.persona_id)?.marcado ?? false))),
+    [filasGrupo, sedeFiltro, nombreBuscado, soloRevisar, hallazgos, pagoFiltro, pagosPorPersona],
   );
-  const limpiarFiltros = () => { setSedeFiltro("todas"); setNombreFiltro(""); setSoloRevisar(false); };
+  const limpiarFiltros = () => { setSedeFiltro("todas"); setNombreFiltro(""); setSoloRevisar(false); setPagoFiltro("todas"); };
 
   const lectura = periodoActual ? lecturaDelEstado(periodoActual, grupos, hoy) : null;
   const avance = proy ? avanceDelPeriodo(proy.fecha_ini, proy.fecha_fin, hoy) : null;
@@ -599,6 +638,61 @@ export default function PlanillaPage() {
     await Promise.all([recargarTodo(), refrescarDesvios()]);
   }
 
+  // ── El checklist personal de pago por persona (0562) ────────────────────────
+  // Nunca el pago oficial del grupo: solo marca/desmarca en planilla_pago_persona_eventos.
+  async function confirmarMarcarPago() {
+    if (!periodoActual || !confirmandoPago) return;
+    setGuardandoPago(true);
+    const { data, error } = await supabase.rpc("fn_pago_persona_marcar", {
+      p_periodo_id: periodoActual.id, p_persona_id: confirmandoPago.persona_id,
+    });
+    setGuardandoPago(false);
+    if (error) { avisar("error", mensajeDeError(error, "marcar el pago")); return; }
+    const fila = Array.isArray(data) ? data[0] : null;
+    setConfirmandoPago(null);
+    avisar("ok", `${confirmandoPago.nombre} · ${formatSoles((fila as { monto: number } | null)?.monto ?? confirmandoPago.total)} marcada como pagada.`);
+    await cargarProyeccion();
+  }
+
+  function abrirDesmarcarPago(f: Fila) {
+    setDesmarcarMotivo("");
+    setDesmarcandoPago(f);
+  }
+
+  async function confirmarDesmarcarPago() {
+    if (!periodoActual || !desmarcandoPago) return;
+    const motivo = desmarcarMotivo.trim();
+    if (motivo.length < 3) { avisar("error", "Escribe por qué se desmarca (al menos 3 caracteres)."); return; }
+    setGuardandoPago(true);
+    const { error } = await supabase.rpc("fn_pago_persona_desmarcar", {
+      p_periodo_id: periodoActual.id, p_persona_id: desmarcandoPago.persona_id, p_motivo: motivo,
+    });
+    setGuardandoPago(false);
+    if (error) { avisar("error", mensajeDeError(error, "desmarcar el pago")); return; }
+    avisar("ok", `${desmarcandoPago.nombre} vuelve a quedar pendiente de pago.`);
+    setDesmarcandoPago(null);
+    await cargarProyeccion();
+  }
+
+  async function abrirHistorialPago(f: Fila) {
+    if (!periodoActual) return;
+    setVerHistorialPago(f);
+    setHistorialPago(null);
+    setErrorHistorialPago(null);
+    const { data, error } = await supabase
+      .from("planilla_pago_persona_eventos")
+      .select("tipo, monto, motivo, creado_at, personas:creado_por(nombres, apellidos)")
+      .eq("periodo_id", periodoActual.id)
+      .eq("persona_id", f.persona_id)
+      .order("secuencia", { ascending: true });
+    if (error) { setErrorHistorialPago(mensajeDeError(error, "traer el historial")); return; }
+    type Fila_ = { tipo: "marcado" | "desmarcado"; monto: number; motivo: string | null; creado_at: string; personas: { nombres: string; apellidos: string | null } | null };
+    setHistorialPago(((data ?? []) as unknown as Fila_[]).map((e) => ({
+      tipo: e.tipo, monto: e.monto, motivo: e.motivo, creado_at: e.creado_at,
+      creado_por_nombre: e.personas ? [e.personas.nombres, e.personas.apellidos].filter(Boolean).join(" ") : null,
+    })));
+  }
+
   async function agregarPendientesGratiCts() {
     if (!proy?.periodo_id) return;
     setGuardandoBulk(true);
@@ -671,119 +765,88 @@ export default function PlanillaPage() {
   const personasDe = (sev: (s: Hallazgo["severidad"]) => boolean) =>
     new Set(hallazgosAgrupados.filter((h) => sev(h.severidad)).flatMap((h) => h.personas.map((p) => p.persona_id))).size;
   const personasFrenan = personasDe((s) => s === "bloquea");
-  const personasPorResolver = personasDe((s) => s !== "informa");
   const historialGrupo = (historial ?? []).filter((r) => (r.grupo ?? "planilla") === tab);
   const filasRevisando = revisandoGrupo ? porGrupo.get(revisandoGrupo) ?? [] : [];
 
+  // La acción grande de la franja depende de cómo va el mes (ver accion-principal.ts).
+  const accion = accionPrincipalDelPeriodo({ personasFrenan, grupos, grupoDeLaPestana: tab });
+  const personasRevisar = personasDe((s) => s === "revisar");
+  const verAtencion = () => {
+    setAtencionAbierta(true);
+    setTimeout(() => document.getElementById("planilla-atencion")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  };
+
   return (
-    <main className="flex-1 space-y-6 p-4 sm:p-6">
-      {/* ── Cabecera ───────────────────────────────────────────────────────── */}
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="etiqueta text-taupe">Planilla</p>
-            <h1 className="font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">
-              {periodoActual ? nombrePeriodo(periodoActual) : "Planilla"}
-            </h1>
-            {periodoActual && lectura && (
-              <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-taupe">
-                <span>{fechaCorta(periodoActual.fecha_ini)} → {fechaCorta(periodoActual.fecha_fin)}</span>
-                {proy && <span>{proy.dias} días</span>}
-                <Insignia variante={LECTURA[lectura].variante}>{LECTURA[lectura].texto}</Insignia>
-                {avance?.estado === "en_curso" && <span>en curso · día {avance.transcurridos} de {avance.dias}</span>}
-              </p>
-            )}
+    <main className="flex-1 p-4 pt-6 sm:p-6">
+      <CabeceraPagina
+        sobretitulo={sobretituloDeHoy("Pago")}
+        titulo="Planilla"
+        descripcion="El pago del periodo, por grupo: lo que falta resolver y lo que se cierra."
+        ayuda={
+          <AyudaPantalla
+            titulo="Cómo funciona la planilla"
+            intro="La planilla se calcula con lo que el sistema ya registró (marcajes, horarios, ausencias) y se paga por grupo: cerrar «Planilla» no cierra «Prueba»."
+            secciones={[
+              { titulo: "La franja de arriba", texto: "Dice el total del periodo, en qué estado va y cuántas personas tienen algo por resolver. Lo que FRENA el pago va siempre en rojo; el resto, «por revisar», no impide pagar pero conviene mirarlo antes." },
+              { titulo: "El botón grande", texto: "Cambia según el mes: si algo frena el pago, te lleva a resolverlo; si nada frena, abre la revisión de cierre del grupo que falta; cuando todo está pagado, abre las boletas." },
+              { titulo: "Cerrar un grupo", texto: "«Revisar cierre» muestra lo que se va a pagar y pide confirmación. Un grupo pagado queda como copia congelada; reabrirlo exige un motivo y queda registrado." },
+              { titulo: "El periodo", texto: "Va del día siguiente al último cierre hasta la fecha de cierre que se elija (entre 20 y 46 días). Se lee de la tabla de periodos, nunca se asume el mes calendario." },
+            ]}
+          />
+        }
+      />
+      <div className="space-y-6">
+      {periodos && periodos.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {/* En celular ocupa el ancho entero: el nombre del periodo no puede leerse cortado. */}
+          <div className="w-full sm:w-auto">
+            <CampoSelect aria-label="Periodo" value={periodoSel ?? ""} onChange={(e) => elegirPeriodo(e.target.value)} className="sm:max-w-[19rem]">
+              {periodos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {etiquetaPeriodo(p)}{p.estado === "pagado" ? " · pagado" : p.fecha_fin < hoy ? " · sin pagar" : ""}
+                </option>
+              ))}
+            </CampoSelect>
           </div>
-          {periodos && periodos.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              {/* En celular ocupa el ancho entero: el nombre del periodo no puede leerse cortado. */}
-              <div className="w-full sm:w-auto">
-              <CampoSelect aria-label="Periodo" value={periodoSel ?? ""} onChange={(e) => elegirPeriodo(e.target.value)} className="sm:max-w-[19rem]">
-                {periodos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {etiquetaPeriodo(p)}{p.estado === "pagado" ? " · pagado" : p.fecha_fin < hoy ? " · sin pagar" : ""}
-                  </option>
-                ))}
-              </CampoSelect>
-              </div>
-              <Boton onClick={abrirNuevo}>+ Nuevo periodo</Boton>
-              {/* La entrada a las boletas oficiales (0482). Es un botón de verdad y
-                  no un enlace de texto: es un módulo de uso mensual y estaba tan
-                  discreto que se preguntó dónde estaba. Mismo trazo que el
-                  primario de `Boton`, pero como <Link> porque navega. */}
-              {periodoSel && (
-                <Link
-                  href={`/admin/planilla/boletas?periodo=${periodoSel}`}
-                  className="inline-flex items-center gap-2 rounded-control bg-tinta px-4 py-2 text-sm font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.98]"
-                >
-                  <ReceiptText size={16} aria-hidden />
-                  Boletas del periodo
-                </Link>
-              )}
-              <Menu
-                trigger={({ abierto, alternar }) => (
-                  <Boton
-                    aria-label="Más acciones"
-                    aria-haspopup="menu"
-                    aria-expanded={abierto}
-                    onClick={(e) => { disparadorMenu.current = e.currentTarget; alternar(); }}
-                    className="px-2.5"
-                  >
-                    <MoreHorizontal size={16} aria-hidden />
-                  </Boton>
-                )}
-              >
-                {/* El CSV vivía como botón suelto junto al periodo: es una acción de
-                    uso ocasional y ocupaba el sitio de lo que se usa cada mes. Al
-                    menú con la misma condición de siempre: sin proyección, cargando
-                    o sin filas no hay nada que descargar. */}
-                <MenuItem onClick={descargarCsvPlanilla} disabled={!proy || cargando || filasTodas.length === 0}>
-                  Descargar CSV
-                  <span className="block text-xs text-taupe">Todos los grupos y partidas del periodo, sin filtros</span>
-                </MenuItem>
-                <MenuItem onClick={() => setFeriadosAbierto(true)}>Feriados del año…</MenuItem>
-                {puedeEliminar && (
-                  <MenuItem variante="peligro" onClick={() => { setEliminarTexto(""); setEliminarModal(true); }}>
-                    Eliminar este periodo…
-                  </MenuItem>
-                )}
-              </Menu>
-            </div>
+          <Boton onClick={abrirNuevo}>+ Nuevo periodo</Boton>
+          {/* Las boletas oficiales (0482) siguen a un toque: cuando el periodo ya está pagado son el botón grande de la
+              franja; mientras tanto, este. Es un módulo de uso mensual y estuvo tan discreto que se preguntó dónde estaba. */}
+          {periodoSel && accion?.tipo !== "boletas" && (
+            <Boton onClick={() => router.push(`/admin/planilla/boletas?periodo=${periodoSel}`)} className="inline-flex items-center gap-2">
+              <ReceiptText size={16} aria-hidden />
+              Boletas del periodo
+            </Boton>
           )}
+          <Menu
+            trigger={({ abierto, alternar }) => (
+              <Boton
+                aria-label="Más acciones"
+                aria-haspopup="menu"
+                aria-expanded={abierto}
+                onClick={(e) => { disparadorMenu.current = e.currentTarget; alternar(); }}
+                className="px-2.5"
+              >
+                <MoreHorizontal size={16} aria-hidden />
+              </Boton>
+            )}
+          >
+            {/* El CSV vivía como botón suelto junto al periodo: es una acción de
+                uso ocasional y ocupaba el sitio de lo que se usa cada mes. Al
+                menú con la misma condición de siempre: sin proyección, cargando
+                o sin filas no hay nada que descargar. */}
+            <MenuItem onClick={descargarCsvPlanilla} disabled={!proy || cargando || filasTodas.length === 0}>
+              Descargar CSV
+              <span className="block text-xs text-taupe">Todos los grupos y partidas del periodo, sin filtros</span>
+            </MenuItem>
+            <MenuItem onClick={() => setFeriadosAbierto(true)}>Feriados del año…</MenuItem>
+            {puedeEliminar && (
+              <MenuItem variante="peligro" onClick={() => { setEliminarTexto(""); setEliminarModal(true); }}>
+                Eliminar este periodo…
+              </MenuItem>
+            )}
+          </Menu>
         </div>
-
-        {/* Estado por grupo: en la base cada grupo se paga por su cuenta (0323). */}
-        {grupos && proy && (
-          <ul className="flex flex-wrap gap-2 text-xs" aria-label="Estado de pago por grupo">
-            {grupos.filter((g) => g.personas > 0).map((g) => (
-              <li key={g.grupo}>
-                <button
-                  type="button"
-                  onClick={() => setTablaTab(g.grupo)}
-                  className="inline-flex items-center gap-1.5 rounded-pildora border border-sand bg-papel px-2.5 py-1 hover:bg-sand/40"
-                >
-                  <span className="font-medium text-tinta">{TIPO_VINCULO_LABEL[g.grupo]}</span>
-                  {g.estado === "pagado"
-                    ? <span className="inline-flex items-center gap-1 text-verde"><Check size={12} aria-hidden />pagado{g.pagado_at ? ` ${fechaLargaLima(g.pagado_at)}` : ""}</span>
-                    : <span className="text-taupe">pendiente</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {proy && (
-          <p className="text-xs text-taupe">
-            <span title="Las horas de un periodo completo a jornada de 6.5 h diarias: con esta cifra se calcula el valor de la hora del periodo.">
-              Base full-time: {fmtHoras(proy.base_horas)} (6.5 h × {proy.dias} días)
-            </span>
-            {" · "}
-            {proy.feriados.length === 0
-              ? "sin feriados en este periodo"
-              : `feriados: ${proy.feriados.map((f) => `${fechaCorta(f.fecha)} ${f.nombre}`).join(" · ")}`}
-          </p>
-        )}
-      </header>
+      )}
 
       {errorPeriodos && (
         <BannerAviso variante="alerta">
@@ -864,38 +927,82 @@ export default function PlanillaPage() {
 
           {proy && periodoActual && (
             <>
-              {/* ── Resumen: siempre el periodo completo ──────────────────── */}
-              <section aria-label="Resumen del periodo" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Cifra
-                  etiqueta={lectura === "pagado" ? "Total pagado del periodo" : "Total proyectado del periodo"}
-                  valor={formatSoles(totalesPeriodo.total)}
-                  detalle={`Sale de la cuenta ${formatSoles(totalesPeriodo.sale_del_banco)}`}
+              {/* ── La franja «Para cerrar»: estado, total, qué frena y qué hacer, en UNA fila ── */}
+              <TarjetaInfo className="flex flex-wrap items-center gap-x-4 gap-y-3" aria-label="Resumen del periodo">
+                <div>
+                  <p className="text-xs text-taupe">{lectura === "pagado" ? "Total pagado del periodo" : "Total proyectado del periodo"}</p>
+                  <p className="font-serif text-2xl leading-none tabular-nums text-tinta">{formatSoles(totalesPeriodo.total)}</p>
+                </div>
+                {lectura && (
+                  <span className="flex flex-wrap items-center gap-2 text-sm text-taupe">
+                    <Insignia variante={LECTURA[lectura].variante}>{LECTURA[lectura].texto}</Insignia>
+                    {avance?.estado === "en_curso" && <span>en curso · día {avance.transcurridos} de {avance.dias}</span>}
+                  </span>
+                )}
+                <ParaAtender
+                  compacta
+                  items={[
+                    { clave: "frena", texto: `▲ ${personasFrenan} ${personasFrenan === 1 ? "frena" : "frenan"} el pago`, n: personasFrenan, tono: "rojo" },
+                    { clave: "revisar", texto: `${personasRevisar} por revisar`, n: personasRevisar, tono: "ambar" },
+                    { clave: "grati", texto: "Gratificación o CTS pendiente", n: pendientesGratiCts ? 1 : 0, tono: "ambar" },
+                  ]}
+                  activa={atencionAbierta ? (personasFrenan > 0 ? "frena" : personasRevisar > 0 ? "revisar" : pendientesGratiCts ? "grati" : null) : null}
+                  alTocar={() => (atencionAbierta ? setAtencionAbierta(false) : verAtencion())}
                 />
-                <Cifra
-                  etiqueta="Personas en el periodo"
-                  valor={String(totalesPeriodo.personas)}
-                  detalle={cesaron(filasTodas) > 0 ? `${cesaron(filasTodas)} cesaron o están inactivas` : "todas activas"}
+                <BotonIcono
+                  etiqueta={atencionAbierta ? "Ocultar el detalle del periodo" : "Ver el detalle del periodo"}
+                  icono={atencionAbierta ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
+                  aria-expanded={atencionAbierta}
+                  aria-controls="planilla-atencion"
+                  onClick={() => setAtencionAbierta((a) => !a)}
                 />
-                <Cifra
-                  etiqueta="Horas registradas"
-                  valor={fmtHoras(totalesPeriodo.horas)}
-                  detalle={avance?.estado === "en_curso" ? `hasta hoy · día ${avance.transcurridos} de ${avance.dias}` : "del periodo"}
-                />
-                <Cifra
-                  etiqueta="Personas por resolver"
-                  valor={String(personasPorResolver)}
-                  detalle={personasFrenan > 0
-                    ? `${personasFrenan} ${personasFrenan === 1 ? "frena" : "frenan"} el pago`
-                    : personasPorResolver > 0 ? "ninguna frena el pago" : "nada pendiente"}
-                />
-              </section>
+                {/* La acción que toca AHORA según cómo va el mes (accion-principal.ts). Sin acción mientras carga. */}
+                <span className="ml-auto">
+                  {accion?.tipo === "resolver" && (
+                    <Boton variante="primario" onClick={verAtencion}>Resolver lo que frena ({accion.frenan})</Boton>
+                  )}
+                  {accion?.tipo === "cerrar" && (
+                    <Boton variante="primario" disabled={cargando} onClick={() => { setTablaTab(accion.grupo); setRevisandoGrupo(accion.grupo); }}>
+                      Revisar cierre de «{TIPO_VINCULO_LABEL[accion.grupo]}» →
+                    </Boton>
+                  )}
+                  {accion?.tipo === "boletas" && periodoSel && (
+                    <Link
+                      href={`/admin/planilla/boletas?periodo=${periodoSel}`}
+                      className="inline-flex items-center gap-2 rounded-control bg-tinta px-4 py-2 text-sm font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.98]"
+                    >
+                      <ReceiptText size={16} aria-hidden />
+                      Boletas del periodo
+                    </Link>
+                  )}
+                </span>
+              </TarjetaInfo>
+              {/* (Aquí había una fila de pastillas «Planilla pendiente · Prueba pendiente» que hacía lo mismo que las pestañas de abajo:
+                  cambiar de grupo. Se quitó el 2026-10-20: el estado de pago de cada grupo ya está en su pestaña —con la palomita
+                  cuando está pagado— y, escrito completo con fecha y quién, en la barra bajo la pestaña.) */}
+              {/* El contexto del periodo, en una línea gris: lo que antes eran tres cifras y una nota. */}
+              <p className="text-xs text-taupe">
+                {totalesPeriodo.personas} {totalesPeriodo.personas === 1 ? "persona" : "personas"}
+                {cesaron(filasTodas) > 0 ? ` (${cesaron(filasTodas)} cesaron o están inactivas)` : ""}
+                {" · "}{fmtHoras(totalesPeriodo.horas)}{avance?.estado === "en_curso" ? " hasta hoy" : ""}
+                {" · "}sale de la cuenta {formatSoles(totalesPeriodo.sale_del_banco)}
+                {" · "}
+                <span title="Las horas de un periodo completo a jornada de 6.5 h diarias: con esta cifra se calcula el valor de la hora del periodo.">
+                  base full-time {fmtHoras(proy.base_horas)} (6.5 h × {proy.dias} días)
+                </span>
+                {" · "}
+                {proy.feriados.length === 0
+                  ? "sin feriados en este periodo"
+                  : `feriados: ${proy.feriados.map((f) => `${fechaCorta(f.fecha)} ${f.nombre}`).join(" · ")}`}
+              </p>
 
-              {/* ── Requiere atención + comparación ───────────────────────── */}
-              <div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
-                <RequiereAtencion
-                  hallazgos={hallazgosAgrupados}
-                  grupoActivo={tab}
-                  onAbrirPersona={abrirPersonaPorId}
+              {/* ── El detalle: qué frena, qué revisar, qué cambió. Plegado hasta que se pide. ───────── */}
+              {atencionAbierta && (
+                <div id="planilla-atencion" className="grid scroll-mt-4 gap-4 xl:grid-cols-[3fr_2fr]">
+                  <RequiereAtencion
+                    hallazgos={hallazgosAgrupados}
+                    grupoActivo={tab}
+                    onAbrirPersona={abrirPersonaPorId}
                   extra={pendientesGratiCts ? (
                     <div className="mb-2 rounded-control bg-ambar/10 px-3 py-2 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -918,35 +1025,43 @@ export default function PlanillaPage() {
                       )}
                     </div>
                   ) : undefined}
-                />
-                {avance && <QueCambio variacion={variacion} avance={avance} fechaFin={proy.fecha_fin} />}
-              </div>
+                  />
+                  {avance && <QueCambio variacion={variacion} avance={avance} fechaFin={proy.fecha_fin} />}
+                </div>
+              )}
 
               {/* ── Pestañas por grupo, con conteos del periodo completo ─── */}
               <div>
-                <div role="tablist" aria-label="Grupos del periodo" className="flex flex-wrap gap-1 border-b border-sand">
+                {/* Las pastillas SON el selector de grupo (2026-10-20, decidido con Felipe): cada una dice cuántas personas tiene el grupo y
+                    si ya se pagó —con la fecha— o sigue pendiente. Antes eran dos controles que hacían lo mismo: estas pastillas y unas
+                    pestañas debajo. */}
+                <div role="group" aria-label="Grupos del periodo" className="mb-3 flex flex-wrap gap-2">
                   {tabsVisibles.map((g) => {
-                    const pagadoG = grupos?.find((x) => x.grupo === g)?.estado === "pagado";
+                    const est = grupos?.find((x) => x.grupo === g);
+                    const pagadoG = est?.estado === "pagado";
+                    const activo = tab === g;
                     return (
                       <button
                         key={g}
                         type="button"
-                        role="tab"
-                        aria-selected={tab === g}
+                        aria-pressed={activo}
                         onClick={() => setTablaTab(g)}
-                        className={`inline-flex items-center gap-1.5 rounded-t-control px-4 py-2 text-sm font-medium ${
-                          tab === g ? "border border-b-0 border-sand bg-papel text-tinta" : "text-taupe hover:text-tinta"
-                        }`}
+                        className={cx(
+                          "inline-flex items-center gap-1.5 rounded-pildora border px-3 py-1.5 text-sm transition-colors duration-150",
+                          activo ? "border-tinta bg-tinta text-crema" : "border-sand bg-papel hover:bg-sand/40",
+                        )}
                       >
-                        {TIPO_VINCULO_LABEL[g]} ({porGrupo.get(g)?.length ?? 0})
-                        {pagadoG && <Check size={14} className="text-verde" aria-label="pagado" />}
+                        <span className={cx("font-medium", activo ? "text-crema" : "text-tinta")}>{TIPO_VINCULO_LABEL[g]} ({porGrupo.get(g)?.length ?? 0})</span>
+                        {pagadoG
+                          ? <span className={cx("inline-flex items-center gap-1 text-xs", activo ? "text-crema/90" : "text-verde")}><Check size={12} aria-hidden />pagado{est?.pagado_at ? ` ${fechaLargaLima(est.pagado_at)}` : ""}</span>
+                          : <span className={cx("text-xs", activo ? "text-crema/80" : "text-taupe")}>pendiente</span>}
                       </button>
                     );
                   })}
                 </div>
 
                 {/* ── Barra del grupo: estado, total y la acción principal ── */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-superficie border border-t-0 border-sand bg-papel px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-superficie border border-sand bg-papel px-4 py-3">
                   <div className="min-w-0 text-sm">
                     <p className="font-medium text-tinta">
                       «{TIPO_VINCULO_LABEL[tab]}» · {totalesGrupo.personas} {totalesGrupo.personas === 1 ? "persona" : "personas"} ·{" "}
@@ -995,6 +1110,16 @@ export default function PlanillaPage() {
                 )}
               </div>
 
+              {/* ── Checklist personal de pago (0562): ya marcaste a todos, falta el cierre oficial ── */}
+              {puedeMarcarPago && todosPagadosDelGrupo && (
+                <BannerAviso variante="positivo" titulo={`Ya marcaste a las ${filasGrupo.length} personas de «${TIPO_VINCULO_LABEL[tab]}» como pagadas`}>
+                  <p className="text-xs text-taupe">Esto es tu checklist: el pago de «{TIPO_VINCULO_LABEL[tab]}» sigue abierto hasta que confirmes el cierre.</p>
+                  <Boton className="mt-3" variante="primario" onClick={() => setRevisandoGrupo(tab)} disabled={cargando}>
+                    Revisar cierre de «{TIPO_VINCULO_LABEL[tab]}» →
+                  </Boton>
+                </BannerAviso>
+              )}
+
               {/* ── Un pagado que dejó de cuadrar: el sistema lo DICE; corregir lo decide una persona ── */}
               {grupoPagado && errorDesvios && (
                 <BannerAviso variante="alerta">
@@ -1024,6 +1149,16 @@ export default function PlanillaPage() {
                 </BannerAviso>
               )}
 
+              {/* ── El checklist personal de pago (0562): cuánto llevas marcado ── */}
+              {puedeMarcarPagoPersona(rol) && filasGrupo.length > 0 && (
+                <Cifra
+                  tamano="sm"
+                  etiqueta="Marcadas como pagadas"
+                  valor={`${resumenPago.marcadas} de ${filasGrupo.length} · ${formatSoles(resumenPago.monto)}`}
+                  tono={todosPagadosDelGrupo ? "positivo" : resumenPago.marcadas > 0 ? "advertencia" : undefined}
+                />
+              )}
+
               {/* ── Filtros: solo cambian la tabla ───────────────────────── */}
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-3">
@@ -1036,6 +1171,11 @@ export default function PlanillaPage() {
                     {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
                   </CampoSelect>
                   <CampoCasilla etiqueta="Solo con algo que revisar" checked={soloRevisar} onChange={(e) => setSoloRevisar(e.target.checked)} />
+                  <div role="group" aria-label="Filtrar por pagado" className="flex gap-1">
+                    <Filtro tamano="sm" activo={pagoFiltro === "todas"} onClick={() => setPagoFiltro("todas")}>Todas</Filtro>
+                    <Filtro tamano="sm" activo={pagoFiltro === "pendientes"} onClick={() => setPagoFiltro("pendientes")}>Pendientes</Filtro>
+                    <Filtro tamano="sm" activo={pagoFiltro === "pagadas"} onClick={() => setPagoFiltro("pagadas")}>Pagadas</Filtro>
+                  </div>
                   {filtrado && <Boton variante="enlace" className="text-sm text-taupe" onClick={limpiarFiltros}>Limpiar filtros</Boton>}
                 </div>
                 <p className="text-xs text-taupe" aria-live="polite">
@@ -1052,6 +1192,12 @@ export default function PlanillaPage() {
                 filtrado={filtrado}
                 hallazgos={hallazgos}
                 ceses={ceses}
+                pagos={pagosPorPersona}
+                puedeMarcarPago={puedeMarcarPago}
+                onMarcarPago={(f) => setConfirmandoPago(f)}
+                onDesmarcarPago={abrirDesmarcarPago}
+                onVerHistorialPago={(f) => void abrirHistorialPago(f)}
+                pruebas={pruebas}
                 onAbrir={(f, el) => { disparadorPersona.current = el; setFilaAbiertaClave(claveFila(f)); }}
               />
 
@@ -1179,6 +1325,7 @@ export default function PlanillaPage() {
         <RevisionCierre
           grupo={revisandoGrupo}
           periodo={periodoActual}
+          hoy={hoy}
           totales={sumarFilas(filasRevisando)}
           cesaron={cesaron(filasRevisando)}
           hallazgos={agruparHallazgos(filasRevisando.map((f) => ({ fila: f, hallazgos: hallazgos.get(claveFila(f)) ?? [] })))}
@@ -1273,6 +1420,70 @@ export default function PlanillaPage() {
           </div>
         )}
       </Modal>
+
+      {/* ── El checklist personal de pago (0562): marcar, desmarcar, historial ── */}
+      <Modal abierto={confirmandoPago !== null} onCerrar={() => setConfirmandoPago(null)} bloqueado={guardandoPago} titulo="Marcar como pagada" ancho="sm">
+        {confirmandoPago && (
+          <div className="space-y-4 text-sm">
+            <p>
+              ¿Marcar a <strong>{confirmandoPago.nombre}</strong> como pagada? Se registra{" "}
+              <strong className="tabular-nums">{formatSoles(confirmandoPago.total)}</strong>, a tu nombre y con la fecha de hoy.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Boton onClick={() => setConfirmandoPago(null)} disabled={guardandoPago}>Cancelar</Boton>
+              <Boton variante="primario" onClick={() => void confirmarMarcarPago()} cargando={guardandoPago}>Marcar como pagada</Boton>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal abierto={desmarcandoPago !== null} onCerrar={() => setDesmarcandoPago(null)} bloqueado={guardandoPago} titulo="Desmarcar pago" ancho="sm">
+        {desmarcandoPago && (
+          <div className="space-y-4 text-sm">
+            <p>
+              <strong>{desmarcandoPago.nombre}</strong> vuelve a quedar pendiente de pago. Escribe por qué (por ejemplo, un error al marcar).
+            </p>
+            <label className="flex flex-col gap-1">
+              Motivo (obligatorio)
+              <AreaTexto value={desmarcarMotivo} onChange={(e) => setDesmarcarMotivo(e.target.value)} rows={2} autoFocus placeholder="ej. marqué a la persona equivocada" />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Boton onClick={() => setDesmarcandoPago(null)} disabled={guardandoPago}>Cancelar</Boton>
+              <Boton variante="primario" onClick={() => void confirmarDesmarcarPago()} cargando={guardandoPago} disabled={desmarcarMotivo.trim().length < 3}>
+                Desmarcar
+              </Boton>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal abierto={verHistorialPago !== null} onCerrar={() => setVerHistorialPago(null)} titulo={verHistorialPago ? `Historial de pago · ${verHistorialPago.nombre}` : undefined} ancho="md">
+        {errorHistorialPago ? (
+          <p className="text-sm text-rojo-profundo">No se pudo traer el historial: {errorHistorialPago}</p>
+        ) : historialPago === null ? (
+          <Cargando />
+        ) : historialPago.length === 0 ? (
+          <p className="text-sm text-taupe">Sin eventos todavía.</p>
+        ) : (
+          <ul className="space-y-2 text-sm">
+            {historialPago.map((e, i) => (
+              <li key={i} className="rounded-control border border-sand bg-hueso p-3">
+                <p>
+                  <span className={e.tipo === "marcado" ? "font-medium text-verde" : "font-medium text-ambar"}>
+                    {e.tipo === "marcado" ? "Marcada como pagada" : "Desmarcada"}
+                  </span>{" "}
+                  · <span className="tabular-nums">{formatSoles(e.monto)}</span>
+                </p>
+                <p className="mt-1 text-xs text-taupe">
+                  {fechaLargaLima(e.creado_at)}{e.creado_por_nombre ? ` · ${e.creado_por_nombre}` : ""}
+                </p>
+                {e.motivo && <p className="mt-1 text-xs">«{e.motivo}»</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Modal>
+      </div>
     </main>
   );
 }

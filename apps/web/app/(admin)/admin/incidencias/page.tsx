@@ -29,17 +29,24 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { esRolEncargada, etiquetaDeSede, hoyLima, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, EsqueletoSecciones } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { Filtro } from "@/components/ui/filtro";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
-import { TablaEncabezado, Th } from "@/components/ui/tabla";
+import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { cx } from "@/components/ui/cx";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { crearCargaVigente } from "@/lib/admin/carga-vigente";
@@ -143,7 +150,9 @@ function IncidenciasContenido() {
   const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstado>("por_revisar");
   const [categoria, setCategoria] = useState<Categoria | "">("");
   const [plegadas, setPlegadas] = useState<Set<string>>(new Set());
-  const [mostrarReglas, setMostrarReglas] = useState(false);
+  // «Para atender»: qué lista está abierta. `undefined` = nadie eligió: se abre la primera con algo.
+  const [atencionElegida, setAtencionElegida] = useState<string | undefined>(undefined);
+  const [masFiltros, setMasFiltros] = useState(false);
   const [mostrarHistorial, setMostrarHistorial] = useState(false);
 
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
@@ -224,7 +233,7 @@ function IncidenciasContenido() {
       // Quienes PODRÍAN contar como líder (líder de equipo, marca de piso o administración);
       // quién cuenta en cada sede lo decide cuentaEnCobertura, dentro de la detección.
       supabase.from("personas").select("id, sede_base_id, rol, tipo_vinculo, es_encargada_piso")
-        .eq("estado", "activo").or("rol.eq.supervisor_sede,es_encargada_piso.eq.true,rol.in.(admin,lider_do)"),
+        .eq("estado", "activo").eq("cuenta_de_servicio", false).or("rol.eq.supervisor_sede,es_encargada_piso.eq.true,rol.in.(admin,lider_do)"),
       supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", v.domingoSiguiente).or(`vigente_hasta.is.null,vigente_hasta.gte.${v.lunesActual}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", v.lunesActual).lte("fecha", v.domingoSiguiente),
@@ -268,7 +277,7 @@ function IncidenciasContenido() {
       // que el Dashboard —quien marca—; el alcance por rol lo pone RLS: una líder de
       // equipo ve a su sede, que es la única que la pantalla le muestra.
       supabase.from("personas").select("id, sede_base_id")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .eq("sueldo_fijo", false),
     ]);
@@ -487,45 +496,56 @@ function IncidenciasContenido() {
     setPeriodo(p); setDesde(d); setHasta(h);
   }
 
+  const primeraConAlgo = revisiones.length > 0 ? "revisiones" : practicantesSobreTope.length > 0 ? "convenios" : "";
+  const atencion = atencionElegida ?? primeraConAlgo;
+  const enMasFiltros = [tipoFiltro !== "", estadoFiltro !== "por_revisar", periodo !== "30"].filter(Boolean).length;
+
   const nombreFiltro = personaFiltro ? alcance.find((i) => i.personaId === personaFiltro)?.nombre ?? null : null;
 
   return (
     <div className="flex flex-1 flex-col">
-      <main className="flex flex-1 flex-col gap-6 p-6">
+      <main className="flex flex-1 flex-col p-6">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Incidencias"
-          descripcion="Revisa anomalías de asistencia y corrige únicamente lo que corresponda. Dynamic detecta y avisa; la decisión es tuya."
-          accion={
-            <Boton variante="enlace" className="text-sm text-taupe" aria-expanded={mostrarReglas} onClick={() => setMostrarReglas((x) => !x)}>
-              ⓘ Cómo se detectan
-            </Boton>
+          descripcion={<>{fechaCorta(desde)} – {fechaCorta(hasta)} · Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya.</>}
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo se detectan las incidencias"
+              intro="Dynamic mira las marcas y los horarios y avisa lo que no cuadra. Avisar no es sancionar: cada caso lo decide una persona."
+              secciones={REGLAS_EN_ORDEN.map((r) => ({
+                titulo: r.titulo,
+                texto: r.tipos.map((t) => <span key={t} className="block">{REGLA[t]}</span>),
+              }))}
+            >
+              <p className="border-t border-sand pt-3 text-xs text-taupe">
+                <strong className="font-medium text-tinta">Sobre el periodo:</strong> Desde y Hasta filtran las faltas y los
+                cierres del día. Patrones, excesos de jornada, días sin descanso y déficit de líderes se miden sobre
+                ventanas fijas desde hoy, porque describen la situación actual de la persona, no un rango histórico.
+              </p>
+            </AyudaPantalla>
           }
         />
 
-        {mostrarReglas && (
-          <section className="-mt-4 rounded-superficie border border-sand bg-papel p-5">
-            <dl className="grid gap-x-8 gap-y-4 text-sm md:grid-cols-2">
-              {REGLAS_EN_ORDEN.map((r) => (
-                <div key={r.titulo} className="flex flex-col gap-1">
-                  <dt className="font-medium text-tinta">{r.titulo}</dt>
-                  {r.tipos.map((t) => <dd key={t} className="leading-relaxed text-taupe">{REGLA[t]}</dd>)}
-                </div>
-              ))}
-            </dl>
-            <p className="mt-4 border-t border-sand pt-3 text-xs text-taupe">
-              <strong className="font-medium text-tinta">Sobre el periodo:</strong> Desde y Hasta filtran las faltas y los
-              cierres del día. Patrones, excesos de jornada, días sin descanso y déficit de líderes se miden sobre
-              ventanas fijas desde hoy, porque describen la situación actual de la persona, no un rango histórico.
-            </p>
-          </section>
+        {/* El contenido va en su propia columna: la cabecera ya trae su margen inferior, y un `gap` en el <main> lo sumaba
+            (32 + 24 px) y separaba el título de todo lo demás. */}
+        <div className="flex flex-col gap-4">
+        {(revisiones.length > 0 || practicantesSobreTope.length > 0) && (
+          <ParaAtender
+            items={[
+              { clave: "revisiones", texto: `${revisiones.length} revisión${revisiones.length === 1 ? "" : "es"} pedida${revisiones.length === 1 ? "" : "s"} por el equipo`, n: revisiones.length, tono: "pizarra" },
+              { clave: "convenios", texto: `${practicantesSobreTope.length} convenio${practicantesSobreTope.length === 1 ? "" : "s"} en el tope de 12 meses`, n: practicantesSobreTope.length, tono: "ambar" },
+            ]}
+            activa={atencion || null}
+            alTocar={(clave) => setAtencionElegida(atencion === clave ? "" : clave)}
+          />
         )}
 
         {/* ── Lo que tu equipo pidió revisar ────────────────────────────
             Primero, y no por orden alfabético: es la única lista que no generó
             el sistema, sino una persona que estuvo ahí ese día. */}
-        {revisiones.length > 0 && (
-          <section className="rounded-superficie border border-tinta/25 bg-papel p-5">
-            <h2 className="mb-1 font-serif text-lg">Tu equipo pidió revisar {revisiones.length} día{revisiones.length === 1 ? "" : "s"}</h2>
+        {atencion === "revisiones" && revisiones.length > 0 && (
+          <TarjetaInfo como="section" titulo={<>Tu equipo pidió revisar {revisiones.length} día{revisiones.length === 1 ? "" : "s"}</>}>
             <p className="mb-4 text-sm text-taupe">
               Lo escribieron desde «Lo mío». Corrige el día en Correcciones si hace falta y cierra acá diciendo en qué
               quedó: esa respuesta la va a leer la persona.
@@ -557,16 +577,16 @@ function IncidenciasContenido() {
                 </li>
               ))}
             </ul>
-          </section>
+          </TarjetaInfo>
         )}
 
         {/* Tope de 12 meses del convenio de prácticas: se revisa en Contratos. */}
-        {practicantesSobreTope.length > 0 && (
-          <section className="rounded-superficie border border-ambar/40 bg-ambar/5 p-5">
-            <h2 className="mb-1 font-serif text-lg">
-              {practicantesSobreTope.length} convenio{practicantesSobreTope.length === 1 ? "" : "s"} de prácticas en el tope de 12 meses
-            </h2>
-            <p className="mb-3 text-sm text-taupe">
+        {atencion === "convenios" && practicantesSobreTope.length > 0 && (
+          <BannerAviso
+            variante="advertencia"
+            titulo={<>{practicantesSobreTope.length} convenio{practicantesSobreTope.length === 1 ? "" : "s"} de prácticas en el tope de 12 meses</>}
+          >
+            <p className="mb-3 text-taupe">
               Ley 28518, art. 30: pasado el tope, la relación arriesga considerarse desnaturalizada, aunque siga
               viniendo con normalidad. Se revisa en Contratos, no acá.
             </p>
@@ -583,164 +603,162 @@ function IncidenciasContenido() {
                 </li>
               ))}
             </ul>
-          </section>
+          </BannerAviso>
         )}
 
-        {/* ── Resumen: cuántos y de qué ──────────────────────────────────── */}
-        <div className="grid grid-cols-2 overflow-hidden rounded-superficie border border-sand bg-papel md:grid-cols-5">
-          <button
-            type="button"
-            aria-pressed={categoria === "" && estadoFiltro === "por_revisar"}
-            onClick={() => { setCategoria(""); setEstadoFiltro("por_revisar"); }}
-            className={cx(
-              "col-span-2 flex flex-col items-start gap-1 border-b border-sand px-5 py-4 text-left transition-colors md:col-span-1 md:border-b-0",
-              categoria === "" && estadoFiltro === "por_revisar" ? "bg-hueso" : "hover:bg-crema/60",
-            )}
-          >
-            <span className="font-serif text-4xl leading-none tabular-nums text-tinta">{cargando ? "—" : porRevisar.length}</span>
-            <span className="text-sm text-taupe">
-              por revisar{!cargando && resueltas > 0 && <> · {resueltas} ya resuelta{resueltas === 1 ? "" : "s"}</>}
-              {!cargando && carga.duras.length > 0 && <> · incompleto</>}
-            </span>
-          </button>
-          {CATEGORIAS.map((c, idx) => {
-            const n = porRevisar.filter((i) => i.categoria === c.clave).length;
-            const activa = categoria === c.clave;
-            return (
-              <button
-                key={c.clave}
-                type="button"
-                aria-pressed={activa}
-                onClick={() => { setCategoria(activa ? "" : c.clave); if (!activa) setEstadoFiltro("por_revisar"); }}
-                className={cx(
-                  "flex flex-col items-start gap-1 border-sand px-5 py-4 text-left transition-colors md:border-l",
-                  idx % 2 === 1 && "border-l",
-                  idx < 2 && "border-b md:border-b-0",
-                  activa ? "bg-hueso" : "hover:bg-crema/60",
-                )}
-              >
-                <span className="font-serif text-3xl leading-none tabular-nums text-tinta">
-                  {cargando || carga.categoriasSinComprobar.has(c.clave) ? "—" : n}
-                </span>
-                <span className="text-sm text-taupe">
-                  {c.etiqueta}{!cargando && carga.categoriasSinComprobar.has(c.clave) && <> · sin comprobar</>}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ── Filtros ───────────────────────────────────────────────────── */}
+        {/* ── Buscar y filtrar: lo que se toca todo el día a la vista, lo demás plegado ── */}
         <div className="flex flex-col gap-3">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
-            <Campo
-              id="incidencias-buscar"
-              type="search"
-              aria-label="Buscar persona"
-              placeholder="Buscar persona…"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-48 flex-1 basis-56">
+              <Search size={15} strokeWidth={1.8} aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-taupe" />
+              <Campo
+                id="incidencias-buscar"
+                type="search"
+                aria-label="Buscar persona"
+                placeholder="Buscar persona"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                className="pl-8"
+              />
+            </div>
             {veTodas && (
-              <CampoSelect id="incidencias-sede" aria-label="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
-                <option value="">Todas las sedes</option>
-                {sedesDelFiltro.map((s) => (
-                  <option key={s} value={s}>{sedePorCodigo.get(s)?.texto ?? s}</option>
-                ))}
-              </CampoSelect>
+              <div className="w-full sm:w-44">
+                <CampoSelect id="incidencias-sede" aria-label="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
+                  <option value="">Todas las sedes</option>
+                  {sedesDelFiltro.map((s) => (
+                    <option key={s} value={s}>{sedePorCodigo.get(s)?.texto ?? s}</option>
+                  ))}
+                </CampoSelect>
+              </div>
             )}
-            <CampoSelect id="incidencias-tipo" aria-label="Tipo de incidencia" value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as TipoIncidencia | "")}>
-              <option value="">Todos los tipos</option>
-              {tiposPresentes.map((t) => <option key={t} value={t}>{NOMBRE_TIPO[t]}</option>)}
-            </CampoSelect>
-            <CampoSelect id="incidencias-estado" aria-label="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value as FiltroEstado)}>
-              <option value="por_revisar">Por revisar</option>
-              <option value="resueltas">Ya resueltas</option>
-              <option value="todas">Todas</option>
-            </CampoSelect>
+            <Boton variante="secundario" aria-expanded={masFiltros} aria-controls="incidencias-mas-filtros"
+              onClick={() => setMasFiltros((a) => !a)} className="inline-flex items-center gap-1.5">
+              <SlidersHorizontal className="size-4" aria-hidden />
+              Filtros{enMasFiltros > 0 && <span className="rounded-full bg-tinta px-1.5 text-[11px] leading-4 text-crema">{enMasFiltros}</span>}
+              <ChevronDown className={cx("size-4 transition-transform duration-150 motion-reduce:transition-none", masFiltros && "rotate-180")} aria-hidden />
+            </Boton>
+            {hayFiltros && <Boton variante="enlace" onClick={limpiarFiltros}>Limpiar</Boton>}
           </div>
 
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-            <div role="group" aria-label="Periodo" className="flex flex-wrap gap-1.5">
-              {PERIODOS.map((p) => (
-                <button
-                  key={p.clave}
-                  type="button"
-                  aria-pressed={periodo === p.clave}
-                  onClick={() => elegirPeriodo(p.clave)}
-                  className={cx(
-                    "rounded-pildora border px-3 py-1.5 text-sm transition-colors",
-                    periodo === p.clave ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:text-tinta",
-                  )}
-                >
-                  {p.etiqueta}
-                </button>
-              ))}
+          {masFiltros && (
+            <div id="incidencias-mas-filtros" className="flex flex-col gap-3 rounded-superficie border border-sand bg-papel p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <CampoSelect tamano="sm" id="incidencias-tipo" etiqueta="Tipo de incidencia" value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as TipoIncidencia | "")}>
+                  <option value="">Todos los tipos</option>
+                  {tiposPresentes.map((t) => <option key={t} value={t}>{NOMBRE_TIPO[t]}</option>)}
+                </CampoSelect>
+                <CampoSelect tamano="sm" id="incidencias-estado" etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value as FiltroEstado)}>
+                  <option value="por_revisar">Por revisar</option>
+                  <option value="resueltas">Ya resueltas</option>
+                  <option value="todas">Todas</option>
+                </CampoSelect>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div role="group" aria-label="Periodo" className="flex flex-wrap gap-1.5">
+                  {PERIODOS.map((p) => (
+                    <Filtro key={p.clave} tamano="sm" activo={periodo === p.clave} onClick={() => elegirPeriodo(p.clave)}>
+                      {p.etiqueta}
+                    </Filtro>
+                  ))}
+                </div>
+                {/* Desde y Hasta en una línea con su rótulo al lado, no encima: apilados sumaban una fila entera de alto.
+                    Nunca vacíos: sin fecha no hay consulta. Un borrado se ignora. */}
+                <div className="flex items-center gap-2 text-xs text-taupe">
+                  <label htmlFor="incidencias-desde">Desde</label>
+                  <Campo tamano="sm" id="incidencias-desde" type="date" value={desde} max={hasta} className="w-36"
+                    onChange={(e) => { if (e.target.value) { setDesde(e.target.value); setPeriodo("libre"); } }} />
+                  <label htmlFor="incidencias-hasta">Hasta</label>
+                  <Campo tamano="sm" id="incidencias-hasta" type="date" value={hasta} min={desde} className="w-36"
+                    onChange={(e) => { if (e.target.value) { setHasta(e.target.value); setPeriodo("libre"); } }} />
+                </div>
+              </div>
             </div>
-            <div className="flex items-end gap-2">
-              {/* Nunca vacíos: sin fecha no hay consulta. Un borrado se ignora. */}
-              <Campo id="incidencias-desde" etiqueta="Desde" type="date" value={desde} max={hasta}
-                onChange={(e) => { if (e.target.value) { setDesde(e.target.value); setPeriodo("libre"); } }} />
-              <Campo id="incidencias-hasta" etiqueta="Hasta" type="date" value={hasta} min={desde}
-                onChange={(e) => { if (e.target.value) { setHasta(e.target.value); setPeriodo("libre"); } }} />
-            </div>
-            {hayFiltros && (
-              <Boton variante="enlace" className="pb-2 text-sm text-taupe" onClick={limpiarFiltros}>Limpiar filtros</Boton>
+          )}
+
+          {/* ── Qué se mira: cuántos y de qué. Cada chip cuenta lo que mostraría al tocarlo. ── */}
+          <div role="group" aria-label="Categoría" className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [scrollbar-width:none]">
+            <Filtro
+              activo={categoria === "" && estadoFiltro === "por_revisar"}
+              onClick={() => { setCategoria(""); setEstadoFiltro("por_revisar"); }}
+              title={!cargando && carga.duras.length > 0 ? "Incompleto: hay fuentes que no se pudieron comprobar." : undefined}
+            >
+              Por revisar <span className="tabular-nums text-[0.8em] opacity-70">{cargando ? "—" : porRevisar.length}</span>
+              {!cargando && carga.duras.length > 0 && <span className="ml-1 text-[0.8em] opacity-70">· incompleto</span>}
+            </Filtro>
+            {CATEGORIAS.map((c) => {
+              const n = porRevisar.filter((i) => i.categoria === c.clave).length;
+              const activa = categoria === c.clave;
+              const sinComprobar = !cargando && carga.categoriasSinComprobar.has(c.clave);
+              return (
+                <Filtro key={c.clave} activo={activa}
+                  onClick={() => { setCategoria(activa ? "" : c.clave); if (!activa) setEstadoFiltro("por_revisar"); }}>
+                  {c.etiqueta} <span className="tabular-nums text-[0.8em] opacity-70">{cargando || sinComprobar ? "—" : n}</span>
+                  {sinComprobar && <span className="ml-1 text-[0.8em] opacity-70">· sin comprobar</span>}
+                </Filtro>
+              );
+            })}
+            {!cargando && resueltas > 0 && (
+              <Filtro activo={estadoFiltro === "resueltas"} className="border-dashed"
+                onClick={() => { setCategoria(""); setEstadoFiltro(estadoFiltro === "resueltas" ? "por_revisar" : "resueltas"); }}>
+                Ya resueltas <span className="tabular-nums text-[0.8em] opacity-70">{resueltas}</span>
+              </Filtro>
             )}
           </div>
         </div>
 
         {personaFiltro && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-sand bg-papel px-4 py-2.5 text-sm">
-            <span>
-              {nombreFiltro
-                ? <>Mostrando solo las incidencias de <strong>{nombreFiltro}</strong>.</>
-                : "La persona seleccionada no tiene incidencias en este periodo."}
-            </span>
-            <Boton variante="enlace" className="shrink-0" onClick={() => router.push("/admin/incidencias")}>Ver todas →</Boton>
-          </div>
+          <BannerAviso enLinea variante="neutral">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {nombreFiltro
+                  ? <>Mostrando solo las incidencias de <strong>{nombreFiltro}</strong>.</>
+                  : "La persona seleccionada no tiene incidencias en este periodo."}
+              </span>
+              <Boton variante="enlace" className="shrink-0" onClick={() => router.push("/admin/incidencias")}>Ver todas →</Boton>
+            </div>
+          </BannerAviso>
         )}
 
         {error && (
-          <div className="rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta">
             No se pudieron cargar las incidencias: {error}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {avisoLevantadas && (
-          <div className="rounded-control border border-ambar/30 bg-ambar/10 px-4 py-3 text-sm">
+          <BannerAviso enLinea>
             {avisoLevantadas}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {carga.faltantes.length > 0 && (
-          <div className="rounded-control border border-ambar/30 bg-ambar/10 px-4 py-3 text-sm">
-            <strong className="font-medium">No se pudo comprobar {enFrase(carga.faltantes)}.</strong>{" "}
+          <BannerAviso enLinea titulo={<>No se pudo comprobar {enFrase(carga.faltantes)}.</>}>
             {carga.duras.length > 0 && "Eso no significa que no haya nada. "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {errorAccion && (
-          <div className="flex items-start gap-3 rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
-            <span className="flex-1">{errorAccion}</span>
-            <Boton variante="enlace" className="shrink-0" onClick={() => setErrorAccion(null)}>Entendido</Boton>
-          </div>
+          <BannerAviso enLinea role="alert" variante="alerta">
+            <div className="flex items-start gap-3">
+              <span className="flex-1">{errorAccion}</span>
+              <Boton variante="enlace" className="shrink-0" onClick={() => setErrorAccion(null)}>Entendido</Boton>
+            </div>
+          </BannerAviso>
         )}
 
         {cargando && incidencias.length === 0 && <EsqueletoSecciones anchos={["w-32", "w-24", "w-40", "w-12", "w-12", "w-20"]} />}
 
         {!cargando && !error && visibles.length === 0 && (
-          <div className="flex flex-col items-center gap-2 rounded-superficie border border-sand bg-papel px-6 py-10 text-center">
-            {/* «Todo revisado» afirma que se comprobó. Si una fuente dura falló, no se comprobó. */}
-            <p className="font-serif text-xl text-tinta">
-              {carga.duras.length > 0
-                ? `No se pudo comprobar ${enFrase(carga.duras)}.`
-                : hayFiltros ? "No hay incidencias con estos filtros." : "Todo revisado en este periodo."}
-            </p>
-            {hayFiltros
-              ? <Boton variante="enlace" className="text-sm text-taupe" onClick={limpiarFiltros}>Limpiar filtros</Boton>
-              : resueltas > 0 && <p className="text-sm text-taupe">Hay {resueltas} ya resuelta{resueltas === 1 ? "" : "s"}: elige «Ya resueltas» en Estado para verlas.</p>}
-          </div>
+          // «Todo revisado» afirma que se comprobó. Si una fuente dura falló, no se comprobó.
+          <EstadoVacio
+            accion={hayFiltros
+              ? <Boton variante="secundario" tamano="sm" onClick={limpiarFiltros}>Limpiar filtros</Boton>
+              : resueltas > 0 ? <p className="text-xs">Hay {resueltas} ya resuelta{resueltas === 1 ? "" : "s"}: elige «Ya resueltas» en Estado para verlas.</p> : undefined}
+          >
+            {carga.duras.length > 0
+              ? `No se pudo comprobar ${enFrase(carga.duras)}.`
+              : hayFiltros ? "No hay incidencias con estos filtros." : "Todo revisado en este periodo."}
+          </EstadoVacio>
         )}
 
         {/* ── Casos, por sede ────────────────────────────────────────────── */}
@@ -753,7 +771,7 @@ function IncidenciasContenido() {
             const elegidos = loteables.filter((i) => seleccion.has(i.clave));
             const idBloque = `incidencias-sede-${sede}`;
             return (
-              <section key={sede} className="overflow-clip rounded-superficie border border-sand bg-papel">
+              <TarjetaInfo como="section" key={sede} className="overflow-clip p-0 sm:p-0">
                 <h2>
                   <button
                     type="button"
@@ -818,13 +836,13 @@ function IncidenciasContenido() {
                           {casos.map((i) => {
                             const accion = accionDe(i);
                             return (
-                              <tr
+                              <Fila
                                 key={i.clave}
                                 tabIndex={0}
                                 aria-label={`${i.nombre}, ${i.titulo}, ${fechaCorta(i.fecha)}`}
                                 onClick={(e) => abrir(i, e.currentTarget)}
                                 onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) abrir(i, e.currentTarget); }}
-                                className="cursor-pointer border-t border-sand transition-colors duration-150 hover:bg-crema/60 focus-visible:bg-crema/60"
+                                className="cursor-pointer focus-visible:bg-crema/60"
                               >
                                 {loteables.length > 0 && (
                                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -869,7 +887,7 @@ function IncidenciasContenido() {
                                     </Boton>
                                   )}
                                 </td>
-                              </tr>
+                              </Fila>
                             );
                           })}
                         </tbody>
@@ -925,7 +943,7 @@ function IncidenciasContenido() {
                     </ul>
                   </div>
                 )}
-              </section>
+              </TarjetaInfo>
             );
           })}
         </div>
@@ -941,8 +959,7 @@ function IncidenciasContenido() {
               {mostrarHistorial ? "Ocultar historial de vistos buenos" : `Ver historial de vistos buenos (${historial.length})`}
             </Boton>
             {mostrarHistorial && (
-              <div className="overflow-x-auto rounded-superficie border border-sand bg-papel">
-                <table className="w-full text-sm">
+              <Tabla>
                   <TablaEncabezado>
                     <Th>Persona</Th>
                     <Th>Fecha</Th>
@@ -952,7 +969,7 @@ function IncidenciasContenido() {
                   </TablaEncabezado>
                   <tbody>
                     {historial.map((h, idx) => (
-                      <tr key={`${h.persona_id}-${h.fecha}-${h.tipo}-${h.aceptado_at}-${idx}`} className="border-t border-sand">
+                      <Fila key={`${h.persona_id}-${h.fecha}-${h.tipo}-${h.aceptado_at}-${idx}`}>
                         <td className="px-4 py-2.5">
                           {`${h.personas?.nombres ?? ""} ${h.personas?.apellidos ?? ""}`.trim()}
                           <span className="text-taupe"> · {h.personas?.sedes?.codigo ?? "?"}</span>
@@ -976,11 +993,10 @@ function IncidenciasContenido() {
                             <Insignia variante="positivo">Vigente</Insignia>
                           )}
                         </td>
-                      </tr>
+                      </Fila>
                     ))}
                   </tbody>
-                </table>
-              </div>
+              </Tabla>
             )}
           </section>
         )}
@@ -1039,6 +1055,7 @@ function IncidenciasContenido() {
             </div>
           )}
         </Modal>
+        </div>
       </main>
     </div>
   );

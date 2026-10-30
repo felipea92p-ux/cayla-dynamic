@@ -69,6 +69,34 @@ describe("grupos y totales", () => {
     ]);
     expect(t.sale_del_banco).toBeCloseTo(1000 + 920 + 130 + 102.5 + 80, 2);
   });
+
+  it("suma la movilidad y la educación de cada fila, y una base sin esas claves no da NaN", () => {
+    // La tabla de Planilla las muestra en su propia columna (la practicante las
+    // cobra desde la 0397): el pie tiene que sumar lo mismo que las filas.
+    const t = sumarFilas([
+      fila({ tipo_vinculo: "practicante", en_planilla: false, monto_movilidad: 60.5, monto_educacion: 80 }),
+      fila({ monto_movilidad: 39.5 }),
+      fila({}), // base sin la 0110 / la 0120 pegadas: no manda ninguna de las dos
+    ]);
+    expect(t.movilidad).toBeCloseTo(100, 2);
+    expect(t.educacion).toBeCloseTo(80, 2);
+    expect(sumarFilas([fila({})]).movilidad).toBe(0);
+    expect(sumarFilas([fila({})]).educacion).toBe(0);
+  });
+
+  it("las columnas de la tabla cuadran con las líneas del desglose de la persona", () => {
+    // Una sola verdad: lo que la tabla suma por columna es lo que el desglose
+    // de cada persona dice en «Movilidad» y «Educación».
+    const filas = [
+      fila({ monto_movilidad: 60, monto_educacion: 90, total: 950 }),
+      fila({ persona_id: "p2", monto_movilidad: 45.25, total: 845.25 }),
+    ];
+    const t = sumarFilas(filas);
+    const deLineas = (clave: string) =>
+      filas.reduce((a, f) => a + (desgloseDe(f).lineas.find((l) => l.clave === clave)?.monto ?? 0), 0);
+    expect(t.movilidad).toBeCloseTo(deLineas("movilidad"), 2);
+    expect(t.educacion).toBeCloseTo(deLineas("educacion"), 2);
+  });
 });
 
 describe("desglose", () => {
@@ -124,6 +152,36 @@ describe("frenos y avisos", () => {
     expect(hallazgosDePersona(fila(sin), {}).map((h) => h.codigo)).toContain("sin_regimen_pension");
     expect(hallazgosDePersona(fila({ ...sin, tipo_vinculo: "practicante", en_planilla: false }), {})).toEqual([]);
     expect(hallazgosDePersona(fila({ ...sin, tipo_vinculo: "rxh", en_planilla: false }), {})).toEqual([]);
+  });
+
+  // Caso Deyvid Gamboa (preselección, cesó el 17-oct-2026): la tabla seguía
+  // mostrando "1 por revisar" por un régimen de pensión que nadie le iba a
+  // cargar, porque hallazgosDePersona nunca miraba ctx.cese salvo para el
+  // propio aviso de cese. Quien ya se fue no tiene nada que resolver.
+  it("quien ya cesó dentro del periodo deja de pedir revisión — salvo lo que bloquea el pago", () => {
+    const cese = { tipo: "durante" as const, fecha: "2026-10-17" };
+    const f = fila({ tasa_es_del_regimen: false, dias_pendientes: 1 });
+
+    const activa = hallazgosDePersona(f, {});
+    expect(activa.map((h) => h.codigo).sort()).toEqual(["dias_sin_confirmar", "sin_regimen_pension"]);
+
+    const cesada = hallazgosDePersona(f, { cese });
+    expect(cesada.map((h) => h.codigo).sort()).toEqual(["ceso_en_periodo", "dias_sin_confirmar"]);
+    expect(cesada.find((h) => h.codigo === "dias_sin_confirmar")?.severidad).toBe("bloquea");
+  });
+
+  it("cesó antes del periodo o sin fecha: tampoco pide revisión", () => {
+    const f = fila({ tasa_es_del_regimen: false });
+    expect(hallazgosDePersona(f, { cese: { tipo: "antes", fecha: "2026-09-01" } }).map((h) => h.codigo))
+      .toEqual(["ceso_en_periodo"]);
+    expect(hallazgosDePersona(f, { cese: { tipo: "sin_fecha" } }).map((h) => h.codigo))
+      .toEqual(["ceso_en_periodo"]);
+  });
+
+  it("cesó DESPUÉS del periodo: durante este periodo sí se revisa, como antes", () => {
+    const f = fila({ tasa_es_del_regimen: false });
+    expect(hallazgosDePersona(f, { cese: { tipo: "despues", fecha: "2026-11-05" } }).map((h) => h.codigo))
+      .toEqual(["sin_regimen_pension"]);
   });
 
   it("agrupa por hallazgo con los bloqueos primero", () => {
