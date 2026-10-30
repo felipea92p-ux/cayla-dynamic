@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 454_la_liquidacion_lista_lo_que_se_debe_de_periodos_anteriores.test.sql — la 0564
+-- 455_la_liquidacion_lista_lo_que_se_debe_de_periodos_anteriores.test.sql — la 0565
 -- ============================================================================
 -- El caso real (producción, 2026-10-29): Emily Rico y Milagritos Zarate cesaron el
 -- 29/10, que es el periodo NUEVO; su liquidación calcula un día y el sueldo del

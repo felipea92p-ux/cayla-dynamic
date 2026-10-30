@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0564 · LA LIQUIDACIÓN LISTA LO QUE SE DEBE DE PERIODOS ANTERIORES
+-- 0565 · LA LIQUIDACIÓN LISTA LO QUE SE DEBE DE PERIODOS ANTERIORES
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -111,10 +111,10 @@ revoke execute on function fn_liquidacion_periodos_anteriores(uuid, date) from p
 grant  execute on function fn_liquidacion_periodos_anteriores(uuid, date) to authenticated;
 
 comment on function fn_liquidacion_periodos_anteriores(uuid, date) is
-  'Los periodos de planilla anteriores al del cese en los que la persona trabajó y todavía no cobró, con lo que le toca en cada uno (0564). '
+  'Los periodos de planilla anteriores al del cese en los que la persona trabajó y todavía no cobró, con lo que le toca en cada uno (0565). '
   'Solo informativa: NO se suma a la liquidación, ese dinero sale por la planilla de cada periodo. Admin y líder DO.';
 
-insert into migraciones_aplicadas (numero, nombre) values (564, 'la_liquidacion_lista_lo_que_se_debe_de_periodos_anteriores')
+insert into migraciones_aplicadas (numero, nombre) values (565, 'la_liquidacion_lista_lo_que_se_debe_de_periodos_anteriores')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 -- ── COMPROBACIÓN ────────────────────────────────────────────────────────────
@@ -122,4 +122,4 @@ select
   (select count(*) from pg_proc where proname = 'fn_liquidacion_periodos_anteriores') as una_sola_funcion,
   has_function_privilege('authenticated', 'fn_liquidacion_periodos_anteriores(uuid, date)', 'execute') as authenticated_ejecuta,
   has_function_privilege('anon', 'fn_liquidacion_periodos_anteriores(uuid, date)', 'execute') as anon_no,
-  (select count(*) from migraciones_aplicadas where numero = 564 and nombre like 'la_liquidacion_lista%') as registrada;
+  (select count(*) from migraciones_aplicadas where numero = 565 and nombre like 'la_liquidacion_lista%') as registrada;

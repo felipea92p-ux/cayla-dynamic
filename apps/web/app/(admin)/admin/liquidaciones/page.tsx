@@ -136,7 +136,7 @@ type Detalle = Record<string, unknown> & {
   vacaciones_truncas?: Record<string, unknown>;
   gratificacion_trunca?: Record<string, unknown>;
   cts_trunca?: Record<string, unknown>;
-  // Lo agrega `cargarDetalle` desde `fn_liquidacion_periodos_anteriores` (0564),
+  // Lo agrega `cargarDetalle` desde `fn_liquidacion_periodos_anteriores` (0565),
   // no viene de `fn_liquidacion`: es informativo y NO está dentro de `total`.
   // `null` = no se pudo leer (se dice, no se calla); `[]` = no hay nada anterior.
   periodos_anteriores?: PeriodoAnterior[] | null;
@@ -352,11 +352,11 @@ export default function LiquidacionesPage() {
       supabase.rpc("fn_papeles_cese", { p_persona_id: personaId }),
       // De una liquidación sin pagar devuelve cero filas, y barato.
       supabase.rpc("fn_liquidacion_constancia_estado", { p_persona_id: personaId }),
-      // Lo que se le debe de periodos ANTERIORES al del cese (0564). Informativo.
+      // Lo que se le debe de periodos ANTERIORES al del cese (0565). Informativo.
       supabase.rpc("fn_liquidacion_periodos_anteriores", { p_persona_id: personaId }),
     ]);
     if (liq.error) { avisar("error", mensajeDeError(liq.error)); return; }
-    // Si esto falla —por ejemplo, la 0564 todavía sin pegar— la liquidación se
+    // Si esto falla —por ejemplo, la 0565 todavía sin pegar— la liquidación se
     // ve igual que siempre, pero se dice que no se comprobó: «no sé» no es «no
     // hay nada anterior», y quien paga solo esta liquidación lo creería.
     setDetalle({
@@ -1276,7 +1276,7 @@ function Desglose({
         </tbody>
       </table>
 
-      {/* Lo que se le debe de periodos ANTERIORES al del cese (0564). Va aparte
+      {/* Lo que se le debe de periodos ANTERIORES al del cese (0565). Va aparte
           del Total de arriba a propósito: ese dinero sale por la planilla de
           cada periodo, y sumarlo a la liquidación lo pagaría dos veces. */}
       {d.periodos_anteriores === null && (

@@ -1,6 +1,6 @@
 // Lo que se le debe a una persona cesada de periodos ANTERIORES al de su cese.
 //
-// Viene de `fn_liquidacion_periodos_anteriores` (0564): uno por periodo de
+// Viene de `fn_liquidacion_periodos_anteriores` (0565): uno por periodo de
 // planilla completo en el que trabajó y que todavía no se le pagó. Es INFORMATIVO:
 // ese dinero sale por la planilla de cada periodo, no por la liquidación, y por
 // eso aquí no se suma al total de la liquidación — se suma aparte, en
