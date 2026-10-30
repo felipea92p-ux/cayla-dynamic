@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya pegadas) · **0546 y 0547 PENDIENTES DE PEGAR** · rama `claude/vigilant-hopper-d48cdd`
+## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya estaban pegadas) · **0546 PEGADA (2026-10-30)** · 0547 entregada · PR #620 · rama `claude/vigilant-hopper-d48cdd`
 
 **De dónde sale.** El checkout principal llevaba 943 commits congelado desde el 27 de septiembre y `core.hooksPath` apunta a SUS
 hooks: durante cinco semanas todo push de cualquier worktree corrió los guardianes del 27-sep. Al ponerlo al día (`78179af3` →
@@ -73,6 +73,18 @@ contra el cuerpo que el repo tiene hoy: **las nueve coinciden**.
   que no prueba nada: **la señal fiable es `db-tests` de GitHub Actions**, sobre una base construida desde cero, y es la que el ruleset
   exige para fusionar. `typecheck` en verde.
 
+**Confirmado contra producción el 2026-10-30.** `migraciones_aplicadas` trae **523** (`acortar_el_hasta_de_educacion_deja_de_fallar`,
+17-oct 02:37 UTC) y **545** (`reabrir_un_grupo_pagado_repara_sus_horas`, 22-oct 07:13 UTC), y **ninguna fila para 526, 546 ni 547**. Se
+pidió `numero` Y `nombre`, no un `array_agg(numero)`: eso es lo que distingue «está la mía» de «está otra con mi número», y es el paso
+que dejó pasar las colisiones de la 0405 y la 0409. Las tres conclusiones de arriba quedan así medidas, no inferidas.
+
+**Y `db-tests` cerró lo que el banco local no pudo:** los 4 checks del PR #620 en verde, sobre una base construida desde cero — o sea
+que las pruebas **437, 438 y 439** pasan. Era la señal que faltaba, y es la que CLAUDE.md llama fiable.
+
+**La 0546 se pegó en producción el 2026-10-30** (confirmado por Felipe; guardia superada). La 0547 se entregó a continuación con
+`dame-el-sql.sh`, comprobada byte por byte contra el archivo y con sus acentos contados desde fuera del script —110 y 110—, porque la
+verificación interna corre bajo el mismo locale y puede declararse conforme sobre texto corrupto.
+
 **Un detalle que conviene saber antes de pegar: estas dos NO son repegables.** Su guardia acepta solo el cuerpo de partida, no el
 propio (la 0549 sí se incluye en su lista blanca; estas no). Si se pega la 0546 y por cualquier duda se repega, **para** — y el mensaje
 dice «Producción tiene otra versión», que se lee como alarma cuando en realidad es la señal de que ya está aplicada. Lo que distingue
@@ -83,6 +95,40 @@ los dos casos es el md5 que imprime: si es el de llegada (`0e9f58be…` / `ddf5c
 que cierran lo que esta sesión no pudo ver desde aquí: que `fn_reparar_dias_tras_reabrir` en producción dé **2 396 caracteres, md5
 `77e815f3…`** (confirma que lo que se pegó el 22-oct es este archivo y no otro borrador), y que `migraciones_aplicadas` **no** tenga
 fila con `numero = 526`.
+
+**⚠️ Y el hallazgo que cambió el orden de entrega: pegar la 0547 con la pantalla de hoy habría hecho DESAPARECER esos días de
+Correcciones.** Se vio al comprobar quién consume la función, ya con el SQL entregado y antes de que se pegara.
+
+`admin/correcciones/page.tsx` repartía los días en tres bandas por igualdad literal con los tres motivos que conocía:
+
+```ts
+const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
+const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
+const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");   // ← tercera igualdad
+```
+
+Un día con el motivo nuevo `grupo_pagado_periodo_abierto` no entra en ninguna de las tres, y la pantalla solo pinta esas: **el día se
+cae de la única vista donde se corrige, sin que nada falle**. Y es exactamente el daño contra el que la propia 0547 advierte en su
+encabezado («los días de este incidente PASARÍAN A ESTAR OCULTOS y el aviso desaparecería justo cuando hacía falta») — evitado con
+cuidado en el SQL y reintroducido por la puerta de atrás, porque quien lo consume no conocía el motivo. Hoy esos días caen en
+«sellados» con un texto equivocado; eso se lee mal, pero se lee.
+
+**Arreglado aquí, y como resto en vez de como tercera igualdad**, que es lo que impide que vuelva a pasar con el próximo motivo: dos
+igualdades y todo lo demás a la tercera banda. Más la etiqueta en la Bandeja («Su grupo ya se pagó: las horas están bloqueadas»), que
+es lo que la 0547 dejó listo al devolver `grupo_pagado` y `grupo_pagado_at`. `typecheck` en verde, 2 948 pruebas de interfaz en verde.
+**No verificado:** la pantalla no se miró en el navegador (este clon no tiene `apps/web/.env.local` con las claves de Supabase).
+
+**Y de ahí sale un orden de entrega invertido, a propósito.** La regla de la casa es pegar la migración ANTES de fusionar, y existe para
+que el frontend no llame a una función que no existe. Aquí el riesgo va al revés: el frontend arreglado **funciona igual con la 0422 y
+con la 0547** (si el motivo nuevo no llega, la tercera banda se comporta como antes), mientras el frontend VIEJO con la 0547 pierde
+días. Así que lo seguro es **fusionar primero y pegar la 0547 después**, y queda escrito que esta vez la regla se invirtió midiendo, no
+por descuido. Mientras no haya ningún grupo pagado con su periodo abierto, ningún día trae ese motivo y la ventana no afecta a nadie:
+
+```sql
+select pp.id, pp.fecha_ini, pp.fecha_fin, g.grupo, g.pagado_at
+  from periodos_planilla pp join periodo_grupo_pago g on g.periodo_id = pp.id
+ where g.estado = 'pagado' and pp.estado <> 'pagado';
+```
 
 **Dos hallazgos de paso.**
 
