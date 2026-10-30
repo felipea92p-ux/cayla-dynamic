@@ -6,6 +6,71 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-30 — Barrido: qué se puede pegar fuera de orden o a medias sin que nada avise · sin SQL · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+
+**Por qué se hizo.** Al pegar la 0569 saltó su propio freno («falta la columna de
+la 0568»), y eso abrió una pregunta más grande que el caso: la 0569 escondía su
+dependencia dentro de un cuerpo plpgsql, **que Postgres no analiza al crear la
+función**. Se pega sin una queja y revienta al ejecutarla. Eso no es un caso: es
+una clase. Cinco lecturas independientes del camino del SQL a producción, con dos
+refutadores por hallazgo. 14 hallazgos, **4 sobrevivieron**, 10 refutados.
+
+**1 · La línea roja de esta misma página empujaba a repegar dos migraciones que
+revierten cosas vivas.** Ver la entrada del 2026-09-15 (buscar «Siguen sin
+pegar»), ya corregida ahí con la tabla de las siete. En corto: **la 0428 revierte
+`fn_provisiones` 63 migraciones atrás —es planilla— y la 0436 devuelve
+`fn_bandeja_marcar_visto` de once tipos a cinco**, matando el acuse de los avisos
+de educación, de cambio de turno y de conducta. Las otras cinco son inocuas. Y lo
+de la 0436 **ya pasó el 2026-09-15**: está el postmortem en el encabezado de la
+0453, `dame-el-sql.sh` lo avisó en rojo, y se pegó igual.
+
+**2 · El aviso de la 0495 dice lo contrario de lo que el archivo hace.**
+`supabase/migrations/0495_*.sql:100-103` hace
+`raise notice '0495: ya tiene el filtro (md5 %). No se toca nada.'; return;`
+dentro de un bloque `do $freno$`. El `return` termina el BLOQUE, no el archivo: el
+`create or replace function fn_planilla_calcular_nucleo` de la línea 111 está
+fuera y corre siempre. Y la rama que imprime ese aviso es la que se cumple hoy de
+forma garantizada, porque todas las versiones desde la 0495 llevan dentro la
+cadena `cuenta_de_servicio`.
+
+Lo grave no es el `return` —la 0491 tiene la misma forma y su aviso es honesto:
+dice «no se comprueban los md5 de partida», que es exactamente lo que se salta—.
+Lo grave es que el mensaje de la 0495 **afirma que no toca nada justo antes de
+reescribir el núcleo de la planilla**, y llega desde el SQL Editor, que CLAUDE.md
+nombra como «la única confirmación». Repegarla revertiría la 0504 (practicantes a
+FOLA), la 0524, la 0537 y la 0555.
+
+**3 · Ningún freno de la casa mira el orden de pegado HACIA ATRÁS.**
+`dame-el-sql.sh` sí mira hacia adelante —su paso 4 avisa cuando pegas algo que una
+migración posterior ya superó— pero la pregunta inversa, «esta migración depende de
+una ANTERIOR que todavía no está pegada», no la hace nadie, y el script no podría:
+en sus 291 líneas no hay un solo `psql`, porque la clave de servicio está rotada a
+propósito. `que_falta_pegar.sql` ordena por número, lo que da el orden correcto por
+convención, pero no declara ninguna dependencia: dice «faltan la 566…569», no «la
+569 lee una columna de la 568». Hoy lo único que lo caza es el bloque que la propia
+0569 se escribió, y eso es memoria.
+
+**4 · La 0562 es la única del rango 0500–0569 que no se puede repegar.** Su
+`create index idx_pago_persona_eventos_estado` (línea 108) va sin `if not exists` y
+sin un `drop index if exists` delante. Falla RUIDOSO, así que nadie la daría por
+aplicada; pero repegar es el movimiento natural cuando una pegada a mano se corta,
+y detrás de esa línea quedan el RLS, el `revoke` a `anon`, el trigger candado y las
+tres funciones que son la única puerta de escritura de esa tabla.
+
+**Lo que se arregló hoy:** la línea roja de la entrada del 2026-09-15, con la
+comprobación que pedía ya corrida. **Lo que NO se tocó:** nada de los puntos 2, 3
+y 4 — el 2 y el 4 están en migraciones ya pegadas (el archivo documenta lo que se
+pegó y no se reescribe), y el 3 es una decisión de Felipe, porque
+`scripts/dame-el-sql.sh:182-184` dice «Solo AVISA, no bloquea» a propósito.
+
+**Lo que falta preguntar a producción:** si `migraciones_aplicadas` tiene las filas
+428 y 436. Si no las tiene, `que_falta_pegar.sql` las está pidiendo activamente
+—su columna `nunca` es `false` para las siete, y de todo el archivo solo una fila
+la tiene en `true`—, o sea que la herramienta canónica también empuja al
+accidente, no solo aquella línea.
+
+---
+
 ## 2026-10-30 — La escalera disciplinaria llega hasta el despido · migraciones 0566 a 0569 · **0566 y 0567 PEGADAS (2026-10-30)** · 0568 y 0569 SIN PEGAR · SIN FUSIONAR, sin PR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
 
 **Qué es.** Felipe pidió «que cada líder pueda emitir memorándums para así escalar medida disciplinaria de despido de ser necesario».
@@ -4828,15 +4893,49 @@ porque solo la llaman otras funciones por dentro), el trigger
 Con la 0437 y la 0438 juntas, el candado de «no pisar un expediente ya formal»
 vuelve a cubrir las ocho puertas para las que se diseñó, no seis.
 
-🔴 **Siguen sin pegar, y sin explicación: 0428, 0431, 0432, 0433, 0434, 0435 y
-0436.** (El 0420 también falta, pero ese sí está explicado: es una
-renumeración limpia, ver `huecos-conocidos.txt`. La 0430 se pegó y se verificó
-el 2026-09-15 — ver la entrada de arriba.) Las siete necesitan cada una su
-comprobación de si revierten algo antes de pegarlas — son de otras ramas y
-algunas reescriben funciones compartidas. La comprobación es siempre la misma y
-cuesta un minuto: `./scripts/donde-vive.sh <función>` para cada función que la
-migración define, y confirmar que la migración pendiente ES la vigente; si lo
-es, pegarla no puede revertir nada posterior.
+🔴 **Figuran sin pegar: 0428, 0431, 0432, 0433, 0434, 0435 y 0436.** (El 0420
+también falta, pero ese sí está explicado: es una renumeración limpia, ver
+`huecos-conocidos.txt`. La 0430 se pegó y se verificó el 2026-09-15 — ver la
+entrada de arriba.)
+
+⚠️ **ESTA LÍNEA YA CAUSÓ UN INCIDENTE Y LA COMPROBACIÓN QUE PEDÍA NO SE HABÍA
+CORRIDO. Se corrió el 2026-10-30. NO PEGUES LA 0428 NI LA 0436.**
+
+La comprobación que este párrafo pedía —`./scripts/donde-vive.sh <función>` para
+cada función que la migración define, y confirmar que la pendiente ES la
+vigente— se corrió para las siete. Resultado:
+
+| | define | la vigente es | pegarla hoy |
+|---|---|---|---|
+| **0428** | `fn_provisiones` | **la 0491** | ⛔ **revierte 63 migraciones de `fn_provisiones` — es PLANILLA** |
+| 0431 | `fn_aprobar_ausencia` | la 0431 | ✅ inocua |
+| 0432 | `fn_bloquear_cese_directo` | la 0432 | ✅ inocua |
+| 0433 | `fn_set_datos_personales` | la 0433 | ✅ inocua |
+| 0434 | `fn_set_con_hijos` | la 0434 | ✅ inocua |
+| 0435 | `fn_enviar_mensaje_encargada`, `fn_responder_mensaje_encargada` | la 0435 | ✅ inocua |
+| **0436** | `fn_bandeja_marcar_visto` | **la 0515** | ⛔ **la devuelve de 11 tipos a 5: mata el acuse de educación, de cambio de turno y de CONDUCTA** |
+
+**Y la 0436 no está sin pegar: está pegada.** `bandeja_vistos` la crea
+únicamente ella (línea 35) y la alteran la 0450, 0453, 0461, 0473 y 0515, todas
+pegadas —la 0450 está marcada «PEGADA Y VERIFICADA» en esta misma página—. Una
+tabla no se puede alterar si no existe.
+
+**Esto ya pasó una vez, por esta línea.** El encabezado de la
+`0453_la_bandeja_vuelve_a_reconocer_educacion.sql` es su postmortem: el
+2026-09-15 a las 16:00 se repegó la 0436 «siguiendo una auditoría de migraciones
+pendientes que la daba por segura — y que había caducado». `dame-el-sql.sh` lo
+avisó en rojo y se pegó igual, porque **solo avisa**. El síntoma es el peor que
+hay: `/admin/bandeja` llama con `void supabase.rpc(...)`, así que la excepción se
+traga sin avisarle a nadie y lo único que se ve es que no se guarda nada.
+
+Hoy el daño sería mayor que entonces: la 0515 agregó `conducta_registrada` y
+`caso_traspasado`, que son los avisos de la escalera disciplinaria.
+
+**Lo que falta saber, y solo producción puede decirlo:** si `migraciones_aplicadas`
+tiene las filas 428 y 436. Si NO las tiene, `que_falta_pegar.sql` las está
+pidiendo activamente —su columna `nunca` es `false` para las siete, y solo una
+fila en todo el archivo la tiene en `true`—, o sea que la herramienta canónica
+también empuja hacia el accidente, no solo esta línea.
 
 ---
 
