@@ -426,7 +426,8 @@ with repo(numero, nombre, nunca) as (values
     (566, 'el_descargo_previo_se_enciende', false),
     (567, 'la_lider_propone_suspension_y_do_la_impone', false),
     (568, 'la_falta_grave_llega_hasta_el_despido', false),
-    (569, 'la_entrega_arranca_el_plazo_y_avisa_del_notario', false)
+    (569, 'la_entrega_arranca_el_plazo_y_avisa_del_notario', false),
+    (570, 'las_seis_faltas_graves_tienen_nombre_corto', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
