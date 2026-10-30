@@ -6,6 +6,76 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-30 — La escalera disciplinaria llega hasta el despido · migraciones 0566 a 0569 · **0566 y 0567 PEGADAS (2026-10-30)** · 0568 y 0569 SIN PEGAR · SIN FUSIONAR, sin PR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+
+**Qué es.** Felipe pidió «que cada líder pueda emitir memorándums para así escalar medida disciplinaria de despido de ser necesario».
+Al investigarlo salió que la mitad de abajo ya estaba construida: desde el 6 de octubre (0510–0516) la líder emite memos, cita el literal
+exacto del art. 53 del RIT, firma y entrega. Lo que faltaba era la mitad de ARRIBA de la escala del art. 54.1 —suspensión y despido— y dos
+defectos que la invalidaban. El diseño, con las seis decisiones en formato DECIDÍ / DESCARTÉ / SE ROMPE SI, está en
+[`docs/adr/0005-escalera-disciplinaria-completa.md`](adr/0005-escalera-disciplinaria-completa.md).
+
+**Lo que había que arreglar antes de construir nada.** `configuracion.disciplina_descargo_previo` estaba en `false` desde el 17-08-2026
+(0267). El art. 55.2 del RIT que CAYLA entregó firmado dice que sin descargo previo la sanción «no puede computarse como antecedente ni
+servir de escalón para los efectos del literal h) del artículo 25 de la LPCL»: cada memo documentaba el hecho y no era peldaño de nada.
+Construir la suspensión y el despido encima era construir una escalera que el art. 25 h) no reconoce. Por eso la **0566** va primera.
+Medido antes de pegarla: **0 borradores** quedaban a la espera, así que no hubo transición que gestionar.
+
+**Las cuatro piezas.**
+- **0566** enciende el descargo previo. No reescribe ninguna función. *Hallazgo:* encenderlo no agrega un paso antes de firmar, agrega
+  **tres** —comunicar cargos, esperar el plazo, y **valorar el descargo por escrito aunque no se presente ninguno**—. La pantalla ya
+  dibujaba las cuatro etapas desde la 0267 (`etapaDelBorrador`), así que no hubo interfaz que cambiar.
+- **0567** — la líder PROPONE la suspensión (`fn_conducta_proponer_suspension`, con su candado) y DO la IMPONE
+  (`fn_expediente_elevar_a_suspension`). El mismo documento sube de nivel en vez de crearse otro: la suspensión no castiga otra vez el
+  hecho ya amonestado (non bis in idem, 52.5), castiga el hecho NUEVO que sube de peldaño por el antecedente (56.4). No reescribe ninguna
+  función: llama a `fn_expediente_puede_actuar` (competencia 54.4 c), `fn_expediente_set_suspension` (tope de 3 días, 54.5) y
+  `fn_conducta_antecedentes`. `fn_expediente_firmar` queda intacta.
+- **0568** — la falta grave llega hasta el despido. *Hallazgo grande:* **hoy no existe ninguna forma de emitir una carta de despido.**
+  Los dos motores llegan a la imputación y paran con un mensaje que lo dice —«el despido se genera tras evaluar los descargos (paso manual
+  de Gerencia)»—, y ese paso manual era el final del camino: el expediente se armaba completo y la decisión salía fuera del sistema, sin
+  que la causa de la carta quedara atada a la de la imputación. Cinco piezas: los 6 literales del 53.3 al catálogo (con e) asistencia y
+  f) hostigamiento sexual marcados como no registrables a mano, cada uno por su razón); `fn_expediente_crear_conducta` admite el nivel
+  `imputacion`, cita el literal, exige los 6 días NATURALES del art. 57.2 y comprueba el 60.5 —freno que en esta rama no tenía nadie—;
+  `fn_expediente_crear_despido` arma la carta A PARTIR de su imputación, sin recibir causa (la hereda, así que el 57.7 no se puede
+  romper); un trigger impide cambiarla por UPDATE directo (cuarta instancia del molde de la casa, tras 0261, 0295 y 0342); y dos
+  restricciones de la 0510 que guardaban la premisa «el 53.3 no está en el catálogo» se ponen al día.
+- **0569** — la entrega arranca el plazo del art. 31 (que corre desde la RECEPCIÓN) y anota en el expediente que un acta interna no
+  sustituye la notificación notarial del art. 57.8. Decisión de Felipe: **avisar, no bloquear** (mi recomendación había sido bloquear; el
+  costo queda escrito en el ADR). El aviso llega también ANTES del clic, en el formulario: ahí había un texto FALSO desde meses, que
+  afirmaba que el acta «produce los mismos efectos que el cargo firmado (num. 55.4)» también en imputación y despido.
+
+**Lo que cazaron las pruebas antes de pegar nada.** `chk_conducta_completa` obligaba a que una imputación por conducta tuviera la falta en
+NULL, y el índice único del 52.5 hacía chocar la carta de despido con su propia imputación (hereda persona, falta y fecha a propósito).
+Ninguna estaba mal escrita: las dos eran premisas correctas que caducaron el día que el 53.3 entró al catálogo. El índice se resolvió
+diciendo a qué se refiere el 52.5 —protege de SANCIONAR dos veces, y la escala del 54.1 son tres peldaños— en vez de relajarlo.
+
+**Y un defecto de mi propia 0569, medido:** pegarla antes de la 0568 NO falla. Postgres no analiza el cuerpo de una función plpgsql al
+crearla, así que se pega sin una queja y revienta la primera vez que alguien ENTREGA un documento firmado, con la persona delante. La
+migración abre ahora con un bloque que comprueba la columna y aborta; el encabezado afirmaba lo contrario antes de medirlo.
+
+**Probado.** Banco de Postgres nativo desechable con el esquema real de `main` (565 migraciones) y control A/B en las cuatro:
+**456** 5/5 (4 de 5 en rojo sin la 0566) · **457** 9/9 (9/9 en rojo sin la 0567) · **458** 17/17, 11 de ellas casos que DEBEN bloquear
+(0/17 sin la 0568) · **459** 9/9, y el control deja en rojo las 4 del comportamiento nuevo y en VERDE las 5 que vigilan que no se rompió
+lo anterior —entre ellas la que más importa: que la imputación de los motores de asistencia, que no trae plazo concedido, se entregue
+igual que siempre sin reloj inventado—. Vitest 2 951 de 2 951 y typecheck en verde.
+De paso se arregló un defecto del banco que llevaba semanas dando falsos rojos: su `auth.uid()` leía `request.jwt.claim.sub` mientras las
+pruebas del repo ponen `request.jwt.claims` como JSON. La prueba 205 pasó de 0/9 a 9/9.
+
+**md5 pedidos a producción el 2026-10-30, los tres idénticos al repositorio y sin un solo `\r`:** `fn_expediente_crear_conducta`
+3359 / `a7cdf75a…`, `fn_expediente_entregar` 1693 / `75367baa…`, `fn_conducta_antecedentes` 3021 / `d7e5a98c…`.
+
+**Estado del pegado.** 0566 y 0567 **pegadas el 2026-10-30**, registradas con su nombre correcto y sin número robado;
+`disciplina_descargo_previo` quedó en `true`. **0568 y 0569 sin pegar, en este orden** (la 0569 lee la columna que agrega la 0568).
+Nada fusionado y **no hay PR**.
+
+**Pendiente.** Las pantallas: el botón de «pedir suspensión» para la líder, la acción de elevar para DO, y el panel de antecedentes
+acotado a conducta/12 meses. Van con la regeneración de `types.ts`, que todavía no tiene las cuatro funciones nuevas. Y dos defectos
+medidos que esta entrega esquiva y no arregla, cada uno con su propia entrega: `fn_expediente_resolver` no comprueba que el plazo de
+descargo haya vencido (hoy se puede archivar o decidir el despido el mismo día de la entrega, sin haber escuchado), y las imputaciones
+de los dos motores de asistencia —casi todas las que existen— se entregan sin que corra el plazo del art. 31; ponerles reloj exige
+tocar los motores y el plazo no se adivina, se concede por escrito (art. 57.2).
+
+---
+
 ## 2026-10-29 — Liquidaciones lista lo que se debe de periodos anteriores · migración 0565 · **SQL PEGADO EN PRODUCCIÓN (2026-10-29)** · FUSIONADO (PR #618) · rama `claude/liquidacion-periodos-sin-pagar`
 
 **Qué es.** Emily Rico y Milagritos Zarate cesaron el 29/10, que ya es el periodo NUEVO: su liquidación calculaba un día y el sueldo de
