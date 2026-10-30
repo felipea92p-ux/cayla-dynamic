@@ -12,7 +12,7 @@ import {
   etapaDelBorrador, pestanaDelDocumento, pendientesDeEntregado, situacionTardanza, situacionFalta,
   estadoHoyTardanza, estadoHoyFalta, antecedentesVigentes, eventosDeObservacion,
   admiteEntregaAnteriorAlCese, normalizarBusqueda, horaEsperada, SIN_FOTO_DEL_HORARIO, explicarPasoTardanza,
-  estadoDeLectura, lecturaPendienteParaAviso, DIAS_SIN_LEER_PARA_AVISO,
+  estadoDeLectura, lecturaPendienteParaAviso, DIAS_SIN_LEER_PARA_AVISO, exigeNotificacionReforzada,
   type DocDisciplina, type Adjunto, type TardanzaRow, type FaltaRow, type DiaAsistencia,
 } from "@/lib/admin/disciplina";
 
@@ -275,5 +275,31 @@ describe("la constancia de lectura que ve DO (0516)", () => {
     expect(lecturaPendienteParaAviso(papel(), leido, ahora)).toBe(false);
     expect(lecturaPendienteParaAviso(papel({ firma_sancionado_confirmada_at: "2026-10-06T10:00:00Z" }), undefined, ahora)).toBe(false);
     expect(lecturaPendienteParaAviso(papel({ medio_entrega: "digital" }), undefined, ahora)).toBe(false);
+  });
+});
+
+describe("notificación reforzada del art. 57.8", () => {
+  // La pantalla usa esto para no repetirle a quien entrega que el acta
+  // «produce los mismos efectos que el cargo firmado»: en estos dos niveles no
+  // los produce, y durante meses el formulario lo afirmó.
+  it("alcanza a la carta de imputación y a la de despido", () => {
+    expect(exigeNotificacionReforzada("imputacion")).toBe(true);
+    expect(exigeNotificacionReforzada("despido")).toBe(true);
+  });
+
+  it("y no a las tres sanciones de la escala del art. 54.1", () => {
+    // Acá sí vale el numeral 55.4: el acta equivale al cargo firmado. Un aviso
+    // que también saliera en una amonestación sería falso, y los falsos
+    // positivos son el peor error de este sistema.
+    expect(exigeNotificacionReforzada("verbal")).toBe(false);
+    expect(exigeNotificacionReforzada("amonestacion")).toBe(false);
+    expect(exigeNotificacionReforzada("suspension")).toBe(false);
+  });
+
+  it("no se cae con un nivel que no conoce", () => {
+    // La pantalla le pasa `doc?.nivel ?? ""` cuando todavía no cargó el
+    // documento. Un `undefined` ahí no debe encender un aviso de despido.
+    expect(exigeNotificacionReforzada("")).toBe(false);
+    expect(exigeNotificacionReforzada("cualquier_cosa")).toBe(false);
   });
 });

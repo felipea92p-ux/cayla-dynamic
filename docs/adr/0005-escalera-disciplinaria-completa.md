@@ -182,6 +182,29 @@ quien lo lea dentro de un año sepa que fue una decisión y no un descuido.
 **SE ROMPE SI:** nadie lee la advertencia. Por eso va en el expediente —donde la
 lee quien revisa el caso— y no solo en un cartel de pantalla que se cierra.
 
+**Al construirla (0569), dos cosas.**
+
+**El aviso tenía que llegar antes del clic, no después.** Lo que la base escribe
+en `observacion` es un registro: cuando aparece, la entrega ya está hecha. Un
+aviso que llega después del acto irreversible no es un aviso. Así que el
+formulario de «Registrar la negativa a firmar» muestra el art. 57.8 antes de
+guardar, y la base sigue anotándolo en el expediente para quien lo lea en un año.
+Son dos textos distintos a propósito y no una duplicación: uno advierte a quien
+va a actuar, el otro deja constancia de lo actuado.
+
+**Y la pantalla decía algo falso justo en este caso.** El formulario afirmaba que
+el acta «produce los mismos efectos que el cargo firmado (num. 55.4 del RIT)»
+—cierto para las tres sanciones de la escala, falso para la carta de imputación y
+la de despido, donde el 57.8 dice lo contrario con esas palabras—. Ese texto
+llevaba meses ahí. El predicado vive ahora en `exigeNotificacionReforzada`
+(`apps/web/lib/admin/disciplina.ts`), con sus tres pruebas, y no como un
+`nivel === "imputacion"` suelto: la base ya lo dice en dos sitios (la 0303 para
+el correo, la 0569 para el aviso) y la pantalla habría sido el tercero.
+
+**Medido antes de escribirlo:** en producción hay **0** imputaciones y **0**
+cartas de despido entregadas con acta interna. El aviso es preventivo, no
+correctivo.
+
 ### 5 · La líder ve solo los antecedentes de conducta de los últimos 12 meses
 
 **DECIDÍ:** `fn_conducta_antecedentes` le muestra lo que agrava según el 56.5
@@ -205,6 +228,20 @@ El orden no es arbitrario: la 0566 es la que decide si los peldaños de arriba
 apoyan en algo. Si se pegara al final, las suspensiones emitidas en el medio
 tampoco contarían como escalón.
 
+**Y la 0569 no se fía de que alguien recuerde ese orden.** Al construirla se
+midió lo que este ADR daba por hecho: pegarla antes de la 0568 NO falla. Postgres
+no analiza el cuerpo de una función plpgsql al crearla, así que la migración se
+pega sin una queja y `plazo_descargo_dias` revienta la primera vez que alguien
+entrega un documento firmado, con la persona delante. Es la firma del accidente
+que este repositorio ya conoce —«no falló al pegar la migración: falló al abrir la
+pantalla»—, y por eso la 0569 abre con un bloque que comprueba la columna y
+aborta.
+
+**Estado al 2026-10-30:** 0566 y 0567 pegadas en producción (`migraciones_aplicadas`
+las registra con su nombre, sin número robado, y `disciplina_descargo_previo` ya
+está en `true`). 0568 y 0569 escritas, probadas y empujadas, sin pegar y sin
+fusionar.
+
 ## Qué no hace este ADR
 
 - No cambia la escalera de tardanzas ni la de inasistencias (arts. 19 y 21), que
@@ -217,6 +254,13 @@ tampoco contarían como escalón.
   persona recibió firmada vuelve impugnable la sanción.
 - No decide el pendiente 78 (presentar el v4.0 ante la Autoridad Administrativa de
   Trabajo). Es de Gerencia.
+- No le pone reloj a las imputaciones de los motores. `fn_expediente_generar_tardanza`
+  y `fn_expediente_generar_falta` las crean por `fn_expediente_crear_borrador`,
+  que no recibe plazo concedido, y son casi todas las imputaciones que existen:
+  se entregan sin que corra el plazo del art. 31. La 0569 no se lo inventa
+  —el plazo se concede por escrito (art. 57.2), no se adivina— y la prueba 459
+  fija que esas entregas no cambian. Es la pieza siguiente, y es más cara de lo
+  que parece porque toca los dos motores.
 - No arregla `fn_expediente_resolver`, donde la 0568 midió un defecto real:
   resolver no comprueba que el plazo de descargo haya vencido, así que hoy se
   puede archivar —o decidir el despido— el mismo día de la entrega, sin haber
