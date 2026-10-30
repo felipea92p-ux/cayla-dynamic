@@ -6,54 +6,100 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-30 — 🔴 El repo principal lleva un mes congelado, y los hooks que corren en CADA push son los suyos · sin SQL · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+## 2026-10-30 — El repo principal vuelve a estar al día, y la causa de fondo queda nombrada · sin SQL · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
 
-**Lo que pasa.** `core.hooksPath` apunta a `/Users/ArchiCaylo/Developer/cayla-dynamic/scripts/hooks`
-—el repo PRINCIPAL, no el worktree desde el que empujas—. Y ese checkout está en
-`78179af3`, del **2026-09-27**: **943 commits detrás de `origin/main`**. O sea que
-desde hace cinco semanas, todo push de cualquier worktree corre los hooks del 27
-de septiembre.
+**Lo que pasaba.** `core.hooksPath` apunta a
+`/Users/ArchiCaylo/Developer/cayla-dynamic/scripts/hooks` —el repo PRINCIPAL, no
+el worktree desde el que empujas—. Y ese checkout estaba en `78179af3`, del
+**2026-09-27**: **943 commits detrás de `origin/main`**. O sea que durante cinco
+semanas, todo push de cualquier worktree corrió los hooks del 27 de septiembre.
 
-**Medido, no supuesto.** El `pre-push` que de verdad corre llama a diez
-guardianes. El de cualquier rama al día llama a trece. Faltan:
+**Medido, no supuesto.** El `pre-push` que de verdad corría llamaba a diez
+guardianes. El de cualquier rama al día llama a trece. Faltaban:
 
-| guardián | desde | qué deja de vigilar |
+| guardián | desde | qué dejó de vigilar |
 |---|---|---|
-| `receta-suelta.sh` | 2026-10-17 | el paso 2 del [ADR 0004](adr/0004-diseno-unificado.md): que un push no vuelva a escribir a mano una pieza que ya tiene componente. **Nunca ha frenado un solo push.** Se midió contra 150 merges, se probó con 36 casos, y se instaló donde nada lo ejecuta. |
-| `estado-que-miente.sh` | — | que este archivo no mienta. La ironía no es menor: hoy se corrigió a mano una línea de `estado.md` que había causado un incidente en producción, y el guardián que existe para eso llevaba semanas sin correr. |
+| `receta-suelta.sh` | 2026-10-17 | el paso 2 del [ADR 0004](adr/0004-diseno-unificado.md): que un push no vuelva a escribir a mano una pieza que ya tiene componente. **No frenó un solo push en cinco semanas.** Se midió contra 150 merges, se probó con 36 casos, y se instaló donde nada lo ejecutaba. |
+| `estado-que-miente.sh` | — | que este archivo no mienta. La ironía no fue menor: ese día se corrigió a mano una línea de `estado.md` que había causado un incidente en producción, y el guardián que existe para eso llevaba semanas sin correr. |
 | `probar-receta-suelta.sh` | 2026-10-17 | la prueba del anterior. |
 
-**Y hay un tercero que no falta: corre, pero es el de septiembre.**
+**Y un cuarto que no faltaba: corría, pero era el de septiembre.**
 `que-falta-pegar.sh --arregla` regenera `scripts/sql-manual/que_falta_pegar.sql`
-en cada push y lo commitea. Como el script que corre es el del 27-sep, **revierte
-en cada push** el arreglo del 28-sep (commit `9b8f821f`, «La 0393 deja de gritar
-MIRA ARRIBA») y cualquier arreglo posterior. Regenerar el artefacto a mano no
-sirve de nada: el siguiente push lo vuelve a pisar.
+en cada push y lo commitea. Como el script que corría era el del 27-sep,
+**revertía en cada push** el arreglo del 28-sep (commit `9b8f821f`, «La 0393 deja
+de gritar MIRA ARRIBA»). Regenerar el artefacto a mano no servía: el siguiente
+push lo volvía a pisar.
 
-Eso se vio hoy en producción, con la consulta corrida de verdad, y dio **dos
+Eso se vio en producción, con la consulta corrida de verdad, y dio **dos
 respuestas equivocadas**:
 
 - **La 0393 salió como «⚠️ SOBRA LA FILA»** cuando está explicada desde el
   2026-09-28 en `huecos-conocidos.txt`, con su marca `[sobra la fila: …]` y la
   orden expresa de NO recuperar el archivo. El resumen dijo «⚠️ MIRA ARRIBA» por
-  una alarma que ya estaba resuelta — que es cómo se enseña a ignorar las alarmas.
+  una alarma ya resuelta — que es cómo se enseña a ignorar las alarmas.
 - **La 0519 salió como «❌ FALTA PEGAR»** cuando está en `no-se-pegan.txt`. El
-  generador viejo no lee ese archivo, así que la marcó `false`.
-
-Con el generador al día, el resultado real es **2 faltan** (0509 y 0542) y **una
-huérfana sin explicar menos** de las que gritó.
+  generador viejo no lee ese archivo, así que la marcaba `false`.
 
 **Por qué nadie lo vio.** Los hooks no fallaron: corrieron, imprimieron sus diez
 pasos en verde y dejaron pasar el push. Un guardián ausente no deja hueco visible
-—la salida del push se ve exactamente igual de sana con diez pasos que con trece—.
-Es la misma forma que ya está escrita en CLAUDE.md para el linter: «un guardián
-instalado y apagado».
+—la salida del push se ve exactamente igual de sana con diez pasos que con
+trece—. Es la misma forma que ya está escrita en CLAUDE.md para el linter: «un
+guardián instalado y apagado».
 
-**Lo que hay que hacer, y es de Felipe porque es su copia de trabajo:** poner el
-checkout principal al día. Tiene dos archivos sin commitear (`apps/web/package.json`
-y `pnpm-lock.yaml`) y los dos los tocan commits de upstream, así que un `pull` a
-secas puede chocar. Y mientras no se haga, **cualquier hook nuevo que se escriba
-desde un worktree nace apagado**.
+### Qué se hizo (2026-10-30, con el OK de Felipe)
+
+- **El checkout principal avanzó `78179af3` → `32c67f8b`**, los 943 commits, en
+  avance limpio: no tenía ningún commit propio que no estuviera arriba.
+- **Los dos archivos sin commitear eran trabajo ya superado**, no trabajo
+  perdido: subían `next` de 16.2.12 a 16.3.3 con fecha del 21-sep, y `main` ya
+  trae **16.4.1**. El parche se guardó fuera del repo antes de descartarlo.
+- **Su `pre-push` ya es byte por byte el mismo** que el de una rama al día: los
+  trece guardianes, `receta-suelta.sh` incluido.
+- **`que_falta_pegar.sql` se regeneró y se commiteó** (`36f4c98f`). El arreglo
+  del generador estaba commiteado desde `6b6bf575`; lo que seguía siendo de
+  septiembre era el **archivo generado** en HEAD. Son dos cosas distintas y
+  conviene no confundirlas: arreglar el generador no arregla el artefacto.
+
+### La causa de fondo sigue en pie, y es una línea de configuración
+
+Poner el principal al día apaga el incendio de hoy; no cierra el agujero. Lo que
+se midió al cerrarlo es peor de lo que decía la entrada anterior. No es que un
+hook escrito en un worktree «corra tarde»: **no corre, y git no dice nada
+distinguible de que todo esté bien.**
+
+```
+$ git hook run pre-auto-gc            # un hook que solo existe en el worktree
+error: cannot find a hook named pre-auto-gc
+
+$ git -c core.hooksPath=scripts/hooks hook run pre-auto-gc
+    hook ejecutado desde: scripts/hooks/pre-auto-gc
+    cwd de git al correr hooks: …/.claude/worktrees/revision-liquidacion-e8f8f0
+```
+
+O sea que con la ruta **relativa** —que es justo la que CLAUDE.md prescribe,
+`git config core.hooksPath scripts/hooks`— git la resuelve contra la raíz de CADA
+worktree y el guardián de la rama corre el día que se escribe. La ruta absoluta
+es la desviación de la convención, no al revés.
+
+Y hay un segundo cruce que conviene conocer antes de decidir: `pre-push` llama a
+sus hermanos con `$(dirname "$0")`, así que **los guardianes que corren son los
+del principal leyendo los archivos de tu rama**. `que-falta-pegar.sh` además lee
+`no-se-pegan.txt` y `huecos-conocidos.txt` del árbol del principal, no del tuyo
+(hoy son idénticos; el día que no lo sean, la respuesta sale mezclada).
+
+**El cambio es de Felipe porque afecta a los diez worktrees a la vez**, y el
+trade-off real es este:
+
+| | ruta absoluta (hoy) | ruta relativa (lo que dice CLAUDE.md) |
+|---|---|---|
+| Ganas | una rama vieja igual pasa por los frenos nuevos de `main` | un guardián nuevo funciona el día que se escribe |
+| Pagas | si `main` se congela, se congelan los frenos de TODOS, y un hook del worktree es invisible | una rama vieja empuja con los frenos de su época |
+
+Recomendación: **relativa**. Los dos modos fallan, pero fallan distinto. El de
+hoy falla en silencio y para todo el mundo a la vez, y se tardó cinco semanas en
+notarlo; el otro falla acotado a una rama y se ve mirando sus propios archivos.
+Y lo que entra a `main` lo siguen mirando `db-tests` y `ui-tests`, que no
+dependen de ningún hook.
 
 **Lo que queda abierto.** No se midió qué se coló en las cinco semanas en que
 `receta-suelta.sh` no corrió —las recetas escritas a mano que habría frenado— ni
