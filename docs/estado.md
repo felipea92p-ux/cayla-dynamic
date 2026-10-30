@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya pegadas) · **0546 y 0547 PENDIENTES DE PEGAR** · rama `claude/vigilant-hopper-d48cdd`
+## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya estaban pegadas) · **0546 PEGADA (2026-10-30)** · 0547 entregada · PR #620 · rama `claude/vigilant-hopper-d48cdd`
 
 **De dónde sale.** El checkout principal llevaba 943 commits congelado desde el 27 de septiembre y `core.hooksPath` apunta a SUS
 hooks: durante cinco semanas todo push de cualquier worktree corrió los guardianes del 27-sep. Al ponerlo al día (`78179af3` →
@@ -72,6 +72,18 @@ contra el cuerpo que el repo tiene hoy: **las nueve coinciden**.
   cayeron en esa cascada. Es el falso rojo que ya costó media hora con la prueba 274. Seguir parcheando el esquema a mano daría un verde
   que no prueba nada: **la señal fiable es `db-tests` de GitHub Actions**, sobre una base construida desde cero, y es la que el ruleset
   exige para fusionar. `typecheck` en verde.
+
+**Confirmado contra producción el 2026-10-30.** `migraciones_aplicadas` trae **523** (`acortar_el_hasta_de_educacion_deja_de_fallar`,
+17-oct 02:37 UTC) y **545** (`reabrir_un_grupo_pagado_repara_sus_horas`, 22-oct 07:13 UTC), y **ninguna fila para 526, 546 ni 547**. Se
+pidió `numero` Y `nombre`, no un `array_agg(numero)`: eso es lo que distingue «está la mía» de «está otra con mi número», y es el paso
+que dejó pasar las colisiones de la 0405 y la 0409. Las tres conclusiones de arriba quedan así medidas, no inferidas.
+
+**Y `db-tests` cerró lo que el banco local no pudo:** los 4 checks del PR #620 en verde, sobre una base construida desde cero — o sea
+que las pruebas **437, 438 y 439** pasan. Era la señal que faltaba, y es la que CLAUDE.md llama fiable.
+
+**La 0546 se pegó en producción el 2026-10-30** (confirmado por Felipe; guardia superada). La 0547 se entregó a continuación con
+`dame-el-sql.sh`, comprobada byte por byte contra el archivo y con sus acentos contados desde fuera del script —110 y 110—, porque la
+verificación interna corre bajo el mismo locale y puede declararse conforme sobre texto corrupto.
 
 **Un detalle que conviene saber antes de pegar: estas dos NO son repegables.** Su guardia acepta solo el cuerpo de partida, no el
 propio (la 0549 sí se incluye en su lista blanca; estas no). Si se pega la 0546 y por cualquier duda se repega, **para** — y el mensaje
