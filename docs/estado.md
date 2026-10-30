@@ -232,7 +232,46 @@ accidente, no solo aquella línea.
 
 ---
 
-## 2026-10-30 — La escalera disciplinaria llega hasta el despido · migraciones 0566 a 0569 · **LAS CUATRO PEGADAS (2026-10-30)** · PR #621 ABIERTO, SIN FUSIONAR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+## 2026-10-30 — La escalera disciplinaria llega hasta el despido · migraciones 0566 a 0569 · **LAS CUATRO PEGADAS (2026-10-30)** · **+ la 0570 SIN PEGAR** · PR #621 ABIERTO, SIN FUSIONAR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+
+### La 0568 dejó seis faltas graves sin nombre, y lo cazó el CI (migración 0570)
+
+`db-tests` del PR #621 se puso en rojo con **cinco aserciones en tres pruebas que
+ya existían**, y `main` llevaba cinco corridas seguidas en verde: no era deuda
+vieja, lo rompieron estas cuatro migraciones. Cuatro de las cinco eran pruebas
+que quedaron obsoletas a propósito. **Una era un defecto real, y está en
+producción desde hoy.**
+
+| aserción | veredicto | por qué |
+|---|---|---|
+| 404 · «los 20 literales» | prueba vieja | filtraba por `rit_version` cuando su título habla de dos numerales. Hasta la 0568 daba lo mismo; el 53.3 rompió esa equivalencia. Ahora filtra por numeral, que es lo que siempre prometió. |
+| 404 · «17 se registran a mano» | prueba vieja | lo mismo: 7 del 53.1 + 10 del 53.2 siguen siendo 17; los 4 nuevos del 53.3 los cuenta la 458. |
+| 404 · «NIVEL · verbal y amonestación» | prueba vieja | la 0568 abrió el nivel a `imputacion` y reescribió el mensaje. El comportamiento no cambió: `suspension` se sigue rechazando, ahora porque **se eleva**, no porque «la decide DO». |
+| 405 · «CANDADO · ni lo firma» | prueba vieja | el descargo previo de la 0566 se interpone ANTES del candado que esa aserción medía, así que `fn_expediente_firmar` cortaba 50 líneas antes de llegar al trigger de la 0511. Se sembró el trámite del art. 55.2 primero, como ya hace la 205. **No** se relajó el patrón a `'%'`: eso habría convertido una aserción sobre ese candado en una aserción sobre cualquier error. |
+| 408 · «ninguna falta queda sin nombre corto» | **defecto real** | la 0568 metió seis filas a `faltas_catalogo` **sin su insert hermano en `faltas_rotulos`**. Lo arregla la **0570**. |
+
+**Por qué el defecto pasó inadvertido, que es la parte que enseña.** Ni la 0568,
+ni su prueba 458, ni el ADR mencionan la palabra «rótulo» una sola vez: no fue
+una decisión, fue un olvido. La decisión de que se nombran TODAS las faltas
+—incluso las que nadie elige a mano, «para cuando aparecen en el panel de un
+caso»— vive en la 0514, y la aserción que la defiende vive en **otra prueba**, la
+408. Una migración se revisa con sus propias pruebas; la invariante que rompió
+estaba en el archivo de al lado.
+
+Y **nada revienta ni sale en blanco**: los tres lectores degradan solos, que es
+justo lo que lo hizo invisible. Lo que se pierde es el nombre de la acusación en
+la cabecera del documento (`panel-caso.tsx`) y en la bandeja de DO
+(`bandeja-fuentes.ts`) — o sea en el papel más grave que existe, la imputación de
+cargos. Quien revisa la bandeja lee «53.3 a)» y ya no sabe de qué se acusa a
+alguien sin abrir el caso.
+
+**Y un hueco aparte, que la 0570 NO arregla porque es código:**
+`faltasElegibles` (`apps/web/lib/admin/conducta.ts`) reparte el catálogo en dos
+cubos, `leve` y `significativa`, y `registrar-falta.tsx` solo dibuja esos dos.
+Una falta con `gravedad = 'grave'` se cae de los dos y no se dibuja ningún chip.
+Como esa pantalla es la única que llama a `fn_expediente_crear_conducta`, **el
+nivel `imputacion` que la 0568 habilitó en la base no tiene puerta en la
+interfaz**. Va con las pantallas que faltan, y ninguna pgTAP lo cubre.
 
 **Qué es.** Felipe pidió «que cada líder pueda emitir memorándums para así escalar medida disciplinaria de despido de ser necesario».
 Al investigarlo salió que la mitad de abajo ya estaba construida: desde el 6 de octubre (0510–0516) la líder emite memos, cita el literal
