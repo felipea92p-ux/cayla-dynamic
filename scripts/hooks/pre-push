@@ -52,6 +52,22 @@ echo "→ la consulta de qué falta pegar…"
 echo "→ migraciones sin guardar…"
 "$(dirname "$0")/migracion-sin-guardar.sh" || true
 
+# ── `estado.md` diciendo «SIN FUSIONAR» de algo publicado ───────────────────
+#
+# El 2026-09-19 se midió el archivo entero contra git: NUEVE entradas mentían.
+# La peor decía «NO PEGADA · SIN FUSIONAR» de la 0479 —el bono de cumpleaños en
+# la boleta—, que llevaba diez horas pegada y fusionada, en el orden correcto.
+# Otra sesión la leyó, la creyó y levantó una alarma de plata que costó una
+# consulta a producción para descartar.
+#
+# Va acá, con los instantáneos: son dos `git show` y un `git ls-tree`.
+# BLOQUEA lo demostrablemente falso («SIN FUSIONAR» de algo que ya está en
+# origin/main) y AVISA lo peligroso pero posiblemente cierto («SIN PEGAR» de
+# una migración publicada), que git no puede resolver. El motivo largo, el
+# falso positivo que evita y lo que NO puede ver están en su cabecera.
+echo "→ estado.md contra git…"
+"$(dirname "$0")/estado-que-miente.sh" || exit 1
+
 # ── Lo que `main` tiene y esta rama no ──────────────────────────────────────
 #
 # El 2026-08-20 la 0276 se construyó sobre un cuerpo de `fn_planilla_calcular`
