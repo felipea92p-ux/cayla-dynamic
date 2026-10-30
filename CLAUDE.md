@@ -1138,6 +1138,29 @@ Para que el hook funcione en un clon nuevo hay que activarlo una vez:
 git config core.hooksPath scripts/hooks
 ```
 
+**Y esa línea tiene que ser RELATIVA, y hay que volver a comprobarla en cada
+worktree nuevo.** Si `core.hooksPath` apunta a una ruta absoluta —el checkout
+principal, por ejemplo—, todos los worktrees corren los guardianes de ESE
+checkout: el día que se quede atrás, se quedan atrás los frenos de todos a la
+vez, y un hook escrito en un worktree **no corre**; git contesta
+`cannot find a hook named …`, que no se distingue de que todo esté bien. Pasó
+cinco semanas, del 27-sep al 30-oct de 2026, con `receta-suelta.sh` y
+`estado-que-miente.sh` apagados sin que la salida del push se viera distinta.
+
+Lo que lo hace volver: **`extensions.worktreeConfig` está activo en este repo, y
+la app escribe la ruta absoluta en el `config.worktree` de cada worktree nuevo**
+—medido el 2026-10-30 en uno recién creado—. Ese valor gana sobre el
+`.git/config` compartido, así que arreglarlo una vez no alcanza. Al empezar en un
+worktree:
+
+```bash
+git config --show-origin --get core.hooksPath    # tiene que decir: scripts/hooks
+```
+
+Si devuelve una ruta absoluta desde un `config.worktree`:
+`git config --worktree --unset core.hooksPath`, y queda heredando la del
+compartido.
+
 **Para desplegar**, en vez de `npx vercel` directo:
 ```bash
 ./scripts/desplegar.sh          # vista previa

@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-30 — El repo principal vuelve a estar al día, y la causa de fondo queda nombrada · sin SQL · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+## 2026-10-30 — El repo principal al día, y cada worktree corre SUS guardianes · sin SQL · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
 
 **Lo que pasaba.** `core.hooksPath` apunta a
 `/Users/ArchiCaylo/Developer/cayla-dynamic/scripts/hooks` —el repo PRINCIPAL, no
@@ -14,14 +14,24 @@ el worktree desde el que empujas—. Y ese checkout estaba en `78179af3`, del
 **2026-09-27**: **943 commits detrás de `origin/main`**. O sea que durante cinco
 semanas, todo push de cualquier worktree corrió los hooks del 27 de septiembre.
 
-**Medido, no supuesto.** El `pre-push` que de verdad corría llamaba a diez
-guardianes. El de cualquier rama al día llama a trece. Faltaban:
+**Medido, no supuesto.** El `pre-push` que de verdad corría invocaba **ocho**
+guardianes; el de una rama al día invoca **diez**. Faltaban estos dos:
 
 | guardián | desde | qué dejó de vigilar |
 |---|---|---|
 | `receta-suelta.sh` | 2026-10-17 | el paso 2 del [ADR 0004](adr/0004-diseno-unificado.md): que un push no vuelva a escribir a mano una pieza que ya tiene componente. **No frenó un solo push en cinco semanas.** Se midió contra 150 merges, se probó con 36 casos, y se instaló donde nada lo ejecutaba. |
 | `estado-que-miente.sh` | — | que este archivo no mienta. La ironía no fue menor: ese día se corrigió a mano una línea de `estado.md` que había causado un incidente en producción, y el guardián que existe para eso llevaba semanas sin correr. |
-| `probar-receta-suelta.sh` | 2026-10-17 | la prueba del anterior. |
+
+Una primera versión de esta entrada dijo «diez contra trece» y listó tres
+guardianes, con `probar-receta-suelta.sh` entre ellos. Era falso por el método:
+se contaron los nombres que APARECEN en el `pre-push`, y ahí también están los
+que solo se mencionan en comentarios (`desplegar.sh`, `donde-vive.sh`) y
+`probar-receta-suelta.sh`, que es la prueba de `receta-suelta.sh` y se corre a
+mano, no en el push. Lo que se cuenta son las líneas que lo INVOCAN:
+`grep -cE '^"\$\(dirname "\$0"\)' scripts/hooks/pre-push`. La sustancia no
+cambia —dos guardianes apagados cinco semanas—; los números sí, y en este
+archivo un número equivocado es justo lo que `estado-que-miente.sh` existe para
+cazar.
 
 **Y un cuarto que no faltaba: corría, pero era el de septiembre.**
 `que-falta-pegar.sh --arregla` regenera `scripts/sql-manual/que_falta_pegar.sql`
@@ -60,46 +70,62 @@ guardián instalado y apagado».
   septiembre era el **archivo generado** en HEAD. Son dos cosas distintas y
   conviene no confundirlas: arreglar el generador no arregla el artefacto.
 
-### La causa de fondo sigue en pie, y es una línea de configuración
+### La causa de fondo: resuelta hoy, pero se degrada sola
 
-Poner el principal al día apaga el incendio de hoy; no cierra el agujero. Lo que
-se midió al cerrarlo es peor de lo que decía la entrada anterior. No es que un
-hook escrito en un worktree «corra tarde»: **no corre, y git no dice nada
-distinguible de que todo esté bien.**
+Poner el principal al día apagaba el incendio y no cerraba el agujero. Lo que se
+midió al cerrarlo es peor de lo que decía la primera versión de esta entrada: no
+es que un hook escrito en un worktree «corra tarde». **No corre, y git no dice
+nada que se distinga de que todo esté bien.**
 
 ```
 $ git hook run pre-auto-gc            # un hook que solo existe en el worktree
 error: cannot find a hook named pre-auto-gc
 
 $ git -c core.hooksPath=scripts/hooks hook run pre-auto-gc
-    hook ejecutado desde: scripts/hooks/pre-auto-gc
-    cwd de git al correr hooks: …/.claude/worktrees/revision-liquidacion-e8f8f0
+    corrió el hook del worktree: scripts/hooks/pre-auto-gc
 ```
 
-O sea que con la ruta **relativa** —que es justo la que CLAUDE.md prescribe,
-`git config core.hooksPath scripts/hooks`— git la resuelve contra la raíz de CADA
-worktree y el guardián de la rama corre el día que se escribe. La ruta absoluta
-es la desviación de la convención, no al revés.
+Con la ruta **relativa** —la que CLAUDE.md ya prescribía— git la resuelve contra
+la raíz de CADA worktree, y se comprobó que lo hace también empujando desde un
+subdirectorio (`apps/web`, `supabase/migrations`): git se mueve al tope del árbol
+antes de correr los hooks, así que no hay un caso en que la relativa apague todo.
 
-Y hay un segundo cruce que conviene conocer antes de decidir: `pre-push` llama a
-sus hermanos con `$(dirname "$0")`, así que **los guardianes que corren son los
-del principal leyendo los archivos de tu rama**. `que-falta-pegar.sh` además lee
-`no-se-pegan.txt` y `huecos-conocidos.txt` del árbol del principal, no del tuyo
-(hoy son idénticos; el día que no lo sean, la respuesta sale mezclada).
+**Felipe decidió relativo el 2026-10-30, y se ejecutó así.** No era una línea en
+un sitio: **`extensions.worktreeConfig` está activo**, y los once worktrees
+tenían cada uno su propio `config.worktree` con la ruta absoluta, que gana sobre
+el `.git/config` compartido. Se puso el compartido en `scripts/hooks` y se
+quitaron los once overrides, para que haya **una sola fuente**. Respaldo de los
+doce archivos de antes, fuera del repo, por si hay que volver.
 
-**El cambio es de Felipe porque afecta a los diez worktrees a la vez**, y el
-trade-off real es este:
+**Lo que costó, nombrado:** ayer los doce corrían los guardianes de `main`; hoy
+cada uno corre los suyos. Medido justo después del cambio: cuatro worktrees
+invocan 8, cuatro invocan 9 y cuatro invocan 10. Los ocho primeros corren uno o
+dos guardianes menos que ayer **hasta que traigan `main` a su rama**, que es algo
+que necesitan hacer igual antes de fusionar. Ninguno se quedó sin `pre-push`, y
+los doce lo tienen ejecutable —si no lo fuera, git lo saltaría en silencio, y eso
+se comprobó uno por uno.
 
-| | ruta absoluta (hoy) | ruta relativa (lo que dice CLAUDE.md) |
-|---|---|---|
-| Ganas | una rama vieja igual pasa por los frenos nuevos de `main` | un guardián nuevo funciona el día que se escribe |
-| Pagas | si `main` se congela, se congelan los frenos de TODOS, y un hook del worktree es invisible | una rama vieja empuja con los frenos de su época |
+**Y aquí está lo que hay que saber, porque el arreglo se degrada solo: la app
+escribe la ruta absoluta en el `config.worktree` de cada worktree NUEVO.** Se
+midió en `vigilant-hopper-d48cdd`, creado ese mismo día: nació con
+`hooksPath = /Users/ArchiCaylo/Developer/cayla-dynamic/scripts/hooks`. Así que
+cada sesión nueva vuelve a empezar apuntando al principal, y si el principal se
+congela otra vez, esa sesión hereda el problema entero. No es memoria de nadie:
+es la app, y volverá a pasar.
 
-Recomendación: **relativa**. Los dos modos fallan, pero fallan distinto. El de
-hoy falla en silencio y para todo el mundo a la vez, y se tardó cinco semanas en
-notarlo; el otro falla acotado a una rama y se ve mirando sus propios archivos.
-Y lo que entra a `main` lo siguen mirando `db-tests` y `ui-tests`, que no
-dependen de ningún hook.
+Se comprueba en una línea, y lo que tiene que decir es `scripts/hooks`:
+
+```bash
+git config --show-origin --get core.hooksPath
+```
+
+Si dice una ruta absoluta y viene de un `config.worktree`, se arregla con
+`git config --worktree --unset core.hooksPath` en ese worktree. Mirarlo para los
+doce de golpe: recorrer `git worktree list --porcelain` preguntándole eso a cada
+uno. **Ojo al escribir ese bucle: la shell de esta Mac es zsh, y ahí `$VAR` sin
+comillas no se parte en palabras como en bash.** Dos mediciones de ese día
+salieron con todo marcado como «falta» por eso, y el síntoma —una columna
+uniformemente mal— se lee como un dato, no como un error de shell.
 
 **Lo que queda abierto.** No se midió qué se coló en las cinco semanas en que
 `receta-suelta.sh` no corrió —las recetas escritas a mano que habría frenado— ni
