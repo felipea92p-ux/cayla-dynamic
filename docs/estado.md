@@ -71,7 +71,7 @@ accidente, no solo aquella línea.
 
 ---
 
-## 2026-10-30 — La escalera disciplinaria llega hasta el despido · migraciones 0566 a 0569 · **0566 y 0567 PEGADAS (2026-10-30)** · 0568 y 0569 SIN PEGAR · SIN FUSIONAR, sin PR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+## 2026-10-30 — La escalera disciplinaria llega hasta el despido · migraciones 0566 a 0569 · **LAS CUATRO PEGADAS (2026-10-30)** · SIN FUSIONAR, sin PR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
 
 **Qué es.** Felipe pidió «que cada líder pueda emitir memorándums para así escalar medida disciplinaria de despido de ser necesario».
 Al investigarlo salió que la mitad de abajo ya estaba construida: desde el 6 de octubre (0510–0516) la líder emite memos, cita el literal
@@ -128,8 +128,14 @@ pruebas del repo ponen `request.jwt.claims` como JSON. La prueba 205 pasó de 0/
 **md5 pedidos a producción el 2026-10-30, los tres idénticos al repositorio y sin un solo `\r`:** `fn_expediente_crear_conducta`
 3359 / `a7cdf75a…`, `fn_expediente_entregar` 1693 / `75367baa…`, `fn_conducta_antecedentes` 3021 / `d7e5a98c…`.
 
-**Estado del pegado.** 0566 y 0567 **pegadas el 2026-10-30**, registradas con su nombre correcto y sin número robado;
-`disciplina_descargo_previo` quedó en `true`. **0568 y 0569 sin pegar, en este orden** (la 0569 lee la columna que agrega la 0568).
+**Estado del pegado. LAS CUATRO PEGADAS el 2026-10-30.** La 0566 y la 0567 primero (registradas con su nombre correcto y sin número
+robado; `disciplina_descargo_previo` quedó en `true`), y después la 0568 y la 0569 en ese orden. La 0569 se intentó pegar antes que la
+0568 y **su propio bloque de precondición la paró** —«Falta la columna expediente_disciplinario.plazo_descargo_dias, que agrega la
+migración 0568»—, que es exactamente para lo que se escribió; al segundo intento, con la 0568 ya puesta, entró con «Success. No rows
+returned». El texto de las dos se verificó byte por byte contra el repositorio (`dame-el-sql.sh` + `diff <(pbpaste) …` → idéntico), así
+que los acentos están intactos. **Pendiente de Felipe:** correr la consulta de comprobación (se espera 6 · 4 · 1 · 6781 · 1 · 1 · 1 ·
+4172 · true · true). `versiones_crear_conducta` = 1 es la que más importa: un 2 significa que la firma vieja de siete argumentos
+sobrevivió al `drop` y la pantalla de registrar una falta contestará «function is not unique».
 Nada fusionado y **no hay PR**.
 
 **Pendiente.** Las pantallas: el botón de «pedir suspensión» para la líder, la acción de elevar para DO, y el panel de antecedentes
