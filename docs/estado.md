@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-30 — El repo principal al día, y cada worktree corre SUS guardianes · sin SQL · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+## 2026-10-30 — El repo principal al día, y cada worktree corre SUS guardianes · sin SQL · PR #621 ABIERTO, SIN FUSIONAR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
 
 **Lo que pasaba.** `core.hooksPath` apunta a
 `/Users/ArchiCaylo/Developer/cayla-dynamic/scripts/hooks` —el repo PRINCIPAL, no
@@ -232,7 +232,7 @@ accidente, no solo aquella línea.
 
 ---
 
-## 2026-10-30 — La escalera disciplinaria llega hasta el despido · migraciones 0566 a 0569 · **LAS CUATRO PEGADAS (2026-10-30)** · SIN FUSIONAR, sin PR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+## 2026-10-30 — La escalera disciplinaria llega hasta el despido · migraciones 0566 a 0569 · **LAS CUATRO PEGADAS (2026-10-30)** · PR #621 ABIERTO, SIN FUSIONAR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
 
 **Qué es.** Felipe pidió «que cada líder pueda emitir memorándums para así escalar medida disciplinaria de despido de ser necesario».
 Al investigarlo salió que la mitad de abajo ya estaba construida: desde el 6 de octubre (0510–0516) la líder emite memos, cita el literal
