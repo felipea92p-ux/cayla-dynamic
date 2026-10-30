@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   TIPO_MARCA_LABELS,
   TZ_LIMA,
+  hoyLima,
   sugerirSalidaPrincipal,
   type MarcajeDelDia,
   type TipoMarca,
@@ -25,6 +26,7 @@ import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, confirmarEstadoPuntual, siguienteAccionPara } from "@/lib/terminal/estado-dia";
 import { cargarEstadisticasSugerenciaPorPersona, type EstadisticasTerminal } from "@/lib/terminal/sugerencias";
+import { refrescoPorRelojPermitido, sugerenciasVencidas, type CargaSugerencias } from "@/lib/terminal/refresco";
 import { contarPresencias, presenciaDeLaCasilla, type ClavePresencia, type HorarioDeHoy } from "@/lib/terminal/presencia";
 import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
@@ -185,6 +187,10 @@ export default function MarcarPage() {
   // un ref y no en state por lo mismo que marcajesHoyRef: continuarConPersona
   // lo lee al tocar un nombre, y eso tiene que ser instantáneo, sin re-render.
   const estadisticasSugerenciaRef = useRef<Map<string, EstadisticasTerminal>>(new Map());
+  // De qué día y a qué hora es ese mapa. Las sugerencias cambian una vez al día:
+  // se vuelven a pedir solo cuando vencen (lib/terminal/refresco.ts), no en cada
+  // refresco de la lista. `null` = nunca se cargaron o la última vino vacía.
+  const sugerenciasCargadasRef = useRef<CargaSugerencias | null>(null);
 
   // ── Lo que se VE: en qué punto del día está cada persona ──────────────────
   // Los marcajes y el horario viven en refs porque `continuarConPersona` los lee
@@ -243,6 +249,9 @@ export default function MarcarPage() {
 
   const cargarTodo = useCallback(async () => {
     try {
+      const dia = hoyLima();
+      const ahora = Date.now();
+      const pedirSugerencias = sugerenciasVencidas(sugerenciasCargadasRef.current, dia, ahora);
       const [rosterCargado, marcajes, estadisticas] = await Promise.all([
         cargarRoster(),
         cargarMarcajesHoyPorPersona(),
@@ -250,8 +259,12 @@ export default function MarcarPage() {
         // corre en paralelo y no le suma espera al arranque. Si falla, nunca
         // lanza (misma receta que las otras dos): sugerirSalidaPrincipal cae
         // sola a la regla fija de siempre, y nadie se queda sin poder marcar.
-        cargarEstadisticasSugerenciaPorPersona(),
+        // Vigentes, no se piden: se sigue con las que ya hay (ver refresco.ts).
+        pedirSugerencias ? cargarEstadisticasSugerenciaPorPersona() : Promise.resolve(estadisticasSugerenciaRef.current),
       ]);
+      // Vacías no cuentan como cargadas: sin red o sin respuesta, `sugerencias.ts`
+      // devuelve un mapa vacío, y el próximo refresco tiene que volver a intentar.
+      if (pedirSugerencias) sugerenciasCargadasRef.current = estadisticas.size > 0 ? { dia, ms: ahora } : null;
       setRoster(rosterCargado.entradas);
       // Nunca se borra un mapa BUENO con uno que no se pudo confirmar. Si ya
       // habíamos confirmado el estado de hoy al menos una vez, un refresco
@@ -439,17 +452,29 @@ export default function MarcarPage() {
   // y cada minuto. Así una persona recién agregada en el panel —o que pasó de prueba
   // a planilla— aparece sola, sin que nadie tenga que recargar la página. Era cada 2
   // min; un minuto basta para que quien llega el primer día no espere frente a una
-  // pantalla que todavía no la tiene, y cuesta tres consultas pequeñas por terminal
-  // (≈4 300 al día por sede, contra las ≈2 200 de antes). Offline no hace nada
+  // pantalla que todavía no la tiene. Offline no hace nada
   // (cargarRoster ya cae a la caché); mid-marcaje es inofensivo (solo actualiza la
   // lista de fondo). No hay Realtime a propósito: el terminal lee una VISTA, y
   // Realtime no emite cambios de vistas.
+  //
+  // EL RELOJ SE CALLA CON LA PESTAÑA OCULTA (2026-10-30). Ese día el terminal de
+  // AQP tenía tres pestañas ocultas preguntando cada minuto, día y noche —el 78 %
+  // de las lecturas de marcajes de todo el sistema—. Oculta no la mira nadie, y al
+  // volver a verse `visibilitychange` la refresca en el acto, antes de que alguien
+  // alcance a tocar un nombre. Las sugerencias, además, tienen su propia vigencia
+  // dentro de `cargarTodo` (lib/terminal/refresco.ts).
   useEffect(() => {
     const refrescar = () => { if (typeof navigator === "undefined" || navigator.onLine) void cargarTodo(); };
+    const porReloj = () => {
+      const enLinea = typeof navigator === "undefined" || navigator.onLine;
+      if (refrescoPorRelojPermitido(enLinea, typeof document === "undefined" ? undefined : document.visibilityState)) {
+        void cargarTodo();
+      }
+    };
     const onVisibilidad = () => { if (document.visibilityState === "visible") refrescar(); };
     document.addEventListener("visibilitychange", onVisibilidad);
     window.addEventListener("focus", refrescar);
-    const iv = window.setInterval(refrescar, 60_000);
+    const iv = window.setInterval(porReloj, 60_000);
     return () => {
       document.removeEventListener("visibilitychange", onVisibilidad);
       window.removeEventListener("focus", refrescar);
