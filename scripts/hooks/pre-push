@@ -194,19 +194,56 @@ if [ -f "$TIPOS" ] && [ "$(grep -c . "$TIPOS")" -lt 100 ]; then
   echo "    Alguien lo está regenerando. Tu typecheck local va a fallar hasta que termine."
 fi
 
+# Los dos últimos pasos guardan su salida en vez de tirarla a /dev/null, y
+# cuando frenan la muestran. Hasta el 2026-10-30 decían «corre npx pnpm test
+# para ver cuál», y eso solo sirve si el fallo se repite: ese día las pruebas
+# frenaron dos pushes seguidos, pasaron en verde las tres veces que se
+# corrieron a mano, y el motivo ya no estaba. Costó tres pushes y un rato de
+# suposiciones, y se resolvió parcheando este archivo para ver la salida — o
+# sea, haciendo a mano lo que el hook debería dar.
+#
+# El destino va dentro del directorio de git DE ESTE worktree: sobrevive al
+# push, no se pisa con los otros diez, y no aparece en `git status`.
+# Y si no se puede escribir ahí, los dos pasos siguen corriendo contra
+# /dev/null: un freno no puede frenar por su propia plomería. Ojo con eso al
+# tocarlo —"$DIR/pruebas.log" con DIR=/dev/null da una ruta inexistente, el
+# redirect falla, y el hook bloquearía TODOS los pushes sin que falle nada.
+DIR_SALIDA="$(git rev-parse --path-format=absolute --git-path salida-del-ultimo-push 2>/dev/null)"
+if [ -n "$DIR_SALIDA" ] && mkdir -p "$DIR_SALIDA" 2>/dev/null; then
+  LOG_TYPECHECK="$DIR_SALIDA/typecheck.log"
+  LOG_PRUEBAS="$DIR_SALIDA/pruebas.log"
+else
+  LOG_TYPECHECK=/dev/null
+  LOG_PRUEBAS=/dev/null
+fi
+
+# La cola de lo que imprimió, y dónde está entera. Sin archivo que leer, el
+# mensaje de siempre.
+muestra_la_salida() {
+  if [ -s "$1" ]; then
+    echo "    Lo último que imprimió:"
+    echo ""
+    tail -25 "$1" | sed 's/^/      /'
+    echo ""
+    echo "    Entera: $1"
+  else
+    echo "    Corre '$2' para ver qué pasa."
+  fi
+}
+
 echo "→ typecheck…"
-npx pnpm typecheck >/dev/null 2>&1 || {
+npx pnpm typecheck > "$LOG_TYPECHECK" 2>&1 || {
   echo ""
   echo "  ✗ El typecheck falló. No se sube."
-  echo "    Corre 'npx pnpm typecheck' para ver qué pasa."
+  muestra_la_salida "$LOG_TYPECHECK" "npx pnpm typecheck"
   exit 1
 }
 
 echo "→ pruebas de interfaz…"
-npx pnpm test >/dev/null 2>&1 || {
+npx pnpm test > "$LOG_PRUEBAS" 2>&1 || {
   echo ""
   echo "  ✗ Las pruebas fallaron. No se sube."
-  echo "    Corre 'npx pnpm test' para ver cuál."
+  muestra_la_salida "$LOG_PRUEBAS" "npx pnpm test"
   exit 1
 }
 

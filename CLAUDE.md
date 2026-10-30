@@ -828,6 +828,16 @@ verifica la **numeración**, **las dos reglas de abajo que se cumplían de memor
 el `typecheck` y las pruebas de interfaz. Si algo está en rojo, el push no se
 hace. Toma unos 10 segundos.
 
+**Y cuando frena por el typecheck o por las pruebas, te dice por qué.** Desde el
+2026-10-30 esos dos pasos guardan su salida en
+`$(git rev-parse --git-path salida-del-ultimo-push)` —dentro del directorio de
+git de tu worktree, así que no aparece en `git status` ni se pisa con los otros
+diez— y al bloquear imprimen las últimas 25 líneas más la ruta del archivo
+entero. Antes decían «corre `npx pnpm test` para ver cuál», y eso solo sirve si
+el fallo se repite: ese día frenaron dos pushes seguidos, pasaron en verde las
+tres veces que se corrieron a mano, y el motivo ya no estaba. Un freno que
+bloquea sin guardar la evidencia enseña a saltárselo.
+
 **Dos de las reglas de este archivo ya no dependen de que alguien las recuerde**
 (`scripts/hooks/reglas-de-la-casa.sh`, ago-2026): comparar `rol` contra un
 literal fuera de `permisos.ts`, y escribir `"America/Lima"` fuera de

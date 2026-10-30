@@ -127,8 +127,41 @@ comillas no se parte en palabras como en bash.** Dos mediciones de ese día
 salieron con todo marcado como «falta» por eso, y el síntoma —una columna
 uniformemente mal— se lee como un dato, no como un error de shell.
 
-**Lo que queda abierto.** No se midió qué se coló en las cinco semanas en que
-`receta-suelta.sh` no corrió —las recetas escritas a mano que habría frenado— ni
+### El pre-push deja de tirar la evidencia
+
+Lo último del día salió de haber pagado el costo. Las pruebas frenaron dos
+pushes seguidos y pasaron en verde las tres veces que se corrieron a mano: el
+fallo era intermitente —contención en esta Mac, con diez worktrees, un SSD
+externo y la sesión nueva instalando dependencias justo entonces—, y el
+`pre-push` mandaba la salida a `/dev/null`, así que lo único que quedaba era
+«corre `npx pnpm test` para ver cuál». Para cuando lo corres, el motivo ya no
+está. Se resolvió parcheando el hook a mano para ver la salida, o sea haciendo
+lo que el hook debería dar; costó tres pushes y un rato de suposiciones falsas
+—se descartaron `GIT_DIR`, el stdin sin consumir y el typecheck previo, todas
+reproducidas y todas en verde—.
+
+Ahora los dos pasos guardan su salida en
+`$(git rev-parse --git-path salida-del-ultimo-push)` y al bloquear imprimen las
+últimas 25 líneas más la ruta del archivo entero. Ese destino está dentro del
+directorio de git **del worktree**: sobrevive al push, no se pisa con los otros
+diez y no aparece en `git status` —comprobado escribiendo un archivo ahí—.
+
+Probado con los tres casos, que es el estándar de la casa para un freno:
+
+| caso | qué debe pasar | qué pasó |
+|---|---|---|
+| una prueba que falla a propósito | frena **y** muestra el motivo | frenó, e imprimió la aserción, el archivo, la línea, el código y el recuento (1 falló / 2951 pasaron) |
+| todo en verde | pasa, sin ruido | pasó |
+| no se puede escribir el directorio | **corre igual**: un freno no puede frenar por su propia plomería | cae a `/dev/null` y al mensaje de antes |
+
+El tercero no es adorno: la primera versión ponía `DIR=/dev/null` y luego
+`"$DIR/pruebas.log"`, que es una ruta inexistente — el redirect habría fallado y
+el hook habría bloqueado **todos** los pushes sin que nada estuviera mal. Está
+dicho en un comentario junto al código, porque es el error que invita a repetir.
+
+**Lo que queda abierto.** Este cambio vive en la rama; mientras no se fusione a
+`main`, los otros worktrees siguen con el `pre-push` que tira la salida. Y no se
+midió qué se coló en las cinco semanas en que `receta-suelta.sh` no corrió —las recetas escritas a mano que habría frenado— ni
 cuántas veces `estado-que-miente.sh` habría avisado. Se puede contar sin tocar
 nada, corriendo los dos guardianes sobre los merges de ese periodo.
 
