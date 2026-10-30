@@ -6,6 +6,62 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-30 — 🔴 El repo principal lleva un mes congelado, y los hooks que corren en CADA push son los suyos · sin SQL · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+
+**Lo que pasa.** `core.hooksPath` apunta a `/Users/ArchiCaylo/Developer/cayla-dynamic/scripts/hooks`
+—el repo PRINCIPAL, no el worktree desde el que empujas—. Y ese checkout está en
+`78179af3`, del **2026-09-27**: **943 commits detrás de `origin/main`**. O sea que
+desde hace cinco semanas, todo push de cualquier worktree corre los hooks del 27
+de septiembre.
+
+**Medido, no supuesto.** El `pre-push` que de verdad corre llama a diez
+guardianes. El de cualquier rama al día llama a trece. Faltan:
+
+| guardián | desde | qué deja de vigilar |
+|---|---|---|
+| `receta-suelta.sh` | 2026-10-17 | el paso 2 del [ADR 0004](adr/0004-diseno-unificado.md): que un push no vuelva a escribir a mano una pieza que ya tiene componente. **Nunca ha frenado un solo push.** Se midió contra 150 merges, se probó con 36 casos, y se instaló donde nada lo ejecuta. |
+| `estado-que-miente.sh` | — | que este archivo no mienta. La ironía no es menor: hoy se corrigió a mano una línea de `estado.md` que había causado un incidente en producción, y el guardián que existe para eso llevaba semanas sin correr. |
+| `probar-receta-suelta.sh` | 2026-10-17 | la prueba del anterior. |
+
+**Y hay un tercero que no falta: corre, pero es el de septiembre.**
+`que-falta-pegar.sh --arregla` regenera `scripts/sql-manual/que_falta_pegar.sql`
+en cada push y lo commitea. Como el script que corre es el del 27-sep, **revierte
+en cada push** el arreglo del 28-sep (commit `9b8f821f`, «La 0393 deja de gritar
+MIRA ARRIBA») y cualquier arreglo posterior. Regenerar el artefacto a mano no
+sirve de nada: el siguiente push lo vuelve a pisar.
+
+Eso se vio hoy en producción, con la consulta corrida de verdad, y dio **dos
+respuestas equivocadas**:
+
+- **La 0393 salió como «⚠️ SOBRA LA FILA»** cuando está explicada desde el
+  2026-09-28 en `huecos-conocidos.txt`, con su marca `[sobra la fila: …]` y la
+  orden expresa de NO recuperar el archivo. El resumen dijo «⚠️ MIRA ARRIBA» por
+  una alarma que ya estaba resuelta — que es cómo se enseña a ignorar las alarmas.
+- **La 0519 salió como «❌ FALTA PEGAR»** cuando está en `no-se-pegan.txt`. El
+  generador viejo no lee ese archivo, así que la marcó `false`.
+
+Con el generador al día, el resultado real es **2 faltan** (0509 y 0542) y **una
+huérfana sin explicar menos** de las que gritó.
+
+**Por qué nadie lo vio.** Los hooks no fallaron: corrieron, imprimieron sus diez
+pasos en verde y dejaron pasar el push. Un guardián ausente no deja hueco visible
+—la salida del push se ve exactamente igual de sana con diez pasos que con trece—.
+Es la misma forma que ya está escrita en CLAUDE.md para el linter: «un guardián
+instalado y apagado».
+
+**Lo que hay que hacer, y es de Felipe porque es su copia de trabajo:** poner el
+checkout principal al día. Tiene dos archivos sin commitear (`apps/web/package.json`
+y `pnpm-lock.yaml`) y los dos los tocan commits de upstream, así que un `pull` a
+secas puede chocar. Y mientras no se haga, **cualquier hook nuevo que se escriba
+desde un worktree nace apagado**.
+
+**Lo que queda abierto.** No se midió qué se coló en las cinco semanas en que
+`receta-suelta.sh` no corrió —las recetas escritas a mano que habría frenado— ni
+cuántas veces `estado-que-miente.sh` habría avisado. Se puede contar sin tocar
+nada, corriendo los dos guardianes sobre los merges de ese periodo.
+
+---
+
 ## 2026-10-30 — Barrido: qué se puede pegar fuera de orden o a medias sin que nada avise · sin SQL · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
 
 **Por qué se hizo.** Al pegar la 0569 saltó su propio freno («falta la columna de
