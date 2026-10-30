@@ -57,6 +57,27 @@ contra el cuerpo que el repo tiene hoy: **las nueve coinciden**.
 - `fn_dias_por_revisar` partida (0422): 1 710 car · `cdd73993…` / sin comentarios `347b9698…` / CRLF `261afa11…`
 - Llegada esperada: `fn_revertir_pago` 5 370 car · `0e9f58be…` · `fn_dias_por_revisar` 2 900 car · `ddf5c2cf…`
 
+**Auditado en un Postgres desechable propio** (contenedor y puerto aparte: el Postgres local es uno solo para los ~10 worktrees y
+`db reset` le destruye el estado a todo el mundo). Lo que quedó probado:
+
+- **Las tres aplican sin error de sintaxis ni dependencia rota**, y los md5 de llegada que mide Postgres coinciden con los del archivo:
+  `fn_revertir_pago` 5 370 car · `0e9f58be…`, `fn_dias_por_revisar` 2 900 car · `ddf5c2cf…`, `fn_reparar_dias_tras_reabrir` 2 396 car ·
+  `77e815f3…`.
+- **Las guardias aceptan el cuerpo de partida correcto** (el de la 0323 y el de la 0422) y la migración entra.
+- **Y bloquean el que no lo es**, que es la mitad que de verdad hay que probar: repegadas sobre un cuerpo distinto, las dos cortan con
+  `0546 · PARA` / `0547 · PARA`, diciendo el md5 y el largo que encontraron, **sin aplicar nada**.
+- **Lo que NO se pudo medir en local, y por qué:** las pruebas 437/438/439. El banco improvisado no reproduce el bootstrap de Supabase
+  (`storage`, `auth`), y de ahí se encadenaron 76 migraciones fallidas; las tres pruebas caen por **deriva del banco**, no por su
+  contenido — primero por `personas.cuenta_de_servicio` (0490) y después por `documentos_firmados` (0157), las dos de migraciones que
+  cayeron en esa cascada. Es el falso rojo que ya costó media hora con la prueba 274. Seguir parcheando el esquema a mano daría un verde
+  que no prueba nada: **la señal fiable es `db-tests` de GitHub Actions**, sobre una base construida desde cero, y es la que el ruleset
+  exige para fusionar. `typecheck` en verde.
+
+**Un detalle que conviene saber antes de pegar: estas dos NO son repegables.** Su guardia acepta solo el cuerpo de partida, no el
+propio (la 0549 sí se incluye en su lista blanca; estas no). Si se pega la 0546 y por cualquier duda se repega, **para** — y el mensaje
+dice «Producción tiene otra versión», que se lee como alarma cuando en realidad es la señal de que ya está aplicada. Lo que distingue
+los dos casos es el md5 que imprime: si es el de llegada (`0e9f58be…` / `ddf5c2cf…`), ya estaba puesta y no hay nada que hacer.
+
 **Qué le toca a Felipe.** Pegar la **0546 y después la 0547** (en ese orden; ninguna de las dos reescribe lo que la otra toca, pero la
 0546 necesita la 0545, que ya está). Las dos paran solas si producción tiene otra versión. Y de paso, dos comprobaciones de un minuto
 que cierran lo que esta sesión no pudo ver desde aquí: que `fn_reparar_dias_tras_reabrir` en producción dé **2 396 caracteres, md5
