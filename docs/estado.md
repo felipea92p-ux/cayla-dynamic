@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-29 — Liquidaciones lista lo que se debe de periodos anteriores · migración 0565 · ESCRITA Y PROBADA EN CLON · SQL SIN PEGAR · rama `claude/liquidacion-periodos-sin-pagar`
+## 2026-10-29 — Liquidaciones lista lo que se debe de periodos anteriores · migración 0565 · **SQL PEGADO EN PRODUCCIÓN (2026-10-29)** · FUSIONADO (PR #618) · rama `claude/liquidacion-periodos-sin-pagar`
 
 **Qué es.** Emily Rico y Milagritos Zarate cesaron el 29/10, que ya es el periodo NUEVO: su liquidación calculaba un día y el sueldo de
 28/09–28/10 —planilla todavía abierta, que sí las incluye— no aparecía en ningún lado de la pantalla. Nada se dejaba de pagar, pero
@@ -25,9 +25,12 @@ prueba 455, 16/16; con la condición de «pagado» quitada falla la 9, y con el 
 y typecheck en verde. **No verificado:** la pantalla no se miró en el navegador (sin pila local ni sesión de administrador).
 Si la 0565 no está pegada, el desglose avisa «no se pudo comprobar» en vez de callar.
 
-**Pendiente de Felipe:** pegar la 0565 (`./scripts/dame-el-sql.sh 565`) ANTES de fusionar, y mirar la pantalla con Emily y Milagritos.
+**PEGADA en producción el 2026-10-29**, ya fusionado el PR (se fusionó SIN la migración pegada y por unos minutos la pantalla nueva dijo
+«no se pudo comprobar»; el aviso funcionó como estaba diseñado y no se rompió nada). Guardia superada, comprobación `1 · true · false · 1`,
+cuerpo idéntico al de `main` (1 619 caracteres, md5 `bfe63f7f…`). Renumerada de 0564 a 0565 porque el PR #617 reclamó la 0564 primero.
+**Pendiente de Felipe:** mirar la pantalla con las dos personas del caso: debe verse el recuadro «También se le debe de periodos anteriores».
 
-## 2026-10-29 — La baja tras una reactivación ni se bloquea ni pierde su último día · migración 0563 · SQL PEGADO EN PRODUCCIÓN (2026-10-29) · EN PR · rama `claude/baja-prueba-liquidacion-6c5f3e`
+## 2026-10-29 — La baja tras una reactivación ni se bloquea ni pierde su último día · migración 0563 · **SQL PEGADO EN PRODUCCIÓN (2026-10-29)** · FUSIONADO (PR #615) · rama `claude/baja-prueba-liquidacion-6c5f3e`
 
 **Qué pasó.** Robert Cabrera y Emily Rico (preselección) se dieron de baja, se reactivaron a las 23:01 y se repitió la baja. A Robert
 (ingreso 19/10, última jornada 28/10) le quedó cese el 19/10 y su liquidación pagaba un solo día (S/ 63.72); a los dos la baja se
