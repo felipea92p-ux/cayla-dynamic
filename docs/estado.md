@@ -6,6 +6,94 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya pegadas) · **0546 y 0547 PENDIENTES DE PEGAR** · rama `claude/vigilant-hopper-d48cdd`
+
+**De dónde sale.** El checkout principal llevaba 943 commits congelado desde el 27 de septiembre y `core.hooksPath` apunta a SUS
+hooks: durante cinco semanas todo push de cualquier worktree corrió los guardianes del 27-sep. Al ponerlo al día (`78179af3` →
+`32c67f8b`), el primer push con `numeracion.sh` vigente destapó cinco huecos que nadie había visto: **0523, 0526, 0545, 0546 y 0547**.
+Los cinco tenían archivo, pero solo en ramas que nunca se fusionaron. Es el agujero de la 0177 otra vez, y por el mismo camino: el
+freno estaba bien y el camino cómodo no pasaba por él.
+
+**Lo primero que se midió, porque era lo urgente: ¿la 0545 sola dejó producción a medias?**
+Las tres (0545/0546/0547) son una sola pieza del 2026-10-22 — la reparación del incidente del 21-oct, cuando pagar el grupo «planilla»
+a mitad de periodo selló 12 marcas en masa, dejó 10 jornadas sin salida ni horas, y revertir el pago no recalculó nada. En la corrida
+de producción del 30-oct **la 0545 salió huérfana (o sea pegada) y la 0546 y la 0547 no salieron**: la reparación estaba aplicada a un
+tercio. **Medido: la 0545 sola NO dejó producción peor, y pegar la 0546 después no revierte nada.** Tres razones, cada una comprobada:
+
+- **La 0545 es puramente aditiva.** Crea `fn_reparar_dias_tras_reabrir(text,date,date)` y **no reescribe ninguna función**: solo llama
+  a `fn_recalcular_jornada` (0446) y `fn_resellar_dia` (0188). Por eso su encabezado dice, con razón, que no hay md5 de partida que
+  declarar. No hay riesgo del tipo 0261 al pegar la 0546 encima.
+- **Tampoco puede repetir el «function is not unique» de la 0297/0299:** ese nombre no aparece en ninguna otra migración del repo, así
+  que no hay sobrecarga posible. Y está revocada de `public`, `anon` y `authenticated`: la app no la puede llamar, solo quien pega SQL.
+- **El contexto de partida sigue intacto ocho días después.** Las cinco funciones en juego siguen en la versión que las migraciones
+  asumen: `fn_recalcular_jornada` 0446, `fn_resellar_dia` 0188, `fn_fecha_en_periodo_pagado` 0327, `fn_revertir_pago` **0323** (de la
+  que parte la 0546) y `fn_dias_por_revisar` **0422** (de la que parte la 0547). Las tres migraciones posteriores que tocan este
+  terreno no estorban: la **0562** dice tres veces que no toca `periodo_grupo_pago`, y la 0563 y la 0565 solo *llaman* a
+  `fn_fecha_en_periodo_pagado`.
+
+**Lo que el estado intermedio SÍ dejó, y es lo que falta cerrar.** El incidente del 21-oct está curado —la 0545 ejecutó la reparación
+una vez al pegarse—, pero **el defecto de fondo sigue abierto**: si se vuelve a pagar un grupo a mitad de periodo y se revierte,
+`fn_revertir_pago` sigue sin reparar las horas (falta la 0546) y Correcciones sigue diciendo «ya cuadra» sobre un día bloqueado por un
+pago (falta la 0547). Y hasta hoy había una función corriendo en producción cuyo único ejemplar era un commit en una rama sin fusionar.
+
+**Qué le tocó a cada número, con la evidencia.**
+
+| nº | destino | por qué |
+|---|---|---|
+| **0523** | archivo recuperado · **ya pegada**, nada que pegar | Producción devolvió hoy `fn_educacion_registrar` = 12 865 caracteres, md5 `c42ed2a9…`, y **el archivo recuperado da exactamente eso** (comprobado byte por byte). La 0564 lo confirma: pidió ese md5 a producción el 30-oct y dice «= el cuerpo de la 0523 byte por byte (`migraciones_aplicadas` trae 450, 523, 524 y 529)». La 0564 ya la incorpora (lleva dos veces el marcador «CAMBIO 0523»), así que **repegar la 0523 ahora revertiría la 0564**. |
+| **0526** | **NO se recupera** · línea en `huecos-conocidos.txt` | Borrador sin pegar. Reescribe `fn_educacion_situacion` partiendo de la 0450, **igual que la 0549, que sí está en main**; la propia 0549 dedica un párrafo a este choque: «EL ORDEN PELIGROSO es 0549 y luego la 0526 TAL COMO ESTÁ: la 0526 no PARA» —su md5 es solo un comentario, no una guardia ejecutable—. Un archivo dentro de `supabase/migrations` es algo que se pega: `que_falta_pegar.sql` lo listaría y `dame-el-sql.sh` lo entregaría sin objetar. Está además sin terminar (`@@TABLA@@`, `@@LLEGADA@@`, md5 de producción «PENDIENTE»). |
+| **0545** | archivo recuperado · **ya pegada** | Salió huérfana en la corrida del 30-oct. Aditiva, ver arriba. |
+| **0546** | archivo recuperado · **PENDIENTE DE PEGAR** | Parte de la 0323, que sigue siendo la vigente. |
+| **0547** | archivo recuperado · **PENDIENTE DE PEGAR** | Parte de la 0422, que sigue siendo la vigente. |
+
+Con eso `scripts/hooks/numeracion.sh` dice «numeración sin novedad»: los cinco dejaron de ser huecos sin explicar.
+
+**Las dos que faltan traen su propia guardia, y eso es lo que las hace seguras de pegar.** La 0546 y la 0547 **comprueban el md5 de
+producción dentro del propio SQL** —tal cual, sin comentarios y con `\r\n` de Windows, las tres formas que documenta `CLAUDE.md`— y
+`raise exception` sin aplicar nada si no reconocen el cuerpo. La 0546 además PARA si falta la 0545. Se verificaron las nueve cifras
+contra el cuerpo que el repo tiene hoy: **las nueve coinciden**.
+
+- `fn_revertir_pago` partida (0323): 4 472 car · `ac66bb05…` / sin comentarios `8a28101c…` / CRLF `be0b00a5…`
+- `fn_dias_por_revisar` partida (0422): 1 710 car · `cdd73993…` / sin comentarios `347b9698…` / CRLF `261afa11…`
+- Llegada esperada: `fn_revertir_pago` 5 370 car · `0e9f58be…` · `fn_dias_por_revisar` 2 900 car · `ddf5c2cf…`
+
+**Auditado en un Postgres desechable propio** (contenedor y puerto aparte: el Postgres local es uno solo para los ~10 worktrees y
+`db reset` le destruye el estado a todo el mundo). Lo que quedó probado:
+
+- **Las tres aplican sin error de sintaxis ni dependencia rota**, y los md5 de llegada que mide Postgres coinciden con los del archivo:
+  `fn_revertir_pago` 5 370 car · `0e9f58be…`, `fn_dias_por_revisar` 2 900 car · `ddf5c2cf…`, `fn_reparar_dias_tras_reabrir` 2 396 car ·
+  `77e815f3…`.
+- **Las guardias aceptan el cuerpo de partida correcto** (el de la 0323 y el de la 0422) y la migración entra.
+- **Y bloquean el que no lo es**, que es la mitad que de verdad hay que probar: repegadas sobre un cuerpo distinto, las dos cortan con
+  `0546 · PARA` / `0547 · PARA`, diciendo el md5 y el largo que encontraron, **sin aplicar nada**.
+- **Lo que NO se pudo medir en local, y por qué:** las pruebas 437/438/439. El banco improvisado no reproduce el bootstrap de Supabase
+  (`storage`, `auth`), y de ahí se encadenaron 76 migraciones fallidas; las tres pruebas caen por **deriva del banco**, no por su
+  contenido — primero por `personas.cuenta_de_servicio` (0490) y después por `documentos_firmados` (0157), las dos de migraciones que
+  cayeron en esa cascada. Es el falso rojo que ya costó media hora con la prueba 274. Seguir parcheando el esquema a mano daría un verde
+  que no prueba nada: **la señal fiable es `db-tests` de GitHub Actions**, sobre una base construida desde cero, y es la que el ruleset
+  exige para fusionar. `typecheck` en verde.
+
+**Un detalle que conviene saber antes de pegar: estas dos NO son repegables.** Su guardia acepta solo el cuerpo de partida, no el
+propio (la 0549 sí se incluye en su lista blanca; estas no). Si se pega la 0546 y por cualquier duda se repega, **para** — y el mensaje
+dice «Producción tiene otra versión», que se lee como alarma cuando en realidad es la señal de que ya está aplicada. Lo que distingue
+los dos casos es el md5 que imprime: si es el de llegada (`0e9f58be…` / `ddf5c2cf…`), ya estaba puesta y no hay nada que hacer.
+
+**Qué le toca a Felipe.** Pegar la **0546 y después la 0547** (en ese orden; ninguna de las dos reescribe lo que la otra toca, pero la
+0546 necesita la 0545, que ya está). Las dos paran solas si producción tiene otra versión. Y de paso, dos comprobaciones de un minuto
+que cierran lo que esta sesión no pudo ver desde aquí: que `fn_reparar_dias_tras_reabrir` en producción dé **2 396 caracteres, md5
+`77e815f3…`** (confirma que lo que se pegó el 22-oct es este archivo y no otro borrador), y que `migraciones_aplicadas` **no** tenga
+fila con `numero = 526`.
+
+**Dos hallazgos de paso.**
+
+- **Hay un sexto hueco que ningún freno avisa: la prueba `supabase/tests/420`.** Era la de la 0526 (45 aserciones) y vive en el commit
+  `a23658f8`. `numeracion.sh` solo mira los huecos de `supabase/migrations`, así que un número saltado en `supabase/tests` no dispara
+  nada. Queda escrito acá porque no hay quien lo diga. (El hueco de la prueba 417, de la 0523, sí se llenó: su archivo se recuperó.)
+- **El commit de la 0526 que se venía citando es el borrador.** `355f6f2d` se llama «0526 (SIN PEGAR, **BORRADOR**)»; la versión buena
+  es `a23658f8`, seis minutos después, que es la que trae la prueba 420. Si esa mejora se retoma, se parte de ahí — y con número nuevo.
+
+---
+
 ## 2026-10-30 — El repo principal al día, y cada worktree corre SUS guardianes · sin SQL · PR #621 ABIERTO, SIN FUSIONAR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
 
 **Lo que pasaba.** `core.hooksPath` apunta a
