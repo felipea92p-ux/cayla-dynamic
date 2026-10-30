@@ -124,6 +124,50 @@ del sistema.
 El CHECK `chk_gravedad_del_numeral` de la 0510 —`(numeral = '53.1') = (gravedad =
 'leve')`— admite el 53.3 sin tocarlo. Solo se amplía el CHECK de `gravedad`.
 
+**Al construirla (0568), tres cosas salieron distintas de lo escrito arriba.**
+
+**La congruencia no se comprueba: se hereda.** Este ADR decía «la base comprueba
+que citan el mismo literal». Comprobar es un `if`, y un `if` existe porque el dato
+pudo llegar mal. `fn_expediente_crear_despido` no tiene parámetro de causa: recibe
+su imputación y de ahí saca la causa, el tipo de causal, el periodo y la persona.
+No puede divergir porque no hay nada que divergir. El candado del molde de la casa
+(cuarta instancia, tras 0261, 0295 y 0342) cierra la otra puerta: un UPDATE
+directo a `falta_literal` o a `doc_previo_id` de una carta de despido se rechaza.
+
+**Dos restricciones de la 0510 guardaban la premisa que esta migración cambia**, y
+las dos habrían hecho imposible justo lo que viene a construir:
+
+- `chk_conducta_completa` obliga a que una imputación o un despido por conducta
+  tengan los tres campos de la falta en NULL, con el comentario «nunca un literal
+  del catálogo […] se fundan en una falta GRAVE del 53.3, que cita el artículo 25
+  de la LPCL y no un literal del catálogo». Era cierto: el 53.3 no estaba en el
+  catálogo. Ahora admite las dos formas, y es un superconjunto de la vieja
+  —ninguna fila que pasaba deja de pasar, incluida la de la prueba 170—; si cita
+  literal, el numeral tiene que ser 53.3, que es el 53.4 hecho imposible de
+  contradecir desde la base y no solo desde una función.
+- `uq_conducta_un_hecho_un_documento` (52.5, «el mismo hecho no se documenta dos
+  veces») nunca había alcanzado a esos dos niveles, y no por decisión: en un
+  índice único dos NULL no chocan. Al citar el literal, la carta choca con su
+  propia imputación. Se resolvió diciendo a qué se refiere el 52.5 en vez de
+  relajarlo: protege de SANCIONAR dos veces, y la escala del 54.1 son tres
+  peldaños —verbal, amonestación, suspensión—. La imputación es el preaviso del
+  art. 31 y el despido es la extinción del vínculo, no sanciones de esa escala.
+  El índice deja fuera solo `despido`, así que sigue garantizando un hecho/una
+  sanción y un hecho/una sola imputación.
+
+Las dos las cazó la prueba 458 antes de pegar nada. Ninguna estaba mal escrita:
+las dos eran premisas correctas que caducaron, y es la razón por la que una
+restricción lleva su porqué al lado.
+
+**Y apareció un freno que faltaba: el numeral 60.5 en la rama del despido.**
+`fn_expediente_comunicar_cargos` y `fn_expediente_declarar_cargos_comunicados` ya
+comprueban que conste la entrega del Reglamento, y las dos rechazan la imputación
+—«La imputación y el despido siguen el procedimiento del artículo 57»—, que no
+estaba escrito en ninguna función. Así que la rama que más cuesta si se equivoca
+era la única sin ese freno. La 0568 llama a `fn_reglamento_no_acusado` al imputar,
+y pesa especialmente acá porque el propio 53.3 a) condiciona la falta grave a un
+Reglamento «expedido y puesto en conocimiento conforme al artículo 60».
+
 ### 4 · El acta interna en imputación y despido avisa, no bloquea
 
 **DECIDÍ (Felipe):** se sigue admitiendo `acta_negativa` en imputación y despido,
@@ -173,3 +217,9 @@ tampoco contarían como escalón.
   persona recibió firmada vuelve impugnable la sanción.
 - No decide el pendiente 78 (presentar el v4.0 ante la Autoridad Administrativa de
   Trabajo). Es de Gerencia.
+- No arregla `fn_expediente_resolver`, donde la 0568 midió un defecto real:
+  resolver no comprueba que el plazo de descargo haya vencido, así que hoy se
+  puede archivar —o decidir el despido— el mismo día de la entrega, sin haber
+  escuchado. `fn_expediente_crear_despido` pone esa puerta por su lado, que es
+  donde se vuelve irreversible. Arreglar resolver es su propia entrega: pide su
+  md5 de producción, y reescribirlo de paso es el accidente de la 0276.
