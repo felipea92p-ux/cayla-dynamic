@@ -137,7 +137,13 @@ const TIPOS_DE_LA_FAMILIA = (tipo: TipoMarca): TipoMarca[] =>
  *  distintas y hasta la 0384 esta pantalla las anunciaba todas como si fueran la
  *  primera — un día con el auto-cierre sin confirmar salía titulado "secuencia
  *  imposible" aunque su secuencia fuera perfectamente posible. */
-type MotivoRevision = "secuencia_imposible" | "auto_cierre_sin_confirmar" | "sello_sin_levantar";
+type MotivoRevision =
+  | "secuencia_imposible"
+  | "auto_cierre_sin_confirmar"
+  | "sello_sin_levantar"
+  // Desde la 0547: el día cuya marca está sellada porque el GRUPO de esa
+  // persona ya se pagó mientras el periodo sigue abierto.
+  | "grupo_pagado_periodo_abierto";
 interface DiaPorRevisar {
   persona_id: string; nombre: string; sede: string; fecha: string; marcas: number;
   periodo_pagado: boolean;
@@ -760,7 +766,21 @@ export default function CorreccionesPage() {
   // grave, que es el único que no se puede dejar de avisar.
   const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
   const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
-  const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");
+  // La tercera banda es un RESTO, no una tercera igualdad — y la diferencia no
+  // es de estilo. Con `=== "sello_sin_levantar"`, un motivo que la base
+  // empiece a devolver y esta pantalla no conozca no cae en ninguna de las
+  // tres y el día DESAPARECE de aquí sin que nada falle. Pasó a punto de
+  // pasar con la 0547, que parte `sello_sin_levantar` en dos y devuelve
+  // 'grupo_pagado_periodo_abierto': justo los días del incidente del 21-oct
+  // —un grupo pagado a mitad de periodo que congeló las horas de diez
+  // personas— se habrían vuelto invisibles en la única pantalla donde se
+  // corrigen. Es el daño contra el que la propia 0547 avisa en su encabezado,
+  // entrando por la puerta de atrás. Como resto, un motivo nuevo aparece aquí
+  // con el texto genérico hasta que alguien le dé su banda: se lee peor, pero
+  // se lee.
+  const sellados = accionables.filter(
+    (d) => d.motivo != null && d.motivo !== "secuencia_imposible" && d.motivo !== "auto_cierre_sin_confirmar",
+  );
 
   // Abre el día de verdad. El efecto de arriba se encarga de cargarlo.
   const abrir = (d: DiaPorRevisar) => {

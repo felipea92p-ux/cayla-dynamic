@@ -96,6 +96,40 @@ que cierran lo que esta sesión no pudo ver desde aquí: que `fn_reparar_dias_tr
 `77e815f3…`** (confirma que lo que se pegó el 22-oct es este archivo y no otro borrador), y que `migraciones_aplicadas` **no** tenga
 fila con `numero = 526`.
 
+**⚠️ Y el hallazgo que cambió el orden de entrega: pegar la 0547 con la pantalla de hoy habría hecho DESAPARECER esos días de
+Correcciones.** Se vio al comprobar quién consume la función, ya con el SQL entregado y antes de que se pegara.
+
+`admin/correcciones/page.tsx` repartía los días en tres bandas por igualdad literal con los tres motivos que conocía:
+
+```ts
+const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
+const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
+const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");   // ← tercera igualdad
+```
+
+Un día con el motivo nuevo `grupo_pagado_periodo_abierto` no entra en ninguna de las tres, y la pantalla solo pinta esas: **el día se
+cae de la única vista donde se corrige, sin que nada falle**. Y es exactamente el daño contra el que la propia 0547 advierte en su
+encabezado («los días de este incidente PASARÍAN A ESTAR OCULTOS y el aviso desaparecería justo cuando hacía falta») — evitado con
+cuidado en el SQL y reintroducido por la puerta de atrás, porque quien lo consume no conocía el motivo. Hoy esos días caen en
+«sellados» con un texto equivocado; eso se lee mal, pero se lee.
+
+**Arreglado aquí, y como resto en vez de como tercera igualdad**, que es lo que impide que vuelva a pasar con el próximo motivo: dos
+igualdades y todo lo demás a la tercera banda. Más la etiqueta en la Bandeja («Su grupo ya se pagó: las horas están bloqueadas»), que
+es lo que la 0547 dejó listo al devolver `grupo_pagado` y `grupo_pagado_at`. `typecheck` en verde, 2 948 pruebas de interfaz en verde.
+**No verificado:** la pantalla no se miró en el navegador (este clon no tiene `apps/web/.env.local` con las claves de Supabase).
+
+**Y de ahí sale un orden de entrega invertido, a propósito.** La regla de la casa es pegar la migración ANTES de fusionar, y existe para
+que el frontend no llame a una función que no existe. Aquí el riesgo va al revés: el frontend arreglado **funciona igual con la 0422 y
+con la 0547** (si el motivo nuevo no llega, la tercera banda se comporta como antes), mientras el frontend VIEJO con la 0547 pierde
+días. Así que lo seguro es **fusionar primero y pegar la 0547 después**, y queda escrito que esta vez la regla se invirtió midiendo, no
+por descuido. Mientras no haya ningún grupo pagado con su periodo abierto, ningún día trae ese motivo y la ventana no afecta a nadie:
+
+```sql
+select pp.id, pp.fecha_ini, pp.fecha_fin, g.grupo, g.pagado_at
+  from periodos_planilla pp join periodo_grupo_pago g on g.periodo_id = pp.id
+ where g.estado = 'pagado' and pp.estado <> 'pagado';
+```
+
 **Dos hallazgos de paso.**
 
 - **Hay un sexto hueco que ningún freno avisa: la prueba `supabase/tests/420`.** Era la de la 0526 (45 aserciones) y vive en el commit
