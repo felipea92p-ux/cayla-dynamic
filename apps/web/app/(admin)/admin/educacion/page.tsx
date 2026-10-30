@@ -546,6 +546,10 @@ function EducacionContenido() {
         <CampoSelect etiqueta="¿De quién es?" value={form.personaId} disabled={editandoId !== null}
           onChange={(e) => setForm({ ...form, personaId: e.target.value })}>
           <option value="">— elige a la persona —</option>
+          {/* Quien ya no está activa no figura entre los candidatos, pero su asignación se puede acortar (0564). */}
+          {editandoId && form.personaId && !candidato && (
+            <option value={form.personaId}>{asignaciones.get(editandoId)?.persona ?? "Persona inactiva"} · ya no está activa</option>
+          )}
           {candidatos.map((c) => <option key={c.persona_id} value={c.persona_id}>{c.persona} · {c.sede} · rango {c.rango}</option>)}
         </CampoSelect>
       </div>
