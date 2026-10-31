@@ -433,7 +433,8 @@ with repo(numero, nombre, nunca) as (values
     (573, 'el_practicante_se_paga_sobre_una_base_de_30_horas', false),
     (574, 'los_parametros_de_plata_tienen_vigencia_y_vista_previa', false),
     (575, 'la_base_del_practicante_la_decide_su_modalidad', false),
-    (576, 'el_practicante_se_paga_por_hora_con_tope_semanal', false)
+    (576, 'el_practicante_se_paga_por_hora_con_tope_semanal', false),
+    (577, 'la_base_y_el_tope_del_practicante_se_cambian_desde_parametros', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
