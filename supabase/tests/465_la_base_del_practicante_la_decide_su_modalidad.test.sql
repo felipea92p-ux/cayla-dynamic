@@ -134,10 +134,12 @@ select is((pg_temp.fila('HProfesional')->>'base_horas_semana')::numeric, 45::num
   'Su base es 45 h, no 30');
 select is((pg_temp.fila('KEgresado24')->>'pago_base')::numeric, 669.67::numeric,
   'Egresado de 24.5 h a la semana → 1 230 × 98 ÷ 180');
-select is((pg_temp.fila('LEgresado48')->>'pago_base')::numeric, 1230.00::numeric,
-  'Egresado de 48 h a la semana → tope en 45: la subvención entera, no más');
-select is((pg_temp.fila('LEgresado48')->>'horas_sobre_tope')::numeric, 12.00::numeric,
-  'Y se informan las 12 h que pasaron el tope');
+-- CAMBIO 0576 · el tope es por semana calendario (lunes a domingo) y el convenio ya no cambia la base;
+--   este fixture arranca un viernes, así que sus «semanas» de 7 días no coinciden con las calendario.
+select is((pg_temp.fila('LEgresado48')->>'pago_base')::numeric, 1312.00::numeric,
+  'CAMBIO 0576 · egresado de 48 h a la semana: su tope es 48, se pagan todas (1 230 × 192 ÷ 180)');
+select is((pg_temp.fila('LEgresado48')->>'horas_sobre_tope')::numeric, 0.00::numeric,
+  'Y no hay horas sobre el tope de 48');
 
 -- 2 · Preprofesional: sin cambio respecto de la 0573
 select is((pg_temp.fila('A17h')->>'pago_base')::numeric, 697.00::numeric,
@@ -150,8 +152,8 @@ select is((pg_temp.fila('MUnDia')->>'horas_pagadas')::numeric, 7.45::numeric,
   'Un solo día activo con 7.45 h: se pagan las 7.45 h (la 0573 lo cortaba a 4.29)');
 select is((pg_temp.fila('MUnDia')->>'pago_base')::numeric, 76.36::numeric,
   'Y vale 7.45 × 1 230 ÷ 120');
-select is((pg_temp.fila('JMitad')->>'pago_base')::numeric, 717.50::numeric,
-  'Quien entró a mitad cobra todas sus horas mientras no pase el tope del periodo');
+select is((pg_temp.fila('JMitad')->>'pago_base')::numeric, 615.00::numeric,
+  'CAMBIO 0576 · quien entró a mitad: la semana con 40 h se topa en 30');
 
 -- 4 · Sin modalidad: como antes
 select is((pg_temp.fila('NSinModalidad')->>'pago_base')::numeric, 675.82::numeric,

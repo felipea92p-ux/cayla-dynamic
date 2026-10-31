@@ -108,24 +108,26 @@ select is((pg_temp.fila('A17h')->>'base_horas_semana')::numeric, 30::numeric,
   'Sin convenio firmado con horas, la base es 30 h');
 
 -- 2 · El tope
-select is((pg_temp.fila('C36h')->>'pago_base')::numeric, 1230.00::numeric,
-  '36 h a la semana → la subvención entera, no más');
-select is((pg_temp.fila('C36h')->>'horas_sobre_tope')::numeric, 24.00::numeric,
-  'Y se informan las 24 h que no se pagaron');
+-- CAMBIO 0576 · el tope es por semana calendario (lunes a domingo) y el convenio ya no cambia la base;
+--   este fixture arranca un viernes, así que sus «semanas» de 7 días no coinciden con las calendario.
+select is((pg_temp.fila('C36h')->>'pago_base')::numeric, 1291.50::numeric,
+  '36 h por bloque de 7 días: por semana calendario se pagan 126 h (tope 30 en cada semana)');
+select is((pg_temp.fila('C36h')->>'horas_sobre_tope')::numeric, 18.00::numeric,
+  'Y se informan las 18 h que pasaron el tope semanal');
 select is((pg_temp.fila('C36h')->>'horas_mes')::numeric, 144.00::numeric,
   'Las horas marcadas se siguen informando tal cual');
 
 -- 3 · Convenio firmado de 17 h con S/ 697
-select is((pg_temp.fila('DConv17')->>'pago_base')::numeric, 697.00::numeric,
-  'Cumplir sus 17 h pactadas paga exactamente lo que firmó (no 395: la proporción dos veces)');
-select is((pg_temp.fila('DConv17')->>'base_horas_semana')::numeric, 17::numeric,
-  'Su base son las horas de su convenio firmado');
-select is((pg_temp.fila('EConv17Falta')->>'pago_base')::numeric, 522.75::numeric,
-  'Faltar una semana descuenta en proporción: 697 × 51 ÷ 68');
-select is((pg_temp.fila('FConv17Extra')->>'pago_base')::numeric, 697.00::numeric,
-  'Marcar de más no sube el pago');
-select is((pg_temp.fila('FConv17Extra')->>'horas_sobre_tope')::numeric, 12.00::numeric,
-  'Y las 12 h de más quedan informadas');
+select is((pg_temp.fila('DConv17')->>'pago_base')::numeric, 394.97::numeric,
+  'CAMBIO 0576 · el convenio ya no cambia la base: con S/ 697 cargados se paga 697 × 68 ÷ 120 (por eso la 0576 exige la subvención completa)');
+select is((pg_temp.fila('DConv17')->>'base_horas_semana')::numeric, 30::numeric,
+  'CAMBIO 0576 · su base es 30 aunque su convenio diga 17 h');
+select is((pg_temp.fila('EConv17Falta')->>'pago_base')::numeric, 296.22::numeric,
+  'Faltar una semana descuenta en proporción: 697 × 51 ÷ 120');
+select is((pg_temp.fila('FConv17Extra')->>'pago_base')::numeric, 464.67::numeric,
+  'CAMBIO 0576 · 20 h por semana no pasan el tope de 30: se pagan todas');
+select is((pg_temp.fila('FConv17Extra')->>'horas_sobre_tope')::numeric, 0.00::numeric,
+  'Y no hay horas sobre el tope');
 
 -- 4 · Un borrador no cuenta
 select is((pg_temp.fila('GBorrador17')->>'base_horas_semana')::numeric, 30::numeric,
@@ -140,8 +142,8 @@ select is((pg_temp.fila('HProfesional')->>'pago_base')::numeric, 1230.00::numeri
 
 -- 6 · A mitad de periodo. CAMBIO 0575: el tope es el del periodo entero (120 h),
 --     así que sus 70 h se pagan todas (la 0573 lo cortaba a 60 h: 615.00).
-select is((pg_temp.fila('JMitad')->>'pago_base')::numeric, 717.50::numeric,
-  'Quien entró el 15 cobra sus 70 h: no pasan el tope del periodo');
+select is((pg_temp.fila('JMitad')->>'pago_base')::numeric, 615.00::numeric,
+  'CAMBIO 0576 · quien entró el 15 marcó 40 h en la semana del 18 al 24: se pagan 30 de esa semana');
 
 -- 7 · La planilla no se mueve
 select is((pg_temp.fila('IPlanilla')->>'pago_base')::numeric, 714.29::numeric,

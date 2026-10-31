@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA (2026-10-31, corrige la 0573)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
+## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA** · **0576 SIN PEGAR (por hora con tope semanal)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
 
 **De dónde sale.** Felipe (2026-10-31): el pago de los practicantes no calzaba con sus horas. Tras simular base 45 y base 30
 (`scripts/sql-manual/simular_el_tope_de_horas_de_los_practicantes.sql` y `horarios_y_horas_marcadas_de_los_practicantes.sql`,
@@ -63,6 +63,13 @@ días activos, sin fecha de inicio) ponen la 465 en rojo.
 40748ba949e32789c06c48c8eac9fca8 · 1 · 2 · 0 · «575 · la_base_del_practicante_la_decide_su_modalidad»` (1 preprofesional y 2
 egresados activos, ninguno sin modalidad). La consulta de modalidades de ese momento confirma la regla persona por persona, y explica
 el corte que se vio con la 0573: la practicante inactiva cesó el 2026-10-29, primer día del periodo, así que tenía un solo día activo.
+
+**0576 (sin pegar): por hora sobre el sueldo mínimo, con tope SEMANAL.** Felipe (2026-10-31): base 30 por el sueldo mínimo, el
+cálculo por hora, que dependa de los horarios que él pone; tope semanal 30 h para el preprofesional y 48 h para el egresado (base
+45). Las horas del convenio ya no cambian la base, y la subvención se queda en el mínimo (la guardia se niega si alguna está por
+debajo de la RMV). El tope por semana (lunes a domingo) reemplaza al del periodo, que recortaba a quien cumplía su jornada exacta
+(≈ −S/ 175 al año, revisión de la 0573). Parte de la 0575 en producción (`40748ba9…`); al pegarla debe dar `7f9a8a8e…` (127 441).
+Prueba 466 (13); la 463 y la 465 ajustan lo que cambia a propósito. Suite completa contra control: sin regresiones.
 
 **Falta pegar:** la 0574 (se niega sin la 0571; antes, confirmar que la 0571 está). Para ver la fórmula en el periodo abierto, solo lectura:
 `fn_planilla_calcular_nucleo(fecha_ini, fecha_fin, id)` del periodo de hoy, filtrando `base_horas_semana is not null` (la consulta va en
