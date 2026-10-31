@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA (2026-10-31)** · 0574 SIN PEGAR · PR [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) · rama `claude/amazing-albattani-kjo4f3`
+## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA (2026-10-31)** · **0575 SIN PEGAR (corrige la 0573)** · 0574 SIN PEGAR · PR [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) · rama `claude/amazing-albattani-kjo4f3`
 
 **De dónde sale.** Felipe (2026-10-31): el pago de los practicantes no calzaba con sus horas. Tras simular base 45 y base 30
 (`scripts/sql-manual/simular_el_tope_de_horas_de_los_practicantes.sql` y `horarios_y_horas_marcadas_de_los_practicantes.sql`,
@@ -47,6 +47,17 @@ la rama se rehízo desde `main`. La pantalla de Parámetros publicada con el #62
 coincidió con la 0555 (`aad8a0f0…` / `2f73c7e9…`, 121 868). La fila final devolvió exactamente la esperada: `t · t · t · 1 · 125171 ·
 8480448f341d0d6d424c4b31816878b2 · 0 · 3 · «573 · el_practicante_se_paga_sobre_una_base_de_30_horas»` (mismo md5 que el Postgres local:
 se pegó sin `\r`). Rige desde ese momento sobre el periodo abierto (29-oct → 28-nov), con los horarios que haya.
+
+**La 0573 salió mal en dos cosas, medidas en producción el mismo día, y la 0575 las corrige.** Felipe corrió la consulta del
+periodo abierto y vio a los cuatro practicantes en base 30: **«lo que debe tener valor es la modalidad … lo que son pre profesional
+cobran en base 30 y los egresados en base 45. Su tipo de vínculo de ambos es practicante»**, y **«que esto funcione desde este
+periodo»**. La 0573 había tomado «el vínculo practicante» como las dos modalidades. Y su tope, prorrateado por días activos, a
+quien tenía un solo día en el rango le pagaba 4.29 de 7.45 h. La **0575** (prueba 465): preprofesional → 30 h, egresado (modalidad
+`profesional`) → 45 h, sin modalidad → como antes; tope del periodo entero; y **solo para periodos que empiezan el 2026-10-29 o
+después** (el anterior, aunque se recalcule en vivo, sigue con la fórmula de antes). Parte de la 0573 tal como quedó en producción
+(md5 `8480448f…`, devuelto por su propia comprobación); al pegarla debe dar `40748ba949e32789c06c48c8eac9fca8` (127 407).
+Medido contra un control: ninguna prueba que pasaba dejó de pasar; cuatro mutaciones (sin modalidad, egresado en 30, tope por
+días activos, sin fecha de inicio) ponen la 465 en rojo.
 
 **Falta pegar:** la 0574 (se niega sin la 0571; antes, confirmar que la 0571 está). Para ver la fórmula en el periodo abierto, solo lectura:
 `fn_planilla_calcular_nucleo(fecha_ini, fecha_fin, id)` del periodo de hoy, filtrando `base_horas_semana is not null` (la consulta va en
