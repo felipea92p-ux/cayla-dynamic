@@ -49,6 +49,7 @@ import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { diaYMes } from "@/lib/bandeja-mia";
 import { sinTildes } from "@/lib/sin-tildes";
 import {
@@ -404,12 +405,13 @@ export default function BandejaPage() {
   }
 
   /** El bucket es privado: cada documento se abre con una URL firmada, pedida
-   *  al momento de mirar — nunca se firman todos de golpe. */
+   *  al momento de mirar — nunca se firman todos de golpe. Pasa por
+   *  `abrirArchivoFirmado`, que abre la pestaña DENTRO del clic; pedir la firma
+   *  y luego `window.open` hacía que el navegador lo tratara como emergente. */
   async function verDocumentoPerfil(ruta: string) {
     const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase.storage.from(BUCKET_SOLICITUDES_PERFIL).createSignedUrl(ruta, 300);
-    if (error || !data) { avisar("error", "No se pudo abrir el documento."); return; }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    const problema = await abrirArchivoFirmado(supabase, BUCKET_SOLICITUDES_PERFIL, ruta, 300);
+    if (problema) avisar("error", problema);
   }
 
   // ── Piezas ────────────────────────────────────────────────────────────────
