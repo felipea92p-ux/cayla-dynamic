@@ -3520,6 +3520,74 @@ export type Database = {
           },
         ]
       }
+      invitaciones_cuenta: {
+        Row: {
+          correo: string
+          creada_at: string
+          detalle: string | null
+          enviada_por: string | null
+          estado: string
+          id: string
+          origen: string
+          persona_id: string
+          resuelta_at: string | null
+          tipo: string
+        }
+        Insert: {
+          correo: string
+          creada_at?: string
+          detalle?: string | null
+          enviada_por?: string | null
+          estado?: string
+          id?: string
+          origen: string
+          persona_id: string
+          resuelta_at?: string | null
+          tipo: string
+        }
+        Update: {
+          correo?: string
+          creada_at?: string
+          detalle?: string | null
+          enviada_por?: string | null
+          estado?: string
+          id?: string
+          origen?: string
+          persona_id?: string
+          resuelta_at?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitaciones_cuenta_enviada_por_fkey"
+            columns: ["enviada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitaciones_cuenta_enviada_por_fkey"
+            columns: ["enviada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitaciones_cuenta_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitaciones_cuenta_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jornadas: {
         Row: {
           entrada_ts: string | null

@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 · 0572 · 0573 · **SIN PEGAR** · PR [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626) · rama `claude/amazing-albattani-kjo4f3`
+## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · 0573 · 0574 · **SIN PEGAR** · rama `claude/amazing-albattani-kjo4f3`
 
 **De dónde sale.** Felipe (2026-10-31): el pago de los practicantes no calzaba con sus horas. Tras simular base 45 y base 30
 (`scripts/sql-manual/simular_el_tope_de_horas_de_los_practicantes.sql` y `horarios_y_horas_marcadas_de_los_practicantes.sql`,
@@ -28,17 +28,23 @@ S/ 697; uno de 45 h/sem llega al tope. **Conviene ajustar los horarios ANTES de 
 horas marcadas cumple el art. 45. Y Felipe pausó la sesión de la tarjeta vieja «Migración: pago fijo proporcional del preprofesional»
 (diseño anterior, valores fijos en la función): no debe retomarse.
 
-**0571 y 0572 · Parámetros (no mueven plata).** 0571: `roles_cambia` por parámetro (los de hoy conservan su comportamiento; uno nuevo
-nace `{admin}`). 0572: la clase plata guarda su valor **por fechas** (`parametros_vigencias`, `fn_parametro_valor_en`), se cambia con
+**0571 y 0574 · Parámetros (no mueven plata).** 0571: `roles_cambia` por parámetro (los de hoy conservan su comportamiento; uno nuevo
+nace `{admin}`). 0574: la clase plata guarda su valor **por fechas** (`parametros_vigencias`, `fn_parametro_valor_en`), se cambia con
 `fn_parametro_cambiar_vigencia` (se niega a una fecha dentro de un periodo pagado para su grupo) y tiene vista previa. Todavía no
 existe ningún parámetro de plata y la planilla no lee ninguno: conectar la base de 30 h a un parámetro es el paso siguiente.
-md5 de partida de la 0571 contrastado con producción. Pruebas 461 (16) y 462 (21).
+md5 de partida de la 0571 contrastado con producción. Pruebas 461 (16) y 464 (21).
 
 **Cómo se midió.** Sin Docker: un Postgres 16 con stubs de Supabase y las 570 migraciones. Suite pgTAP completa contra un **control**
-(la misma base sin 0571–0573): ninguna prueba que pasaba dejó de pasar; las 40 que fallan en las dos son del entorno (stubs de
+(la misma base sin 0573 ni 0574): ninguna prueba que pasaba dejó de pasar; las 40 que fallan en las dos son del entorno (stubs de
 storage/auth/cron), y la única que toca planilla (217) pasa con la 0573 una vez completado el stub. `db-tests` de GitHub es la señal fiable.
 
-**Orden de pegado:** 0571 → 0572 → 0573 (la 0572 se niega sin la 0571). Antes de la 0573, volver a pedir su md5 a producción.
+**Lo que pasó con los números (2026-10-31).** El PR #626 se fusionó a las 16:44 con la cuenta de Felipe llevando **solo la 0571**
+(y los scripts de simulación); minutos después la PR #627 tomó la **0572** y la prueba **462** («la invitación a la cuenta sale sola»).
+La migración de parámetros con fechas, escrita como 0572, pasó a **0574** (prueba 464) sin haberse pegado nunca con el número viejo, y
+la rama se rehízo desde `main`. La pantalla de Parámetros publicada con el #626 funciona sin la 0571 pegada (cae a la regla por clase).
+
+**Orden de pegado:** 0571 → **0573** (el pago, lo primero que pidió Felipe) → 0574 (se niega sin la 0571). Antes de la 0573, volver a
+pedir su md5 a producción, en el mismo mensaje en que se pega.
 
 ## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya estaban pegadas) · **0546 PEGADA (2026-10-30)** · 0547 entregada · PR #620 · rama `claude/vigilant-hopper-d48cdd`
 

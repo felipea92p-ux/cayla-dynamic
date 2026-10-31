@@ -15,7 +15,7 @@
 // `fn_parametro_cambiar` (mínimo, máximo, entero, motivo, quién puede), y su
 // mensaje se muestra tal cual si la base rechaza algo que esta pantalla dejó pasar.
 //
-// Un parámetro que rige POR FECHAS (clase plata, 0572) pide además «Rige desde»,
+// Un parámetro que rige POR FECHAS (clase plata, 0574) pide además «Rige desde»,
 // y su paso 2 lo da `fn_parametro_vista_previa`, que también se niega si la fecha
 // cae en un periodo ya pagado: el aviso llega antes de confirmar, no después.
 // Se guarda con `fn_parametro_cambiar_vigencia`.

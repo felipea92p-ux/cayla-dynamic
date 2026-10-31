@@ -271,7 +271,7 @@ describe("qué parámetros tienen personas detrás", () => {
   });
 });
 
-describe("los parámetros que rigen por fechas (0572)", () => {
+describe("los parámetros que rigen por fechas (0574)", () => {
   it("la fecha nace en hoy si la última versión ya pasó, o el día siguiente a ella si no", () => {
     expect(fechaInicialDeVigencia("2026-11-10", null)).toBe("2026-11-10");
     expect(fechaInicialDeVigencia("2026-11-10", "2026-10-01")).toBe("2026-11-10");
@@ -327,7 +327,7 @@ describe("la lectura de lo que devuelve la base", () => {
     expect(normalizarParametros([{ ...cruda, valor_min: null }])[0].valor_min).toBeNull();
   });
 
-  it("sin la 0572 en la base, la fila no rige por fechas y no inventa versiones", () => {
+  it("sin la 0574 en la base, la fila no rige por fechas y no inventa versiones", () => {
     const [f] = normalizarParametros([cruda]);
     expect(f.rige_por_fechas).toBe(false);
     expect(f.vigente_desde).toBeNull();
@@ -336,7 +336,7 @@ describe("la lectura de lo que devuelve la base", () => {
     expect(f.roles_cambia).toEqual([]);
   });
 
-  it("con la 0572, las fechas y el próximo valor llegan, y el numeric como número", () => {
+  it("con la 0574, las fechas y el próximo valor llegan, y el numeric como número", () => {
     const [f] = normalizarParametros([{ ...cruda, rige_por_fechas: true, vigente_desde: "2026-11-01",
       proximo_valor: "24", proximo_desde: "2026-12-01", roles_cambia: ["admin"] }]);
     expect(f.rige_por_fechas).toBe(true);

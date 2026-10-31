@@ -1,6 +1,10 @@
 -- ============================================================================
--- 0572 · LOS PARÁMETROS DE PLATA TIENEN VIGENCIA Y VISTA PREVIA
+-- 0574 · LOS PARÁMETROS DE PLATA TIENEN VIGENCIA Y VISTA PREVIA
 -- ============================================================================
+--
+-- NÚMERO: se escribió como 0572 y se renumeró a 0574 el 2026-10-31: la 0572 la
+--   tomó «la invitación a la cuenta sale sola» (PR #627), fusionada antes. Nunca
+--   se pegó con el número viejo.
 --
 -- QUÉ PROMETE (Entrega 1b)
 --   1. Un parámetro de clase «plata» guarda su valor POR FECHAS
@@ -95,7 +99,7 @@ end
 $c$;
 
 comment on column parametros_catalogo.alcance is
-  'A quién toca un parámetro que rige por fechas: de ahí salen el grupo de pago que se vigila y la lista de la vista previa. Solo si almacen = vigencias. 0572.';
+  'A quién toca un parámetro que rige por fechas: de ahí salen el grupo de pago que se vigila y la lista de la vista previa. Solo si almacen = vigencias. 0574.';
 
 -- ── 2 · Las versiones ─────────────────────────────────────────────────────
 create table if not exists parametros_vigencias (
@@ -113,7 +117,7 @@ create table if not exists parametros_vigencias (
 );
 
 comment on table parametros_vigencias is
-  'Las versiones de los parámetros de clase plata: qué valor rige desde qué fecha. Se escribe solo por fn_parametro_cambiar_vigencia; no se borra y solo se le cierra vigente_hasta. 0572.';
+  'Las versiones de los parámetros de clase plata: qué valor rige desde qué fecha. Se escribe solo por fn_parametro_cambiar_vigencia; no se borra y solo se le cierra vigente_hasta. 0574.';
 
 alter table parametros_vigencias enable row level security;
 revoke all on parametros_vigencias from public, anon, authenticated;
@@ -162,7 +166,7 @@ as $fn$
 $fn$;
 
 comment on function fn_parametro_valor_en(text, date) is
-  'Cuánto valía un parámetro que rige por fechas en esa fecha; antes de su primera versión, el valor de partida del catálogo. Es lo que debe leer la planilla con la fecha del periodo. 0572.';
+  'Cuánto valía un parámetro que rige por fechas en esa fecha; antes de su primera versión, el valor de partida del catálogo. Es lo que debe leer la planilla con la fecha del periodo. 0574.';
 
 revoke all on function fn_parametro_valor_en(text, date) from public, anon;
 grant execute on function fn_parametro_valor_en(text, date) to authenticated;
@@ -214,7 +218,7 @@ begin
     raise exception 'No existe el parámetro «%».', p_parametro;
   end if;
 
-  -- CAMBIO 0572 · un parámetro que rige por fechas (clase plata) NO se cambia por
+  -- CAMBIO 0574 · un parámetro que rige por fechas (clase plata) NO se cambia por
   -- acá: esta puerta escribe en `configuracion` y un valor sin fecha reescribiría
   -- periodos ya pagados. Tiene su propia puerta, con fecha de vigencia.
   if c.almacen = 'vigencias' then
@@ -370,7 +374,7 @@ end;
 $fn$;
 
 comment on function fn_parametro_cambiar_vigencia(text, numeric, date, text) is
-  'Cambia un parámetro que rige por fechas (clase plata). Mismos límites, motivo y roles que fn_parametro_cambiar, más la fecha: se niega si un periodo ya pagado para su grupo terminaría en esa fecha o después, y la fecha tiene que ser posterior a la última versión. 0572.';
+  'Cambia un parámetro que rige por fechas (clase plata). Mismos límites, motivo y roles que fn_parametro_cambiar, más la fecha: se niega si un periodo ya pagado para su grupo terminaría en esa fecha o después, y la fecha tiene que ser posterior a la última versión. 0574.';
 
 revoke all on function fn_parametro_cambiar_vigencia(text, numeric, date, text) from public, anon;
 grant execute on function fn_parametro_cambiar_vigencia(text, numeric, date, text) to authenticated;
@@ -425,7 +429,7 @@ end;
 $fn$;
 
 comment on function fn_parametro_vista_previa(text, numeric, date) is
-  'A quién le toca un cambio de un parámetro que rige por fechas, antes de confirmar. No calcula montos (eso es la fórmula, Entrega 3). 0572.';
+  'A quién le toca un cambio de un parámetro que rige por fechas, antes de confirmar. No calcula montos (eso es la fórmula, Entrega 3). 0574.';
 
 revoke all on function fn_parametro_vista_previa(text, numeric, date) from public, anon;
 grant execute on function fn_parametro_vista_previa(text, numeric, date) to authenticated;
@@ -511,18 +515,18 @@ end;
 $fn$;
 
 comment on function fn_parametros_listar() is
-  'El catálogo de parámetros con el valor de hoy, el último cambio, quién puede cambiarlo y, si rige por fechas, desde cuándo y cuál es el próximo cambio. Solo admin o líder de DO. 0552, 0571, 0572.';
+  'El catálogo de parámetros con el valor de hoy, el último cambio, quién puede cambiarlo y, si rige por fechas, desde cuándo y cuál es el próximo cambio. Solo admin o líder de DO. 0552, 0571, 0574.';
 
 revoke all on function fn_parametros_listar() from public, anon;
 grant execute on function fn_parametros_listar() to authenticated;
 
 -- ── Registro ──────────────────────────────────────────────────────────────
 insert into migraciones_aplicadas (numero, nombre)
-values (572, 'los_parametros_de_plata_tienen_vigencia_y_vista_previa')
+values (574, 'los_parametros_de_plata_tienen_vigencia_y_vista_previa')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 -- ── Comprobación ──────────────────────────────────────────────────────────
--- Debe dar: 0 · true · true · true · true · true · «572 · los_parametros_de_plata_…»
+-- Debe dar: 0 · true · true · true · true · true · «574 · los_parametros_de_plata_…»
 select
   (select count(*) from parametros_vigencias)                                  as versiones_guardadas,
   (select count(*) = 0 from parametros_catalogo where clase = 'plata' and almacen <> 'vigencias') as plata_siempre_con_fechas,
@@ -532,4 +536,4 @@ select
   (to_regprocedure('public.fn_parametro_vista_previa(text,numeric,date)') is not null) as existe_la_vista_previa,
   (select 'rige_por_fechas' = any(proargnames) from pg_proc
     where proname = 'fn_parametros_listar' and pronamespace = 'public'::regnamespace) as la_lista_dice_las_fechas,
-  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 572) as registro;
+  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 574) as registro;

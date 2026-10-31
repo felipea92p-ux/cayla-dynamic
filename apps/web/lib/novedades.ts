@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-31-la-invitacion-a-la-cuenta-sale-sola",
+    fecha: "2026-10-31",
+    titulo: "La invitación para crear la cuenta sale sola, una vez",
+    queMejoro:
+      "Ya no hace falta entrar a Cuentas y apretar «Invitar»: en cuanto la ficha de una integrante tiene correo, le llega " +
+      "sola la invitación para que elija su clave. Sale al guardar el correo en Datos personales o en Equipo, y si no, la " +
+      "próxima vez que alguien abra Cuentas.\n\n" +
+      "Sale una sola vez. Si no le llegó, en Cuentas está el botón para mandarla a mano, que también se usa una sola vez por " +
+      "correo; si el correo estaba mal escrito, al corregirlo se puede mandar una vez más al correo nuevo. La pantalla dice " +
+      "qué día salió cada una.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-31-horarios-sedes-con-nombre",
     fecha: "2026-10-31",
     titulo: "Horarios base dice el nombre de cada sede",

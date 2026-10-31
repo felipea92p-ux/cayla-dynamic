@@ -47,7 +47,7 @@ export interface ParametroFila {
   ultimo_origen: "pantalla" | "base" | null;
   /** Los roles que pueden cambiarlo (0571). Vacío si la base todavía no tiene la 0571. */
   roles_cambia: string[];
-  /** Rige por fechas (clase plata, 0572): se cambia con una fecha de vigencia. */
+  /** Rige por fechas (clase plata, 0574): se cambia con una fecha de vigencia. */
   rige_por_fechas: boolean;
   /** Desde cuándo rige el valor de hoy; null = rige el valor de partida. */
   vigente_desde: string | null;
@@ -234,7 +234,7 @@ export function notaDeEfecto(parametro: string): string | null {
 }
 
 // ============================================================================
-// Los parámetros que rigen POR FECHAS (clase plata, 0572)
+// Los parámetros que rigen POR FECHAS (clase plata, 0574)
 // ============================================================================
 
 /** Un día más a una fecha ISO (aaaa-mm-dd), sin pasar por la hora local. */
@@ -273,7 +273,7 @@ export function valorAntesDelCambio(fila: Pick<ParametroFila, "valor_actual" | "
   return fila.proximo_valor ?? fila.valor_actual;
 }
 
-/** Una fila de `fn_parametro_vista_previa` (0572). */
+/** Una fila de `fn_parametro_vista_previa` (0574). */
 export interface FilaVistaPrevia {
   persona: string;
   vinculo: string;
