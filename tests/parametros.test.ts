@@ -26,8 +26,12 @@ import {
   type LimitesParametro,
 } from "@cayla-dynamic/shared";
 import {
+  fechaInicialDeVigencia,
+  fechaMinimaDeVigencia,
   fuenteDeImpacto,
   impactoAvisoDescansoMedico,
+  impactoDeVistaPrevia,
+  valorAntesDelCambio,
   impactoDiasDePrueba,
   normalizarCambios,
   normalizarParametros,
@@ -267,6 +271,45 @@ describe("qué parámetros tienen personas detrás", () => {
   });
 });
 
+describe("los parámetros que rigen por fechas (0572)", () => {
+  it("la fecha nace en hoy si la última versión ya pasó, o el día siguiente a ella si no", () => {
+    expect(fechaInicialDeVigencia("2026-11-10", null)).toBe("2026-11-10");
+    expect(fechaInicialDeVigencia("2026-11-10", "2026-10-01")).toBe("2026-11-10");
+    expect(fechaInicialDeVigencia("2026-11-10", "2026-11-10")).toBe("2026-11-11");
+    expect(fechaInicialDeVigencia("2026-11-10", "2026-12-31")).toBe("2027-01-01");
+    expect(fechaInicialDeVigencia("2028-02-28", "2028-02-28")).toBe("2028-02-29");
+  });
+
+  it("nunca nace vacía: un campo de fecha que bloquea el envío no arranca en blanco", () => {
+    for (const ultima of [null, "2020-01-01", "2026-11-10", "2030-06-15"]) {
+      expect(fechaInicialDeVigencia("2026-11-10", ultima)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it("la fecha mínima es el día después de la última versión; sin versiones, no hay mínimo", () => {
+    expect(fechaMinimaDeVigencia(null)).toBeNull();
+    expect(fechaMinimaDeVigencia("2026-11-30")).toBe("2026-12-01");
+  });
+
+  it("se compara contra lo programado si hay un cambio programado, y si no contra lo de hoy", () => {
+    expect(valorAntesDelCambio({ valor_actual: 30, proximo_valor: null })).toBe(30);
+    expect(valorAntesDelCambio({ valor_actual: 30, proximo_valor: 24 })).toBe(24);
+  });
+
+  it("la vista previa dice a quién le toca, con su vínculo, y avisa que el monto lo calcula la planilla", () => {
+    const i = impactoDeVistaPrevia(
+      [{ persona: "Lab, Preprofesional", vinculo: "practicante preprofesional", detalle: "x" }],
+      "30 horas",
+      "24 horas desde el 01/02/2030",
+    );
+    expect(i.filas).toEqual([
+      { persona: "Lab, Preprofesional (practicante preprofesional)", antes: "30 horas", despues: "24 horas desde el 01/02/2030" },
+    ]);
+    expect(i.nota).toMatch(/lo ya pagado no se toca/i);
+    expect(impactoDeVistaPrevia([], "30 horas", "24 horas").filas).toEqual([]);
+  });
+});
+
 describe("la lectura de lo que devuelve la base", () => {
   const cruda = {
     parametro: "prueba_dias", nombre: "Días", descripcion: "d", unidad: "días", clase: "operativo",
@@ -282,6 +325,25 @@ describe("la lectura de lo que devuelve la base", () => {
     expect(f.valor_actual).toBe(5);
     expect(typeof f.valor_defecto).toBe("number");
     expect(normalizarParametros([{ ...cruda, valor_min: null }])[0].valor_min).toBeNull();
+  });
+
+  it("sin la 0572 en la base, la fila no rige por fechas y no inventa versiones", () => {
+    const [f] = normalizarParametros([cruda]);
+    expect(f.rige_por_fechas).toBe(false);
+    expect(f.vigente_desde).toBeNull();
+    expect(f.proximo_valor).toBeNull();
+    expect(f.proximo_desde).toBeNull();
+    expect(f.roles_cambia).toEqual([]);
+  });
+
+  it("con la 0572, las fechas y el próximo valor llegan, y el numeric como número", () => {
+    const [f] = normalizarParametros([{ ...cruda, rige_por_fechas: true, vigente_desde: "2026-11-01",
+      proximo_valor: "24", proximo_desde: "2026-12-01", roles_cambia: ["admin"] }]);
+    expect(f.rige_por_fechas).toBe(true);
+    expect(f.vigente_desde).toBe("2026-11-01");
+    expect(f.proximo_valor).toBe(24);
+    expect(f.proximo_desde).toBe("2026-12-01");
+    expect(f.roles_cambia).toEqual(["admin"]);
   });
 
   it("un origen que no es ni «pantalla» ni «base» no se inventa", () => {
