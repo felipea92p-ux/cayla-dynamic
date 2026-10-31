@@ -1543,7 +1543,7 @@ function DesempenoContenido() {
       </main>
 
       {/* ── La persona: lo que antes se desplegaba dentro de la tabla ─────────── */}
-      <Drawer abierto={filaAbierta !== null} onCerrar={() => setAbierta(null)} titulo={filaAbierta ? filaAbierta.nombre : undefined} ancho="amplio" volverElFocoA={volverFocoPersona}>
+      <Drawer abierto={filaAbierta !== null} onCerrar={() => setAbierta(null)} titulo={filaAbierta ? filaAbierta.nombre : undefined} ancho="extra" volverElFocoA={volverFocoPersona}>
         {filaAbierta && (
           <DetallePersona
             f={filaAbierta}
