@@ -242,6 +242,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-10-26-turnos-integrada-y-revision-de-dias-pasados",
+    fecha: "2026-10-26",
+    titulo: "Turnos: la Integrada respeta la salida de cada día y los días pasados muestran su marcaje",
+    queMejoro:
+      "En la vista Integrada, las horas después de la última salida de un día —como el domingo desde las 18:15— salían como falta y con el borde de «sin líder», con la tienda ya cerrada. " +
+      "Ahora cada día se mide solo entre su primera entrada y su última salida, como las tarjetas «Mañana y tarde», y el borde ámbar sale solo donde hay operativas sin ningún líder.\n\n" +
+      "En «turnos no coinciden con el horario base», las filas de días que ya pasaron muestran a qué hora marcó la persona. " +
+      "«Usar el horario base» en uno de esos días ahora te pide confirmar y te dice qué va a pasar: ese día se vuelve a medir contra la hora del horario base, y si el turno era lo que se le había indicado conviene dejarlo como está. " +
+      "«Quitar los espejos viejos» en bloque solo toca días de hoy en adelante. Y la etiqueta «excepción a propósito» pasa a llamarse «cambio puntual».",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-25-bandeja-cuenta-lo-que-le-toca-a-una-persona-y-explica-los-correos",
     fecha: "2026-10-25",
     titulo: "La Bandeja cuenta lo que le toca a una persona y explica los correos que no salieron",
