@@ -21,10 +21,29 @@
 -- fecha fija— porque esta función no acepta `p_as_of`: siempre corre sobre
 -- HOY, igual que fn_mi_bono_cumpleanos (0478). Fijar el ingreso a exactamente
 -- 6 y 13 meses atrás hace que el corte de semestre y el tope del año caigan
--- justo en un borde exacto, sin depender de cuántos días tiene cada mes.
+-- justo en un borde exacto.
+--
+-- Ese «exacto» solo es verdad si HOY es un día que existe 6 meses antes. El
+-- 2026-10-31 no lo era: 31-oct − 6 meses = 30-abr (abril no tiene 31), la
+-- practicante quedaba con 6 meses Y UN DÍA, y la prueba pedía 600.00 cuando la
+-- función —bien— daba 603.30. `db-tests` salió rojo en todos los PR de ese día
+-- sin que ninguno tocara esta función; `main` había pasado la noche anterior.
+-- Pasa igual cualquier 31 detrás de un mes de 30 y los 29–31 de agosto.
+--
+-- Por eso HOY se fija, dentro de esta transacción (el rollback del final
+-- devuelve la función de siempre), al día 15 del mes en curso: existe en
+-- todos los meses, así que los bordes son exactos cualquier día que corra.
+-- Mismo molde que la prueba 421.
 -- ============================================================================
 begin;
 select plan(10);
+
+-- ── El reloj ────────────────────────────────────────────────────────────────
+select set_config('test.hoy', (date_trunc('month', fn_hoy_lima()) + interval '14 days')::date::text, true);
+create or replace function fn_hoy_lima()
+returns date language sql stable set search_path = public as $fn$
+  select current_setting('test.hoy')::date;
+$fn$;
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-000000383000', 'Z383', 'Sede de laboratorio', true);
