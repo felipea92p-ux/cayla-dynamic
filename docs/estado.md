@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA (2026-10-31)** · **0575 SIN PEGAR (corrige la 0573)** · 0574 SIN PEGAR · PR [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) · rama `claude/amazing-albattani-kjo4f3`
+## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA (2026-10-31, corrige la 0573)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
 
 **De dónde sale.** Felipe (2026-10-31): el pago de los practicantes no calzaba con sus horas. Tras simular base 45 y base 30
 (`scripts/sql-manual/simular_el_tope_de_horas_de_los_practicantes.sql` y `horarios_y_horas_marcadas_de_los_practicantes.sql`,
@@ -58,6 +58,11 @@ después** (el anterior, aunque se recalcule en vivo, sigue con la fórmula de a
 (md5 `8480448f…`, devuelto por su propia comprobación); al pegarla debe dar `40748ba949e32789c06c48c8eac9fca8` (127 407).
 Medido contra un control: ninguna prueba que pasaba dejó de pasar; cuatro mutaciones (sin modalidad, egresado en 30, tope por
 días activos, sin fecha de inicio) ponen la 465 en rojo.
+
+**0575 PEGADA por Felipe el 2026-10-31**, antes de fusionar el #630. Fila final exacta: `t · t · t · 1 · 127407 ·
+40748ba949e32789c06c48c8eac9fca8 · 1 · 2 · 0 · «575 · la_base_del_practicante_la_decide_su_modalidad»` (1 preprofesional y 2
+egresados activos, ninguno sin modalidad). La consulta de modalidades de ese momento confirma la regla persona por persona, y explica
+el corte que se vio con la 0573: la practicante inactiva cesó el 2026-10-29, primer día del periodo, así que tenía un solo día activo.
 
 **Falta pegar:** la 0574 (se niega sin la 0571; antes, confirmar que la 0571 está). Para ver la fórmula en el periodo abierto, solo lectura:
 `fn_planilla_calcular_nucleo(fecha_ini, fecha_fin, id)` del periodo de hoy, filtrando `base_horas_semana is not null` (la consulta va en
