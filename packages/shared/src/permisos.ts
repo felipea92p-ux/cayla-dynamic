@@ -519,6 +519,18 @@ export function puedeExportarAsistencia(rol: RolPosible): boolean {
 }
 
 /**
+ * Quién puede DISPARAR el envío automático de invitaciones (0572): cualquiera
+ * con panel. No es un permiso para invitar —a quién se invita lo decide
+ * `invitablesSinCuenta` y cuántas veces, la base—, sino para decir «acabo de
+ * guardar un correo, fíjate si a alguien le toca». Lo llaman Datos personales y
+ * Equipo al guardar, y ahí también trabaja la líder de equipo: si quedara solo
+ * para DO, el correo que ella guarda esperaría a que alguien de DO abra Cuentas.
+ */
+export function puedeDispararInvitacionAutomatica(rol: RolPosible): boolean {
+  return tiene(DO_Y_ENCARGADA, rol);
+}
+
+/**
  * Las mismas listas, para filtrar datos que vienen de la base (`.in("rol", …)`,
  * `.includes(p.rol)`). Van tipadas como `string` a propósito: el rol que llega de
  * Postgres es texto libre, y exigirle el tipo `Rol` obligaría a un cast en cada

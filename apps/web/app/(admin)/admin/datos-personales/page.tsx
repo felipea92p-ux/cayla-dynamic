@@ -25,6 +25,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { pedirInvitacionesAutomaticas, textoInvitacionesEnviadas } from "@/lib/admin/invitacion-automatica";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
@@ -643,6 +644,14 @@ export default function DatosPersonalesPage() {
     // no le agrega ningún clic a ese flujo.
     setEditMode(false);
     avisar("ok", regimenCambio ? `Ficha guardada. El régimen nuevo rige desde el ${regimenDesde} y ya cambia lo que se le descuenta.` : "Ficha guardada.");
+    // Un correo nuevo en la ficha puede ser lo único que le faltaba para su
+    // invitación a la cuenta: sale sola, una vez, sin esperar a que alguien
+    // abra Cuentas. Va después del aviso y sin esperarla: guardar ya terminó.
+    if (emailCambio && email.trim()) {
+      void pedirInvitacionesAutomaticas().then((enviadas) => {
+        if (enviadas.length) avisar("ok", textoInvitacionesEnviadas(enviadas));
+      });
+    }
     return true;
   }
 
