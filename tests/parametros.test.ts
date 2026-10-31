@@ -18,6 +18,7 @@ import {
   CLASES_PARAMETRO,
   ETIQUETA_CLASE_PARAMETRO,
   describirCambioDeParametro,
+  etiquetaQuienCambia,
   puedeCambiarParametro,
   puedeGestionarParametros,
   validarValorParametro,
@@ -74,6 +75,30 @@ describe("quién ve y quién cambia", () => {
         expect(puedeCambiarParametro(rol, clase), `${rol} / ${String(clase)}`).toBe(false);
       }
     }
+  });
+
+  it("con roles_cambia (0571) manda la lista de la fila, no la clase", () => {
+    expect(puedeCambiarParametro("admin", "plata", ["admin"])).toBe(true);
+    expect(puedeCambiarParametro("lider_do", "plata", ["admin"])).toBe(false);
+    expect(puedeCambiarParametro("lider_do", "plata", ["admin", "lider_do"])).toBe(true);
+  });
+
+  it("la lista no abre la puerta a quien no entra a Parámetros", () => {
+    for (const rol of ["supervisor_sede", "integrante", null, undefined, ""]) {
+      expect(puedeCambiarParametro(rol, "operativo", ["admin", "lider_do", "supervisor_sede"]), String(rol)).toBe(false);
+    }
+  });
+
+  it("sin roles_cambia (la base aún no tiene la 0571) vale la clase de siempre", () => {
+    expect(puedeCambiarParametro("lider_do", "operativo", null)).toBe(true);
+    expect(puedeCambiarParametro("lider_do", "normativo", undefined)).toBe(false);
+  });
+
+  it("etiquetaQuienCambia dice quién, y calla si la lista no viene", () => {
+    expect(etiquetaQuienCambia(["admin"])).toBe("Lo cambia: la dirección");
+    expect(etiquetaQuienCambia(["admin", "lider_do"])).toBe("Lo cambian: la dirección y Desarrollo Organizacional");
+    expect(etiquetaQuienCambia([])).toBeNull();
+    expect(etiquetaQuienCambia(null)).toBeNull();
   });
 
   it("quien no puede ENTRAR tampoco puede cambiar algo operativo: la matriz es coherente", () => {

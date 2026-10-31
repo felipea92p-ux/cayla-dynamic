@@ -26,6 +26,7 @@ import {
   describirCambioDeParametro,
   fechaLima,
   horaLimaLegible,
+  etiquetaQuienCambia,
   puedeCambiarParametro,
   puedeGestionarParametros,
   valorConUnidad,
@@ -172,7 +173,7 @@ export default function ParametrosPage() {
                   </TablaEncabezado>
                   <tbody>
                     {editables.map((f) => {
-                      const puede = puedeCambiarParametro(rol, f.clase);
+                      const puede = puedeCambiarParametro(rol, f.clase, f.roles_cambia.length > 0 ? f.roles_cambia : null);
                       return (
                         <Fila key={f.parametro}>
                           <td className="max-w-md px-4 py-3 align-top">
@@ -180,6 +181,9 @@ export default function ParametrosPage() {
                             <p className="mt-0.5 text-xs text-taupe">{f.descripcion}</p>
                             <div className="mt-1.5">
                               <Insignia tamano="sm" variante="neutral" punto={false}>{ETIQUETA_CLASE_PARAMETRO[f.clase]}</Insignia>
+                              {etiquetaQuienCambia(f.roles_cambia) && (
+                                <span className="ml-2 text-xs text-taupe">{etiquetaQuienCambia(f.roles_cambia)}</span>
+                              )}
                             </div>
                             {/* En celular la columna «Último cambio» no cabe: baja aquí. */}
                             <div className="mt-2 text-xs text-taupe md:hidden">{ultimoCambio(f)}</div>
@@ -257,7 +261,7 @@ export default function ParametrosPage() {
                     {historial.map((h) => {
                       const fila = porClave.get(h.parametro);
                       const sePuedeVolver =
-                        !!fila && fila.editable && puedeCambiarParametro(rol, fila.clase) && fila.valor_actual !== h.valor_anterior;
+                        !!fila && fila.editable && puedeCambiarParametro(rol, fila.clase, fila.roles_cambia.length > 0 ? fila.roles_cambia : null) && fila.valor_actual !== h.valor_anterior;
                       return (
                         <Fila key={h.id}>
                           <td className="whitespace-nowrap px-4 py-3 align-top text-xs text-taupe">{cuandoSeCambio(h.cambiado_at)}</td>

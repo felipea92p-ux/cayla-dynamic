@@ -9704,6 +9704,8 @@ export type Database = {
           ultimo_cambio_por: string
           ultimo_motivo: string
           ultimo_origen: string
+          roles_cambia: string[]
+          puede_cambiar: boolean
           unidad: string
           valor_actual: number
           valor_defecto: number

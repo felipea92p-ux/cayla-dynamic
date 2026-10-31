@@ -45,6 +45,8 @@ export interface ParametroFila {
   ultimo_cambio_por: string | null;
   ultimo_motivo: string | null;
   ultimo_origen: "pantalla" | "base" | null;
+  /** Los roles que pueden cambiarlo (0571). Vacío si la base todavía no tiene la 0571. */
+  roles_cambia: string[];
 }
 
 /** Una fila de `fn_parametros_historial` (0552). */
@@ -90,6 +92,7 @@ export function normalizarParametros(filas: ReadonlyArray<Record<string, unknown
     ultimo_cambio_por: (f.ultimo_cambio_por as string | null) ?? null,
     ultimo_motivo: (f.ultimo_motivo as string | null) ?? null,
     ultimo_origen: f.ultimo_origen === "pantalla" || f.ultimo_origen === "base" ? f.ultimo_origen : null,
+    roles_cambia: Array.isArray(f.roles_cambia) ? f.roles_cambia.map(String) : [],
   }));
 }
 
