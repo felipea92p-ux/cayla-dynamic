@@ -493,6 +493,15 @@ export function puedeCambiarParametro(
 }
 
 /**
+ * Cambiar el sueldo de un grupo entero (practicantes preprofesionales, egresados,
+ * honorarios) desde Parámetros (0578). Solo la dirección: mueve la plata de varias
+ * personas a la vez. Espeja `fn_sueldo_grupo_cambiar`, donde manda la base.
+ */
+export function puedeCambiarSueldoDeGrupo(rol: RolPosible): boolean {
+  return tiene(SOLO_DIRECCION, rol);
+}
+
+/**
  * Bajarse en CSV el rastro de asistencia: el resumen de jornadas, los marcajes
  * crudos y el libro de correcciones de un rango de fechas.
  *

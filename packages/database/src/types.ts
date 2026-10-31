@@ -7510,7 +7510,14 @@ export type Database = {
           sede_id: string
           titulo: string
           total_lectores: number
+          estado: string
+          audiencia_descripcion: string
+          audiencia_total: number
         }[]
+      }
+      fn_anuncio_publicar_borrador: {
+        Args: { p_cuerpo?: string | null; p_id: string | null; p_titulo?: string | null }
+        Returns: undefined
       }
       fn_aplicar_cambio_perfil: {
         Args: { p_solicitud_id: string | null }
@@ -9669,6 +9676,10 @@ export type Database = {
         Args: { p_motivo: string | null; p_parametro: string | null; p_valor: number | null }
         Returns: undefined
       }
+      fn_parametro_comunicado: {
+        Args: { p_antes: number | null; p_desde: string | null; p_nuevo: number | null; p_parametro: string | null }
+        Returns: string
+      }
       fn_parametro_cambiar_vigencia: {
         Args: {
           p_desde: string | null
@@ -11121,6 +11132,14 @@ export type Database = {
       fn_sumar_dias_habiles: {
         Args: { p_desde: string | null; p_dias: number | null }
         Returns: string
+      }
+      fn_sueldo_grupo_cambiar: {
+        Args: { p_desde: string | null; p_grupo: string | null; p_monto: number | null; p_motivo: string | null; p_personas: string[] | null }
+        Returns: Json
+      }
+      fn_sueldo_grupo_vista_previa: {
+        Args: { p_grupo: string | null }
+        Returns: { es_por_defecto: boolean; nombre: string; persona_id: string; rango: string; sueldo_actual: number }[]
       }
       fn_tardanza_es_medible: { Args: { p_minutos: number | null }; Returns: boolean }
       fn_tardanza_escalon: {

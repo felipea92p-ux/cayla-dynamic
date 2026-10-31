@@ -28,6 +28,7 @@ import {
   horaLimaLegible,
   etiquetaQuienCambia,
   puedeCambiarParametro,
+  puedeCambiarSueldoDeGrupo,
   puedeGestionarParametros,
   valorConUnidad,
 } from "@cayla-dynamic/shared";
@@ -50,6 +51,7 @@ import {
   type ParametroFila,
 } from "@/lib/admin/parametros";
 import { PanelCambio } from "./PanelCambio";
+import { PanelSueldoGrupo } from "./PanelSueldoGrupo";
 
 /** «26/10/2026 · 8:40 a. m.» — el día y la hora de Lima en que se cambió. */
 function cuandoSeCambio(ts: string): string {
@@ -76,6 +78,10 @@ export default function ParametrosPage() {
 
   const [objetivo, setObjetivo] = useState<Objetivo | null>(null);
   const [panelAbierto, setPanelAbierto] = useState(false);
+  // 0578 · el cambio de sueldo por grupo, en su propio cajón.
+  const [grupoAbierto, setGrupoAbierto] = useState(false);
+  const [aperturasGrupo, setAperturasGrupo] = useState(0);
+  const focoGrupo = useRef<HTMLElement | null>(null);
   // Un panel nuevo por apertura: así el valor y el motivo de la vez anterior no sobreviven.
   const [aperturas, setAperturas] = useState(0);
   const focoAlAbrir = useRef<HTMLElement | null>(null);
@@ -159,6 +165,27 @@ export default function ParametrosPage() {
           <Cargando />
         ) : (
           <div className="flex max-w-5xl flex-col gap-8">
+            {puedeCambiarSueldoDeGrupo(rol) && (
+              <section className="flex flex-col gap-2">
+                <Rotulo como="h3">Sueldo por grupo</Rotulo>
+                <p className="text-sm text-taupe">
+                  Cambia de una vez el sueldo de los practicantes preprofesionales, los egresados o los de honorarios.
+                  Para una sola persona, se sigue cambiando en su ficha.
+                </p>
+                <div>
+                  <Boton
+                    variante="primario"
+                    onClick={(e) => {
+                      focoGrupo.current = e.currentTarget;
+                      setAperturasGrupo((n) => n + 1);
+                      setGrupoAbierto(true);
+                    }}
+                  >
+                    Cambiar el sueldo de un grupo
+                  </Boton>
+                </div>
+              </section>
+            )}
             <section className="flex flex-col gap-2">
               <Rotulo como="h3">Se pueden cambiar</Rotulo>
               {editables.length === 0 ? (
@@ -327,6 +354,15 @@ export default function ParametrosPage() {
             }}
           />
         )}
+      </Drawer>
+
+      <Drawer
+        abierto={grupoAbierto}
+        onCerrar={() => setGrupoAbierto(false)}
+        titulo="Cambiar el sueldo de un grupo"
+        volverElFocoA={focoGrupo}
+      >
+        {grupoAbierto && <PanelSueldoGrupo key={aperturasGrupo} onCerrar={() => setGrupoAbierto(false)} />}
       </Drawer>
     </div>
   );
