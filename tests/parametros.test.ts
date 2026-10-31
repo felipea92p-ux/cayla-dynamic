@@ -18,9 +18,6 @@ import {
   CLASES_PARAMETRO,
   ETIQUETA_CLASE_PARAMETRO,
   describirCambioDeParametro,
-  enteroDeFecha,
-  fechaDeEntero,
-  textoDeFechaEntera,
   puedeCambiarParametro,
   puedeGestionarParametros,
   validarValorParametro,
@@ -30,13 +27,13 @@ import {
 import {
   fuenteDeImpacto,
   impactoAvisoDescansoMedico,
-  impactoAvisoFeriado,
-  impactoEtiquetaPrueba,
+  impactoDiasDePrueba,
   normalizarCambios,
   normalizarParametros,
   notaDeEfecto,
   repartirParametros,
 } from "@/lib/admin/parametros";
+import type { FilaPrueba } from "@/lib/admin/pruebas";
 
 const ROLES = ["admin", "lider_do", "supervisor_sede", "integrante"] as const;
 
@@ -149,68 +146,54 @@ describe("cómo se dice un valor y un cambio", () => {
   });
 });
 
-// Quien está en planilla, con su ingreso. «Hoy» es el lunes 26/10/2026 (el día en que se decidió el criterio).
-const HOY = "2026-10-26";
-const ingreso = (persona: string, fecha_ingreso: string | null) => ({ persona, fecha_ingreso });
+// Una persona de prueba, con lo que la base entrega ya contado.
+function prueba(nombres: string, dias: number, plazo: number, situacion?: string): FilaPrueba {
+  return {
+    prueba_id: null, persona_id: nombres, nombres, apellidos: "Perez", sede_id: null, sede_codigo: "TRU",
+    inicio: "2026-10-20", dias_trabajados: dias, dias_plazo: plazo,
+    situacion: situacion ?? (dias > plazo ? "vencida" : dias === plazo ? "cumplida" : "en_curso"),
+    ultima_jornada: null, registrada: true, horas_marcadas: 0, dni_cargado: false,
+  };
+}
 
-describe("a quién afecta cambiar desde cuántos días de ingreso se avisa un feriado", () => {
-  // Ana lleva 6 días, Beto 12, Carla 20, Dora 60, Elisa aún no ingresa, Fabi sin ingreso legible.
-  const filas = [
-    ingreso("Ana Perez", "2026-10-20"),
-    ingreso("Beto Ruiz", "2026-10-14"),
-    ingreso("Carla Soto", "2026-10-06"),
-    ingreso("Dora Gil", "2026-08-27"),
-    ingreso("Elisa Paz", "2026-11-02"),
-    ingreso("Fabi Luna", null),
-  ];
-
-  it("de 15 a 10: se deja de avisar de quien lleva 12; quien lleva 6 sigue avisándose", () => {
-    const r = impactoAvisoFeriado(filas, 15, 10, HOY);
-    expect(r.filas).toEqual([{ persona: "Beto Ruiz", antes: "Se avisa (lleva 12 días)", despues: "Dejaría de avisarse" }]);
-    expect(r.sinCambio).toBe(1); // Ana
+describe("a quién afecta cambiar los días de prueba", () => {
+  it("subir el plazo de 3 a 5: quien ya cumplió vuelve a «en curso»; quien iba por la mitad, no cambia", () => {
+    const r = impactoDiasDePrueba([prueba("Ana", 3, 3), prueba("Beto", 1, 3)], 5);
+    expect(r.filas).toEqual([{ persona: "Ana Perez", antes: "Preselección · 3 de 3", despues: "Preselección · 3 de 5" }]);
+    expect(r.sinCambio).toBe(1);
   });
 
-  it("de 15 a 30: se empieza a avisar de quien lleva 20", () => {
-    const r = impactoAvisoFeriado(filas, 15, 30, HOY);
-    expect(r.filas).toEqual([{ persona: "Carla Soto", antes: "No se avisa (lleva 20 días)", despues: "Se avisaría" }]);
-    expect(r.sinCambio).toBe(2); // Ana y Beto ya se avisaban
+  it("subir el plazo rescata a quien ya estaba «vencida»", () => {
+    const r = impactoDiasDePrueba([prueba("Carla", 4, 3)], 5);
+    expect(r.filas).toHaveLength(1);
+    expect(r.filas[0]).toMatchObject({ persona: "Carla Perez", antes: "Preselección · 4 días", despues: "Preselección · 4 de 5" });
   });
 
-  it("quien lleva demasiado, quien no ingresó y quien no tiene ingreso legible no cuentan", () => {
-    const r = impactoAvisoFeriado(filas, 15, 30, HOY);
-    const nombres = r.filas.map((f) => f.persona);
-    expect(nombres).not.toContain("Dora Gil");
-    expect(nombres).not.toContain("Elisa Paz");
-    expect(nombres).not.toContain("Fabi Luna");
+  it("bajar el plazo de 3 a 2: quien llevaba 2 pasa a «cumplida»; quien llevaba 3, a «vencida»", () => {
+    const r = impactoDiasDePrueba([prueba("Dora", 2, 3), prueba("Elisa", 3, 3), prueba("Fabi", 1, 3)], 2);
+    expect(r.filas.map((f) => f.persona)).toEqual(["Dora Perez", "Elisa Perez"]);
+    expect(r.filas[0].despues).toBe("Preselección · 2 de 2");
+    expect(r.filas[1].despues).toBe("Preselección · 3 días");
+    expect(r.sinCambio).toBe(1);
   });
 
-  it("el borde es «menos de»: quien lleva justo el umbral ya NO se avisa", () => {
-    // Beto lleva 12: con umbral 12 ya no cuenta; con 13 sí.
-    expect(impactoAvisoFeriado([ingreso("Beto Ruiz", "2026-10-14")], 13, 12, HOY).filas).toEqual([
-      { persona: "Beto Ruiz", antes: "Se avisa (lleva 12 días)", despues: "Dejaría de avisarse" },
-    ]);
-    expect(impactoAvisoFeriado([ingreso("Beto Ruiz", "2026-10-14")], 12, 12, HOY).filas).toEqual([]);
-  });
-
-  it("singular: «lleva 1 día»", () => {
-    const r = impactoAvisoFeriado([ingreso("Gabi Ríos", "2026-10-25")], 1, 15, HOY);
-    expect(r.filas[0].antes).toBe("No se avisa (lleva 1 día)");
-  });
-
-  it("el mismo umbral no mueve a nadie", () => {
-    expect(impactoAvisoFeriado(filas, 15, 15, HOY).filas).toEqual([]);
-  });
-
-  it("sin nadie con ingreso reciente, lo dice: no es lo mismo que «no hay impacto»", () => {
-    const r = impactoAvisoFeriado([ingreso("Dora Gil", "2026-08-27")], 15, 20, HOY);
+  it("el mismo plazo no mueve a nadie", () => {
+    const r = impactoDiasDePrueba([prueba("Gabi", 3, 3), prueba("Hugo", 1, 3)], 3);
     expect(r.filas).toEqual([]);
-    expect(r.nota).toMatch(/nadie ingresó hace tan poco/);
+    expect(r.sinCambio).toBe(2);
   });
 
-  it("aclara que mide la antigüedad de hoy y que el feriado se paga igual", () => {
-    const r = impactoAvisoFeriado(filas, 15, 10, HOY);
-    expect(r.nota).toMatch(/antigüedad de hoy/);
-    expect(r.nota).toMatch(/se paga igual/);
+  it("sin nadie de prueba, lo dice: no es lo mismo que «no hay impacto»", () => {
+    const r = impactoDiasDePrueba([], 5);
+    expect(r.filas).toEqual([]);
+    expect(r.nota).toMatch(/nadie en preselección/);
+  });
+
+  it("confía en la situación que dijo la base, no la recalcula del plazo viejo", () => {
+    // La base dice «cumplida» aunque 2 de 3 no lo sea por aritmética: manda la base.
+    const r = impactoDiasDePrueba([prueba("Ines", 2, 3, "cumplida")], 3);
+    expect(r.filas).toHaveLength(1);
+    expect(r.filas[0].antes).toBe("Preselección · 3 de 3");
   });
 });
 
@@ -250,13 +233,12 @@ describe("a quién afecta cambiar desde cuándo se avisa un descanso médico", (
 });
 
 describe("qué parámetros tienen personas detrás", () => {
-  it("el aviso de feriado y el de descanso médico sí; el auto-cierre habla en palabras", () => {
-    expect(fuenteDeImpacto("feriado_aviso_antiguedad_dias")).toBe("ingreso_reciente");
-    expect(fuenteDeImpacto("prueba_dias")).toBe("ninguna"); // retirado del catálogo (0553)
+  it("la prueba y el aviso de descanso médico sí; el auto-cierre habla en palabras", () => {
+    expect(fuenteDeImpacto("prueba_dias")).toBe("pruebas");
     expect(fuenteDeImpacto("descanso_medico_avisar_desde")).toBe("descanso_medico");
     expect(fuenteDeImpacto("auto_cierre_horas")).toBe("ninguna");
     expect(notaDeEfecto("auto_cierre_horas")).toMatch(/no reabre ni cambia/i);
-    expect(notaDeEfecto("feriado_aviso_antiguedad_dias")).toBeNull();
+    expect(notaDeEfecto("prueba_dias")).toBeNull();
   });
 });
 
@@ -302,63 +284,5 @@ describe("la lectura de lo que devuelve la base", () => {
     expect(editables.map((f) => f.parametro)).toEqual(["prueba_dias", "otro"]);
     expect(fijos.map((f) => f.parametro)).toEqual(["tope"]);
     expect(editables.length + fijos.length).toBe(filas.length);
-  });
-});
-
-describe("un parámetro de unidad «fecha» (0557)", () => {
-  const limites: LimitesParametro = { nombre: "Etiqueta desde", unidad: "fecha", tipo_valor: "entero", valor_min: 20260101, valor_max: 20301231 };
-  it("convierte entre AAAAMMDD y la fecha del campo, y rechaza días que no existen", () => {
-    expect(fechaDeEntero(20261026)).toBe("2026-10-26");
-    expect(enteroDeFecha("2026-10-26")).toBe(20261026);
-    expect(fechaDeEntero(20261340)).toBeNull();
-    expect(fechaDeEntero(20260230)).toBeNull();
-    expect(enteroDeFecha("2026-02-30")).toBeNull();
-    expect(enteroDeFecha("26/10/2026")).toBeNull();
-  });
-  it("se dibuja como dd/mm/aaaa, no como 20261026", () => {
-    expect(textoDeFechaEntera(20261026)).toBe("26/10/2026");
-    expect(valorConUnidad(20261026, "fecha")).toBe("26/10/2026");
-    expect(describirCambioDeParametro(20261026, 20260726, "fecha")).toBe("26/10/2026 → 26/07/2026");
-  });
-  it("un entero que no es día se muestra tal cual en vez de esconderse", () => {
-    expect(textoDeFechaEntera(20261340)).toBe("20261340");
-  });
-  it("valida lo que entrega el campo de fecha y devuelve el entero", () => {
-    expect(validarValorParametro(limites, "2026-07-26")).toEqual({ ok: true, valor: 20260726 });
-  });
-  it("rechaza vacío, basura, fecha inexistente y fuera de tope, diciéndolo en fechas", () => {
-    expect(validarValorParametro(limites, "")).toEqual({ ok: false, mensaje: "Elige la fecha." });
-    expect(validarValorParametro(limites, "mañana")).toEqual({ ok: false, mensaje: "Elige una fecha que exista." });
-    expect(validarValorParametro(limites, "2026-02-30")).toEqual({ ok: false, mensaje: "Elige una fecha que exista." });
-    expect(validarValorParametro(limites, "2062-07-26")).toEqual({ ok: false, mensaje: "Va del 01/01/2026 al 31/12/2030." });
-  });
-});
-
-describe("vista previa de la etiqueta de prueba (0557)", () => {
-  const hoy = "2026-10-26";
-  const filas = [
-    { persona: "Reciente A", fecha_ingreso: "2026-10-19", prueba_pactada_dias: null },
-    { persona: "Reciente B", fecha_ingreso: "2026-09-01", prueba_pactada_dias: null },
-    { persona: "Antigua", fecha_ingreso: "2025-02-03", prueba_pactada_dias: null },
-    { persona: "Nueva de hoy", fecha_ingreso: "2026-10-26", prueba_pactada_dias: null },
-    { persona: "Sin prueba pactada", fecha_ingreso: "2026-10-26", prueba_pactada_dias: 0 },
-  ];
-  it("llevar el corte atrás pone la etiqueta a quien ya trabaja y lleva menos de tres meses", () => {
-    const i = impactoEtiquetaPrueba(filas, 20261026, 20260726, hoy);
-    expect(i.filas.map((f) => f.persona).sort()).toEqual(["Reciente A", "Reciente B"]);
-    expect(i.filas.every((f) => f.despues === "Llevaría la etiqueta")).toBe(true);
-    expect(i.sinCambio).toBe(1); // la de hoy ya la llevaba y sigue
-  });
-  it("adelantar el corte se la quita a quien la llevaba", () => {
-    const i = impactoEtiquetaPrueba(filas, 20260726, 20261026, hoy);
-    expect(i.filas.map((f) => f.persona).sort()).toEqual(["Reciente A", "Reciente B"]);
-    expect(i.filas.every((f) => f.despues === "Dejaría de llevarla")).toBe(true);
-  });
-  it("quien ya salió de su periodo, o no tiene prueba, no cuenta ni como cambio ni como sin cambio", () => {
-    const i = impactoEtiquetaPrueba(filas, 20261026, 20260726, hoy);
-    expect(i.filas.some((f) => f.persona === "Antigua" || f.persona === "Sin prueba pactada")).toBe(false);
-  });
-  it("dice que es solo un rótulo", () => {
-    expect(impactoEtiquetaPrueba(filas, 20261026, 20260726, hoy).nota).toContain("ningún pago cambia");
   });
 });

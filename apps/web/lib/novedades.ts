@@ -115,13 +115,63 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
-    id: "2026-10-26-horarios-sedes-con-nombre",
-    fecha: "2026-10-26",
+    id: "2026-10-31-horarios-sedes-con-nombre",
+    fecha: "2026-10-31",
     titulo: "Horarios base dice el nombre de cada sede",
     queMejoro:
       "En Horarios base, las sedes aparecían con su código: «003» y «OTRU» no le decían a nadie qué sede eran. " +
       "Ahora cada bloque lleva el mismo nombre que en Incidencias y el Dashboard —«Tienda · Lima», «Oficina TRU», «Taller · Lima»— con el código al lado, y el filtro de sedes también.\n\n" +
       "Además, las columnas de la tabla quedan en el mismo sitio en todas las sedes, así que se lee de arriba abajo sin que «Horario» cambie de lugar en cada bloque.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-30-firmar-un-memo-pide-los-tres-pasos-del-descargo",
+    fecha: "2026-10-30",
+    titulo: "En Disciplina, firmar un memo pasa por tres pasos antes de la firma",
+    queMejoro:
+      "Un memo que antes se firmaba de un clic ahora recorre tres pasos, que la pantalla va marcando: comunicarle los cargos, " +
+      "esperar a que venza su plazo para responder, y escribir la valoración de lo que respondió —también cuando no responde " +
+      "nada, porque hay que dejar constancia de eso—. No es un error de la pantalla: es cómo tiene que hacerse, y el sistema " +
+      "ahora no deja saltarse un paso.\n\n" +
+      "Y al registrar una negativa a firmar, si el documento es una carta de imputación o de despido, sale un aviso: ahí el acta " +
+      "interna no reemplaza la notificación por notario. Se puede registrar igual, y el documento queda diciéndolo.\n\n" +
+      "El procedimiento no cambió: es el del Reglamento Interno de Trabajo, que está en Normas. Lo que cambió es que el sistema " +
+      "ya lo acompaña paso a paso en vez de confiar en que alguien lo recuerde.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-29-liquidaciones-dice-lo-que-se-debe-de-periodos-anteriores",
+    fecha: "2026-10-29",
+    titulo: "En Liquidaciones, se ve también lo que se le debe de periodos anteriores, desglosado",
+    queMejoro:
+      "Si alguien cesa justo al empezar un periodo nuevo, su liquidación solo cuenta ese periodo, y el sueldo del anterior —que sigue " +
+      "sin pagarse— no aparecía. Ahora, al abrir su liquidación, un recuadro lista cada periodo anterior que se le debe y al final dice " +
+      "cuánto es en total. Ese dinero no se suma a la liquidación: sigue saliendo por la planilla de cada periodo.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-28-planilla-deja-de-pedir-revision-a-quien-ya-ceso",
+    fecha: "2026-10-28",
+    titulo: "En Planilla, quien ya cesó deja de salir «por revisar» por datos que ya no importan",
+    queMejoro:
+      "En cualquiera de las cuatro pestañas de Planilla —incluida Preselección—, una persona que ya cesó dentro del periodo " +
+      "dejó de acumular avisos de «por revisar» por cosas como régimen de pensión sin cargar o salario sin asignar: si ya no " +
+      "está, no hay a quién corregirle ese dato. Sigue viéndose de cuándo cesó, y lo que de verdad frena el pago —un día sin " +
+      "confirmar, una liquidación sin descontar— no cambia.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-27-la-preseleccion-vuelve-como-vinculo-en-equipo",
+    fecha: "2026-10-27",
+    titulo: "«Preselección» vuelve como vínculo en Equipo: es lo que antes se llamaba «Prueba»",
+    queMejoro:
+      "Al dar de alta a alguien en Equipo vuelve a poder elegirse «Preselección» —los primeros días, antes de hacerle el " +
+      "contrato—, y con ese nombre aparece en todo el sistema: en Planilla, Bandeja, Contratos, Turnos, Horas y el terminal de " +
+      "marcaje, con su etiqueta «Preselección · 2 de 3». Donde antes decía «prueba» para esta gente, ahora dice «preselección».\n\n" +
+      "Lo que se había avisado el 26 de octubre sobre el alta (fecha de ingreso y periodo de prueba), la fecha de corte de la " +
+      "etiqueta y el aviso de feriado por antigüedad se deja como estaba antes: el aviso de feriado vuelve a mirar a quien está " +
+      "en preselección. En Seguros, quien está en preselección aparece como «Sin seguro que aplique», igual que los honorarios: " +
+      "ni póliza ni nada pendiente. El periodo de prueba que va escrito dentro de un contrato de trabajo no cambia de nombre.",
     audiencia: "panel",
   },
   {
@@ -200,6 +250,18 @@ export const NOVEDADES: readonly Novedad[] = [
       "Si el filtro no deja ver a nadie, la pantalla lo dice («Nadie coincide…») y trae el botón para quitarlo: no quiere decir que " +
       "falte una cuenta. El filtro no se acuerda de la vez anterior: cada vez que entras vuelves a ver todas.",
     audiencia: "do",
+  },
+  {
+    id: "2026-10-26-turnos-integrada-y-revision-de-dias-pasados",
+    fecha: "2026-10-26",
+    titulo: "Turnos: la Integrada respeta la salida de cada día y los días pasados muestran su marcaje",
+    queMejoro:
+      "En la vista Integrada, las horas después de la última salida de un día —como el domingo desde las 18:15— salían como falta y con el borde de «sin líder», con la tienda ya cerrada. " +
+      "Ahora cada día se mide solo entre su primera entrada y su última salida, como las tarjetas «Mañana y tarde», y el borde ámbar sale solo donde hay operativas sin ningún líder.\n\n" +
+      "En «turnos no coinciden con el horario base», las filas de días que ya pasaron muestran a qué hora marcó la persona. " +
+      "«Usar el horario base» en uno de esos días ahora te pide confirmar y te dice qué va a pasar: ese día se vuelve a medir contra la hora del horario base, y si el turno era lo que se le había indicado conviene dejarlo como está. " +
+      "«Quitar los espejos viejos» en bloque solo toca días de hoy en adelante. Y la etiqueta «excepción a propósito» pasa a llamarse «cambio puntual».",
+    audiencia: "panel",
   },
   {
     id: "2026-10-25-bandeja-cuenta-lo-que-le-toca-a-una-persona-y-explica-los-correos",

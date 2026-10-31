@@ -41,7 +41,7 @@ export function EtiquetaPrueba({ fila, className }: { fila: FilaPrueba | undefin
   if (!fila) return null;
   const e = etiquetaDePrueba(fila);
   return (
-    <span className={className} title={`Está de prueba: lleva ${fila.dias_trabajados} de ${fila.dias_plazo} días trabajados`}>
+    <span className={className} title={`Está en preselección: lleva ${fila.dias_trabajados} de ${fila.dias_plazo} días trabajados`}>
       <Insignia variante={e.variante} tamano="sm" punto={false}>{e.texto}</Insignia>
     </span>
   );

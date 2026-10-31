@@ -22,7 +22,7 @@
 
 export type TemaAuditoria =
   | "marcaje" | "horario" | "contrato" | "documento" | "educacion"
-  | "persona" | "liquidacion" | "otro";
+  | "persona" | "liquidacion" | "disciplina" | "otro";
 
 /** Los campos que escriben las puertas de marcaje: lo que esta pantalla corrige. */
 export const CAMPOS_DE_MARCAJE: readonly string[] = [
@@ -43,6 +43,7 @@ export const TEMA_AUDITORIA_LABELS: Record<TemaAuditoria, string> = {
   educacion: "educación",
   persona: "datos de la persona",
   liquidacion: "liquidación",
+  disciplina: "disciplina",
   otro: "otros cambios",
 };
 
@@ -64,6 +65,10 @@ const PREFIJOS: readonly (readonly [string, TemaAuditoria])[] = [
   ["salario_", "liquidacion"],
   ["reactivacion_", "liquidacion"],
   ["bono_", "persona"],
+  // El expediente disciplinario (0567, 0568). Tema propio y no «documento»:
+  // en Correcciones, «+1 cambio de documentos» junto a una anexo de contrato
+  // le quitaría a un memo exactamente lo que lo distingue.
+  ["expediente.", "disciplina"],
 ];
 
 // Campos sueltos que no comparten prefijo con nadie.
@@ -102,7 +107,10 @@ const ROTULOS: Record<string, string> = {
   "turnos.horario": "Turno cambiado",
   horarios_asignados: "Horario cambiado",
   organos_titulo_x: "Nombramiento para investigar el Título X",
-  "pruebas.resultado": "Prueba de tres días cerrada",
+  "pruebas.resultado": "Preselección de tres días cerrada",
+  "expediente.suspension_propuesta": "La líder pidió que se suspenda",
+  "expediente.nivel": "Sanción elevada de peldaño",
+  "expediente.carta_de_despido": "Carta de despido preparada",
 };
 
 /** El nombre en español de un campo; si no lo conoce, el crudo sin guiones bajos. */

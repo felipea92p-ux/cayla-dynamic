@@ -19,7 +19,6 @@ export * from "./auditoria";
 export * from "./nombres";
 export * from "./documento";
 export * from "./pruebas";
-export * from "./periodo-de-prueba";
 export * from "./capa-activa";
 export * from "./terminos";
 export * from "./liquidacion-constancias";

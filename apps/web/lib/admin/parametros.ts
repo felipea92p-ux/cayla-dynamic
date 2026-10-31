@@ -1,5 +1,5 @@
 /**
- * «PARÁMETROS» EN LO QUE UNA PANTALLA NECESITA SABER (0552, 0553).
+ * «PARÁMETROS» EN LO QUE UNA PANTALLA NECESITA SABER (0552).
  *
  * QUÉ PROMETE. Los tipos de lo que devuelven `fn_parametros_listar` y
  * `fn_parametros_historial`, la lectura segura de sus números, el reparto de la
@@ -12,21 +12,18 @@
  * un viaje en balde, pero la que manda es `fn_parametro_cambiar`.
  *
  * POR QUÉ LA VISTA PREVIA NO ES UNA CONSULTA NUEVA. Para los dos parámetros que
- * tienen personas detrás —desde cuántos días de ingreso se avisa un feriado y el
- * aviso de descanso médico— la base ya entrega cada situación contada
- * (`fn_ingresos`, `fn_ausencias_subsidio`). Recalcular «qué pasaría con el valor
- * nuevo» es una comparación sobre esas filas, y la regla de qué es «ingreso
- * reciente» sigue viviendo en un solo sitio (`esIngresoReciente`,
- * packages/shared): una segunda copia de esa regla en este archivo sería
- * exactamente lo que el CLAUDE.md prohíbe. Los parámetros sin personas detrás (el
- * auto-cierre) dicen en palabras qué cambia y qué no.
- *
- * LOS DÍAS DE PRUEBA YA NO ESTÁN AQUÍ (0553). «Prueba» dejó de ser un vínculo: es
- * una condición del contrato de 3 meses fijada por el art. 10 del D.S. 003-97-TR,
- * así que se MUESTRA (normativa, sin botón) pero no se cambia desde esta pantalla.
+ * tienen personas detrás —días de prueba y el aviso de descanso médico— la base
+ * ya entrega cada situación contada (`fn_pruebas_abiertas`,
+ * `fn_ausencias_subsidio`). Recalcular «qué pasaría con el valor nuevo» es una
+ * comparación sobre esas filas, y la regla de qué es «cumplida» o «vencida» sigue
+ * viviendo en un solo sitio (`situacionDePrueba`, packages/shared): una segunda
+ * copia de esa regla en este archivo sería exactamente lo que el CLAUDE.md
+ * prohíbe. Los parámetros sin personas detrás (el auto-cierre) dicen en palabras
+ * qué cambia y qué no.
  */
 
-import { diasEntreFechas, etiquetaPeriodoDePrueba, fechaDeEntero, textoDeFechaEntera, type ClaseParametro } from "@cayla-dynamic/shared";
+import { etiquetaDePrueba, situacionDePrueba, type ClaseParametro } from "@cayla-dynamic/shared";
+import type { FilaPrueba } from "@/lib/admin/pruebas";
 
 /** Una fila de `fn_parametros_listar` (0552), con los numéricos ya como número. */
 export interface ParametroFila {
@@ -138,106 +135,41 @@ export interface Impacto {
 }
 
 /** Qué parámetros tienen personas detrás y de dónde se leen. El resto dice su efecto en palabras. */
-export type FuenteDeImpacto = "ingreso_reciente" | "descanso_medico" | "etiqueta_prueba" | "ninguna";
+export type FuenteDeImpacto = "pruebas" | "descanso_medico" | "ninguna";
 
 export function fuenteDeImpacto(parametro: string): FuenteDeImpacto {
-  if (parametro === "feriado_aviso_antiguedad_dias") return "ingreso_reciente";
+  if (parametro === "prueba_dias") return "pruebas";
   if (parametro === "descanso_medico_avisar_desde") return "descanso_medico";
-  if (parametro === "prueba_etiqueta_desde") return "etiqueta_prueba";
   return "ninguna";
 }
 
-/** Lo que esta vista previa lee de cada persona en planilla: su nombre y su ingreso. */
-export interface FilaIngreso {
-  persona: string;
-  fecha_ingreso: string | null;
-}
-
 /**
- * Con el aviso de feriado hasta `nuevoUmbral` días desde el ingreso, ¿a quién se
- * empieza o se deja de avisar? Mide la antigüedad de HOY: el aviso real la mide en
- * la fecha de cada feriado, así que esto es la foto de ahora, no una promesa.
- * Solo cambia el aviso al armar horarios: ningún pago se mueve con este número.
+ * Con `nuevoPlazo` días de prueba, ¿a quién le cambia la situación? Una persona
+ * «cumplida» (ya puede pasar a contrato) que pasa a «en curso», o una «vencida»
+ * que deja de estarlo. Quien sigue en la misma situación solo ve cambiar el «de X».
  */
-export function impactoAvisoFeriado(
-  filas: readonly FilaIngreso[],
-  umbralActual: number,
-  nuevoUmbral: number,
-  hoy: string,
-): Impacto {
+export function impactoDiasDePrueba(filas: readonly FilaPrueba[], nuevoPlazo: number): Impacto {
   const cambian: FilaImpacto[] = [];
   let sinCambio = 0;
-  let relevantes = 0;
-  const tope = Math.max(umbralActual, nuevoUmbral);
   for (const f of filas) {
-    const dias = f.fecha_ingreso ? diasEntreFechas(f.fecha_ingreso, hoy) : null;
-    // Sin ingreso legible o que todavía no empezó: no hay a quién avisar.
-    if (dias === null || dias < 0) continue;
-    if (dias >= tope) continue; // ni antes ni después: lleva demasiado para que importe
-    relevantes += 1;
-    const antes = dias < umbralActual;
-    const despues = dias < nuevoUmbral;
+    const antes = situacionDePrueba(f);
+    // Sin `situacion`: la regla la deriva de los días y del plazo nuevo.
+    const despuesFila = { dias_trabajados: f.dias_trabajados, dias_plazo: nuevoPlazo };
+    const despues = situacionDePrueba(despuesFila);
     if (antes === despues) {
       sinCambio += 1;
       continue;
     }
     cambian.push({
-      persona: f.persona,
-      antes: antes ? `Se avisa (lleva ${dias} ${dias === 1 ? "día" : "días"})` : `No se avisa (lleva ${dias} ${dias === 1 ? "día" : "días"})`,
-      despues: despues ? "Se avisaría" : "Dejaría de avisarse",
+      persona: `${f.nombres} ${f.apellidos}`.trim(),
+      antes: etiquetaDePrueba(f).texto,
+      despues: etiquetaDePrueba(despuesFila).texto,
     });
   }
   return {
     filas: cambian,
     sinCambio,
-    nota: relevantes === 0
-      ? "Hoy nadie ingresó hace tan poco: el cambio no mueve a nadie."
-      : "Solo cambia el aviso al armar horarios, y mide la antigüedad de hoy (el aviso real la mide en la fecha del feriado). El feriado se paga igual.",
-  };
-}
-
-/** Lo que la vista previa de la etiqueta de prueba lee de cada persona en planilla (0557). */
-export interface FilaEtiquetaPrueba {
-  persona: string;
-  fecha_ingreso: string | null;
-  /** `personas.prueba_pactada_dias` (0556); `null` = rige la ley, o la columna todavía no existe. */
-  prueba_pactada_dias: number | null;
-}
-
-/**
- * Con la etiqueta de prueba desde `nuevoDesde` (AAAAMMDD), ¿a quién se le pone o se le quita
- * el rótulo «en periodo de prueba»? Mide con la misma función que Equipo
- * (`etiquetaPeriodoDePrueba`), así que la vista previa no puede discrepar de la pantalla.
- * Solo rotula: ningún pago ni derecho cambia con esta fecha.
- */
-export function impactoEtiquetaPrueba(
-  filas: readonly FilaEtiquetaPrueba[],
-  desdeActual: number,
-  nuevoDesde: number,
-  hoy: string,
-): Impacto {
-  const a = fechaDeEntero(desdeActual);
-  const n = fechaDeEntero(nuevoDesde);
-  const cambian: FilaImpacto[] = [];
-  let sinCambio = 0;
-  for (const f of filas) {
-    const antes = etiquetaPeriodoDePrueba(f.fecha_ingreso, hoy, { pactadoDias: f.prueba_pactada_dias, desde: a });
-    const despues = etiquetaPeriodoDePrueba(f.fecha_ingreso, hoy, { pactadoDias: f.prueba_pactada_dias, desde: n });
-    if (!antes && !despues) continue; // fuera de su periodo: la fecha no le importa
-    if (!!antes === !!despues) {
-      sinCambio += 1;
-      continue;
-    }
-    cambian.push({
-      persona: f.persona,
-      antes: antes ? "Lleva la etiqueta" : "Sin etiqueta",
-      despues: despues ? "Llevaría la etiqueta" : "Dejaría de llevarla",
-    });
-  }
-  return {
-    filas: cambian,
-    sinCambio,
-    nota: `Desde ${textoDeFechaEntera(nuevoDesde)} la etiqueta alcanza a quien ingresó ese día o después y sigue dentro de su periodo. Es solo un rótulo en Equipo: el periodo de prueba legal lo fija el contrato de cada persona, y ningún pago cambia.`,
+    nota: filas.length === 0 ? "Hoy no hay nadie en preselección: el cambio no mueve a nadie." : null,
   };
 }
 

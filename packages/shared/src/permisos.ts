@@ -68,6 +68,17 @@ export function puedeVerPlanilla(rol: RolPosible): boolean {
 }
 
 /**
+ * Marcar o desmarcar el checklist personal de pago por persona (0562). Solo
+ * la dirección — ni líder de DO, a diferencia del resto de Planilla, que sí
+ * deja ver a admin y líder por igual (decidido con Felipe el 2026-10-29).
+ * Espeja `fn_pago_persona_marcar` / `fn_pago_persona_desmarcar`, que se
+ * niegan a quien no sea admin exacto (`fn_es_admin`).
+ */
+export function puedeMarcarPagoPersona(rol: RolPosible): boolean {
+  return tiene(SOLO_DIRECCION, rol);
+}
+
+/**
  * Identidad: DNI, cuenta bancaria, dirección, derechohabientes.
  * Solo DO — es el dato con el que se abre una cuenta a nombre de otra persona.
  */

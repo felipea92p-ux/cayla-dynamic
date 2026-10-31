@@ -498,10 +498,6 @@ export default function ContratosPage() {
 
   const [cargando, setCargando] = useState(true);
   const [personas, setPersonas] = useState<Persona[]>([]);
-  // Período de prueba pactado por persona (0556). Consulta APARTE y tolerante: si la columna todavía no existe,
-  // pedirla junto con el resto haría fallar la lista entera. Sin dato rige la ley (3 meses), que es lo que el
-  // contrato decía siempre. Solo llegan quienes tienen un pacto.
-  const [pruebasPactadas, setPruebasPactadas] = useState<Map<string, number>>(new Map());
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [datosPersonales, setDatosPersonales] = useState<DatoPersonal[]>([]);
   const [salarios, setSalarios] = useState<Salario[]>([]);
@@ -926,13 +922,6 @@ export default function ContratosPage() {
       supabase.rpc("fn_firma_empresa"),
     ]);
 
-    const { data: pactadosData, error: pactadosError } = await supabase
-      .from("personas")
-      .select("id, prueba_pactada_dias")
-      .not("prueba_pactada_dias", "is", null);
-    setPruebasPactadas(
-      new Map(pactadosError ? [] : ((pactadosData as { id: string; prueba_pactada_dias: number }[] | null) ?? []).map((r) => [r.id, r.prueba_pactada_dias] as const)),
-    );
     setPersonas(
       ((ps.data as Persona[]) ?? []).filter((p) => p.en_planilla || p.tipo_vinculo === "practicante"),
     );
@@ -1429,7 +1418,6 @@ export default function ContratosPage() {
           fechaInicio,
           fechaFin,
           fechaIngresoOriginal: persona.fecha_ingreso,
-          pruebaPactadaDias: pruebasPactadas.get(persona.id) ?? null,
           remuneracionMensual: salarioVigente,
           cobraMovilidad: persona.cobra_movilidad,
           movilidadDiaria: movilidadTarifa,
@@ -1976,7 +1964,7 @@ export default function ContratosPage() {
       if (ePasa) {
         avisar(
           "error",
-          `La firma quedó registrada, pero no se pudo pasar a ${contratoASubir.persona} de «Prueba» a «Planilla»: ${mensajeDeError(ePasa, "cambiar el vínculo")} Hazlo desde Equipo.`,
+          `La firma quedó registrada, pero no se pudo pasar a ${contratoASubir.persona} de «Preselección» a «Planilla»: ${mensajeDeError(ePasa, "cambiar el vínculo")} Hazlo desde Equipo.`,
         );
       } else {
         pasoAPlanilla = true;
@@ -1987,7 +1975,7 @@ export default function ContratosPage() {
     avisar(
       "ok",
       pasoAPlanilla
-        ? `Contrato firmado registrado. ${contratoASubir?.persona} pasó de «Prueba» a «Planilla»: desde ahora cobra la asignación familiar.`
+        ? `Contrato firmado registrado. ${contratoASubir?.persona} pasó de «Preselección» a «Planilla»: desde ahora cobra la asignación familiar.`
         : yaFirmado
           ? "Escaneo de respaldo guardado. La fecha de firma sigue siendo la de la firma digital."
           : "Contrato firmado registrado. La fecha de vencimiento de la persona se actualizó.",
@@ -2165,7 +2153,7 @@ export default function ContratosPage() {
     return () => document.removeEventListener("keydown", alPulsar);
   }, [documentoAbierto]);
 
-  useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — ${soloPrueba ? "Prueba de tres días" : "Contrato de trabajo"}` : null);
+  useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — ${soloPrueba ? "Preselección de tres días" : "Contrato de trabajo"}` : null);
 
   if (rol === null || cargando) {
     return (
@@ -2393,7 +2381,7 @@ export default function ContratosPage() {
           return {
             key: f.persona_id,
             persona: f.persona,
-            documento: pruebaFila ? "Prueba de tres días" : f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—",
+            documento: pruebaFila ? "Preselección de tres días" : f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—",
             vigencia: contrato
               ? `${formatearFecha(contrato.fecha_inicio)} – ${contrato.fecha_fin ? formatearFecha(contrato.fecha_fin) : "indeterminado"}`
               : f.fecha_fin_contrato
@@ -2434,7 +2422,7 @@ export default function ContratosPage() {
                   onClickRow();
                 }}
               >
-                {pruebaFila ? (puedeHacerContrato(pruebaFila) ? "Hacer contrato" : "Ver prueba") : "Generar"}
+                {pruebaFila ? (puedeHacerContrato(pruebaFila) ? "Hacer contrato" : "Ver preselección") : "Generar"}
               </Boton>
             ),
           };
@@ -2531,7 +2519,7 @@ export default function ContratosPage() {
                             ? `Editando: ${TIPO_CONTRATO[editando.tipo] ?? editando.tipo}`
                             : persona
                               ? soloPrueba
-                                ? "Prueba de tres días"
+                                ? "Preselección de tres días"
                                 : (TIPO_CONTRATO[tipoEfectivo] ?? tipoEfectivo)
                               : "Nuevo documento"}
                         </p>
@@ -2615,22 +2603,22 @@ export default function ContratosPage() {
                     />
 
                     {pruebaDePersona && !soloPrueba && (
-                      <BannerAviso enLinea variante="advertencia" titulo={`${nombreDePrueba(pruebaDePersona)} ya completó su prueba.`}>
-                        {textoDelDia(pruebaDePersona)}. Este contrato se firma en papel: al registrarlo firmado puedes pasarla de «Prueba» a
+                      <BannerAviso enLinea variante="advertencia" titulo={`${nombreDePrueba(pruebaDePersona)} ya completó su preselección.`}>
+                        {textoDelDia(pruebaDePersona)}. Este contrato se firma en papel: al registrarlo firmado puedes pasarla de «Preselección» a
                         «Planilla», y desde ahí cobra la asignación familiar.
                       </BannerAviso>
                     )}
                     {soloPrueba && pruebaDePersona ? (
-                      // Quien está de prueba NO se contrata todavía. El «documento» es la prueba:
+                      // Quien está en preselección NO se contrata todavía. El «documento» es la preselección:
                       // el DNI de ambos lados y el plazo. Nombres, apellidos y número ya vienen de
                       // Equipo (0513) y no se vuelven a pedir.
                       <div className="flex flex-col gap-3">
-                        <Campo etiqueta="Tipo" className="disabled:bg-crema disabled:text-taupe" value="Prueba de tres días" disabled />
+                        <Campo etiqueta="Tipo" className="disabled:bg-crema disabled:text-taupe" value="Preselección de tres días" disabled />
                         <div className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-taupe">
                           <p className="font-medium text-tinta">Todavía no se le hace contrato.</p>
                           <p className="mt-1 text-xs">
-                            Trabaja {pruebaDePersona.dias_plazo} días de prueba. Si pasa, recién ahí se le hace el contrato; si no, se
-                            le da de baja y se le paga lo trabajado, y si se retira por su cuenta no se le paga.
+                            Trabaja {pruebaDePersona.dias_plazo} días de preselección. Si pasa, recién ahí se le hace el contrato; si no, se
+                            le da de baja y se le paga lo trabajado, igual que si se retira por su cuenta.
                             Sus datos —nombres, apellidos y {persona?.documento ? `documento ${persona.documento}` : "documento"}— vienen de Equipo.
                           </p>
                         </div>
@@ -3585,9 +3573,9 @@ export default function ContratosPage() {
                   onChange={(e) => setPasarAPlanilla(e.target.checked)} className="mt-0.5"
                 />
                 <span>
-                  <span className="font-medium">Pasar a {p.nombres} de «Prueba» a «Planilla»</span>
+                  <span className="font-medium">Pasar a {p.nombres} de «Preselección» a «Planilla»</span>
                   <span className="block text-xs text-taupe">
-                    Con el contrato firmado deja de estar de prueba: desde ese periodo cobra la asignación familiar, si tiene hijos.
+                    Con el contrato firmado deja de estar en preselección: desde ese periodo cobra la asignación familiar, si tiene hijos.
                     Desmárcalo solo si todavía no corresponde.
                   </span>
                 </span>

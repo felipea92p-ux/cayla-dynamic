@@ -37,7 +37,7 @@
 // la LPCL (arts. 16, 22-25 y 38 del TUO del D.Leg. 728), pero tampoco tuvo
 // revisión legal de un abogado.
 
-import { EMPRESA, finDelPeriodoDePruebaDe, finDelPeriodoPactado, maximoSemanalPracticante } from "@cayla-dynamic/shared";
+import { EMPRESA, maximoSemanalPracticante } from "@cayla-dynamic/shared";
 
 export interface DatosContrato {
   tipo: "nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido";
@@ -164,10 +164,6 @@ export interface DatosContrato {
   // tipo — la distinción vive en `contratos_generados.fecha_fin`, no acá.
   fechaFin: string; // ISO
   fechaIngresoOriginal: string; // ISO — para saber si ya pasó el período de prueba
-  // Período de prueba PACTADO con la persona (`personas.prueba_pactada_dias`, 0556). Ausente o null: rige la ley,
-  // tres meses. 0: no se pacta período de prueba. 1–89: ese número de días calendario, menor al máximo legal.
-  // El contrato lo escribe tal cual en la cláusula TERCERA: acortar la prueba tiene que constar por escrito.
-  pruebaPactadaDias?: number | null;
 
   // Plata
   remuneracionMensual: number;
@@ -699,65 +695,8 @@ export function tipoQueCorresponde(
   return fechaIngreso > hoy ? "nuevo" : "renovacion";
 }
 
-/**
- * 1–89 en letras delante de «días»: «cuarenta y cinco», y el uno se apocopa («un», «veintiún», «treinta y un»).
- * Reutiliza `tresDigitos`, la misma escritura del monto en letras del sueldo.
- */
-function diasEnLetras(n: number): string {
-  return tresDigitos(n).replace(/veintiuno$/, "veintiún").replace(/uno$/, "un");
-}
-
-/** ¿Hay un período de prueba MENOR pactado (1–89 días)? Cualquier otro valor es la ley o «sin prueba». */
-function pruebaMenor(d: DatosContrato): number | null {
-  const n = d.pruebaPactadaDias;
-  return n != null && Number.isInteger(n) && n >= 1 && n <= 89 ? n : null;
-}
-
 function clausulaPeriodoPrueba(d: DatosContrato): string {
   const colaborador = etiquetaColaborador(d);
-  const menor = pruebaMenor(d);
-  const sinPrueba = d.pruebaPactadaDias === 0;
-  if (sinPrueba) {
-    // Pactado en 0: es una renuncia por escrito de CAYLA al período de prueba. Debe decirlo el contrato.
-    return `
-    <h3>TERCERA. PERÍODO DE PRUEBA</h3>
-    <p>Las partes pactan que NO habrá período de prueba. En consecuencia, ${colaborador} goza
-    de estabilidad laboral desde el inicio de la relación laboral, ocurrido el
-    ${formatearFecha(d.fechaIngresoOriginal)}, conforme al artículo 79 del TUO del Decreto Legislativo N.° 728.</p>`;
-  }
-  if (menor !== null) {
-    // Un período MENOR al máximo legal (art. 10 del TUO del D. Leg. 728: tres meses) es válido si consta por escrito.
-    const plazo = `${diasEnLetras(menor)} (${menor}) ${menor === 1 ? "día calendario" : "días calendario"}`;
-    const sinCausa = `Durante dicho período, cualquiera de las partes podrá resolver el contrato sin expresión de causa y sin derecho a
-    indemnización.`;
-    const estabilidad = `Superado el período de prueba, ${colaborador} gozará de estabilidad laboral durante la vigencia del
-    contrato conforme al artículo 79 del TUO del Decreto Legislativo N.° 728.`;
-    if (d.tipo === "nuevo") {
-      const fin = finDelPeriodoPactado(d.fechaInicio, menor);
-      if (fin === null) throw new RangeError(`Fecha de inicio inválida: ${d.fechaInicio}`);
-      return `
-    <h3>TERCERA. PERÍODO DE PRUEBA</h3>
-    <p>El período de prueba es de ${plazo}, término menor al máximo de tres (3) meses previsto en el artículo 10 del TUO
-    del Decreto Legislativo N.° 728, pactado por las partes, contados a partir de la fecha de inicio del presente
-    contrato. En consecuencia, dicho período culmina el ${formatearFecha(fin)}. ${sinCausa} ${estabilidad}</p>`;
-    }
-    // Renovación: se cuenta desde el inicio de la RELACIÓN laboral y renovar no lo reinicia.
-    const fin = finDelPeriodoPactado(d.fechaIngresoOriginal, menor);
-    if (fin === null) throw new RangeError(`Fecha de ingreso inválida: ${d.fechaIngresoOriginal}`);
-    if (fin > d.fechaInicio) {
-      return `
-    <h3>TERCERA. PERÍODO DE PRUEBA</h3>
-    <p>El período de prueba de ${plazo}, término menor al máximo de tres (3) meses previsto en el artículo 10 del TUO del
-    Decreto Legislativo N.° 728 y pactado por las partes, se computa desde el inicio de la relación laboral de
-    ${colaborador}, ocurrido el ${formatearFecha(d.fechaIngresoOriginal)}, y NO se reinicia con la celebración del presente
-    contrato. En consecuencia, dicho período culmina el ${formatearFecha(fin)}. ${estabilidad}</p>`;
-    }
-    return `
-    <h3>TERCERA. PERÍODO DE PRUEBA</h3>
-    <p>No aplica un nuevo período de prueba: ${colaborador} ya superó el período de prueba de ${plazo}
-    pactado para su vínculo laboral iniciado el ${formatearFecha(d.fechaIngresoOriginal)}, y goza de estabilidad
-    laboral durante la vigencia del presente contrato conforme al artículo 79 del TUO del Decreto Legislativo N.° 728.</p>`;
-  }
   if (d.tipo !== "nuevo") {
     // ¿HA CORRIDO DE VERDAD EL PERÍODO DE PRUEBA?
     //
@@ -809,12 +748,13 @@ function clausulaPeriodoPrueba(d: DatosContrato): string {
  * así que construirlas en la hora local del navegador podría correrlas un día.
  */
 export function finDelPeriodoDePrueba(fechaIngreso: string): string {
-  // La cuenta vive en packages/shared (`finDelPeriodoDePruebaDe`): Equipo y las alertas preguntan allí también,
-  // para que la fecha de la pantalla y la que imprime el contrato sean la misma. Una fecha que no existe
-  // sigue siendo un error, como antes: no se imprime en un contrato una fecha inventada.
-  const fin = finDelPeriodoDePruebaDe(fechaIngreso);
-  if (fin === null) throw new RangeError(`Fecha de ingreso inválida: ${fechaIngreso}`);
-  return fin;
+  const d = new Date(`${fechaIngreso}T00:00:00Z`);
+  const dia = d.getUTCDate();
+  d.setUTCMonth(d.getUTCMonth() + 3);
+  // Si el día no existe en el mes destino (31 de noviembre), Date se pasa al
+  // mes siguiente; se retrocede al último día del mes que corresponde.
+  if (d.getUTCDate() !== dia) d.setUTCDate(0);
+  return d.toISOString().slice(0, 10);
 }
 
 /**

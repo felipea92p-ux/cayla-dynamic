@@ -28,7 +28,7 @@ import { cx } from "@/components/ui/cx";
 import { Check, ChevronDown, ChevronUp, MoreHorizontal, ReceiptText, Search } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  TIPOS_VINCULO, TIPO_VINCULO_LABEL, hoyLima, puedeVerPlanilla, type TipoVinculo,
+  TIPOS_VINCULO, TIPO_VINCULO_LABEL, hoyLima, puedeMarcarPagoPersona, puedeVerPlanilla, type TipoVinculo,
 } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
@@ -50,6 +50,8 @@ import { Modal } from "@/components/ui/modal";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
+import { Cifra } from "@/components/ui/cifra";
+import { Filtro } from "@/components/ui/filtro";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
 import { TablaPlanilla } from "@/components/planilla/tabla-planilla";
@@ -66,7 +68,7 @@ import {
 } from "@/lib/admin/planilla/revision";
 import { filasCsvPlanilla } from "@/lib/admin/planilla/csv-planilla";
 import type {
-  Desvio, Fila, GratiCts, GrupoPago, Liquidada, PeriodoInfo, Proyeccion, Variacion,
+  Desvio, EstadoPagoPersona, EventoPagoPersona, Fila, GratiCts, GrupoPago, Liquidada, PeriodoInfo, Proyeccion, Variacion,
 } from "@/lib/admin/planilla/tipos";
 
 // ── Utilidades de esta pantalla ─────────────────────────────────────────────
@@ -113,6 +115,7 @@ interface DatosDelPeriodo {
   liquidadas: Record<string, Liquidada>;
   fechasCese: Record<string, string | null>;
   historial: Reversa[] | null;
+  pagos: EstadoPagoPersona[] | null;
 }
 
 export default function PlanillaPage() {
@@ -146,6 +149,7 @@ export default function PlanillaPage() {
   const [liquidadas, setLiquidadas] = useState<Record<string, Liquidada>>({});
   const [fechasCese, setFechasCese] = useState<Record<string, string | null>>({});
   const [historial, setHistorial] = useState<Reversa[] | null>(null);
+  const [pagosPersona, setPagosPersona] = useState<EstadoPagoPersona[] | null>(null);
   const [recargando, setRecargando] = useState(false);
   // El error guarda de qué periodo es: uno viejo no puede pintarse sobre el periodo recién elegido.
   const [errorCarga, setErrorCarga] = useState<{ id: string; mensaje: string } | null>(null);
@@ -186,6 +190,15 @@ export default function PlanillaPage() {
   const [eliminarModal, setEliminarModal] = useState(false);
   const [eliminarTexto, setEliminarTexto] = useState("");
   const [confirmBulk, setConfirmBulk] = useState(false);
+  // El checklist personal de pago por persona (0562) — nunca el pago oficial del grupo.
+  const [confirmandoPago, setConfirmandoPago] = useState<Fila | null>(null);
+  const [desmarcandoPago, setDesmarcandoPago] = useState<Fila | null>(null);
+  const [desmarcarMotivo, setDesmarcarMotivo] = useState("");
+  const [guardandoPago, setGuardandoPago] = useState(false);
+  const [verHistorialPago, setVerHistorialPago] = useState<Fila | null>(null);
+  const [historialPago, setHistorialPago] = useState<EventoPagoPersona[] | null>(null);
+  const [errorHistorialPago, setErrorHistorialPago] = useState<string | null>(null);
+  const [pagoFiltro, setPagoFiltro] = useState<"todas" | "pendientes" | "pagadas">("todas");
   const [guardandoBulk, setGuardandoBulk] = useState(false);
 
   // ── Simulador (solo lectura, nada se guarda) ───────────────────────────────
@@ -256,7 +269,7 @@ export default function PlanillaPage() {
   // Igual que los periodos: se TRAE sin tocar el estado y se APLICA aparte.
   const traerPeriodo = useCallback(async (id: string): Promise<DatosDelPeriodo> => {
     const { data, error } = await supabase.rpc("fn_proyeccion_periodo", { p_periodo_id: id });
-    if (error) return { id, error: error.message, proy: null, grupos: null, gc: null, liquidadas: {}, fechasCese: {}, historial: null };
+    if (error) return { id, error: error.message, proy: null, grupos: null, gc: null, liquidadas: {}, fechasCese: {}, historial: null, pagos: null };
     const proyeccion = data as unknown as Proyeccion;
     const ids = (proyeccion.filas ?? []).map((f) => f.persona_id);
 
@@ -268,7 +281,9 @@ export default function PlanillaPage() {
     // · La fecha de cese no viaja en la fila del cálculo: se lee de `personas`;
     //   sin ella, la insignia dice «inactiva, sin fecha» en vez de inventar una.
     // · Historial de reaperturas y repagos (reversas_pago, 0066/0323).
-    const [gruposR, gcR, liqR, cesesR, revR] = await Promise.all([
+    // · El checklist personal de pago por persona (fn_pago_personas_estado, 0562) — sin
+    //   esto, la columna «Pagado» no se dibuja; no frena nada más si falla.
+    const [gruposR, gcR, liqR, cesesR, revR, pagosR] = await Promise.all([
       supabase.rpc("fn_periodo_grupos_estado", { p_periodo_id: id }),
       supabase.rpc("fn_grati_cts_periodo", { p_periodo_id: id }),
       supabase.rpc("fn_liquidaciones_del_periodo", { p_periodo_id: id }),
@@ -280,6 +295,7 @@ export default function PlanillaPage() {
         .select("id, revertido_at, motivo, tipo, grupo, personas(nombres, apellidos)")
         .eq("periodo_id", id)
         .order("revertido_at", { ascending: false }),
+      supabase.rpc("fn_pago_personas_estado", { p_periodo_id: id }),
     ]);
 
     const g = (gcR.error ? null : gcR.data) as unknown as {
@@ -300,6 +316,7 @@ export default function PlanillaPage() {
       liquidadas: (liqR.error ? null : (liqR.data as unknown as Record<string, Liquidada> | null)) ?? {},
       fechasCese: Object.fromEntries(((cesesR.data ?? []) as { id: string; fecha_cese: string | null }[]).map((c) => [c.id, c.fecha_cese])),
       historial: revR.error ? null : ((revR.data as unknown as Reversa[] | null) ?? null),
+      pagos: pagosR.error ? null : ((pagosR.data as unknown as EstadoPagoPersona[] | null) ?? null),
     };
   }, [supabase]);
 
@@ -313,6 +330,7 @@ export default function PlanillaPage() {
     setLiquidadas(r.liquidadas);
     setFechasCese(r.fechasCese);
     setHistorial(r.historial);
+    setPagosPersona(r.pagos);
   }, []);
 
   /** Recarga el periodo que se está viendo — después de una escritura. */
@@ -414,18 +432,38 @@ export default function PlanillaPage() {
   const estadoGrupo = useMemo(() => grupos?.find((g) => g.grupo === tab) ?? null, [grupos, tab]);
   const grupoPagado = estadoGrupo?.estado === "pagado";
 
+  // El checklist personal de pago por persona (0562): por persona_id, de TODO el periodo
+  // (como hallazgos/ceses) — cada tabla busca ahí lo suyo por persona_id.
+  const pagosPorPersona = useMemo(
+    () => new Map((pagosPersona ?? []).map((p) => [p.persona_id, p] as const)),
+    [pagosPersona],
+  );
+  // Solo admin, y solo mientras «tab» sigue abierto: una vez congelado el grupo, es de solo lectura.
+  const puedeMarcarPago = puedeMarcarPagoPersona(rol) && !grupoPagado;
+  const resumenPago = useMemo(() => {
+    let marcadas = 0, monto = 0;
+    for (const f of filasGrupo) {
+      const e = pagosPorPersona.get(f.persona_id);
+      if (e?.marcado) { marcadas++; monto += f.total; }
+    }
+    return { marcadas, monto };
+  }, [filasGrupo, pagosPorPersona]);
+  const todosPagadosDelGrupo = filasGrupo.length > 0 && resumenPago.marcadas === filasGrupo.length;
+
   // Filtros: SOLO la tabla.
   const sedes = useMemo(() => Array.from(new Set(filasTodas.map((f) => f.sede))).sort(), [filasTodas]);
   const nombreBuscado = nombreFiltro.trim().normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-  const filtrado = sedeFiltro !== "todas" || nombreBuscado !== "" || soloRevisar;
+  const filtrado = sedeFiltro !== "todas" || nombreBuscado !== "" || soloRevisar || pagoFiltro !== "todas";
   const filasVisibles = useMemo(
     () => filasGrupo.filter((f) =>
       (sedeFiltro === "todas" || f.sede === sedeFiltro)
       && (!nombreBuscado || f.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes(nombreBuscado))
-      && (!soloRevisar || (hallazgos.get(claveFila(f)) ?? []).some((h) => h.severidad !== "informa"))),
-    [filasGrupo, sedeFiltro, nombreBuscado, soloRevisar, hallazgos],
+      && (!soloRevisar || (hallazgos.get(claveFila(f)) ?? []).some((h) => h.severidad !== "informa"))
+      && (pagoFiltro === "todas"
+          || (pagoFiltro === "pagadas") === (pagosPorPersona.get(f.persona_id)?.marcado ?? false))),
+    [filasGrupo, sedeFiltro, nombreBuscado, soloRevisar, hallazgos, pagoFiltro, pagosPorPersona],
   );
-  const limpiarFiltros = () => { setSedeFiltro("todas"); setNombreFiltro(""); setSoloRevisar(false); };
+  const limpiarFiltros = () => { setSedeFiltro("todas"); setNombreFiltro(""); setSoloRevisar(false); setPagoFiltro("todas"); };
 
   const lectura = periodoActual ? lecturaDelEstado(periodoActual, grupos, hoy) : null;
   const avance = proy ? avanceDelPeriodo(proy.fecha_ini, proy.fecha_fin, hoy) : null;
@@ -598,6 +636,61 @@ export default function PlanillaPage() {
     const d = Number((data as unknown as { diferencia: number } | null)?.diferencia ?? 0);
     avisar("ok", d === 0 ? "Copia nueva guardada. El total no cambió." : `Copia nueva guardada. El total ${d > 0 ? "subió" : "bajó"} ${formatSoles(Math.abs(d))}.`);
     await Promise.all([recargarTodo(), refrescarDesvios()]);
+  }
+
+  // ── El checklist personal de pago por persona (0562) ────────────────────────
+  // Nunca el pago oficial del grupo: solo marca/desmarca en planilla_pago_persona_eventos.
+  async function confirmarMarcarPago() {
+    if (!periodoActual || !confirmandoPago) return;
+    setGuardandoPago(true);
+    const { data, error } = await supabase.rpc("fn_pago_persona_marcar", {
+      p_periodo_id: periodoActual.id, p_persona_id: confirmandoPago.persona_id,
+    });
+    setGuardandoPago(false);
+    if (error) { avisar("error", mensajeDeError(error, "marcar el pago")); return; }
+    const fila = Array.isArray(data) ? data[0] : null;
+    setConfirmandoPago(null);
+    avisar("ok", `${confirmandoPago.nombre} · ${formatSoles((fila as { monto: number } | null)?.monto ?? confirmandoPago.total)} marcada como pagada.`);
+    await cargarProyeccion();
+  }
+
+  function abrirDesmarcarPago(f: Fila) {
+    setDesmarcarMotivo("");
+    setDesmarcandoPago(f);
+  }
+
+  async function confirmarDesmarcarPago() {
+    if (!periodoActual || !desmarcandoPago) return;
+    const motivo = desmarcarMotivo.trim();
+    if (motivo.length < 3) { avisar("error", "Escribe por qué se desmarca (al menos 3 caracteres)."); return; }
+    setGuardandoPago(true);
+    const { error } = await supabase.rpc("fn_pago_persona_desmarcar", {
+      p_periodo_id: periodoActual.id, p_persona_id: desmarcandoPago.persona_id, p_motivo: motivo,
+    });
+    setGuardandoPago(false);
+    if (error) { avisar("error", mensajeDeError(error, "desmarcar el pago")); return; }
+    avisar("ok", `${desmarcandoPago.nombre} vuelve a quedar pendiente de pago.`);
+    setDesmarcandoPago(null);
+    await cargarProyeccion();
+  }
+
+  async function abrirHistorialPago(f: Fila) {
+    if (!periodoActual) return;
+    setVerHistorialPago(f);
+    setHistorialPago(null);
+    setErrorHistorialPago(null);
+    const { data, error } = await supabase
+      .from("planilla_pago_persona_eventos")
+      .select("tipo, monto, motivo, creado_at, personas:creado_por(nombres, apellidos)")
+      .eq("periodo_id", periodoActual.id)
+      .eq("persona_id", f.persona_id)
+      .order("secuencia", { ascending: true });
+    if (error) { setErrorHistorialPago(mensajeDeError(error, "traer el historial")); return; }
+    type Fila_ = { tipo: "marcado" | "desmarcado"; monto: number; motivo: string | null; creado_at: string; personas: { nombres: string; apellidos: string | null } | null };
+    setHistorialPago(((data ?? []) as unknown as Fila_[]).map((e) => ({
+      tipo: e.tipo, monto: e.monto, motivo: e.motivo, creado_at: e.creado_at,
+      creado_por_nombre: e.personas ? [e.personas.nombres, e.personas.apellidos].filter(Boolean).join(" ") : null,
+    })));
   }
 
   async function agregarPendientesGratiCts() {
@@ -1017,6 +1110,16 @@ export default function PlanillaPage() {
                 )}
               </div>
 
+              {/* ── Checklist personal de pago (0562): ya marcaste a todos, falta el cierre oficial ── */}
+              {puedeMarcarPago && todosPagadosDelGrupo && (
+                <BannerAviso variante="positivo" titulo={`Ya marcaste a las ${filasGrupo.length} personas de «${TIPO_VINCULO_LABEL[tab]}» como pagadas`}>
+                  <p className="text-xs text-taupe">Esto es tu checklist: el pago de «{TIPO_VINCULO_LABEL[tab]}» sigue abierto hasta que confirmes el cierre.</p>
+                  <Boton className="mt-3" variante="primario" onClick={() => setRevisandoGrupo(tab)} disabled={cargando}>
+                    Revisar cierre de «{TIPO_VINCULO_LABEL[tab]}» →
+                  </Boton>
+                </BannerAviso>
+              )}
+
               {/* ── Un pagado que dejó de cuadrar: el sistema lo DICE; corregir lo decide una persona ── */}
               {grupoPagado && errorDesvios && (
                 <BannerAviso variante="alerta">
@@ -1046,6 +1149,16 @@ export default function PlanillaPage() {
                 </BannerAviso>
               )}
 
+              {/* ── El checklist personal de pago (0562): cuánto llevas marcado ── */}
+              {puedeMarcarPagoPersona(rol) && filasGrupo.length > 0 && (
+                <Cifra
+                  tamano="sm"
+                  etiqueta="Marcadas como pagadas"
+                  valor={`${resumenPago.marcadas} de ${filasGrupo.length} · ${formatSoles(resumenPago.monto)}`}
+                  tono={todosPagadosDelGrupo ? "positivo" : resumenPago.marcadas > 0 ? "advertencia" : undefined}
+                />
+              )}
+
               {/* ── Filtros: solo cambian la tabla ───────────────────────── */}
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-3">
@@ -1058,6 +1171,11 @@ export default function PlanillaPage() {
                     {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
                   </CampoSelect>
                   <CampoCasilla etiqueta="Solo con algo que revisar" checked={soloRevisar} onChange={(e) => setSoloRevisar(e.target.checked)} />
+                  <div role="group" aria-label="Filtrar por pagado" className="flex gap-1">
+                    <Filtro tamano="sm" activo={pagoFiltro === "todas"} onClick={() => setPagoFiltro("todas")}>Todas</Filtro>
+                    <Filtro tamano="sm" activo={pagoFiltro === "pendientes"} onClick={() => setPagoFiltro("pendientes")}>Pendientes</Filtro>
+                    <Filtro tamano="sm" activo={pagoFiltro === "pagadas"} onClick={() => setPagoFiltro("pagadas")}>Pagadas</Filtro>
+                  </div>
                   {filtrado && <Boton variante="enlace" className="text-sm text-taupe" onClick={limpiarFiltros}>Limpiar filtros</Boton>}
                 </div>
                 <p className="text-xs text-taupe" aria-live="polite">
@@ -1074,6 +1192,11 @@ export default function PlanillaPage() {
                 filtrado={filtrado}
                 hallazgos={hallazgos}
                 ceses={ceses}
+                pagos={pagosPorPersona}
+                puedeMarcarPago={puedeMarcarPago}
+                onMarcarPago={(f) => setConfirmandoPago(f)}
+                onDesmarcarPago={abrirDesmarcarPago}
+                onVerHistorialPago={(f) => void abrirHistorialPago(f)}
                 pruebas={pruebas}
                 onAbrir={(f, el) => { disparadorPersona.current = el; setFilaAbiertaClave(claveFila(f)); }}
               />
@@ -1295,6 +1418,69 @@ export default function PlanillaPage() {
               </Boton>
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* ── El checklist personal de pago (0562): marcar, desmarcar, historial ── */}
+      <Modal abierto={confirmandoPago !== null} onCerrar={() => setConfirmandoPago(null)} bloqueado={guardandoPago} titulo="Marcar como pagada" ancho="sm">
+        {confirmandoPago && (
+          <div className="space-y-4 text-sm">
+            <p>
+              ¿Marcar a <strong>{confirmandoPago.nombre}</strong> como pagada? Se registra{" "}
+              <strong className="tabular-nums">{formatSoles(confirmandoPago.total)}</strong>, a tu nombre y con la fecha de hoy.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Boton onClick={() => setConfirmandoPago(null)} disabled={guardandoPago}>Cancelar</Boton>
+              <Boton variante="primario" onClick={() => void confirmarMarcarPago()} cargando={guardandoPago}>Marcar como pagada</Boton>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal abierto={desmarcandoPago !== null} onCerrar={() => setDesmarcandoPago(null)} bloqueado={guardandoPago} titulo="Desmarcar pago" ancho="sm">
+        {desmarcandoPago && (
+          <div className="space-y-4 text-sm">
+            <p>
+              <strong>{desmarcandoPago.nombre}</strong> vuelve a quedar pendiente de pago. Escribe por qué (por ejemplo, un error al marcar).
+            </p>
+            <label className="flex flex-col gap-1">
+              Motivo (obligatorio)
+              <AreaTexto value={desmarcarMotivo} onChange={(e) => setDesmarcarMotivo(e.target.value)} rows={2} autoFocus placeholder="ej. marqué a la persona equivocada" />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Boton onClick={() => setDesmarcandoPago(null)} disabled={guardandoPago}>Cancelar</Boton>
+              <Boton variante="primario" onClick={() => void confirmarDesmarcarPago()} cargando={guardandoPago} disabled={desmarcarMotivo.trim().length < 3}>
+                Desmarcar
+              </Boton>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal abierto={verHistorialPago !== null} onCerrar={() => setVerHistorialPago(null)} titulo={verHistorialPago ? `Historial de pago · ${verHistorialPago.nombre}` : undefined} ancho="md">
+        {errorHistorialPago ? (
+          <p className="text-sm text-rojo-profundo">No se pudo traer el historial: {errorHistorialPago}</p>
+        ) : historialPago === null ? (
+          <Cargando />
+        ) : historialPago.length === 0 ? (
+          <p className="text-sm text-taupe">Sin eventos todavía.</p>
+        ) : (
+          <ul className="space-y-2 text-sm">
+            {historialPago.map((e, i) => (
+              <li key={i} className="rounded-control border border-sand bg-hueso p-3">
+                <p>
+                  <span className={e.tipo === "marcado" ? "font-medium text-verde" : "font-medium text-ambar"}>
+                    {e.tipo === "marcado" ? "Marcada como pagada" : "Desmarcada"}
+                  </span>{" "}
+                  · <span className="tabular-nums">{formatSoles(e.monto)}</span>
+                </p>
+                <p className="mt-1 text-xs text-taupe">
+                  {fechaLargaLima(e.creado_at)}{e.creado_por_nombre ? ` · ${e.creado_por_nombre}` : ""}
+                </p>
+                {e.motivo && <p className="mt-1 text-xs">«{e.motivo}»</p>}
+              </li>
+            ))}
+          </ul>
         )}
       </Modal>
       </div>

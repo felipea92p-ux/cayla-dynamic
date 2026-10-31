@@ -60,7 +60,7 @@ export const MODULOS_BANDEJA: readonly { clave: ModuloBandeja; etiqueta: string;
   { clave: "contratos", etiqueta: "Contratos", puedeVer: puedeGestionarContratos },
   // La prueba de tres días (0536): DO, administración y la líder de equipo, que no abre
   // Contratos. Cada una ve lo de su alcance (la base lo decide con `fn_prueba_puede_actuar`).
-  { clave: "pruebas", etiqueta: "Pruebas", puedeVer: puedeDecidirPrueba },
+  { clave: "pruebas", etiqueta: "Preselección", puedeVer: puedeDecidirPrueba },
   { clave: "correcciones", etiqueta: "Correcciones", puedeVer: puedeOperarEquipo },
   { clave: "disciplina", etiqueta: "Disciplina", puedeVer: puedeOperarEquipo },
   { clave: "documentacion", etiqueta: "Documentación", puedeVer: puedeGestionarCatalogos },
@@ -456,13 +456,13 @@ export async function traerFuentesBandeja(
   }
 
   if (puedeDecidirPrueba(rol)) {
-    pedir<FilaPrueba>(supabase.rpc("fn_pruebas_abiertas"), "pruebas", "las pruebas de tres días", (xs) => { f.pruebas = xs; });
+    pedir<FilaPrueba>(supabase.rpc("fn_pruebas_abiertas"), "pruebas", "las preselecciones de tres días", (xs) => { f.pruebas = xs; });
   }
   // Los cierres recientes son para ENTERARSE: DO ve cada «no apto» y cada «se retiró» que
   // una líder decidió sola (decidido con Felipe el 2026-10-19). La líder no se avisa a sí
-  // misma. Se usa el mismo permiso que ve plata porque «se retiró» deja horas sin pagar.
+  // misma. Se usa el mismo permiso que ve plata porque el cierre decide cómo se da de baja a alguien y qué se le paga.
   if (puedeVerPlanilla(rol)) {
-    pedir<CierrePrueba>(supabase.rpc("fn_pruebas_cierres_recientes", { p_horas: 48 }), "pruebas", "los cierres de pruebas", (xs) => { f.cierresPruebas = xs; });
+    pedir<CierrePrueba>(supabase.rpc("fn_pruebas_cierres_recientes", { p_horas: 48 }), "pruebas", "los cierres de preselección", (xs) => { f.cierresPruebas = xs; });
   }
 
   if (puedeVerCasos(rol)) {
@@ -816,6 +816,10 @@ const MOTIVO_DIA: Record<string, string> = {
   secuencia_imposible: "Marcas en un orden imposible",
   auto_cierre_sin_confirmar: "Cierre automático sin confirmar",
   sello_sin_levantar: "Día marcado para revisar",
+  // 0547: el sello no viene de un día roto, viene de que el GRUPO de esa
+  // persona ya se pagó con el periodo todavía abierto. Se nombra aparte porque
+  // la acción es otra: no se corrige el día, se reabre el pago.
+  grupo_pagado_periodo_abierto: "Su grupo ya se pagó: las horas están bloqueadas",
 };
 
 function textoDisciplina(d: ItemDisciplina, hoy: string): { titulo: string; accion: string; urgencia: Urgencia; href: string } {
@@ -1013,8 +1017,8 @@ export function armarPendientes(
       ir: { texto: "Revisar", href: `/admin/liquidaciones?persona=${l.persona_id}` }, contexto: null,
     });
   }
-  // Quien está de prueba no «le falta un contrato»: la prueba EXISTE para no hacérselo
-  // todavía. Esa fila la cuenta la prueba (que además trae el botón de hacerlo cuando
+  // Quien está en preselección no «le falta un contrato»: la preselección EXISTE para no hacérselo
+  // todavía. Esa fila la cuenta la preselección (que además trae el botón de hacerlo cuando
   // completa el plazo), así que el «sin contrato» de Contratos se calla para ella —y solo
   // ese estado: un borrador sin firmar o un vencido siguen siendo pendientes de verdad.
   const enPrueba = new Set(f.pruebas.map((x) => x.persona_id));
@@ -1023,7 +1027,7 @@ export function armarPendientes(
     agregar({
       clave: `prueba:${p.persona_id}`, tipo: "prueba", itemId: p.persona_id, personaId: p.persona_id,
       persona: nombreDe(p), sede: p.sede_codigo ?? "—", modulo: "pruebas",
-      titulo: "Prueba de tres días",
+      titulo: "Preselección de tres días",
       detalle: `${textoDelDia(p)}${sinDni}`,
       urgencia: urgenciaPrueba(p), resolucion: "aqui", ir: null, contexto: null,
     });
@@ -1032,7 +1036,7 @@ export function armarPendientes(
     agregar({
       clave: `prueba_cierre:${c.prueba_id}`, tipo: "prueba_cierre", itemId: c.prueba_id, personaId: c.persona_id,
       persona: nombreDe(c), sede: c.sede_codigo ?? "—", modulo: "pruebas",
-      titulo: c.resultado === "retirado" ? "Se retiró en su prueba" : "No fue apto en su prueba",
+      titulo: c.resultado === "retirado" ? "Se retiró en su preselección" : "No fue apto en su preselección",
       detalle: resumenDeCierre(c),
       urgencia: urgenciaCierrePrueba(c), resolucion: "aqui", ir: null, contexto: null,
     });

@@ -25,12 +25,14 @@ import { Filtro } from "@/components/ui/filtro";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { cx } from "@/components/ui/cx";
-import { cuentaEnCobertura, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { cuentaEnCobertura, horaLima, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
-import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
+import { consecuenciaDeUsarBase as consecuenciaDeUsarBaseLib } from "@/lib/admin/revision-turnos";
+import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos, pintarCeldaIntegrada, ventanaDelDia, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 import { resumenDeLideres, resumenDelTramo, type ResumenTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
-import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, DIAS_AVISO_FERIADO_DEFECTO, diasDesdeIngreso, lineaDeSemana, TEXTO_CONFIRMAR_TRABAJO_EN_FERIADO, tituloDelAviso, type PersonaEnFeriado } from "@/lib/admin/feriado-recien-ingresado";
+import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, lineaDeSemana, TEXTO_CONFIRMAR_TRABAJO_EN_FERIADO, tituloDelAviso, type PersonaEnFeriado } from "@/lib/admin/prueba-en-feriado";
+import type { FilaPrueba } from "@/lib/admin/pruebas";
 import { CampoMeta, InsigniaTramo, Medidor, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
@@ -62,7 +64,7 @@ function etiquetaDia(iso: string): { abr: string; num: string } {
   return { abr: DIAS_ABR[d.getUTCDay()], num: `${d.getUTCDate()} ${MESES[d.getUTCMonth()]}` };
 }
 
-interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; tipoVinculo: string | null; fechaIngreso: string | null; }
+interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; tipoVinculo: string | null; }
 // El tramo de horario y "quién le tocaba trabajar ese día" viven en
 // jornada-esperada.ts — es la misma cascada que usa el backend
 // (fn_recalcular_jornada) y que ya adoptaron incidencias/horas/correcciones.
@@ -176,7 +178,13 @@ const colorDeTono = (tono: TonoCobertura, pct: number) =>
 // Solo lectura: no toca nada.
 // tE/tS = las horas REALES del turno (null = ese turno es descanso). Se guardan
 // para poder promover el turno a horario base ("Hacer permanente") sin re-consultar.
-interface Divergencia { fecha: string; personaId: string; persona: string; turnoTxt: string; baseTxt: string; espejo: boolean; tE: string | null; tS: string | null }
+//
+// `yaCorrio` = ese día ya se midió: es pasado, o es hoy y ya marcó. Ahí quitar el
+// turno no es cosmético: la jornada se recalcula contra el horario base, y si el
+// turno era lo que de verdad le habían dicho, aparece una tardanza (o una falta,
+// si el turno era descanso) que la persona nunca tuvo. `marco` = la hora a la que
+// marcó su entrada ese día, para decidir con el dato delante.
+interface Divergencia { fecha: string; personaId: string; persona: string; turnoTxt: string; baseTxt: string; espejo: boolean; tE: string | null; tS: string | null; baseE: string | null; yaCorrio: boolean; marco: string | null }
 const rangoTxt = (e: string | null, s: string | null) => (e ? `${e}${s ? `–${s}` : ""}` : "descanso");
 // El horario semanal completo de un tramo, como el jsonb que espera
 // fn_set_horario_semanal ({"1":{e,s,r}, …}). Sirve para cambiar UN día sin
@@ -291,6 +299,15 @@ function AlertaSobretiempo({ sedeSel, abierto, onConteo }: {
   );
 }
 
+// Qué pasa si un día que ya corrió vuelve al horario base: ver revision-turnos.ts.
+function consecuenciaDeUsarBase(d: Divergencia): string {
+  const { abr, num } = etiquetaDia(d.fecha);
+  return consecuenciaDeUsarBaseLib({
+    etiqueta: `${abr.toLowerCase()} ${num}`, turnoTxt: d.turnoTxt, baseTxt: d.baseTxt,
+    turnoEntrada: d.tE, baseEntrada: d.baseE, marco: d.marco,
+  });
+}
+
 function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
   sedeSel: string;
   onIrADia: (iso: string) => void;
@@ -306,6 +323,9 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
   const [error, setError] = useState(false);
   const [procesando, setProcesando] = useState<string | null>(null); // clave de fila, o "bulk"
   const [confirmarBulk, setConfirmarBulk] = useState(false);
+  // Fila (por su clave) cuyo "Usar el horario base" espera confirmación: solo
+  // pasa con días que ya corrieron (ver `yaCorrio`).
+  const [confirmarBase, setConfirmarBase] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   // Tramos de horario de cada persona, para poder promover un turno a horario base.
   const tramosRef = useRef<Map<string, Horario[]>>(new Map());
@@ -334,11 +354,16 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
     const ids = (personas ?? []).map((p) => p.id);
     const nombre = new Map((personas ?? []).map((p: any) => [p.id, `${p.nombres} ${p.apellidos}`]));
     if (ids.length === 0) { setDivs([]); return; }
-    const [{ data: turnos, error: eT }, { data: horarios, error: eH }] = await Promise.all([
+    const [{ data: turnos, error: eT }, { data: horarios, error: eH }, { data: jornadas, error: eJ }] = await Promise.all([
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").in("persona_id", ids).gte("fecha", desde).order("fecha"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").in("persona_id", ids),
+      supabase.from("jornadas").select("persona_id, fecha, entrada_ts").in("persona_id", ids).gte("fecha", desde).lte("fecha", hoy),
     ]);
-    if (eT || eH) { setError(true); return; }
+    if (eT || eH || eJ) { setError(true); return; }
+    const entradaDe = new Map<string, string>();
+    for (const j of (jornadas as { persona_id: string; fecha: string; entrada_ts: string | null }[]) ?? []) {
+      if (j.entrada_ts) entradaDe.set(`${j.persona_id}|${j.fecha}`, horaLima(j.entrada_ts));
+    }
     const hMap = new Map<string, Horario[]>();
     for (const h of (horarios as HorarioTramo[]) ?? []) {
       const arr = hMap.get(h.persona_id) ?? [];
@@ -363,7 +388,11 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
         { hora_entrada: t.hora_entrada, hora_salida: t.hora_salida, es_descanso: t.es_descanso },
         tramos ?? []
       );
-      const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS };
+      const marco = entradaDe.get(`${t.persona_id}|${t.fecha}`) ?? null;
+      const fila = {
+        fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS,
+        baseE: base?.entrada ?? null, yaCorrio: t.fecha < hoy || (t.fecha === hoy && marco !== null), marco,
+      };
       // Sin horario base ese día (caso TRU, set-2026: los horarios rigen desde
       // el 12 de julio y el periodo abierto arranca el 28 de junio) el turno es
       // la ÚNICA referencia de a qué hora le tocaba entrar. No diverge de nada:
@@ -391,7 +420,7 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
   // Quitar el turno puntual ⇒ ese día vuelve a regir el horario base. La RPC
   // recalcula la jornada de esa fecha (y el candado bloquea periodos pagados).
   async function usarHorarioBase(d: Divergencia, clave: string) {
-    setProcesando(clave); setAviso(null);
+    setProcesando(clave); setAviso(null); setConfirmarBase(null);
     const { error: e } = await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
     setProcesando(null);
     if (e) { setAviso(`No se pudo quitar el turno de ${d.persona}: ${e.message}`); return; }
@@ -494,7 +523,12 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
       Ahí el turno es lo único que dice a qué hora le tocaba entrar, así que no hay nada que comparar ni que quitar.
     </>
   );
-  const espejos = divs.filter((d) => d.espejo);
+  // En bloque solo los que todavía no corrieron. Un espejo viejo de un día que
+  // ya pasó puede estar causando una tardanza falsa… o puede haber sido lo que
+  // de verdad se le indicó: eso se decide fila por fila, con su marcaje a la vista.
+  const espejosTodos = divs.filter((d) => d.espejo);
+  const espejos = espejosTodos.filter((d) => !d.yaCorrio);
+  const espejosPasados = espejosTodos.length - espejos.length;
   if (!abierto) return null;
   return (
     <TarjetaInfo className="mb-4 overflow-hidden p-0 sm:p-0">
@@ -502,7 +536,8 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
           <p className="px-4 py-2 text-xs leading-relaxed text-taupe">
             El turno del día manda sobre el horario base. Decide cuál de los dos tiene la razón:{" "}
             <strong className="text-tinta">Hacer permanente</strong> = la hora del turno pasa a ser su horario base desde esa fecha (úsalo si de verdad le cambiaron el horario).{" "}
-            <strong className="text-tinta">Usar el horario base</strong> = descarta el turno y vuelve a su horario (úsalo si el turno quedó viejo).{" "}
+            <strong className="text-tinta">Usar el horario base</strong> = descarta el turno y vuelve a su horario (úsalo si el turno quedó viejo).
+            En un día que ya pasó, eso vuelve a medir su jornada contra el horario base: antes de aplicarlo te muestra a qué hora marcó.{" "}
             Nada se borra solo: tú decides fila por fila.
           </p>
           {notaSinBase && <p className="border-t border-sand px-4 py-2 text-xs leading-relaxed text-taupe">{notaSinBase}</p>}
@@ -522,6 +557,7 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
                   </Boton>
                   <span className="text-[11px] text-taupe">
                     Esto <strong>descarta</strong> esas horas. Si a esa gente le cambiaron el horario de verdad, usa <strong>Hacer permanente</strong> fila por fila.
+                    {espejosPasados > 0 && <> Los {espejosPasados} de días que ya pasaron no entran: van fila por fila, porque su jornada ya se midió.</>}
                   </span>
                 </div>
               )}
@@ -542,19 +578,30 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
                     </button>
                     <span className="text-xs">
                       <span className="text-ambar">turno {d.turnoTxt}</span> <span className="text-taupe">· base {d.baseTxt}</span>
+                      {d.yaCorrio && <span className="text-taupe"> · {d.marco ? `marcó ${d.marco}` : "sin marcaje"}</span>}
                     </span>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     {d.espejo
                       ? <Insignia variante="alerta" tamano="sm">probable espejo viejo</Insignia>
-                      : <Insignia variante="neutral" atenuada tamano="sm">excepción a propósito</Insignia>}
+                      : <Insignia variante="neutral" atenuada tamano="sm">cambio puntual</Insignia>}
                     <Boton variante="secundario" tamano="sm" onClick={() => hacerPermanente(d, clave)} disabled={procesando !== null} cargando={procesando === clave}>
                       Hacer permanente
                     </Boton>
-                    <Boton variante="sutil" tamano="sm" onClick={() => usarHorarioBase(d, clave)} disabled={procesando !== null}>
+                    <Boton variante="sutil" tamano="sm" onClick={() => (d.yaCorrio ? setConfirmarBase(clave) : usarHorarioBase(d, clave))} disabled={procesando !== null || confirmarBase === clave}>
                       Usar el horario base
                     </Boton>
                   </div>
+                  {confirmarBase === clave && (
+                    <div className="mt-2 rounded-lg border border-rojo/30 bg-rojo/[0.06] px-3 py-2 text-xs leading-relaxed">
+                      <p className="text-tinta">{consecuenciaDeUsarBase(d)}</p>
+                      <p className="mt-1 text-taupe">Si el turno era lo que de verdad se le había indicado, déjalo como está.</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Boton variante="peligro" tamano="sm" cargando={procesando === clave} onClick={() => usarHorarioBase(d, clave)}>Sí, medir contra el horario base</Boton>
+                        <Boton variante="secundario" tamano="sm" onClick={() => setConfirmarBase(null)}>Cancelar</Boton>
+                      </div>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -625,12 +672,11 @@ export default function TurnosPage() {
   const [copiarDisponibles, setCopiarDisponibles] = useState<number | null>(null);
   const [confirmarCopiar, setConfirmarCopiar] = useState(false);
   const [copiando, setCopiando] = useState(false);
-  // Feriados de la semana en pantalla (fecha → nombre) y desde cuántos días de antigüedad se avisa. Sirven SOLO para
-  // recomendar descanso a quien ingresó hace poco (feriado-recien-ingresado.ts); si fallan quedan vacíos y la
-  // pantalla se comporta como siempre.
+  // Feriados de la semana en pantalla (fecha → nombre) y las pruebas abiertas por persona. Sirven SOLO para
+  // recomendar descanso a quien está de prueba (prueba-en-feriado.ts); si fallan quedan vacíos y la pantalla
+  // se comporta como siempre, salvo que el vínculo ya dice «prueba» y entonces se avisa igual.
   const [feriadosSemana, setFeriadosSemana] = useState<Map<string, string>>(new Map());
-  // Umbral del aviso (Parámetros, 0553). Si la base todavía no lo tiene, rige el de partida.
-  const [umbralFeriado, setUmbralFeriado] = useState<number>(DIAS_AVISO_FERIADO_DEFECTO);
+  const [pruebas, setPruebas] = useState<Map<string, FilaPrueba>>(new Map());
   const [confirmaFeriado, setConfirmaFeriado] = useState(false);
 
   // edición de celda
@@ -690,14 +736,14 @@ export default function TurnosPage() {
       { data: f, error: fErr },
       { data: ar, error: arErr },
       { data: fer },
-      { data: umb },
+      { data: pru },
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
       // igual que cualquiera y cuenta para la meta de cobertura de la sede —
       // decisión de Felipe (2026-09-12) — así que entra a la grilla con el
       // mismo `OR` puntual, sin tocar `en_planilla` ni el escalafón
       // disciplinario, que siguen igual para las demás pantallas.
-      supabase.from("personas").select("id, nombres, apellidos, rol, fecha_ingreso")
+      supabase.from("personas").select("id, nombres, apellidos, rol")
         .eq("sede_base_id", sedeSel).eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .eq("sueldo_fijo", false).order("nombres"),
@@ -707,7 +753,7 @@ export default function TurnosPage() {
       supabase.rpc("fn_personas_funciones"), // "funcion" vía RPC: el schema cache de PostgREST no expone la columna
       supabase.rpc("fn_areas"), // catálogo dinámico de áreas (nunca .from("areas"): schema cache trabado)
       supabase.from("feriados").select("fecha, nombre").gte("fecha", lunes).lte("fecha", domingo),
-      supabase.rpc("fn_feriado_aviso_dias"), // 0553; si aún no está pegada, el error se ignora y rige el 15
+      supabase.rpc("fn_pruebas_abiertas"),
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (pErr || hErr || tErr || mErr) {
@@ -717,12 +763,12 @@ export default function TurnosPage() {
     }
     setAreas(parseAreas(ar, arErr));
     setFeriadosSemana(new Map(((fer as { fecha: string; nombre: string }[] | null) ?? []).map((x) => [x.fecha, x.nombre] as const)));
-    setUmbralFeriado(typeof umb === "number" && Number.isFinite(umb) && umb > 0 ? umb : DIAS_AVISO_FERIADO_DEFECTO);
+    setPruebas(new Map(((pru as FilaPrueba[] | null) ?? []).map((x) => [x.persona_id, x] as const)));
     // Si falla la RPC de funciones O la del catálogo de áreas, la cobertura puede
     // contar mal (degrada a defaults) — se avisa en pantalla en vez de fallar en silencio.
     setFuncionesFallo(Boolean(fErr) || Boolean(arErr));
     const mapF = new Map(((f as { persona_id: string; funcion: string; es_encargada_piso?: boolean; tipo_vinculo?: string | null }[] | null) ?? []).map((x) => [x.persona_id, { funcion: x.funcion, esEncargadaPiso: Boolean(x.es_encargada_piso), tipoVinculo: x.tipo_vinculo ?? null }]));
-    setPersonas((((p as unknown as (Omit<Persona, "funcion" | "esEncargadaPiso" | "tipoVinculo" | "fechaIngreso"> & { fecha_ingreso: string | null })[]) ?? []).map(({ fecha_ingreso, ...x }) => ({ ...x, fechaIngreso: fecha_ingreso ?? null, funcion: mapF.get(x.id)?.funcion ?? AREA_DEFAULT, esEncargadaPiso: mapF.get(x.id)?.esEncargadaPiso ?? false, tipoVinculo: mapF.get(x.id)?.tipoVinculo ?? null }))));
+    setPersonas((((p as Omit<Persona, "funcion" | "esEncargadaPiso" | "tipoVinculo">[]) ?? []).map((x) => ({ ...x, funcion: mapF.get(x.id)?.funcion ?? AREA_DEFAULT, esEncargadaPiso: mapF.get(x.id)?.esEncargadaPiso ?? false, tipoVinculo: mapF.get(x.id)?.tipoVinculo ?? null }))));
     const mapH = new Map<string, Horario[]>();
     for (const x of (h as HorarioTramo[]) ?? []) {
       const arr = mapH.get(x.persona_id) ?? [];
@@ -782,13 +828,10 @@ export default function TurnosPage() {
     await cargar();
   }
 
-  // Si la semana destino tiene feriado y la sede tiene gente que ingresó hace poco, la copia puede dejarle turno ese día.
+  // Si la semana destino tiene feriado y la sede tiene gente de prueba, la copia puede dejarle turno ese día.
   const avisoCopiar = useMemo(
-    () => avisoDeCopiar(
-      [...feriadosSemana.values()],
-      [...feriadosSemana.keys()].some((fecha) => personas.some((p) => conviveDarDescanso({ tipoVinculo: p.tipoVinculo, fechaIngreso: p.fechaIngreso }, fecha, true, umbralFeriado))),
-    ),
-    [feriadosSemana, personas, umbralFeriado],
+    () => avisoDeCopiar([...feriadosSemana.values()], personas.some((p) => p.tipoVinculo === "prueba" && conviveDarDescanso({ tipoVinculo: p.tipoVinculo, situacion: pruebas.get(p.id)?.situacion ?? null, dias: null, plazo: null }, true))),
+    [feriadosSemana, personas, pruebas],
   );
 
   const celda = useCallback((personaId: string, fecha: string): Celda => {
@@ -809,33 +852,31 @@ export default function TurnosPage() {
     return { tipo: "default", entrada: esp.entrada!, salida: esp.salida, refrigerio: tramo?.horario_por_dia?.[dow]?.r };
   }, [turnos, horarios]);
 
-  // ¿Conviene darle descanso este día? Solo quien lleva menos de N días calendario desde su ingreso, en un feriado
-  // (feriado-recien-ingresado.ts). N sale de Parámetros.
-  const ingresoRecienDeLaPersona = useCallback((personaId: string, fecha: string) => {
+  // ¿Conviene darle descanso este día? Solo quien está de prueba, en un feriado (prueba-en-feriado.ts).
+  const pruebaDeLaPersona = useCallback((personaId: string, fecha: string) => {
     const p = personas.find((x) => x.id === personaId);
+    const f = pruebas.get(personaId);
     const ok = conviveDarDescanso(
-      { tipoVinculo: p?.tipoVinculo ?? null, fechaIngreso: p?.fechaIngreso ?? null },
-      fecha,
+      { tipoVinculo: p?.tipoVinculo ?? null, situacion: f?.situacion ?? null, dias: f?.dias_trabajados ?? null, plazo: f?.dias_plazo ?? null },
       feriadosSemana.has(fecha),
-      umbralFeriado,
     );
-    return ok ? { nombreFeriado: feriadosSemana.get(fecha) ?? null, dias: diasDesdeIngreso(p?.fechaIngreso ?? null, fecha) } : null;
-  }, [personas, feriadosSemana, umbralFeriado]);
+    return ok ? { nombreFeriado: feriadosSemana.get(fecha) ?? null, dias: f?.dias_trabajados ?? null, plazo: f?.dias_plazo ?? null } : null;
+  }, [personas, pruebas, feriadosSemana]);
 
-  // Quién ingresó hace poco y queda trabajando un feriado de esta semana, sea por turno puesto, copiado o por su horario base.
-  const recienIngresadoEnFeriado = useMemo<PersonaEnFeriado[]>(() => {
+  // Quién de prueba queda trabajando un feriado de esta semana, sea por turno puesto, copiado o por su horario base.
+  const pruebaEnFeriado = useMemo<PersonaEnFeriado[]>(() => {
     const lista: PersonaEnFeriado[] = [];
     for (const [fecha, feriado] of feriadosSemana) {
       for (const p of personas) {
         const c = celda(p.id, fecha);
         if (c.tipo !== "turno" && c.tipo !== "default") continue;
-        const a = ingresoRecienDeLaPersona(p.id, fecha);
+        const a = pruebaDeLaPersona(p.id, fecha);
         if (!a) continue;
-        lista.push({ personaId: p.id, nombre: `${p.nombres} ${p.apellidos}`, fecha, feriado, dias: a.dias });
+        lista.push({ personaId: p.id, nombre: `${p.nombres} ${p.apellidos}`, fecha, feriado, dias: a.dias, plazo: a.plazo });
       }
     }
     return lista.sort((x, y) => x.fecha.localeCompare(y.fecha) || x.nombre.localeCompare(y.nombre));
-  }, [feriadosSemana, personas, celda, ingresoRecienDeLaPersona]);
+  }, [feriadosSemana, personas, celda, pruebaDeLaPersona]);
 
   // Cuántas personas (según `filtro`) cubren cada franja del día — reusada para
   // la franja de la Vista Día (operativas, 1h) y las 2 tablas de la Vista
@@ -995,7 +1036,7 @@ export default function TurnosPage() {
 
   const guardarTurno = () => {
     if (!edit || !entrada) { avisar("error", "Pon al menos la hora de entrada."); return; }
-    if (ingresoRecienDeLaPersona(edit.personaId, edit.fecha) && !confirmaFeriado) { avisar("error", "Confirma que está de acuerdo en que trabaje el feriado, o dale descanso."); return; }
+    if (pruebaDeLaPersona(edit.personaId, edit.fecha) && !confirmaFeriado) { avisar("error", "Confirma que está de acuerdo en que trabaje el feriado, o dale descanso."); return; }
     return ejecutar(() => supabase.rpc("fn_set_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha, p_hora_entrada: entrada, p_hora_salida: salida || null }));
   };
   // "De aquí en adelante": el cambio NO es puntual, es la nueva regla. Toma el
@@ -1005,7 +1046,7 @@ export default function TurnosPage() {
   const guardarDesdeAqui = async () => {
     if (!edit) return;
     if (!entrada || !salida) { avisar("error", "Para cambiar el horario base necesito entrada y salida."); return; }
-    if (ingresoRecienDeLaPersona(edit.personaId, edit.fecha) && !confirmaFeriado) { avisar("error", "Confirma que está de acuerdo en que trabaje el feriado, o dale descanso."); return; }
+    if (pruebaDeLaPersona(edit.personaId, edit.fecha) && !confirmaFeriado) { avisar("error", "Confirma que está de acuerdo en que trabaje el feriado, o dale descanso."); return; }
     const tr = horarioVigente(horarios.get(edit.personaId) ?? [], edit.fecha);
     const semanal = horarioSemanalDesdeTramo(tr);
     const dow = String(diaSemana(edit.fecha));
@@ -1104,7 +1145,7 @@ export default function TurnosPage() {
               secciones={[
                 { titulo: "Poner un turno", texto: "Toca la fila de una persona en un día: eliges su hora de entrada y salida, o la marcas de descanso." },
                 { titulo: "La meta", texto: "Tiene dos tramos: mañana y tarde (el corte es 14:15). La franja de abajo de cada día compara la gente de cada hora contra la meta de su tramo." },
-                { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma." },
+                { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma. Quien está en preselección tampoco suma hasta que deje de estarlo: da igual si es practicante o tiene otro cargo." },
                 { titulo: "Las tres vistas", texto: "Día muestra la barra de cada persona; Semana, la silueta de cobertura de cada día; Integrada, la semana hora por hora." },
               ]}
             />
@@ -1162,14 +1203,14 @@ export default function TurnosPage() {
           </div>
         </div>
 
-        {/* Quien ingresó hace poco y queda trabajando un feriado: se recomienda descanso (feriado-recien-ingresado.ts).
+        {/* Quien está en preselección y queda trabajando un feriado: se recomienda descanso (prueba-en-feriado.ts).
             No frena nada; cada fila abre el editor de ese día, donde está «Dar descanso». */}
-        {!cargando && recienIngresadoEnFeriado.length > 0 && (
+        {!cargando && pruebaEnFeriado.length > 0 && (
           <BannerAviso enLinea variante="advertencia" className="mb-4 text-sm">
-            <p className="mb-1 font-medium">Alguien que ingresó hace poco queda trabajando un feriado.</p>
-            <p className="mb-2 text-xs">Un feriado trabajado sin día libre a cambio se paga más. Lo recomendable es darle descanso (el feriado se le paga igual); si debe venir, confírmalo al abrir el día.</p>
+            <p className="mb-1 font-medium">Alguien en preselección queda trabajando un feriado.</p>
+            <p className="mb-2 text-xs">Un feriado trabajado sin día libre a cambio se paga más. Lo recomendable es darle descanso; si debe venir, confírmalo al abrir el día.</p>
             <ul className="space-y-1">
-              {recienIngresadoEnFeriado.map((x) => (
+              {pruebaEnFeriado.map((x) => (
                 <li key={`${x.personaId}|${x.fecha}`} className="flex flex-wrap items-center gap-2 text-xs">
                   <span>{lineaDeSemana(x, `${etiquetaDia(x.fecha).abr} ${etiquetaDia(x.fecha).num}`)}</span>
                   <Boton variante="secundario" tamano="sm" onClick={() => abrir(x.personaId, x.fecha)}>Revisar ese día</Boton>
@@ -1289,6 +1330,10 @@ export default function TurnosPage() {
             }
             const hayGente = f1 >= f0;
             const filas = hayGente ? Array.from({ length: f1 - f0 + 1 }, (_, k) => f0 + k) : [];
+            // …pero lo que se MIDE es la ventana de cada día, como en la vista
+            // Semana: el domingo de TRU sale a las 18:15 y sus últimas franjas
+            // no son una falta (ver pintarCeldaIntegrada).
+            const ventanas = dias.map((_, di) => ventanaDelDia(covOp[di], covEnc[di]));
             const cols = "3.25rem repeat(7, minmax(0, 1fr))";
             return (
               <div>
@@ -1298,7 +1343,8 @@ export default function TurnosPage() {
                   <span className="inline-block h-1.5 w-1.5 translate-y-[1px] rounded-full bg-taupe" /> son líderes.
                   Un borde{" "}
                   <span className="inline-block h-2.5 w-2.5 translate-y-[2px] rounded-[2px]" style={{ outline: "1.5px dashed var(--color-ambar)", outlineOffset: "-1.5px" }} />{" "}
-                  ámbar punteado marca una franja bien cubierta pero sin ningún líder, donde sí se esperaba uno.
+                  ámbar punteado marca una franja con operativas pero sin ningún líder, donde sí se esperaba uno.
+                  Lo que queda antes de la primera entrada o después de la última salida de cada día no se mide.
                   Toca una celda para ver quién cubre y editar sus turnos.
                 </p>
                 {!hayGente ? (
@@ -1350,29 +1396,25 @@ export default function TurnosPage() {
                               const metaOp = metaDeHora(inicioFranja(fi), metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0);
                               const metaEnc = metasEncargadas.get(dia) ?? 0;
                               const encFalta = metaEnc > 0 && nEnc < metaEnc;
-                              const est = estiloDeHora(nOp, metaOp);
-                              const bg = nOp > 0
-                                ? est.fondo
-                                : nEnc > 0
-                                ? "color-mix(in srgb, var(--color-taupe) 12%, transparent)" // solo encargada esa hora
-                                : metaOp > 0
-                                ? "color-mix(in srgb, var(--color-rojo) 10%, transparent)" // meta puesta pero nadie: falta suave
-                                : "color-mix(in srgb, var(--color-sand) 35%, transparent)"; // sin meta: sand tenue
+                              const v = ventanas[di];
+                              const { fondo: bg, texto, bordeSinLider, fueraDelDia } = pintarCeldaIntegrada({
+                                operativas: nOp, lideres: nEnc, metaOperativas: metaOp, metaLideres: metaEnc,
+                                dentroDelDia: v === null || (fi >= v.desde && fi <= v.hasta),
+                              });
                               // Cuando SÍ hay encargadas, el déficit contra la meta ya se ve en
                               // la opacidad de sus puntos. Pero si no hay NINGUNA (nEnc === 0),
                               // no hay puntos que atenuar — la franja quedaba en el mismo verde
                               // que una bien liderada, y el déficit de liderazgo se volvía
-                              // invisible. Solo se marca cuando la sede SÍ puso una meta de
-                              // encargadas para ese día (metaEnc > 0): sin meta, cero encargadas
-                              // es una franja normal, no un déficit.
-                              const sinEncargadaAlguna = encFalta && nEnc === 0;
+                              // invisible. Por eso el borde ámbar (bordeSinLider), que solo sale
+                              // con operativas en la franja y meta de líderes puesta ese día.
+                              const sinEncargadaAlguna = bordeSinLider;
                               return (
                                 <button key={iso} onClick={() => setPanel({ fecha: iso, franjaIdx: fi })}
-                                  title={`${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} ${nEnc === 1 ? "líder" : "líderes"}` : sinEncargadaAlguna ? ` · sin líder (meta ${metaEnc})` : ""}`}
+                                  title={fueraDelDia ? `${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · fuera del horario de ese día` : `${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} ${nEnc === 1 ? "líder" : "líderes"}` : sinEncargadaAlguna ? ` · sin líder (meta ${metaEnc})` : ""}`}
                                   className="relative m-[1.5px] flex h-6 items-center justify-center rounded-[3px] text-[11px] font-medium tabular-nums transition-all hover:z-10 hover:ring-2 hover:ring-tinta/25"
                                   style={{
                                     background: bg,
-                                    color: nOp > 0 ? est.texto : "var(--color-taupe)",
+                                    color: texto,
                                     outline: sinEncargadaAlguna ? "1.5px dashed var(--color-ambar)" : "none",
                                     outlineOffset: sinEncargadaAlguna ? "-1.5px" : undefined,
                                   }}>
@@ -1731,8 +1773,8 @@ export default function TurnosPage() {
           const avisoDescansoDespues = descansoDespues !== null && descansoDespues < DESCANSO_MINIMO_HORAS;
           const avisoCiclo = cicloEdit !== null && cicloEdit.horas >= UMBRAL_AVISO_SOBRETIEMPO;
           const hayAviso = avisoDescansoAntes || avisoDescansoDespues || avisoCiclo;
-          // Quien ingresó hace poco, en un feriado: se recomienda descanso y, para dejarlo trabajar, hay que confirmarlo.
-          const avisoPrueba = ingresoRecienDeLaPersona(edit.personaId, edit.fecha);
+          // Quien está en preselección en un feriado: se recomienda descanso y, para dejarlo trabajar, hay que confirmarlo.
+          const avisoPrueba = pruebaDeLaPersona(edit.personaId, edit.fecha);
           const faltaConfirmar = avisoPrueba !== null && !confirmaFeriado;
 
           return (

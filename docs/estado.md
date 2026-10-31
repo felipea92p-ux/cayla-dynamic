@@ -6,7 +6,606 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-26 — El periodo de prueba se pacta por persona y la etiqueta tiene fecha de corte (segunda rebanada) · migraciones 0556 y 0557 · las dos PEGADAS 2026-10-26 · EN PR #607 · rama `claude/nifty-knuth-n789e7`
+## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya estaban pegadas) · **0546 PEGADA (2026-10-30)** · 0547 entregada · PR #620 · rama `claude/vigilant-hopper-d48cdd`
+
+**De dónde sale.** El checkout principal llevaba 943 commits congelado desde el 27 de septiembre y `core.hooksPath` apunta a SUS
+hooks: durante cinco semanas todo push de cualquier worktree corrió los guardianes del 27-sep. Al ponerlo al día (`78179af3` →
+`32c67f8b`), el primer push con `numeracion.sh` vigente destapó cinco huecos que nadie había visto: **0523, 0526, 0545, 0546 y 0547**.
+Los cinco tenían archivo, pero solo en ramas que nunca se fusionaron. Es el agujero de la 0177 otra vez, y por el mismo camino: el
+freno estaba bien y el camino cómodo no pasaba por él.
+
+**Lo primero que se midió, porque era lo urgente: ¿la 0545 sola dejó producción a medias?**
+Las tres (0545/0546/0547) son una sola pieza del 2026-10-22 — la reparación del incidente del 21-oct, cuando pagar el grupo «planilla»
+a mitad de periodo selló 12 marcas en masa, dejó 10 jornadas sin salida ni horas, y revertir el pago no recalculó nada. En la corrida
+de producción del 30-oct **la 0545 salió huérfana (o sea pegada) y la 0546 y la 0547 no salieron**: la reparación estaba aplicada a un
+tercio. **Medido: la 0545 sola NO dejó producción peor, y pegar la 0546 después no revierte nada.** Tres razones, cada una comprobada:
+
+- **La 0545 es puramente aditiva.** Crea `fn_reparar_dias_tras_reabrir(text,date,date)` y **no reescribe ninguna función**: solo llama
+  a `fn_recalcular_jornada` (0446) y `fn_resellar_dia` (0188). Por eso su encabezado dice, con razón, que no hay md5 de partida que
+  declarar. No hay riesgo del tipo 0261 al pegar la 0546 encima.
+- **Tampoco puede repetir el «function is not unique» de la 0297/0299:** ese nombre no aparece en ninguna otra migración del repo, así
+  que no hay sobrecarga posible. Y está revocada de `public`, `anon` y `authenticated`: la app no la puede llamar, solo quien pega SQL.
+- **El contexto de partida sigue intacto ocho días después.** Las cinco funciones en juego siguen en la versión que las migraciones
+  asumen: `fn_recalcular_jornada` 0446, `fn_resellar_dia` 0188, `fn_fecha_en_periodo_pagado` 0327, `fn_revertir_pago` **0323** (de la
+  que parte la 0546) y `fn_dias_por_revisar` **0422** (de la que parte la 0547). Las tres migraciones posteriores que tocan este
+  terreno no estorban: la **0562** dice tres veces que no toca `periodo_grupo_pago`, y la 0563 y la 0565 solo *llaman* a
+  `fn_fecha_en_periodo_pagado`.
+
+**Lo que el estado intermedio SÍ dejó, y es lo que falta cerrar.** El incidente del 21-oct está curado —la 0545 ejecutó la reparación
+una vez al pegarse—, pero **el defecto de fondo sigue abierto**: si se vuelve a pagar un grupo a mitad de periodo y se revierte,
+`fn_revertir_pago` sigue sin reparar las horas (falta la 0546) y Correcciones sigue diciendo «ya cuadra» sobre un día bloqueado por un
+pago (falta la 0547). Y hasta hoy había una función corriendo en producción cuyo único ejemplar era un commit en una rama sin fusionar.
+
+**Qué le tocó a cada número, con la evidencia.**
+
+| nº | destino | por qué |
+|---|---|---|
+| **0523** | archivo recuperado · **ya pegada**, nada que pegar | Producción devolvió hoy `fn_educacion_registrar` = 12 865 caracteres, md5 `c42ed2a9…`, y **el archivo recuperado da exactamente eso** (comprobado byte por byte). La 0564 lo confirma: pidió ese md5 a producción el 30-oct y dice «= el cuerpo de la 0523 byte por byte (`migraciones_aplicadas` trae 450, 523, 524 y 529)». La 0564 ya la incorpora (lleva dos veces el marcador «CAMBIO 0523»), así que **repegar la 0523 ahora revertiría la 0564**. |
+| **0526** | **NO se recupera** · línea en `huecos-conocidos.txt` | Borrador sin pegar. Reescribe `fn_educacion_situacion` partiendo de la 0450, **igual que la 0549, que sí está en main**; la propia 0549 dedica un párrafo a este choque: «EL ORDEN PELIGROSO es 0549 y luego la 0526 TAL COMO ESTÁ: la 0526 no PARA» —su md5 es solo un comentario, no una guardia ejecutable—. Un archivo dentro de `supabase/migrations` es algo que se pega: `que_falta_pegar.sql` lo listaría y `dame-el-sql.sh` lo entregaría sin objetar. Está además sin terminar (`@@TABLA@@`, `@@LLEGADA@@`, md5 de producción «PENDIENTE»). |
+| **0545** | archivo recuperado · **ya pegada** | Salió huérfana en la corrida del 30-oct. Aditiva, ver arriba. |
+| **0546** | archivo recuperado · **PENDIENTE DE PEGAR** | Parte de la 0323, que sigue siendo la vigente. |
+| **0547** | archivo recuperado · **PENDIENTE DE PEGAR** | Parte de la 0422, que sigue siendo la vigente. |
+
+Con eso `scripts/hooks/numeracion.sh` dice «numeración sin novedad»: los cinco dejaron de ser huecos sin explicar.
+
+**Las dos que faltan traen su propia guardia, y eso es lo que las hace seguras de pegar.** La 0546 y la 0547 **comprueban el md5 de
+producción dentro del propio SQL** —tal cual, sin comentarios y con `\r\n` de Windows, las tres formas que documenta `CLAUDE.md`— y
+`raise exception` sin aplicar nada si no reconocen el cuerpo. La 0546 además PARA si falta la 0545. Se verificaron las nueve cifras
+contra el cuerpo que el repo tiene hoy: **las nueve coinciden**.
+
+- `fn_revertir_pago` partida (0323): 4 472 car · `ac66bb05…` / sin comentarios `8a28101c…` / CRLF `be0b00a5…`
+- `fn_dias_por_revisar` partida (0422): 1 710 car · `cdd73993…` / sin comentarios `347b9698…` / CRLF `261afa11…`
+- Llegada esperada: `fn_revertir_pago` 5 370 car · `0e9f58be…` · `fn_dias_por_revisar` 2 900 car · `ddf5c2cf…`
+
+**Auditado en un Postgres desechable propio** (contenedor y puerto aparte: el Postgres local es uno solo para los ~10 worktrees y
+`db reset` le destruye el estado a todo el mundo). Lo que quedó probado:
+
+- **Las tres aplican sin error de sintaxis ni dependencia rota**, y los md5 de llegada que mide Postgres coinciden con los del archivo:
+  `fn_revertir_pago` 5 370 car · `0e9f58be…`, `fn_dias_por_revisar` 2 900 car · `ddf5c2cf…`, `fn_reparar_dias_tras_reabrir` 2 396 car ·
+  `77e815f3…`.
+- **Las guardias aceptan el cuerpo de partida correcto** (el de la 0323 y el de la 0422) y la migración entra.
+- **Y bloquean el que no lo es**, que es la mitad que de verdad hay que probar: repegadas sobre un cuerpo distinto, las dos cortan con
+  `0546 · PARA` / `0547 · PARA`, diciendo el md5 y el largo que encontraron, **sin aplicar nada**.
+- **Lo que NO se pudo medir en local, y por qué:** las pruebas 437/438/439. El banco improvisado no reproduce el bootstrap de Supabase
+  (`storage`, `auth`), y de ahí se encadenaron 76 migraciones fallidas; las tres pruebas caen por **deriva del banco**, no por su
+  contenido — primero por `personas.cuenta_de_servicio` (0490) y después por `documentos_firmados` (0157), las dos de migraciones que
+  cayeron en esa cascada. Es el falso rojo que ya costó media hora con la prueba 274. Seguir parcheando el esquema a mano daría un verde
+  que no prueba nada: **la señal fiable es `db-tests` de GitHub Actions**, sobre una base construida desde cero, y es la que el ruleset
+  exige para fusionar. `typecheck` en verde.
+
+**Confirmado contra producción el 2026-10-30.** `migraciones_aplicadas` trae **523** (`acortar_el_hasta_de_educacion_deja_de_fallar`,
+17-oct 02:37 UTC) y **545** (`reabrir_un_grupo_pagado_repara_sus_horas`, 22-oct 07:13 UTC), y **ninguna fila para 526, 546 ni 547**. Se
+pidió `numero` Y `nombre`, no un `array_agg(numero)`: eso es lo que distingue «está la mía» de «está otra con mi número», y es el paso
+que dejó pasar las colisiones de la 0405 y la 0409. Las tres conclusiones de arriba quedan así medidas, no inferidas.
+
+**Y `db-tests` cerró lo que el banco local no pudo:** los 4 checks del PR #620 en verde, sobre una base construida desde cero — o sea
+que las pruebas **437, 438 y 439** pasan. Era la señal que faltaba, y es la que CLAUDE.md llama fiable.
+
+**La 0546 se pegó en producción el 2026-10-30** (confirmado por Felipe; guardia superada). La 0547 se entregó a continuación con
+`dame-el-sql.sh`, comprobada byte por byte contra el archivo y con sus acentos contados desde fuera del script —110 y 110—, porque la
+verificación interna corre bajo el mismo locale y puede declararse conforme sobre texto corrupto.
+
+**Un detalle que conviene saber antes de pegar: estas dos NO son repegables.** Su guardia acepta solo el cuerpo de partida, no el
+propio (la 0549 sí se incluye en su lista blanca; estas no). Si se pega la 0546 y por cualquier duda se repega, **para** — y el mensaje
+dice «Producción tiene otra versión», que se lee como alarma cuando en realidad es la señal de que ya está aplicada. Lo que distingue
+los dos casos es el md5 que imprime: si es el de llegada (`0e9f58be…` / `ddf5c2cf…`), ya estaba puesta y no hay nada que hacer.
+
+**Qué le toca a Felipe.** Pegar la **0546 y después la 0547** (en ese orden; ninguna de las dos reescribe lo que la otra toca, pero la
+0546 necesita la 0545, que ya está). Las dos paran solas si producción tiene otra versión. Y de paso, dos comprobaciones de un minuto
+que cierran lo que esta sesión no pudo ver desde aquí: que `fn_reparar_dias_tras_reabrir` en producción dé **2 396 caracteres, md5
+`77e815f3…`** (confirma que lo que se pegó el 22-oct es este archivo y no otro borrador), y que `migraciones_aplicadas` **no** tenga
+fila con `numero = 526`.
+
+**⚠️ Y el hallazgo que cambió el orden de entrega: pegar la 0547 con la pantalla de hoy habría hecho DESAPARECER esos días de
+Correcciones.** Se vio al comprobar quién consume la función, ya con el SQL entregado y antes de que se pegara.
+
+`admin/correcciones/page.tsx` repartía los días en tres bandas por igualdad literal con los tres motivos que conocía:
+
+```ts
+const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
+const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
+const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");   // ← tercera igualdad
+```
+
+Un día con el motivo nuevo `grupo_pagado_periodo_abierto` no entra en ninguna de las tres, y la pantalla solo pinta esas: **el día se
+cae de la única vista donde se corrige, sin que nada falle**. Y es exactamente el daño contra el que la propia 0547 advierte en su
+encabezado («los días de este incidente PASARÍAN A ESTAR OCULTOS y el aviso desaparecería justo cuando hacía falta») — evitado con
+cuidado en el SQL y reintroducido por la puerta de atrás, porque quien lo consume no conocía el motivo. Hoy esos días caen en
+«sellados» con un texto equivocado; eso se lee mal, pero se lee.
+
+**Arreglado aquí, y como resto en vez de como tercera igualdad**, que es lo que impide que vuelva a pasar con el próximo motivo: dos
+igualdades y todo lo demás a la tercera banda. Más la etiqueta en la Bandeja («Su grupo ya se pagó: las horas están bloqueadas»), que
+es lo que la 0547 dejó listo al devolver `grupo_pagado` y `grupo_pagado_at`. `typecheck` en verde, 2 948 pruebas de interfaz en verde.
+**No verificado:** la pantalla no se miró en el navegador (este clon no tiene `apps/web/.env.local` con las claves de Supabase).
+
+**Y de ahí sale un orden de entrega invertido, a propósito.** La regla de la casa es pegar la migración ANTES de fusionar, y existe para
+que el frontend no llame a una función que no existe. Aquí el riesgo va al revés: el frontend arreglado **funciona igual con la 0422 y
+con la 0547** (si el motivo nuevo no llega, la tercera banda se comporta como antes), mientras el frontend VIEJO con la 0547 pierde
+días. Así que lo seguro es **fusionar primero y pegar la 0547 después**, y queda escrito que esta vez la regla se invirtió midiendo, no
+por descuido. Mientras no haya ningún grupo pagado con su periodo abierto, ningún día trae ese motivo y la ventana no afecta a nadie:
+
+```sql
+select pp.id, pp.fecha_ini, pp.fecha_fin, g.grupo, g.pagado_at
+  from periodos_planilla pp join periodo_grupo_pago g on g.periodo_id = pp.id
+ where g.estado = 'pagado' and pp.estado <> 'pagado';
+```
+
+**Dos hallazgos de paso.**
+
+- **Hay un sexto hueco que ningún freno avisa: la prueba `supabase/tests/420`.** Era la de la 0526 (45 aserciones) y vive en el commit
+  `a23658f8`. `numeracion.sh` solo mira los huecos de `supabase/migrations`, así que un número saltado en `supabase/tests` no dispara
+  nada. Queda escrito acá porque no hay quien lo diga. (El hueco de la prueba 417, de la 0523, sí se llenó: su archivo se recuperó.)
+- **El commit de la 0526 que se venía citando es el borrador.** `355f6f2d` se llama «0526 (SIN PEGAR, **BORRADOR**)»; la versión buena
+  es `a23658f8`, seis minutos después, que es la que trae la prueba 420. Si esa mejora se retoma, se parte de ahí — y con número nuevo.
+
+---
+
+## 2026-10-30 — El repo principal al día, y cada worktree corre SUS guardianes · sin SQL · PR #621 ABIERTO, SIN FUSIONAR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+
+**Lo que pasaba.** `core.hooksPath` apunta a
+`/Users/ArchiCaylo/Developer/cayla-dynamic/scripts/hooks` —el repo PRINCIPAL, no
+el worktree desde el que empujas—. Y ese checkout estaba en `78179af3`, del
+**2026-09-27**: **943 commits detrás de `origin/main`**. O sea que durante cinco
+semanas, todo push de cualquier worktree corrió los hooks del 27 de septiembre.
+
+**Medido, no supuesto.** El `pre-push` que de verdad corría invocaba **ocho**
+guardianes; el de una rama al día invoca **diez**. Faltaban estos dos:
+
+| guardián | desde | qué dejó de vigilar |
+|---|---|---|
+| `receta-suelta.sh` | 2026-10-17 | el paso 2 del [ADR 0004](adr/0004-diseno-unificado.md): que un push no vuelva a escribir a mano una pieza que ya tiene componente. **No frenó un solo push en cinco semanas.** Se midió contra 150 merges, se probó con 36 casos, y se instaló donde nada lo ejecutaba. |
+| `estado-que-miente.sh` | — | que este archivo no mienta. La ironía no fue menor: ese día se corrigió a mano una línea de `estado.md` que había causado un incidente en producción, y el guardián que existe para eso llevaba semanas sin correr. |
+
+Una primera versión de esta entrada dijo «diez contra trece» y listó tres
+guardianes, con `probar-receta-suelta.sh` entre ellos. Era falso por el método:
+se contaron los nombres que APARECEN en el `pre-push`, y ahí también están los
+que solo se mencionan en comentarios (`desplegar.sh`, `donde-vive.sh`) y
+`probar-receta-suelta.sh`, que es la prueba de `receta-suelta.sh` y se corre a
+mano, no en el push. Lo que se cuenta son las líneas que lo INVOCAN:
+`grep -cE '^"\$\(dirname "\$0"\)' scripts/hooks/pre-push`. La sustancia no
+cambia —dos guardianes apagados cinco semanas—; los números sí, y en este
+archivo un número equivocado es justo lo que `estado-que-miente.sh` existe para
+cazar.
+
+**Y un cuarto que no faltaba: corría, pero era el de septiembre.**
+`que-falta-pegar.sh --arregla` regenera `scripts/sql-manual/que_falta_pegar.sql`
+en cada push y lo commitea. Como el script que corría era el del 27-sep,
+**revertía en cada push** el arreglo del 28-sep (commit `9b8f821f`, «La 0393 deja
+de gritar MIRA ARRIBA»). Regenerar el artefacto a mano no servía: el siguiente
+push lo volvía a pisar.
+
+Eso se vio en producción, con la consulta corrida de verdad, y dio **dos
+respuestas equivocadas**:
+
+- **La 0393 salió como «⚠️ SOBRA LA FILA»** cuando está explicada desde el
+  2026-09-28 en `huecos-conocidos.txt`, con su marca `[sobra la fila: …]` y la
+  orden expresa de NO recuperar el archivo. El resumen dijo «⚠️ MIRA ARRIBA» por
+  una alarma ya resuelta — que es cómo se enseña a ignorar las alarmas.
+- **La 0519 salió como «❌ FALTA PEGAR»** cuando está en `no-se-pegan.txt`. El
+  generador viejo no lee ese archivo, así que la marcaba `false`.
+
+**Por qué nadie lo vio.** Los hooks no fallaron: corrieron, imprimieron sus diez
+pasos en verde y dejaron pasar el push. Un guardián ausente no deja hueco visible
+—la salida del push se ve exactamente igual de sana con diez pasos que con
+trece—. Es la misma forma que ya está escrita en CLAUDE.md para el linter: «un
+guardián instalado y apagado».
+
+### Qué se hizo (2026-10-30, con el OK de Felipe)
+
+- **El checkout principal avanzó `78179af3` → `32c67f8b`**, los 943 commits, en
+  avance limpio: no tenía ningún commit propio que no estuviera arriba.
+- **Los dos archivos sin commitear eran trabajo ya superado**, no trabajo
+  perdido: subían `next` de 16.2.12 a 16.3.3 con fecha del 21-sep, y `main` ya
+  trae **16.4.1**. El parche se guardó fuera del repo antes de descartarlo.
+- **Su `pre-push` ya es byte por byte el mismo** que el de una rama al día: los
+  trece guardianes, `receta-suelta.sh` incluido.
+- **`que_falta_pegar.sql` se regeneró y se commiteó** (`36f4c98f`). El arreglo
+  del generador estaba commiteado desde `6b6bf575`; lo que seguía siendo de
+  septiembre era el **archivo generado** en HEAD. Son dos cosas distintas y
+  conviene no confundirlas: arreglar el generador no arregla el artefacto.
+
+### La causa de fondo: resuelta hoy, pero se degrada sola
+
+Poner el principal al día apagaba el incendio y no cerraba el agujero. Lo que se
+midió al cerrarlo es peor de lo que decía la primera versión de esta entrada: no
+es que un hook escrito en un worktree «corra tarde». **No corre, y git no dice
+nada que se distinga de que todo esté bien.**
+
+```
+$ git hook run pre-auto-gc            # un hook que solo existe en el worktree
+error: cannot find a hook named pre-auto-gc
+
+$ git -c core.hooksPath=scripts/hooks hook run pre-auto-gc
+    corrió el hook del worktree: scripts/hooks/pre-auto-gc
+```
+
+Con la ruta **relativa** —la que CLAUDE.md ya prescribía— git la resuelve contra
+la raíz de CADA worktree, y se comprobó que lo hace también empujando desde un
+subdirectorio (`apps/web`, `supabase/migrations`): git se mueve al tope del árbol
+antes de correr los hooks, así que no hay un caso en que la relativa apague todo.
+
+**Felipe decidió relativo el 2026-10-30, y se ejecutó así.** No era una línea en
+un sitio: **`extensions.worktreeConfig` está activo**, y los once worktrees
+tenían cada uno su propio `config.worktree` con la ruta absoluta, que gana sobre
+el `.git/config` compartido. Se puso el compartido en `scripts/hooks` y se
+quitaron los once overrides, para que haya **una sola fuente**. Respaldo de los
+doce archivos de antes, fuera del repo, por si hay que volver.
+
+**Lo que costó, nombrado:** ayer los doce corrían los guardianes de `main`; hoy
+cada uno corre los suyos. Medido justo después del cambio: cuatro worktrees
+invocan 8, cuatro invocan 9 y cuatro invocan 10. Los ocho primeros corren uno o
+dos guardianes menos que ayer **hasta que traigan `main` a su rama**, que es algo
+que necesitan hacer igual antes de fusionar. Ninguno se quedó sin `pre-push`, y
+los doce lo tienen ejecutable —si no lo fuera, git lo saltaría en silencio, y eso
+se comprobó uno por uno.
+
+**Y aquí está lo que hay que saber, porque el arreglo se degrada solo: la app
+escribe la ruta absoluta en el `config.worktree` de cada worktree NUEVO.** Se
+midió en `vigilant-hopper-d48cdd`, creado ese mismo día: nació con
+`hooksPath = /Users/ArchiCaylo/Developer/cayla-dynamic/scripts/hooks`. Así que
+cada sesión nueva vuelve a empezar apuntando al principal, y si el principal se
+congela otra vez, esa sesión hereda el problema entero. No es memoria de nadie:
+es la app, y volverá a pasar.
+
+Se comprueba en una línea, y lo que tiene que decir es `scripts/hooks`:
+
+```bash
+git config --show-origin --get core.hooksPath
+```
+
+Si dice una ruta absoluta y viene de un `config.worktree`, se arregla con
+`git config --worktree --unset core.hooksPath` en ese worktree. Mirarlo para los
+doce de golpe: recorrer `git worktree list --porcelain` preguntándole eso a cada
+uno. **Ojo al escribir ese bucle: la shell de esta Mac es zsh, y ahí `$VAR` sin
+comillas no se parte en palabras como en bash.** Dos mediciones de ese día
+salieron con todo marcado como «falta» por eso, y el síntoma —una columna
+uniformemente mal— se lee como un dato, no como un error de shell.
+
+### El pre-push deja de tirar la evidencia
+
+Lo último del día salió de haber pagado el costo. Las pruebas frenaron dos
+pushes seguidos y pasaron en verde las tres veces que se corrieron a mano: el
+fallo era intermitente —contención en esta Mac, con diez worktrees, un SSD
+externo y la sesión nueva instalando dependencias justo entonces—, y el
+`pre-push` mandaba la salida a `/dev/null`, así que lo único que quedaba era
+«corre `npx pnpm test` para ver cuál». Para cuando lo corres, el motivo ya no
+está. Se resolvió parcheando el hook a mano para ver la salida, o sea haciendo
+lo que el hook debería dar; costó tres pushes y un rato de suposiciones falsas
+—se descartaron `GIT_DIR`, el stdin sin consumir y el typecheck previo, todas
+reproducidas y todas en verde—.
+
+Ahora los dos pasos guardan su salida en
+`$(git rev-parse --git-path salida-del-ultimo-push)` y al bloquear imprimen las
+últimas 25 líneas más la ruta del archivo entero. Ese destino está dentro del
+directorio de git **del worktree**: sobrevive al push, no se pisa con los otros
+diez y no aparece en `git status` —comprobado escribiendo un archivo ahí—.
+
+Probado con los tres casos, que es el estándar de la casa para un freno:
+
+| caso | qué debe pasar | qué pasó |
+|---|---|---|
+| una prueba que falla a propósito | frena **y** muestra el motivo | frenó, e imprimió la aserción, el archivo, la línea, el código y el recuento (1 falló / 2951 pasaron) |
+| todo en verde | pasa, sin ruido | pasó |
+| no se puede escribir el directorio | **corre igual**: un freno no puede frenar por su propia plomería | cae a `/dev/null` y al mensaje de antes |
+
+El tercero no es adorno: la primera versión ponía `DIR=/dev/null` y luego
+`"$DIR/pruebas.log"`, que es una ruta inexistente — el redirect habría fallado y
+el hook habría bloqueado **todos** los pushes sin que nada estuviera mal. Está
+dicho en un comentario junto al código, porque es el error que invita a repetir.
+
+**Lo que queda abierto.** Este cambio vive en la rama; mientras no se fusione a
+`main`, los otros worktrees siguen con el `pre-push` que tira la salida. Y no se
+midió qué se coló en las cinco semanas en que `receta-suelta.sh` no corrió —las recetas escritas a mano que habría frenado— ni
+cuántas veces `estado-que-miente.sh` habría avisado. Se puede contar sin tocar
+nada, corriendo los dos guardianes sobre los merges de ese periodo.
+
+---
+
+## 2026-10-30 — Barrido: qué se puede pegar fuera de orden o a medias sin que nada avise · sin SQL · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+
+**Por qué se hizo.** Al pegar la 0569 saltó su propio freno («falta la columna de
+la 0568»), y eso abrió una pregunta más grande que el caso: la 0569 escondía su
+dependencia dentro de un cuerpo plpgsql, **que Postgres no analiza al crear la
+función**. Se pega sin una queja y revienta al ejecutarla. Eso no es un caso: es
+una clase. Cinco lecturas independientes del camino del SQL a producción, con dos
+refutadores por hallazgo. 14 hallazgos, **4 sobrevivieron**, 10 refutados.
+
+**1 · La línea roja de esta misma página empujaba a repegar dos migraciones que
+revierten cosas vivas.** Ver la entrada del 2026-09-15 (buscar «Siguen sin
+pegar»), ya corregida ahí con la tabla de las siete. En corto: **la 0428 revierte
+`fn_provisiones` 63 migraciones atrás —es planilla— y la 0436 devuelve
+`fn_bandeja_marcar_visto` de once tipos a cinco**, matando el acuse de los avisos
+de educación, de cambio de turno y de conducta. Las otras cinco son inocuas. Y lo
+de la 0436 **ya pasó el 2026-09-15**: está el postmortem en el encabezado de la
+0453, `dame-el-sql.sh` lo avisó en rojo, y se pegó igual.
+
+**2 · El aviso de la 0495 dice lo contrario de lo que el archivo hace.**
+`supabase/migrations/0495_*.sql:100-103` hace
+`raise notice '0495: ya tiene el filtro (md5 %). No se toca nada.'; return;`
+dentro de un bloque `do $freno$`. El `return` termina el BLOQUE, no el archivo: el
+`create or replace function fn_planilla_calcular_nucleo` de la línea 111 está
+fuera y corre siempre. Y la rama que imprime ese aviso es la que se cumple hoy de
+forma garantizada, porque todas las versiones desde la 0495 llevan dentro la
+cadena `cuenta_de_servicio`.
+
+Lo grave no es el `return` —la 0491 tiene la misma forma y su aviso es honesto:
+dice «no se comprueban los md5 de partida», que es exactamente lo que se salta—.
+Lo grave es que el mensaje de la 0495 **afirma que no toca nada justo antes de
+reescribir el núcleo de la planilla**, y llega desde el SQL Editor, que CLAUDE.md
+nombra como «la única confirmación». Repegarla revertiría la 0504 (practicantes a
+FOLA), la 0524, la 0537 y la 0555.
+
+**3 · Ningún freno de la casa mira el orden de pegado HACIA ATRÁS.**
+`dame-el-sql.sh` sí mira hacia adelante —su paso 4 avisa cuando pegas algo que una
+migración posterior ya superó— pero la pregunta inversa, «esta migración depende de
+una ANTERIOR que todavía no está pegada», no la hace nadie, y el script no podría:
+en sus 291 líneas no hay un solo `psql`, porque la clave de servicio está rotada a
+propósito. `que_falta_pegar.sql` ordena por número, lo que da el orden correcto por
+convención, pero no declara ninguna dependencia: dice «faltan la 566…569», no «la
+569 lee una columna de la 568». Hoy lo único que lo caza es el bloque que la propia
+0569 se escribió, y eso es memoria.
+
+**4 · La 0562 es la única del rango 0500–0569 que no se puede repegar.** Su
+`create index idx_pago_persona_eventos_estado` (línea 108) va sin `if not exists` y
+sin un `drop index if exists` delante. Falla RUIDOSO, así que nadie la daría por
+aplicada; pero repegar es el movimiento natural cuando una pegada a mano se corta,
+y detrás de esa línea quedan el RLS, el `revoke` a `anon`, el trigger candado y las
+tres funciones que son la única puerta de escritura de esa tabla.
+
+**Lo que se arregló hoy:** la línea roja de la entrada del 2026-09-15, con la
+comprobación que pedía ya corrida. **Lo que NO se tocó:** nada de los puntos 2, 3
+y 4 — el 2 y el 4 están en migraciones ya pegadas (el archivo documenta lo que se
+pegó y no se reescribe), y el 3 es una decisión de Felipe, porque
+`scripts/dame-el-sql.sh:182-184` dice «Solo AVISA, no bloquea» a propósito.
+
+**Lo que falta preguntar a producción:** si `migraciones_aplicadas` tiene las filas
+428 y 436. Si no las tiene, `que_falta_pegar.sql` las está pidiendo activamente
+—su columna `nunca` es `false` para las siete, y de todo el archivo solo una fila
+la tiene en `true`—, o sea que la herramienta canónica también empuja al
+accidente, no solo aquella línea.
+
+---
+
+## 2026-10-30 — La escalera disciplinaria llega hasta el despido · migraciones 0566 a 0569 · **LAS CUATRO PEGADAS (2026-10-30)** · **+ la 0570 SIN PEGAR** · PR #621 ABIERTO, SIN FUSIONAR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+
+### La 0568 dejó seis faltas graves sin nombre, y lo cazó el CI (migración 0570)
+
+`db-tests` del PR #621 se puso en rojo con **cinco aserciones en tres pruebas que
+ya existían**, y `main` llevaba cinco corridas seguidas en verde: no era deuda
+vieja, lo rompieron estas cuatro migraciones. Cuatro de las cinco eran pruebas
+que quedaron obsoletas a propósito. **Una era un defecto real, y está en
+producción desde hoy.**
+
+| aserción | veredicto | por qué |
+|---|---|---|
+| 404 · «los 20 literales» | prueba vieja | filtraba por `rit_version` cuando su título habla de dos numerales. Hasta la 0568 daba lo mismo; el 53.3 rompió esa equivalencia. Ahora filtra por numeral, que es lo que siempre prometió. |
+| 404 · «17 se registran a mano» | prueba vieja | lo mismo: 7 del 53.1 + 10 del 53.2 siguen siendo 17; los 4 nuevos del 53.3 los cuenta la 458. |
+| 404 · «NIVEL · verbal y amonestación» | prueba vieja | la 0568 abrió el nivel a `imputacion` y reescribió el mensaje. El comportamiento no cambió: `suspension` se sigue rechazando, ahora porque **se eleva**, no porque «la decide DO». |
+| 405 · «CANDADO · ni lo firma» | prueba vieja | el descargo previo de la 0566 se interpone ANTES del candado que esa aserción medía, así que `fn_expediente_firmar` cortaba 50 líneas antes de llegar al trigger de la 0511. Se sembró el trámite del art. 55.2 primero, como ya hace la 205. **No** se relajó el patrón a `'%'`: eso habría convertido una aserción sobre ese candado en una aserción sobre cualquier error. |
+| 408 · «ninguna falta queda sin nombre corto» | **defecto real** | la 0568 metió seis filas a `faltas_catalogo` **sin su insert hermano en `faltas_rotulos`**. Lo arregla la **0570**. |
+
+**Por qué el defecto pasó inadvertido, que es la parte que enseña.** Ni la 0568,
+ni su prueba 458, ni el ADR mencionan la palabra «rótulo» una sola vez: no fue
+una decisión, fue un olvido. La decisión de que se nombran TODAS las faltas
+—incluso las que nadie elige a mano, «para cuando aparecen en el panel de un
+caso»— vive en la 0514, y la aserción que la defiende vive en **otra prueba**, la
+408. Una migración se revisa con sus propias pruebas; la invariante que rompió
+estaba en el archivo de al lado.
+
+Y **nada revienta ni sale en blanco**: los tres lectores degradan solos, que es
+justo lo que lo hizo invisible. Lo que se pierde es el nombre de la acusación en
+la cabecera del documento (`panel-caso.tsx`) y en la bandeja de DO
+(`bandeja-fuentes.ts`) — o sea en el papel más grave que existe, la imputación de
+cargos. Quien revisa la bandeja lee «53.3 a)» y ya no sabe de qué se acusa a
+alguien sin abrir el caso.
+
+**Y un hueco aparte, que la 0570 NO arregla porque es código:**
+`faltasElegibles` (`apps/web/lib/admin/conducta.ts`) reparte el catálogo en dos
+cubos, `leve` y `significativa`, y `registrar-falta.tsx` solo dibuja esos dos.
+Una falta con `gravedad = 'grave'` se cae de los dos y no se dibuja ningún chip.
+Como esa pantalla es la única que llama a `fn_expediente_crear_conducta`, **el
+nivel `imputacion` que la 0568 habilitó en la base no tiene puerta en la
+interfaz**. Va con las pantallas que faltan, y ninguna pgTAP lo cubre.
+
+**Qué es.** Felipe pidió «que cada líder pueda emitir memorándums para así escalar medida disciplinaria de despido de ser necesario».
+Al investigarlo salió que la mitad de abajo ya estaba construida: desde el 6 de octubre (0510–0516) la líder emite memos, cita el literal
+exacto del art. 53 del RIT, firma y entrega. Lo que faltaba era la mitad de ARRIBA de la escala del art. 54.1 —suspensión y despido— y dos
+defectos que la invalidaban. El diseño, con las seis decisiones en formato DECIDÍ / DESCARTÉ / SE ROMPE SI, está en
+[`docs/adr/0005-escalera-disciplinaria-completa.md`](adr/0005-escalera-disciplinaria-completa.md).
+
+**Lo que había que arreglar antes de construir nada.** `configuracion.disciplina_descargo_previo` estaba en `false` desde el 17-08-2026
+(0267). El art. 55.2 del RIT que CAYLA entregó firmado dice que sin descargo previo la sanción «no puede computarse como antecedente ni
+servir de escalón para los efectos del literal h) del artículo 25 de la LPCL»: cada memo documentaba el hecho y no era peldaño de nada.
+Construir la suspensión y el despido encima era construir una escalera que el art. 25 h) no reconoce. Por eso la **0566** va primera.
+Medido antes de pegarla: **0 borradores** quedaban a la espera, así que no hubo transición que gestionar.
+
+**Las cuatro piezas.**
+- **0566** enciende el descargo previo. No reescribe ninguna función. *Hallazgo:* encenderlo no agrega un paso antes de firmar, agrega
+  **tres** —comunicar cargos, esperar el plazo, y **valorar el descargo por escrito aunque no se presente ninguno**—. La pantalla ya
+  dibujaba las cuatro etapas desde la 0267 (`etapaDelBorrador`), así que no hubo interfaz que cambiar.
+- **0567** — la líder PROPONE la suspensión (`fn_conducta_proponer_suspension`, con su candado) y DO la IMPONE
+  (`fn_expediente_elevar_a_suspension`). El mismo documento sube de nivel en vez de crearse otro: la suspensión no castiga otra vez el
+  hecho ya amonestado (non bis in idem, 52.5), castiga el hecho NUEVO que sube de peldaño por el antecedente (56.4). No reescribe ninguna
+  función: llama a `fn_expediente_puede_actuar` (competencia 54.4 c), `fn_expediente_set_suspension` (tope de 3 días, 54.5) y
+  `fn_conducta_antecedentes`. `fn_expediente_firmar` queda intacta.
+- **0568** — la falta grave llega hasta el despido. *Hallazgo grande:* **hoy no existe ninguna forma de emitir una carta de despido.**
+  Los dos motores llegan a la imputación y paran con un mensaje que lo dice —«el despido se genera tras evaluar los descargos (paso manual
+  de Gerencia)»—, y ese paso manual era el final del camino: el expediente se armaba completo y la decisión salía fuera del sistema, sin
+  que la causa de la carta quedara atada a la de la imputación. Cinco piezas: los 6 literales del 53.3 al catálogo (con e) asistencia y
+  f) hostigamiento sexual marcados como no registrables a mano, cada uno por su razón); `fn_expediente_crear_conducta` admite el nivel
+  `imputacion`, cita el literal, exige los 6 días NATURALES del art. 57.2 y comprueba el 60.5 —freno que en esta rama no tenía nadie—;
+  `fn_expediente_crear_despido` arma la carta A PARTIR de su imputación, sin recibir causa (la hereda, así que el 57.7 no se puede
+  romper); un trigger impide cambiarla por UPDATE directo (cuarta instancia del molde de la casa, tras 0261, 0295 y 0342); y dos
+  restricciones de la 0510 que guardaban la premisa «el 53.3 no está en el catálogo» se ponen al día.
+- **0569** — la entrega arranca el plazo del art. 31 (que corre desde la RECEPCIÓN) y anota en el expediente que un acta interna no
+  sustituye la notificación notarial del art. 57.8. Decisión de Felipe: **avisar, no bloquear** (mi recomendación había sido bloquear; el
+  costo queda escrito en el ADR). El aviso llega también ANTES del clic, en el formulario: ahí había un texto FALSO desde meses, que
+  afirmaba que el acta «produce los mismos efectos que el cargo firmado (num. 55.4)» también en imputación y despido.
+
+**Lo que cazaron las pruebas antes de pegar nada.** `chk_conducta_completa` obligaba a que una imputación por conducta tuviera la falta en
+NULL, y el índice único del 52.5 hacía chocar la carta de despido con su propia imputación (hereda persona, falta y fecha a propósito).
+Ninguna estaba mal escrita: las dos eran premisas correctas que caducaron el día que el 53.3 entró al catálogo. El índice se resolvió
+diciendo a qué se refiere el 52.5 —protege de SANCIONAR dos veces, y la escala del 54.1 son tres peldaños— en vez de relajarlo.
+
+**Y un defecto de mi propia 0569, medido:** pegarla antes de la 0568 NO falla. Postgres no analiza el cuerpo de una función plpgsql al
+crearla, así que se pega sin una queja y revienta la primera vez que alguien ENTREGA un documento firmado, con la persona delante. La
+migración abre ahora con un bloque que comprueba la columna y aborta; el encabezado afirmaba lo contrario antes de medirlo.
+
+**Probado.** Banco de Postgres nativo desechable con el esquema real de `main` (565 migraciones) y control A/B en las cuatro:
+**456** 5/5 (4 de 5 en rojo sin la 0566) · **457** 9/9 (9/9 en rojo sin la 0567) · **458** 17/17, 11 de ellas casos que DEBEN bloquear
+(0/17 sin la 0568) · **459** 9/9, y el control deja en rojo las 4 del comportamiento nuevo y en VERDE las 5 que vigilan que no se rompió
+lo anterior —entre ellas la que más importa: que la imputación de los motores de asistencia, que no trae plazo concedido, se entregue
+igual que siempre sin reloj inventado—. Vitest 2 951 de 2 951 y typecheck en verde.
+De paso se arregló un defecto del banco que llevaba semanas dando falsos rojos: su `auth.uid()` leía `request.jwt.claim.sub` mientras las
+pruebas del repo ponen `request.jwt.claims` como JSON. La prueba 205 pasó de 0/9 a 9/9.
+
+**md5 pedidos a producción el 2026-10-30, los tres idénticos al repositorio y sin un solo `\r`:** `fn_expediente_crear_conducta`
+3359 / `a7cdf75a…`, `fn_expediente_entregar` 1693 / `75367baa…`, `fn_conducta_antecedentes` 3021 / `d7e5a98c…`.
+
+**Estado del pegado. LAS CUATRO PEGADAS el 2026-10-30.** La 0566 y la 0567 primero (registradas con su nombre correcto y sin número
+robado; `disciplina_descargo_previo` quedó en `true`), y después la 0568 y la 0569 en ese orden. La 0569 se intentó pegar antes que la
+0568 y **su propio bloque de precondición la paró** —«Falta la columna expediente_disciplinario.plazo_descargo_dias, que agrega la
+migración 0568»—, que es exactamente para lo que se escribió; al segundo intento, con la 0568 ya puesta, entró con «Success. No rows
+returned». El texto de las dos se verificó byte por byte contra el repositorio (`dame-el-sql.sh` + `diff <(pbpaste) …` → idéntico), así
+que los acentos están intactos. **Pendiente de Felipe:** correr la consulta de comprobación (se espera 6 · 4 · 1 · 6781 · 1 · 1 · 1 ·
+4172 · true · true). `versiones_crear_conducta` = 1 es la que más importa: un 2 significa que la firma vieja de siete argumentos
+sobrevivió al `drop` y la pantalla de registrar una falta contestará «function is not unique».
+Nada fusionado y **no hay PR**.
+
+**Pendiente.** Las pantallas: el botón de «pedir suspensión» para la líder, la acción de elevar para DO, y el panel de antecedentes
+acotado a conducta/12 meses. Van con la regeneración de `types.ts`, que todavía no tiene las cuatro funciones nuevas. Y dos defectos
+medidos que esta entrega esquiva y no arregla, cada uno con su propia entrega: `fn_expediente_resolver` no comprueba que el plazo de
+descargo haya vencido (hoy se puede archivar o decidir el despido el mismo día de la entrega, sin haber escuchado), y las imputaciones
+de los dos motores de asistencia —casi todas las que existen— se entregan sin que corra el plazo del art. 31; ponerles reloj exige
+tocar los motores y el plazo no se adivina, se concede por escrito (art. 57.2).
+
+---
+
+## 2026-10-29 — Liquidaciones lista lo que se debe de periodos anteriores · migración 0565 · **SQL PEGADO EN PRODUCCIÓN (2026-10-29)** · FUSIONADO (PR #618) · rama `claude/liquidacion-periodos-sin-pagar`
+
+**Qué es.** Emily Rico y Milagritos Zarate cesaron el 29/10, que ya es el periodo NUEVO: su liquidación calculaba un día y el sueldo de
+28/09–28/10 —planilla todavía abierta, que sí las incluye— no aparecía en ningún lado de la pantalla. Nada se dejaba de pagar, pero
+quien mira Liquidaciones veía S/ 145 y podía creer que era todo. Felipe pidió ver «todo lo que no se pagó, desglosado por periodo».
+
+**Qué hace.** `fn_liquidacion_periodos_anteriores(persona, fecha_cese)` (0565, **solo lectura**, función nueva: no hay md5 de partida)
+lista los periodos COMPLETOS anteriores al del cese en los que trabajó y su grupo aún no cobró (`fn_fecha_en_periodo_pagado`), con el
+monto que calcula `fn_planilla_calcular`. La pantalla los pinta debajo del desglose, con el total entre planilla y liquidación.
+**NO se suman al total de la liquidación**: ese dinero sale por la planilla, y la planilla no sabe descontar lo que una liquidación pagó
+de un periodo anterior al del cese (la 0243/0244 solo lo hace con el del cese). Felipe eligió esto (opción A) el 2026-10-29 sobre
+«que la liquidación pague todo», que habría exigido reescribir `fn_planilla_calcular_nucleo`.
+
+**Medido en producción (solo lectura).** Entre las cesadas con liquidación sin pagar, el criterio lista exactamente dos filas —Emily
+y Milagritos, 28/09–28/10, abierto— y ninguna otra. **Probado.** Clon del Postgres local con todo hasta la 0565 (salvo la 0551, ajena):
+prueba 455, 16/16; con la condición de «pagado» quitada falla la 9, y con el periodo del cese incluido falla la 1. Vitest 2 942 de 2 942
+y typecheck en verde. **No verificado:** la pantalla no se miró en el navegador (sin pila local ni sesión de administrador).
+Si la 0565 no está pegada, el desglose avisa «no se pudo comprobar» en vez de callar.
+
+**PEGADA en producción el 2026-10-29**, ya fusionado el PR (se fusionó SIN la migración pegada y por unos minutos la pantalla nueva dijo
+«no se pudo comprobar»; el aviso funcionó como estaba diseñado y no se rompió nada). Guardia superada, comprobación `1 · true · false · 1`,
+cuerpo idéntico al de `main` (1 619 caracteres, md5 `bfe63f7f…`). Renumerada de 0564 a 0565 porque el PR #617 reclamó la 0564 primero.
+**Pendiente de Felipe:** mirar la pantalla con las dos personas del caso: debe verse el recuadro «También se le debe de periodos anteriores».
+
+## 2026-10-29 — La baja tras una reactivación ni se bloquea ni pierde su último día · migración 0563 · **SQL PEGADO EN PRODUCCIÓN (2026-10-29)** · FUSIONADO (PR #615) · rama `claude/baja-prueba-liquidacion-6c5f3e`
+
+**Qué pasó.** Robert Cabrera y Emily Rico (preselección) se dieron de baja, se reactivaron a las 23:01 y se repitió la baja. A Robert
+(ingreso 19/10, última jornada 28/10) le quedó cese el 19/10 y su liquidación pagaba un solo día (S/ 63.72); a los dos la baja se
+negaba por el horario que dejó la reactivación. Se arreglaron a mano en producción esa noche (tramos retirados, cese de Robert a 28/10,
+con rastro en `correcciones_auditoria`). La 0563 es el arreglo general.
+
+**Dos causas, dos funciones.**
+- `fn_prueba_cerrar` (0536) buscaba el último día trabajado desde el inicio de la prueba ABIERTA; al reactivar, el trigger abre otra con
+  inicio HOY y las jornadas anteriores dejaban de verse, así que caía al día de ingreso. Ahora busca desde el ingreso.
+- `fn_cese_aplicar` (0535) se negaba a cesar con un tramo de salario u horario posterior al último día, que es justo el que deja
+  `fn_reactivar_persona` (0327, que no se toca: devolver el sueldo desde mañana es a propósito, 0209). Ahora retira SOLO los tramos
+  que esa reactivación creó (los reconoce su constancia en `correcciones_auditoria`), si nadie marcó desde ese día y no caen en un periodo
+  pagado; los deja escritos, y lleva el tramo que continuaban al nuevo último día. Un salario futuro cargado a propósito sigue frenando.
+
+**Probado.** Clon del Postgres local con todas las migraciones hasta la 0562 (salvo la 0551, ajena): prueba 453, 26/26. Control con las
+funciones viejas: fallan 13 de 26, los dos casos reales. Repegable. **md5 de producción medido el 2026-10-29** (coinciden con 0535/0536):
+`fn_prueba_cerrar` 3 284 · `b8161af7…`, `fn_cese_aplicar` 3 993 · `442ac680…`; la guardia de la migración se niega sobre otra versión.
+**PEGADA en producción el 2026-10-29** (guardia superada; comprobación `true · true · 1`; permisos intactos). md5 de llegada, medido en
+producción y igual al del archivo: `fn_prueba_cerrar` 3 306 · `24f3740b…`, `fn_cese_aplicar` 7 878 · `23251c75…`. Robert y Emily ya se
+habían arreglado a mano esa noche; esto evita que vuelva a pasar. No hay código que fusionar: solo SQL, prueba y este archivo.
+
+## 2026-10-29 — Liquidaciones avisa cuando falta el periodo del cese · sin SQL · rama `claude/liquidacion-sin-periodo`
+
+**Qué pasó.** Emily Rico y Milagritos Zárate cesaron el 29/10 con el periodo 28/09–28/10 todavía abierto: ningún periodo contenía el 29/10.
+`fn_liquidacion` (0164) busca el periodo QUE CONTIENE el cese y, si no hay, no inventa uno: el sueldo del periodo sale en 0. La lista de
+pendientes solo mira el total, así que las dos aparecían en «Sin nada que cobrar» —donde se podía marcar pagada con S/ 0.00— teniendo un día
+trabajado por pagar. Lo que arregla el dato es crear el periodo siguiente en Planilla («+ Nuevo periodo»).
+
+**Qué cambia.** La pantalla lee `fn_periodos` y, a quien no pagó y cesó en un día sin periodo, lo saca de «Sin nada que cobrar» y lo nombra en un
+aviso rojo arriba, con el enlace a Planilla. Si no se pueden leer los periodos, no avisa (nada de falsa alarma). La regla es
+`apps/web/lib/admin/liquidacion-periodo.ts`, con `tests/liquidacion-periodo.test.ts` (6 casos, incluido el real). **No toca SQL ni cálculo de pago.**
+**No verificado:** la pantalla no se miró en el navegador (hace falta sesión de administrador).
+
+## 2026-10-27 — «Prueba» vuelve como vínculo y se llama «preselección» · migraciones 0558 a 0561 · las cuatro PEGADAS 2026-10-27 · FUSIONADO (PR #608)
+
+**Qué es.** Felipe lo decidió el 2026-10-27, un día después de la reforma de abajo: «volvamos a ponerlo como prueba; de momento
+mantengámoslo así como era antes, toda la función. Antes, para los nuevos colaboradores, se ponía de prueba y no se les pagaba EsSalud:
+volvamos a eso. Todo el apartado de prueba se llamará preselección.» Y después: la preselección es **solo sueldo y movilidad asistida**
+—sin seguro, sin beneficios— y **en Seguros no tiene nada, ni póliza ni nada**. Esto **deshace** lo de las dos secciones de abajo (0553,
+0556, 0557 y las pantallas de esos PR) y deja el vínculo `prueba` como estaba el 25/10, con otro nombre en pantalla.
+
+- **El nombre.** En pantalla es **«preselección»** (una palabra, sin tilde de más): etiqueta «Preselección · 2 de 3», selector de
+  vínculo de Equipo, pestaña de Planilla, módulo de la Bandeja, cinta del terminal, avisos de Turnos y de Liquidaciones, Contratos,
+  Parámetros, ayuda de Seguros, novedades nuevas y la constancia de consentimiento del DNI. **El valor interno sigue siendo `prueba`**
+  (CHECK de la 0322, columna, RPC, `pruebas`, `fn_pruebas_*`): se renombra lo que se ve, no lo que se guarda — el mismo trato que
+  `supervisor_sede` («líder de equipo»). **No se renombra** el periodo de prueba legal que va dentro de un contrato (art. 10 del
+  D.S. 003-97-TR; la cláusula TERCERA del contrato) ni el motivo de cese `fin_periodo_prueba` («No pasó el periodo de prueba»).
+- **El código** vuelve a su estado previo a la 0553 (selector con «Preselección», aviso de feriado por vínculo + días trabajados,
+  «Días de preselección» en Parámetros, cláusula del contrato sin plazo pactado, etiqueta sin fecha de corte). Dos retoques que NO son
+  «como antes», a propósito: los textos de «se retiró» (Bandeja, panel de la preselección, Contratos, Equipo) dicen que **sí se paga
+  lo trabajado** —desde la 0555 la planilla lo paga, y un cartel que dijera lo contrario mandaría a decidir con un dato falso—; y la
+  novedad nueva explica el cambio en vez de borrar las del 26/10 (una novedad publicada no se edita).
+- **0558 · PEGADA por Felipe el 2026-10-27; no movió a nadie.** Buscaba a quien la 0554 pasó a planilla; Robert Cabrera y Emily Rico
+  **ya no estaban en planilla sino en `rxh`** (medido en producción), así que no los reconoció. Quedó registrada y es inofensiva.
+  **Producción cambia sola:** Felipe los pasó a mano por practicante → RxH → practicante el 26 y 27/10 (último cambio 18:30), y tienen una
+  asignación manual de FOLA en Seguros. Por eso la 0561 **tampoco los movió**: busca en `planilla` y `rxh`.
+- **0561 · PEGADA el 2026-10-27 (`{planilla} · null · 0 · 561`); hoy solo cambió Seguros. MUEVE PLATA cuando alguien coincide.** Lo que la 0558 quiso hacer, buscando en `planilla` **y** en `rxh`: activas, no cuenta de servicio, prueba
+  cerrada `contratada` el 26/10 y **sin contrato firmado**, a lo sumo dos (si hay más, se niega). Vuelven a `prueba` con su
+  preselección abierta desde su ingreso. **Y en Seguros** quita `prueba` de `seguros_tipos.essalud.aplica_a_vinculos`: la preselección
+  queda «Sin seguro (no aplica)» como los honorarios, sin póliza ni «confirmar el alta en EsSalud». Va primero Seguros y después las
+  personas, para que RxH → preselección no deje un «alta en EsSalud» pendiente.
+  **La plata, medida con las mismas horas en un clon (RxH → preselección):** lo trabajado no cambia; **se SUMA la movilidad asistida**
+  —S/ 10 por día asistido en provincia, S/ 12 en Lima (`parametros_laborales`, 0142), el día que no asistió no cuenta— y **se
+  descuenta pensión** (13 % con ONP); EsSalud y asignación familiar siguen en cero. Con 6 días de 6,5 h y S/ 10: S/ 246,00 → S/ 274,02.
+  Quien siempre fue planilla cobra exactamente igual. Sin la declaración de ruta firmada (0159, si se exige) la movilidad no se suma.
+  **El periodo 29/09–28/10 cierra mañana: conviene pegarla antes del cierre.**
+- **0559 · PEGADA el 2026-10-27 (`true · 0 · true · 5 · 559`; el plazo vigente es 5 días, no 3). Sin plata.** Vuelve la fila `prueba_dias` («Días de preselección antes del contrato»), se retiran las filas de Parámetros que
+  agregaron la 0553 y la 0557 (se borran si nadie las cambió; si tienen historial quedan fijas y «(retirado)») y se sueltan
+  `fn_feriado_aviso_dias()` y `fn_prueba_etiqueta_desde()`. **No** se suelta `personas.prueba_pactada_dias` (0556): guarda datos y nada la
+  usa; queda inerte.
+- **0560 · PEGADA el 2026-10-27 (`true · true · 560`). Sin plata.** Reescribe `fn_avisos_vinculo()` (0169) solo en sus textos: «preselección» en vez de «prueba». Tiene guardia de
+  md5 (1 223 caracteres, `036e01d3…`, o su variante CRLF): si producción tiene otra versión, se NIEGA y hay que pedirle el md5.
+- **Probado.** `tsc` limpio; vitest 2 924 de 2 924. En un Postgres clon con todas las migraciones hasta la 0560 más la 0561: pgTAP
+  **450 → 18/18**, **451 → 10/10**, **452 → 24/24**, **444 → 55/55** (restaurada a como estaba antes de la 0553, con el nombre nuevo),
+  **422 → 312/312** y **423 → 116/116** (Seguros, adaptadas: «prueba» ya no cae en EsSalud), y sin cambios 429, 430, 432, 446, 447, 448,
+  134, 221, 297, 302. Puestas en rojo a propósito (450 sin la condición del contrato y sin el tope de dos; 451 con una función sin
+  soltar; 452 sin el tope de dos y buscando solo en planilla). Se borraron las pruebas 445 y 449: probaban justo lo que la 0559 retira.
+  Las migraciones se ensayaron en `begin … rollback` y se repegaron dos veces: no hacen nada la segunda vez.
+- **No verificado:** las pantallas no se miraron en el navegador (sin pila local ni sesión de administrador en esta sesión). El texto
+  más largo de «Preselección · 2 de 3» puede apretar la píldora del terminal en una tarjeta angosta: mirarlo en la Mac mini.
+
+**Pendiente de Felipe.**
+0. **Pasar a Robert y Emily a «Preselección»** (Equipo → Tipo de vínculo) y, en Seguros, «Volver al automático» para quitarles la asignación
+   manual de FOLA. Por Equipo la preselección cuenta desde HOY, no desde su ingreso (19 y 21/10); si quiere desde el ingreso, va en SQL.
+   Hoy no tienen régimen de pensión cargado: como preselección cobrarían movilidad (S/ 10 provincia, S/ 12 Lima, por día asistido) y no se
+   les descontaría pensión hasta cargarlo.
+1. Decidir si «se retiró en preselección» sigue pagándose (0555, que **no** se tocó): Mariel Sarmiento y Noelia Ibarcena entran en
+   la planilla de este periodo. Revertirlo es otra migración que reescribe `fn_planilla_calcular_nucleo` y exige el md5 de producción.
+2. Quien se dio de alta como Planilla **después** del 26/10 (por el alta nueva) sigue en Planilla: si debían entrar por preselección,
+   se cambia desde Equipo («Tipo de vínculo»). Ojo: cambiar planilla → preselección saca a esa persona de EsSalud en Seguros y deja el
+   pendiente «baja de EsSalud» para el contador.
+3. Los textos que escribe la base y esta rama NO cambia: los errores de `fn_prueba_cerrar` y `fn_prueba_cargar_dni` («No puedes decidir
+   sobre la prueba…») y la frase «al registrar la prueba» de la constancia de DNI ya guardada. Reescribirlas toca funciones largas.
+4. `personas.en_planilla` (columna generada: planilla **y** prueba) sigue igual porque la planilla la necesita: el atajo «las de
+   planilla» del formulario de una póliza colectiva y la consulta `quienes_van_al_seguro_de_vida_ley.sql` todavía incluyen a la
+   preselección; quien registre una póliza la ve en la lista y la desmarca.
+
+---
+
+## 2026-10-26 — El periodo de prueba se pacta por persona y la etiqueta tiene fecha de corte (segunda rebanada) · migraciones 0556 y 0557 · las dos PEGADAS 2026-10-26 · FUSIONADA (PR #607) · ⚠ **REVERTIDA el 2026-10-27**: ver arriba (0559 retira la fecha de corte; el pacto por persona queda inerte)
 
 **Qué es.** Tres cosas que Felipe pidió el 2026-10-26, después de la primera rebanada:
 1. **Se puede dar un periodo de prueba menor que los 3 meses** (tres meses es el periodo ordinario de la ley, no un mínimo; ampliarlo
@@ -61,7 +660,7 @@ a correr la consulta de «horas sin salario» hasta que salga vacía.
 
 ---
 
-## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553, 0554 y 0555 (las tres PEGADAS 2026-10-26) · FUSIONADO (PR #606)
+## 2026-10-26 — «De prueba» deja de ser un vínculo: es el periodo de prueba del contrato (primera rebanada) · migraciones 0553, 0554 y 0555 (las tres PEGADAS 2026-10-26) · FUSIONADO (PR #606) · ⚠ **REVERTIDA el 2026-10-27** (0558–0560, ver arriba); la **0555 NO**: quien se retira en preselección sigue cobrando lo trabajado
 
 **Qué es.** Felipe lo dijo así (2026-10-26): tener a alguien «de prueba», o que empiece a trabajar, sin contrato y sin alta es
 prácticamente ilegal. «Prueba» (tres días trabajados sin contrato, y «si pasa, recién ahí se hace el contrato») no existe en la ley
@@ -3515,7 +4114,13 @@ a pagarlo** — dos pasos, en ese orden.
 
 ---
 
-## 2026-09-20 — Un feriado sin turnos ya no grita en rojo: el Dashboard pregunta «¿abre hoy la sede?» · SIN SQL · SIN FUSIONAR
+## 2026-09-20 — Un feriado sin turnos ya no grita en rojo: el Dashboard pregunta «¿abre hoy la sede?» · SIN SQL · FUSIONADA (#453 → rescatada por #454)
+
+> **Corregido el 2026-09-25 al fusionar `main` en el PR #449:** decía «SIN
+> FUSIONAR». El #453 se fusionó el **21-set 09:36 de Lima**, pero sobre la rama
+> del #451 y no sobre `main`: quedó varado hasta que el **#454** lo llevó, siete
+> minutos después. O sea que el aviso de abajo —«se fusiona DESPUÉS de #451»— se
+> cumplió, y aun así hizo falta un PR de rescate. Está publicado.
 
 **No hay SQL: solo pantalla. Apilado sobre el PR #451** (la entrada de abajo): su rama es la base de
 este PR, así que **se fusiona DESPUÉS de #451**. Fusionar es publicar. **El próximo feriado es el
@@ -3581,7 +4186,12 @@ propósito hace caer alguna prueba.
 
 ---
 
-## 2026-09-20 — Un día en que la sede no tiene turnos ya no se lee como una falla · SIN SQL · SIN FUSIONAR
+## 2026-09-20 — Un día en que la sede no tiene turnos ya no se lee como una falla · SIN SQL · FUSIONADA (#451)
+
+> **Corregido el 2026-09-25 al fusionar `main` en el PR #449:** decía «SIN
+> FUSIONAR». El #451 se fusionó el **20-set 21:12 de Lima** y su rama NO se
+> borró — por eso el #452 y el #453, apilados encima, siguieron apuntando a ella
+> y su código no llegó a `main` hasta el #454.
 
 **No hay SQL: solo pantalla.** Fusionar es publicar (`main` se despliega sola). Nació de un
 domingo: el Dashboard decía «Sin meta configurada» de tres sedes que no abren, y «Cobertura
@@ -3699,7 +4309,14 @@ Una lista armada solo con esa tabla se equivocó en casi todo.
 
 ---
 
-## 2026-09-19 — Incidencias: el lote pide confirmación y dirección sale del exceso · SIN SQL · SIN FUSIONAR
+## 2026-09-19 — Incidencias: el lote pide confirmación y dirección sale del exceso · SIN SQL · FUSIONADA (#447)
+
+> **Corregido el 2026-09-19 19:42:** decía «SIN FUSIONAR». Se fusionó a las
+> **23:33** del 19-set —y fusionar es publicar—, así que esto ya está en
+> producción. **Sigue sin verse en pantalla:** lo de abajo («conviene mirar la
+> confirmación del lote y la columna de casillas a 375 px, también en modo
+> oscuro, antes de fusionar») se quedó sin hacer y ahora se hace sobre
+> producción, no antes de publicar.
 
 **No hay SQL: solo pantalla.** Fusionar es publicar (`main` se despliega sola). Cierra lo
 que la auditoría de `/admin/incidencias` del 2026-09-19 dejó decidido y que `main` aún no
@@ -3800,7 +4417,35 @@ resto de `/mio`) conviven en estas pantallas: el repo ya estaba dividido.
 
 ---
 
-## 2026-09-19 — Anuncios cuenta qué mejora en el sistema, y «Lo mío» las muestra · MIGRACIÓN 0480 PEGADA Y VERIFICADA · SIN FUSIONAR
+## 2026-09-19 — La Tienda de Lima sabe su ciudad (0481) · PEGADA Y VERIFICADA · FUSIONADA (#439) · ⚠️ AL REVÉS DEL ORDEN
+
+**Esta entrada no existía**; se escribe el 2026-09-19 19:42, al descubrir que la
+migración estaba en producción y ningún archivo de este repo lo decía.
+
+La sede `003` («Tienda LIM») tenía `ciudad` en NULL porque nació después de la
+0279 y el formulario de /admin/sedes no pide ciudad. Sin ella, `etiquetaDeSede`
+dejaba a las dos sedes de Lima con dos formatos. Confirmado en producción:
+`ciudad = Lima`, y el registro `481 · la_tienda_de_lima_sabe_su_ciudad`.
+
+**⚠️ Se fusionó ANTES de pegarse, y es el caso real de la regla rota ese día:**
+fusionada a las **15:18:00**, pegada a las **17:07:21**. **Una hora y
+cuarenta y nueve minutos** con el código en el aire por delante de su base.
+
+No hubo daño y conviene decir por qué, para no aprender la lección equivocada:
+`etiquetaDeSede` cae al nombre de la sede cuando no hay ciudad, así que durante
+esas dos horas las dos sedes de Lima se rotularon con dos formatos — feo, no
+roto. Si la 0481 hubiera tocado plata, esas dos horas no habrían sido cosméticas.
+Es la misma ventana que la 0404 y la 0407, con mejor suerte.
+
+Y la sede **sigue inactiva a propósito**: reactivarla es un clic en /admin/sedes
+y es decisión de quien la abre, no de una migración.
+
+## 2026-09-19 — Anuncios cuenta qué mejora en el sistema, y «Lo mío» las muestra · MIGRACIÓN 0480 PEGADA Y VERIFICADA · FUSIONADA (#438) · EN EL ORDEN CORRECTO
+
+> **Corregido el 2026-09-19 19:42:** este encabezado decía «SIN FUSIONAR» y era
+> falso desde las 09:50. Pegada a las **09:40:58**, fusionada a las **09:50:42**:
+> nueve minutos y cuarenta y cuatro segundos, en el orden correcto. Confirmado en
+> producción: `480 · las_novedades_del_sistema_se_marcan_como_vistas`.
 
 **Hay SQL: la [0480](../supabase/migrations/0480_las_novedades_del_sistema_se_marcan_como_vistas.sql),
 PEGADA Y VERIFICADA en producción el 2026-09-19** (antes de fusionar, como
@@ -3874,15 +4519,34 @@ aparte de los comunicados de DO, y no como plantillas para que DO publique
 (`docs/anuncios-prototipo-2026-09-15.html`, PR #401) sigue sin decidirse: si se
 adopta, esta sección se muda con él.
 
-## 2026-09-19 — El bono de cumpleaños firmado entra a la boleta (0479) · ESCRITA, NO AUDITADA · NO PEGADA · SIN FUSIONAR
+## 2026-09-19 — El bono de cumpleaños firmado entra a la boleta (0479) · PEGADA Y VERIFICADA · FUSIONADA (#437) · EN EL ORDEN CORRECTO
 
-**Nada de esto está en producción.** La migración y el frontend están escritos y
-verificados solo hasta donde se pudo sin base: typecheck, 883 pruebas de vitest y
-análisis sintáctico del SQL con el parser de Postgres (`pglast`, incluido el
-cuerpo PL/pgSQL). **La auditoría contra Postgres local NO se hizo: Docker Desktop
-estaba colgado** (`docker info` no respondía; 500 sin parar), así que ni el SQL
-se ejecutó ni la prueba pgTAP 378 se corrió. Por la regla de la casa, esto está
-«escrito», no «listo».
+**Está en producción y verificada.** Medido en el SQL Editor el 2026-09-19 19:42:
+`documentos_firmados.movimiento_id` existe, `fn_mi_bono_cumpleanos` devuelve `via`
+y `periodo_fin`, hay **una sola versión** con ese nombre —no se repitió la
+sobrecarga duplicada de la 0297/0299— y el registro dice
+`479 · el_bono_de_cumpleanos_firmado_entra_a_la_boleta`.
+
+**Y se pegó ANTES de fusionar, que es lo que manda la regla:** pegada a las
+**09:44:06** de Lima, fusionada a las **09:45:24**. Un minuto y dieciocho segundos.
+Es la primera de las cuatro de ese día que respetó el orden.
+
+**Lo que este párrafo decía hasta el 2026-09-19 19:42, y por qué se corrige.**
+Decía «ESCRITA, NO AUDITADA · NO PEGADA · SIN FUSIONAR», y las tres eran falsas.
+Se escribió a las 08:55, cincuenta minutos antes de que la migración se pegara y
+se fusionara, y **nadie volvió a tocarlo en diez horas**. Una sesión posterior lo
+leyó, lo creyó, y levantó una alarma de plata —«producción le promete a Melany un
+bono que su base no sabe pagar»— que costó una consulta a producción para
+descartar. El archivo de estado no es documentación de cortesía: es lo primero
+que lee quien llega, y mintiendo hace exactamente el daño que existe para evitar.
+
+Lo de «NO AUDITADA» también caducó por otro camino: **`db-tests` pasó en el PR
+#437** (3 m 55 s) con la prueba pgTAP 378 dentro, contra una base de Supabase
+construida desde cero. Esa es la señal fiable que declara `CLAUDE.md`, no esta
+Mac — y llegó después de escrito el párrafo, cuando Docker seguía colgado acá.
+El bloque 0 de la migración, además, compara el md5 de las cuatro funciones
+contra la 0478 y aborta sin aplicar nada si difiere: que haya entrado prueba por
+sí solo que partió de la versión correcta.
 
 Felipe pidió que Melany pudiera firmar su cargo de cumpleaños y que, al hacerlo,
 el incentivo apareciera en su boleta. **Lo primero ya existía** desde la 0477/0478
@@ -3920,20 +4584,28 @@ Felipe eligió que DO confirmara una transferencia aparte. Con la línea en la
 boleta el bono se paga con la planilla, y esa transferencia deja de existir salvo
 como respaldo. Si Felipe prefería lo contrario, esta migración no debe pegarse.
 
-**Antes de pegar (en este orden):**
-1. Levantar Docker y correr `npx supabase test db` — la **378** (38 aserciones,
-   incluida «ella, como ella misma, ve el bono en su boleta y el total sube
-   exactamente el monto») y, como control, la 376 y la 377 (que suponen una base
-   sin periodos). Comparar contra las mismas SIN la 0479.
-2. Audit empírico de dinero, en `begin … rollback`: `fn_planilla_calcular_persona`
-   de una persona con y sin la línea — solo pueden cambiar `bonos` y `total`. Y
-   `fn_liquidacion` de la misma persona, que no debe moverse.
-3. `donde-vive.sh` de las cuatro funciones **en el mensaje en que se entrega**.
-4. Regenerar `packages/database/src/types.ts` (se editó a mano: `movimiento_id`,
-   su relación, y las dos columnas de `fn_mi_bono_cumpleanos`).
-5. **Pegar la 0479 ANTES de fusionar** (fusionar publica). El frontend tolera la
-   base vieja (`via` y `periodo_fin` son opcionales), pero la firma no entraría a
-   la boleta hasta que se pegue.
+**Esta era la lista de «antes de pegar». Ya se pegó — qué se cumplió y qué no**
+(revisado el 2026-09-19 19:42; se conserva porque dos puntos siguen abiertos):
+
+1. ✅ **La prueba 378 corrió, pero en CI, no acá.** `db-tests` pasó en el PR #437
+   (3 m 55 s) contra una base de Supabase desde cero. Es la señal fiable que
+   declara `CLAUDE.md`; lo que no se hizo fue compararla contra el control SIN la
+   0479, que es lo que distingue «lo rompí yo» de «ya venía así».
+2. ⬜ **El audit empírico de dinero NO se hizo** — Docker seguía colgado.
+   `fn_planilla_calcular_persona` con y sin la línea (solo pueden cambiar `bonos`
+   y `total`) y `fn_liquidacion`, que no debe moverse. **Sigue pendiente**, y es
+   el único punto de esta lista que toca plata: la 378 prueba que el total sube
+   exactamente el monto, pero no que nada más se haya movido.
+3. ✅ **El candado lo hizo solo, y mejor que un comando.** El bloque 0 compara el
+   md5 de las cuatro funciones contra la 0478 en la base donde se pega y aborta
+   sin aplicar nada si difiere. Entró, luego partió de la versión correcta —eso
+   es más fuerte que un `donde-vive.sh`, que mira el worktree.
+4. ⬜ **`packages/database/src/types.ts` sigue sin regenerarse con `gen-types`.**
+   Se editó a mano (`movimiento_id`, su relación, y las dos columnas de
+   `fn_mi_bono_cumpleanos`); el commit de la 0482 lo tocó después, pero nadie
+   confirmó que saliera del generador. Cuando Docker vuelva, regenerarlo y
+   comprobar que no cambia nada más que eso.
+5. ✅ **Se pegó antes de fusionar:** 09:44:06 contra 09:45:24.
 
 **Pendiente, y no es de código:** el código PLAME del cumpleaños (0203) sigue
 «por confirmar con el contador» (ver `movilidad-y-codigos-plame-para-el-contador.md`).
@@ -3947,7 +4619,13 @@ sin línea (no había periodo al firmar) solo puede cerrarse con «Ya se lo tran
 creación del siguiente periodo, el bono puede quedar en un periodo que ella ya no
 puede abrir — se paga igual, y DO lo ve en Planilla.
 
-## 2026-09-18 — Dashboard: la meta ya no se mide con la sede cerrada, y el «0 en piso» dice por qué · SIN MIGRACIÓN · SIN FUSIONAR
+## 2026-09-18 — Dashboard: la meta ya no se mide con la sede cerrada, y el «0 en piso» dice por qué · SIN MIGRACIÓN · FUSIONADA (#435)
+
+> **Corregido el 2026-09-19 19:42:** decía «SIN FUSIONAR». Se fusionó el 19-set a
+> las **00:06** y está en producción desde entonces (`fueraDeHorarioDeHoy`,
+> `desgloseProgramadas` y `coincideConFiltroDeEstado` están en `main`). Sigue en
+> pie todo lo que la entrada llama «pendiente, y no es de código»: los datos mal
+> puestos de LIM, CCO, el horario que falta en TRU y la jornada de CCO abierta.
 
 **Sin SQL: no hay nada que pegar.** Cambia `asistencia-hoy.ts`, la pantalla del
 Dashboard y sus pruebas (115 en `asistencia-hoy.test.ts`; 900 en total). Verificado
@@ -4200,7 +4878,11 @@ casa — `main` publica sola).
 
 ---
 
-## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0474, 0475) · pegada en producción · SIN FUSIONAR
+## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0474, 0475) · pegada en producción · FUSIONADA
+
+> **Corregido el 2026-09-19 19:42:** decía «SIN FUSIONAR». Los dos archivos están
+> en `origin/main`, así que está publicada. Estaba pegada de antes: el orden se
+> respetó.
 
 Felipe reportó el recuadro rojo en la Bandeja: «No se pudo cargar
 liquidaciones vencidas: canceling statement due to statement timeout».
@@ -4306,7 +4988,13 @@ sistema le exija comunicar nada al MTPE.
 
 ---
 
-## 2026-09-15 — Quien ingresa después ya no se cuela en un periodo anterior (0463) · SIN PEGAR · SIN FUSIONAR
+## 2026-09-15 — Quien ingresa después ya no se cuela en un periodo anterior (0463) · FUSIONADA · ⚠️ ¿PEGADA? — HAY QUE MIRARLO
+
+> **Corregido el 2026-09-19 19:42:** decía «SIN PEGAR · SIN FUSIONAR». Lo segundo
+> es falso —el archivo está en `origin/main`, o sea publicada—. **Lo primero no se
+> pudo comprobar desde el repo y es lo que importa:** si de verdad sigue sin
+> pegarse, lleva cuatro días fusionada por delante de su base. Se responde con
+> `./scripts/que-falta-pegar.sh` en el SQL Editor, mirando la fila 463.
 
 Felipe reportó, mirando `/admin/planilla`: cinco practicantes que ingresaron
 en septiembre aparecían con fila propia en los periodos de julio y agosto —
@@ -4340,7 +5028,12 @@ producción, porque la clave de servicio está rotada a propósito.
 
 ---
 
-## 2026-09-15 — Educación: la 0450 ya está pegada; nace la 0461 (colaborador pide su apoyo) · SIN PEGAR · PR #390
+## 2026-09-15 — Educación: la 0450 ya está pegada; nace la 0461 (colaborador pide su apoyo) · FUSIONADA · ⚠️ ¿PEGADA? — HAY QUE MIRARLO
+
+> **Corregido el 2026-09-19 19:42:** decía «SIN PEGAR · PR #390». La 0461 está en
+> `origin/main`, o sea publicada. **Si sigue sin pegarse**, lleva cuatro días
+> fusionada por delante de su base — y toca el apoyo educativo, que es plata.
+> Se responde con `./scripts/que-falta-pegar.sh`, mirando la fila 461.
 
 **La 0450 quedó PEGADA Y VERIFICADA este mismo día** (esta entrada reemplaza el
 aviso «SIN PEGAR · SIN PUSH» de más arriba, que quedó desactualizado apenas se
@@ -4540,15 +5233,49 @@ porque solo la llaman otras funciones por dentro), el trigger
 Con la 0437 y la 0438 juntas, el candado de «no pisar un expediente ya formal»
 vuelve a cubrir las ocho puertas para las que se diseñó, no seis.
 
-🔴 **Siguen sin pegar, y sin explicación: 0428, 0431, 0432, 0433, 0434, 0435 y
-0436.** (El 0420 también falta, pero ese sí está explicado: es una
-renumeración limpia, ver `huecos-conocidos.txt`. La 0430 se pegó y se verificó
-el 2026-09-15 — ver la entrada de arriba.) Las siete necesitan cada una su
-comprobación de si revierten algo antes de pegarlas — son de otras ramas y
-algunas reescriben funciones compartidas. La comprobación es siempre la misma y
-cuesta un minuto: `./scripts/donde-vive.sh <función>` para cada función que la
-migración define, y confirmar que la migración pendiente ES la vigente; si lo
-es, pegarla no puede revertir nada posterior.
+🔴 **Figuran sin pegar: 0428, 0431, 0432, 0433, 0434, 0435 y 0436.** (El 0420
+también falta, pero ese sí está explicado: es una renumeración limpia, ver
+`huecos-conocidos.txt`. La 0430 se pegó y se verificó el 2026-09-15 — ver la
+entrada de arriba.)
+
+⚠️ **ESTA LÍNEA YA CAUSÓ UN INCIDENTE Y LA COMPROBACIÓN QUE PEDÍA NO SE HABÍA
+CORRIDO. Se corrió el 2026-10-30. NO PEGUES LA 0428 NI LA 0436.**
+
+La comprobación que este párrafo pedía —`./scripts/donde-vive.sh <función>` para
+cada función que la migración define, y confirmar que la pendiente ES la
+vigente— se corrió para las siete. Resultado:
+
+| | define | la vigente es | pegarla hoy |
+|---|---|---|---|
+| **0428** | `fn_provisiones` | **la 0491** | ⛔ **revierte 63 migraciones de `fn_provisiones` — es PLANILLA** |
+| 0431 | `fn_aprobar_ausencia` | la 0431 | ✅ inocua |
+| 0432 | `fn_bloquear_cese_directo` | la 0432 | ✅ inocua |
+| 0433 | `fn_set_datos_personales` | la 0433 | ✅ inocua |
+| 0434 | `fn_set_con_hijos` | la 0434 | ✅ inocua |
+| 0435 | `fn_enviar_mensaje_encargada`, `fn_responder_mensaje_encargada` | la 0435 | ✅ inocua |
+| **0436** | `fn_bandeja_marcar_visto` | **la 0515** | ⛔ **la devuelve de 11 tipos a 5: mata el acuse de educación, de cambio de turno y de CONDUCTA** |
+
+**Y la 0436 no está sin pegar: está pegada.** `bandeja_vistos` la crea
+únicamente ella (línea 35) y la alteran la 0450, 0453, 0461, 0473 y 0515, todas
+pegadas —la 0450 está marcada «PEGADA Y VERIFICADA» en esta misma página—. Una
+tabla no se puede alterar si no existe.
+
+**Esto ya pasó una vez, por esta línea.** El encabezado de la
+`0453_la_bandeja_vuelve_a_reconocer_educacion.sql` es su postmortem: el
+2026-09-15 a las 16:00 se repegó la 0436 «siguiendo una auditoría de migraciones
+pendientes que la daba por segura — y que había caducado». `dame-el-sql.sh` lo
+avisó en rojo y se pegó igual, porque **solo avisa**. El síntoma es el peor que
+hay: `/admin/bandeja` llama con `void supabase.rpc(...)`, así que la excepción se
+traga sin avisarle a nadie y lo único que se ve es que no se guarda nada.
+
+Hoy el daño sería mayor que entonces: la 0515 agregó `conducta_registrada` y
+`caso_traspasado`, que son los avisos de la escalera disciplinaria.
+
+**Lo que falta saber, y solo producción puede decirlo:** si `migraciones_aplicadas`
+tiene las filas 428 y 436. Si NO las tiene, `que_falta_pegar.sql` las está
+pidiendo activamente —su columna `nunca` es `false` para las siete, y solo una
+fila en todo el archivo la tiene en `true`—, o sea que la herramienta canónica
+también empuja hacia el accidente, no solo esta línea.
 
 ---
 
@@ -5070,7 +5797,18 @@ una comprobación que nadie había construido. Ahora el estado se llama así.
 (comprobado: no tienen fila en `migraciones_aplicadas`); la 0393 lleva la
 explicación larga de arriba. `numeracion.sh` ya dice «sin novedad».
 
-## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · SIN FUSIONAR
+## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · FUSIONADA (#250)
+
+> **Corregido el 2026-09-19 20:02:** decía «SIN FUSIONAR». El PR #250 se fusionó
+> el **2026-09-08 12:10 de Lima** — once días mintiendo. Comprobado en el código,
+> no en el mensaje del PR: `que-falta-pegar.sh` ya arma la lista con
+> `git ls-tree` de `origin/main` y `HEAD`, y la consulta ya trae la CTE
+> `huerfanas`.
+>
+> **La encontró el hook nuevo, no una persona.** El barrido manual de ese mismo
+> día se apoyó en los números de migración del encabezado y esta entrada no
+> lleva ninguno: es sobre un script. Vale anotarlo porque es justo el caso que
+> un par de ojos pierde y una comprobación mecánica no.
 
 [PR #250](https://github.com/felipea92p-ux/cayla-dynamic/pull/250). El
 `estado.md` lo pedía desde el 2026-08-14 y era el único freno del repo que

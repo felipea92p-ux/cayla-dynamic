@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
@@ -10,6 +11,10 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { generarCsv, descargarCsv } from "@/lib/admin/csv";
 import { formatSoles } from "@/lib/rangos";
+import { haySinPeriodoDelCese, type PeriodoFechas } from "@/lib/admin/liquidacion-periodo";
+import {
+  dondeSePaga, normalizarPeriodosAnteriores, resumenPeriodosAnteriores, type PeriodoAnterior,
+} from "@/lib/admin/liquidacion-periodos";
 import {
   APOYOS_CONSTANCIA, EMPRESA, ETIQUETA_APOYO, ETIQUETA_DECISION, decisionesPara, fechaLima, hoyLima,
   motivoDeConstanciaValido, nombreCorto, nombreOficial, puedeEstamparFirmaDeEmpresa, puedeVerPlanilla,
@@ -133,6 +138,10 @@ type Detalle = Record<string, unknown> & {
   vacaciones_truncas?: Record<string, unknown>;
   gratificacion_trunca?: Record<string, unknown>;
   cts_trunca?: Record<string, unknown>;
+  // Lo agrega `cargarDetalle` desde `fn_liquidacion_periodos_anteriores` (0565),
+  // no viene de `fn_liquidacion`: es informativo y NO está dentro de `total`.
+  // `null` = no se pudo leer (se dice, no se calla); `[]` = no hay nada anterior.
+  periodos_anteriores?: PeriodoAnterior[] | null;
 };
 
 // Lo que devuelve fn_papeles_cese (0400): identidad y tiempo de servicio para
@@ -197,6 +206,8 @@ export default function LiquidacionesPage() {
 
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [avisos, setAvisos] = useState<AvisoVinculo[]>([]);
+  // null = no se pudieron leer: ahí no se avisa nada, para no dar una falsa alarma.
+  const [periodos, setPeriodos] = useState<PeriodoFechas[] | null>(null);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
@@ -261,19 +272,21 @@ export default function LiquidacionesPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
-    const [lista, av, sedesRes] = await Promise.all([
+    const [lista, av, per, sedesRes] = await Promise.all([
       supabase.rpc("fn_liquidaciones_pendientes"),
       supabase.rpc("fn_avisos_vinculo"),
+      supabase.rpc("fn_periodos"),
       supabase.from("sedes").select("id, codigo, nombre").order("codigo"),
     ]);
     setPendientes((lista.data as Pendiente[]) ?? []);
     setAvisos((av.data as AvisoVinculo[]) ?? []);
+    setPeriodos(!per.error && Array.isArray(per.data) ? (per.data as unknown as PeriodoFechas[]) : null);
     setSedes((sedesRes.data as Sede[]) ?? []);
     // Los dos RPC pueden fallar por separado, y los dos alimentan avisos que
     // importan: si `av` falla en silencio, el aviso de vínculo «prueba» —el
     // que habla de beneficios que se están por devengar— desaparece sin que
     // nada lo diga. Antes solo se miraba `lista.error`.
-    setCargaError(lista.error?.message ?? av.error?.message ?? null);
+    setCargaError(lista.error?.message ?? av.error?.message ?? per.error?.message ?? null);
     setCargando(false);
   }, [router, supabase]);
 
@@ -339,15 +352,23 @@ export default function LiquidacionesPage() {
   }, [supabase]);
 
   async function cargarDetalle(personaId: string) {
-    const [liq, dif, papeles, con] = await Promise.all([
+    const [liq, dif, papeles, con, ant] = await Promise.all([
       supabase.rpc("fn_liquidacion", { p_persona_id: personaId }),
       supabase.rpc("fn_liquidacion_diferencias", { p_persona_id: personaId }),
       supabase.rpc("fn_papeles_cese", { p_persona_id: personaId }),
       // De una liquidación sin pagar devuelve cero filas, y barato.
       supabase.rpc("fn_liquidacion_constancia_estado", { p_persona_id: personaId }),
+      // Lo que se le debe de periodos ANTERIORES al del cese (0565). Informativo.
+      supabase.rpc("fn_liquidacion_periodos_anteriores", { p_persona_id: personaId }),
     ]);
     if (liq.error) { avisar("error", mensajeDeError(liq.error)); return; }
-    setDetalle(liq.data as Detalle);
+    // Si esto falla —por ejemplo, la 0565 todavía sin pegar— la liquidación se
+    // ve igual que siempre, pero se dice que no se comprobó: «no sé» no es «no
+    // hay nada anterior», y quien paga solo esta liquidación lo creería.
+    setDetalle({
+      ...(liq.data as Detalle),
+      periodos_anteriores: ant.error ? null : normalizarPeriodosAnteriores(ant.data),
+    });
     setDiferencias((dif.data as Diferencia[]) ?? []);
     // Antes solo se miraba `liq.error`: si `fn_liquidacion_diferencias`
     // fallaba, `diferencias` quedaba en `[]` y el bloque rojo de abajo
@@ -572,7 +593,14 @@ export default function LiquidacionesPage() {
   const enPlazo = pendientes.filter((p) => !p.pagada && !p.vencido && p.total > 0);
   const vencidas = pendientes.filter((p) => !p.pagada && p.vencido && p.total > 0);
   const pagadas  = pendientes.filter((p) => p.pagada);
-  const sinMonto = pendientes.filter((p) => !p.pagada && p.total === 0);
+  // Quien cesó en un día que ningún periodo contiene sale en S/ 0.00 porque FALTA el
+  // periodo, no porque no se le deba (ver `liquidacion-periodo.ts`): no va a «Sin
+  // nada que cobrar», donde se podía marcar pagada con cero, sino al aviso de arriba.
+  const sinPeriodo = periodos === null
+    ? []
+    : pendientes.filter((p) => !p.pagada && haySinPeriodoDelCese(p.fecha_cese, periodos));
+  const sinPeriodoIds = new Set(sinPeriodo.map((p) => p.persona_id));
+  const sinMonto = pendientes.filter((p) => !p.pagada && p.total === 0 && !sinPeriodoIds.has(p.persona_id));
   const avisoUrgente = avisos.filter((a) => a.ya_devenga);
 
   const coincideBusqueda = (p: Pendiente) =>
@@ -664,12 +692,31 @@ export default function LiquidacionesPage() {
             </BannerAviso>
           )}
 
-          {/* ── El aviso del vínculo «prueba» ────────────────────────────────
+          {/* ── Cesó en un día que todavía no tiene periodo ─────────────────────
+              Su sueldo del periodo sale en cero porque falta calcularlo. No se
+              marca pagada hasta crear el periodo en Planilla. */}
+          {sinPeriodo.length > 0 && (
+            <BannerAviso
+              role="alert"
+              variante="alerta"
+              enLinea
+              titulo={`${sinPeriodo.map((p) => p.persona).join(" y ")}: falta crear el periodo de planilla de su cese.`}
+              className="mb-4"
+            >
+              {sinPeriodo.length === 1 ? "Cesó" : "Cesaron"} el{" "}
+              {[...new Set(sinPeriodo.map((p) => fechaLarga(p.fecha_cese)))].join(" y el ")}, y ningún periodo
+              contiene {sinPeriodo.length === 1 ? "ese día" : "esos días"}. Su sueldo del periodo sale en S/ 0.00 porque no
+              se pudo calcular, no porque no se le deba. {sinPeriodo.length === 1 ? "No la marques como pagada" : "No las marques como pagadas"} todavía: crea el siguiente periodo en{" "}
+              <Link href="/admin/planilla" className="underline">Planilla</Link> («+ Nuevo periodo») y vuelve a abrir esta pantalla.
+            </BannerAviso>
+          )}
+
+          {/* ── El aviso del vínculo «prueba» (en pantalla: preselección) ────────────────────────────────
               Va acá y no en Equipo porque lo que está en juego son beneficios, y
               esta es la pantalla que habla de beneficios. Solo aparece cuando ya
               pasó el mes: antes no cuesta nada y avisar sería ruido. */}
           {avisoUrgente.map((a) => (
-            <BannerAviso key={a.persona_id} variante="alerta" enLinea titulo={`${a.persona} lleva ${a.dias} días como «prueba».`} className="mb-4">
+            <BannerAviso key={a.persona_id} variante="alerta" enLinea titulo={`${a.persona} lleva ${a.dias} días como «preselección».`} className="mb-4">
               {a.aviso}
             </BannerAviso>
           ))}
@@ -1260,6 +1307,51 @@ function Desglose({
           </tr>
         </tbody>
       </table>
+
+      {/* Lo que se le debe de periodos ANTERIORES al del cese (0565). Va aparte
+          del Total de arriba a propósito: ese dinero sale por la planilla de
+          cada periodo, y sumarlo a la liquidación lo pagaría dos veces. */}
+      {d.periodos_anteriores === null && (
+        <BannerAviso variante="advertencia" enLinea className="mt-3">
+          No se pudo comprobar si debe algo de periodos anteriores. No des esta liquidación por todo lo que se le debe.
+        </BannerAviso>
+      )}
+      {d.periodos_anteriores && d.periodos_anteriores.length > 0 && (() => {
+        const { totalGeneral } = resumenPeriodosAnteriores(d.periodos_anteriores, n(d.total));
+        return (
+          <BannerAviso variante="informativo" titulo="También se le debe de periodos anteriores" className="mt-3 p-3">
+            <p className="mb-2">
+              Esto no está en el total de arriba: se paga por la planilla de cada periodo, no por esta liquidación.
+            </p>
+            <table className="w-full text-sm">
+              <tbody>
+                {d.periodos_anteriores.map((pa) => (
+                  <tr key={pa.periodo_id} className="align-top">
+                    <td className="py-1 pr-3">
+                      Periodo del {fechaLarga(pa.fecha_ini)} al {fechaLarga(pa.fecha_fin)}
+                      <span className="block text-xs text-taupe">{dondeSePaga(pa.estado)}</span>
+                    </td>
+                    <td className="py-1 text-right tabular-nums">{formatSoles(pa.total)}</td>
+                  </tr>
+                ))}
+                {/* Una liquidación ya pagada no se «debe»: ahí solo queda la lista. */}
+                {!pagada && (
+                  <>
+                    <tr className="border-t border-sand">
+                      <td className="py-1 pr-3">Esta liquidación (periodo del cese y beneficios)</td>
+                      <td className="py-1 text-right tabular-nums">{formatSoles(n(d.total))}</td>
+                    </tr>
+                    <tr className="font-medium">
+                      <td className="py-1 pr-3">Se le debe en total, entre planilla y liquidación</td>
+                      <td className="py-1 text-right tabular-nums">{formatSoles(totalGeneral)}</td>
+                    </tr>
+                  </>
+                )}
+              </tbody>
+            </table>
+          </BannerAviso>
+        );
+      })()}
 
       {diferenciasError ? (
         // Antes, si `fn_liquidacion_diferencias` fallaba, este bloque entero

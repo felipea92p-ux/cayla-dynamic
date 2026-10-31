@@ -89,9 +89,9 @@ describe("armar los pendientes", () => {
 
   it("un cierre reciente es un pendiente de enterarse, con quién y cuántas horas quedaron", () => {
     const filas = armarPendientes({ ...FUENTES_VACIAS, cierresPruebas: [cierre()] }, { hoy: HOY });
-    expect(filas[0]).toMatchObject({ tipo: "prueba_cierre", modulo: "pruebas", resolucion: "aqui", titulo: "Se retiró en su prueba" });
+    expect(filas[0]).toMatchObject({ tipo: "prueba_cierre", modulo: "pruebas", resolucion: "aqui", titulo: "Se retiró en su preselección" });
     expect(filas[0].detalle).toContain("decidió Ana Supervisora");
-    expect(filas[0].detalle).toContain("sin pagar");
+    expect(filas[0].detalle).toContain("a pagar");
   });
 
   it("quien está de prueba NO aparece además como «sin contrato»", () => {

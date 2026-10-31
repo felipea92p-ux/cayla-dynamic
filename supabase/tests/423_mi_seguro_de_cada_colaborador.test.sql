@@ -50,7 +50,7 @@ insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_
   ('00000000-0000-0000-0000-00000530a016', 'Hugo',     'Mi',  '00000000-0000-0000-0000-000005300001', 'integrante', 'x', '00000000-0000-0000-0000-00000530b016', '2025-01-01', 'planilla',    'Vendedor',    null,             'activo', false, null),
   -- Iris: de planilla (EsSalud) y, además, un seguro complementario con su propia póliza.
   ('00000000-0000-0000-0000-00000530a017', 'Iris',     'Mi',  '00000000-0000-0000-0000-000005300001', 'integrante', 'x', '00000000-0000-0000-0000-00000530b017', '2024-01-01', 'planilla',    'Vendedora',   null,             'activo', false, null),
-  -- Honorarios: no le corresponde un seguro principal. Y una persona a prueba, que va a EsSalud.
+  -- Honorarios: no le corresponde un seguro principal. Y una persona en preselección, que tampoco tiene (0561).
   ('00000000-0000-0000-0000-00000530a018', 'Rolo',     'Mi',  '00000000-0000-0000-0000-000005300001', 'integrante', 'x', '00000000-0000-0000-0000-00000530b018', '2026-03-01', 'rxh',         'Honorarios',  null,             'activo', false, null),
   ('00000000-0000-0000-0000-00000530a019', 'Nora',     'Mi',  '00000000-0000-0000-0000-000005300001', 'integrante', 'x', '00000000-0000-0000-0000-00000530b019', '2026-10-01', 'prueba',      'Vendedora',   null,             'activo', false, null),
   -- Lalo: su ÚNICA póliza FOLA termina HOY y no hay renovación: hoy no tiene cobertura (el borde del último día).
@@ -246,7 +246,7 @@ select is((select row(tipo, tipo_nombre, con_poliza, cubre_hoy)::text from fn_mi
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000530b019', true);
 select is((select row(tipo, tipo_nombre, con_poliza, cubre_hoy)::text from fn_mi_seguro()),
-  row('essalud', 'EsSalud', false, null::boolean)::text, 'una persona a prueba: EsSalud');
+  row(null::text, null::text, false, null::boolean)::text, 'una persona en preselección: ningún seguro principal, y la fila lo dice sin inventar nada');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000530b018', true);
 select is((select row(tipo, tipo_nombre, con_poliza, cubre_hoy)::text from fn_mi_seguro()),

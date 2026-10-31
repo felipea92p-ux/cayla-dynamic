@@ -62,9 +62,16 @@ create function pg_temp.como(p_auth uuid) returns void language sql as $$
 $$;
 
 -- ── EL CATÁLOGO ─────────────────────────────────────────────────────────────
-select is((select count(*)::int from faltas_catalogo where rit_version = 4.0), 20,
+-- Las dos cuentas filtran por NUMERAL, no por versión del RIT. Hasta la 0568
+-- daba lo mismo —la versión 4.0 era exactamente 53.1 + 53.2— y por eso se
+-- escribieron por versión; la 0568 agregó el numeral 53.3 y rompió esa
+-- equivalencia, así que el filtro dice ahora lo que el título siempre prometió.
+-- Las seis filas del 53.3 las cuenta su propia prueba, la 458.
+select is((select count(*)::int from faltas_catalogo
+            where rit_version = 4.0 and numeral in ('53.1', '53.2')), 20,
   'CATÁLOGO · los 20 literales de los numerales 53.1 y 53.2 del RIT v4.0');
-select is((select count(*)::int from faltas_catalogo where rit_version = 4.0 and se_registra_a_mano), 17,
+select is((select count(*)::int from faltas_catalogo
+            where rit_version = 4.0 and numeral in ('53.1', '53.2') and se_registra_a_mano), 17,
   'CATÁLOGO · 17 se registran a mano; el 53.2 a) lo suma el sistema y el b) y el c) los miden los motores');
 select throws_like($$ update faltas_catalogo set texto = 'otra cosa' where numeral = '53.1' and literal = 'd' $$,
   '%no se edita%', 'CATÁLOGO · una fila no se edita: hay documentos que la citan');
@@ -162,7 +169,12 @@ select throws_like($$
 select throws_like($$
   select fn_expediente_crear_conducta('00000000-0000-0000-0000-0000000c0d17', '53.2', 'g', 'suspension',
     fn_hoy_lima() - 1, fn_hoy_lima(), 'Cerró la caja sin cuadrar y sin avisar a nadie.') $$,
-  '%Una suspensión la decide DO%', 'NIVEL · por conducta, esta entrega registra verbal y amonestación');
+  -- La 0568 abrió este nivel a `imputacion` y reescribió el mensaje: la
+  -- suspensión sigue fuera, pero ya no porque «la decide DO» sino porque no se
+  -- crea, se ELEVA desde la amonestación (0567, art. 54.7). Lo que esta
+  -- aserción mide no cambió: que 'suspension' se rechace.
+  '%Una suspensión no se crea%',
+  'NIVEL · por conducta se registra verbal, amonestación o imputación; la suspensión se eleva');
 -- DO abre un caso sobre una líder: es la vía para ella.
 select lives_ok($$
   select fn_expediente_crear_conducta('00000000-0000-0000-0000-0000000c0d15', '53.2', 'e', 'amonestacion',

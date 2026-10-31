@@ -154,6 +154,36 @@ describe("frenos y avisos", () => {
     expect(hallazgosDePersona(fila({ ...sin, tipo_vinculo: "rxh", en_planilla: false }), {})).toEqual([]);
   });
 
+  // Caso Deyvid Gamboa (preselección, cesó el 17-oct-2026): la tabla seguía
+  // mostrando "1 por revisar" por un régimen de pensión que nadie le iba a
+  // cargar, porque hallazgosDePersona nunca miraba ctx.cese salvo para el
+  // propio aviso de cese. Quien ya se fue no tiene nada que resolver.
+  it("quien ya cesó dentro del periodo deja de pedir revisión — salvo lo que bloquea el pago", () => {
+    const cese = { tipo: "durante" as const, fecha: "2026-10-17" };
+    const f = fila({ tasa_es_del_regimen: false, dias_pendientes: 1 });
+
+    const activa = hallazgosDePersona(f, {});
+    expect(activa.map((h) => h.codigo).sort()).toEqual(["dias_sin_confirmar", "sin_regimen_pension"]);
+
+    const cesada = hallazgosDePersona(f, { cese });
+    expect(cesada.map((h) => h.codigo).sort()).toEqual(["ceso_en_periodo", "dias_sin_confirmar"]);
+    expect(cesada.find((h) => h.codigo === "dias_sin_confirmar")?.severidad).toBe("bloquea");
+  });
+
+  it("cesó antes del periodo o sin fecha: tampoco pide revisión", () => {
+    const f = fila({ tasa_es_del_regimen: false });
+    expect(hallazgosDePersona(f, { cese: { tipo: "antes", fecha: "2026-09-01" } }).map((h) => h.codigo))
+      .toEqual(["ceso_en_periodo"]);
+    expect(hallazgosDePersona(f, { cese: { tipo: "sin_fecha" } }).map((h) => h.codigo))
+      .toEqual(["ceso_en_periodo"]);
+  });
+
+  it("cesó DESPUÉS del periodo: durante este periodo sí se revisa, como antes", () => {
+    const f = fila({ tasa_es_del_regimen: false });
+    expect(hallazgosDePersona(f, { cese: { tipo: "despues", fecha: "2026-11-05" } }).map((h) => h.codigo))
+      .toEqual(["sin_regimen_pension"]);
+  });
+
   it("agrupa por hallazgo con los bloqueos primero", () => {
     const a = fila({ persona_id: "a", nombre: "Ana", horas_sin_salario: 4 });
     const b = fila({ persona_id: "b", nombre: "Bea", dias_pendientes: 1 });

@@ -83,6 +83,25 @@ export interface DocDisciplina {
 
 // ── Borradores: en qué paso del art. 55.2 está ───────────────────────────────
 
+/**
+ * Los dos niveles a los que el art. 57.8 del RIT les exige una notificación
+ * reforzada si la persona se niega a recibir: notario, juez de paz o, a falta
+ * de ambos, la Policía Nacional. «Tratándose de la carta de imputación o de la
+ * carta de despido, el acta interna de negativa a firmar no sustituye esta vía».
+ *
+ * Existe como función y no como un `nivel === "imputacion"` suelto por lo mismo
+ * que `esGradual`: la base dice esto en dos sitios (la 0303 para el correo, la
+ * 0569 para el aviso) y la pantalla sería el tercero. El día que un nivel nuevo
+ * entre en esta categoría, se cambia acá.
+ *
+ * Y es la diferencia que la pantalla NO decía: hasta la 0569, el formulario del
+ * acta de negativa afirmaba que «produce los mismos efectos que el cargo
+ * firmado (num. 55.4)» también para estos dos niveles, donde es falso.
+ */
+export function exigeNotificacionReforzada(nivel: string): boolean {
+  return nivel === "imputacion" || nivel === "despido";
+}
+
 /** Los niveles que pasan por el descargo previo del art. 55.2 del RIT. La
  *  imputación y el despido NO: siguen el procedimiento del art. 57, con el
  *  plazo del art. 31 de la LPCL, que es otro y más largo. */

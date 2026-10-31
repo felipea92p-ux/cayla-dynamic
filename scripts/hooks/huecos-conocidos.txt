@@ -198,3 +198,52 @@
 0497  Retirada el 2026-09-30 sin haberse pegado nunca: era la mitad de un mecanismo de «licencia sin goce» (columna suspende_record y dos funciones internas) que no hizo falta, porque el caso real resultó ser un cese con reingreso y no una licencia. Siguió en main unas horas por #474. Su contenido está en el historial (commit 104a111b). Nunca se aplicó en producción.
 0498  Retirada el 2026-09-30 sin haberse pegado nunca, junto con la 0497: reescribía cuatro funciones (saldo de vacaciones, liquidación, resumen y provisiones) para leer esa licencia, y sin la 0497 no tiene sentido. Su contenido está en el historial (commit b61e6675). Nunca se aplicó en producción.
 0500  Descartada el 2026-10-01 sin haberse pegado nunca: era la versión paralela de la subida de la RMV a S/ 1,230 (commits e1c492f1 y 768ba2b5, 2026-09-30), que subía la asignación sin tocar configuracion y traía un guion que bajaba a Cayla de 1,245 a 1,230. La reemplazó la 0501 (ver docs/estado.md, «La otra rama»). Confirmado contra producción el 2026-10-01: `migraciones_aplicadas` no tiene ninguna fila con `numero = 500`. Nunca se fusionó ni se subió a GitHub: sus commits viven solo en la Mac, en la rama archivo/0500-no-pegar. NO PEGARLA.
+
+# ── 0526 · BORRADOR QUE NO SE PUEDE PEGAR TAL CUAL (2026-10-30) ─────────────
+#
+# No es una migración perdida en producción: es un borrador que se quedó en su
+# rama, y recuperar su archivo al repo sería armar la trampa de la 0261.
+#
+# Qué hace: a un apoyo educativo de frecuencia MENSUAL se le pide la constancia
+# del mes desde el día 1, y no desde el día en que la institución cobra
+# (decisión de Felipe del 2026-10-17). Reescribe `fn_educacion_situacion`
+# partiendo del cuerpo de la 0450.
+#
+# POR QUÉ NO SE RECUPERA EL ARCHIVO. La **0549** —en main— reescribe esa misma
+# función partiendo de la MISMA versión (la 0450), y dedica un párrafo entero a
+# este choque («ORDEN CON LA 0526»): «EL ORDEN PELIGROSO es 0549 y luego la 0526
+# TAL COMO ESTÁ: la 0526 no PARA» — su md5 de partida es solo un comentario, no
+# una guardia ejecutable como la que sí tiene la 0549. Pegada después de la
+# 0549, la revertiría en silencio. Y un archivo dentro de supabase/migrations
+# es, por convención de esta casa, algo que se pega: `que_falta_pegar.sql` lo
+# listaría como pendiente y `dame-el-sql.sh 0526` lo entregaría sin objetar.
+#
+# ADEMÁS ESTÁ SIN TERMINAR. El encabezado trae los marcadores de plantilla sin
+# rellenar (`@@TABLA@@`, `@@LLEGADA@@`) y «md5 de partida en PRODUCCIÓN: ►►►
+# PENDIENTE ◄◄◄». Nunca se preparó para entregar.
+#
+# NO ESTÁ PEGADA, por tres evidencias que coinciden: el mensaje de sus dos
+# commits lo dice («0526 (SIN PEGAR, BORRADOR)» y «0526 (SIN PEGAR)»), la 0549
+# la describe como «borrador SIN PEGAR en la rama
+# claude/agitated-nightingale-7e118e», y su propio encabezado nunca llegó a
+# anotar un md5 de producción. Esta línea va SIN la marca `[sobra la fila: …]`
+# justamente por eso: si la fila resultara estar en producción,
+# `que-falta-pegar.sh` seguirá gritando «SOBRA LA FILA» por ella.
+#
+# LO QUE QUEDA PENDIENTE, Y DÓNDE. La mejora sigue sin existir: ninguna
+# migración posterior la hace. Cuando se retome, se REHACE sobre el cuerpo que
+# dejó la 0549 —aplicando sus tres bloques «CAMBIO 0526» encima— con un número
+# NUEVO de ./scripts/siguiente-numero.sh y con su propia guardia de md5. No se
+# reutiliza el 0526: por número quedaría antes de la 0549 y con la misma trampa
+# esperando, igual que el 0258/0259 con la 0261.
+#
+# El trabajo no se pierde: la versión buena es el commit **a23658f8** (con su
+# prueba `supabase/tests/420_la_constancia_mensual_se_pide_desde_el_dia_1.test.sql`,
+# 45 aserciones), no el borrador 355f6f2d de seis minutos antes. La 0549 midió
+# la fusión de tres vías 0450/0549/0526 el 2026-10-25: no hay choque de texto,
+# y sobre el cuerpo fusionado la prueba 420 da 45/45.
+#
+# El hueco de la prueba 420 no lo avisa nadie: `numeracion.sh` solo mira los
+# huecos de supabase/migrations. Queda escrito acá y en docs/estado.md.
+
+0526  Borrador SIN PEGAR de la rama claude/agitated-nightingale-7e118e (commit a23658f8, 2026-10-17): la constancia de un apoyo mensual se pide desde el día 1. NO se recupera el archivo: reescribe fn_educacion_situacion partiendo de la 0450, igual que la 0549 que SÍ está en main, y pegarla después de ella la revertiría en silencio sin PARAR (no tiene guardia de md5, solo un comentario) — la propia 0549 lo advierte en su párrafo «ORDEN CON LA 0526». Está además sin terminar (@@TABLA@@ y @@LLEGADA@@ sin rellenar, md5 de producción PENDIENTE). La mejora sigue haciendo falta: se rehace sobre el cuerpo de la 0549 con un número nuevo.

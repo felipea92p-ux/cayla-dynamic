@@ -31,15 +31,15 @@ export function situacionDePrueba(f: { situacion?: string | null; dias_trabajado
 }
 
 /**
- * La etiqueta corta que acompaña a quien está de prueba en todo el sistema:
- * «Prueba · 2 de 3». Pasada la prueba dice cuántos días lleva; el color sube de
+ * La etiqueta corta que acompaña a quien está en preselección en todo el sistema:
+ * «Preselección · 2 de 3». Pasado el plazo dice cuántos días lleva; el color sube de
  * informativo (en curso) a advertencia (toca decidir) y a alerta (se pasó el plazo).
  */
 export function etiquetaDePrueba(
   f: { situacion?: string | null; dias_trabajados: number; dias_plazo: number },
 ): { texto: string; variante: VariantePrueba } {
   const s = situacionDePrueba(f);
-  if (s === "en_curso") return { texto: `Prueba · ${f.dias_trabajados} de ${f.dias_plazo}`, variante: "informativo" };
-  if (s === "cumplida") return { texto: `Prueba · ${f.dias_plazo} de ${f.dias_plazo}`, variante: "advertencia" };
-  return { texto: `Prueba · ${f.dias_trabajados} días`, variante: "alerta" };
+  if (s === "en_curso") return { texto: `Preselección · ${f.dias_trabajados} de ${f.dias_plazo}`, variante: "informativo" };
+  if (s === "cumplida") return { texto: `Preselección · ${f.dias_plazo} de ${f.dias_plazo}`, variante: "advertencia" };
+  return { texto: `Preselección · ${f.dias_trabajados} días`, variante: "alerta" };
 }
