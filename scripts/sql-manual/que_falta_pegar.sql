@@ -422,7 +422,12 @@ with repo(numero, nombre, nunca) as (values
     (562, 'cada_persona_se_marca_pagada_sin_tocar_el_cierre_del_grupo', false),
     (563, 'la_baja_tras_una_reactivacion_ni_se_bloquea_ni_pierde_su_ultimo_dia', false),
     (564, 'se_puede_acortar_la_asignacion_de_educacion_de_quien_ya_no_esta_activo', false),
-    (565, 'la_liquidacion_lista_lo_que_se_debe_de_periodos_anteriores', false)
+    (565, 'la_liquidacion_lista_lo_que_se_debe_de_periodos_anteriores', false),
+    (566, 'el_descargo_previo_se_enciende', false),
+    (567, 'la_lider_propone_suspension_y_do_la_impone', false),
+    (568, 'la_falta_grave_llega_hasta_el_despido', false),
+    (569, 'la_entrega_arranca_el_plazo_y_avisa_del_notario', false),
+    (570, 'las_seis_faltas_graves_tienen_nombre_corto', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

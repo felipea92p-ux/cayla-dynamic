@@ -80,6 +80,28 @@ select throws_like(format($$ select fn_expediente_tomar_caso(%L, 'Ya no importa,
 select pg_temp.como('00000000-0000-0000-0000-0000000c0ea4');   -- LiderUno
 select throws_like(format($$ select fn_expediente_comunicar_cargos(%L) $$, (select id from _c)),
   '%lo tomó DoPractica Lab%', 'CANDADO · la líder no sigue tramitando por una función del expediente');
+
+-- El descargo previo que enciende la 0566 se interpone ANTES del candado que
+-- esta prueba mide: `fn_expediente_firmar` corta en su primera puerta (0455)
+-- porque los cargos no se comunicaron, y entonces nunca llega al UPDATE donde
+-- salta el trigger del caso tomado (0511). Relajar el patrón a '%' convertiría
+-- una aserción sobre ESE candado en una aserción sobre cualquier error, así que
+-- lo que se hace es cumplir el trámite del art. 55.2 primero.
+--
+-- Va sembrado a mano, como en la 205, porque no hay camino por función que deje
+-- el plazo ya vencido dentro de una prueba: `fn_expediente_comunicar_cargos`
+-- vence siempre en el futuro. Y va DESPUÉS de la aserción de arriba, que
+-- necesita `cargos_comunicados_at` en null para alcanzar su propio mensaje.
+-- Sin sesión, porque el candado bloquearía este UPDATE si lo hiciera la líder
+-- —lo demuestra la aserción de «ni lo toca por un UPDATE»—.
+select pg_temp.como(null);
+update expediente_disciplinario
+   set cargos_comunicados_at = now() - interval '5 days',
+       descargo_vence_at     = now() - interval '2 days',
+       descargo_acogido      = 'sin_descargo'
+ where id = (select id from _c);
+select pg_temp.como('00000000-0000-0000-0000-0000000c0ea4');   -- LiderUno otra vez
+
 select throws_like(format($$ select fn_expediente_firmar(%L, null) $$, (select id from _c)),
   '%lo tomó%', 'CANDADO · ni lo firma');
 select throws_like(format($$ update expediente_disciplinario set observacion = 'nota de la líder' where id = %L $$, (select id from _c)),

@@ -115,6 +115,21 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-30-firmar-un-memo-pide-los-tres-pasos-del-descargo",
+    fecha: "2026-10-30",
+    titulo: "En Disciplina, firmar un memo pasa por tres pasos antes de la firma",
+    queMejoro:
+      "Un memo que antes se firmaba de un clic ahora recorre tres pasos, que la pantalla va marcando: comunicarle los cargos, " +
+      "esperar a que venza su plazo para responder, y escribir la valoración de lo que respondió —también cuando no responde " +
+      "nada, porque hay que dejar constancia de eso—. No es un error de la pantalla: es cómo tiene que hacerse, y el sistema " +
+      "ahora no deja saltarse un paso.\n\n" +
+      "Y al registrar una negativa a firmar, si el documento es una carta de imputación o de despido, sale un aviso: ahí el acta " +
+      "interna no reemplaza la notificación por notario. Se puede registrar igual, y el documento queda diciéndolo.\n\n" +
+      "El procedimiento no cambió: es el del Reglamento Interno de Trabajo, que está en Normas. Lo que cambió es que el sistema " +
+      "ya lo acompaña paso a paso en vez de confiar en que alguien lo recuerde.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-29-liquidaciones-dice-lo-que-se-debe-de-periodos-anteriores",
     fecha: "2026-10-29",
     titulo: "En Liquidaciones, se ve también lo que se le debe de periodos anteriores, desglosado",

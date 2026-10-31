@@ -1759,6 +1759,7 @@ export default function DisciplinaPage() {
                 )}
                 <FormularioCargo
                   tipo={subiendoCargo.tipo}
+                  nivel={doc?.nivel ?? null}
                   pideFecha={pideFecha}
                   entregadoEl={doc?.entregado_at ? selloLima(doc.entregado_at) : null}
                   fecha={fechaEntrega} fechaMax={subiendoCargo.fechaMax}

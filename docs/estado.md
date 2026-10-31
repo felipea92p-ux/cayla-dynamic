@@ -138,6 +138,349 @@ select pp.id, pp.fecha_ini, pp.fecha_fin, g.grupo, g.pagado_at
 - **El commit de la 0526 que se venía citando es el borrador.** `355f6f2d` se llama «0526 (SIN PEGAR, **BORRADOR**)»; la versión buena
   es `a23658f8`, seis minutos después, que es la que trae la prueba 420. Si esa mejora se retoma, se parte de ahí — y con número nuevo.
 
+---
+
+## 2026-10-30 — El repo principal al día, y cada worktree corre SUS guardianes · sin SQL · PR #621 ABIERTO, SIN FUSIONAR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+
+**Lo que pasaba.** `core.hooksPath` apunta a
+`/Users/ArchiCaylo/Developer/cayla-dynamic/scripts/hooks` —el repo PRINCIPAL, no
+el worktree desde el que empujas—. Y ese checkout estaba en `78179af3`, del
+**2026-09-27**: **943 commits detrás de `origin/main`**. O sea que durante cinco
+semanas, todo push de cualquier worktree corrió los hooks del 27 de septiembre.
+
+**Medido, no supuesto.** El `pre-push` que de verdad corría invocaba **ocho**
+guardianes; el de una rama al día invoca **diez**. Faltaban estos dos:
+
+| guardián | desde | qué dejó de vigilar |
+|---|---|---|
+| `receta-suelta.sh` | 2026-10-17 | el paso 2 del [ADR 0004](adr/0004-diseno-unificado.md): que un push no vuelva a escribir a mano una pieza que ya tiene componente. **No frenó un solo push en cinco semanas.** Se midió contra 150 merges, se probó con 36 casos, y se instaló donde nada lo ejecutaba. |
+| `estado-que-miente.sh` | — | que este archivo no mienta. La ironía no fue menor: ese día se corrigió a mano una línea de `estado.md` que había causado un incidente en producción, y el guardián que existe para eso llevaba semanas sin correr. |
+
+Una primera versión de esta entrada dijo «diez contra trece» y listó tres
+guardianes, con `probar-receta-suelta.sh` entre ellos. Era falso por el método:
+se contaron los nombres que APARECEN en el `pre-push`, y ahí también están los
+que solo se mencionan en comentarios (`desplegar.sh`, `donde-vive.sh`) y
+`probar-receta-suelta.sh`, que es la prueba de `receta-suelta.sh` y se corre a
+mano, no en el push. Lo que se cuenta son las líneas que lo INVOCAN:
+`grep -cE '^"\$\(dirname "\$0"\)' scripts/hooks/pre-push`. La sustancia no
+cambia —dos guardianes apagados cinco semanas—; los números sí, y en este
+archivo un número equivocado es justo lo que `estado-que-miente.sh` existe para
+cazar.
+
+**Y un cuarto que no faltaba: corría, pero era el de septiembre.**
+`que-falta-pegar.sh --arregla` regenera `scripts/sql-manual/que_falta_pegar.sql`
+en cada push y lo commitea. Como el script que corría era el del 27-sep,
+**revertía en cada push** el arreglo del 28-sep (commit `9b8f821f`, «La 0393 deja
+de gritar MIRA ARRIBA»). Regenerar el artefacto a mano no servía: el siguiente
+push lo volvía a pisar.
+
+Eso se vio en producción, con la consulta corrida de verdad, y dio **dos
+respuestas equivocadas**:
+
+- **La 0393 salió como «⚠️ SOBRA LA FILA»** cuando está explicada desde el
+  2026-09-28 en `huecos-conocidos.txt`, con su marca `[sobra la fila: …]` y la
+  orden expresa de NO recuperar el archivo. El resumen dijo «⚠️ MIRA ARRIBA» por
+  una alarma ya resuelta — que es cómo se enseña a ignorar las alarmas.
+- **La 0519 salió como «❌ FALTA PEGAR»** cuando está en `no-se-pegan.txt`. El
+  generador viejo no lee ese archivo, así que la marcaba `false`.
+
+**Por qué nadie lo vio.** Los hooks no fallaron: corrieron, imprimieron sus diez
+pasos en verde y dejaron pasar el push. Un guardián ausente no deja hueco visible
+—la salida del push se ve exactamente igual de sana con diez pasos que con
+trece—. Es la misma forma que ya está escrita en CLAUDE.md para el linter: «un
+guardián instalado y apagado».
+
+### Qué se hizo (2026-10-30, con el OK de Felipe)
+
+- **El checkout principal avanzó `78179af3` → `32c67f8b`**, los 943 commits, en
+  avance limpio: no tenía ningún commit propio que no estuviera arriba.
+- **Los dos archivos sin commitear eran trabajo ya superado**, no trabajo
+  perdido: subían `next` de 16.2.12 a 16.3.3 con fecha del 21-sep, y `main` ya
+  trae **16.4.1**. El parche se guardó fuera del repo antes de descartarlo.
+- **Su `pre-push` ya es byte por byte el mismo** que el de una rama al día: los
+  trece guardianes, `receta-suelta.sh` incluido.
+- **`que_falta_pegar.sql` se regeneró y se commiteó** (`36f4c98f`). El arreglo
+  del generador estaba commiteado desde `6b6bf575`; lo que seguía siendo de
+  septiembre era el **archivo generado** en HEAD. Son dos cosas distintas y
+  conviene no confundirlas: arreglar el generador no arregla el artefacto.
+
+### La causa de fondo: resuelta hoy, pero se degrada sola
+
+Poner el principal al día apagaba el incendio y no cerraba el agujero. Lo que se
+midió al cerrarlo es peor de lo que decía la primera versión de esta entrada: no
+es que un hook escrito en un worktree «corra tarde». **No corre, y git no dice
+nada que se distinga de que todo esté bien.**
+
+```
+$ git hook run pre-auto-gc            # un hook que solo existe en el worktree
+error: cannot find a hook named pre-auto-gc
+
+$ git -c core.hooksPath=scripts/hooks hook run pre-auto-gc
+    corrió el hook del worktree: scripts/hooks/pre-auto-gc
+```
+
+Con la ruta **relativa** —la que CLAUDE.md ya prescribía— git la resuelve contra
+la raíz de CADA worktree, y se comprobó que lo hace también empujando desde un
+subdirectorio (`apps/web`, `supabase/migrations`): git se mueve al tope del árbol
+antes de correr los hooks, así que no hay un caso en que la relativa apague todo.
+
+**Felipe decidió relativo el 2026-10-30, y se ejecutó así.** No era una línea en
+un sitio: **`extensions.worktreeConfig` está activo**, y los once worktrees
+tenían cada uno su propio `config.worktree` con la ruta absoluta, que gana sobre
+el `.git/config` compartido. Se puso el compartido en `scripts/hooks` y se
+quitaron los once overrides, para que haya **una sola fuente**. Respaldo de los
+doce archivos de antes, fuera del repo, por si hay que volver.
+
+**Lo que costó, nombrado:** ayer los doce corrían los guardianes de `main`; hoy
+cada uno corre los suyos. Medido justo después del cambio: cuatro worktrees
+invocan 8, cuatro invocan 9 y cuatro invocan 10. Los ocho primeros corren uno o
+dos guardianes menos que ayer **hasta que traigan `main` a su rama**, que es algo
+que necesitan hacer igual antes de fusionar. Ninguno se quedó sin `pre-push`, y
+los doce lo tienen ejecutable —si no lo fuera, git lo saltaría en silencio, y eso
+se comprobó uno por uno.
+
+**Y aquí está lo que hay que saber, porque el arreglo se degrada solo: la app
+escribe la ruta absoluta en el `config.worktree` de cada worktree NUEVO.** Se
+midió en `vigilant-hopper-d48cdd`, creado ese mismo día: nació con
+`hooksPath = /Users/ArchiCaylo/Developer/cayla-dynamic/scripts/hooks`. Así que
+cada sesión nueva vuelve a empezar apuntando al principal, y si el principal se
+congela otra vez, esa sesión hereda el problema entero. No es memoria de nadie:
+es la app, y volverá a pasar.
+
+Se comprueba en una línea, y lo que tiene que decir es `scripts/hooks`:
+
+```bash
+git config --show-origin --get core.hooksPath
+```
+
+Si dice una ruta absoluta y viene de un `config.worktree`, se arregla con
+`git config --worktree --unset core.hooksPath` en ese worktree. Mirarlo para los
+doce de golpe: recorrer `git worktree list --porcelain` preguntándole eso a cada
+uno. **Ojo al escribir ese bucle: la shell de esta Mac es zsh, y ahí `$VAR` sin
+comillas no se parte en palabras como en bash.** Dos mediciones de ese día
+salieron con todo marcado como «falta» por eso, y el síntoma —una columna
+uniformemente mal— se lee como un dato, no como un error de shell.
+
+### El pre-push deja de tirar la evidencia
+
+Lo último del día salió de haber pagado el costo. Las pruebas frenaron dos
+pushes seguidos y pasaron en verde las tres veces que se corrieron a mano: el
+fallo era intermitente —contención en esta Mac, con diez worktrees, un SSD
+externo y la sesión nueva instalando dependencias justo entonces—, y el
+`pre-push` mandaba la salida a `/dev/null`, así que lo único que quedaba era
+«corre `npx pnpm test` para ver cuál». Para cuando lo corres, el motivo ya no
+está. Se resolvió parcheando el hook a mano para ver la salida, o sea haciendo
+lo que el hook debería dar; costó tres pushes y un rato de suposiciones falsas
+—se descartaron `GIT_DIR`, el stdin sin consumir y el typecheck previo, todas
+reproducidas y todas en verde—.
+
+Ahora los dos pasos guardan su salida en
+`$(git rev-parse --git-path salida-del-ultimo-push)` y al bloquear imprimen las
+últimas 25 líneas más la ruta del archivo entero. Ese destino está dentro del
+directorio de git **del worktree**: sobrevive al push, no se pisa con los otros
+diez y no aparece en `git status` —comprobado escribiendo un archivo ahí—.
+
+Probado con los tres casos, que es el estándar de la casa para un freno:
+
+| caso | qué debe pasar | qué pasó |
+|---|---|---|
+| una prueba que falla a propósito | frena **y** muestra el motivo | frenó, e imprimió la aserción, el archivo, la línea, el código y el recuento (1 falló / 2951 pasaron) |
+| todo en verde | pasa, sin ruido | pasó |
+| no se puede escribir el directorio | **corre igual**: un freno no puede frenar por su propia plomería | cae a `/dev/null` y al mensaje de antes |
+
+El tercero no es adorno: la primera versión ponía `DIR=/dev/null` y luego
+`"$DIR/pruebas.log"`, que es una ruta inexistente — el redirect habría fallado y
+el hook habría bloqueado **todos** los pushes sin que nada estuviera mal. Está
+dicho en un comentario junto al código, porque es el error que invita a repetir.
+
+**Lo que queda abierto.** Este cambio vive en la rama; mientras no se fusione a
+`main`, los otros worktrees siguen con el `pre-push` que tira la salida. Y no se
+midió qué se coló en las cinco semanas en que `receta-suelta.sh` no corrió —las recetas escritas a mano que habría frenado— ni
+cuántas veces `estado-que-miente.sh` habría avisado. Se puede contar sin tocar
+nada, corriendo los dos guardianes sobre los merges de ese periodo.
+
+---
+
+## 2026-10-30 — Barrido: qué se puede pegar fuera de orden o a medias sin que nada avise · sin SQL · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+
+**Por qué se hizo.** Al pegar la 0569 saltó su propio freno («falta la columna de
+la 0568»), y eso abrió una pregunta más grande que el caso: la 0569 escondía su
+dependencia dentro de un cuerpo plpgsql, **que Postgres no analiza al crear la
+función**. Se pega sin una queja y revienta al ejecutarla. Eso no es un caso: es
+una clase. Cinco lecturas independientes del camino del SQL a producción, con dos
+refutadores por hallazgo. 14 hallazgos, **4 sobrevivieron**, 10 refutados.
+
+**1 · La línea roja de esta misma página empujaba a repegar dos migraciones que
+revierten cosas vivas.** Ver la entrada del 2026-09-15 (buscar «Siguen sin
+pegar»), ya corregida ahí con la tabla de las siete. En corto: **la 0428 revierte
+`fn_provisiones` 63 migraciones atrás —es planilla— y la 0436 devuelve
+`fn_bandeja_marcar_visto` de once tipos a cinco**, matando el acuse de los avisos
+de educación, de cambio de turno y de conducta. Las otras cinco son inocuas. Y lo
+de la 0436 **ya pasó el 2026-09-15**: está el postmortem en el encabezado de la
+0453, `dame-el-sql.sh` lo avisó en rojo, y se pegó igual.
+
+**2 · El aviso de la 0495 dice lo contrario de lo que el archivo hace.**
+`supabase/migrations/0495_*.sql:100-103` hace
+`raise notice '0495: ya tiene el filtro (md5 %). No se toca nada.'; return;`
+dentro de un bloque `do $freno$`. El `return` termina el BLOQUE, no el archivo: el
+`create or replace function fn_planilla_calcular_nucleo` de la línea 111 está
+fuera y corre siempre. Y la rama que imprime ese aviso es la que se cumple hoy de
+forma garantizada, porque todas las versiones desde la 0495 llevan dentro la
+cadena `cuenta_de_servicio`.
+
+Lo grave no es el `return` —la 0491 tiene la misma forma y su aviso es honesto:
+dice «no se comprueban los md5 de partida», que es exactamente lo que se salta—.
+Lo grave es que el mensaje de la 0495 **afirma que no toca nada justo antes de
+reescribir el núcleo de la planilla**, y llega desde el SQL Editor, que CLAUDE.md
+nombra como «la única confirmación». Repegarla revertiría la 0504 (practicantes a
+FOLA), la 0524, la 0537 y la 0555.
+
+**3 · Ningún freno de la casa mira el orden de pegado HACIA ATRÁS.**
+`dame-el-sql.sh` sí mira hacia adelante —su paso 4 avisa cuando pegas algo que una
+migración posterior ya superó— pero la pregunta inversa, «esta migración depende de
+una ANTERIOR que todavía no está pegada», no la hace nadie, y el script no podría:
+en sus 291 líneas no hay un solo `psql`, porque la clave de servicio está rotada a
+propósito. `que_falta_pegar.sql` ordena por número, lo que da el orden correcto por
+convención, pero no declara ninguna dependencia: dice «faltan la 566…569», no «la
+569 lee una columna de la 568». Hoy lo único que lo caza es el bloque que la propia
+0569 se escribió, y eso es memoria.
+
+**4 · La 0562 es la única del rango 0500–0569 que no se puede repegar.** Su
+`create index idx_pago_persona_eventos_estado` (línea 108) va sin `if not exists` y
+sin un `drop index if exists` delante. Falla RUIDOSO, así que nadie la daría por
+aplicada; pero repegar es el movimiento natural cuando una pegada a mano se corta,
+y detrás de esa línea quedan el RLS, el `revoke` a `anon`, el trigger candado y las
+tres funciones que son la única puerta de escritura de esa tabla.
+
+**Lo que se arregló hoy:** la línea roja de la entrada del 2026-09-15, con la
+comprobación que pedía ya corrida. **Lo que NO se tocó:** nada de los puntos 2, 3
+y 4 — el 2 y el 4 están en migraciones ya pegadas (el archivo documenta lo que se
+pegó y no se reescribe), y el 3 es una decisión de Felipe, porque
+`scripts/dame-el-sql.sh:182-184` dice «Solo AVISA, no bloquea» a propósito.
+
+**Lo que falta preguntar a producción:** si `migraciones_aplicadas` tiene las filas
+428 y 436. Si no las tiene, `que_falta_pegar.sql` las está pidiendo activamente
+—su columna `nunca` es `false` para las siete, y de todo el archivo solo una fila
+la tiene en `true`—, o sea que la herramienta canónica también empuja al
+accidente, no solo aquella línea.
+
+---
+
+## 2026-10-30 — La escalera disciplinaria llega hasta el despido · migraciones 0566 a 0569 · **LAS CUATRO PEGADAS (2026-10-30)** · **+ la 0570 SIN PEGAR** · PR #621 ABIERTO, SIN FUSIONAR · rama `claude/memorandum-disciplinario-sistema-fb3bd6`
+
+### La 0568 dejó seis faltas graves sin nombre, y lo cazó el CI (migración 0570)
+
+`db-tests` del PR #621 se puso en rojo con **cinco aserciones en tres pruebas que
+ya existían**, y `main` llevaba cinco corridas seguidas en verde: no era deuda
+vieja, lo rompieron estas cuatro migraciones. Cuatro de las cinco eran pruebas
+que quedaron obsoletas a propósito. **Una era un defecto real, y está en
+producción desde hoy.**
+
+| aserción | veredicto | por qué |
+|---|---|---|
+| 404 · «los 20 literales» | prueba vieja | filtraba por `rit_version` cuando su título habla de dos numerales. Hasta la 0568 daba lo mismo; el 53.3 rompió esa equivalencia. Ahora filtra por numeral, que es lo que siempre prometió. |
+| 404 · «17 se registran a mano» | prueba vieja | lo mismo: 7 del 53.1 + 10 del 53.2 siguen siendo 17; los 4 nuevos del 53.3 los cuenta la 458. |
+| 404 · «NIVEL · verbal y amonestación» | prueba vieja | la 0568 abrió el nivel a `imputacion` y reescribió el mensaje. El comportamiento no cambió: `suspension` se sigue rechazando, ahora porque **se eleva**, no porque «la decide DO». |
+| 405 · «CANDADO · ni lo firma» | prueba vieja | el descargo previo de la 0566 se interpone ANTES del candado que esa aserción medía, así que `fn_expediente_firmar` cortaba 50 líneas antes de llegar al trigger de la 0511. Se sembró el trámite del art. 55.2 primero, como ya hace la 205. **No** se relajó el patrón a `'%'`: eso habría convertido una aserción sobre ese candado en una aserción sobre cualquier error. |
+| 408 · «ninguna falta queda sin nombre corto» | **defecto real** | la 0568 metió seis filas a `faltas_catalogo` **sin su insert hermano en `faltas_rotulos`**. Lo arregla la **0570**. |
+
+**Por qué el defecto pasó inadvertido, que es la parte que enseña.** Ni la 0568,
+ni su prueba 458, ni el ADR mencionan la palabra «rótulo» una sola vez: no fue
+una decisión, fue un olvido. La decisión de que se nombran TODAS las faltas
+—incluso las que nadie elige a mano, «para cuando aparecen en el panel de un
+caso»— vive en la 0514, y la aserción que la defiende vive en **otra prueba**, la
+408. Una migración se revisa con sus propias pruebas; la invariante que rompió
+estaba en el archivo de al lado.
+
+Y **nada revienta ni sale en blanco**: los tres lectores degradan solos, que es
+justo lo que lo hizo invisible. Lo que se pierde es el nombre de la acusación en
+la cabecera del documento (`panel-caso.tsx`) y en la bandeja de DO
+(`bandeja-fuentes.ts`) — o sea en el papel más grave que existe, la imputación de
+cargos. Quien revisa la bandeja lee «53.3 a)» y ya no sabe de qué se acusa a
+alguien sin abrir el caso.
+
+**Y un hueco aparte, que la 0570 NO arregla porque es código:**
+`faltasElegibles` (`apps/web/lib/admin/conducta.ts`) reparte el catálogo en dos
+cubos, `leve` y `significativa`, y `registrar-falta.tsx` solo dibuja esos dos.
+Una falta con `gravedad = 'grave'` se cae de los dos y no se dibuja ningún chip.
+Como esa pantalla es la única que llama a `fn_expediente_crear_conducta`, **el
+nivel `imputacion` que la 0568 habilitó en la base no tiene puerta en la
+interfaz**. Va con las pantallas que faltan, y ninguna pgTAP lo cubre.
+
+**Qué es.** Felipe pidió «que cada líder pueda emitir memorándums para así escalar medida disciplinaria de despido de ser necesario».
+Al investigarlo salió que la mitad de abajo ya estaba construida: desde el 6 de octubre (0510–0516) la líder emite memos, cita el literal
+exacto del art. 53 del RIT, firma y entrega. Lo que faltaba era la mitad de ARRIBA de la escala del art. 54.1 —suspensión y despido— y dos
+defectos que la invalidaban. El diseño, con las seis decisiones en formato DECIDÍ / DESCARTÉ / SE ROMPE SI, está en
+[`docs/adr/0005-escalera-disciplinaria-completa.md`](adr/0005-escalera-disciplinaria-completa.md).
+
+**Lo que había que arreglar antes de construir nada.** `configuracion.disciplina_descargo_previo` estaba en `false` desde el 17-08-2026
+(0267). El art. 55.2 del RIT que CAYLA entregó firmado dice que sin descargo previo la sanción «no puede computarse como antecedente ni
+servir de escalón para los efectos del literal h) del artículo 25 de la LPCL»: cada memo documentaba el hecho y no era peldaño de nada.
+Construir la suspensión y el despido encima era construir una escalera que el art. 25 h) no reconoce. Por eso la **0566** va primera.
+Medido antes de pegarla: **0 borradores** quedaban a la espera, así que no hubo transición que gestionar.
+
+**Las cuatro piezas.**
+- **0566** enciende el descargo previo. No reescribe ninguna función. *Hallazgo:* encenderlo no agrega un paso antes de firmar, agrega
+  **tres** —comunicar cargos, esperar el plazo, y **valorar el descargo por escrito aunque no se presente ninguno**—. La pantalla ya
+  dibujaba las cuatro etapas desde la 0267 (`etapaDelBorrador`), así que no hubo interfaz que cambiar.
+- **0567** — la líder PROPONE la suspensión (`fn_conducta_proponer_suspension`, con su candado) y DO la IMPONE
+  (`fn_expediente_elevar_a_suspension`). El mismo documento sube de nivel en vez de crearse otro: la suspensión no castiga otra vez el
+  hecho ya amonestado (non bis in idem, 52.5), castiga el hecho NUEVO que sube de peldaño por el antecedente (56.4). No reescribe ninguna
+  función: llama a `fn_expediente_puede_actuar` (competencia 54.4 c), `fn_expediente_set_suspension` (tope de 3 días, 54.5) y
+  `fn_conducta_antecedentes`. `fn_expediente_firmar` queda intacta.
+- **0568** — la falta grave llega hasta el despido. *Hallazgo grande:* **hoy no existe ninguna forma de emitir una carta de despido.**
+  Los dos motores llegan a la imputación y paran con un mensaje que lo dice —«el despido se genera tras evaluar los descargos (paso manual
+  de Gerencia)»—, y ese paso manual era el final del camino: el expediente se armaba completo y la decisión salía fuera del sistema, sin
+  que la causa de la carta quedara atada a la de la imputación. Cinco piezas: los 6 literales del 53.3 al catálogo (con e) asistencia y
+  f) hostigamiento sexual marcados como no registrables a mano, cada uno por su razón); `fn_expediente_crear_conducta` admite el nivel
+  `imputacion`, cita el literal, exige los 6 días NATURALES del art. 57.2 y comprueba el 60.5 —freno que en esta rama no tenía nadie—;
+  `fn_expediente_crear_despido` arma la carta A PARTIR de su imputación, sin recibir causa (la hereda, así que el 57.7 no se puede
+  romper); un trigger impide cambiarla por UPDATE directo (cuarta instancia del molde de la casa, tras 0261, 0295 y 0342); y dos
+  restricciones de la 0510 que guardaban la premisa «el 53.3 no está en el catálogo» se ponen al día.
+- **0569** — la entrega arranca el plazo del art. 31 (que corre desde la RECEPCIÓN) y anota en el expediente que un acta interna no
+  sustituye la notificación notarial del art. 57.8. Decisión de Felipe: **avisar, no bloquear** (mi recomendación había sido bloquear; el
+  costo queda escrito en el ADR). El aviso llega también ANTES del clic, en el formulario: ahí había un texto FALSO desde meses, que
+  afirmaba que el acta «produce los mismos efectos que el cargo firmado (num. 55.4)» también en imputación y despido.
+
+**Lo que cazaron las pruebas antes de pegar nada.** `chk_conducta_completa` obligaba a que una imputación por conducta tuviera la falta en
+NULL, y el índice único del 52.5 hacía chocar la carta de despido con su propia imputación (hereda persona, falta y fecha a propósito).
+Ninguna estaba mal escrita: las dos eran premisas correctas que caducaron el día que el 53.3 entró al catálogo. El índice se resolvió
+diciendo a qué se refiere el 52.5 —protege de SANCIONAR dos veces, y la escala del 54.1 son tres peldaños— en vez de relajarlo.
+
+**Y un defecto de mi propia 0569, medido:** pegarla antes de la 0568 NO falla. Postgres no analiza el cuerpo de una función plpgsql al
+crearla, así que se pega sin una queja y revienta la primera vez que alguien ENTREGA un documento firmado, con la persona delante. La
+migración abre ahora con un bloque que comprueba la columna y aborta; el encabezado afirmaba lo contrario antes de medirlo.
+
+**Probado.** Banco de Postgres nativo desechable con el esquema real de `main` (565 migraciones) y control A/B en las cuatro:
+**456** 5/5 (4 de 5 en rojo sin la 0566) · **457** 9/9 (9/9 en rojo sin la 0567) · **458** 17/17, 11 de ellas casos que DEBEN bloquear
+(0/17 sin la 0568) · **459** 9/9, y el control deja en rojo las 4 del comportamiento nuevo y en VERDE las 5 que vigilan que no se rompió
+lo anterior —entre ellas la que más importa: que la imputación de los motores de asistencia, que no trae plazo concedido, se entregue
+igual que siempre sin reloj inventado—. Vitest 2 951 de 2 951 y typecheck en verde.
+De paso se arregló un defecto del banco que llevaba semanas dando falsos rojos: su `auth.uid()` leía `request.jwt.claim.sub` mientras las
+pruebas del repo ponen `request.jwt.claims` como JSON. La prueba 205 pasó de 0/9 a 9/9.
+
+**md5 pedidos a producción el 2026-10-30, los tres idénticos al repositorio y sin un solo `\r`:** `fn_expediente_crear_conducta`
+3359 / `a7cdf75a…`, `fn_expediente_entregar` 1693 / `75367baa…`, `fn_conducta_antecedentes` 3021 / `d7e5a98c…`.
+
+**Estado del pegado. LAS CUATRO PEGADAS el 2026-10-30.** La 0566 y la 0567 primero (registradas con su nombre correcto y sin número
+robado; `disciplina_descargo_previo` quedó en `true`), y después la 0568 y la 0569 en ese orden. La 0569 se intentó pegar antes que la
+0568 y **su propio bloque de precondición la paró** —«Falta la columna expediente_disciplinario.plazo_descargo_dias, que agrega la
+migración 0568»—, que es exactamente para lo que se escribió; al segundo intento, con la 0568 ya puesta, entró con «Success. No rows
+returned». El texto de las dos se verificó byte por byte contra el repositorio (`dame-el-sql.sh` + `diff <(pbpaste) …` → idéntico), así
+que los acentos están intactos. **Pendiente de Felipe:** correr la consulta de comprobación (se espera 6 · 4 · 1 · 6781 · 1 · 1 · 1 ·
+4172 · true · true). `versiones_crear_conducta` = 1 es la que más importa: un 2 significa que la firma vieja de siete argumentos
+sobrevivió al `drop` y la pantalla de registrar una falta contestará «function is not unique».
+Nada fusionado y **no hay PR**.
+
+**Pendiente.** Las pantallas: el botón de «pedir suspensión» para la líder, la acción de elevar para DO, y el panel de antecedentes
+acotado a conducta/12 meses. Van con la regeneración de `types.ts`, que todavía no tiene las cuatro funciones nuevas. Y dos defectos
+medidos que esta entrega esquiva y no arregla, cada uno con su propia entrega: `fn_expediente_resolver` no comprueba que el plazo de
+descargo haya vencido (hoy se puede archivar o decidir el despido el mismo día de la entrega, sin haber escuchado), y las imputaciones
+de los dos motores de asistencia —casi todas las que existen— se entregan sin que corra el plazo del art. 31; ponerles reloj exige
+tocar los motores y el plazo no se adivina, se concede por escrito (art. 57.2).
+
+---
+
 ## 2026-10-29 — Liquidaciones lista lo que se debe de periodos anteriores · migración 0565 · **SQL PEGADO EN PRODUCCIÓN (2026-10-29)** · FUSIONADO (PR #618) · rama `claude/liquidacion-periodos-sin-pagar`
 
 **Qué es.** Emily Rico y Milagritos Zarate cesaron el 29/10, que ya es el periodo NUEVO: su liquidación calculaba un día y el sueldo de
@@ -4890,15 +5233,49 @@ porque solo la llaman otras funciones por dentro), el trigger
 Con la 0437 y la 0438 juntas, el candado de «no pisar un expediente ya formal»
 vuelve a cubrir las ocho puertas para las que se diseñó, no seis.
 
-🔴 **Siguen sin pegar, y sin explicación: 0428, 0431, 0432, 0433, 0434, 0435 y
-0436.** (El 0420 también falta, pero ese sí está explicado: es una
-renumeración limpia, ver `huecos-conocidos.txt`. La 0430 se pegó y se verificó
-el 2026-09-15 — ver la entrada de arriba.) Las siete necesitan cada una su
-comprobación de si revierten algo antes de pegarlas — son de otras ramas y
-algunas reescriben funciones compartidas. La comprobación es siempre la misma y
-cuesta un minuto: `./scripts/donde-vive.sh <función>` para cada función que la
-migración define, y confirmar que la migración pendiente ES la vigente; si lo
-es, pegarla no puede revertir nada posterior.
+🔴 **Figuran sin pegar: 0428, 0431, 0432, 0433, 0434, 0435 y 0436.** (El 0420
+también falta, pero ese sí está explicado: es una renumeración limpia, ver
+`huecos-conocidos.txt`. La 0430 se pegó y se verificó el 2026-09-15 — ver la
+entrada de arriba.)
+
+⚠️ **ESTA LÍNEA YA CAUSÓ UN INCIDENTE Y LA COMPROBACIÓN QUE PEDÍA NO SE HABÍA
+CORRIDO. Se corrió el 2026-10-30. NO PEGUES LA 0428 NI LA 0436.**
+
+La comprobación que este párrafo pedía —`./scripts/donde-vive.sh <función>` para
+cada función que la migración define, y confirmar que la pendiente ES la
+vigente— se corrió para las siete. Resultado:
+
+| | define | la vigente es | pegarla hoy |
+|---|---|---|---|
+| **0428** | `fn_provisiones` | **la 0491** | ⛔ **revierte 63 migraciones de `fn_provisiones` — es PLANILLA** |
+| 0431 | `fn_aprobar_ausencia` | la 0431 | ✅ inocua |
+| 0432 | `fn_bloquear_cese_directo` | la 0432 | ✅ inocua |
+| 0433 | `fn_set_datos_personales` | la 0433 | ✅ inocua |
+| 0434 | `fn_set_con_hijos` | la 0434 | ✅ inocua |
+| 0435 | `fn_enviar_mensaje_encargada`, `fn_responder_mensaje_encargada` | la 0435 | ✅ inocua |
+| **0436** | `fn_bandeja_marcar_visto` | **la 0515** | ⛔ **la devuelve de 11 tipos a 5: mata el acuse de educación, de cambio de turno y de CONDUCTA** |
+
+**Y la 0436 no está sin pegar: está pegada.** `bandeja_vistos` la crea
+únicamente ella (línea 35) y la alteran la 0450, 0453, 0461, 0473 y 0515, todas
+pegadas —la 0450 está marcada «PEGADA Y VERIFICADA» en esta misma página—. Una
+tabla no se puede alterar si no existe.
+
+**Esto ya pasó una vez, por esta línea.** El encabezado de la
+`0453_la_bandeja_vuelve_a_reconocer_educacion.sql` es su postmortem: el
+2026-09-15 a las 16:00 se repegó la 0436 «siguiendo una auditoría de migraciones
+pendientes que la daba por segura — y que había caducado». `dame-el-sql.sh` lo
+avisó en rojo y se pegó igual, porque **solo avisa**. El síntoma es el peor que
+hay: `/admin/bandeja` llama con `void supabase.rpc(...)`, así que la excepción se
+traga sin avisarle a nadie y lo único que se ve es que no se guarda nada.
+
+Hoy el daño sería mayor que entonces: la 0515 agregó `conducta_registrada` y
+`caso_traspasado`, que son los avisos de la escalera disciplinaria.
+
+**Lo que falta saber, y solo producción puede decirlo:** si `migraciones_aplicadas`
+tiene las filas 428 y 436. Si NO las tiene, `que_falta_pegar.sql` las está
+pidiendo activamente —su columna `nunca` es `false` para las siete, y solo una
+fila en todo el archivo la tiene en `true`—, o sea que la herramienta canónica
+también empuja hacia el accidente, no solo esta línea.
 
 ---
 

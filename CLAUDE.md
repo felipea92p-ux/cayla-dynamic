@@ -828,6 +828,16 @@ verifica la **numeración**, **las dos reglas de abajo que se cumplían de memor
 el `typecheck` y las pruebas de interfaz. Si algo está en rojo, el push no se
 hace. Toma unos 10 segundos.
 
+**Y cuando frena por el typecheck o por las pruebas, te dice por qué.** Desde el
+2026-10-30 esos dos pasos guardan su salida en
+`$(git rev-parse --git-path salida-del-ultimo-push)` —dentro del directorio de
+git de tu worktree, así que no aparece en `git status` ni se pisa con los otros
+diez— y al bloquear imprimen las últimas 25 líneas más la ruta del archivo
+entero. Antes decían «corre `npx pnpm test` para ver cuál», y eso solo sirve si
+el fallo se repite: ese día frenaron dos pushes seguidos, pasaron en verde las
+tres veces que se corrieron a mano, y el motivo ya no estaba. Un freno que
+bloquea sin guardar la evidencia enseña a saltárselo.
+
 **Dos de las reglas de este archivo ya no dependen de que alguien las recuerde**
 (`scripts/hooks/reglas-de-la-casa.sh`, ago-2026): comparar `rol` contra un
 literal fuera de `permisos.ts`, y escribir `"America/Lima"` fuera de
@@ -1137,6 +1147,29 @@ Para que el hook funcione en un clon nuevo hay que activarlo una vez:
 ```bash
 git config core.hooksPath scripts/hooks
 ```
+
+**Y esa línea tiene que ser RELATIVA, y hay que volver a comprobarla en cada
+worktree nuevo.** Si `core.hooksPath` apunta a una ruta absoluta —el checkout
+principal, por ejemplo—, todos los worktrees corren los guardianes de ESE
+checkout: el día que se quede atrás, se quedan atrás los frenos de todos a la
+vez, y un hook escrito en un worktree **no corre**; git contesta
+`cannot find a hook named …`, que no se distingue de que todo esté bien. Pasó
+cinco semanas, del 27-sep al 30-oct de 2026, con `receta-suelta.sh` y
+`estado-que-miente.sh` apagados sin que la salida del push se viera distinta.
+
+Lo que lo hace volver: **`extensions.worktreeConfig` está activo en este repo, y
+la app escribe la ruta absoluta en el `config.worktree` de cada worktree nuevo**
+—medido el 2026-10-30 en uno recién creado—. Ese valor gana sobre el
+`.git/config` compartido, así que arreglarlo una vez no alcanza. Al empezar en un
+worktree:
+
+```bash
+git config --show-origin --get core.hooksPath    # tiene que decir: scripts/hooks
+```
+
+Si devuelve una ruta absoluta desde un `config.worktree`:
+`git config --worktree --unset core.hooksPath`, y queda heredando la del
+compartido.
 
 **Para desplegar**, en vez de `npx vercel` directo:
 ```bash
