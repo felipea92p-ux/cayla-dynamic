@@ -1070,18 +1070,24 @@ function documentoConvenio(d: DatosContrato): string {
     considere desnaturalizada, con las consecuencias laborales que ello implica.</p>`,
 
     `<h3>{{N}}. SUBVENCIÓN ECONÓMICA</h3>
-    <p>LA EMPRESA otorga a ${etiquetaPracticante} una subvención económica mensual de S/ ${soles(d.remuneracionMensual)}
-    (${numeroALetras(d.remuneracionMensual)} soles)${
-      jornadaReducida
-        ? pisoSubvencion !== null
-          ? `, no menor a S/ ${soles(pisoSubvencion)} — monto proporcional de la Remuneración Mínima Vital vigente
-             (S/ ${soles(d.rmvVigente as number)}) según las ${horasPactadas} horas semanales pactadas frente al
-             máximo de treinta (30) horas de su modalidad`
-          : `, no menor al monto proporcional de la Remuneración Mínima Vital vigente según las ${horasPactadas}
-             horas semanales pactadas frente al máximo de treinta (30) horas de su modalidad —
-             <strong>[FALTA PUBLICAR LA RMV VIGENTE EN EL SISTEMA]</strong>`
-        : `, no menor a la Remuneración Mínima Vital vigente${esPreprofesional ? "" : " para una jornada completa"}`
-    } (Ley N.° 28518, artículo 45). La subvención económica <strong>no constituye remuneración</strong>, no está
+    <p>LA EMPRESA otorga a ${etiquetaPracticante} una subvención económica de S/ ${soles(d.remuneracionMensual)}
+    (${numeroALetras(d.remuneracionMensual)} soles) por una jornada de ${esPreprofesional ? "treinta (30)" : "cuarenta y cinco (45)"}
+    horas semanales, que se paga <strong>en proporción a las horas efectivamente realizadas</strong> según el horario
+    que asigne LA EMPRESA: el valor de cada hora resulta de dividir dicha subvención entre
+    ${esPreprofesional ? "treinta (30)" : "cuarenta y cinco (45)"} horas por el número de semanas del período (los días
+    del período entre siete), y en cada semana, de lunes a domingo, no se pagan más de
+    ${esPreprofesional ? "treinta (30)" : "cuarenta y ocho (48)"} horas.${
+      jornadaReducida && horasPactadas !== null
+        ? ` Para la jornada pactada de ${horasPactadas} horas semanales equivale a aproximadamente
+           S/ ${soles(Math.round(((d.remuneracionMensual * horasPactadas) / 30) * 100) / 100)} al mes${
+             pisoSubvencion !== null
+               ? `, monto no menor a la proporción de la Remuneración Mínima Vital vigente (S/ ${soles(d.rmvVigente as number)})
+                  que corresponde a esas horas frente al máximo de treinta (30) horas de su modalidad`
+               : ` — <strong>[FALTA PUBLICAR LA RMV VIGENTE EN EL SISTEMA]</strong>`
+           }.`
+        : ""
+    } La subvención así calculada no es menor a la proporción de la Remuneración Mínima Vital vigente que corresponde a
+    las horas realizadas (Ley N.° 28518, artículo 45). La subvención económica <strong>no constituye remuneración</strong>, no está
     sujeta a descuentos, aportes ni retención del impuesto a la renta de cuarta ni de quinta categoría. El pago se
     realiza mediante depósito bancario dentro de los primeros cinco (05) días hábiles del mes siguiente al período
     de prácticas.</p>

@@ -294,7 +294,11 @@ describe("documentoConvenio", () => {
     const texto = construirContrato(
       datosConvenio({ horasSemanalesPactadas: 30, rmvVigente: 1130 }),
     );
-    expect(texto).toContain("no menor a la Remuneración Mínima Vital vigente");
+    // Desde la 0576 la subvención se paga por hora: la cláusula dice la base y que se paga en
+    // proporción a las horas realizadas, y no anuncia una equivalencia para quien cumple las 30 h.
+    expect(texto).toContain("por una jornada de treinta (30)");
+    expect(texto).toContain("en proporción a las horas efectivamente realizadas");
+    expect(texto).not.toContain("aproximadamente");
     // "proporcional" a secas no sirve de negativo: la cláusula de DURACIÓN de
     // un preprofesional ya dice "por un periodo proporcional a la duración de
     // la formación", sin relación con la subvención. Lo que hay que negar es
@@ -307,8 +311,9 @@ describe("documentoConvenio", () => {
     const texto = construirContrato(
       datosConvenio({ horasSemanalesPactadas: 20, rmvVigente: 1130 }),
     );
-    expect(texto).toContain("20 horas semanales pactadas");
+    expect(texto).toContain("jornada pactada de 20 horas semanales");
     expect(texto).toContain("S/ 753.33");
+    expect(texto).toContain("en proporción a las horas efectivamente realizadas");
     expect(texto).toContain("es de 20 horas semanales");
   });
 
@@ -316,7 +321,10 @@ describe("documentoConvenio", () => {
     const texto = construirContrato(
       datosConvenio({ practicanteModalidad: "profesional", horasSemanalesPactadas: 20, rmvVigente: 1130 }),
     );
-    expect(texto).toContain("no menor a la Remuneración Mínima Vital vigente para una jornada completa");
+    // 0576: el egresado se paga por hora sobre 45 h, con tope de 48 h por semana; sus horas
+    // pactadas no le cambian nada, así que el texto no anuncia ninguna equivalencia.
+    expect(texto).toContain("por una jornada de cuarenta y cinco (45)");
+    expect(texto).not.toContain("aproximadamente");
     expect(texto).not.toContain("monto proporcional");
     expect(texto).toContain("cuarenta y ocho (48) horas semanales");
   });
