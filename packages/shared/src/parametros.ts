@@ -78,3 +78,14 @@ export function valorConUnidad(valor: number, unidad: string): string {
 export function describirCambioDeParametro(anterior: number, nuevo: number, unidad: string): string {
   return `${anterior} → ${valorConUnidad(nuevo, unidad)}`;
 }
+
+/**
+ * Quién puede cambiar un parámetro, dicho para una persona (0571). Recibe la lista
+ * `roles_cambia` de la fila: una sola entrada es la dirección; dos son la
+ * dirección y Desarrollo Organizacional (los únicos roles que entran a
+ * Parámetros). Lista vacía = la base aún no trae la columna: no se afirma nada.
+ */
+export function etiquetaQuienCambia(roles: readonly string[] | null | undefined): string | null {
+  if (!roles || roles.length === 0) return null;
+  return roles.length === 1 ? "Lo cambia: la dirección" : "Lo cambian: la dirección y Desarrollo Organizacional";
+}
