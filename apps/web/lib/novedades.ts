@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-31-horarios-sedes-con-nombre",
+    fecha: "2026-10-31",
+    titulo: "Horarios base dice el nombre de cada sede",
+    queMejoro:
+      "En Horarios base, las sedes aparecían con su código: «003» y «OTRU» no le decían a nadie qué sede eran. " +
+      "Ahora cada bloque lleva el mismo nombre que en Incidencias y el Dashboard —«Tienda · Lima», «Oficina TRU», «Taller · Lima»— con el código al lado, y el filtro de sedes también.\n\n" +
+      "Además, las columnas de la tabla quedan en el mismo sitio en todas las sedes, así que se lee de arriba abajo sin que «Horario» cambie de lugar en cada bloque.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-30-firmar-un-memo-pide-los-tres-pasos-del-descargo",
     fecha: "2026-10-30",
     titulo: "En Disciplina, firmar un memo pasa por tres pasos antes de la firma",

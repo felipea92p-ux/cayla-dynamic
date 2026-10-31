@@ -30,7 +30,7 @@ import { Drawer } from "@/components/ui/drawer";
 // cinco columnas por jornada, y esa no se lee en una columna estrecha con
 // scroll horizontal — va en Modal ancho="lg".
 import { Modal } from "@/components/ui/modal";
-import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante, leCorrespondeHorario } from "@cayla-dynamic/shared";
+import { ROLES_DO, etiquetaDeSede, hoyLima, puedeOperarEquipo, maximoSemanalPracticante, leCorrespondeHorario, type EtiquetaDeSede } from "@cayla-dynamic/shared";
 // horasDia() reimplementaba (salida − entrada) − refrigerio a mano, sin el
 // ajuste "si la salida no es posterior a la entrada, el turno cruza
 // medianoche" que horasEntre() ya resuelve (turnos/page.tsx también la
@@ -399,6 +399,11 @@ export default function HorariosPage() {
   // cada carga.
   const [vigentesHoy, setVigentesHoy] = useState<Map<string, Horario>>(new Map());
   const [sedes, setSedes] = useState<Record<string, string>>({});
+  // Código → cómo se dice en pantalla. El código sigue siendo la llave de
+  // agrupar y filtrar; lo que cambia es lo que se lee: «Tienda · Lima» y no
+  // «003», «Oficina TRU» y no «OTRU» (etiquetaDeSede, mismo rótulo que
+  // Incidencias y Dashboard).
+  const [etiquetas, setEtiquetas] = useState<Map<string, EtiquetaDeSede>>(new Map());
   const [cargando, setCargando] = useState(true);
 
   // ── Buscador y filtros ──
@@ -466,7 +471,7 @@ export default function HorariosPage() {
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id, personal_direccion").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, vigente_desde, almuerzo_min_minutos, almuerzo_max_minutos, dias_laborables, horario_por_dia").is("vigente_hasta", null),
-      supabase.from("sedes").select("id, codigo"),
+      supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad"),
       // tipo_vinculo y practicante_modalidad no viajan en el select de arriba
       // (schema cache de PostgREST): para saber contra qué máximo avisar
       // hace falta esta RPC. Tolerante: si falla, nadie ve el aviso — no se
@@ -490,7 +495,9 @@ export default function HorariosPage() {
     );
     const abiertos = (h as Horario[]) ?? [];
     setHorarios(new Map(abiertos.map((x) => [x.persona_id, x])));
-    setSedes(Object.fromEntries(((s as any[]) ?? []).map((x) => [x.id, x.codigo])));
+    const filasSede = (s as { id: string; codigo: string; nombre: string; tipo: string | null; ciudad: string | null }[] | null) ?? [];
+    setSedes(Object.fromEntries(filasSede.map((x) => [x.id, x.codigo])));
+    setEtiquetas(new Map(filasSede.map((x) => [x.codigo, etiquetaDeSede(x)])));
 
     // El tramo abierto puede empezar a futuro (alguien programó un cambio de
     // horario). Para esas personas nada más, trae el tramo que cubre HOY —
@@ -791,12 +798,16 @@ export default function HorariosPage() {
     );
   }
 
-  const todasLasSedes = [...new Set(editables.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
+  const rotuloDeSede = (codigo: string) => etiquetas.get(codigo)?.titulo ?? codigo;
+  // Por el rótulo, no por el código: así las dos sedes de Lima quedan juntas
+  // y «003» deja de ir primero solo por empezar con un número.
+  const porRotulo = (a: string, b: string) => rotuloDeSede(a).localeCompare(rotuloDeSede(b), "es");
+  const todasLasSedes = [...new Set(editables.map((p) => sedes[p.sede_base_id] ?? "?"))].sort(porRotulo);
   // RxH y dirección (Gerencia General) no llevan horario: no tenerlo es lo
   // correcto, así que ni cuentan como "sin horario" ni entran al aviso.
   const leCorresponde = (p: Persona) => leCorrespondeHorario(p.tipo_vinculo, p.personal_direccion);
   const sinHorarioLista = filtrados.filter((p) => !estadoDeHoy(p).con && leCorresponde(p));
-  const porSede = [...new Set(filtrados.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
+  const porSede = [...new Set(filtrados.map((p) => sedes[p.sede_base_id] ?? "?"))].sort(porRotulo);
 
   // Resumen superior: sobre `editables` (todo lo que puedes ver), no sobre
   // `filtrados` — si no, los números cambiarían con el filtro que ellos
@@ -836,7 +847,7 @@ export default function HorariosPage() {
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Horarios base"
-          descripcion="Jornada semanal y descansos de cada colaborador. Un cambio conserva el historial."
+          descripcion="Jornada semanal y descansos de cada integrante. Un cambio conserva el historial."
           ayuda={
             <AyudaPantalla
               titulo="Cómo funcionan los horarios base"
@@ -881,7 +892,7 @@ export default function HorariosPage() {
               <div className="w-full sm:w-44">
                 <CampoSelect tamano="sm" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
                   <option value="">Todas las sedes</option>
-                  {todasLasSedes.map((sd) => <option key={sd} value={sd}>{sd}</option>)}
+                  {todasLasSedes.map((sd) => <option key={sd} value={sd}>{etiquetas.get(sd)?.texto ?? sd}</option>)}
                 </CampoSelect>
               </div>
               <div className="w-full sm:w-44">
@@ -914,7 +925,10 @@ export default function HorariosPage() {
           const deSede = filtrados.filter((p) => (sedes[p.sede_base_id] ?? "?") === sede);
           return (
             <section key={sede} className="mb-8">
-              <h2 className="mb-2 font-serif text-lg">{sede}</h2>
+              <h2 className="mb-2 flex items-baseline gap-2">
+                <span className="font-serif text-lg">{rotuloDeSede(sede)}</span>
+                {rotuloDeSede(sede) !== sede && <span className="text-sm text-taupe">{sede}</span>}
+              </h2>
 
               {/* Escritorio y tablet: tabla. Cabecera fija dentro de su propia
                   sede si crece lo suficiente (alturaMaxima es lo que activa
@@ -922,14 +936,22 @@ export default function HorariosPage() {
                   Con ~30 personas en 4 sedes esto casi nunca llega a hacer
                   scroll propio; cuando una sede sí crezca, ya está listo. */}
               <div className="hidden sm:block">
-                <Tabla className="[font-variant-numeric:tabular-nums]" alturaMaxima="60vh">
+                {/* table-fixed con los mismos anchos en todas las sedes: cada
+                    sede es su propia tabla, y con el ancho automático cada una
+                    repartía las columnas a su manera — «Horario» caía en un
+                    sitio distinto en cada sede. Horario se queda con lo que
+                    sobra; Nombre lleva un porcentaje para no quedar en 70 px
+                    cuando la ventana es angosta, y Horas semanales mide lo
+                    que su insignia más larga («falta su modalidad», ~131 px):
+                    con 96 px se montaba sobre la fecha de al lado. */}
+                <Tabla className="[font-variant-numeric:tabular-nums] [&>table]:table-fixed" alturaMaxima="60vh">
                   <TablaEncabezado>
                     <Th className="w-9">{null}</Th>
-                    <Th>Nombre</Th>
+                    <Th className="w-[22%]">Nombre</Th>
                     <Th>Horario</Th>
-                    <Th>Horas semanales</Th>
-                    <Th>Vigente desde</Th>
-                    <Th>{null}</Th>
+                    <Th className="w-[10.5rem]">Horas semanales</Th>
+                    <Th className="w-[7.5rem]">Vigente desde</Th>
+                    <Th className="w-40">{null}</Th>
                   </TablaEncabezado>
                   <tbody>
                     {deSede.map((p) => {
@@ -1003,7 +1025,7 @@ export default function HorariosPage() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-2 text-taupe">{h ? fechaCorta(h.vigente_desde) : "—"}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-taupe">{h ? fechaCorta(h.vigente_desde) : "—"}</td>
                             <td className="px-4 py-2">
                               <div className="flex items-center justify-end gap-2">
                                 {/* Un solo botón visible: Asignar (si no tiene) o Cambiar. «Corregir días ya trabajados» —que
@@ -1068,7 +1090,7 @@ export default function HorariosPage() {
                           />
                           <span>
                             <span className="block text-sm font-medium text-tinta">{p.nombres} {p.apellidos}<EtiquetaPrueba fila={pruebas.get(p.id)} className="ml-2" /></span>
-                            <span className="block text-xs text-taupe">{sede}</span>
+                            <span className="block text-xs text-taupe">{rotuloDeSede(sede)}</span>
                           </span>
                         </label>
                         <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
