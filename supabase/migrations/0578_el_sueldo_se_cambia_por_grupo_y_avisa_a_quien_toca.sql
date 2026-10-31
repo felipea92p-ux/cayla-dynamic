@@ -104,6 +104,13 @@ as $fn$
       or (p_persona is not null and (p_audiencia -> 'personas') ? p_persona::text);
 $fn$;
 
+-- La política de abajo la evalúa quien LEE (authenticated), no una función
+-- SECURITY DEFINER, así que necesita permiso de ejecutarla: desde la 0076 las
+-- funciones nuevas nacen sin EXECUTE para public. Sin esta línea, cualquier
+-- lectura de `anuncios` desde el panel revienta con «permission denied».
+revoke all on function fn_anuncio_le_llega(jsonb, uuid) from public, anon;
+grant execute on function fn_anuncio_le_llega(jsonb, uuid) to authenticated;
+
 drop policy if exists anuncios_select_equipo on anuncios;
 create policy anuncios_select_equipo on anuncios
   for select to authenticated
