@@ -149,7 +149,7 @@ export async function POST(req: Request) {
       return NextResponse.json(await invitarAutomaticamente(admin, destinoTrasClic));
     } catch (e) {
       Sentry.captureException(e);
-      return NextResponse.json({ error: mensajeDeError(e, "mandar las invitaciones automáticas") }, { status: 500 });
+      return NextResponse.json({ error: mensajeDeError(e as { message: string }, "mandar las invitaciones automáticas") }, { status: 500 });
     }
   }
 
