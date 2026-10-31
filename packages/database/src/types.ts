@@ -9669,9 +9669,34 @@ export type Database = {
         Args: { p_motivo: string | null; p_parametro: string | null; p_valor: number | null }
         Returns: undefined
       }
+      fn_parametro_cambiar_vigencia: {
+        Args: {
+          p_desde: string | null
+          p_motivo: string | null
+          p_parametro: string | null
+          p_valor: number | null
+        }
+        Returns: undefined
+      }
       fn_parametro_numero_en: {
         Args: { p_ruta: string[] | null; p_valor: Json | null }
         Returns: number
+      }
+      fn_parametro_periodo_pagado_desde: {
+        Args: { p_alcance: string | null; p_desde: string | null }
+        Returns: string
+      }
+      fn_parametro_valor_en: {
+        Args: { p_fecha: string | null; p_parametro: string | null }
+        Returns: number
+      }
+      fn_parametro_vista_previa: {
+        Args: { p_desde: string | null; p_parametro: string | null; p_valor: number | null }
+        Returns: {
+          detalle: string
+          persona: string
+          vinculo: string
+        }[]
       }
       fn_parametros_historial: {
         Args: { p_limite?: number | null; p_parametro?: string | null }
@@ -9706,6 +9731,10 @@ export type Database = {
           ultimo_origen: string
           roles_cambia: string[]
           puede_cambiar: boolean
+          rige_por_fechas: boolean
+          vigente_desde: string
+          proximo_valor: number
+          proximo_desde: string
           unidad: string
           valor_actual: number
           valor_defecto: number

@@ -191,6 +191,14 @@ export default function ParametrosPage() {
                           <td className="whitespace-nowrap px-4 py-3 align-top">
                             <div className="font-medium">{valorConUnidad(f.valor_actual, f.unidad)}</div>
                             {f.es_defecto && <div className="text-xs text-taupe">valor de partida</div>}
+                            {f.rige_por_fechas && f.vigente_desde && (
+                              <div className="text-xs text-taupe">desde el {isoADiaMesAnio(f.vigente_desde)}</div>
+                            )}
+                            {f.rige_por_fechas && f.proximo_desde && f.proximo_valor !== null && (
+                              <div className="text-xs text-taupe">
+                                pasa a {valorConUnidad(f.proximo_valor, f.unidad)} el {isoADiaMesAnio(f.proximo_desde)}
+                              </div>
+                            )}
                             {/* Y el botón sube junto al valor: la última columna queda fuera de la pantalla del teléfono. */}
                             {puede && (
                               <Boton tamano="sm" className="mt-2 md:hidden" onClick={(e) => abrir(f, e)}>

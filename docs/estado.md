@@ -6,6 +6,46 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · 0573 · 0574 · **SIN PEGAR** · rama `claude/amazing-albattani-kjo4f3`
+
+**De dónde sale.** Felipe (2026-10-31): el pago de los practicantes no calzaba con sus horas. Tras simular base 45 y base 30
+(`scripts/sql-manual/simular_el_tope_de_horas_de_los_practicantes.sql` y `horarios_y_horas_marcadas_de_los_practicantes.sql`,
+solo lectura) decidió: **«el cambio es solo para el tipo de vínculo practicante, mantiene todos sus beneficios, solo la fórmula de su
+sueldo cambia, que es en base de 30 horas»**, y que los números que pueden cambiar con el tiempo vayan a Parámetros, **solo admin**.
+
+**0573 · la fórmula (la que mueve plata).** Para `tipo_vinculo = 'practicante'` (las dos modalidades): hora = subvención pactada ÷
+(horas pactadas × días ÷ 7), con horas pactadas = 30, o las de su convenio **firmado** si pactó menos (la menor si hay varios); lo
+marcado por encima no se paga (tope por sus días activos). Planilla, RxH y todo lo demás, igual al céntimo. Medido en un periodo de
+28 días con S/ 1 230: 17 h/sem → 697.00 (antes 459.56); 25.5 h/sem → 1 045.50 (antes 689.34); 30 h o más → 1 230.00. Con convenio
+firmado de 17 h por S/ 697: cumplirlo → 697.00. Por qué «subvención pactada» y no «1 230 × h ÷ 30»: el convenio promete por escrito
+la subvención cargada; multiplicar otra vez por h ÷ 30 pagaría la proporción dos veces (S/ 395 en vez de 697). **md5 de partida
+pedido a producción ANTES de escribir** (`aad8a0f0…`, 121 868 car., = 0555). Dos guardias: otra versión de la función, o un
+practicante con subvención bajo la RMV sin convenio firmado → **PARA**. Prueba 463 (19); dos mutaciones la ponen en rojo.
+
+**Lo que hay que saber ANTES de pegar la 0573.** Rige con los horarios que haya ese día, y con base 30 cada hora vale 1.5 veces lo
+que valía. Un horario de 25.5 h/sem pasa de ≈ S/ 689 a S/ 1 045.50; uno de 17 h (11:20–18:00 con 1 h de almuerzo, 3 días) paga
+S/ 697; uno de 45 h/sem llega al tope. **Conviene ajustar los horarios ANTES de pegarla**, o el primer periodo sale más caro. Abierto para el laboralista: el feriado del practicante (art. 42.4) y si pagar por
+horas marcadas cumple el art. 45. Y Felipe pausó la sesión de la tarjeta vieja «Migración: pago fijo proporcional del preprofesional»
+(diseño anterior, valores fijos en la función): no debe retomarse.
+
+**0571 y 0574 · Parámetros (no mueven plata).** 0571: `roles_cambia` por parámetro (los de hoy conservan su comportamiento; uno nuevo
+nace `{admin}`). 0574: la clase plata guarda su valor **por fechas** (`parametros_vigencias`, `fn_parametro_valor_en`), se cambia con
+`fn_parametro_cambiar_vigencia` (se niega a una fecha dentro de un periodo pagado para su grupo) y tiene vista previa. Todavía no
+existe ningún parámetro de plata y la planilla no lee ninguno: conectar la base de 30 h a un parámetro es el paso siguiente.
+md5 de partida de la 0571 contrastado con producción. Pruebas 461 (16) y 464 (21).
+
+**Cómo se midió.** Sin Docker: un Postgres 16 con stubs de Supabase y las 570 migraciones. Suite pgTAP completa contra un **control**
+(la misma base sin 0573 ni 0574): ninguna prueba que pasaba dejó de pasar; las 40 que fallan en las dos son del entorno (stubs de
+storage/auth/cron), y la única que toca planilla (217) pasa con la 0573 una vez completado el stub. `db-tests` de GitHub es la señal fiable.
+
+**Lo que pasó con los números (2026-10-31).** El PR #626 se fusionó a las 16:44 con la cuenta de Felipe llevando **solo la 0571**
+(y los scripts de simulación); minutos después la PR #627 tomó la **0572** y la prueba **462** («la invitación a la cuenta sale sola»).
+La migración de parámetros con fechas, escrita como 0572, pasó a **0574** (prueba 464) sin haberse pegado nunca con el número viejo, y
+la rama se rehízo desde `main`. La pantalla de Parámetros publicada con el #626 funciona sin la 0571 pegada (cae a la regla por clase).
+
+**Orden de pegado:** 0571 → **0573** (el pago, lo primero que pidió Felipe) → 0574 (se niega sin la 0571). Antes de la 0573, volver a
+pedir su md5 a producción, en el mismo mensaje en que se pega.
+
 ## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya estaban pegadas) · **0546 PEGADA (2026-10-30)** · 0547 entregada · PR #620 · rama `claude/vigilant-hopper-d48cdd`
 
 **De dónde sale.** El checkout principal llevaba 943 commits congelado desde el 27 de septiembre y `core.hooksPath` apunta a SUS

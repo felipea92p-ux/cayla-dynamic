@@ -47,6 +47,13 @@ export interface ParametroFila {
   ultimo_origen: "pantalla" | "base" | null;
   /** Los roles que pueden cambiarlo (0571). Vacío si la base todavía no tiene la 0571. */
   roles_cambia: string[];
+  /** Rige por fechas (clase plata, 0574): se cambia con una fecha de vigencia. */
+  rige_por_fechas: boolean;
+  /** Desde cuándo rige el valor de hoy; null = rige el valor de partida. */
+  vigente_desde: string | null;
+  /** El próximo cambio ya programado, si hay uno. */
+  proximo_valor: number | null;
+  proximo_desde: string | null;
 }
 
 /** Una fila de `fn_parametros_historial` (0552). */
@@ -93,6 +100,10 @@ export function normalizarParametros(filas: ReadonlyArray<Record<string, unknown
     ultimo_motivo: (f.ultimo_motivo as string | null) ?? null,
     ultimo_origen: f.ultimo_origen === "pantalla" || f.ultimo_origen === "base" ? f.ultimo_origen : null,
     roles_cambia: Array.isArray(f.roles_cambia) ? f.roles_cambia.map(String) : [],
+    rige_por_fechas: f.rige_por_fechas === true,
+    vigente_desde: (f.vigente_desde as string | null) ?? null,
+    proximo_valor: numONulo(f.proximo_valor),
+    proximo_desde: (f.proximo_desde as string | null) ?? null,
   }));
 }
 
@@ -220,4 +231,68 @@ export function notaDeEfecto(parametro: string): string | null {
     return "Rige desde el próximo auto-cierre. No reabre ni cambia ninguna jornada ya cerrada.";
   }
   return null;
+}
+
+// ============================================================================
+// Los parámetros que rigen POR FECHAS (clase plata, 0574)
+// ============================================================================
+
+/** Un día más a una fecha ISO (aaaa-mm-dd), sin pasar por la hora local. */
+function diaSiguiente(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + 1));
+  return t.toISOString().slice(0, 10);
+}
+
+/**
+ * La fecha con la que NACE el campo «Rige desde»: hoy, salvo que la última
+ * versión ya empiece hoy o después; entonces, el día siguiente a esa. La base
+ * exige una fecha posterior a la última versión, y un campo de fecha que bloquea
+ * el envío no arranca vacío (CLAUDE.md): nace con la fecha más probable.
+ */
+export function fechaInicialDeVigencia(hoy: string, ultimaDesde: string | null): string {
+  if (!ultimaDesde || ultimaDesde < hoy) return hoy;
+  return diaSiguiente(ultimaDesde);
+}
+
+/**
+ * La fecha más temprana que acepta la base: el día siguiente a la última
+ * versión. null = no hay ninguna versión todavía (la base solo exige que la
+ * fecha no caiga en un periodo ya pagado, y eso lo dice la vista previa).
+ */
+export function fechaMinimaDeVigencia(ultimaDesde: string | null): string | null {
+  return ultimaDesde ? diaSiguiente(ultimaDesde) : null;
+}
+
+/**
+ * El valor que regiría el día del cambio, sin el nuevo: si ya hay un cambio
+ * programado, ese (la fecha nueva siempre va después de él); si no, el de hoy.
+ * Contra esto se compara «ese ya es el valor».
+ */
+export function valorAntesDelCambio(fila: Pick<ParametroFila, "valor_actual" | "proximo_valor">): number {
+  return fila.proximo_valor ?? fila.valor_actual;
+}
+
+/** Una fila de `fn_parametro_vista_previa` (0574). */
+export interface FilaVistaPrevia {
+  persona: string;
+  vinculo: string;
+  detalle: string;
+}
+
+/**
+ * La vista previa de un parámetro con fechas, en la forma de la lista de
+ * impacto que ya usa el panel. Dice A QUIÉN le toca; el monto de cada pago lo
+ * calcula la planilla del periodo, no esta pantalla.
+ */
+export function impactoDeVistaPrevia(
+  filas: ReadonlyArray<FilaVistaPrevia>,
+  antes: string,
+  despues: string,
+): Impacto {
+  return {
+    filas: filas.map((f) => ({ persona: `${f.persona} (${f.vinculo})`, antes, despues })),
+    sinCambio: 0,
+    nota: "Muestra a quién le toca este valor. Cuánto cambia el pago de cada persona lo calcula la planilla de cada periodo, desde la fecha elegida; lo ya pagado no se toca.",
+  };
 }

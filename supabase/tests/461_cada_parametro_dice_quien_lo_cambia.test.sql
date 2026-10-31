@@ -44,7 +44,7 @@ select is((select roles_cambia from parametros_catalogo where parametro = 'desca
 -- ── 2 · Un parámetro nuevo nace solo para la dirección ──────────────────────
 insert into parametros_catalogo
   (parametro, nombre, descripcion, unidad, clase, tipo_valor, valor_min, valor_max, valor_defecto, almacen_clave, editable)
-values ('zz_plata_461', 'Plata de laboratorio', 'Solo para esta prueba.', 'horas', 'plata', 'entero', 1, 40, 30, 'zz_plata_461', true);
+values ('zz_plata_461', 'Plata de laboratorio', 'Solo para esta prueba.', 'horas', 'operativo', 'entero', 1, 40, 30, 'zz_plata_461', true);
 select is((select roles_cambia from parametros_catalogo where parametro = 'zz_plata_461'),
           array['admin']::text[], 'Un parámetro nuevo nace {admin}');
 
