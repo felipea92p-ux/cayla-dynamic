@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · 0573 · 0574 · **SIN PEGAR** · rama `claude/amazing-albattani-kjo4f3`
+## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA (2026-10-31)** · 0574 SIN PEGAR · PR [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) · rama `claude/amazing-albattani-kjo4f3`
 
 **De dónde sale.** Felipe (2026-10-31): el pago de los practicantes no calzaba con sus horas. Tras simular base 45 y base 30
 (`scripts/sql-manual/simular_el_tope_de_horas_de_los_practicantes.sql` y `horarios_y_horas_marcadas_de_los_practicantes.sql`,
@@ -43,8 +43,14 @@ storage/auth/cron), y la única que toca planilla (217) pasa con la 0573 una vez
 La migración de parámetros con fechas, escrita como 0572, pasó a **0574** (prueba 464) sin haberse pegado nunca con el número viejo, y
 la rama se rehízo desde `main`. La pantalla de Parámetros publicada con el #626 funciona sin la 0571 pegada (cae a la regla por clase).
 
-**Orden de pegado:** 0571 → **0573** (el pago, lo primero que pidió Felipe) → 0574 (se niega sin la 0571). Antes de la 0573, volver a
-pedir su md5 a producción, en el mismo mensaje en que se pega.
+**0573 PEGADA por Felipe el 2026-10-31.** Antes de pegar, el md5 de producción se volvió a pedir en el mismo mensaje de la entrega y
+coincidió con la 0555 (`aad8a0f0…` / `2f73c7e9…`, 121 868). La fila final devolvió exactamente la esperada: `t · t · t · 1 · 125171 ·
+8480448f341d0d6d424c4b31816878b2 · 0 · 3 · «573 · el_practicante_se_paga_sobre_una_base_de_30_horas»` (mismo md5 que el Postgres local:
+se pegó sin `\r`). Rige desde ese momento sobre el periodo abierto (29-oct → 28-nov), con los horarios que haya.
+
+**Falta pegar:** la 0574 (se niega sin la 0571; antes, confirmar que la 0571 está). Para ver la fórmula en el periodo abierto, solo lectura:
+`fn_planilla_calcular_nucleo(fecha_ini, fecha_fin, id)` del periodo de hoy, filtrando `base_horas_semana is not null` (la consulta va en
+el mensaje del 2026-10-31).
 
 ## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya estaban pegadas) · **0546 PEGADA (2026-10-30)** · 0547 entregada · PR #620 · rama `claude/vigilant-hopper-d48cdd`
 
