@@ -27,7 +27,11 @@
 --      periodos (no versiona el pasado).
 --   3. Para un PROFESIONAL el piso proporcional es solo una referencia: la
 --      regla de la 0502 le aplica la RMV entera y no hay dónde cargar sus horas.
---   4. Las horas por semana son aproximadas: horas del periodo × 7 ÷ días.
+--   4. BASE 45 (columnas «b45»): jornada completa = 45 h = RMV entera; pago =
+--      RMV × horas ÷ 45 (hora = S/ 6.31). Es solo una simulación: un preprofesional
+--      no puede pasar de 30 h, y a 30 h la base 45 le da S/ 820 contra S/ 1 230 de
+--      la base 30 — esa diferencia ES la consulta abierta del art. 45.
+--   5. Las horas por semana son aproximadas: horas del periodo × 7 ÷ días.
 --
 -- Cómo se usa. UNA sola consulta (el SQL Editor muestra solo el último
 -- resultado). Una fila por practicante activo y una fila final «TOTAL». Los
@@ -124,7 +128,17 @@ filas as (
          round(c.rmv * 24 / c.max_h, 2)                            as piso_24h,
          round(c.rmv * 30 / c.max_h, 2)                            as piso_30h,
          round(c.sal * c.horas_ult / (6.5 * c.dias_ult)
-             - c.rmv * c.h_tope / c.max_h, 2)                      as hoy_menos_piso_de_su_tope
+             - c.rmv * c.h_tope / c.max_h, 2)                      as hoy_menos_piso_de_su_tope,
+         -- ── BASE 45 h (jornada completa = 45 h = RMV entera; factor = horas ÷ 45) ──
+         -- Es la hoja «equivalencia de jornadas» con base B. Solo SIMULA: para un
+         -- preprofesional queda bajo el piso proporcional de la base 30 (art. 45).
+         case when c.h_sem_ult is not null then round(least(c.h_sem_ult / 45.0, 1), 2) end as factor_b45_marcado,
+         case when c.h_sem_ult is not null then round(c.rmv * least(c.h_sem_ult / 45.0, 1), 2) end as pago_b45_marcado,
+         case when c.h_sem_ult is not null then round(c.rmv * least(c.h_sem_ult, c.h_tope) / 45.0, 2) end as pago_b45_con_tope,
+         round(c.rmv * 15 / 45.0, 2)                               as b45_15h,
+         round(c.rmv * 20 / 45.0, 2)                               as b45_20h,
+         round(c.rmv * 24 / 45.0, 2)                               as b45_24h,
+         round(c.rmv * 30 / 45.0, 2)                               as b45_30h
     from calc c
 )
 select * from (
@@ -133,7 +147,9 @@ union all
 select 1, 'TOTAL (' || count(*) || ' practicantes)', '', sum(subvencion_vigente), '', '',
        null, null, null, null,
        sum(pago_hoy_ultimo), sum(pago_con_tope), sum(se_ahorra_con_tope),
-       sum(piso_20h), sum(piso_24h), sum(piso_30h), sum(hoy_menos_piso_de_su_tope)
+       sum(piso_20h), sum(piso_24h), sum(piso_30h), sum(hoy_menos_piso_de_su_tope),
+       null, sum(pago_b45_marcado), sum(pago_b45_con_tope),
+       sum(b45_15h), sum(b45_20h), sum(b45_24h), sum(b45_30h)
   from filas
 ) t
 order by o, nombre;
