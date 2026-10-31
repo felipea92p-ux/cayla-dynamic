@@ -42,8 +42,8 @@
 --     la 0161 con `fn_documentos_tablero`. Se vuelven a dar sus permisos.
 --   · `fn_rol_actual() = any(...)` con `is not true`: un rol nulo no autoriza.
 --
--- md5 DE PARTIDA (de LA VERSIÓN LOCAL, la 0552; falta contrastarlo con PRODUCCIÓN
--- antes de entregar, como pide CLAUDE.md):
+-- md5 DE PARTIDA (la 0552). CONTRASTADO CON PRODUCCIÓN el 2026-10-31, desde el
+-- SQL Editor, y coincide con el local byte por byte:
 --   fn_parametro_cambiar   prosrc 44ee2514fef1c1e4c085429ff176c5a2 (2901 car.)
 --   fn_parametros_listar   prosrc c3ba9466a8008dc6002576dfaca3d91d (1091 car.)
 --
