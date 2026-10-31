@@ -487,14 +487,14 @@ begin
     left join lateral (
       select z.valor, z.vigente_desde
         from parametros_vigencias z
-       where z.parametro = c.parametro and z.vigente_desde <= current_date
-         and (z.vigente_hasta is null or z.vigente_hasta >= current_date)
+       where z.parametro = c.parametro and z.vigente_desde <= fn_hoy_lima()
+         and (z.vigente_hasta is null or z.vigente_hasta >= fn_hoy_lima())
        order by z.vigente_desde desc limit 1
     ) vg on true
     left join lateral (
       select z.valor, z.vigente_desde
         from parametros_vigencias z
-       where z.parametro = c.parametro and z.vigente_desde > current_date
+       where z.parametro = c.parametro and z.vigente_desde > fn_hoy_lima()
        order by z.vigente_desde limit 1
     ) px on true
     left join lateral (
