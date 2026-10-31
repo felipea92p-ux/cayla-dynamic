@@ -17,7 +17,7 @@ import { filtrarCuentas, sedesDe } from "@/lib/admin/filtrar-cuentas";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { guardarMiClave } from "@/lib/admin/mi-clave";
-import { REQUISITOS_CLAVE, problemasDeClave, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { fechaLima, REQUISITOS_CLAVE, problemasDeClave, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
@@ -36,20 +36,34 @@ interface Promovible {
   sede: string;
 }
 
-interface Invitable {
+// Lo que ya salió para cada persona (0572): la invitación automática, y la
+// manual al correo que tiene hoy. Cada una se manda una sola vez.
+interface Envios {
+  automaticaAt: string | null;
+  automaticaFallo: string | null;
+  manualAt: string | null;
+}
+
+interface Invitable extends Envios {
   id: string;
   nombre: string;
   sede: string;
   email: string | null;
 }
 
-interface Pendiente {
+interface Pendiente extends Envios {
   id: string;
   nombre: string;
   rol: string;
   sede: string;
   email: string | null;
   confirmado: boolean;
+}
+
+// «31/10», en hora de Lima: es la fecha que la persona vio llegar el correo.
+function diaMes(iso: string) {
+  const [, m, d] = fechaLima(iso).split("-");
+  return `${d}/${m}`;
 }
 
 // UNA LISTA QUE NO SE PUDO CARGAR NO SE PINTA COMO UNA LISTA VACÍA.
@@ -197,6 +211,20 @@ export default function CuentasPage() {
     setInvitables(data.invitables ?? []);
     setPendientes(data.pendientes ?? []);
     setCargando(false);
+    // Abrir esta pantalla también manda las invitaciones automáticas que
+    // faltaban. Si salió alguna, se dice: un correo que sale sin que nadie
+    // apriete nada tiene que dejar constancia de que salió.
+    const enviadas: { nombre: string; correo: string }[] = data.automaticas?.enviadas ?? [];
+    const fallidas: { nombre: string; error: string }[] = data.automaticas?.fallidas ?? [];
+    if (enviadas.length || fallidas.length) {
+      setMsgGestion({
+        tipo: fallidas.length ? "error" : "ok",
+        texto: [
+          enviadas.length ? `Se mandó sola la invitación a: ${enviadas.map((e) => `${e.nombre} (${e.correo})`).join(", ")}.` : "",
+          fallidas.length ? `No salió sola para: ${fallidas.map((f) => `${f.nombre} — ${f.error}`).join(" · ")}` : "",
+        ].filter(Boolean).join(" "),
+      });
+    }
   }, [pedir]);
 
   useEffect(() => {
@@ -529,6 +557,11 @@ export default function CuentasPage() {
           <strong>eligen su clave por su cuenta</strong> — nadie más la conoce. No ven planilla, ni sueldos, ni
           datos de nadie: su menú solo muestra lo que les corresponde.
         </p>
+        <p className="mb-3 text-sm text-taupe">
+          <strong>La invitación sale sola, una vez</strong>, en cuanto su ficha tiene correo. Acá solo queda quien
+          todavía no lo tiene, o a quien no le pudo salir: a ella se la mandas a mano, también una sola vez por
+          correo.
+        </p>
         {cargando ? (
           <p className="text-sm text-taupe">Cargando…</p>
         ) : errListado && invitables.length === 0 ? (
@@ -540,10 +573,10 @@ export default function CuentasPage() {
             {invitables.some((p) => p.email) && (
               <Boton
                 variante="primario"
-                onClick={() => enTanda(invitables.filter((p) => p.email), "invitar")}
-                disabled={tanda || procesando !== null}
+                onClick={() => enTanda(invitables.filter((p) => p.email && !p.manualAt), "invitar")}
+                disabled={tanda || procesando !== null || !invitables.some((p) => p.email && !p.manualAt)}
               >
-                {tanda ? "Enviando…" : `Invitar a todas (${invitables.filter((p) => p.email).length})`}
+                {tanda ? "Enviando…" : `Invitar a todas (${invitables.filter((p) => p.email && !p.manualAt).length})`}
               </Boton>
             )}
             {invitables.map((p) => (
@@ -553,15 +586,19 @@ export default function CuentasPage() {
                   {p.email ? (
                     <span className="block text-xs text-taupe">{p.email}</span>
                   ) : (
-                    <span className="block text-xs text-ambar">sin correo — agrégalo en Datos personales</span>
+                    <span className="block text-xs text-ambar">sin correo — agrégalo en Datos personales y la invitación sale sola</span>
                   )}
+                  {p.email && p.automaticaFallo && !p.manualAt && (
+                    <span className="block text-xs text-ambar">no salió sola: {p.automaticaFallo}</span>
+                  )}
+                  {p.manualAt && <span className="block text-xs text-taupe">invitada a mano el {diaMes(p.manualAt)}</span>}
                 </span>
                 <Boton
                   variante="secundario"
                   onClick={() => invitar(p)}
-                  disabled={procesando === p.id || !p.email || tanda}
+                  disabled={procesando === p.id || !p.email || tanda || !!p.manualAt}
                 >
-                  {procesando === p.id ? "…" : "Invitar"}
+                  {procesando === p.id ? "…" : p.manualAt ? "Ya invitada" : "Invitar"}
                 </Boton>
               </div>
             ))}
@@ -572,8 +609,9 @@ export default function CuentasPage() {
         <p className="mb-3 text-sm text-taupe">
           Tienen cuenta creada pero <strong>nunca han iniciado sesión</strong>: el correo se perdió, llegó a spam
           o quedó pendiente. A quien fue invitada le llega otra vez la invitación; a quien ya tenía clave le llega
-          el enlace de «recuperar acceso» para poner la suya. Van de a una, con una pausa entre correos, porque el
-          proyecto tiene un tope por hora.
+          el enlace de «recuperar acceso» para poner la suya. <strong>Se reenvía una sola vez por correo</strong>: si
+          ese correo está mal, cámbialo en Cuentas del equipo y se abre un envío más. Van de a una, con una pausa
+          entre correos, porque el proyecto tiene un tope por hora.
         </p>
         {cargando ? (
           <p className="text-sm text-taupe">Cargando…</p>
@@ -586,10 +624,10 @@ export default function CuentasPage() {
             {pendientes.some((p) => p.email) && (
               <Boton
                 variante="primario"
-                onClick={() => enTanda(pendientes.filter((p) => p.email), "reinvitar")}
-                disabled={tanda || procesando !== null}
+                onClick={() => enTanda(pendientes.filter((p) => p.email && !p.manualAt), "reinvitar")}
+                disabled={tanda || procesando !== null || !pendientes.some((p) => p.email && !p.manualAt)}
               >
-                {tanda ? "Enviando…" : `Reenviar a todas (${pendientes.filter((p) => p.email).length})`}
+                {tanda ? "Enviando…" : `Reenviar a todas (${pendientes.filter((p) => p.email && !p.manualAt).length})`}
               </Boton>
             )}
             {pendientes.map((p) => (
@@ -598,18 +636,21 @@ export default function CuentasPage() {
                   {p.nombre} <span className="text-taupe">· {p.sede} · {ROL_LABEL[p.rol] ?? p.rol}</span>
                   {p.email ? (
                     <span className="block text-xs text-taupe">
-                      {p.email} · {p.confirmado ? "le llega «recuperar acceso»" : "le llega la invitación"}
+                      {p.email} · {p.manualAt
+                        ? `reenviado el ${diaMes(p.manualAt)}`
+                        : p.confirmado ? "le llega «recuperar acceso»" : "le llega la invitación"}
                     </span>
                   ) : (
                     <span className="block text-xs text-ambar">su cuenta no tiene correo</span>
                   )}
+                  {p.automaticaAt && <span className="block text-xs text-taupe">le llegó sola el {diaMes(p.automaticaAt)}</span>}
                 </span>
                 <Boton
                   variante="secundario"
                   onClick={() => reinvitar(p)}
-                  disabled={procesando === p.id || !p.email || tanda}
+                  disabled={procesando === p.id || !p.email || tanda || !!p.manualAt}
                 >
-                  {procesando === p.id ? "…" : "Reenviar"}
+                  {procesando === p.id ? "…" : p.manualAt ? "Ya reenviado" : "Reenviar"}
                 </Boton>
               </div>
             ))}

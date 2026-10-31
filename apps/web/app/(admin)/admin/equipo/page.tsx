@@ -31,6 +31,7 @@ import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { pedirInvitacionesAutomaticas, textoInvitacionesEnviadas } from "@/lib/admin/invitacion-automatica";
 import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
 import { listarPendientesPorPersona } from "@/lib/admin/bandeja-equipo";
 import {
@@ -787,6 +788,13 @@ export default function EquipoPage() {
       setGuardando(false);
       avisar("error", mensajeDeError(error, "crear"));
       return;
+    }
+    // Si llegó con correo y ya le toca invitación, sale sola (una vez). Sin
+    // esperarla: el alta ya terminó.
+    if (form.email.trim()) {
+      void pedirInvitacionesAutomaticas().then((enviadas) => {
+        if (enviadas.length) avisar("ok", textoInvitacionesEnviadas(enviadas));
+      });
     }
     const nombreCorto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
     let texto = `${nombreCorto} agregado(a).`;

@@ -2,12 +2,29 @@ import { createAnonClient, createServiceRoleClient, createUserClient } from "@ca
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { problemasDeClave, puedeActuarSobre, puedeGestionarCatalogos, ROLES_CON_PANEL } from "@cayla-dynamic/shared";
+import {
+  cerrarEnvio,
+  historialDeInvitaciones,
+  invitablesSinCuenta,
+  invitarAPersona,
+  invitarAutomaticamente,
+  mensajeDeAuth,
+  normalizarCorreo,
+  reservarEnvio,
+} from "@/lib/admin/invitaciones-cuenta";
+import {
+  problemasDeClave,
+  puedeActuarSobre,
+  puedeDispararInvitacionAutomatica,
+  puedeGestionarCatalogos,
+  ROLES_CON_PANEL,
+} from "@cayla-dynamic/shared";
 
 // Gestión de cuentas del panel — SOLO admin/lider_do. Corre en el servidor con la
 // llave de servicio; verifica que quien llama sea admin (por su sesión).
 // Acciones: listar | resetear (contraseña de otro) | crear (cuenta de una persona)
 //         | invitar (correo para que elija su clave) | reinvitar | promover
+//         | invitar-automatico (la única que no exige admin: ver más abajo)
 //         | cambiar-correo (el usuario con el que entra, en la cuenta y en la ficha).
 
 // Estas claves son la única credencial de una cuenta del panel hasta que su dueña
@@ -95,31 +112,6 @@ async function usuariosPorId(admin: any): Promise<Record<string, CuentaAuth>> {
   return out;
 }
 
-// Los errores de Supabase Auth no son de Postgres: no traen código SQL y llegan
-// en inglés. Quien los lee acá es una admin de CAYLA, no una ingeniera, así que
-// el más frecuente —el correo repetido, que sale cada vez que alguien intenta
-// crear dos veces la misma cuenta— se dice en español. El resto se registra y
-// se responde con algo honesto en vez de pegar el texto en inglés.
-function mensajeDeAuth(error: { message?: string; status?: number } | null | undefined): string {
-  const t = (error?.message ?? "").toLowerCase();
-  // El más probable cuando se reenvían muchas invitaciones de una pasada: el
-  // proyecto tiene un tope de correos por hora. No es un fallo del envío ni un
-  // problema de esa persona — es que hay que esperar y seguir con el resto.
-  if (error?.status === 429 || t.includes("rate limit") || t.includes("only request this after")) {
-    return "Se llegó al tope de correos por hora del proyecto. Espera un rato y sigue con las que faltan; las ya enviadas no se pierden.";
-  }
-  if (t.includes("already been registered") || t.includes("already registered")) {
-    return "Ese correo ya está registrado en otra cuenta. Usa otro, o revisa si esa persona ya tiene acceso.";
-  }
-  if (t.includes("password")) {
-    return "La contraseña generada no cumple los requisitos del sistema de acceso. Vuelve a intentarlo.";
-  }
-  if (t.includes("invalid") && t.includes("email")) {
-    return "Ese correo no tiene un formato válido.";
-  }
-  return "El sistema de acceso no pudo completar la operación. Vuelve a intentarlo; si sigue igual, avisa a Felipe.";
-}
-
 export async function POST(req: Request) {
   const admin = createServiceRoleClient();
   if (!admin) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
@@ -136,16 +128,49 @@ export async function POST(req: Request) {
   // correo de login — recuperando todo lo que la 0374 le quitó. Es la misma
   // condición que la 0374 ya puso del lado de la base; acá hace falta
   // repetirla porque la llave de servicio no la ve.
-  const { data: yo } = await admin.from("personas").select("rol, estado").eq("auth_user_id", userData.user.id).maybeSingle();
+  const { data: yo } = await admin.from("personas").select("id, rol, estado").eq("auth_user_id", userData.user.id).maybeSingle();
+  const body = await req.json().catch(() => ({}));
+  const { accion, personaId, email } = body;
+
+  // A dónde llega la persona al hacer clic en su correo. Sin esto, Supabase la
+  // manda al Site URL configurado en el proyecto: cae en la raíz, sin clave y
+  // sin saber qué hacer. Es la misma pantalla a la que lleva «Olvidé mi clave».
+  // El origen sale del request para que funcione igual en producción y en una
+  // vista previa de Vercel, sin una variable de entorno más que mantener.
+  const destinoTrasClic = `${req.headers.get("origin") ?? new URL(req.url).origin}/admin/nueva-clave`;
+
+  // El envío automático va ANTES del candado de admin: dispararlo no decide
+  // nada (ver `puedeDispararInvitacionAutomatica`).
+  if (accion === "invitar-automatico") {
+    if (!yo || yo.estado !== "activo" || !puedeDispararInvitacionAutomatica(yo.rol)) {
+      return NextResponse.json({ error: "sin acceso al panel" }, { status: 403 });
+    }
+    try {
+      return NextResponse.json(await invitarAutomaticamente(admin, destinoTrasClic));
+    } catch (e) {
+      Sentry.captureException(e);
+      return NextResponse.json({ error: mensajeDeError(e as { message: string }, "mandar las invitaciones automáticas") }, { status: 500 });
+    }
+  }
+
   if (!yo || yo.estado !== "activo" || !puedeGestionarCatalogos(yo.rol)) {
     return NextResponse.json({ error: "solo un administrador puede gestionar cuentas" }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => ({}));
-  const { accion, personaId, email } = body;
-
   try {
     if (accion === "listar") {
+      // Primero sale lo que tenga que salir solo: así la lista que se pinta ya
+      // es la de después del envío, y nadie aprieta «Invitar» sobre alguien a
+      // quien el sistema le está mandando su correo en ese mismo momento. Si
+      // falla, se lista igual y se dice: una avería del envío no puede dejar
+      // la pantalla sin sus listas.
+      let automaticas: { enviadas: { nombre: string; correo: string }[]; fallidas: { nombre: string; error: string }[] };
+      try {
+        automaticas = await invitarAutomaticamente(admin, destinoTrasClic);
+      } catch (e) {
+        Sentry.captureException(e);
+        automaticas = { enviadas: [], fallidas: [{ nombre: "Envío automático", error: mensajeDeError(e as { message: string }, "mandar las invitaciones automáticas") }] };
+      }
       const { data: personas } = await admin
         .from("personas")
         .select("id, nombres, apellidos, rol, auth_user_id, sedes:sede_base_id(codigo)")
@@ -192,39 +217,9 @@ export async function POST(req: Request) {
         nombre: `${p.nombres} ${p.apellidos}`,
         sede: p.sedes?.codigo ?? "?",
       }));
-      // Integrantes a invitar para que dejen constancia de la política salarial.
-      // La Ley 30709 obliga a INFORMARLA a cada persona y a poder probarlo, y
-      // `fn_acusar_politica_salarial` solo acepta el acuse de quien tiene sesión
-      // propia: sin cuenta, no hay forma de que dejen constancia.
-      //
-      // NO se les promueve a encargada para lograrlo — eso les daría acceso al
-      // panel de su sede. Con su rol de integrante el menú ya les muestra solo
-      // lo que les corresponde (la política salarial va sin `roles` a propósito)
-      // y las RLS de `asignaciones_salario` y `movimientos_planilla` siguen
-      // cerradas a admin/líder: no ven sueldos de nadie, ni el suyo en planilla.
-      //
-      // También entra la practicante (`en_planilla` es falso para ella: no es
-      // 'planilla' ni 'prueba'), aunque su motivo no sea la Ley 30709 — tiene
-      // horario y marca en el terminal igual que cualquiera, así que necesita la
-      // misma cuenta mínima para entrar a lo suyo. RxH y no_trabajador se quedan
-      // afuera a propósito: a un locador no se le mide jornada (0191), y darle
-      // una cuenta de este tipo sería la misma señal de subordinación que esa
-      // migración existe para evitar.
-      const { data: sinCuenta } = await admin
-        .from("personas")
-        .select("id, nombres, apellidos, email, en_planilla, tipo_vinculo, sedes:sede_base_id(codigo)")
-        .eq("rol", "integrante")
-        .eq("estado", "activo").eq("cuenta_de_servicio", false)
-        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
-        .is("auth_user_id", null)
-        .order("apellidos");
-      const invitables = (sinCuenta ?? [])
-        .map((p: any) => ({
-          id: p.id,
-          nombre: `${p.nombres} ${p.apellidos}`,
-          sede: p.sedes?.codigo ?? "?",
-          email: p.email ?? null,
-        }));
+      // Integrantes a invitar para que dejen constancia de la política salarial
+      // (quiénes y por qué: ver `invitablesSinCuenta`).
+      const invitables = await invitablesSinCuenta(admin);
       // Quien tiene cuenta y NUNCA entró. Es el hueco que dejaba el diseño
       // anterior: `invitar` enlaza `auth_user_id` en cuanto GoTrue acepta el
       // envío, así que la persona desaparecía de «invitables» aunque el correo
@@ -259,17 +254,40 @@ export async function POST(req: Request) {
           confirmado: u.confirmado,
         }));
 
-      return NextResponse.json({ cuentas, promovibles, invitables, pendientes });
+      // Qué correos ya salieron, para que la pantalla diga «le llegó sola el
+      // 31/10» y apague el botón manual que ya se usó. Si no se puede leer, los
+      // botones se quedan encendidos: el freno de verdad es la base, que igual
+      // rechaza el segundo envío.
+      let historial: Awaited<ReturnType<typeof historialDeInvitaciones>> = {};
+      try {
+        historial = await historialDeInvitaciones(admin, [...invitables, ...pendientes].map((p) => p.id));
+      } catch (e) {
+        Sentry.captureException(e);
+      }
+      const conHistorial = <T extends { id: string; email: string | null }>(p: T) => {
+        const h = historial[p.id];
+        return {
+          ...p,
+          automaticaAt: h?.automatica?.at ?? null,
+          automaticaFallo: h?.automaticaFallo ?? null,
+          manualAt: h?.manuales[normalizarCorreo(p.email)] ?? null,
+        };
+      };
+
+      return NextResponse.json({
+        cuentas,
+        promovibles,
+        invitables: invitables.map(conHistorial),
+        pendientes: pendientes.map(conHistorial),
+        automaticas,
+      });
     }
 
     if (accion === "invitar") {
-      // Manda un correo de invitación al correo que la persona declaró. Ella
-      // elige su propia clave: nadie más la conoce, ni siquiera quien invita —
-      // a diferencia de `crear`, que devuelve la contraseña en pantalla.
-      //
-      // Y la cadena de prueba queda mejor: el correo llega a la dirección que
-      // la persona designó en su contrato como medio de comunicación válido,
-      // que es el mismo criterio con el que se entrega el RIT.
+      // El botón manual de quien todavía no tiene cuenta. Normalmente la
+      // invitación ya salió sola (ver `invitarAutomaticamente`); este botón es
+      // para cuando no pudo —el tope de correos por hora, un correo que
+      // Supabase rechazó— y se puede usar UNA vez por correo (0572).
       const { data: p } = await admin
         .from("personas")
         .select("id, auth_user_id, rol, email, nombres, apellidos")
@@ -280,35 +298,24 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "no puedes invitar a esa persona" }, { status: 403 });
       }
       if (p.auth_user_id) return NextResponse.json({ error: "esa persona ya tiene cuenta" }, { status: 409 });
-      const destino = (email ?? p.email ?? "").trim();
+      const destino = normalizarCorreo(email ?? p.email);
       if (!destino.includes("@")) {
         return NextResponse.json(
           { error: `${p.nombres} no tiene correo registrado. Agrégalo en Datos personales antes de invitarla.` },
           { status: 400 },
         );
       }
-      // A dónde llega al hacer clic. Sin esto, Supabase la manda al Site URL
-      // configurado en el proyecto: la persona cae en la raíz, sin clave y sin
-      // saber qué hacer. Es la misma pantalla a la que lleva «Olvidé mi clave».
-      // El origen sale del request para que funcione igual en producción y en
-      // una vista previa de Vercel, sin una variable de entorno más que mantener.
-      const origen = req.headers.get("origin") ?? new URL(req.url).origin;
-      const { data: inv, error } = await admin.auth.admin.inviteUserByEmail(destino, {
-        redirectTo: `${origen}/admin/nueva-clave`,
+      const r = await invitarAPersona(admin, {
+        personaId: p.id, correo: destino, origen: "manual", enviadaPor: yo.id, redirectTo: destinoTrasClic,
       });
-      if (error) {
-        Sentry.captureException(error);
-        return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
+      if (r.estado === "ya-enviada") {
+        return NextResponse.json(
+          { error: `Ya se le mandó la invitación manual a ${destino}. Se manda una sola vez por correo; si ese correo está mal, corrígelo en Datos personales.` },
+          { status: 409 },
+        );
       }
-      const { error: e2 } = await admin
-        .from("personas")
-        .update({ auth_user_id: inv.user.id })
-        .eq("id", personaId);
-      if (e2) {
-        Sentry.captureException(e2);
-        return NextResponse.json({ error: mensajeDeError(e2, "enlazar la cuenta con su ficha") }, { status: 500 });
-      }
-      return NextResponse.json({ invitado: destino });
+      if (r.estado === "fallida") return NextResponse.json({ error: r.error }, { status: 500 });
+      return NextResponse.json({ invitado: r.correo });
     }
 
     if (accion === "reinvitar") {
@@ -328,6 +335,10 @@ export async function POST(req: Request) {
       // Mandar el que no toca no es un detalle de forma: el primero fallaría
       // con un error en inglés y el segundo llegaría hablando de recuperar una
       // clave que la persona nunca tuvo.
+      //
+      // Y se manda UNA vez por correo (0572), sea cual sea de los dos. Si ese
+      // correo estaba mal, «Cambiar correo» en Cuentas del equipo abre un envío
+      // más — al correo nuevo, no al mismo buzón otra vez.
       const { data: p } = await admin
         .from("personas")
         .select("id, auth_user_id, rol, email, nombres, apellidos")
@@ -354,36 +365,51 @@ export async function POST(req: Request) {
       // El correo destino es el de la CUENTA, no el de la ficha: ese es el
       // usuario con el que entra. Si la ficha tiene otro, cambiarlo es otra
       // operación (y hoy se hace desde acá, no desde Datos personales).
-      const correo = (u.user.email ?? p.email ?? "").trim();
+      const correo = normalizarCorreo(u.user.email ?? p.email);
       if (!correo.includes("@")) {
         return NextResponse.json(
           { error: `La cuenta de ${p.nombres} no tiene un correo válido.` },
           { status: 400 },
         );
       }
-      const raiz = req.headers.get("origin") ?? new URL(req.url).origin;
-      const destinoTrasClic = `${raiz}/admin/nueva-clave`;
+      const tipo = u.user.email_confirmed_at ? "recuperacion" : "invitacion";
+      const reserva = await reservarEnvio(admin, { personaId: p.id, correo, origen: "manual", tipo, enviadaPor: yo.id });
+      if (!reserva.ok) {
+        return reserva.yaEnviada
+          ? NextResponse.json(
+              { error: `Ya se le reenvió el acceso a ${correo}. Se reenvía una sola vez por correo; si ese correo está mal, cámbialo en Cuentas del equipo.` },
+              { status: 409 },
+            )
+          : NextResponse.json({ error: reserva.error }, { status: 500 });
+      }
 
-      if (!u.user.email_confirmed_at) {
+      if (tipo === "invitacion") {
         const { error } = await admin.auth.admin.inviteUserByEmail(correo, { redirectTo: destinoTrasClic });
         if (error) {
           Sentry.captureException(error);
+          await cerrarEnvio(admin, reserva.id, { ok: false, motivo: mensajeDeAuth(error) });
           return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
         }
-        return NextResponse.json({ enviado: correo, tipo: "invitacion" });
+        await cerrarEnvio(admin, reserva.id, { ok: true });
+        return NextResponse.json({ enviado: correo, tipo });
       }
 
       // La recuperación NO se pide con la llave de servicio: `/recover` es un
       // camino público y con la llave de servicio va firmado como quien puede
       // todo. Con la llave anónima se comporta igual que «Olvidé mi clave».
       const publico = createAnonClient();
-      if (!publico) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
+      if (!publico) {
+        await cerrarEnvio(admin, reserva.id, { ok: false, motivo: "servidor sin configurar" });
+        return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
+      }
       const { error } = await publico.auth.resetPasswordForEmail(correo, { redirectTo: destinoTrasClic });
       if (error) {
         Sentry.captureException(error);
+        await cerrarEnvio(admin, reserva.id, { ok: false, motivo: mensajeDeAuth(error) });
         return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
       }
-      return NextResponse.json({ enviado: correo, tipo: "recuperacion" });
+      await cerrarEnvio(admin, reserva.id, { ok: true });
+      return NextResponse.json({ enviado: correo, tipo });
     }
 
     if (accion === "promover") {
