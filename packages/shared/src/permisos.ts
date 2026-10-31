@@ -473,9 +473,20 @@ export function puedeGestionarParametros(rol: RolPosible): boolean {
  * `editable` del catálogo, no el rol.
  *
  * Una clase desconocida NIEGA: el lado seguro de equivocarse es un botón que no
- * se dibuja. Espeja `fn_parametro_cambiar`, donde manda la base.
+ * se dibuja. Espeja `fn_parametro_cambiar`, donde manda la base. Desde la 0571 la
+ * pantalla le pasa también `roles_cambia` de la fila, y esa lista manda sobre la clase.
  */
-export function puedeCambiarParametro(rol: RolPosible, clase: ClaseParametro | string | null | undefined): boolean {
+export function puedeCambiarParametro(
+  rol: RolPosible,
+  clase: ClaseParametro | string | null | undefined,
+  /** Los roles que el catálogo da a ESE parámetro (0571). Si viene, manda esa lista. */
+  rolesPermitidos?: readonly string[] | null,
+): boolean {
+  // Desde la 0571 cada parámetro dice quién lo cambia (`roles_cambia`) y la base manda.
+  // Aun así, quien no entra a Parámetros no cambia nada: la lista no abre esa puerta.
+  if (rolesPermitidos) {
+    return tiene(DO, rol) && typeof rol === "string" && rolesPermitidos.includes(rol);
+  }
   if (clase === "operativo" || clase === "plata") return tiene(DO, rol);
   if (clase === "normativo") return tiene(SOLO_DIRECCION, rol);
   return false;
