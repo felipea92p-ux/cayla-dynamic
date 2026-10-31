@@ -431,7 +431,8 @@ with repo(numero, nombre, nunca) as (values
     (571, 'cada_parametro_dice_quien_lo_cambia', false),
     (572, 'la_invitacion_a_la_cuenta_sale_sola_una_vez', false),
     (573, 'el_practicante_se_paga_sobre_una_base_de_30_horas', false),
-    (574, 'los_parametros_de_plata_tienen_vigencia_y_vista_previa', false)
+    (574, 'los_parametros_de_plata_tienen_vigencia_y_vista_previa', false),
+    (575, 'la_base_del_practicante_la_decide_su_modalidad', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

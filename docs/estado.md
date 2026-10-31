@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · 0573 · 0574 · **SIN PEGAR** · rama `claude/amazing-albattani-kjo4f3`
+## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA (2026-10-31, corrige la 0573)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
 
 **De dónde sale.** Felipe (2026-10-31): el pago de los practicantes no calzaba con sus horas. Tras simular base 45 y base 30
 (`scripts/sql-manual/simular_el_tope_de_horas_de_los_practicantes.sql` y `horarios_y_horas_marcadas_de_los_practicantes.sql`,
@@ -43,8 +43,30 @@ storage/auth/cron), y la única que toca planilla (217) pasa con la 0573 una vez
 La migración de parámetros con fechas, escrita como 0572, pasó a **0574** (prueba 464) sin haberse pegado nunca con el número viejo, y
 la rama se rehízo desde `main`. La pantalla de Parámetros publicada con el #626 funciona sin la 0571 pegada (cae a la regla por clase).
 
-**Orden de pegado:** 0571 → **0573** (el pago, lo primero que pidió Felipe) → 0574 (se niega sin la 0571). Antes de la 0573, volver a
-pedir su md5 a producción, en el mismo mensaje en que se pega.
+**0573 PEGADA por Felipe el 2026-10-31.** Antes de pegar, el md5 de producción se volvió a pedir en el mismo mensaje de la entrega y
+coincidió con la 0555 (`aad8a0f0…` / `2f73c7e9…`, 121 868). La fila final devolvió exactamente la esperada: `t · t · t · 1 · 125171 ·
+8480448f341d0d6d424c4b31816878b2 · 0 · 3 · «573 · el_practicante_se_paga_sobre_una_base_de_30_horas»` (mismo md5 que el Postgres local:
+se pegó sin `\r`). Rige desde ese momento sobre el periodo abierto (29-oct → 28-nov), con los horarios que haya.
+
+**La 0573 salió mal en dos cosas, medidas en producción el mismo día, y la 0575 las corrige.** Felipe corrió la consulta del
+periodo abierto y vio a los cuatro practicantes en base 30: **«lo que debe tener valor es la modalidad … lo que son pre profesional
+cobran en base 30 y los egresados en base 45. Su tipo de vínculo de ambos es practicante»**, y **«que esto funcione desde este
+periodo»**. La 0573 había tomado «el vínculo practicante» como las dos modalidades. Y su tope, prorrateado por días activos, a
+quien tenía un solo día en el rango le pagaba 4.29 de 7.45 h. La **0575** (prueba 465): preprofesional → 30 h, egresado (modalidad
+`profesional`) → 45 h, sin modalidad → como antes; tope del periodo entero; y **solo para periodos que empiezan el 2026-10-29 o
+después** (el anterior, aunque se recalcule en vivo, sigue con la fórmula de antes). Parte de la 0573 tal como quedó en producción
+(md5 `8480448f…`, devuelto por su propia comprobación); al pegarla debe dar `40748ba949e32789c06c48c8eac9fca8` (127 407).
+Medido contra un control: ninguna prueba que pasaba dejó de pasar; cuatro mutaciones (sin modalidad, egresado en 30, tope por
+días activos, sin fecha de inicio) ponen la 465 en rojo.
+
+**0575 PEGADA por Felipe el 2026-10-31**, antes de fusionar el #630. Fila final exacta: `t · t · t · 1 · 127407 ·
+40748ba949e32789c06c48c8eac9fca8 · 1 · 2 · 0 · «575 · la_base_del_practicante_la_decide_su_modalidad»` (1 preprofesional y 2
+egresados activos, ninguno sin modalidad). La consulta de modalidades de ese momento confirma la regla persona por persona, y explica
+el corte que se vio con la 0573: la practicante inactiva cesó el 2026-10-29, primer día del periodo, así que tenía un solo día activo.
+
+**Falta pegar:** la 0574 (se niega sin la 0571; antes, confirmar que la 0571 está). Para ver la fórmula en el periodo abierto, solo lectura:
+`fn_planilla_calcular_nucleo(fecha_ini, fecha_fin, id)` del periodo de hoy, filtrando `base_horas_semana is not null` (la consulta va en
+el mensaje del 2026-10-31).
 
 ## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya estaban pegadas) · **0546 PEGADA (2026-10-30)** · 0547 entregada · PR #620 · rama `claude/vigilant-hopper-d48cdd`
 

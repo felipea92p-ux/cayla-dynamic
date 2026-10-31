@@ -11,8 +11,10 @@
 --   3. el convenio firmado de 17 h con S/ 697: cumplirlo paga 697.00 (no la
 --      proporción dos veces); faltar una semana paga 522.75; marcar de más, 697;
 --   4. un BORRADOR de convenio no cambia nada: se paga con base 30;
---   5. el profesional también va en base 30 (decisión del 2026-10-31);
---   6. quien entró a mitad de periodo tiene el tope de SUS días;
+--   5. el egresado (modalidad profesional) cobra la subvención entera con 45 h
+--      (desde la 0575 su base es 45 h; la 465 lo prueba en detalle);
+--   6. quien entró a mitad de periodo cobra sus horas (desde la 0575, el tope
+--      es el del periodo entero);
 --   7. la planilla no se mueve ni un céntimo y no informa base de practicante;
 --   8. el total de un practicante sigue cuadrando con sus líneas;
 --   9. fn_practicante_horas_pactadas no la ejecuta un cliente.
@@ -131,13 +133,15 @@ select is((pg_temp.fila('GBorrador17')->>'base_horas_semana')::numeric, 30::nume
 select is((pg_temp.fila('GBorrador17')->>'pago_base')::numeric, 697.00::numeric,
   'Y se paga con base 30');
 
--- 5 · El profesional también
+-- 5 · El profesional (egresado). CAMBIO 0575: su base pasó a 45 h; con 45 h a la
+--     semana sigue cobrando la subvención entera (la 465 prueba la base 45).
 select is((pg_temp.fila('HProfesional')->>'pago_base')::numeric, 1230.00::numeric,
-  'Un profesional de 45 h a la semana cobra la subvención entera (base 30, con tope)');
+  'Un egresado de 45 h a la semana cobra la subvención entera');
 
--- 6 · A mitad de periodo
-select is((pg_temp.fila('JMitad')->>'pago_base')::numeric, 615.00::numeric,
-  'Quien entró el 15 tiene el tope de sus 14 días: 60 h pagadas de 70');
+-- 6 · A mitad de periodo. CAMBIO 0575: el tope es el del periodo entero (120 h),
+--     así que sus 70 h se pagan todas (la 0573 lo cortaba a 60 h: 615.00).
+select is((pg_temp.fila('JMitad')->>'pago_base')::numeric, 717.50::numeric,
+  'Quien entró el 15 cobra sus 70 h: no pasan el tope del periodo');
 
 -- 7 · La planilla no se mueve
 select is((pg_temp.fila('IPlanilla')->>'pago_base')::numeric, 714.29::numeric,
