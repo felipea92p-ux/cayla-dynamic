@@ -20,7 +20,8 @@
 // cae en un periodo ya pagado: el aviso llega antes de confirmar, no después.
 // Se guarda con `fn_parametro_cambiar_vigencia`.
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
   describirCambioDeParametro,
@@ -38,6 +39,7 @@ import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
+import { avisoDeCambioDePlata, opcionesDeVigencia, type PeriodoCiclo } from "@/lib/admin/cambio-de-plata";
 import {
   fechaInicialDeVigencia,
   fechaMinimaDeVigencia,
@@ -53,7 +55,7 @@ import {
   type ParametroFila,
 } from "@/lib/admin/parametros";
 
-type Paso = "formulario" | "confirmar";
+type Paso = "formulario" | "confirmar" | "hecho";
 
 export function PanelCambio({
   fila,
@@ -89,6 +91,21 @@ export function PanelCambio({
   const minimo = fechaMinimaDeVigencia(ultimaVersion);
   const [desde, setDesde] = useState(() => fechaInicialDeVigencia(hoyLima(), ultimaVersion));
   const [errorDesde, setErrorDesde] = useState<string | undefined>();
+  // 0578 · los cambios de plata: atajos de fecha por ciclo, doble confirmación y comunicado en borrador.
+  const [periodos, setPeriodos] = useState<PeriodoCiclo[]>([]);
+  const [seguro, setSeguro] = useState(false);
+  const [comunicado, setComunicado] = useState<string | null>(null);
+  useEffect(() => {
+    if (!conFechas) return;
+    void createAdminSupabaseClient()
+      .from("periodos_planilla")
+      .select("fecha_ini, fecha_fin")
+      .order("fecha_ini", { ascending: false })
+      .limit(6)
+      .then(({ data }) => setPeriodos((data ?? []) as PeriodoCiclo[]));
+  }, [conFechas]);
+  const opciones = useMemo(() => opcionesDeVigencia(hoyLima(), periodos), [periodos]);
+  const opcionElegida = opciones.find((o) => o.fecha === desde) ?? null;
   // Contra qué se compara: el valor que regiría ese día sin el cambio.
   const base = conFechas ? valorAntesDelCambio(fila) : fila.valor_actual;
 
@@ -198,6 +215,18 @@ export function PanelCambio({
     const cuando = conFechas ? ` desde el ${isoADiaMesAnio(desde)}` : "";
     avisar("ok", `${fila.nombre}: ${describirCambioDeParametro(base, valorNuevo, fila.unidad)}${cuando}. Quedó escrito en el historial.`);
     onGuardado();
+    if (conFechas) {
+      // El comunicado en borrador para el grupo afectado; si falla, el cambio ya está hecho.
+      const r = await supabase.rpc("fn_parametro_comunicado", {
+        p_parametro: fila.parametro,
+        p_antes: base,
+        p_nuevo: valorNuevo,
+        p_desde: desde,
+      });
+      setComunicado(r.error ? null : (r.data as string | null));
+      setPaso("hecho");
+      return;
+    }
     onCerrar();
   }
 
@@ -241,7 +270,22 @@ export function PanelCambio({
                 }}
                 error={errorDesde}
               />
-              <p className="-mt-2 text-xs text-taupe">
+              <div className="-mt-2 flex flex-wrap gap-2">
+                {opciones.map((o) => (
+                  <Boton
+                    key={o.clave}
+                    tamano="sm"
+                    variante={o.fecha === desde ? "primario" : "secundario"}
+                    onClick={() => {
+                      setDesde(o.fecha);
+                      setErrorDesde(undefined);
+                    }}
+                  >
+                    {o.etiqueta}
+                  </Boton>
+                ))}
+              </div>
+              <p className="text-xs text-taupe">
                 Lo ya pagado no se toca: la fecha tiene que caer en un periodo sin pagar
                 {minimo ? ` y ser desde el ${isoADiaMesAnio(minimo)}` : ""}. Antes de esa fecha sigue rigiendo el valor de hoy.
               </p>
@@ -265,7 +309,7 @@ export function PanelCambio({
             </Boton>
           </div>
         </>
-      ) : (
+      ) : paso === "confirmar" ? (
         <>
           <BannerAviso
             variante="informativo"
@@ -286,11 +330,55 @@ export function PanelCambio({
             <p className="text-sm text-taupe">{notaDeEfecto(fila.parametro)}</p>
           )}
 
+          {conFechas && (
+            <BannerAviso variante="advertencia" titulo="Antes de confirmar">
+              <ul className="list-disc pl-5">
+                {avisoDeCambioDePlata(
+                  opcionElegida ?? { clave: "hoy", fecha: desde, etiqueta: `Desde el ${isoADiaMesAnio(desde)}`, detalle: "" },
+                ).map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            </BannerAviso>
+          )}
+
+          {conFechas && seguro && (
+            <BannerAviso variante="alerta" titulo="Segunda confirmación">
+              ¿Seguro? Este valor cambia el pago desde el {isoADiaMesAnio(desde)}.
+            </BannerAviso>
+          )}
+
           <div className="flex justify-end gap-2">
-            <Boton onClick={() => setPaso("formulario")} disabled={guardando}>Volver</Boton>
-            <Boton variante="primario" cargando={guardando} onClick={confirmar}>
-              Confirmar el cambio
-            </Boton>
+            <Boton onClick={() => { setSeguro(false); setPaso("formulario"); }} disabled={guardando}>Volver</Boton>
+            {conFechas && !seguro ? (
+              <Boton variante="primario" onClick={() => setSeguro(true)}>Estoy de acuerdo con el cambio</Boton>
+            ) : (
+              <Boton variante={conFechas ? "peligro" : "primario"} cargando={guardando} onClick={confirmar}>
+                {conFechas ? "Sí, aplicar el cambio" : "Confirmar el cambio"}
+              </Boton>
+            )}
+          </div>
+        </>
+      ) : null}
+      {paso === "hecho" && (
+        <>
+          <BannerAviso variante="informativo" titulo="Listo: el cambio quedó en el historial">
+            Los módulos pueden tardar un momento en mostrar el valor nuevo.
+          </BannerAviso>
+          {comunicado ? (
+            <BannerAviso variante="advertencia" titulo="Falta publicar el comunicado">
+              Quedó un comunicado en BORRADOR solo para las personas afectadas. Revísalo y publícalo desde Anuncios.
+            </BannerAviso>
+          ) : (
+            <p className="text-sm text-taupe">Nadie está hoy en el grupo de este parámetro: no hizo falta comunicado.</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Boton onClick={onCerrar}>Cerrar</Boton>
+            {comunicado && (
+              <Link href="/admin/anuncios">
+                <Boton variante="primario">Ir a Anuncios a publicarlo</Boton>
+              </Link>
+            )}
           </div>
         </>
       )}

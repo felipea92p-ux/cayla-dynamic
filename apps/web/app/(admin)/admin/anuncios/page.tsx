@@ -42,6 +42,10 @@ interface Anuncio {
   anulado_at: string | null;
   mi_leido_at: string | null;
   total_lectores: number;
+  /** 0578: un comunicado nace en borrador cuando lo arma un cambio de sueldo o de parámetro. */
+  estado?: "borrador" | "publicado";
+  /** 0578: a quién va, si no es para todos (p. ej. «Practicantes preprofesionales (3)»). */
+  audiencia_descripcion?: string | null;
 }
 
 function fechaHora(iso: string): string {
@@ -111,6 +115,13 @@ export default function AnunciosPage() {
     setTitulo(""); setCuerpo(""); setSedeId("");
     await cargar();
     avisar("ok", "Anuncio publicado.");
+  }
+
+  async function publicarBorrador(id: string) {
+    const { error } = await supabase.rpc("fn_anuncio_publicar_borrador", { p_id: id });
+    if (error) { avisar("error", mensajeDeError(error)); return; }
+    await cargar();
+    avisar("ok", "Comunicado publicado: ya lo ven las personas a las que va.");
   }
 
   async function anular(id: string) {
@@ -191,7 +202,10 @@ export default function AnunciosPage() {
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <h3 className="font-serif text-lg text-tinta">{a.titulo}</h3>
                       <span className="text-xs text-taupe">
-                        {a.sede_codigo ? `Solo ${a.sede_codigo}` : "Todas las sedes"}
+                        {a.estado === "borrador" ? "BORRADOR · sin publicar · " : ""}
+                        {a.audiencia_descripcion
+                          ? `Solo para ${a.audiencia_descripcion}`
+                          : a.sede_codigo ? `Solo ${a.sede_codigo}` : "Todas las sedes"}
                       </span>
                     </div>
                     <p className="mt-2 whitespace-pre-wrap text-sm text-tinta">{a.cuerpo}</p>
@@ -200,7 +214,12 @@ export default function AnunciosPage() {
                         {a.publicado_por_nombre} · {fechaHora(a.publicado_at)} · {a.total_lectores} lectura{a.total_lectores === 1 ? "" : "s"}
                       </span>
                       <div className="flex items-center gap-2">
-                        {a.mi_leido_at ? (
+                        {puedePublicar && a.estado === "borrador" && (
+                          <Boton variante="primario" tamano="sm" onClick={() => publicarBorrador(a.id)}>
+                            Revisado: publicar
+                          </Boton>
+                        )}
+                        {a.estado === "borrador" ? null : a.mi_leido_at ? (
                           <span>Leíste esto</span>
                         ) : (
                           <Boton variante="sutil" tamano="sm" onClick={() => marcarLeido(a.id)}>

@@ -39,6 +39,7 @@ import {
   repartirParametros,
 } from "@/lib/admin/parametros";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
+import { avisoDeCambioDePlata, opcionesDeVigencia } from "@/lib/admin/cambio-de-plata";
 
 const ROLES = ["admin", "lider_do", "supervisor_sede", "integrante"] as const;
 
@@ -371,5 +372,36 @@ describe("la lectura de lo que devuelve la base", () => {
     expect(editables.map((f) => f.parametro)).toEqual(["prueba_dias", "otro"]);
     expect(fijos.map((f) => f.parametro)).toEqual(["tope"]);
     expect(editables.length + fijos.length).toBe(filas.length);
+  });
+});
+
+describe("el aviso y las fechas de un cambio de plata (0578)", () => {
+  const periodos = [
+    { fecha_ini: "2026-10-29", fecha_fin: "2026-11-28" },
+    { fecha_ini: "2026-09-29", fecha_fin: "2026-10-28" },
+  ];
+
+  it("ofrece el inicio del ciclo actual, el del siguiente y hoy", () => {
+    const o = opcionesDeVigencia("2026-10-31", periodos);
+    expect(o.map((x: { clave: string; fecha: string }) => `${x.clave}:${x.fecha}`)).toEqual([
+      "inicio_actual:2026-10-29",
+      "inicio_siguiente:2026-11-29",
+      "hoy:2026-10-31",
+    ]);
+  });
+
+  it("si hoy no cae en ningún ciclo cargado, solo queda «desde hoy»", () => {
+    const o = opcionesDeVigencia("2027-05-01", periodos);
+    expect(o.map((x: { clave: string }) => x.clave)).toEqual(["hoy"]);
+  });
+
+  it("el aviso dice que es plata, qué módulos mueve, el historial, la demora y el comunicado", () => {
+    const a = avisoDeCambioDePlata(opcionesDeVigencia("2026-10-31", periodos)[1]).join(" ");
+    expect(a).toMatch(/maneja plata/);
+    expect(a).toMatch(/Planilla/);
+    expect(a).toMatch(/historial/);
+    expect(a).toMatch(/tardan un momento/);
+    expect(a).toMatch(/BORRADOR/);
+    expect(a).toMatch(/ciclo siguiente/);
   });
 });
