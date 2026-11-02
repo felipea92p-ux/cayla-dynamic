@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-02-piso-o-almacen",
+    fecha: "2026-11-02",
+    titulo: "Turnos dice quién trabaja en piso y quién en almacén",
+    queMejoro:
+      "En Turnos, vista Día, ahora se puede marcar con anticipación que alguien trabaja en almacén: todo el turno o unas " +
+      "horas. Al tocar su barra se elige piso, todo el turno, el tramo sugerido (las horas en que el piso aguanta sin ella) " +
+      "o un horario a mano.\n\n" +
+      "Quien está en almacén se ve en azul y no cuenta en piso, en Día y en la Integrada. No cambia su turno, sus horas ni " +
+      "su pago. Se planifica de hoy en adelante.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-02-turnos-con-nombres",
     fecha: "2026-11-02",
     titulo: "Turnos abre con los nombres de quién está cada hora",
