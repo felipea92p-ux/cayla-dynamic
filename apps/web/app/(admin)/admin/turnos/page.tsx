@@ -32,6 +32,7 @@ import { consecuenciaDeUsarBase as consecuenciaDeUsarBaseLib } from "@/lib/admin
 import { avisarCambioDeTurnos, useTurnosAlDia } from "@/lib/admin/turnos-al-dia";
 import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos, pintarCeldaIntegrada, ventanaDelDia, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 import { resumenDeLideres, resumenDelTramo, type ResumenTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
+import { celdaConNombres, horasDeLaSemana, type TurnoConNombre } from "@/lib/admin/semana-con-nombres";
 import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, lineaDeSemana, TEXTO_CONFIRMAR_TRABAJO_EN_FERIADO, tituloDelAviso, type PersonaEnFeriado } from "@/lib/admin/prueba-en-feriado";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 import { CampoMeta, InsigniaTramo, Medidor, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
@@ -658,11 +659,15 @@ export default function TurnosPage() {
   const conteoBase = useCallback((n: number | null, espejos: number) => { setNBase(n); setNEspejos(espejos); }, []);
   const conteoTope = useCallback((n: number | null, grave: boolean) => { setNTope(n); setTopeGrave(grave); }, []);
   const [lunes, setLunes] = useState<string>(() => lunesDeLaSemana(hoyLima()));
-  // Tres vistas: Día = detalle por persona de un día · Semana = siluetas resumen
-  // por día · Integrada = la sábana hora×día de toda la semana (quién cubre cada
-  // franja de un vistazo). Se acuerda de la preferencia entre visitas.
-  type Vista = "dia" | "semana" | "integrada";
-  const [vista, setVista] = useFiltroGuardado<Vista>("turnos.vista", "dia");
+  // Cuatro vistas: Con nombres = la semana hora por hora con quién está en cada
+  // hora (la de entrada, desde el 2026-11-02, decisión de Felipe) · Día = detalle
+  // por persona de un día, con la línea de cada una · Semana = siluetas resumen
+  // por día · Integrada = la sábana hora×día en medias horas, solo con números.
+  // Se acuerda de la preferencia entre visitas. La clave cambió de «turnos.vista»
+  // a «turnos.vista.v2» para que todos arranquen en «Con nombres» una vez, aunque
+  // su navegador recordara «Día»; después vuelve a recordar lo que cada quien elija.
+  type Vista = "nombres" | "dia" | "semana" | "integrada";
+  const [vista, setVista] = useFiltroGuardado<Vista>("turnos.vista.v2", "nombres");
   // Panel de la Vista Integrada: al tocar una celda (una franja de un día) se
   // abre mostrando quién cubre esa media hora, con acceso a editar por persona.
   const [panel, setPanel] = useState<{ fecha: string; franjaIdx: number } | null>(null);
@@ -674,6 +679,12 @@ export default function TurnosPage() {
   function irADia(iso: string) {
     setDiaSel(iso);
     setVista("dia");
+  }
+  // Desde «Con nombres»: el día, con la línea de cada persona ya abierta y a la vista.
+  function verLineaDelDia(iso: string) {
+    irADia(iso);
+    setDetalleHora(true);
+    window.requestAnimationFrame(() => document.getElementById(`turnos-dia-${iso}`)?.scrollIntoView({ block: "start", behavior: "smooth" }));
   }
   // Desde el diagnóstico: salta a la semana Y al día del turno a revisar.
   function irARevisar(iso: string) {
@@ -1061,6 +1072,18 @@ export default function TurnosPage() {
     });
   }, [personas, celda]);
 
+  // «Con nombres»: los turnos de un día con su nombre corto y si suman (ver lib/admin/semana-con-nombres.ts).
+  // Nombre y primera letra del apellido: en una casilla no cabe el completo, y dos «Diana» se distinguen igual.
+  const turnosConNombreDe = (iso: string): TurnoConNombre[] =>
+    personas.flatMap((p) => {
+      const c = celda(p.id, iso);
+      if (c.tipo !== "turno" && c.tipo !== "default") return [];
+      const cuenta = esOperativa(p), lider = esEncargada(p);
+      const aparte = cuenta || lider ? undefined : p.tipoVinculo === "prueba" ? "preselección" : areaCorto(areas, p.funcion);
+      const corto = `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`;
+      return [{ id: p.id, nombre: corto, entrada: horaADecimal(c.entrada), salida: c.salida ? horaADecimal(c.salida) : HORA_FIN, cuenta, lider, aparte }];
+    });
+
   function abrir(personaId: string, fecha: string) {
     const c = celda(personaId, fecha);
     setEdit({ personaId, fecha });
@@ -1215,7 +1238,7 @@ export default function TurnosPage() {
                 { titulo: "Poner un turno", texto: "Toca la fila de una persona en un día: eliges su hora de entrada y salida, o la marcas de descanso." },
                 { titulo: "La meta", texto: "Tiene dos tramos: mañana y tarde (el corte es 14:15). La franja de abajo de cada día compara la gente de cada hora contra la meta de su tramo." },
                 { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma. Quien está en preselección tampoco suma hasta que deje de estarlo: da igual si es practicante o tiene otro cargo." },
-                { titulo: "Las tres vistas", texto: "Día muestra la barra de cada persona; Semana, la silueta de cobertura de cada día; Integrada, la semana hora por hora." },
+                { titulo: "Las vistas", texto: "Con nombres muestra la semana hora por hora y quién está en cada hora; Día, la barra de cada persona; Semana, la silueta de cobertura de cada día; Integrada, la semana en medias horas, solo con números." },
               ]}
             />
           }
@@ -1228,6 +1251,7 @@ export default function TurnosPage() {
             etiqueta="Vistas de Turnos"
             enBarra
             pestanas={[
+              { clave: "nombres", texto: "Con nombres" },
               { clave: "dia", texto: "Día" },
               { clave: "semana", texto: "Semana" },
               { clave: "integrada", texto: "Integrada" },
@@ -1317,7 +1341,108 @@ export default function TurnosPage() {
         {sedeSel && <AlertaSobretiempo sedeSel={sedeSel} abierto={decidirAbierto === "tope"} onConteo={conteoTope} />}
         {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} abierto={decidirAbierto === "base"} onConteo={conteoBase} alDia={alDia} onCambio={alCambiarDesdeRevision} />}
 
-        {cargando ? <Cargando /> : vista === "semana" ? (
+        {cargando ? <Cargando /> : vista === "nombres" ? (
+          (() => {
+            // ── Vista Con nombres: la semana hora por hora, con quién está en cada hora ──────────────
+            // La regla (quién pasa, el peor cuarto de la hora, qué no se mide) vive en
+            // lib/admin/semana-con-nombres.ts con sus pruebas; aquí solo se dibuja.
+            const porDia = dias.map((iso) => ({ iso, turnos: turnosConNombreDe(iso) }));
+            const horasSemana = horasDeLaSemana(porDia.map((d) => d.turnos));
+            if (personas.length === 0) {
+              return <SinDatos texto="Todavía no hay nadie asignado a esta sede." pista="Ve a Equipo, abre a una persona y elige esta sede como su sede base." />;
+            }
+            if (horasSemana.length === 0) {
+              return <SinDatos texto="Nadie tiene turno ni horario esta semana en esta sede." pista="Abre la vista Día y toca la fila de una persona para ponerle turno. Si su horario base ya está puesto en Horarios, aparece solo." />;
+            }
+            const cols = "4.25rem repeat(7, minmax(8.75rem, 1fr))";
+            const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
+            return (
+              <div>
+                <p className="mb-3 max-w-3xl text-xs text-taupe">
+                  Cada casilla es una hora de un día: cuántas operativas hay en <strong>el peor momento de esa hora</strong> contra
+                  la meta de su tramo, y quiénes son. Si alguien entra o sale dentro de la hora, sale la hora exacta al lado de su
+                  nombre: por eso el número puede ser menor que la lista. <strong>L</strong> es líder de equipo. Un borde ámbar
+                  punteado avisa que en algún momento de esa hora no hay ninguna líder. Toca la hora para ver la línea de cada
+                  persona ese día, o un nombre para cambiar su turno.
+                </p>
+                <div className="overflow-x-auto rounded-xl border border-sand bg-crema p-2">
+                  <div className="min-w-[1000px]">
+                    <div className="grid" style={{ gridTemplateColumns: cols }}>
+                      <div />
+                      {dias.map((iso) => {
+                        const { abr, num } = etiquetaDia(iso);
+                        const hoy = iso === hoyLima();
+                        return (
+                          <button key={iso} type="button" onClick={() => verLineaDelDia(iso)} title={`Ver la línea de cada persona el ${abr} ${num}`}
+                            className={`px-1 pb-2 text-left transition-colors hover:text-tinta ${hoy ? "text-tinta" : "text-taupe"}`}>
+                            <span className={`block font-serif text-sm leading-none ${hoy ? "text-tinta" : "text-tinta/80"}`}>{abr}</span>
+                            <span className="mt-0.5 block text-[10px] leading-none">{num}{hoy ? " · hoy" : ""}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {horasSemana.map((h) => (
+                      <div key={h} className="grid" style={{ gridTemplateColumns: cols }}>
+                        <div className="pr-2 pt-2 text-right text-[11px] tabular-nums text-taupe">
+                          {hh(h)}
+                          <span className="block text-[10px] opacity-80">a {hh(h + 1)}</span>
+                        </div>
+                        {porDia.map(({ iso, turnos: delDia }) => {
+                          const dia = diaSemana(iso);
+                          const c = celdaConNombres({
+                            turnos: delDia, hora: h,
+                            metaEn: (x) => metaDeHora(x, metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0),
+                            metaLideres: metasEncargadas.get(dia) ?? 0,
+                          });
+                          if (c.fuera && c.gente.length === 0) {
+                            return <div key={iso} className="m-[2px] rounded-control border border-dashed border-sand/70" aria-hidden />;
+                          }
+                          const e = estiloDeHora(c.enPiso, c.meta);
+                          // El color nunca va solo: la palabra dice lo mismo que el fondo.
+                          const dif = c.enPiso - c.meta;
+                          const palabra = c.fuera ? "fuera de horario" : c.meta === 0 ? "sin meta" : dif < 0 ? `falta ${-dif}` : dif > 0 ? `sobra ${dif}` : "completo";
+                          const { abr } = etiquetaDia(iso);
+                          return (
+                            <div key={iso} className="m-[2px] flex flex-col gap-1 rounded-control p-1.5"
+                              style={{
+                                background: c.fuera ? "transparent" : e.fondo,
+                                outline: c.sinLider ? "1.5px dashed var(--color-ambar)" : "none",
+                                outlineOffset: c.sinLider ? "-1.5px" : undefined,
+                              }}>
+                              <button type="button" onClick={() => verLineaDelDia(iso)}
+                                title={`${abr} ${hh(h)}–${hh(h + 1)}: ${c.enPiso} operativa${c.enPiso === 1 ? "" : "s"} en el peor momento${c.meta > 0 ? `, meta ${c.meta}` : ""}${c.lideres > 0 ? ` · ${c.lideres} ${c.lideres === 1 ? "líder" : "líderes"}` : c.sinLider ? " · sin líder" : ""}. Ver la línea del día.`}
+                                className="flex items-baseline justify-between gap-2 text-left">
+                                <span className="text-xs font-medium tabular-nums">{c.fuera ? "—" : `${c.enPiso} en piso`}</span>
+                                <span className="text-[10.5px] tabular-nums text-taupe">{c.meta > 0 ? `meta ${c.meta} · ` : ""}{palabra}</span>
+                              </button>
+                              <ul className="flex flex-col gap-0.5">
+                                {c.gente.map((g) => (
+                                  <li key={g.id}>
+                                    <button type="button" disabled={!puedeVer} onClick={() => abrir(g.id, iso)}
+                                      title={puedeVer ? `Cambiar el turno de ${g.nombre} el ${abr}` : g.nombre}
+                                      className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-sm px-1 py-px text-left text-xs transition-colors enabled:hover:bg-papel/70 disabled:cursor-default">
+                                      {g.lider && (
+                                        <span aria-label="Líder de equipo" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-tinta text-[9px] font-semibold text-crema">L</span>
+                                      )}
+                                      <span className={g.cuenta || g.lider ? "" : "text-taupe"}>{g.nombre}</span>
+                                      {g.entra !== null && <span className="text-[10.5px] tabular-nums text-verde">entra {decimalAHHMM(g.entra)}</span>}
+                                      {g.sale !== null && <span className="text-[10.5px] tabular-nums text-rojo-profundo">sale {decimalAHHMM(g.sale)}</span>}
+                                      {g.aparte && <Insignia variante="advertencia" tamano="sm" punto={false}>{g.aparte} · no suma</Insignia>}
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()
+        ) : vista === "semana" ? (
           (() => {
             // ── Vista Semana: la semana en dos filas —mañana y tarde— y siete columnas ──────────────────
             const porDia = dias.map((iso) => ({ iso, sin: sedeSinTurnosEn(iso), t: tramosDelDia(iso), sug: sugerenciaDe(iso) }));
