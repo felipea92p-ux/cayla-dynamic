@@ -40,6 +40,12 @@ export interface TurnoConNombre {
   lider: boolean;
   /** Por qué no suma, en una o dos palabras («preselección», el área). Solo si `cuenta` es false. */
   aparte?: string;
+  /**
+   * Tramos en almacén dentro de su turno (0579), ya recortados al turno con
+   * tramosEnAlmacen (almacen.ts). Mientras está en almacén no cuenta en piso ni
+   * como líder en piso; sigue en la tienda, así que las horas en tienda no cambian.
+   */
+  almacen?: { desde: number; hasta: number }[];
 }
 
 export interface PersonaEnLaHora {
@@ -52,6 +58,10 @@ export interface PersonaEnLaHora {
   entra: number | null;
   /** Si sale dentro de esta hora, a qué hora; si no, null. */
   sale: number | null;
+  /** Lo que de esta hora pasa en almacén (vacío si toda la hora está en piso). */
+  almacen: { desde: number; hasta: number }[];
+  /** Toda su presencia en esta hora es en almacén: se dibuja aparte y no suma al piso. */
+  soloAlmacen: boolean;
 }
 
 export interface CeldaConNombres {
@@ -109,6 +119,16 @@ export function horasDeLaSemana(dias: TurnoConNombre[][]): number[] {
   return Array.from({ length: Math.max(0, Math.ceil(hasta - desde - 1e-9)) }, (_, i) => desde + i);
 }
 
+/** Qué parte de la hora [desde, hasta) pasa esta persona en almacén, y si es toda su presencia en esa hora. */
+function almacenEnLaHora(t: TurnoConNombre, desde: number, hasta: number): { almacen: { desde: number; hasta: number }[]; soloAlmacen: boolean } {
+  const ini = Math.max(desde, t.entrada), fin = Math.min(hasta, t.salida);
+  const almacen = (t.almacen ?? [])
+    .map((a) => ({ desde: Math.max(a.desde, ini), hasta: Math.min(a.hasta, fin) }))
+    .filter((a) => a.hasta > a.desde);
+  const cubierto = almacen.reduce((s, a) => s + (a.hasta - a.desde), 0);
+  return { almacen, soloAlmacen: almacen.length > 0 && cubierto >= fin - ini - 1e-9 };
+}
+
 export function celdaConNombres(args: {
   turnos: TurnoConNombre[];
   /** Hora en punto de inicio (8 = de 08:00 a 09:00). */
@@ -121,8 +141,10 @@ export function celdaConNombres(args: {
   const desde = hora, hasta = hora + 1;
   const ventana = ventanaDeTurnos(turnos);
   const muestras = CUARTOS.map((c) => hora + c).filter((x) => ventana !== null && x >= ventana.desde && x < ventana.hasta);
+  const enAlmacen = (t: TurnoConNombre, x: number) => (t.almacen ?? []).some((a) => a.desde <= x && x < a.hasta);
+  // En piso = en su turno y no en almacén en ese instante.
   const presentes = (x: number, filtro: (t: TurnoConNombre) => boolean) =>
-    turnos.filter((t) => filtro(t) && t.entrada <= x && x < t.salida).length;
+    turnos.filter((t) => filtro(t) && t.entrada <= x && x < t.salida && !enAlmacen(t, x)).length;
 
   const fuera = muestras.length === 0;
   const enPiso = fuera ? 0 : Math.min(...muestras.map((x) => presentes(x, (t) => t.cuenta)));
@@ -136,6 +158,7 @@ export function celdaConNombres(args: {
       id: t.id, nombre: t.nombre, cuenta: t.cuenta, lider: t.lider, aparte: t.aparte,
       entra: t.entrada > desde ? t.entrada : null,
       sale: t.salida < hasta ? t.salida : null,
+      ...almacenEnLaHora(t, desde, hasta),
     }))
     .sort((a, b) => Number(b.lider) - Number(a.lider) || (a.entra ?? desde) - (b.entra ?? desde) || a.nombre.localeCompare(b.nombre, "es"));
 
