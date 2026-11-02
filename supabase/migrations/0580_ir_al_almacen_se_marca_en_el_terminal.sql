@@ -67,7 +67,8 @@
 --
 -- QUÉ ASUME. Hasta la 0578. `terminales`, `personas`, `marcajes.fecha_jornada`
 --   (0240), `fn_es_admin_o_lider` (0078), `fn_rol_actual`, `fn_sede_actual_persona`
---   y `fn_sede_actual_terminal` (0005), `fn_persona_en_roster_terminal` (0241).
+--   y `fn_sede_actual_terminal` (0005), `fn_persona_en_roster_terminal` y
+--   `fn_persona_marca_en_sede` (vigentes en la 0370).
 --   La 0579 queda para `puestos_planificados` (sesión de Turnos).
 --
 -- POR QUÉ ASÍ.
@@ -251,11 +252,11 @@ begin
     if auth.uid() is not null and auth.uid() is distinct from v_terminal_auth then
       raise exception 'el terminal autenticado no coincide con p_terminal_id';
     end if;
-    if not exists (
-      select 1 from personas p
-       where p.id = p_persona_id and p.estado = 'activo'
-         and (p.sede_base_id = v_sede_id or p.visible_todas_sedes = true)
-    ) then
+    -- Quién puede marcar en esta sede lo dice UNA regla desde la 0370
+    -- (fn_persona_marca_en_sede), la misma del roster y del candado de marcajes.
+    if not exists (select 1 from personas p where p.id = p_persona_id and p.estado = 'activo')
+       or fn_persona_marca_en_sede(p_persona_id, v_sede_id) is not true
+    then
       raise exception 'esa persona no está en la lista de este terminal';
     end if;
   else
