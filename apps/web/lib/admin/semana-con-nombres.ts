@@ -80,13 +80,33 @@ export function ventanaDeTurnos(turnos: TurnoConNombre[]): { desde: number; hast
   return { desde: Math.min(...medidos.map((t) => t.entrada)), hasta: Math.max(...medidos.map((t) => t.salida)) };
 }
 
-/** Las horas en punto que hay que dibujar para toda la semana: de la primera entrada a la última salida, de cualquier día. */
+/**
+ * El minuto en que arrancan las filas: el de la entrada más común de la semana
+ * (0, 0.25, 0.5 o 0.75). En Tienda TRU casi todo el equipo entra a las 08:30;
+ * con filas en punto, la de las 08:00 decía «entra 08:30» al lado de cada
+ * nombre, en todas las casillas, y no contaba nada. Con filas de 08:30 a 09:30
+ * la hora exacta solo aparece cuando alguien entra o sale fuera de lo habitual.
+ * Empate → el más temprano, para que sea estable.
+ */
+export function anclaDeLaSemana(dias: TurnoConNombre[][]): number {
+  const cuenta = new Map<number, number>();
+  for (const t of dias.flat()) {
+    const m = Math.round((t.entrada - Math.floor(t.entrada)) * 4) / 4 % 1;
+    cuenta.set(m, (cuenta.get(m) ?? 0) + 1);
+  }
+  let mejor = 0, veces = -1;
+  for (const [m, n] of [...cuenta].sort((a, b) => a[0] - b[0])) if (n > veces) { mejor = m; veces = n; }
+  return mejor;
+}
+
+/** Las horas que hay que dibujar para toda la semana, ancladas a `anclaDeLaSemana`: de la primera entrada a la última salida, de cualquier día. */
 export function horasDeLaSemana(dias: TurnoConNombre[][]): number[] {
   const todos = dias.flat();
   if (todos.length === 0) return [];
-  const desde = Math.floor(Math.min(...todos.map((t) => t.entrada)));
-  const hasta = Math.ceil(Math.max(...todos.map((t) => t.salida)));
-  return Array.from({ length: Math.max(0, hasta - desde) }, (_, i) => desde + i);
+  const ancla = anclaDeLaSemana(dias);
+  const desde = Math.floor(Math.min(...todos.map((t) => t.entrada)) - ancla) + ancla;
+  const hasta = Math.max(...todos.map((t) => t.salida));
+  return Array.from({ length: Math.max(0, Math.ceil(hasta - desde - 1e-9)) }, (_, i) => desde + i);
 }
 
 export function celdaConNombres(args: {
@@ -120,4 +140,37 @@ export function celdaConNombres(args: {
     .sort((a, b) => Number(b.lider) - Number(a.lider) || (a.entra ?? desde) - (b.entra ?? desde) || a.nombre.localeCompare(b.nombre, "es"));
 
   return { desde, hasta, fuera, enPiso, lideres, meta, sinLider, gente };
+}
+
+// ----------------------------------------------------------------------------
+// El resumen del pie (2026-11-02): cuatro números por día, para leer la semana
+// sin recorrer todas las casillas.
+// ----------------------------------------------------------------------------
+// «Horas en tienda» suma de la entrada a la salida de cada persona, CON el
+// refrigerio adentro. No es lo que se paga: para eso está la planilla, que
+// descuenta el refrigerio. Es lo mismo que mide la cobertura —quien está en
+// refrigerio sigue contada en la casilla—, y la leyenda lo dice con esas palabras.
+// El promedio en piso se toma sobre las horas que se miden (no las de fuera del
+// día), con el número del peor momento de cada una: el mismo de la casilla.
+
+export interface ResumenDelDia {
+  /** Suma de (salida − entrada) de todas las que trabajan ese día, en horas. */
+  horasEnTienda: number;
+  /** Cuántas personas tienen turno ese día. */
+  personas: number;
+  /** Promedio, sobre las horas medidas, de las operativas en piso. null si no hay horas medidas. */
+  promedioEnPiso: number | null;
+  /** Cuántas horas medidas quedan por debajo de su meta. */
+  horasConFalta: number;
+}
+
+export function resumenDelDia(celdas: CeldaConNombres[], turnos: TurnoConNombre[]): ResumenDelDia {
+  const medidas = celdas.filter((c) => !c.fuera);
+  const horasEnTienda = turnos.reduce((a, t) => a + Math.max(0, t.salida - t.entrada), 0);
+  return {
+    horasEnTienda: Math.round(horasEnTienda * 100) / 100,
+    personas: new Set(turnos.map((t) => t.id)).size,
+    promedioEnPiso: medidas.length ? Math.round((medidas.reduce((a, c) => a + c.enPiso, 0) / medidas.length) * 10) / 10 : null,
+    horasConFalta: medidas.filter((c) => c.meta > 0 && c.enPiso < c.meta).length,
+  };
 }
