@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-02 — «Voy a almacén» en el terminal · migración **0580 SIN PEGAR** · prueba 469 · rama `claude/terminal-almacen`
+## 2026-11-02 — «Voy a almacén» en el terminal · migración **0580 PEGADA (2026-11-02)** · prueba 469 · PR [#639](https://github.com/felipea92p-ux/cayla-dynamic/pull/639) · rama `claude/terminal-almacen`
 
 **De dónde sale.** Felipe (2026-11-02), diseñado con la sesión de Turnos: unas dos chicas de piso van a pasar ratos en el
 almacén (dentro de la sede) y la líder de equipo necesita saber quién está en piso. En el menú de salida del terminal, debajo
@@ -22,7 +22,9 @@ bloquear la del marcaje), sincronizada después de los marcajes.
 «Vuelvo a tienda», la salida final no anulada o la vuelta prevista ya vencida (decisión de Felipe); devuelve también los tramos
 de menos de 30 min — ese filtro es de los reportes. Encabezado de la 0580. La 0579 queda para `puestos_planificados`.
 
-**Falta:** pegar la 0580 ANTES de fusionar. Entrega 2 (cuando exista `puestos_planificados`): «Hoy te toca almacén de … a …» al
+**0580 PEGADA por Felipe el 2026-11-02**, antes de fusionar. Fila final exacta (`t · t · t · t · 2 · 580 · ir_al_almacen_se_marca_en_el_terminal`) y md5 de producción = repositorio, sin `\r`: `fn_anular_cambio_ubicacion` `ce796c18…` (1296), `fn_registrar_cambio_ubicacion` `d3053031…` (3829), `fn_ubicaciones_del_dia` `b660fb3e…` (2313).
+
+**Abierto:** guardar `'piso'` en vez de `'tienda'` (propuesta de la sesión de Turnos; la tabla está vacía, sería una 0581). **Falta:** entrega 2 (cuando exista `puestos_planificados`): «Hoy te toca almacén de … a …» al
 marcar la entrada.
 
 ## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA** · **0576 SIN PEGAR (por hora con tope semanal)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
