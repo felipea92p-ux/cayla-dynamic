@@ -1355,8 +1355,9 @@ export default function TurnosPage() {
               sobra: { fondo: "color-mix(in srgb, var(--color-ambar) 8%, var(--color-papel))", borde: "color-mix(in srgb, var(--color-ambar) 36%, transparent)", texto: "var(--color-ambar)" },
               neutro: { fondo: "var(--color-hueso)", borde: "var(--color-sand)", texto: "var(--color-taupe)" },
             };
-            const muestra = (t: { fondo: string; borde: string }) => (
-              <span aria-hidden className="inline-block h-3 w-3 rounded-[4px] border" style={{ background: t.fondo, borderColor: t.borde }} />
+            // En la leyenda el borde va con el color pleno del estado: a 12 px, el borde suave de la casilla no se distingue.
+            const muestra = (t: { fondo: string; texto: string }) => (
+              <span aria-hidden className="inline-block h-3 w-3 rounded-[4px] border-[1.5px]" style={{ background: t.fondo, borderColor: t.texto }} />
             );
             return (
               <div className="space-y-3">
@@ -1371,6 +1372,10 @@ export default function TurnosPage() {
                   <span className="flex items-center gap-1.5">
                     <span aria-hidden className="inline-block h-3 w-3 rounded-[4px]" style={{ outline: "1.5px dashed var(--color-ambar)", outlineOffset: "-1.5px" }} />
                     Sin líder en algún momento
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span aria-hidden className="inline-block h-3 w-6 rounded-full border border-dashed border-taupe/60" />
+                    No suma a la meta (preselección u otra área)
                   </span>
                 </div>
                 <p className="max-w-3xl text-xs text-taupe">
@@ -1420,9 +1425,9 @@ export default function TurnosPage() {
                               }}>
                               <button type="button" onClick={() => verLineaDelDia(iso)}
                                 title={`${abr} ${decimalAHHMM(h)}–${decimalAHHMM(h + 1)}: ${c.enPiso} operativa${c.enPiso === 1 ? "" : "s"} en el peor momento${c.meta > 0 ? `, meta ${c.meta}` : ""}${c.lideres > 0 ? ` · ${c.lideres} ${c.lideres === 1 ? "líder" : "líderes"}` : c.sinLider ? " · sin líder" : ""}. Ver la línea del día.`}
-                                className="flex items-baseline justify-between gap-2 text-left">
-                                <span className="text-[13.5px] font-semibold tabular-nums">{c.fuera ? "—" : `${c.enPiso} en piso`}</span>
-                                <span className="rounded-full bg-papel/80 px-1.5 text-[10.5px] font-semibold tabular-nums" style={{ color: tono.texto }}>
+                                className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-left">
+                                <span className="whitespace-nowrap text-[13.5px] font-semibold tabular-nums">{c.fuera ? "—" : `${c.enPiso} en piso`}</span>
+                                <span className="whitespace-nowrap rounded-full bg-papel/80 px-1.5 text-[10.5px] font-semibold tabular-nums" style={{ color: tono.texto }}>
                                   {palabra}{c.meta > 0 && !c.fuera ? ` · meta ${c.meta}` : ""}
                                 </span>
                               </button>
@@ -1433,15 +1438,15 @@ export default function TurnosPage() {
                                   return (
                                     <li key={g.id}>
                                       <button type="button" disabled={!puedeVer} onClick={() => abrir(g.id, iso)}
-                                        title={`${g.nombre}${turno ? ` · ${turno}` : ""}${puedeVer ? ". Toca para cambiar su turno." : ""}`}
+                                        title={`${g.nombre}${turno ? ` · ${turno}` : ""}${g.aparte ? ` · ${g.aparte}: no suma a la meta` : ""}${puedeVer ? ". Toca para cambiar su turno." : ""}`}
                                         className={`flex w-full items-center gap-1.5 rounded-full border bg-papel px-1.5 py-0.5 text-left text-[12.5px] transition-colors enabled:hover:border-taupe disabled:cursor-default ${g.cuenta || g.lider ? "border-sand" : "border-dashed border-taupe/60 text-taupe"}`}>
                                         {g.lider ? (
                                           <span aria-label="Líder de equipo" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-tinta text-[9px] font-semibold text-crema">L</span>
                                         ) : (
                                           <span aria-hidden className="w-1" />
                                         )}
-                                        <span className="truncate">{g.nombre}</span>
-                                        {g.aparte && <span className="text-[10.5px]">· {g.aparte}, no suma</span>}
+                                        <span className="min-w-0 truncate">{g.nombre}</span>
+                                        {g.aparte && <span className="ml-auto max-w-[6.5rem] shrink-0 truncate text-[10px]">{g.aparte}</span>}
                                         {g.entra !== null && <span className="ml-auto shrink-0 text-[10.5px] tabular-nums text-verde">entra {decimalAHHMM(g.entra)}</span>}
                                         {g.sale !== null && <span className="ml-auto shrink-0 text-[10.5px] tabular-nums text-rojo-profundo">sale {decimalAHHMM(g.sale)}</span>}
                                       </button>
