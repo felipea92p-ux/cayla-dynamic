@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-02-turnos-con-nombres",
+    fecha: "2026-11-02",
+    titulo: "Turnos abre con los nombres de quién está cada hora",
+    queMejoro:
+      "Turnos y cobertura abre en una vista nueva, «Con nombres»: la semana hora por hora y, en cada hora, quiénes están. " +
+      "Arriba de cada casilla dice cuántas hay en piso en el peor momento de esa hora contra la meta, con la palabra: falta, " +
+      "sobra o completo. Quien entra o sale dentro de la hora lleva la hora exacta al lado, y las líderes de equipo van primero.\n\n" +
+      "Tocar una hora abre la vista Día con la línea de cada persona. Tocar un nombre abre su turno para cambiarlo. Las otras " +
+      "vistas siguen en sus pestañas.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-02-turnos-y-cobertura-al-dia-sin-recargar",
     fecha: "2026-11-02",
     titulo: "Turnos y cobertura se pone al día sin recargar",
