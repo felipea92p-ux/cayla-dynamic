@@ -122,7 +122,7 @@ describe("el puesto", () => {
     ]);
     expect(textoPuesto(dias[0].puesto!)).toBe("Piso");
     expect(textoPuesto(dias[1].puesto!)).toBe("Almacén 10:30–12:30");
-    expect(textoPuesto(dias[3].puesto!)).toBe("Almacén");
+    expect(textoPuesto(dias[3].puesto!)).toBe("Almacén todo el turno");
     expect(dias[6].puesto).toBeNull();
   });
 

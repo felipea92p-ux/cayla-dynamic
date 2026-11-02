@@ -135,10 +135,16 @@ export function textoHoras(horas: number): string {
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
 
-/** «Almacén», «Almacén 10:30–12:30» o «Piso». */
+/**
+ * «Piso», «Almacén todo el turno» o «Almacén 10:30–12:30, 15:00–16:30»: las
+ * mismas palabras que `fn_puesto_texto` (0579) y que `textoPuesto` de
+ * lib/admin/almacen.ts en el panel, para que la colaboradora y su líder lean lo
+ * mismo. Cuando ese archivo llegue a `main`, esta función y `puestoDelDia` se
+ * reemplazan por las suyas (`textoPuesto`, `puestoDesdeFilas`).
+ */
 export function textoPuesto(p: Puesto): string {
   if (p.tipo === "piso") return "Piso";
-  if (!p.tramos) return "Almacén";
+  if (!p.tramos) return "Almacén todo el turno";
   return `Almacén ${p.tramos.map((t) => `${t.desde}–${t.hasta}`).join(", ")}`;
 }
 
