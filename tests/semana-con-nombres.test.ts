@@ -1,6 +1,6 @@
 // semana-con-nombres.test.ts — la semana de Turnos hora por hora, con nombres
 import { describe, expect, it } from "vitest";
-import { celdaConNombres, horasDeLaSemana, resumenDelDia, ventanaDeTurnos, type TurnoConNombre } from "../apps/web/lib/admin/semana-con-nombres";
+import { anclaDeLaSemana, celdaConNombres, horasDeLaSemana, resumenDelDia, ventanaDeTurnos, type TurnoConNombre } from "../apps/web/lib/admin/semana-con-nombres";
 
 const t = (nombre: string, entrada: number, salida: number, extra: Partial<TurnoConNombre> = {}): TurnoConNombre =>
   ({ id: nombre.toLowerCase(), nombre, entrada, salida, cuenta: true, lider: false, ...extra });
@@ -82,9 +82,19 @@ describe("celdaConNombres", () => {
 });
 
 describe("horasDeLaSemana y ventanaDeTurnos", () => {
-  it("dibuja de la primera entrada a la última salida de cualquier día, en horas en punto", () => {
-    expect(horasDeLaSemana([[t("A", 8.5, 14.5)], [t("B", 13.25, 20.25)]])).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+  it("dibuja de la primera entrada a la última salida, anclada al minuto de entrada más común", () => {
+    // Casi todas entran a las 08:30: las filas van de 08:30 a 09:30, y así hasta pasar las 20:15.
+    const semana = [[t("A", 8.5, 14.5), t("C", 8.5, 20.25)], [t("B", 13.25, 20.25), t("D", 8.5, 18)]];
+    expect(anclaDeLaSemana(semana)).toBe(0.5);
+    expect(horasDeLaSemana(semana)).toEqual([8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5, 16.5, 17.5, 18.5, 19.5]);
+    // Si entran en punto, las filas van en punto.
+    expect(horasDeLaSemana([[t("A", 8, 14), t("B", 9, 17)]])).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16]);
     expect(horasDeLaSemana([[], []])).toEqual([]);
+  });
+  it("con filas ancladas, quien entra a la hora de siempre ya no lleva «entra» al lado", () => {
+    const c = celdaConNombres({ turnos: [t("A", 8.5, 14.5), t("B", 8.75, 14.5)], hora: 8.5, metaEn: () => 2, metaLideres: 0 });
+    expect(c.gente.find((g) => g.nombre === "A")!.entra).toBeNull();
+    expect(c.gente.find((g) => g.nombre === "B")!.entra).toBe(8.75);
   });
   it("la ventana del día ignora a quien no cuenta ni lidera", () => {
     expect(ventanaDeTurnos([t("A", 9, 18), t("X", 7, 21, { cuenta: false })])).toEqual({ desde: 9, hasta: 18 });
