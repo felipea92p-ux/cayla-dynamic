@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-02-voy-a-almacen-en-el-terminal",
+    fecha: "2026-11-02",
+    titulo: "En el terminal ya se puede marcar «Voy a almacén»",
+    queMejoro:
+      "Si vas a quedarte un rato en el almacén, toca tu nombre en el terminal y elige «Voy a almacén», debajo de " +
+      "refrigerio y salida. Te pregunta por cuánto tiempo: 30 min, 1 hora, 2 horas o hasta que vuelvas. Al regresar, " +
+      "tocas tu nombre y «Vuelvo a tienda». Si solo vas a traer algo, no hace falta marcar.\n\n" +
+      "No es un marcaje: no cambia tus horas ni tu pago. Sirve para que tu líder de equipo sepa quién está en piso. Si " +
+      "pasa la hora que elegiste y no marcaste la vuelta, el sistema te da de vuelta en tienda a esa hora.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-02-turnos-con-nombres",
     fecha: "2026-11-02",
     titulo: "Turnos abre con los nombres de quién está cada hora",
