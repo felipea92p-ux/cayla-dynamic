@@ -1377,7 +1377,7 @@ export default function TurnosPage() {
                   Arriba de cada casilla, cuántas hay en piso en el peor momento de esa hora contra la meta. «entra» y «sale» marcan a
                   quien cubre solo parte de la hora. Toca la hora para ver la línea del día, o un nombre para cambiar su turno.
                 </p>
-                <div className="overflow-x-auto rounded-2xl border border-sand bg-papel p-3">
+                <TarjetaInfo className="overflow-x-auto !p-3">
                   <div className="grid min-w-[1080px] gap-1.5" style={{ gridTemplateColumns: cols }}>
                     <div />
                     {dias.map((iso) => {
@@ -1488,7 +1488,7 @@ export default function TurnosPage() {
                       </>
                     )}
                   </div>
-                </div>
+                </TarjetaInfo>
               </div>
             );
           })()
