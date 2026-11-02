@@ -32,6 +32,21 @@ import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
 import {
+  DURACIONES_ALMACEN,
+  detalleCasillaAlmacen,
+  horaUbicacion,
+  textoEstadoAlmacen,
+  ubicacionActual,
+  vueltaPrevista,
+  type Ubicacion,
+} from "@/lib/terminal/ubicacion";
+import {
+  cambiosPendientes,
+  cargarCambiosDeHoy,
+  registrarCambio,
+  type CambiosPorPersona,
+} from "@/lib/terminal/ubicacion-cola";
+import {
   DESFASE_AVISO_SEG, DESFASE_GRAVE_SEG, leerDesfaseCacheado, medirDesfase, textoDesfase,
   type MedidaDesfase,
 } from "@/lib/terminal/reloj-servidor";
@@ -42,6 +57,7 @@ import { Cargando } from "@/components/cargando";
 import {
   ConfirmacionToast,
   ConfirmarRefrigerio,
+  ElegirTiempoAlmacen,
   FormularioMotivoOtro,
   MotivoReentrada,
   NombreGrid,
@@ -62,6 +78,8 @@ type Pantalla =
   | "mensaje"
   | "cerrado"
   | "motivo_reentrada"
+  // «¿Por cuánto tiempo vas al almacén?» (0580). No es un marcaje.
+  | "elegir_tiempo_almacen"
   // Se muestra SOLO cuando esta pestaña todavía no confirmó el estado de
   // nadie desde que arrancó (ver `marcajesConfiablesRef`) y alguien tocó un
   // nombre: en vez de adivinar, pregunta puntualmente por esa persona antes
@@ -208,6 +226,12 @@ export default function MarcarPage() {
   // El estado iluminado: quienes lo tienen se destacan y los demás se atenúan.
   const [resaltado, setResaltado] = useState<ClavePresencia | null>(null);
   const refrescarVista = useCallback(() => setMarcajesVista(new Map(marcajesHoyRef.current)), []);
+  // Dónde está cada persona dentro de la sede: tienda o almacén (0580). Mismo
+  // par ref + copia en state que los marcajes, por la misma razón. Un mapa vacío
+  // solo significa «nadie en almacén que sepamos»: en el peor caso se le ofrece
+  // «Voy a almacén» a quien ya está allí, y eso no cambia su tramo.
+  const ubicacionesRef = useRef<CambiosPorPersona>(new Map());
+  const [ubicacionesVista, setUbicacionesVista] = useState<CambiosPorPersona>(new Map());
 
   const [pantalla, setPantalla] = useState<Pantalla>("lista");
   const [personaActual, setPersonaActual] = useState<RosterEntry | null>(null);
@@ -252,7 +276,7 @@ export default function MarcarPage() {
       const dia = hoyLima();
       const ahora = Date.now();
       const pedirSugerencias = sugerenciasVencidas(sugerenciasCargadasRef.current, dia, ahora);
-      const [rosterCargado, marcajes, estadisticas] = await Promise.all([
+      const [rosterCargado, marcajes, estadisticas, ubicaciones] = await Promise.all([
         cargarRoster(),
         cargarMarcajesHoyPorPersona(),
         // No depende del roster —RLS ya acota a la sede del terminal—, así que
@@ -261,7 +285,12 @@ export default function MarcarPage() {
         // sola a la regla fija de siempre, y nadie se queda sin poder marcar.
         // Vigentes, no se piden: se sigue con las que ya hay (ver refresco.ts).
         pedirSugerencias ? cargarEstadisticasSugerenciaPorPersona() : Promise.resolve(estadisticasSugerenciaRef.current),
+        // Tienda o almacén (0580): en paralelo y sin lanzar nunca, así que no
+        // le suma espera al arranque ni puede tumbar la carga de lo demás.
+        cargarCambiosDeHoy(),
       ]);
+      ubicacionesRef.current = ubicaciones;
+      setUbicacionesVista(new Map(ubicaciones));
       // Vacías no cuentan como cargadas: sin red o sin respuesta, `sugerencias.ts`
       // devuelve un mapa vacío, y el próximo refresco tiene que volver a intentar.
       if (pedirSugerencias) sugerenciasCargadasRef.current = estadisticas.size > 0 ? { dia, ms: ahora } : null;
@@ -420,9 +449,11 @@ export default function MarcarPage() {
   // que nadie sabe que existe se pierde igual que una borrada, solo que más tarde.
   useEffect(() => {
     const revisar = () =>
-      Promise.all([obtenerPendientes(), obtenerDescartadas()])
-        .then(([p, d]) => {
-          setPendientesSinEnviar(p.length);
+      Promise.all([obtenerPendientes(), obtenerDescartadas(), cambiosPendientes()])
+        .then(([p, d, u]) => {
+          // Los cambios de ubicación esperando también cuentan: «sin enviar» es
+          // lo que esta Mac tiene guardado y el servidor todavía no sabe.
+          setPendientesSinEnviar(p.length + u.length);
           setMarcasApartadas(d.length);
         })
         .catch(() => {});
@@ -676,6 +707,59 @@ export default function MarcarPage() {
     );
   }
 
+  // «Voy a almacén» / «Vuelvo a tienda» (0580). NO es un marcaje: no pasa por
+  // fn_registrar_marcaje ni por su cola, y no cambia horas ni pago. Se guarda
+  // primero en la cola propia de ubicaciones (ubicacion-cola.ts) y se envía; el
+  // toque en el tiempo —o en «Vuelvo a tienda»— ya es la confirmación.
+  async function registrarUbicacion(ubicacion: Ubicacion, minutos: number | null) {
+    if (!personaActual) return;
+    if (!terminal) {
+      mostrarMensaje(
+        `${personaActual.nombres}: este equipo no terminó de configurarse y tu cambio NO quedó registrado. ` +
+          "Avisa a tu líder de equipo.",
+        "alerta",
+      );
+      return;
+    }
+    if (confirmandoRef.current) return;
+    confirmandoRef.current = true;
+
+    const ahora = new Date();
+    const vuelve = ubicacion === "almacen" ? vueltaPrevista(ahora, minutos) : null;
+    const cambio = {
+      clientUuid: crypto.randomUUID(),
+      personaId: personaActual.id,
+      terminalId: terminal.id,
+      ubicacion,
+      timestampCliente: ahora.toISOString(),
+      vuelvePrevisto: vuelve,
+      intentos: 0,
+    };
+
+    // Optimista, como los marcajes: el siguiente toque ya ve dónde está.
+    const lista = ubicacionesRef.current.get(cambio.personaId) ?? [];
+    lista.push({ ubicacion, timestamp: cambio.timestampCliente, vuelvePrevisto: vuelve });
+    ubicacionesRef.current.set(cambio.personaId, lista);
+    setUbicacionesVista(new Map(ubicacionesRef.current));
+
+    const { confirmado, rechazado } = await registrarCambio(cambio);
+    const nombre = personaActual.nombres;
+    if (rechazado) {
+      mostrarMensaje(
+        `No quedó registrado — el sistema no aceptó el cambio de ${nombre}. Avisa a tu líder de equipo.`,
+        "alerta",
+      );
+      return;
+    }
+    const pendiente = confirmado ? "" : " (se enviará cuando vuelva la conexión)";
+    mostrarMensaje(
+      ubicacion === "almacen"
+        ? `Listo — ${nombre}, en almacén${vuelve ? ` hasta las ${horaUbicacion(vuelve)}` : ""}${pendiente}`
+        : `Listo — ${nombre}, de vuelta en tienda${pendiente}`,
+      "ok",
+    );
+  }
+
   function prepararConfirmacion(accion: { tipo: TipoMarca; motivoOtro?: string; confirmoSinRefrigerio?: boolean }) {
     // el client_uuid se fija AL PREPARAR: si por algo se envía dos veces, el
     // servidor lo reconoce como el mismo marcaje (idempotencia) y no duplica.
@@ -864,12 +948,38 @@ export default function MarcarPage() {
     if (!estadoConfirmado) return undefined;
     const ahora = new Date(ahoraMs);
     return new Map(
-      rosterFiltrado.map((p) => [
-        p.id,
-        presenciaDeLaCasilla(marcajesVista.get(p.id) ?? [], horariosVista.get(p.id), ahora),
-      ]),
+      rosterFiltrado.map((p) => {
+        const marcas = marcajesVista.get(p.id) ?? [];
+        const casilla = presenciaDeLaCasilla(marcas, horariosVista.get(p.id), ahora);
+        // Quien está trabajando y se fue al almacén sigue «laborando» —no es una
+        // pausa ni cambia sus horas—; solo la línea bajo su nombre dice dónde.
+        if (casilla.clave !== "laborando") return [p.id, casilla] as const;
+        const enAlmacen = detalleCasillaAlmacen(ubicacionActual(ubicacionesVista.get(p.id) ?? [], marcas, ahora));
+        return [p.id, enAlmacen ? { ...casilla, detalle: enAlmacen } : casilla] as const;
+      }),
     );
-  }, [estadoConfirmado, rosterFiltrado, marcajesVista, horariosVista, ahoraMs]);
+  }, [estadoConfirmado, rosterFiltrado, marcajesVista, horariosVista, ubicacionesVista, ahoraMs]);
+
+  // La casilla del menú de salida: «Voy a almacén» o «Vuelvo a tienda». Solo
+  // cuando el estado de la persona está confirmado — con el menú de respaldo
+  // (`aviso`), que existe porque no sabemos si entró, no se ofrece.
+  const opcionAlmacen = useMemo(() => {
+    if (!personaActual || !salidaConfig || salidaConfig.aviso) return undefined;
+    const estado = ubicacionActual(
+      ubicacionesVista.get(personaActual.id) ?? [],
+      marcajesVista.get(personaActual.id) ?? [],
+      new Date(ahoraMs),
+    );
+    return {
+      estado: textoEstadoAlmacen(estado),
+      enAlmacen: estado.enAlmacen,
+      onVoyAlmacen: () => setPantalla("elegir_tiempo_almacen"),
+      onVuelvoTienda: () => void registrarUbicacion("tienda", null),
+    };
+    // registrarUbicacion se redefine en cada render y lee lo vigente; la
+    // casilla solo tiene que recalcularse cuando cambia de quién o de dónde.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personaActual, salidaConfig, ubicacionesVista, marcajesVista, ahoraMs]);
 
   const conteosPresencia = useMemo(
     () => contarPresencias(presenciaPorPersona?.values() ?? []),
@@ -1024,7 +1134,17 @@ export default function MarcarPage() {
             otras={salidaConfig.otras}
             neutra={salidaConfig.neutra}
             aviso={salidaConfig.aviso}
+            almacen={opcionAlmacen}
             onElegir={elegirTipoSalida}
+            onCancelar={volverALista}
+          />
+        )}
+
+        {pantalla === "elegir_tiempo_almacen" && personaActual && (
+          <ElegirTiempoAlmacen
+            nombre={personaActual.nombres}
+            duraciones={DURACIONES_ALMACEN}
+            onElegir={(minutos) => void registrarUbicacion("almacen", minutos)}
             onCancelar={volverALista}
           />
         )}
