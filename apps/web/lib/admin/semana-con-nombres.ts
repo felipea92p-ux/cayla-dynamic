@@ -121,3 +121,36 @@ export function celdaConNombres(args: {
 
   return { desde, hasta, fuera, enPiso, lideres, meta, sinLider, gente };
 }
+
+// ----------------------------------------------------------------------------
+// El resumen del pie (2026-11-02): cuatro números por día, para leer la semana
+// sin recorrer todas las casillas.
+// ----------------------------------------------------------------------------
+// «Horas en tienda» suma de la entrada a la salida de cada persona, CON el
+// refrigerio adentro. No es lo que se paga: para eso está la planilla, que
+// descuenta el refrigerio. Es lo mismo que mide la cobertura —quien está en
+// refrigerio sigue contada en la casilla—, y la leyenda lo dice con esas palabras.
+// El promedio en piso se toma sobre las horas que se miden (no las de fuera del
+// día), con el número del peor momento de cada una: el mismo de la casilla.
+
+export interface ResumenDelDia {
+  /** Suma de (salida − entrada) de todas las que trabajan ese día, en horas. */
+  horasEnTienda: number;
+  /** Cuántas personas tienen turno ese día. */
+  personas: number;
+  /** Promedio, sobre las horas medidas, de las operativas en piso. null si no hay horas medidas. */
+  promedioEnPiso: number | null;
+  /** Cuántas horas medidas quedan por debajo de su meta. */
+  horasConFalta: number;
+}
+
+export function resumenDelDia(celdas: CeldaConNombres[], turnos: TurnoConNombre[]): ResumenDelDia {
+  const medidas = celdas.filter((c) => !c.fuera);
+  const horasEnTienda = turnos.reduce((a, t) => a + Math.max(0, t.salida - t.entrada), 0);
+  return {
+    horasEnTienda: Math.round(horasEnTienda * 100) / 100,
+    personas: new Set(turnos.map((t) => t.id)).size,
+    promedioEnPiso: medidas.length ? Math.round((medidas.reduce((a, c) => a + c.enPiso, 0) / medidas.length) * 10) / 10 : null,
+    horasConFalta: medidas.filter((c) => c.meta > 0 && c.enPiso < c.meta).length,
+  };
+}
