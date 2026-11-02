@@ -30,10 +30,12 @@ export const PASOS_GUIA_DIAS: readonly PasoRecorrido[] = [
 ];
 
 export const PASOS_GUIA_TURNOS: readonly PasoRecorrido[] = [
-  { selector: '[data-tour="mio-turnos-seccion"]', titulo: "Cuándo te toca",
-    texto: "Tus próximos días de trabajo, de hoy en adelante. Si no hay nada o no es lo que esperabas, avísale a tu líder de equipo." },
-  { selector: '[data-tour="mio-turnos-proximos"]', titulo: "Entrada y salida de cada día",
-    texto: "Cada día trae su hora. «Turno del día» marca los que se asignaron para ese día en particular y no salen de tu horario de siempre." },
+  { selector: '[data-tour="mio-turnos-seccion"]', titulo: "Tu semana",
+    texto: "Lo que te toca de lunes a domingo. Puedes mirar la semana anterior, esta y la próxima. Lo que de verdad marcaste está en «Mis días»." },
+  { selector: '[data-tour="mio-turnos-total"]', titulo: "Las horas de la semana",
+    texto: "El total, comparado con tu horario de siempre. Si una semana tiene más o menos horas, aquí te lo dice." },
+  { selector: '[data-tour="mio-turnos-semana"]', titulo: "Cada día",
+    texto: "Entrada, salida, horas y refrigerio. Si trabajas en piso o en almacén, también. «Cambia de tu horario» marca los días que tu líder de equipo armó distinto." },
   { selector: '[data-tour="mio-turnos-feriados"]', titulo: "Los próximos feriados",
     texto: "Para que los tengas presentes al planear tus días." },
 ];

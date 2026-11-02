@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-02-mis-turnos-muestra-tu-semana",
+    fecha: "2026-11-02",
+    titulo: "Mis turnos muestra tu semana completa",
+    queMejoro:
+      "En «Lo mío · Mis turnos» ahora ves los siete días de la semana: horario, horas, refrigerio y descanso de cada día, " +
+      "y el total de horas comparado con tu horario de siempre. Puedes mirar la semana anterior, esta y la próxima.\n\n" +
+      "Si una semana tiene más o menos horas que tu horario, te lo dice con palabras. Cuando tu líder de equipo planifique " +
+      "en qué días vas a almacén, cada día dirá también si te toca piso o almacén. En el Resumen, la tarjeta «Hoy» te " +
+      "dice tu horario del día y las horas de la semana.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-02-turnos-con-nombres",
     fecha: "2026-11-02",
     titulo: "Turnos abre con los nombres de quién está cada hora",
