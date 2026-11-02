@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-02-turnos-y-cobertura-al-dia-sin-recargar",
+    fecha: "2026-11-02",
+    titulo: "Turnos y cobertura se pone al día sin recargar",
+    queMejoro:
+      "Cuando cambia el horario de alguien, la cobertura de Turnos se actualiza sola, sin apretar F5. Vale para lo que se " +
+      "decide en «Para decidir» (hacer permanente un turno, volver al horario base, quitar espejos viejos), para lo que se " +
+      "guarda en Horarios con Turnos abierto en otra pestaña, y para lo que cambia otra persona desde su sede.\n\n" +
+      "Lo de esta pantalla y lo de otra pestaña se ve al instante; lo que cambia otra persona aparece en menos de un minuto, " +
+      "o apenas vuelves a mirar la pestaña. La grilla no se borra mientras tanto: los números cambian en su lugar.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-31-la-invitacion-a-la-cuenta-sale-sola",
     fecha: "2026-10-31",
     titulo: "La invitación para crear la cuenta sale sola, una vez",
