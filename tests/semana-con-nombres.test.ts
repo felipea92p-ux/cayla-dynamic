@@ -1,6 +1,6 @@
 // semana-con-nombres.test.ts — la semana de Turnos hora por hora, con nombres
 import { describe, expect, it } from "vitest";
-import { celdaConNombres, horasDeLaSemana, ventanaDeTurnos, type TurnoConNombre } from "../apps/web/lib/admin/semana-con-nombres";
+import { celdaConNombres, horasDeLaSemana, resumenDelDia, ventanaDeTurnos, type TurnoConNombre } from "../apps/web/lib/admin/semana-con-nombres";
 
 const t = (nombre: string, entrada: number, salida: number, extra: Partial<TurnoConNombre> = {}): TurnoConNombre =>
   ({ id: nombre.toLowerCase(), nombre, entrada, salida, cuenta: true, lider: false, ...extra });
@@ -89,5 +89,21 @@ describe("horasDeLaSemana y ventanaDeTurnos", () => {
   it("la ventana del día ignora a quien no cuenta ni lidera", () => {
     expect(ventanaDeTurnos([t("A", 9, 18), t("X", 7, 21, { cuenta: false })])).toEqual({ desde: 9, hasta: 18 });
     expect(ventanaDeTurnos([])).toBeNull();
+  });
+});
+
+describe("resumenDelDia", () => {
+  it("suma las horas en tienda con el refrigerio adentro, y promedia el peor momento de las horas medidas", () => {
+    const turnos = [t("Ana", 8, 14), t("Berta", 10, 16)];
+    const celdas = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map((hora) => celdaConNombres({ turnos, hora, metaEn: () => 2, metaLideres: 0 }));
+    const r = resumenDelDia(celdas, turnos);
+    expect(r.horasEnTienda).toBe(12);
+    expect(r.personas).toBe(2);
+    // medidas: de 8 a 16 → 8 horas; en piso 1,1,2,2,2,2,1,1
+    expect(r.promedioEnPiso).toBe(1.5);
+    expect(r.horasConFalta).toBe(4);
+  });
+  it("un día sin nadie no inventa un promedio", () => {
+    expect(resumenDelDia([celdaConNombres({ turnos: [], hora: 9, metaEn: () => 3, metaLideres: 0 })], [])).toEqual({ horasEnTienda: 0, personas: 0, promedioEnPiso: null, horasConFalta: 0 });
   });
 });

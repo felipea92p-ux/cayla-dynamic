@@ -119,11 +119,11 @@ export const NOVEDADES: readonly Novedad[] = [
     fecha: "2026-11-02",
     titulo: "Turnos abre con los nombres de quién está cada hora",
     queMejoro:
-      "Turnos y cobertura abre en una vista nueva, «Con nombres»: la semana hora por hora y, en cada hora, quiénes están. " +
-      "Arriba de cada casilla dice cuántas hay en piso en el peor momento de esa hora contra la meta, con la palabra: falta, " +
-      "sobra o completo. Quien entra o sale dentro de la hora lleva la hora exacta al lado, y las líderes de equipo van primero.\n\n" +
-      "Tocar una hora abre la vista Día con la línea de cada persona. Tocar un nombre abre su turno para cambiarlo. Las otras " +
-      "vistas siguen en sus pestañas.",
+      "Turnos y cobertura abre en la Integrada nueva: la semana hora por hora y, en cada hora, quiénes están. Arriba de cada " +
+      "casilla dice cuántas hay en piso en el peor momento de esa hora contra la meta, con la palabra: falta, sobra o " +
+      "completo. Quien entra o sale dentro de la hora lleva la hora exacta al lado, y las líderes de equipo van primero.\n\n" +
+      "Al pie, un resumen plegable con las horas en tienda, las personas y el promedio en piso de cada día. Tocar una hora abre la vista Día con la línea de cada persona; tocar un nombre abre su turno para cambiarlo. Quedan dos " +
+      "pestañas, Integrada y Día: «Semana» se retiró porque la Integrada ya muestra lo mismo con los nombres.",
     audiencia: "panel",
   },
   {

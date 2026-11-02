@@ -39,7 +39,7 @@ const TONO_SEGMENTO: Record<EstadoTramo, string> = {
 };
 
 /** El medidor: un cuadrito por persona; con meta, los vacíos son las que faltan. */
-export function Medidor({ n, meta, estado }: { n: number; meta: number; estado: EstadoTramo }) {
+function Medidor({ n, meta, estado }: { n: number; meta: number; estado: EstadoTramo }) {
   const total = Math.max(meta, n, 1);
   return (
     <span className="inline-flex gap-1" aria-hidden>
@@ -50,7 +50,7 @@ export function Medidor({ n, meta, estado }: { n: number; meta: number; estado: 
   );
 }
 
-export function InsigniaTramo({ estado, faltan, sobran }: { estado: EstadoTramo; faltan: number; sobran: number }) {
+function InsigniaTramo({ estado, faltan, sobran }: { estado: EstadoTramo; faltan: number; sobran: number }) {
   const i = INSIGNIA[estado];
   return <Insignia variante={i.variante}>{i.simbolo} {i.texto(faltan, sobran)}</Insignia>;
 }
