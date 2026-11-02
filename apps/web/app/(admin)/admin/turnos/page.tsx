@@ -29,6 +29,7 @@ import { cuentaEnCobertura, horaLima, hoyLima, puedeOperarEquipo, puedeVerTodasL
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { consecuenciaDeUsarBase as consecuenciaDeUsarBaseLib } from "@/lib/admin/revision-turnos";
+import { avisarCambioDeTurnos, useTurnosAlDia } from "@/lib/admin/turnos-al-dia";
 import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos, pintarCeldaIntegrada, ventanaDelDia, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 import { resumenDeLideres, resumenDelTramo, type ResumenTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
 import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, lineaDeSemana, TEXTO_CONFIRMAR_TRABAJO_EN_FERIADO, tituloDelAviso, type PersonaEnFeriado } from "@/lib/admin/prueba-en-feriado";
@@ -308,12 +309,16 @@ function consecuenciaDeUsarBase(d: Divergencia): string {
   });
 }
 
-function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
+function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo, alDia, onCambio }: {
   sedeSel: string;
   onIrADia: (iso: string) => void;
   /** El detalle se abre desde «Para decidir», no desde un encabezado propio. */
   abierto: boolean;
   onConteo: (n: number | null, espejos: number) => void;
+  /** Sube cada vez que la grilla (o otra pestaña, u otra persona) cambió turnos u horarios: este panel vuelve a mirar. */
+  alDia: number;
+  /** Lo que este panel cambia (un horario base, un turno quitado) mueve la cobertura: se le avisa a la grilla. */
+  onCambio: () => void;
 }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [divs, setDivs] = useState<Divergencia[] | null>(null);
@@ -330,9 +335,12 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
   // Tramos de horario de cada persona, para poder promover un turno a horario base.
   const tramosRef = useRef<Map<string, Horario[]>>(new Map());
 
-  const cargar = useCallback(async () => {
+  // `enSilencio`: ponerse al día sin borrar la lista mientras tanto, y sin
+  // cambiarla por el aviso de error si una lectura de fondo falla (se queda lo
+  // último que se vio; la próxima lectura lo vuelve a intentar).
+  const cargar = useCallback(async (enSilencio = false) => {
     if (!sedeSel) return;
-    setDivs(null); setError(false);
+    if (!enSilencio) { setDivs(null); setError(false); }
     // El caso de Diana (set-2026): un espejo viejo con fecha PASADA nunca lo
     // veía este panel porque el piso era "hoy". El piso correcto es el inicio
     // del periodo de planilla abierto — es informativo, no un candado, así
@@ -350,7 +358,7 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
       .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("cuenta_de_servicio", false)
       .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
       .eq("sueldo_fijo", false);
-    if (eP) { setError(true); return; }
+    if (eP) { if (!enSilencio) setError(true); return; }
     const ids = (personas ?? []).map((p) => p.id);
     const nombre = new Map((personas ?? []).map((p: any) => [p.id, `${p.nombres} ${p.apellidos}`]));
     if (ids.length === 0) { setDivs([]); return; }
@@ -359,7 +367,7 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").in("persona_id", ids),
       supabase.from("jornadas").select("persona_id, fecha, entrada_ts").in("persona_id", ids).gte("fecha", desde).lte("fecha", hoy),
     ]);
-    if (eT || eH || eJ) { setError(true); return; }
+    if (eT || eH || eJ) { if (!enSilencio) setError(true); return; }
     const entradaDe = new Map<string, string>();
     for (const j of (jornadas as { persona_id: string; fecha: string; entrada_ts: string | null }[]) ?? []) {
       if (j.entrada_ts) entradaDe.set(`${j.persona_id}|${j.fecha}`, horaLima(j.entrada_ts));
@@ -408,11 +416,24 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
         res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: rangoTxt(base.entrada, base.salida) });
       }
     }
+    setError(false);
     setSinBase(nSinBase);
     setDivs(res);
   }, [sedeSel, supabase]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+  // Algo cambió fuera de este panel: se vuelve a mirar en silencio. Al cambiar
+  // de sede no hace falta (el efecto de arriba ya carga), por eso se compara
+  // contra el último `alDia` atendido y no se dispara solo porque cambió `cargar`.
+  // Por un temporizador y no directo: varios avisos seguidos (guardar en la
+  // grilla y el minuto de fondo a la vez) se juntan en una sola lectura.
+  const alDiaVisto = useRef(alDia);
+  useEffect(() => {
+    if (alDia === alDiaVisto.current) return;
+    alDiaVisto.current = alDia;
+    const t = window.setTimeout(() => void cargar(true), 0);
+    return () => window.clearTimeout(t);
+  }, [alDia, cargar]);
   useEffect(() => {
     onConteo(divs === null ? null : divs.length, divs?.filter((d) => d.espejo).length ?? 0);
   }, [divs, onConteo]);
@@ -424,6 +445,7 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
     const { error: e } = await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
     setProcesando(null);
     if (e) { setAviso(`No se pudo quitar el turno de ${d.persona}: ${e.message}`); return; }
+    onCambio();
     await cargar();
   }
 
@@ -487,6 +509,8 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
       ? { error: null }
       : await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
     setProcesando(null);
+    // El horario base ya cambió (pase lo que pase con el turno puntual): la cobertura se mueve.
+    onCambio();
     if (esPasado) {
       setAviso(`El horario base de ${d.persona} rige desde hoy (${desde}), no desde el ${d.fecha}: un horario nuevo no reescribe días que ya pasaron. El ${d.fecha} se queda como estaba, con su turno puntual. Si lo que necesitas es corregir días que ya pasaron, usa "Corregir días ya trabajados" en Horarios.`);
       await cargar();
@@ -509,6 +533,7 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
     }
     setProcesando(null);
     if (fallos.length) setAviso(`No se pudieron quitar ${fallos.length}: ${fallos.join(", ")}. El resto sí.`);
+    if (fallos.length < lista.length) onCambio();
     await cargar();
   }
 
@@ -693,6 +718,7 @@ export default function TurnosPage() {
   const diaActivo = diaSel && dias.includes(diaSel) ? diaSel : (dias.includes(hoyLima()) ? hoyLima() : dias[0]);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const reqId = useRef(0); // "última carga gana": descarta respuestas fuera de orden
+  const cargaConMetas = useRef(0); // id de la carga completa o en sitio que está en curso (0 = ninguna); ver `cargar`
   // Pedir una recarga sin llamar a `cargar` desde un manejador de pantalla: así lo que se dibuja no arrastra la lectura de `reqId`.
   const [recarga, setRecarga] = useState(0);
 
@@ -723,10 +749,22 @@ export default function TurnosPage() {
     });
   }, [supabase, router, yo, esAdmin, avisar]);
 
-  const cargar = useCallback(async () => {
+  // Tres formas de leer la semana, que solo difieren en lo que se ve mientras tanto:
+  //   · "completa": al entrar, cambiar de sede o de semana. Muestra «Cargando…».
+  //   · "en-sitio": después de guardar algo aquí. Los números cambian en su
+  //     lugar, sin borrar la grilla; si falla, se avisa.
+  //   · "fondo": otra pestaña u otra persona cambió algo (useTurnosAlDia). Igual
+  //     que "en-sitio", pero un error no se avisa: se queda lo último que se vio
+  //     y la próxima lectura lo vuelve a intentar, sin un aviso por minuto.
+  const cargar = useCallback(async (modo: "completa" | "en-sitio" | "fondo" = "completa") => {
     if (!sedeSel) return;
+    // Una lectura de fondo no le gana a una que sí trae todo: con «última carga
+    // gana», la de fondo descartaría la de la sede nueva y dejaría las metas de
+    // la sede anterior (el fondo no lee metas). Si hay una en curso, el fondo espera al minuto siguiente.
+    if (modo === "fondo" && cargaConMetas.current !== 0) return;
     const mi = ++reqId.current;
-    setCargando(true);
+    if (modo !== "fondo") cargaConMetas.current = mi;
+    if (modo === "completa") setCargando(true);
     const domingo = addDays(lunes, 6);
     const [
       { data: p, error: pErr },
@@ -756,8 +794,9 @@ export default function TurnosPage() {
       supabase.rpc("fn_pruebas_abiertas"),
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
+    if (modo !== "fondo") cargaConMetas.current = 0;
     if (pErr || hErr || tErr || mErr) {
-      avisar("error", mensajeDeError((pErr ?? hErr ?? tErr ?? mErr)!, "cargar la semana"));
+      if (modo !== "fondo") avisar("error", mensajeDeError((pErr ?? hErr ?? tErr ?? mErr)!, "cargar la semana"));
       setCargando(false);
       return; // no pisa personas/horarios/turnos/metas con datos parciales/vacíos
     }
@@ -777,14 +816,44 @@ export default function TurnosPage() {
     }
     setHorarios(mapH);
     setTurnos(new Map(((t as any[]) ?? []).map((x) => [`${x.persona_id}|${x.fecha}`, { es_descanso: x.es_descanso, hora_entrada: x.hora_entrada, hora_salida: x.hora_salida }])));
+    setCargando(false);
+    // Las metas solo se cambian desde esta pantalla, y se guardan al salir del
+    // campo: una lectura de fondo que salió antes de ese guardado traería la
+    // meta vieja y la pintaría encima de la recién tecleada. Así que el fondo
+    // no las toca; se leen al entrar, al cambiar de sede o de semana, y tras guardar.
+    if (modo === "fondo") return;
     setMetas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta])));
     setMetasTarde(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_tarde ?? x.meta ?? 0])));
     setMetasEncargadas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_encargadas ?? 0])));
-    setCargando(false);
     // `recarga` no se lee dentro: está en las dependencias para que pedir una recarga haga correr el efecto que ya llama a cargar().
   }, [supabase, sedeSel, lunes, avisar, recarga]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // ── Al día sin recargar (2026-11-02) ─────────────────────────────────────
+  // `alDia` sube cada vez que cambiaron turnos u horarios fuera de «Para
+  // decidir»: así ese panel vuelve a comparar contra lo nuevo. Lo que cambia
+  // DENTRO de «Para decidir» llega por `alCambiarDesdeRevision`, que mueve la
+  // grilla. Y lo que cambia en otra pestaña o lo cambia otra persona llega por
+  // useTurnosAlDia (ver lib/admin/turnos-al-dia.ts).
+  const [alDia, setAlDia] = useState(0);
+  const cargarRef = useRef(cargar);
+  useEffect(() => { cargarRef.current = cargar; });
+  useTurnosAlDia(useCallback(() => {
+    void cargarRef.current("fondo");
+    setAlDia((n) => n + 1);
+  }, []), Boolean(sedeSel));
+  const alCambiarDesdeRevision = useCallback(() => {
+    avisarCambioDeTurnos();
+    void cargarRef.current("en-sitio");
+  }, []);
+  // Después de guardar algo desde la grilla: avisa a las otras pestañas y a
+  // «Para decidir», y vuelve a leer sin borrar la grilla.
+  async function trasGuardar() {
+    avisarCambioDeTurnos();
+    setAlDia((n) => n + 1);
+    await cargar("en-sitio");
+  }
 
   // Cuenta rápida de la semana anterior, solo para el botón — no filtra por
   // "ya tiene turno en el destino" ni por persona activa (eso lo decide
@@ -825,7 +894,7 @@ export default function TurnosPage() {
       `Se copiaron ${copiados} turno${copiados === 1 ? "" : "s"} de la semana pasada.`
       + (saltados > 0 ? ` ${saltados} ya tenía${saltados === 1 ? "" : "n"} turno propio esta semana y no se tocaron.` : "")
       + (fallidos > 0 ? ` ${fallidos} no se pudieron copiar (revísalos en Correcciones).` : ""));
-    await cargar();
+    await trasGuardar();
   }
 
   // Si la semana destino tiene feriado y la sede tiene gente de prueba, la copia puede dejarle turno ese día.
@@ -1031,7 +1100,7 @@ export default function TurnosPage() {
     setGuardando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
     setEdit(null);
-    await cargar();
+    await trasGuardar();
   }
 
   const guardarTurno = () => {
@@ -1085,7 +1154,7 @@ export default function TurnosPage() {
     setGuardando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
     setEdit(null);
-    await cargar();
+    await trasGuardar();
     if (eQuitar) {
       avisar("error", `El horario base de los ${DIAS_PLURAL[Number(dow)]} sí cambió, pero el turno puntual de ese día no se pudo retirar: ${mensajeDeError(eQuitar)} Mientras siga ahí, ese día manda el turno y no el horario base.`);
       return;
@@ -1246,7 +1315,7 @@ export default function TurnosPage() {
           />
         )}
         {sedeSel && <AlertaSobretiempo sedeSel={sedeSel} abierto={decidirAbierto === "tope"} onConteo={conteoTope} />}
-        {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} abierto={decidirAbierto === "base"} onConteo={conteoBase} />}
+        {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} abierto={decidirAbierto === "base"} onConteo={conteoBase} alDia={alDia} onCambio={alCambiarDesdeRevision} />}
 
         {cargando ? <Cargando /> : vista === "semana" ? (
           (() => {

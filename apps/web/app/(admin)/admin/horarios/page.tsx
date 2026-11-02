@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { avisarCambioDeTurnos } from "@/lib/admin/turnos-al-dia";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
@@ -667,6 +668,7 @@ export default function HorariosPage() {
     });
     setGuardando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    avisarCambioDeTurnos(); // Turnos abierto en otra pestaña se pone al día solo
     setEditando(null);
     await cargar();
     let mensaje = "Horario guardado. Las tardanzas desde esa fecha se recalcularon.";
@@ -712,6 +714,7 @@ export default function HorariosPage() {
       }
     }
     setGuardandoMasivo(false);
+    if (fallidos.length < ids.length) avisarCambioDeTurnos();
     setMasivoAbierto(false);
     setSeleccionados(new Set());
     await cargar();
@@ -783,6 +786,7 @@ export default function HorariosPage() {
     });
     setRetroConfirmando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    avisarCambioDeTurnos();
     cerrarRetro();
     await cargar();
     avisar("ok", "Días ya trabajados corregidos. Las jornadas del rango se volvieron a calcular y el cambio quedó auditado.");
