@@ -6,6 +6,36 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-02 — Piso o almacén, planificado por día · migración **0579 SIN PEGAR** · PR [#640](https://github.com/felipea92p-ux/cayla-dynamic/pull/640) en borrador · rama `claude/turnos-almacen`
+
+**De dónde sale.** Felipe (2026-11-02): van a empezar a llevar unas 2 chicas de piso al almacén (dentro de la misma sede), y la
+líder tiene que poder decir con anticipación, o el mismo día, quién está en piso y quién no: todo el turno o unas horas,
+aprovechando las horas flojas. Decidió: **varios tramos por día sin que se crucen**, **solo de hoy en adelante**, y que **la
+líder de equipo también se planifique a sí misma** (distinto de los turnos, a propósito: el almacén no toca horas ni pago).
+
+**0579 · la tabla y su puerta.**
+- `puestos_planificados`: una fila por tramo en almacén; sin horas = todo el turno; sin filas = piso. Un EXCLUDE con
+  `btree_gist` impide que dos tramos se crucen o convivan con «todo el turno».
+- `fn_set_almacen_del_dia`: reemplaza el plan del día de una vez y deja rastro en Correcciones (`turnos.puesto`). No toca
+  turnos ni jornadas, y exige que quien planifica esté activa.
+- `fn_puestos_del_dia(sede, fecha)`: la lectura del terminal.
+- No reescribe ninguna función existente, así que no lleva md5. Prueba 470 (24 aserciones).
+
+**Se pega ANTES de fusionar #640.** Si la pantalla llega primero, no se rompe nada: Turnos sigue sin el plan de almacén y la
+hoja dice que no puede guardar.
+
+**Lo usan otras dos sesiones** (los nombres son contrato, no se renombran):
+- **Terminal** (PR #639, migración 0580, `cambios_ubicacion`): lee `fn_puestos_del_dia` para avisar «hoy te toca almacén».
+- **Lo mío** (rama `claude/mis-turnos-tu-semana`): lee `puestos_planificados` para el puesto de cada día en «Mis turnos».
+
+**En pantalla (#640).**
+- Día: la línea del día queda arriba y siempre visible, con el almacén en azul. La barra abre «¿Dónde trabaja ese día?»
+  (piso, todo el turno, el tramo sugerido o a mano). La fila de cobertura usa la misma regla que la Integrada.
+- Integrada: quien está en almacén va aparte y no cuenta en piso.
+
+**Pendiente:** la repetición de un día cerrado (con lo real del terminal), y que la sugerencia de turnos use la disponibilidad
+de «Lo mío».
+
 ## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA** · **0576 SIN PEGAR (por hora con tope semanal)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
 
 **De dónde sale.** Felipe (2026-10-31): el pago de los practicantes no calzaba con sus horas. Tras simular base 45 y base 30
