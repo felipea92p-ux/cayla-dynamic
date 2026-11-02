@@ -24,30 +24,31 @@ values
 -- Quienes planifican tienen cuenta (auth_user_id) que no existe en auth.users:
 -- se insertan con los disparadores apagados, como en la 348.
 set session_replication_role = replica;
-insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, estado)
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, estado, fecha_cese)
 values
   ('00000000-0000-0000-0000-000000047010', 'AlmAdmin', 'Lab', '00000000-0000-0000-0000-000000047000', 'admin', 'x',
-   '00000000-0000-0000-0000-0000000470ff', '2024-01-01', 'activo'),
+   '00000000-0000-0000-0000-0000000470ff', '2024-01-01', 'activo', null),
   ('00000000-0000-0000-0000-000000047011', 'AlmLiderA', 'Lab', '00000000-0000-0000-0000-000000047000', 'supervisor_sede', 'x',
-   '00000000-0000-0000-0000-0000000470fe', '2024-01-01', 'activo'),
+   '00000000-0000-0000-0000-0000000470fe', '2024-01-01', 'activo', null),
   ('00000000-0000-0000-0000-000000047012', 'AlmLiderB', 'Lab', '00000000-0000-0000-0000-000000047001', 'supervisor_sede', 'x',
-   '00000000-0000-0000-0000-0000000470fd', '2024-01-01', 'activo'),
+   '00000000-0000-0000-0000-0000000470fd', '2024-01-01', 'activo', null),
   ('00000000-0000-0000-0000-000000047013', 'AlmIntegrante', 'Lab', '00000000-0000-0000-0000-000000047000', 'integrante', 'x',
-   '00000000-0000-0000-0000-0000000470fc', '2024-01-01', 'activo'),
+   '00000000-0000-0000-0000-0000000470fc', '2024-01-01', 'activo', null),
   ('00000000-0000-0000-0000-000000047014', 'AlmLiderCesada', 'Lab', '00000000-0000-0000-0000-000000047000', 'supervisor_sede', 'x',
-   '00000000-0000-0000-0000-0000000470fb', '2024-01-01', 'inactivo');
+   '00000000-0000-0000-0000-0000000470fb', '2024-01-01', 'inactivo', '2026-01-31');
 set session_replication_role = origin;
 
 -- A quienes se les planifica: dos de la sede A (una inactiva) y una de la B.
 -- La inactiva también va con los disparadores apagados: su cese no es lo que se prueba.
+-- (El CHECK personas_cese_coherente sí corre con ellos apagados: inactiva = con fecha de cese.)
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso, estado)
 values
   ('00000000-0000-0000-0000-000000047020', 'AlmPiso', 'Lab', '00000000-0000-0000-0000-000000047000', 'x', '2024-01-01', 'activo'),
   ('00000000-0000-0000-0000-000000047022', 'AlmOtraSede', 'Lab', '00000000-0000-0000-0000-000000047001', 'x', '2024-01-01', 'activo');
 set session_replication_role = replica;
-insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso, estado)
+insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso, estado, fecha_cese)
 values
-  ('00000000-0000-0000-0000-000000047021', 'AlmInactiva', 'Lab', '00000000-0000-0000-0000-000000047000', 'x', '2024-01-01', 'inactivo');
+  ('00000000-0000-0000-0000-000000047021', 'AlmInactiva', 'Lab', '00000000-0000-0000-0000-000000047000', 'x', '2024-01-01', 'inactivo', '2026-01-31');
 set session_replication_role = origin;
 
 create temporary table _turnos_antes as select count(*)::int n from turnos;
