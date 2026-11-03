@@ -145,9 +145,12 @@ export function cuadreDeSemana(t: TotalDeSemana): { tono: "positivo" | "adverten
 /**
  * El corte entre mañana y tarde para DESCRIBIR una semana, no para decidir
  * nada: un turno es «de mañana» si su punto medio cae antes de las 14:00.
+ * Es el mismo que usan los atajos «Solo mañanas» / «Solo tardes» de
+ * «Mi disponibilidad» (lib/disponibilidad.ts): una sola definición de tarde.
  * No es un parámetro de negocio —no cambia ningún pago ni ninguna regla—, solo
  * la palabra que se le muestra a ella.
  */
+export const CORTE_MANANA_TARDE = "14:00";
 const CORTE_MANANA_TARDE_MIN = 14 * 60;
 
 function minutos(hhmm: string): number {
