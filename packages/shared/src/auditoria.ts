@@ -109,6 +109,7 @@ const ROTULOS: Record<string, string> = {
   tardanza_levantada: "Tardanza levantada",
   tardanza_levantamiento_quitado: "Perdón de la tardanza quitado",
   "turnos.horario": "Turno cambiado",
+  "turnos.puesto": "Piso o almacén planificado",
   horarios_asignados: "Horario cambiado",
   organos_titulo_x: "Nombramiento para investigar el Título X",
   cambio_ubicacion: "Cambio de tienda / almacén anulado",

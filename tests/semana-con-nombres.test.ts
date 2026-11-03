@@ -117,3 +117,34 @@ describe("resumenDelDia", () => {
     expect(resumenDelDia([celdaConNombres({ turnos: [], hora: 9, metaEn: () => 3, metaLideres: 0 })], [])).toEqual({ horasEnTienda: 0, personas: 0, promedioEnPiso: null, horasConFalta: 0 });
   });
 });
+
+describe("almacén planificado (0579)", () => {
+  it("quien está en almacén no cuenta en piso ni como líder, pero sigue en la lista", () => {
+    const turnos = [
+      t("Ana", 8, 20),
+      t("Berta", 8, 20, { almacen: [{ desde: 10, hasta: 12 }] }),
+      t("Janis", 8, 20, { lider: true, almacen: [{ desde: 8, hasta: 20 }] }),
+    ];
+    const c = celdaConNombres({ turnos, hora: 10, metaEn: () => 2, metaLideres: 1 });
+    expect(c.enPiso).toBe(1);
+    expect(c.lideres).toBe(0);
+    expect(c.sinLider).toBe(true);
+    expect(c.gente.find((g) => g.nombre === "Berta")).toMatchObject({ soloAlmacen: true, almacen: [{ desde: 10, hasta: 11 }] });
+    expect(c.gente.find((g) => g.nombre === "Janis")!.soloAlmacen).toBe(true);
+    expect(c.gente.find((g) => g.nombre === "Ana")).toMatchObject({ soloAlmacen: false, almacen: [] });
+  });
+  it("un tramo que tapa parte de la hora baja el peor momento, y la persona sigue en piso con su nota", () => {
+    const turnos = [t("Ana", 8, 20), t("Berta", 8, 20, { almacen: [{ desde: 11.5, hasta: 13 }] })];
+    const c = celdaConNombres({ turnos, hora: 11, metaEn: () => 2, metaLideres: 0 });
+    expect(c.enPiso).toBe(1);
+    expect(c.gente.find((g) => g.nombre === "Berta")).toMatchObject({ soloAlmacen: false, almacen: [{ desde: 11.5, hasta: 12 }] });
+  });
+  it("el resumen sigue sumando sus horas en tienda: el almacén está en la sede", () => {
+    const turnos = [t("Berta", 8, 12, { almacen: [{ desde: 8, hasta: 12 }] })];
+    const celdas = [8, 9, 10, 11].map((hora) => celdaConNombres({ turnos, hora, metaEn: () => 1, metaLideres: 0 }));
+    const r = resumenDelDia(celdas, turnos);
+    expect(r.horasEnTienda).toBe(4);
+    expect(r.promedioEnPiso).toBe(0);
+    expect(r.horasConFalta).toBe(4);
+  });
+});
