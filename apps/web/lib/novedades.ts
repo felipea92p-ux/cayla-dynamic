@@ -117,10 +117,10 @@ export const NOVEDADES: readonly Novedad[] = [
   {
     id: "2026-11-03-prefiero-trabajar",
     fecha: "2026-11-03",
-    titulo: "En Mi disponibilidad ahora también puedes marcar «Prefiero trabajar»",
+    titulo: "En Mi disponibilidad ahora puedes marcar las horas que prefieres trabajar",
     queMejoro:
-      "Además de «Puedo», «Prefiero no» y «No puedo», cada día (o unas horas) puede ser «Prefiero trabajar». Tu líder " +
-      "de equipo lo tiene en cuenta cuando arma los turnos y, si se puede, te pone en esos días u horas. No es una " +
+      "En «Por horas», además de «No puedo» y «Prefiero no», cada horario puede ser «Prefiero trabajar». Tu líder " +
+      "de equipo lo tiene en cuenta cuando arma los turnos y, si se puede, te pone en esas horas. No es una " +
       "promesa: si la tienda necesita otra cosa, el turno puede ser distinto.\n\n" +
       "Si solo marcas lo que prefieres trabajar, ya no te pide decir por qué: el motivo solo se pide cuando marcas " +
       "algo que no puedes o que prefieres no hacer.",

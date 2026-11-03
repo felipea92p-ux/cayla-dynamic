@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Ban, Check, CircleAlert, Clock, Copy, Plus, ThumbsUp, X, type LucideIcon } from "lucide-react";
+import { Ban, Check, CircleAlert, Clock, Copy, Plus, X, type LucideIcon } from "lucide-react";
 import { hoyLima } from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
@@ -12,7 +12,7 @@ import { Rotulo } from "@/components/ui/rotulo";
 import { sumarDias } from "@/lib/mi-semana";
 import {
   ATAJOS, MOTIVOS_A_ELEGIR, NOMBRE_DIA, ORDEN_DIAS, aBloques, aplicarAtajo, copiarDia, avisoDeHoras, hayRestriccion, horasDisponibles, opcionesHora,
-  resumenEnPalabras, semanaVacia, validar,
+  resumenEnPalabras, semanaVacia, vaDiaEntero, validar,
   type Bloque, type EstadoBloque, type Excepcion, type ModoDia, type Motivo, type SemanaTipo, type Ventana,
 } from "@/lib/disponibilidad";
 
@@ -42,9 +42,10 @@ type Hasta = "sin_fin" | "fin_ciclo" | "fecha";
 // solo, cada opción lleva su ícono y su palabra. «Por horas» abre sus tramos, y
 // cada tramo dice su propio estado (antes era un desplegable «Solo algunas
 // horas» y, adentro, otro «No puedo»: se leía como una doble negación).
+// «Prefiero trabajar» no es un botón del día: es un estado de cada horario, dentro
+// de «Por horas» y de las horas de un día puntual (Felipe, 2026-11-03).
 const MODOS: { valor: ModoDia; label: string; icono: LucideIcon }[] = [
   { valor: "puede", label: "Puedo", icono: Check },
-  { valor: "prefiere_trabajar", label: "Prefiero trabajar", icono: ThumbsUp },
   { valor: "prefiere_no", label: "Prefiero no", icono: CircleAlert },
   { valor: "no_puede", label: "No puedo", icono: Ban },
   { valor: "horas", label: "Por horas", icono: Clock }, // antes «Depende de la hora»: Felipe lo pidió más formal (2026-11-03)
@@ -143,7 +144,7 @@ export function EditorDisponibilidad({
             <div>
               <dt className="font-medium">Prefiero trabajar</dt>
               <dd className="text-taupe">
-                {quien === "tu" ? "Tu líder de equipo lo tiene en cuenta al armar turnos" : "Se tiene en cuenta al armar turnos"}, pero no es una promesa.
+                Se marca en «Por horas». {quien === "tu" ? "Tu líder de equipo lo tiene en cuenta al armar turnos" : "Se tiene en cuenta al armar turnos"}, pero no es una promesa.
               </dd>
             </div>
             <div>
@@ -230,13 +231,15 @@ export function EditorDisponibilidad({
                 <Campo etiqueta="Fecha" type="date" value={x.fecha} min={desde}
                   onChange={(e) => e.target.value && setExcepciones((xs) => xs.map((y, j) => (j === i ? { ...y, fecha: e.target.value } : y)))} />
                 <div role="group" aria-label="Estado" className="flex gap-1.5">
-                  {ESTADOS.map((e2) => (
+                  {ESTADOS.filter((e2) => x.desde || vaDiaEntero(e2.valor)).map((e2) => (
                     <Filtro key={e2.valor} tamano="sm" activo={x.estado === e2.valor} className="min-h-9"
                       onClick={() => setExcepciones((xs) => xs.map((y, j) => (j === i ? { ...y, estado: e2.valor } : y)))}>{e2.label}</Filtro>
                   ))}
                 </div>
                 <div role="group" aria-label="Todo el día o unas horas" className="flex gap-1.5">
-                  <Filtro tamano="sm" activo={!x.desde} className="min-h-9"
+                  {/* «Prefiero trabajar» va solo por horas: con ese estado elegido, «Todo el día» no se ofrece. */}
+                  <Filtro tamano="sm" activo={!x.desde} className="min-h-9 disabled:cursor-not-allowed disabled:opacity-50" disabled={!vaDiaEntero(x.estado)}
+                    title={vaDiaEntero(x.estado) ? undefined : "«Prefiero trabajar» se marca por horas"}
                     onClick={() => setExcepciones((xs) => xs.map((y, j) => (j === i ? { ...y, desde: null, hasta: null } : y)))}>Todo el día</Filtro>
                   <Filtro tamano="sm" activo={!!x.desde} className="min-h-9"
                     onClick={() => setExcepciones((xs) => xs.map((y, j) => (j === i && !y.desde ? { ...y, desde: "16:00", hasta: "20:00" } : y)))}>Unas horas</Filtro>
