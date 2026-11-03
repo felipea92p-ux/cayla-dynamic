@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0584 · LA VENTA DE CADA HORA LLEGA A TURNOS
+-- 0585 · LA VENTA DE CADA HORA LLEGA A TURNOS
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -37,7 +37,7 @@
 --     TRU 1 228 completadas desde el 30-sep, AQP 536, la tienda de Lima 28.
 --   · Por eso la función es plpgsql: Postgres no revisa las columnas al crearla,
 --     solo al correrla. En el CI de este repo existe con la tabla vieja y su
---     prueba (474) le arma la forma de producción dentro de la transacción.
+--     prueba (475) le arma la forma de producción dentro de la transacción.
 --
 -- POR QUÉ ASÍ
 --   · Un ticket y no una prenda: es lo que mide el ritmo de 1,5 (una clienta que
@@ -103,7 +103,7 @@ $guardia$;
 insert into configuracion (clave, valor, descripcion)
 select 'cobertura_por_venta',
        coalesce(jsonb_object_agg(s.codigo, jsonb_build_object('ritmo', 1.5, 'minimo', 3)), '{}'::jsonb),
-       'Por tienda (código de sede): compras por hora que atiende una persona en piso (ritmo) y personas mínimas en piso (minimo). Se cambian desde Parámetros. 0584.'
+       'Por tienda (código de sede): compras por hora que atiende una persona en piso (ritmo) y personas mínimas en piso (minimo). Se cambian desde Parámetros. 0585.'
   from sedes s
  where s.tipo = 'tienda' and s.activa
 on conflict (clave) do update
@@ -148,7 +148,7 @@ as $fn$
 $fn$;
 
 comment on function fn_cobertura_por_venta(uuid) is
-  'El ritmo (compras por hora por persona en piso) y el mínimo en piso de una sede, de configuracion.cobertura_por_venta; 1,5 y 3 si la tienda no tiene los suyos. 0584.';
+  'El ritmo (compras por hora por persona en piso) y el mínimo en piso de una sede, de configuracion.cobertura_por_venta; 1,5 y 3 si la tienda no tiene los suyos. 0585.';
 
 revoke all on function fn_cobertura_por_venta(uuid) from public, anon;
 grant execute on function fn_cobertura_por_venta(uuid) to authenticated;
@@ -196,13 +196,13 @@ end
 $fn$;
 
 comment on function fn_compras_por_hora(uuid, date, date) is
-  'Compras (tickets completados de retail, sin las de prueba) por día y hora de Lima en una tienda. Admin, Líder DO o la líder de equipo de esa sede; hasta 62 días. Falla —no devuelve cero— si retail cambió la forma de sus ventas. 0584.';
+  'Compras (tickets completados de retail, sin las de prueba) por día y hora de Lima en una tienda. Admin, Líder DO o la líder de equipo de esa sede; hasta 62 días. Falla —no devuelve cero— si retail cambió la forma de sus ventas. 0585.';
 
 revoke all on function fn_compras_por_hora(uuid, date, date) from public, anon;
 grant execute on function fn_compras_por_hora(uuid, date, date) to authenticated;
 
 -- ── 4 · Registro ────────────────────────────────────────────────────────────
-insert into migraciones_aplicadas (numero, nombre) values (584, 'la_venta_de_cada_hora_llega_a_turnos')
+insert into migraciones_aplicadas (numero, nombre) values (585, 'la_venta_de_cada_hora_llega_a_turnos')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
@@ -213,4 +213,4 @@ select
     where p.parametro like 'cobertura\_%')                                         as parametros,
   to_regprocedure('fn_compras_por_hora(uuid,date,date)') is not null               as lee_compras,
   to_regprocedure('fn_cobertura_por_venta(uuid)') is not null                      as lee_parametros,
-  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 584) as registro;
+  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 585) as registro;

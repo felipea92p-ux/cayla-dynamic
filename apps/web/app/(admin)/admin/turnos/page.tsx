@@ -699,10 +699,10 @@ export default function TurnosPage() {
   // Lo marcado en el terminal (0580), por persona y día: los cambios de ubicación y la salida final, que cierra
   // un tramo abierto. null = no se pudo leer: Día sigue solo con el plan, como antes.
   const [reales, setReales] = useState<{ cambios: Map<string, CambioUbicacion[]>; marcajes: Map<string, MarcajeDelDia[]> } | null>(null);
-  // La venta de cada hora (retail, 0584) para la repetición de un día cerrado: por «fecha» → hora → compras.
+  // La venta de cada hora (retail, 0585) para la repetición de un día cerrado: por «fecha» → hora → compras.
   // null = no se pudo leer: la repetición lo dice con palabras, nunca como cero.
   const [compras, setCompras] = useState<Map<string, Map<number, number>> | null>(new Map());
-  // El ritmo y el mínimo de la tienda (Parámetros, 0584); null = no se pudieron leer.
+  // El ritmo y el mínimo de la tienda (Parámetros, 0585); null = no se pudieron leer.
   const [coberturaVenta, setCoberturaVenta] = useState<{ ritmo: number; minimo: number } | null>(null);
   const [metas, setMetas] = useState<Map<number, number>>(new Map()); // meta operativas MAÑANA
   const [metasTarde, setMetasTarde] = useState<Map<number, number>>(new Map()); // meta operativas TARDE
@@ -827,7 +827,7 @@ export default function TurnosPage() {
       supabase.from("marcajes").select("persona_id, tipo, timestamp_marca, fecha_jornada")
         .is("anulada_at", null)
         .gte("timestamp_marca", rangoDelDiaLima(lunes).inicio).lte("timestamp_marca", rangoDelDiaLima(domingo).fin),
-      // La venta de cada hora y los dos números de la tienda (0584). Tampoco frenan la semana.
+      // La venta de cada hora y los dos números de la tienda (0585). Tampoco frenan la semana.
       supabase.rpc("fn_compras_por_hora", { p_sede_id: sedeSel, p_desde: lunes, p_hasta: domingo }),
       supabase.rpc("fn_cobertura_por_venta", { p_sede_id: sedeSel }),
     ]);

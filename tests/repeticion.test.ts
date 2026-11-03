@@ -1,4 +1,4 @@
-// repeticion.test.ts — la repetición de un día cerrado (Turnos · Día, 0584)
+// repeticion.test.ts — la repetición de un día cerrado (Turnos · Día, 0585)
 import { describe, expect, it } from "vitest";
 import {
   columnasEnElMomento, diaCompletoReal, enPisoEnLaHora, estadoEnElMomento, horasDeLaRepeticion, resumenReal, ventaPedia,

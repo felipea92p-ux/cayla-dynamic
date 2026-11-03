@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// RepeticionDelDia — Turnos · Día, un día que ya cerró (2026-11-03, 0584)
+// RepeticionDelDia — Turnos · Día, un día que ya cerró (2026-11-03, 0585)
 // ============================================================================
 // Lo que se marcó de verdad en el terminal, hora por hora: quién estaba en
 // piso, en almacén, en refrigerio, por llegar o ya se había ido, contra lo que
