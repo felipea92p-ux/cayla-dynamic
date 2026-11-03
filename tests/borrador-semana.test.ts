@@ -1,4 +1,4 @@
-// borrador-semana.test.ts — el borrador de la semana (0592): comparar y «cumple»
+// borrador-semana.test.ts — el borrador de la semana (0593): comparar y «cumple»
 import { describe, expect, it } from "vitest";
 import {
   comoPropuesta, compararSemanas, cumpleJornada, filasParaGuardar, horasNetas, semanaDesdeBorrador, textoCumple,
@@ -86,7 +86,7 @@ describe("lo que se guarda", () => {
     const filas = filasDelBorradorParaGuardar(semana, ["2026-11-09", "2026-11-10"], "2026-11-09", (id) => id !== "rxh");
     expect(filas).toEqual([{ persona_id: "ana", fecha: "2026-11-10", entrada: "09:00", salida: "17:00" }]);
   });
-  it("la tabla que no existe todavía (0592 sin pegar) se reconoce", async () => {
+  it("la tabla que no existe todavía (0593 sin pegar) se reconoce", async () => {
     const { esTablaInexistente } = await import("../apps/web/lib/admin/borrador-semana");
     expect(esTablaInexistente({ code: "PGRST205" })).toBe(true);
     expect(esTablaInexistente({ code: "42501" })).toBe(false);

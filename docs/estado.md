@@ -6,14 +6,14 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-03 — El borrador de la semana · migración **0592 SIN PEGAR** · prueba 482 · rama `claude/turnos-borrador-semana` ([#668](https://github.com/felipea92p-ux/cayla-dynamic/pull/668))
+## 2026-11-03 — El borrador de la semana · migración **0593 SIN PEGAR** · prueba 483 · rama `claude/turnos-borrador-semana` ([#668](https://github.com/felipea92p-ux/cayla-dynamic/pull/668))
 
 **De dónde sale.** Felipe (2026-11-03): tener a la vista «el horario sugerido (lo que predice el sistema), el que muestra el
 sistema y un borrador», comparar el actual con el recomendado o el modificado, y el «cumple 45 h / 30 h» medido contra lo
 planificado y contra lo marcado. Para RxH: «sin horario, pero solo hacer un borrador para saber cuándo se la necesita, como una
 nota; lo puede ver la líder, DO y superiores». Es la fase 2b; la 2a fueron las metas por rangos (0590).
 
-**0592.** `turnos_borradores` (uno VIVO por sede y lunes: índice único parcial; los publicados y descartados se quedan como
+**0593** (era la 0592: ese número lo tomó «Cambiar con una compañera», fusionada y pegada mientras esta se escribía). `turnos_borradores` (uno VIVO por sede y lunes: índice único parcial; los publicados y descartados se quedan como
 historia) con `turnos_borrador_dias` (turno o descanso por persona y fecha) y `turnos_borrador_notas` (una por persona). RLS: solo
 admin, DO y la líder de esa sede; nadie escribe directo. Puertas: `fn_turnos_borrador_guardar` (reemplaza el borrador entero;
 rechaza días que ya llegaron y turnos para RxH o no trabajador), `fn_turnos_borrador_descartar` y `fn_turnos_borrador_publicar`,

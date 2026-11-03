@@ -1319,12 +1319,12 @@ export default function TurnosPage() {
     await trasGuardar();
   }
 
-  // ── El borrador de la semana (0592): la propuesta guardada sin publicar ─────────
+  // ── El borrador de la semana (0593): la propuesta guardada sin publicar ─────────
   const [borrador, setBorrador] = useState<{
     id: string; lunes: string; sede: string; origen: "sugerido" | "manual"; actualizadoAt: string; actualizadoPor: string | null;
     filas: FilaDiaBorrador[]; notas: Map<string, string>;
   } | null>(null);
-  // false mientras la 0592 no esté pegada: la pantalla esconde el borrador en vez de fallar.
+  // false mientras la 0593 no esté pegada: la pantalla esconde el borrador en vez de fallar.
   const [hayBorradores, setHayBorradores] = useState(true);
   const [jornadasSede, setJornadasSede] = useState<Map<string, number | null>>(new Map());
   const [verBorrador, setVerBorrador] = useState(false);

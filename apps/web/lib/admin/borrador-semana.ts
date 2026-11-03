@@ -1,5 +1,5 @@
 // ============================================================================
-// borrador-semana.ts — el borrador de la semana (0592): comparar y «cumple»
+// borrador-semana.ts — el borrador de la semana (0593): comparar y «cumple»
 // ============================================================================
 // PROMETE:
 //   · Pasar las filas de `turnos_borrador_dias` a la forma de la propuesta
@@ -181,7 +181,7 @@ export function comoPropuesta(
 
 /**
  * ¿El error dice que la tabla del borrador no existe? Es lo que pasa mientras
- * la 0592 no está pegada: la pantalla esconde el borrador en vez de fallar.
+ * la 0593 no está pegada: la pantalla esconde el borrador en vez de fallar.
  */
 export const esTablaInexistente = (e: { code?: string } | null): boolean =>
   e !== null && (e.code === "42P01" || e.code === "PGRST205" || e.code === "PGRST200");

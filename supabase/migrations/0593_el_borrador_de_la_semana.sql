@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0592 · EL BORRADOR DE LA SEMANA
+-- 0593 · EL BORRADOR DE LA SEMANA
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -75,10 +75,10 @@
 --   (las tablas se dejan: son historia de lo que se propuso. Si de verdad
 --    sobran: drop table turnos_borrador_notas, turnos_borrador_dias,
 --    turnos_borradores.)
---   delete from migraciones_aplicadas where numero = 592;
+--   delete from migraciones_aplicadas where numero = 593;
 --
 -- CÓMO SE COMPRUEBA
---   La consulta del final: todo en true y «592 · el_borrador_de_la_semana».
+--   La consulta del final: todo en true y «593 · el_borrador_de_la_semana».
 --   Solo crea tablas nuevas: no altera ninguna en uso, así que va entera.
 -- ============================================================================
 
@@ -133,11 +133,11 @@ create table if not exists turnos_borrador_notas (
 );
 
 comment on table turnos_borradores is
-  'La semana que la líder arma en Turnos, guardada sin publicar: una viva por sede y lunes. 0592.';
+  'La semana que la líder arma en Turnos, guardada sin publicar: una viva por sede y lunes. 0593.';
 comment on table turnos_borrador_dias is
-  'Turno (entrada y salida) o descanso (las dos null) de cada persona y fecha de un borrador. Es lo que se publica. 0592.';
+  'Turno (entrada y salida) o descanso (las dos null) de cada persona y fecha de un borrador. Es lo que se publica. 0593.';
 comment on table turnos_borrador_notas is
-  'Una nota por persona en un borrador («se la necesita el sábado de 12 a 16»), sobre todo para RxH, que no lleva turno. Nunca se publica. 0592.';
+  'Una nota por persona en un borrador («se la necesita el sábado de 12 a 16»), sobre todo para RxH, que no lleva turno. Nunca se publica. 0593.';
 
 -- ── 2 · Quién la ve ─────────────────────────────────────────────────────────
 alter table turnos_borradores     enable row level security;
@@ -205,7 +205,7 @@ end;
 $$;
 
 comment on function fn_turnos_borrador_puede(uuid) is
-  'Devuelve la persona que edita si puede tocar el borrador de esa sede (admin, Líder DO o la líder de la sede); si no, se niega. Misma regla que fn_publicar_semana (0586). 0592.';
+  'Devuelve la persona que edita si puede tocar el borrador de esa sede (admin, Líder DO o la líder de la sede); si no, se niega. Misma regla que fn_publicar_semana (0586). 0593.';
 revoke all on function fn_turnos_borrador_puede(uuid) from public, anon, authenticated;
 
 -- ── 4 · Guardar ─────────────────────────────────────────────────────────────
@@ -325,7 +325,7 @@ end;
 $$;
 
 comment on function fn_turnos_borrador_guardar(uuid, date, jsonb, jsonb, text) is
-  'Guarda el borrador vivo de la semana de una sede (lo crea si no hay): reemplaza sus días y sus notas. Admin, Líder DO o la líder de la sede. 0592.';
+  'Guarda el borrador vivo de la semana de una sede (lo crea si no hay): reemplaza sus días y sus notas. Admin, Líder DO o la líder de la sede. 0593.';
 revoke all on function fn_turnos_borrador_guardar(uuid, date, jsonb, jsonb, text) from public, anon;
 grant execute on function fn_turnos_borrador_guardar(uuid, date, jsonb, jsonb, text) to authenticated;
 
@@ -347,7 +347,7 @@ end;
 $$;
 
 comment on function fn_turnos_borrador_descartar(uuid, date) is
-  'Descarta el borrador vivo de esa sede y semana (queda como historia). Devuelve false si no había. 0592.';
+  'Descarta el borrador vivo de esa sede y semana (queda como historia). Devuelve false si no había. 0593.';
 revoke all on function fn_turnos_borrador_descartar(uuid, date) from public, anon;
 grant execute on function fn_turnos_borrador_descartar(uuid, date) to authenticated;
 
@@ -405,12 +405,12 @@ end;
 $$;
 
 comment on function fn_turnos_borrador_publicar(uuid, date, jsonb, text) is
-  'Publica el borrador vivo de esa sede y semana: las filas tienen que ser días del borrador; publica con fn_publicar_semana (0586) y lo marca publicado, todo en una transacción. 0592.';
+  'Publica el borrador vivo de esa sede y semana: las filas tienen que ser días del borrador; publica con fn_publicar_semana (0586) y lo marca publicado, todo en una transacción. 0593.';
 revoke all on function fn_turnos_borrador_publicar(uuid, date, jsonb, text) from public, anon;
 grant execute on function fn_turnos_borrador_publicar(uuid, date, jsonb, text) to authenticated;
 
 -- ── 7 · Registro ────────────────────────────────────────────────────────────
-insert into migraciones_aplicadas (numero, nombre) values (592, 'el_borrador_de_la_semana')
+insert into migraciones_aplicadas (numero, nombre) values (593, 'el_borrador_de_la_semana')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
@@ -427,4 +427,4 @@ select
     and to_regprocedure('fn_turnos_borrador_descartar(uuid,date)') is not null
     and to_regprocedure('fn_turnos_borrador_publicar(uuid,date,jsonb,text)') is not null           as las_puertas,
   not has_function_privilege('anon', 'fn_turnos_borrador_guardar(uuid,date,jsonb,jsonb,text)', 'EXECUTE') as anon_no,
-  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 592)                  as registro;
+  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 593)                  as registro;

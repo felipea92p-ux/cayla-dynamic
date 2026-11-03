@@ -45,7 +45,7 @@ export function PropuestaDeLaSemana({
   porAprobar: number | null;
   onPublicar: () => void;
   onDescartar: () => void;
-  /** Guardarla como borrador de la semana (0592), sin publicar; undefined si la 0592 no está. */
+  /** Guardarla como borrador de la semana (0593), sin publicar; undefined si la 0593 no está. */
   onGuardarBorrador?: () => void;
   guardando?: boolean;
   /** Ya hay un borrador de esta semana: guardar lo reemplaza. */

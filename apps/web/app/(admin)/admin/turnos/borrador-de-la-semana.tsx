@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// BorradorDeLaSemana — el borrador guardado de una semana (Turnos · Integrada, 0592)
+// BorradorDeLaSemana — el borrador guardado de una semana (Turnos · Integrada, 0593)
 // ============================================================================
 // Dice que hay un borrador guardado, quién lo dejó y cuándo, y lo compara con
 // lo que hoy tiene cada persona (y con la sugerencia, si hay una a la vista):

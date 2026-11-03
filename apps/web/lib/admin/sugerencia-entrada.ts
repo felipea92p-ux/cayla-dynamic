@@ -110,7 +110,7 @@ const igual = (a: Turno | null, b: Turno | null) =>
  * va nada suyo y se dice por qué.
  */
 export function filasParaPublicar(args: {
-  /** La propuesta del motor, o el borrador (0592): solo hacen falta sus turnos y sus horas. */
+  /** La propuesta del motor, o el borrador (0593): solo hacen falta sus turnos y sus horas. */
   propuesta: Pick<Propuesta, "turnos" | "resumen">;
   actual: (personaId: string, fecha: string) => Turno | null;
   fechas: readonly string[];
