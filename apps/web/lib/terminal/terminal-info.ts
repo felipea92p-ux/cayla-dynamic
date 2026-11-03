@@ -5,6 +5,13 @@ export interface TerminalInfo {
   id: string;
   sedeCodigo: string;
   sedeNombre: string;
+  /**
+   * Los códigos de las sedes que son tienda (`sedes.tipo`, 0099). Decide a quién
+   * se le ofrece «Voy a almacén» (0583): solo si la sede del terminal Y la de la
+   * persona son tienda. Ausente en una ficha guardada antes de esto: entonces no
+   * se ofrece hasta el próximo refresco, que es lo seguro.
+   */
+  sedesTienda?: string[];
 }
 
 const STORAGE_KEY = "cayla-terminal-info";
@@ -55,10 +62,22 @@ export async function refrescarInfoTerminal(): Promise<TerminalInfo | null> {
   if (!data) return null;
 
   const sede = Array.isArray(data.sedes) ? data.sedes[0] : data.sedes;
+
+  // Qué sedes son tienda. Si no contesta, se conserva lo que había en caché:
+  // una ficha sin la lista solo apaga el botón de almacén, no marcar.
+  let sedesTienda = leerInfoTerminalCacheada()?.sedesTienda;
+  try {
+    const res = await supabase.from("sedes").select("codigo").eq("tipo", "tienda").abortSignal(topeDeRed());
+    if (!res.error && res.data) sedesTienda = (res.data as { codigo: string }[]).map((x) => x.codigo);
+  } catch {
+    // Queda la de la caché.
+  }
+
   const info: TerminalInfo = {
     id: data.id,
     sedeCodigo: sede?.codigo ?? "?",
     sedeNombre: sede?.nombre ?? "?",
+    sedesTienda,
   };
   guardarInfoTerminalCacheada(info);
   return info;

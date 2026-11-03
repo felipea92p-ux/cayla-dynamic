@@ -75,6 +75,13 @@ de menos de 30 min — ese filtro es de los reportes. Encabezado de la 0580. La 
 
 **0580 PEGADA por Felipe el 2026-11-02**, antes de fusionar. Fila final exacta (`t · t · t · t · 2 · 580 · ir_al_almacen_se_marca_en_el_terminal`) y md5 de producción = repositorio, sin `\r`: `fn_anular_cambio_ubicacion` `ce796c18…` (1296), `fn_registrar_cambio_ubicacion` `d3053031…` (3829), `fn_ubicaciones_del_dia` `b660fb3e…` (2313).
 
+**2026-11-03 · 0583 SIN PEGAR (el almacén es solo de las tiendas) y el terminal se recarga solo.** Felipe: «solo los que son
+tienda deben tener la opción de ir al almacén». La 0583 reescribe `fn_registrar_cambio_ubicacion` (partida = la 0580 medida en
+producción, `d3053031…` 3 829; llegada `25ae1cbc…` 4 656, con guardia que PARA ante otro cuerpo): se niega si la sede del registro
+o la sede base de la persona no es `tienda`. El terminal ya no ofrece el botón en ese caso (lee `sedes.tipo` en su ficha). Prueba
+473 (8; sin la migración, 4 en rojo). Y el terminal carga solo una versión nueva (`/api/version`) cuando está en la lista y lleva
+un minuto sin tocarse (`lib/terminal/recarga-version.ts`); lo guardado sin enviar vive en IndexedDB y sobrevive.
+
 **Abierto:** guardar `'piso'` en vez de `'tienda'` (propuesta de la sesión de Turnos; la tabla está vacía, sería una 0581). **Falta:** entrega 2 (cuando exista `puestos_planificados`): «Hoy te toca almacén de … a …» al
 marcar la entrada.
 
