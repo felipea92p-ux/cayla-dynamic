@@ -25,8 +25,8 @@ import {
   NIVEL_DISCIPLINARIO_LABELS, fechaLima, hoyLima, nombreDelMesLima, primeroDeMesLima, rangoDelDiaLima,
 } from "@cayla-dynamic/shared";
 import {
-  antecedentesVigentes, esGradual, estadoDeLectura, etapaDelBorrador, eventosDeObservacion, explicarPasoTardanza, SIN_FOTO_DEL_HORARIO, UMBRAL_FALTAS,
-  type Adjunto, type DocDisciplina, type FaltaRow, type LecturaMemo, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
+  antecedentesVigentes, esGradual, estadoDeLectura, estadoDeRecepcionCargos, etapaDelBorrador, eventosDeObservacion, explicarPasoTardanza, SIN_FOTO_DEL_HORARIO, UMBRAL_FALTAS,
+  type Adjunto, type DescargoPresentado, type DocDisciplina, type FaltaRow, type LecturaMemo, type RecepcionCargos, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import { evidenciaDeDocumento, evidenciaDeTardanzasDelMes, type Evidencia } from "@/lib/admin/disciplina-evidencia";
 import { citaDeFalta, traspasosDe, type FaltaCatalogo, type Traspaso } from "@/lib/admin/conducta";
@@ -40,7 +40,7 @@ export type CasoAbierto =
   | { tipo: "documento"; id: string };
 
 /** `sede` es el código (la llave); `sedeRotulo` es lo que se lee: «Taller · Lima». */
-export interface PersonaInfo { nombre: string; sede: string; sedeRotulo?: string; estado: string; fechaCese: string | null; rol?: string }
+export interface PersonaInfo { nombre: string; sede: string; sedeRotulo?: string; estado: string; fechaCese: string | null; rol?: string; tieneCuenta?: boolean }
 
 export const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
@@ -98,6 +98,9 @@ export function PanelCaso(props: {
   traspasos?: Traspaso[];
   /** Quién abrió y quién leyó lo entregado en papel (0516). */
   lecturas?: LecturaMemo[];
+  /** Si abrió y confirmó los cargos en su Info, y lo que escribió de descargo (0581). */
+  recepciones?: RecepcionCargos[];
+  descargos?: DescargoPresentado[];
 }) {
   const { caso } = props;
   const doc = caso?.tipo === "documento" ? props.docs.find((d) => d.id === caso.id) ?? null : null;
@@ -117,6 +120,7 @@ export function PanelCaso(props: {
 function ContenidoCaso({
   caso, doc, personaId, persona, supabase, docs, adjuntos, personas, tardanza, falta, situacion, mesTard,
   nombresAusencia, evidenciaPrevia, sinConstancia, exigeDescargo, puedeAnular, acciones, editores, onVerPapel, faltas = [], traspasos = [], lecturas = [],
+  recepciones = [], descargos = [],
 }: Parameters<typeof PanelCaso>[0] & {
   caso: CasoAbierto; doc: DocDisciplina | null; personaId: string | null; persona: PersonaInfo | null;
 }) {
@@ -443,7 +447,11 @@ function ContenidoCaso({
       </Seccion>
 
       {/* ── Información relevante ────────────────────────────────────── */}
-      {doc && <InformacionDelDocumento doc={doc} papeles={papeles} exigeDescargo={exigeDescargo} editores={editores} onVerPapel={onVerPapel} />}
+      {doc && (
+        <InformacionDelDocumento doc={doc} papeles={papeles} exigeDescargo={exigeDescargo} editores={editores} onVerPapel={onVerPapel}
+          recepcion={recepciones.find((r) => r.expediente_id === doc.id)}
+          descargos={descargos.filter((x) => x.expediente_id === doc.id)} />
+      )}
       {!doc && tardanza && tardanza.sin_medir > 0 && (
         <Seccion titulo="Información relevante">
           <p className="text-taupe">
@@ -487,16 +495,18 @@ function Medidor({ etiqueta, valor, umbral }: { etiqueta: string; valor: number;
 }
 
 function InformacionDelDocumento({
-  doc, papeles, exigeDescargo, editores, onVerPapel,
+  doc, papeles, exigeDescargo, editores, onVerPapel, recepcion, descargos,
 }: {
   doc: DocDisciplina; papeles: Adjunto[]; exigeDescargo: boolean; editores: ReactNode; onVerPapel: (path: string) => void;
+  recepcion: RecepcionCargos | undefined; descargos: DescargoPresentado[];
 }) {
+  const llegada = estadoDeRecepcionCargos(doc, recepcion);
   const notas = eventosDeObservacion(doc.observacion).filter((e) => e.tipo === "nota");
   const etapa = doc.estado === "borrador" ? etapaDelBorrador(doc, exigeDescargo) : null;
   const papelesIlegibles = doc.estado === "anulado" || doc.estado === "cerrado_sin_entrega";
   // Un título sin nada debajo se lee como «falta algo», no como «no hay nada».
   const hayAlgo = (etapa !== null && exigeDescargo && esGradual(doc.nivel)) || editores !== null
-    || notas.length > 0 || doc.estado === "entregado" || papeles.length > 0;
+    || notas.length > 0 || doc.estado === "entregado" || papeles.length > 0 || descargos.length > 0;
   if (!hayAlgo) return null;
   return (
     <Seccion titulo="Información relevante">
@@ -504,7 +514,7 @@ function InformacionDelDocumento({
         {etapa && exigeDescargo && esGradual(doc.nivel) && (
           <p className={etapa === "firmar" ? "text-taupe" : "text-tinta"}>
             {etapa === "comunicar"
-              ? "Falta comunicarle los cargos por escrito —los hechos con sus fechas, la norma que se le imputa y el detalle de la medición— y darle dos días hábiles para su descargo (art. 55.2 del RIT). Hasta entonces no se puede firmar."
+              ? "Falta comunicarle los cargos. Al comunicarlos le aparecen en su Info en Dynamic —los hechos con sus fechas, la norma que se le imputa y el detalle de la medición— y desde ese momento corren dos días hábiles para su descargo (art. 55.2 del RIT). Hasta entonces no se puede firmar."
               : etapa === "esperando"
                 ? `Cargos comunicados el ${selloLima(doc.cargos_comunicados_at!)} · su plazo de descargo vence el ${doc.descargo_vence_at ? selloLima(doc.descargo_vence_at) : "—"} — firmar antes invalidaría la sanción.`
                 : etapa === "valorar"
@@ -512,22 +522,29 @@ function InformacionDelDocumento({
                   : `Cargos comunicados el ${doc.cargos_comunicados_at ? selloLima(doc.cargos_comunicados_at) : "—"} · ${ETIQUETA_DESCARGO[doc.descargo_acogido ?? ""] ?? doc.descargo_acogido}${doc.descargo_valoracion ? `: ${doc.descargo_valoracion}` : ""}`}
           </p>
         )}
-        {(etapa === "comunicar" || etapa === "esperando") && exigeDescargo && esGradual(doc.nivel) && (
-          // La pregunta del 2026-11-02: «¿por qué ella no lo ve?». Porque un
-          // borrador no se entrega; lo que se le entrega en este paso es otro papel.
-          <p className="text-xs text-taupe">
-            Ella todavía no ve este memo en su Info, y así debe ser: lo verá cuando esté firmado y se lo envíes. Lo
-            que se le entrega ahora es la comunicación de cargos (en «⋯»), no el memo.
+        {llegada.tipo !== "no_aplica" && (
+          // El plazo corre desde que se comunican, no desde que ella los abre
+          // (Felipe, 2026-11-03): «sin abrir» es lo que hay que mirar.
+          <p className={cx("text-sm", llegada.tipo === "sin_abrir" ? "text-ambar" : "text-taupe")}>
+            {llegada.tipo === "recibido" && `Confirmó en su Info que recibió los cargos el ${selloLima(llegada.recibido_at)}.`}
+            {llegada.tipo === "abierto" && `Abrió los cargos en su Info el ${selloLima(llegada.abierto_at)}, pero todavía no confirma que los recibió.`}
+            {llegada.tipo === "sin_abrir" && "Todavía no abre los cargos en su Info. Su plazo corre igual desde que se comunicaron: avísale (en «⋯», «Copiar el aviso para ella»)."}
           </p>
         )}
-        {etapa && exigeDescargo && esGradual(doc.nivel) && doc.cargos_comunicados_at && (
-          // Medido el 2026-09-15: la regla del bucket `expedientes` solo deja
-          // subir archivos a documentos firmados o entregados, así que el botón
-          // «subir su descargo» que había acá fallaba siempre. Se quitó en vez
-          // de ofrecer un error garantizado; el arreglo es de la base (lote 3).
+        {descargos.length > 0 && (
+          <div className="grid gap-2">
+            <p className="text-xs font-medium uppercase tracking-[0.08em] text-taupe">Su descargo, escrito en su Info</p>
+            {descargos.map((x) => (
+              <blockquote key={x.id} className="border-l-2 border-sand pl-3">
+                <p className="whitespace-pre-line text-tinta">{x.texto}</p>
+                <p className="text-xs text-taupe">{selloLima(x.presentado_at)}</p>
+              </blockquote>
+            ))}
+          </div>
+        )}
+        {etapa && etapa !== "comunicar" && exigeDescargo && esGradual(doc.nivel) && doc.cargos_comunicados_at && descargos.length === 0 && (
           <p className="text-xs text-taupe">
-            El descargo escrito de un borrador todavía no se puede archivar desde el sistema. Guárdalo en papel y
-            menciónalo en la valoración.
+            No presentó descargo escrito en su Info. Si lo dio de palabra, resúmelo al valorar.
           </p>
         )}
         {editores}
@@ -599,7 +616,10 @@ function HistorialDelDocumento({ doc, papeles, personas }: { doc: DocDisciplina;
   for (const a of papeles) eventos.push({ cuando: a.subido_at, titulo: `Se archivó ${ETIQUETA_PAPEL[a.tipo]?.replace("Ver ", "el ") ?? "un papel"}`, quien: null });
   for (const e of eventosDeObservacion(doc.observacion)) {
     if (e.tipo === "nota" || !e.fecha) continue;
-    const titulo = e.tipo === "anulado" ? `Anulado: ${e.texto}` : e.tipo === "reabierto" ? `Vuelto a borrador: ${e.texto}` : `Cerrado sin entrega: ${e.texto}`;
+    const titulo = e.tipo === "anulado" ? `Anulado: ${e.texto}`
+      : e.tipo === "reabierto" ? `Vuelto a borrador: ${e.texto}`
+      : e.tipo === "recomunicado" ? `Plazo de descargo reabierto: ${e.texto}`
+      : `Cerrado sin entrega: ${e.texto}`;
     eventos.push({ cuando: rangoDelDiaLima(e.fecha).inicio, titulo, quien: null });
   }
   eventos.sort((a, b) => Date.parse(b.cuando) - Date.parse(a.cuando));

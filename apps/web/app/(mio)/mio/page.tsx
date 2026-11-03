@@ -9,6 +9,8 @@ import { MiSeguro } from "./seguro/mi-seguro";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
+import { TuSemana, useMiSemana } from "./tu-semana";
+import { hoyEnUnaLinea, textoHoras, totalDeSemana } from "@/lib/mi-semana";
 import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
 import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
 import { PASOS_GUIA_BOLETAS, PASOS_GUIA_EDUCACION, PASOS_GUIA_MOVILIDAD } from "./guias-de-pago";
@@ -17,7 +19,7 @@ import {
 } from "./guias-de-documentos";
 import { PASOS_GUIA_HISTORIAL, PASOS_GUIA_OBJETIVOS, PASOS_GUIA_REPORTES } from "./guias-de-seguimiento";
 import { SaludoCumpleanos } from "./saludo-cumpleanos";
-import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
+import { cargoPorRecibir, cuantosPidenConCargos, porLeer, type CargoMio, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -440,15 +442,6 @@ function corrimiento(n: number): string {
 }
 const haceDias = (n: number) => corrimiento(-n);
 
-/** «mañana», «el martes», «el 3 de setiembre» — cómo lo diría una persona. */
-function cuando(fecha: string): string {
-  if (fecha === hoyLima()) return "hoy";
-  if (fecha === corrimiento(1)) return "mañana";
-  const dow = dowDe(fecha);
-  const nombres = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-  if (fecha <= corrimiento(6)) return `el ${nombres[dow]}`;
-  return `el ${diaYMes(fecha)}`;
-}
 
 // Los mismos colores que el panel, con el mismo significado. Que la persona y su
 // encargada vean el mismo día del mismo color no es cosmético: es lo que hace
@@ -521,6 +514,9 @@ export default function MioPage() {
   const router = useRouter();
   const [sesion, setSesion] = useState<boolean | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
+  // «Tu semana» (Mis turnos y la tarjeta de hoy del Resumen) pide sus propias
+  // tres semanas: no depende del rango que ella elija en «Mis días».
+  const miSemana = useMiSemana(supabase, yo?.id ?? null);
   // PRIMERO LO QUE SE VE, DESPUÉS LO QUE SE CUENTA. Abrir /mio disparaba unas 64
   // consultas a la vez (medido el 2026-10-24), y las que pintan el Resumen —el
   // periodo, los turnos, los objetivos— esperaban en la misma cola que las que
@@ -1268,13 +1264,18 @@ export default function MioPage() {
   const [miDisciplina, setMiDisciplina] = useState<DocMio[] | null>(null);
   const [miDisciplinaError, setMiDisciplinaError] = useState(false);
   const [miCuenta, setMiCuenta] = useState<CuentaMia | null>(null);
+  // Los cargos en curso (0581): lo que le comunicaron antes de decidir nada. Si la
+  // migración todavía no está pegada, la función no existe y la lista queda vacía.
+  const [misCargos, setMisCargos] = useState<CargoMio[]>([]);
   const cargarMiDisciplina = useCallback(async () => {
-    if (!yo?.id) { setMiDisciplina(null); setMiCuenta(null); return; }
-    const [{ data, error }, { data: cuenta }] = await Promise.all([
+    if (!yo?.id) { setMiDisciplina(null); setMiCuenta(null); setMisCargos([]); return; }
+    const [{ data, error }, { data: cuenta }, { data: cargos }] = await Promise.all([
       supabase.rpc("fn_mi_disciplina"),
       supabase.rpc("fn_mi_cuenta_de_tardanzas", {}),
+      supabase.rpc("fn_mis_cargos"),
     ]);
     setMiCuenta((cuenta as unknown as CuentaMia | null) ?? null);
+    setMisCargos(((cargos as unknown as { cargos?: CargoMio[] } | null)?.cargos) ?? []);
     if (error) { setMiDisciplinaError(true); return; }
     setMiDisciplinaError(false);
     setMiDisciplina(((data as unknown as { documentos?: DocMio[] } | null)?.documentos) ?? []);
@@ -1285,7 +1286,8 @@ export default function MioPage() {
   // Lo que le pide algo: recibir lo enviado a su Info, o leer lo entregado en papel.
   const memosPorRecibir = useMemo(() => (miDisciplina ?? []).filter((d) => d.estado === "por_recibir"), [miDisciplina]);
   const memosPorLeer = useMemo(() => (miDisciplina ?? []).filter(porLeer), [miDisciplina]);
-  const disciplinaPide = useMemo(() => cuantosPiden(miDisciplina ?? []), [miDisciplina]);
+  const disciplinaPide = useMemo(() => cuantosPidenConCargos(miDisciplina ?? [], misCargos), [miDisciplina, misCargos]);
+  const cargosPorRecibir = useMemo(() => misCargos.filter(cargoPorRecibir), [misCargos]);
 
   // Sus propias solicitudes de vacaciones. Aparte del bloque grande de arriba
   // por la misma razón que `vacas`: depende solo de quién es, no del rango de
@@ -1542,16 +1544,15 @@ export default function MioPage() {
     };
   }, [jornadas, perdonadas, dias]);
 
-  // Los próximos turnos, de hoy en adelante. Solo los días que se trabajan: una
-  // lista de descansos no es lo que se viene a consultar.
-  const proximos = useMemo(() => {
-    if (!yo) return [];
-    const hoy = hoyLima();
-    return fechasDelRango(hoy, corrimiento(14))
-      .map((fecha) => ({ fecha, esperado: esperadoDelDia(fecha, turnos.get(fecha) ?? null, horarioVigente(tramos, fecha)) }))
-      .filter((x) => x.esperado.trabaja)
-      .slice(0, 7);
-  }, [yo, turnos, tramos]);
+  // Hoy y el total de esta semana, para la tarjeta del Resumen. Las mismas
+  // reglas que «Tu semana» (lib/mi-semana.ts): la tarjeta y la sección no
+  // pueden decir dos cosas distintas.
+  const hoyDeMiSemana = useMemo(() => {
+    const dias = miSemana.semanas[0];
+    if (dias.length === 0) return null;
+    const total = totalDeSemana(dias);
+    return { hoy: dias.find((d) => d.fecha === miSemana.hoy), total };
+  }, [miSemana]);
 
   // Cuatro filas de «Permiso personal» seguidas son cuatro días que ella vivió
   // como un episodio. Se juntan los consecutivos del mismo tipo.
@@ -1674,6 +1675,16 @@ export default function MioPage() {
         ir: () => { cambiarSeccion("disciplina"); irArriba(); },
       });
     }
+    // Los cargos van primero: su plazo de descargo ya está corriendo (0581).
+    // Genérico igual que los de abajo: ni el motivo ni el nivel se ven de reojo.
+    for (const c of cargosPorRecibir) {
+      out.push({
+        clave: `cargos-recibir:${c.id}`,
+        texto: "Te comunicaron unos cargos",
+        detalle: "Ábrelos y confirma que los recibiste. Todavía no se decidió nada: si quieres, puedes escribir ahí tu descargo.",
+        ir: () => router.push(`/mio/cargos/${c.id}`),
+      });
+    }
     // Uno por documento, y no «tienes N»: cada uno se abre por su cuenta y lo
     // que se confirma es ESE documento. Genérico igual que el de arriba.
     for (const m of memosPorRecibir) {
@@ -1686,7 +1697,7 @@ export default function MioPage() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, pendientesRevision, vacas, memosPorLeer, memosPorRecibir, miBono]);
+  }, [resumen, respondidas, pendientesRevision, vacas, memosPorLeer, memosPorRecibir, cargosPorRecibir, miBono]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -2111,17 +2122,17 @@ export default function MioPage() {
               hasta hoy se respondía por WhatsApp. */}
           <TarjetaClave
             dataTour="mio-resumen-turno"
-            titulo="Tu próximo turno"
-            valor={proximos.length > 0
-              ? `${proximos[0].esperado.entrada}${proximos[0].esperado.salida ? `–${proximos[0].esperado.salida}` : ""}`
-              : "—"}
-            pie={proximos.length > 0
-              ? `Te toca ${cuando(proximos[0].fecha)}.${feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
-              : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo."}
+            titulo="Hoy"
+            valor={hoyDeMiSemana ? hoyEnUnaLinea(hoyDeMiSemana.hoy) : "—"}
+            pie={hoyDeMiSemana
+              ? `Esta semana: ${textoHoras(hoyDeMiSemana.total.horas)}${
+                  hoyDeMiSemana.total.referencia !== null ? ` de ${textoHoras(hoyDeMiSemana.total.referencia)} de tu horario` : ""}.${
+                  feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
+              : miSemana.cargando ? "Leyendo tu horario…" : "No hay turnos ni horario cargados para esta semana. Si eso no es lo que esperabas, avísale a tu líder de equipo."}
             accion={
               <button onClick={() => { cambiarSeccion("turnos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
-                Ver mis próximos días →
+                Ver mi semana →
               </button>
             }
           />
@@ -2431,24 +2442,11 @@ export default function MioPage() {
       {/* ── MIS TURNOS ───────────────────────────────────────────────────── */}
       {tab === "turnos" && (
         <section data-tour="mio-turnos-seccion" className="rounded-2xl border border-sand p-5">
-          <h2 className="mb-1 font-serif text-lg">Cuándo te toca</h2>
-          <p className="mb-3 text-sm text-taupe">Tus próximos días de trabajo, de hoy en adelante.</p>
-          {proximos.length === 0 ? (
-            <p className="text-sm text-taupe">
-              No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo.
-            </p>
-          ) : (
-            <ul data-tour="mio-turnos-proximos" className="flex flex-wrap gap-2">
-              {proximos.map(({ fecha, esperado }) => (
-                <li key={fecha}
-                  className={`rounded-xl border px-3 py-2 ${fecha === hoyLima() ? "border-tinta bg-papel" : "border-sand"}`}>
-                  <div className="text-xs capitalize text-taupe">{cuando(fecha)}</div>
-                  <div className="font-medium">{esperado.entrada}{esperado.salida ? `–${esperado.salida}` : ""}</div>
-                  {esperado.origen === "turno" && <div className="text-[10px] text-taupe">turno del día</div>}
-                </li>
-              ))}
-            </ul>
-          )}
+          <h2 className="mb-1 font-serif text-lg">Tu semana</h2>
+          <p className="mb-3 text-sm text-taupe">
+            Lo que te toca trabajar. Lo que de verdad marcaste está en «Mis días».
+          </p>
+          <TuSemana datos={miSemana} />
           {feriados.length > 0 && (
             <ul data-tour="mio-turnos-feriados" className="mt-4 space-y-1 border-t border-sand pt-3 text-sm">
               {feriados.map((f) => (
@@ -3056,7 +3054,7 @@ export default function MioPage() {
       {tab === "disciplina" && yo && (
         <DisciplinaMia
           supabase={supabase} personaId={yo.id}
-          docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta}
+          docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta} cargos={misCargos}
           onCambio={() => void cargarMiDisciplina()}
         />
       )}
