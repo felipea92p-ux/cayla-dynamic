@@ -58,6 +58,9 @@
 --   · Nunca un turno de borrador para alguien sin horario (RxH, no trabajador):
 --     para esa persona solo cabe la nota.
 --   · Nunca se publica algo distinto de lo que tiene el borrador.
+--   · Nunca un borrador viejo pisa un día que cambió después de guardarlo (un
+--     cambio con una compañera aprobado, o uno hecho a mano): se niega y dice
+--     cuál. Se mide con `turnos.created_at`, que cada cambio reescribe.
 --   · Nunca un borrador publicado o descartado vuelve a cambiar.
 --   · Nunca lo lee una integrante: RLS solo deja a admin, DO y la líder de esa
 --     sede.
@@ -364,9 +367,12 @@ security definer
 set search_path = public
 as $$
 declare
-  v_yo uuid := fn_turnos_borrador_puede(p_sede_id);
-  v_id uuid;
-  v_n  integer;
+  v_yo       uuid := fn_turnos_borrador_puede(p_sede_id);
+  v_id       uuid;
+  v_n        integer;
+  v_guardado timestamptz;
+  v_persona  uuid;
+  v_fecha    date;
 begin
   perform pg_advisory_xact_lock(hashtext('turnos_borrador|' || p_sede_id::text || '|' || p_lunes::text));
 
@@ -393,6 +399,20 @@ begin
           and d.salida  is not distinct from nullif(x->>'salida', '')::time)
   ) then
     raise exception 'Lo que se publica tiene que ser lo del borrador. Vuelve a guardarlo y publica de nuevo.';
+  end if;
+
+  -- Un día que cambió DESPUÉS de guardar el borrador (un cambio con una compañera aprobado, 0592, o uno
+  -- hecho a mano) no se pisa en silencio: `turnos.created_at` se reescribe con cada cambio.
+  select actualizado_at into v_guardado from turnos_borradores where id = v_id;
+  select t.persona_id, t.fecha into v_persona, v_fecha
+    from jsonb_array_elements(p_turnos) x
+    join turnos t on t.persona_id = (x->>'persona_id')::uuid and t.fecha = (x->>'fecha')::date
+   where t.created_at > v_guardado
+   order by t.fecha, t.persona_id
+   limit 1;
+  if v_fecha is not null then
+    raise exception 'El turno de % del % cambió después de guardar el borrador. Míralo en la grilla: descarta el borrador y vuelve a armarlo, o cambia ese día a mano.',
+      (select nombres from personas where id = v_persona), to_char(v_fecha, 'DD/MM');
   end if;
 
   -- Sus permisos, su regla del turno propio de la líder y su todo o nada son los de la 0586.

@@ -12,7 +12,7 @@
 -- publica con fn_publicar_semana (0586) y lo deja marcado.
 -- ============================================================================
 begin;
-select plan(18);
+select plan(19);
 
 insert into sedes (id, codigo, nombre, activa, tipo)
 values
@@ -97,8 +97,22 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000004830fc
 select is((select count(*)::int from turnos_borrador_dias), 0, 'una integrante no lo ve');
 reset role;
 
--- ── 12-15 · Publicar: lo del borrador, y nada más ───────────────────────────
+-- ── 12 · Un día que cambió después de guardar el borrador no se pisa ────────
+-- Como si se hubiera aprobado un cambio con una compañera después de guardarlo.
+set session_replication_role = replica;
+insert into turnos (persona_id, fecha, hora_entrada, hora_salida, es_descanso, origen, created_at)
+values ('00000000-0000-0000-0000-000000483013', (select lunes from _s), '13:00', '21:30', false, 'panel', now() + interval '1 hour');
+set session_replication_role = origin;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000004830fe', true);
+select throws_ok(
+  $$ select fn_turnos_borrador_publicar('00000000-0000-0000-0000-000000483000', (select lunes from _s),
+       jsonb_build_array(pg_temp.dia('00000000-0000-0000-0000-000000483013', 0, '10:00', '18:30'))) $$,
+  null, null, 'si ese día cambió después de guardar el borrador, no se publica encima');
+set session_replication_role = replica;
+delete from turnos where persona_id = '00000000-0000-0000-0000-000000483013' and fecha = (select lunes from _s);
+set session_replication_role = origin;
+
+-- ── 13-16 · Publicar: lo del borrador, y nada más ───────────────────────────
 select throws_ok(
   $$ select fn_turnos_borrador_publicar('00000000-0000-0000-0000-000000483000', (select lunes from _s),
        jsonb_build_array(pg_temp.dia('00000000-0000-0000-0000-000000483013', 0, '09:00', '17:30'))) $$,
@@ -116,7 +130,7 @@ select is(
       and publicado_at is not null and publicado_por = '00000000-0000-0000-0000-000000483011'),
   1, 'el borrador queda marcado como publicado, con quién lo hizo');
 
--- ── 16-17 · Después: uno nuevo, y descartarlo ───────────────────────────────
+-- ── 17-18 · Después: uno nuevo, y descartarlo ───────────────────────────────
 select fn_turnos_borrador_guardar('00000000-0000-0000-0000-000000483000', (select lunes from _s),
   '[]'::jsonb, jsonb_build_array(jsonb_build_object('persona_id', '00000000-0000-0000-0000-000000483014', 'nota', 'El domingo de 10 a 14')));
 select is(
@@ -126,7 +140,7 @@ select is(
   fn_turnos_borrador_descartar('00000000-0000-0000-0000-000000483000', (select lunes from _s)),
   false, 'y descartado no queda ninguno vivo');
 
--- ── 18 · Nadie de afuera ────────────────────────────────────────────────────
+-- ── 19 · Nadie de afuera ────────────────────────────────────────────────────
 select ok(
   not has_function_privilege('anon', 'fn_turnos_borrador_guardar(uuid,date,jsonb,jsonb,text)', 'EXECUTE')
   and not has_function_privilege('anon', 'fn_turnos_borrador_publicar(uuid,date,jsonb,text)', 'EXECUTE')
