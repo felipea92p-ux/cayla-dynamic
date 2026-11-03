@@ -1,6 +1,7 @@
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { enviarMarcaje, esRechazoDeEstado, esRechazoDeSesion } from "./enviar-marcaje";
 import { refrescarInfoTerminal } from "./terminal-info";
+import { sincronizarCambiosPendientes } from "./ubicacion-cola";
 import {
   obtenerPendientes,
   eliminarDeOutbox,
@@ -84,13 +85,18 @@ export async function sincronizarPendientes() {
 export function iniciarSincronizacionPeriodica(intervaloMs = 15_000): () => void {
   if (typeof window === "undefined") return () => {};
 
-  const onOnline = () => void sincronizarPendientes();
-  window.addEventListener("online", onOnline);
-  const interval = window.setInterval(() => void sincronizarPendientes(), intervaloMs);
-  void sincronizarPendientes();
+  // Primero los marcajes y DESPUÉS los cambios de ubicación (0580): si una
+  // entrada y un «Voy a almacén» esperan juntos, sube primero la entrada. Los
+  // de ubicación nunca lanzan, así que no pueden frenar a los marcajes.
+  const ciclo = () => void sincronizarPendientes()
+    .catch(() => {})
+    .then(() => sincronizarCambiosPendientes());
+  window.addEventListener("online", ciclo);
+  const interval = window.setInterval(ciclo, intervaloMs);
+  ciclo();
 
   return () => {
-    window.removeEventListener("online", onOnline);
+    window.removeEventListener("online", ciclo);
     window.clearInterval(interval);
   };
 }
