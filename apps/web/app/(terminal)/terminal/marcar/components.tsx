@@ -392,6 +392,7 @@ export function SelectorSalida({
   otras,
   neutra = false,
   aviso,
+  almacen,
   onElegir,
   onCancelar,
 }: {
@@ -409,16 +410,32 @@ export function SelectorSalida({
    * "Entrada" junto a las salidas.
    */
   aviso?: string;
+  /**
+   * «Voy a almacén» / «Vuelvo a tienda» (0580). Ausente cuando no aplica —el
+   * estado de la persona no se pudo confirmar—. NO es un marcaje: va debajo de
+   * refrigerio y salida final, sin moverlos de su lugar, para que nadie tenga
+   * que buscar de nuevo lo que toca todos los días.
+   */
+  almacen?: OpcionAlmacen;
   onElegir: (tipo: TipoMarca, motivoRequerido: boolean) => void;
   onCancelar: () => void;
 }) {
   const [mostrarOtras, setMostrarOtras] = useState(false);
+  const botonAlmacen = almacen ? <BotonAlmacen opcion={almacen} /> : null;
+  const estadoAlmacen = almacen?.estado ? (
+    <p className="flex items-center gap-2 text-base text-azul" role="status">
+      <span aria-hidden>▣</span>
+      {almacen.estado}
+    </p>
+  ) : null;
 
   if (neutra) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
         <p className="font-serif text-2xl">{nombre}</p>
+        {estadoAlmacen}
         <div className="flex w-full max-w-sm flex-col gap-3">
+          {botonAlmacen}
           {otras.map((op) => (
             <button
               key={op.tipo}
@@ -455,6 +472,7 @@ export function SelectorSalida({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <p className="font-serif text-2xl">{nombre}</p>
+      {estadoAlmacen}
       {aviso && (
         <p className="max-w-sm rounded-control bg-ambar/10 px-4 py-3 text-center text-sm text-tinta" role="alert">
           {aviso}
@@ -475,6 +493,7 @@ export function SelectorSalida({
             {secundaria.label}
           </button>
         )}
+        {botonAlmacen}
         {mostrarOtras ? (
           <div className="mt-1 flex flex-col gap-2">
             {otras.map((op) => (
@@ -493,6 +512,75 @@ export function SelectorSalida({
           </button>
         )}
       </div>
+      <button onClick={onCancelar} className={BTN_ENLACE}>
+        Cancelar
+      </button>
+    </div>
+  );
+}
+
+export interface OpcionAlmacen {
+  /** «En almacén desde 12:32 · vuelves 13:32», o null si está en tienda. */
+  estado: string | null;
+  enAlmacen: boolean;
+  onVoyAlmacen: () => void;
+  onVuelvoTienda: () => void;
+}
+
+// Una sola casilla que cambia según dónde está: «Voy a almacén» o «Vuelvo a
+// tienda». El terminal nunca ofrece las dos a la vez — el doble marcado se
+// previene por diseño, como en los marcajes. La franja azul a la izquierda es
+// el color de «almacén» en Turnos; el ícono y la palabra lo dicen sin el color.
+function BotonAlmacen({ opcion }: { opcion: OpcionAlmacen }) {
+  return opcion.enAlmacen ? (
+    <button
+      onClick={opcion.onVuelvoTienda}
+      className={`${TILE} border-l-4 border-l-azul px-5 py-4 text-left text-lg`}
+    >
+      <span aria-hidden className="mr-2">↩</span>Vuelvo a tienda
+      <span className="block text-sm text-taupe">Sigues en tu turno</span>
+    </button>
+  ) : (
+    <button
+      onClick={opcion.onVoyAlmacen}
+      className={`${TILE} border-l-4 border-l-azul px-5 py-4 text-left text-lg`}
+    >
+      <span aria-hidden className="mr-2">▣</span>Voy a almacén
+      <span className="block text-sm text-taupe">Para quedarte un rato, no para traer algo</span>
+    </button>
+  );
+}
+
+/** «¿Por cuánto tiempo?» — tocar una opción ya registra; no hay otra confirmación. */
+export function ElegirTiempoAlmacen({
+  nombre,
+  duraciones,
+  onElegir,
+  onCancelar,
+}: {
+  nombre: string;
+  duraciones: ReadonlyArray<{ etiqueta: string; minutos: number | null }>;
+  onElegir: (minutos: number | null) => void;
+  onCancelar: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+      <p className="font-serif text-2xl">{nombre}, ¿por cuánto tiempo vas al almacén?</p>
+      <div className="grid w-full max-w-md grid-cols-2 gap-3">
+        {duraciones.map((d) => (
+          <button
+            key={d.etiqueta}
+            onClick={() => onElegir(d.minutos)}
+            className={`${TILE} px-5 py-5 text-lg ${d.minutos === null ? "col-span-2" : ""}`}
+          >
+            {d.etiqueta}
+            {d.minutos === null && (
+              <span className="block text-sm text-taupe">Marcas «Vuelvo a tienda» al regresar</span>
+            )}
+          </button>
+        ))}
+      </div>
+      <p className="text-center text-base text-taupe">Si solo vas a traer algo, no hace falta marcar.</p>
       <button onClick={onCancelar} className={BTN_ENLACE}>
         Cancelar
       </button>

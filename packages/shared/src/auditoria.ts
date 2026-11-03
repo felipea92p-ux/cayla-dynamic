@@ -79,6 +79,10 @@ const EXACTOS: Record<string, TemaAuditoria> = {
   // Quién investiga el hostigamiento sexual en una sede (0488): un encargo
   // que se le da a una persona, con acta.
   organos_titulo_x: "persona",
+  // Anular un «Voy a almacén» / «Vuelvo a tienda» (0580). No es un marcaje —no
+  // cambia horas ni pago— así que NO va con CAMPOS_DE_MARCAJE: es dónde
+  // trabajó dentro de su turno, y eso es tema de horario.
+  cambio_ubicacion: "horario",
 };
 
 export function temaDeCampo(campo: string): TemaAuditoria {
@@ -108,6 +112,7 @@ const ROTULOS: Record<string, string> = {
   "turnos.puesto": "Piso o almacén planificado",
   horarios_asignados: "Horario cambiado",
   organos_titulo_x: "Nombramiento para investigar el Título X",
+  cambio_ubicacion: "Cambio de tienda / almacén anulado",
   "pruebas.resultado": "Preselección de tres días cerrada",
   "expediente.suspension_propuesta": "La líder pidió que se suspenda",
   "expediente.nivel": "Sanción elevada de peldaño",
