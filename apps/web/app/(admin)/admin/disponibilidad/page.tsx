@@ -33,6 +33,7 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { EditorDisponibilidad, type EnvioDisponibilidad } from "@/components/disponibilidad/editor-disponibilidad";
 import { PedidosDelEquipo } from "@/components/pedidos-turno/pedidos-del-equipo";
+import { CambiosDelEquipo } from "@/components/cambios-turno/cambios-del-equipo";
 import {
   MOTIVOS, MOTIVOS_REGISTRO, avisoDeHoras, desdeBloques, diaMes, horasDisponibles, resumenEnPalabras,
   type Bloque, type Motivo, type MotivoRegistro, type Ventana,
@@ -161,6 +162,9 @@ export default function DisponibilidadDelEquipo() {
 
       {personas && personas.length > 0 && (
         <PedidosDelEquipo supabase={supabase} personas={personas} yoId={yo.id} esDO={esDO} avisar={toast.avisar} />
+      )}
+      {personas && personas.length > 0 && (
+        <CambiosDelEquipo supabase={supabase} personas={personas} yoId={yo.id} avisar={toast.avisar} />
       )}
 
       {personas && personas.length === 0 && <EstadoVacio>No hay personas activas en esta sede.</EstadoVacio>}

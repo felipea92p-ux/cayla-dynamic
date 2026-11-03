@@ -58,6 +58,8 @@ const TONO: Record<EstadoBandeja, "positivo" | "alerta" | "informativo" | "adver
   // Tu boleta oficial ya está: no es una falta ni una firma, es «ya puedes
   // verla». Informativo, pero la tarjeta sigue siendo de pendientes (borde ámbar).
   por_ver: "informativo",
+  // Una compañera espera su respuesta (0592): le toca a ella, como una firma.
+  por_contestar: "advertencia",
 };
 
 const ETIQUETA: Record<EstadoBandeja, string> = {
@@ -68,6 +70,7 @@ const ETIQUETA: Record<EstadoBandeja, string> = {
   por_firmar: "falta tu firma",
   por_arreglar: "por arreglar",
   por_ver: "por abrir",
+  por_contestar: "por contestar",
 };
 
 /** «7 de setiembre», y con año cuando no es el de hoy: «25 de junio de 2025». */
@@ -82,10 +85,10 @@ type Resultado =
   | { tipo: "error"; texto: string }
   | { tipo: "sin-sesion" };
 
-/** Los tres estados que dependen de ella. Se pregunta por el estado y no por la
+/** Los estados que dependen de ella. Se pregunta por el estado y no por la
  *  lista en la que vino: una tarjeta tiene que poder pintarse sola. */
 function esPendiente(m: MensajeBandeja): boolean {
-  return m.estado === "por_firmar" || m.estado === "por_arreglar" || m.estado === "por_ver";
+  return m.estado === "por_firmar" || m.estado === "por_arreglar" || m.estado === "por_ver" || m.estado === "por_contestar";
 }
 
 function Tarjeta({ m, hoy }: { m: MensajeBandeja; hoy: string }) {

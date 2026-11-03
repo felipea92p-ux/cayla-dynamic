@@ -11,6 +11,7 @@ import { puedePedirBono, traerMiBono, type MiBono } from "./mi-bono";
 import { formatSoles } from "./rangos";
 import { esBoletaPorFirmar } from "./boletas";
 import { nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "./mis-boletas";
+import { estadoParaElla, estaVivo, resumenCambio, tituloResultado, tramo, type MiCambio } from "./cambios-turno";
 import { COLUMNAS_PEDIDO, resumenPedido, tituloRespuesta, type PedidoTurno } from "./pedidos-turno";
 import { fechaEnPalabras, traerMisReportes, tituloDeReporte, type FilaMiReporte } from "./reportes";
 import { compartirMientrasVuela } from "./compartir-mientras-vuela";
@@ -123,7 +124,9 @@ export type OrigenBandeja =
   // abierto esperando respuesta.
   | "reporte"
   // «Este día no me calza» (0587): lo que pidió sobre un día con turno.
-  | "pedido-turno";
+  | "pedido-turno"
+  // «Cambiar con una compañera» (0592): lo que pidió, lo que le piden y cómo terminó.
+  | "cambio-companera";
 
 /**
  * `atendido` es de las revisiones y no es lo mismo que `aprobado`: a un pedido
@@ -136,7 +139,9 @@ export type EstadoBandeja =
   /** Depende de que pidas que se corrija: un día con el marcaje incompleto. */
   | "por_arreglar"
   /** Te dejaron algo para abrir y todavía no lo abriste: tu boleta oficial. */
-  | "por_ver";
+  | "por_ver"
+  /** Una compañera te pide algo y espera tu respuesta: cambiarse el turno (0592). */
+  | "por_contestar";
 
 export interface MensajeBandeja {
   /** Estable entre recargas: sirve de `key` de React y de desempate del orden. */
@@ -364,6 +369,8 @@ export interface FuentesBandeja {
   reportes?: FilaMiReporte[];
   /** Sus pedidos «Este día no me calza» (0587). Opcional: sin la 0587, no se dice nada. */
   pedidosTurno?: PedidoTurno[];
+  /** Sus cambios de turno con una compañera (0592), de `fn_turno_cambios_mios`. Opcional. */
+  cambiosTurno?: MiCambio[];
   /** Sus constancias de estudios (0450). Opcional: quien no estudia no trae nada. */
   educacionEntregas?: FilaEducacionEntrega[];
   /** Sus estudios y en qué está cada constancia (0450). */
@@ -1053,6 +1060,53 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     }
   }
 
+  // «Cambiar con una compañera» (0592). Si se lo piden a ella: depende de ella,
+  // y no caduca hasta que contesta (o el día pasa). Si lo pidió ella: lo está
+  // esperando. Cuando termina: una respuesta que caduca como las demás. Sin
+  // marca de «visto» propia (no hace falta otra migración): caduca a los
+  // DIAS_NOVEDAD.
+  for (const c of fuentes.cambiosTurno ?? []) {
+    const clave = `cambio-companera:${c.id}`;
+    if (c.estado === "propuesto" && c.soy === "companera") {
+      if (c.fecha < hoy) continue;
+      pendientes.push({
+        instante: Date.parse(c.creado_at),
+        m: {
+          clave, origen: "cambio-companera", estado: "por_contestar", fecha: fechaLima(c.creado_at),
+          titulo: `${c.otra_nombre} te pide cambiar el turno del ${diaYMes(c.fecha)}`,
+          respuesta: c.comentario,
+          detalle: `Tú harías ${tramo(c.otra_entrada, c.otra_salida)} y ella tu ${tramo(c.mi_entrada, c.mi_salida)}. Contéstale en «Mis turnos».`,
+          nuevo: true, ir: "/mio?tab=turnos", marcarVistoComo: null,
+        },
+      });
+    } else if (estaVivo(c.estado) && c.soy === "solicitante") {
+      esperando.push({
+        instante: Date.parse(c.creado_at),
+        m: {
+          clave, origen: "cambio-companera", estado: "pendiente", fecha: fechaLima(c.creado_at),
+          titulo: `Pediste cambiar tu turno del ${diaYMes(c.fecha)}`,
+          respuesta: null,
+          detalle: `${resumenCambio(c)}. ${estadoParaElla(c)}.`,
+          nuevo: false, ir: "/mio?tab=turnos", marcarVistoComo: null,
+        },
+      });
+    } else if (c.estado === "aprobado" || c.estado === "no_aprobado" || (c.estado === "rechazado" && c.soy === "solicitante")) {
+      const cuando = c.resuelto_at ?? c.contestado_at ?? c.creado_at;
+      const fecha = fechaLima(cuando);
+      respuestas.push({
+        instante: Date.parse(cuando),
+        m: {
+          clave, origen: "cambio-companera",
+          estado: c.estado === "aprobado" ? "aprobado" : "rechazado", fecha,
+          titulo: tituloResultado(c),
+          respuesta: c.respuesta ?? (c.soy === "solicitante" ? c.respuesta_companera : null),
+          detalle: resumenCambio(c),
+          nuevo: esNueva(fecha), ir: "/mio?tab=turnos", marcarVistoComo: null,
+        },
+      });
+    }
+  }
+
   // ── LAS CONSTANCIAS DE ESTUDIOS (0450) ─────────────────────────────────
   // Lo que envió y espera, lo que le contestaron, y lo que depende de ella.
   // Solo lo que envió ELLA: lo que carga DO a su nombre no contesta nada que
@@ -1200,7 +1254,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes, ficha, pedidosTurno] =
+    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes, ficha, pedidosTurno, cambiosTurno] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -1297,6 +1351,8 @@ export async function traerBandeja(
       .eq("persona_id", personaId)
       .order("creado_at", { ascending: false })
       .limit(LIMITE),
+    // Sus cambios de turno con una compañera (0592). La función contesta solo por quien pregunta.
+    supabase.rpc("fn_turno_cambios_mios"),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -1341,6 +1397,7 @@ export async function traerBandeja(
     boletas: boletas.filas,
     reportes: reportes.filas,
     pedidosTurno: (pedidosTurno.data ?? []) as unknown as PedidoTurno[],
+    cambiosTurno: (cambiosTurno.data ?? []) as unknown as MiCambio[],
     vistos: new Set(
       ((vistos.data ?? []) as { tipo_item: string; item_id: string }[])
         .map((v) => `${v.tipo_item}:${v.item_id}`),
@@ -1379,6 +1436,7 @@ export async function traerBandeja(
       { error: boletas.error, que: "tus boletas" },
       { error: reportes.error, que: "tus reportes" },
       { error: pedidosTurno.error, que: "tus pedidos de cambiar un turno" },
+      { error: cambiosTurno.error, que: "tus cambios de turno con una compañera" },
     ]),
   };
 }

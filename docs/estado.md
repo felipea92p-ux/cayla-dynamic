@@ -31,6 +31,22 @@ ausencias). Lógica en `lib/admin/borrador-semana.ts` con su prueba.
 
 ---
 
+## 2026-11-03 — La líder registra la disponibilidad de su equipo · migración **0589 SIN PEGAR (urgente)** · prueba 479 · fusionada en [#662](https://github.com/felipea92p-ux/cayla-dynamic/pull/662)
+
+**Por qué es urgente.** El #662 se fusionó (y se publicó) ANTES de pegar la 0589: la pantalla ya llama a `fn_disponibilidad_registrar`
+con `p_registro_motivo` y `p_registro_detalle`, y producción tiene la de 8 argumentos. Hasta pegarla, DO y la líder no pueden registrar
+la disponibilidad de otra persona. Enviar la propia no se ve afectado.
+
+**0589.** Suma `disponibilidades.registro_motivo` y `registro_detalle` (con sus dos candados) y reescribe `fn_disponibilidad_registrar`
+(firma de 10 argumentos: se borra la de 8, no queda sobrecarga). La regla de quién puede es la de aprobar
+(`fn_puede_resolver_disponibilidad`, sin tocar). **Se pega en dos partes, una por una** (columnas; función y registro), con una guardia que
+impide la función sin las columnas. **El md5 de partida se vuelve a pedir a producción el día que se pega** (la consulta está en el
+encabezado de la migración): `6a553cab… · 837`, una versión y sin la columna. Auditada en un Postgres 16 real con la función vieja
+exacta de la 0584 y stubs de las funciones de las que depende: nueve casos de la puerta, permisos, idempotencia, el archivo entero en una
+transacción y una carrera con un lector. `supabase test db` la corre `db-tests`.
+
+---
+
 ## 2026-11-03 — «Prefiero trabajar» en la disponibilidad · migración **0591 PEGADA (2026-11-03)** · prueba 481 · rama `claude/exciting-clarke-npajc5`
 
 **De dónde sale.** Felipe (2026-11-03), tras ver «Mi disponibilidad» en el teléfono: que cada día se marque con un toque (Puedo · Prefiero no ·
