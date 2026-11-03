@@ -32,6 +32,7 @@ import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobert
 import { resumenDeLideres, resumenDelTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
 import { celdaConNombres, horasDeLaSemana, resumenDelDia, type TurnoConNombre } from "@/lib/admin/semana-con-nombres";
 import { PISO, aHHMM, almacenConLoReal, argumentosDeGuardado, esPiso, problemaDeTramos, puestoDesdeFilas, sugerirTramo, textoPuesto, tramosEnAlmacen, type PuestoDelDia, type TramoDecimal } from "@/lib/admin/almacen";
+import { baseEsAlmacen, baseVigenteDesde, leerPuestosResueltos, type PeriodoBase } from "@/lib/puestos-resueltos";
 import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, lineaDeSemana, TEXTO_CONFIRMAR_TRABAJO_EN_FERIADO, tituloDelAviso, type PersonaEnFeriado } from "@/lib/admin/prueba-en-feriado";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 import type { CambioUbicacion, Ubicacion } from "@/lib/terminal/ubicacion";
@@ -699,6 +700,10 @@ export default function TurnosPage() {
   // Piso o almacén planificado (0579), por «persona|fecha». `null` = no se pudo leer (la tabla todavía no
   // existe en esa base, o falló la consulta): la cobertura cuenta a todas en piso y la hoja de almacén lo dice.
   const [puestos, setPuestos] = useState<Map<string, PuestoDelDia> | null>(new Map());
+  /** «persona|fecha» cuyo plan sale de su puesto base, no de un plan del día (0588). */
+  const [puestoDeBase, setPuestoDeBase] = useState<Set<string>>(new Set());
+  /** Los periodos en que su puesto base es el almacén, por persona; null si no se pudieron leer (0588 sin pegar). */
+  const [bases, setBases] = useState<Map<string, PeriodoBase[]> | null>(new Map());
   // Lo marcado en el terminal (0580), por persona y día: los cambios de ubicación y la salida final, que cierra
   // un tramo abierto. null = no se pudo leer: Día sigue solo con el plan, como antes.
   const [reales, setReales] = useState<{ cambios: Map<string, CambioUbicacion[]>; marcajes: Map<string, MarcajeDelDia[]> } | null>(null);
@@ -801,6 +806,7 @@ export default function TurnosPage() {
       { data: sal, error: salErr },
       { data: com, error: comErr },
       { data: cpv, error: cpvErr },
+      { data: pba, error: pbaErr },
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
       // igual que cualquiera y cuenta para la meta de cobertura de la sede —
@@ -818,8 +824,9 @@ export default function TurnosPage() {
       supabase.rpc("fn_areas"), // catálogo dinámico de áreas (nunca .from("areas"): schema cache trabado)
       supabase.from("feriados").select("fecha, nombre").gte("fecha", lunes).lte("fecha", domingo),
       supabase.rpc("fn_pruebas_abiertas"),
-      // El almacén no frena la semana: si falla (p. ej. la 0579 todavía no está pegada), se sigue sin él.
-      supabase.from("puestos_planificados").select("persona_id, fecha, desde, hasta").gte("fecha", lunes).lte("fecha", domingo),
+      // El almacén no frena la semana: si falla, se sigue sin él. Ya resuelto con el puesto base (0588), por la
+      // lectura única de lib/puestos-resueltos.ts: nunca la tabla directo.
+      leerPuestosResueltos(supabase, lunes, domingo),
       // Lo real del terminal (0580), solo para la vista Día. Tampoco frena la semana. `as never`: la tabla todavía
       // no está en los tipos generados (el terminal la lee igual, en lib/terminal/ubicacion-cola.ts).
       supabase.from("cambios_ubicacion" as never).select("persona_id, ubicacion, timestamp_cambio, vuelve_previsto")
@@ -833,6 +840,9 @@ export default function TurnosPage() {
       // La venta de cada hora y los dos números de la tienda (0585). Tampoco frenan la semana.
       supabase.rpc("fn_compras_por_hora", { p_sede_id: sedeSel, p_desde: lunes, p_hasta: domingo }),
       supabase.rpc("fn_cobertura_por_venta", { p_sede_id: sedeSel }),
+      // El puesto base (0588), para decir en el diálogo del almacén cuál es y desde cuándo. `as never`: la tabla
+      // todavía no está en los tipos generados. Si falla (la 0588 sin pegar), el diálogo no ofrece «siempre».
+      supabase.from("puestos_base" as never).select("persona_id, vigente_desde, vigente_hasta"),
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (modo !== "fondo") cargaConMetas.current = 0;
@@ -866,6 +876,16 @@ export default function TurnosPage() {
         porDia.set(k, [...(porDia.get(k) ?? []), { desde: x.desde, hasta: x.hasta }]);
       }
       setPuestos(new Map([...porDia].map(([k, filas]) => [k, puestoDesdeFilas(filas)])));
+      setPuestoDeBase(new Set((pue ?? []).filter((x) => x.origen === "base").map((x) => `${x.persona_id}|${x.fecha}`)));
+    }
+    if (pbaErr) {
+      setBases(null);
+    } else {
+      const porPersona = new Map<string, PeriodoBase[]>();
+      for (const x of (pba ?? []) as unknown as (PeriodoBase & { persona_id: string })[]) {
+        porPersona.set(x.persona_id, [...(porPersona.get(x.persona_id) ?? []), { vigente_desde: x.vigente_desde, vigente_hasta: x.vigente_hasta }]);
+      }
+      setBases(porPersona);
     }
     if (camErr || salErr) {
       setReales(null);
@@ -1238,7 +1258,10 @@ export default function TurnosPage() {
         const base = jornada ?? netoActual;
         const objetivoHoras = trabajados.length > 0 ? Math.round((base * diasTrabajo / trabajados.length) * 4) / 4 : 0;
         const corto = `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`;
-        return [{ id: p.id, nombre: corto, cuenta: esOperativa(p), lider: esEncargada(p), objetivoHoras, diasTrabajo, refrigerioMin, actual, fijos: r.fijos, bloques: r.bloques }];
+        // Quien está en almacén todo el turno todos los días que trabaja (su puesto base, 0588) no suma en piso.
+        // El motor mide por persona, no por día: un día suelto en almacén no se descuenta aquí.
+        const todoEnAlmacen = trabajados.every((f) => puestoDe(p.id, f).todoElTurno);
+        return [{ id: p.id, nombre: corto, cuenta: esOperativa(p) && !todoEnAlmacen, lider: esEncargada(p), objetivoHoras, diasTrabajo, refrigerioMin, actual, fijos: r.fijos, bloques: r.bloques }];
       });
       if (personasSug.length === 0) {
         avisar("error", "No hay a quién proponerle turno: nadie de la sede tiene horario esta semana.");
@@ -1293,20 +1316,41 @@ export default function TurnosPage() {
   const [almacenEdit, setAlmacenEdit] = useState<{ personaId: string; fecha: string } | null>(null);
   const [almacenSel, setAlmacenSel] = useState<PuestoDelDia>(PISO);
   const [guardandoAlmacen, setGuardandoAlmacen] = useState(false);
+  /** «Siempre, desde este día»: el turno entero pasa a ser su puesto base (0588). Los tramos son de un día. */
+  const [almacenSiempre, setAlmacenSiempre] = useState(false);
   function abrirAlmacen(personaId: string, fecha: string) {
     setAlmacenSel(puestoDe(personaId, fecha));
+    setAlmacenSiempre(false);
     setAlmacenEdit({ personaId, fecha });
   }
   async function guardarAlmacen() {
     if (!almacenEdit) return;
+    const { personaId, fecha } = almacenEdit;
+    const k = `${personaId}|${fecha}`;
+    const siempre = almacenSiempre && almacenSel.tramos.length === 0;
+    // Ese día tiene un plan propio si sus filas no vienen de la base, o si va a piso con la base en almacén.
+    const planPropio = (puestos?.has(k) === true && !puestoDeBase.has(k))
+      || (puestos?.has(k) !== true && baseEsAlmacen(bases?.get(personaId) ?? [], fecha));
     setGuardandoAlmacen(true);
-    const { error } = await supabase.rpc("fn_set_almacen_del_dia", {
-      p_persona_id: almacenEdit.personaId, p_fecha: almacenEdit.fecha, ...argumentosDeGuardado(almacenSel),
-    });
+    if (siempre) {
+      const r = await supabase.rpc("fn_set_puesto_base", {
+        p_persona_id: personaId, p_desde: fecha, p_puesto: almacenSel.todoElTurno ? "almacen" : "piso",
+      });
+      if (r.error) { setGuardandoAlmacen(false); avisar("error", mensajeDeError(r.error, "cambiar su puesto base")); return; }
+    }
+    // «Solo este día», o «siempre» cuando ese día tenía su propio plan: se alinea con lo elegido.
+    if (!siempre || planPropio) {
+      const { error } = await supabase.rpc("fn_set_almacen_del_dia", {
+        p_persona_id: personaId, p_fecha: fecha, ...argumentosDeGuardado(almacenSel),
+      });
+      if (error) { setGuardandoAlmacen(false); avisar("error", mensajeDeError(error, "guardar dónde trabaja ese día")); return; }
+    }
     setGuardandoAlmacen(false);
-    if (error) { avisar("error", mensajeDeError(error, "guardar dónde trabaja ese día")); return; }
-    const p = personas.find((x) => x.id === almacenEdit.personaId);
-    avisar("ok", `Listo: ${p?.nombres ?? "la persona"} · ${textoPuesto(almacenSel)}.`);
+    const p = personas.find((x) => x.id === personaId);
+    const { abr, num } = etiquetaDia(fecha);
+    avisar("ok", siempre
+      ? `Listo: desde el ${abr} ${num}, el puesto base de ${p?.nombres ?? "la persona"} es ${almacenSel.todoElTurno ? "el almacén" : "el piso"}.`
+      : `Listo: ${p?.nombres ?? "la persona"} · ${textoPuesto(almacenSel)}.`);
     setAlmacenEdit(null);
     await trasGuardar();
   }
@@ -2133,6 +2177,9 @@ export default function TurnosPage() {
           const enPisoSinElla = (h: number) => otras.filter((x) => x.cuenta && x.entrada <= h && h < x.salida && !enAlm(x, h)).length;
           const sugerido = sugerirTramo({ turno, enPisoSinElla, metaEn });
           const modo: "piso" | "todo" | "tramos" = almacenSel.todoElTurno ? "todo" : almacenSel.tramos.length > 0 ? "tramos" : "piso";
+          // El puesto base (0588) vive en Horarios y solo en tiendas; sin poder leerlo, no se ofrece «siempre».
+          const baseDesde = bases ? baseVigenteDesde(bases.get(personaId) ?? [], fecha) : null;
+          const ofreceSiempre = bases !== null && tipoSedeSel === "tienda";
           const problema = modo === "tramos" ? problemaDeTramos(almacenSel.tramos, turno) : null;
           // Cómo queda el piso con este plan: el peor momento de su turno, con la misma cuenta de la Integrada.
           const yo = delDia.find((x) => x.id === personaId);
@@ -2161,6 +2208,7 @@ export default function TurnosPage() {
                 <p className="text-sm text-taupe">
                   Su turno es de {decimalAHHMM(turno.desde)} a {decimalAHHMM(turno.hasta)}. Esto no cambia su turno, sus horas ni su pago:
                   solo dice si está en piso o en almacén. Lo ve en «Mis turnos».
+                  {baseDesde && <> Su puesto base es el <strong>almacén</strong> desde el {etiquetaDia(baseDesde).abr} {etiquetaDia(baseDesde).num}.</>}
                 </p>
                 {puestos === null && (
                   <BannerAviso variante="advertencia" className="text-sm">
@@ -2174,6 +2222,26 @@ export default function TurnosPage() {
                     Unas horas en almacén
                   </Filtro>
                 </div>
+                {ofreceSiempre && (
+                  <div className="space-y-1">
+                    <div role="group" aria-label="Hasta cuándo" className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-taupe">¿Hasta cuándo?</span>
+                      <Filtro activo={!almacenSiempre || modo === "tramos"} onClick={() => setAlmacenSiempre(false)}>Solo este día</Filtro>
+                      <Filtro activo={almacenSiempre && modo !== "tramos"} disabled={modo === "tramos"} onClick={() => setAlmacenSiempre(true)}>
+                        Siempre, desde este día
+                      </Filtro>
+                    </div>
+                    <p className="text-xs text-taupe">
+                      {modo === "tramos"
+                        ? "Unas horas en almacén es solo para este día. «Siempre» es el turno entero."
+                        : almacenSiempre
+                          ? modo === "todo"
+                            ? `Desde el ${abr} ${num}, su puesto base pasa a ser el almacén: todos los días que trabaje, hasta que se cambie. Los días que ya tienen otro plan lo conservan.`
+                            : `Desde el ${abr} ${num}, su puesto base vuelve a ser el piso, hasta que se cambie. Los días que ya tienen otro plan lo conservan.`
+                          : "Solo cambia este día. Su puesto base sigue igual."}
+                    </p>
+                  </div>
+                )}
                 {modo === "tramos" && (
                   <div className="space-y-2">
                     {almacenSel.tramos.map((t, i) => (
