@@ -1,6 +1,6 @@
 // sugerencia-turnos.test.ts — la propuesta de turnos de una semana
 import { describe, expect, it } from "vitest";
-import { semillaDe, sugerirSemana, type DiaSugerencia, type PersonaSugerencia, type Turno } from "../apps/web/lib/admin/sugerencia-turnos";
+import { BONO_PREFIERE_TRABAJAR, semillaDe, sugerirSemana, type DiaSugerencia, type PersonaSugerencia, type Turno } from "../apps/web/lib/admin/sugerencia-turnos";
 
 const h = (x: number) => Math.round(x * 60);
 const FECHAS = ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15"];
@@ -98,5 +98,41 @@ describe("sugerirSemana", () => {
     const mucha = FECHAS.map((f) => dia(f, () => 6));
     const r = sugerirSemana({ dias: mucha, personas, semilla: 3, iteraciones: 5000 });
     expect(r.avisos.some((a) => /faltan? \d+ personas? en piso/.test(a))).toBe(true);
+  });
+  it("«prefiero trabajar» inclina el turno hacia esas horas, sin cambiar días ni horas", () => {
+    // Ana prefiere trabajar de 17:00 a 21:00 los dos primeros días; las demás no dicen nada.
+    const gusto = { desde: h(17), hasta: h(21), estado: "prefiere_trabajar" as const };
+    const conGusto = personas.map((x) => x.id === "Ana"
+      ? { ...x, bloques: { [FECHAS[0]]: [gusto], [FECHAS[1]]: [gusto] } }
+      : x);
+    const dentro = (r: ReturnType<typeof sugerirSemana>) => [FECHAS[0], FECHAS[1]]
+      .map((f) => r.turnos.Ana[f])
+      .reduce((a, t) => a + (t ? Math.max(0, Math.min(t.salida, h(21)) - Math.max(t.entrada, h(17))) : 0), 0);
+    let mejora = 0, empeora = 0;
+    for (const semilla of [3, 7, 11, 19, 23]) {
+      const sin = sugerirSemana({ dias, personas, semilla, iteraciones: 30000 });
+      const con = sugerirSemana({ dias, personas: conGusto, semilla, iteraciones: 30000 });
+      expect(con.resumen.Ana.dias).toBe(5);
+      expect(con.resumen.Ana.horas).toBe(35);
+      if (dentro(con) > dentro(sin)) mejora++;
+      if (dentro(con) < dentro(sin)) empeora++;
+    }
+    expect(mejora).toBeGreaterThan(empeora);
+  });
+
+  it("«prefiero trabajar» no deja un hueco de cobertura: gana lo que pide la venta", () => {
+    // Todas prefieren trabajar de noche, pero la venta pide gente de mañana: gana la venta.
+    const noche = { desde: h(17), hasta: h(21), estado: "prefiere_trabajar" as const };
+    const todas = personas.map((x) => ({ ...x, bloques: Object.fromEntries(FECHAS.map((f) => [f, [noche]])) }));
+    const manana = FECHAS.map((f) => dia(f, (m) => (m < h(13) ? 3 : 1)));
+    const r = sugerirSemana({ dias: manana, personas: todas, semilla: 5, iteraciones: 30000 });
+    const base = sugerirSemana({ dias: manana, personas, semilla: 5, iteraciones: 30000 });
+    const cobertura = (x: typeof r) => FECHAS.flatMap((f) => x.cobertura[f]).filter((c) => c.hora < 13).reduce((a, c) => a + c.enPiso, 0);
+    expect(cobertura(r)).toBeGreaterThanOrEqual(cobertura(base) - 3);
+  });
+
+  it("el bono es pequeño frente a lo que cuesta pisar un «prefiero no» (150)", () => {
+    expect(BONO_PREFIERE_TRABAJAR).toBeGreaterThan(0);
+    expect(BONO_PREFIERE_TRABAJAR).toBeLessThan(150 / 2);
   });
 });

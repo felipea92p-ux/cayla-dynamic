@@ -6,6 +6,29 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-03 — «Prefiero trabajar» en la disponibilidad · migración **0591 SIN PEGAR** · prueba 481 · rama `claude/exciting-clarke-npajc5`
+
+**De dónde sale.** Felipe (2026-11-03), tras ver «Mi disponibilidad» en el teléfono: que cada día se marque con un toque (Puedo · Prefiero no ·
+No puedo · Depende de la hora, ya fusionado en el #663) y que además exista **«Prefiero trabajar»**. La decisión de que Turnos lo use para
+priorizar la dio él: «sí, hazlo con prefiero trabajar».
+
+**0591 (no mueve plata, no reescribe ninguna función).** Dos CHECK con nombre propio: `disponibilidad_bloques.estado` acepta
+`prefiere_trabajar` y `disponibilidades.motivo` acepta `preferencia` (el motivo es obligatorio en una parcial y los cinco de antes explican
+por qué NO se puede; la pantalla lo pone sola cuando solo se marcó lo que se prefiere). `fn_disponibilidad_guardar_interno` y
+`fn_disponibilidad_vigente` pasan el estado tal cual, así que no hay md5 de partida. Auditada en un Postgres 16 real con las tablas
+exactas de la 0584 y 0589, dentro de `BEGIN … ROLLBACK`: estado nuevo entra, inventado no; el cruce se rechaza sea cual sea el estado;
+pegada dos veces deja un solo CHECK de cada y un solo texto en el comentario. **No se corrió `supabase test db`** (sin Docker en esa
+sesión): la prueba 481 la corre `db-tests`.
+
+**En la sugerencia.** `BONO_PREFIERE_TRABAJAR = 30` resta al costo de un día en que la persona trabaja en esas horas, proporcional a
+cuánto de su turno cae ahí. Referencia: pisar un «prefiero no» cuesta 150, una hora de diferencia con su jornada 300. **Desempata, no
+manda:** nunca deja un hueco de la venta por él ni mueve a nadie de un «no puedo». Sin aviso en pantalla cuando no se logra.
+
+**La 0591 se pega ANTES de fusionar.** Si el código llega primero, quien marque «Prefiero trabajar» recibe «Revisa los días marcados» al
+enviar (la base rechaza el estado). Pegar después de fusionar deja esa ventana abierta.
+
+---
+
 ## 2026-11-03 — El almacén puede ser el puesto de siempre · migración **0588 SIN PEGAR** · prueba 478 · rama `claude/turnos-puesto-base`
 
 **De dónde sale.** Felipe (2026-11-03): «plasmar desde Horarios quién tiene de base ir a tienda o almacén», y al elegir el almacén de

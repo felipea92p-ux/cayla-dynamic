@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  aBloques, aplicarAtajo, avisoDeHoras, copiarDia, desdeBloques, horasDisponibles, opcionesHora, resumenEnPalabras,
+  aBloques, aplicarAtajo, avisoDeHoras, copiarDia, hayRestriccion, MOTIVOS, MOTIVOS_A_ELEGIR, desdeBloques, horasDisponibles, opcionesHora, resumenEnPalabras,
   semanaSinRestricciones, semanaVacia, validar, type Ventana,
 } from "@/lib/disponibilidad";
 
@@ -167,5 +167,61 @@ describe("el motivo del registro (0589)", () => {
     expect(textoMotivoRegistro("otro", "Lo dejó en el cuaderno")).toBe("Lo dejó en el cuaderno");
     expect(textoMotivoRegistro("en_persona")).toBe("Me lo dijo en persona");
     expect(textoMotivoRegistro(null)).toBeNull();
+  });
+});
+
+describe("«prefiero trabajar» (0591)", () => {
+  it("ida y vuelta: un día entero y unas horas, como se guardan y como se dibujan", () => {
+    const s = semanaVacia();
+    s[2] = { modo: "prefiere_trabajar", tramos: [] };
+    s[4] = { modo: "horas", tramos: [{ desde: "14:00", hasta: "18:30", estado: "prefiere_trabajar" }] };
+    const bloques = aBloques(s, []);
+    expect(bloques).toEqual([
+      { dia_semana: 2, desde: null, hasta: null, estado: "prefiere_trabajar" },
+      { dia_semana: 4, desde: "14:00", hasta: "18:30", estado: "prefiere_trabajar" },
+    ]);
+    const devuelta = desdeBloques(bloques.map((b) => ({ ...b, desde: b.desde && `${b.desde}:00`, hasta: b.hasta && `${b.hasta}:00` })));
+    expect(devuelta.semana).toEqual(s);
+  });
+
+  it("no es una restricción: no resta horas disponibles ni cuenta como «hay algo que justificar»", () => {
+    const s = semanaVacia();
+    s[2] = { modo: "prefiere_trabajar", tramos: [] };
+    s[4] = { modo: "horas", tramos: [{ desde: "14:00", hasta: "18:30", estado: "prefiere_trabajar" }] };
+    expect(semanaSinRestricciones(s)).toBe(true);
+    expect(horasDisponibles(s, TRU)).toBe(horasDisponibles(semanaVacia(), TRU));
+    expect(hayRestriccion(aBloques(s, []))).toBe(false);
+    s[1] = { modo: "no_puede", tramos: [] };
+    expect(semanaSinRestricciones(s)).toBe(false);
+    expect(hayRestriccion(aBloques(s, []))).toBe(true);
+  });
+
+  it("se dice en palabras, en las dos voces y también en una fecha puntual", () => {
+    const s = semanaVacia();
+    s[2] = { modo: "no_puede", tramos: [] };
+    s[6] = { modo: "prefiere_trabajar", tramos: [] };
+    const exc = [{ fecha: "2026-11-15", desde: "16:00", hasta: "20:00", estado: "prefiere_trabajar" as const }];
+    expect(resumenEnPalabras(s, exc, "tu")).toEqual([
+      "No puedes: los martes todo el día.",
+      "Prefieres trabajar: los sábados todo el día.",
+      "Además: el 15 nov prefieres trabajar de 16:00 a 20:00.",
+    ]);
+    expect(resumenEnPalabras(s, [], "ella")[1]).toBe("Prefiere trabajar: los sábados todo el día.");
+  });
+
+  it("«preferencia» es un motivo que se muestra pero no se elige", () => {
+    expect(MOTIVOS.some((m) => m.valor === "preferencia")).toBe(true);
+    expect(MOTIVOS_A_ELEGIR.some((m) => m.valor === "preferencia")).toBe(false);
+    expect(MOTIVOS_A_ELEGIR.map((m) => m.valor)).toEqual(["estudios", "hijos", "salud", "otro_trabajo", "otro"]);
+  });
+
+  it("los estados y motivos de la web son los mismos que los CHECK de la 0591", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const dir = join(__dirname, "..", "supabase", "migrations");
+    const sql = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith("0591_"))!), "utf8");
+    const lista = (re: RegExp) => sql.match(re)![1].match(/'([a-z_]+)'/g)!.map((x) => x.slice(1, -1));
+    expect(lista(/disponibilidad_bloque_estado_valido\s+check \(estado in \(([^)]*)\)\)/)).toEqual(["no_puede", "prefiere_no", "prefiere_trabajar"]);
+    expect(lista(/disponibilidad_motivo_valido\s+check \(motivo in \(([^)]*)\)\)/)).toEqual(MOTIVOS.map((m) => m.valor));
   });
 });
