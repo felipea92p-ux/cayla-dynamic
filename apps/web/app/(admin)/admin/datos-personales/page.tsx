@@ -56,6 +56,11 @@ interface Persona {
   // ventanas en las que el campo no viaja. Nunca se lee con `!`, siempre con
   // `esPrestadorDeServicios` — ver packages/shared/src/vinculo.ts.
   en_planilla: boolean | null | undefined;
+  // Solo para decir la verdad debajo del correo: a «No trabajador» no le sale
+  // invitación (`invitablesSinCuenta`), así que prometerle una desde Cuentas
+  // es mandar a alguien a buscar lo que no va a encontrar. Pasó el 2026-11-03
+  // con una locadora, antes de que los locadores entraran a la invitación.
+  tipo_vinculo?: string | null;
 }
 interface Ficha {
   persona_id: string; nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null;
@@ -338,7 +343,7 @@ export default function DatosPersonalesPage() {
       { data: fn, error: eFN },
       { data: per, error: ePer },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, documento, tipo_documento, sede_base_id, email, regimen_pension, auth_user_id, en_planilla").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, documento, tipo_documento, sede_base_id, email, regimen_pension, auth_user_id, en_planilla, tipo_vinculo").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.from("sedes").select("id, codigo"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp"),
       supabase.from("derechohabientes").select("id, persona_id, nombres, apellidos, documento, fecha_nacimiento, vinculo, essalud, vida_ley, vigente_hasta, nota").order("apellidos"),
@@ -1631,6 +1636,10 @@ export default function DatosPersonalesPage() {
                           <span className="text-xs text-taupe">
                             Ya tiene cuenta activa. Cambiarlo acá no cambiaría su acceso —{" "}
                             <a href="/admin/cuentas" className="underline">hazlo desde Cuentas</a>.
+                          </span>
+                        ) : puedeIdentidad && personaSel?.tipo_vinculo === "no_trabajador" ? (
+                          <span className="text-xs text-taupe">
+                            No tiene cuenta, y por su vínculo (No trabajador) no se le invita: figura sin prestar servicios.
                           </span>
                         ) : puedeIdentidad ? (
                           <span className="text-xs text-taupe">
