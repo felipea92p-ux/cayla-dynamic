@@ -24,7 +24,8 @@
 //   No toca `marcajes`, `fn_registrar_marcaje` ni la cola de marcajes.
 // ============================================================================
 import { openDB, type IDBPDatabase } from "idb";
-import { rangoDelDiaLima } from "@cayla-dynamic/shared";
+import { hoyLima, rangoDelDiaLima } from "@cayla-dynamic/shared";
+import { puestoDesdeFilas, type PuestoDelDia } from "@/lib/admin/almacen";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { conTope, topeDeRed } from "./tope-de-red";
 import { esFalloDeRed, esRechazoDeSesion, SEGUNDOS_ESPERA_ENVIO } from "./enviar-marcaje";
@@ -247,6 +248,37 @@ export async function cargarCambiosDeHoy(): Promise<CambiosPorPersona> {
     // dejar a nadie en almacén esta mañana.
     if (vistos.has(c.clientUuid) || !esDeHoy(c.timestampCliente)) continue;
     poner(c.personaId, { ubicacion: c.ubicacion, timestamp: c.timestampCliente, vuelvePrevisto: c.vuelvePrevisto });
+  }
+  return mapa;
+}
+
+/**
+ * Lo planificado para HOY (0579, `puestos_planificados`): por persona, sus
+ * tramos en almacén, sin recortar todavía a su turno. La política
+ * `puestos_select_terminal` ya acota a las personas de este terminal.
+ *
+ * Nunca lanza. Sin red, sin la 0579 pegada o con cualquier error devuelve un
+ * mapa vacío, y el terminal se comporta como en la entrega 1: no anuncia nada y
+ * solo cuenta lo que se marca. Por eso no hace falta coordinar el despliegue
+ * con la migración.
+ */
+export async function cargarPlanDeHoy(): Promise<Map<string, PuestoDelDia>> {
+  const mapa = new Map<string, PuestoDelDia>();
+  if (typeof navigator !== "undefined" && !navigator.onLine) return mapa;
+  try {
+    const res = await createTerminalSupabaseClient()
+      .from("puestos_planificados" as never)
+      .select("persona_id, desde, hasta")
+      .eq("fecha", hoyLima())
+      .abortSignal(topeDeRed());
+    if (res.error) return mapa;
+    const porPersona = new Map<string, { desde: string | null; hasta: string | null }[]>();
+    for (const f of (res.data ?? []) as unknown as Array<{ persona_id: string; desde: string | null; hasta: string | null }>) {
+      porPersona.set(f.persona_id, [...(porPersona.get(f.persona_id) ?? []), { desde: f.desde, hasta: f.hasta }]);
+    }
+    for (const [id, filas] of porPersona) mapa.set(id, puestoDesdeFilas(filas));
+  } catch {
+    // Queda vacío: el terminal sigue igual que sin plan.
   }
   return mapa;
 }

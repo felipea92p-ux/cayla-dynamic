@@ -6,6 +6,7 @@ import {
   TIPO_MARCA_LABELS,
   TZ_LIMA,
   hoyLima,
+  rangoDelDiaLima,
   sugerirSalidaPrincipal,
   type MarcajeDelDia,
   type TipoMarca,
@@ -27,15 +28,19 @@ import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, confirmarEstadoPuntual, siguienteAccionPara } from "@/lib/terminal/estado-dia";
 import { cargarEstadisticasSugerenciaPorPersona, type EstadisticasTerminal } from "@/lib/terminal/sugerencias";
 import { refrescoPorRelojPermitido, sugerenciasVencidas, type CargaSugerencias } from "@/lib/terminal/refresco";
-import { contarPresencias, presenciaDeLaCasilla, type ClavePresencia, type HorarioDeHoy } from "@/lib/terminal/presencia";
+import { contarPresencias, horaDecimalDeHHMM, presenciaDeLaCasilla, type ClavePresencia } from "@/lib/terminal/presencia";
+import type { PuestoDelDia } from "@/lib/admin/almacen";
 import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
 import {
   DURACIONES_ALMACEN,
+  cambiosDelPlan,
   detalleCasillaAlmacen,
   horaUbicacion,
   textoEstadoAlmacen,
+  textoPlanDeHoy,
+  tramosPlanificados,
   ubicacionActual,
   vueltaPrevista,
   type Ubicacion,
@@ -43,6 +48,7 @@ import {
 import {
   cambiosPendientes,
   cargarCambiosDeHoy,
+  cargarPlanDeHoy,
   registrarCambio,
   type CambiosPorPersona,
 } from "@/lib/terminal/ubicacion-cola";
@@ -216,7 +222,7 @@ export default function MarcarPage() {
   // necesita, y leer un ref mientras se renderiza no es seguro: de ahí estas
   // copias en state. Cada vez que el ref cambia se llama a `refrescarVista()`.
   const [marcajesVista, setMarcajesVista] = useState<Map<string, MarcajeDelDia[]>>(new Map());
-  const [horariosVista, setHorariosVista] = useState<Map<string, HorarioDeHoy>>(new Map());
+  const [horariosVista, setHorariosVista] = useState<Map<string, EstadisticasTerminal>>(new Map());
   // Espejo de `marcajesConfiablesRef`. Mientras sea `false` NO se pinta ningún
   // estado: un mapa vacío significa «todavía no lo sé», no «nadie ha entrado», y
   // pintar a todo el equipo como «sin entrada» sería acusar de más.
@@ -232,6 +238,8 @@ export default function MarcarPage() {
   // «Voy a almacén» a quien ya está allí, y eso no cambia su tramo.
   const ubicacionesRef = useRef<CambiosPorPersona>(new Map());
   const [ubicacionesVista, setUbicacionesVista] = useState<CambiosPorPersona>(new Map());
+  // Lo planificado para hoy (0579). Vacío si no hay plan o la 0579 no está.
+  const [planVista, setPlanVista] = useState<Map<string, PuestoDelDia>>(new Map());
 
   const [pantalla, setPantalla] = useState<Pantalla>("lista");
   const [personaActual, setPersonaActual] = useState<RosterEntry | null>(null);
@@ -253,6 +261,9 @@ export default function MarcarPage() {
   } | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [tonoMensaje, setTonoMensaje] = useState<"ok" | "alerta">("ok");
+  // Una segunda línea bajo el mensaje (hoy: «Hoy te toca almacén de … a …» al
+  // marcar la entrada). No alarga el tiempo en pantalla: lo cabe en los mismos.
+  const [detalleMensaje, setDetalleMensaje] = useState<string | null>(null);
   // El reloj de ESTA Mac contra el del servidor. Arranca con la última medida
   // guardada: un reloj corrido no se arregla al recargar la página, y que el
   // aviso desapareciera al reiniciar convertiría un problema permanente en uno
@@ -276,7 +287,7 @@ export default function MarcarPage() {
       const dia = hoyLima();
       const ahora = Date.now();
       const pedirSugerencias = sugerenciasVencidas(sugerenciasCargadasRef.current, dia, ahora);
-      const [rosterCargado, marcajes, estadisticas, ubicaciones] = await Promise.all([
+      const [rosterCargado, marcajes, estadisticas, ubicaciones, plan] = await Promise.all([
         cargarRoster(),
         cargarMarcajesHoyPorPersona(),
         // No depende del roster —RLS ya acota a la sede del terminal—, así que
@@ -288,7 +299,10 @@ export default function MarcarPage() {
         // Tienda o almacén (0580): en paralelo y sin lanzar nunca, así que no
         // le suma espera al arranque ni puede tumbar la carga de lo demás.
         cargarCambiosDeHoy(),
+        // Lo planificado por Turnos para hoy: igual, en paralelo y sin lanzar.
+        cargarPlanDeHoy(),
       ]);
+      setPlanVista(plan);
       ubicacionesRef.current = ubicaciones;
       setUbicacionesVista(new Map(ubicaciones));
       // Vacías no cuentan como cargadas: sin red o sin respuesta, `sugerencias.ts`
@@ -532,8 +546,9 @@ export default function MarcarPage() {
   // falla. Los dos ponían texto de alerta con el tono y los 2,5 s de un
   // "Listo". Que esta función sea el único lugar donde se arma la pantalla de
   // mensaje es lo que evita que se vuelva a desarmar un tercer camino.
-  function mostrarMensaje(texto: string, tono: "ok" | "alerta") {
+  function mostrarMensaje(texto: string, tono: "ok" | "alerta", detalle: string | null = null) {
     setMensaje(texto);
+    setDetalleMensaje(detalle);
     setTonoMensaje(tono);
     setPantalla("mensaje");
     setTimeout(volverALista, (tono === "alerta" ? SEGUNDOS_MENSAJE_ALERTA : SEGUNDOS_MENSAJE) * 1000);
@@ -920,6 +935,11 @@ export default function MarcarPage() {
               sincronizadoAhora ? "" : " (se sincronizará cuando vuelva la conexión)"
             }`,
       sinSesionEnEnvio || rechazadaPorElServidor ? "alerta" : "ok",
+      // Al entrar, dónde le toca hoy (0579). Solo si la marca no fue rechazada
+      // y solo si le toca almacén: un «hoy te toca piso» a todo el equipo sería ruido.
+      entry.tipo === "entrada" && !sinSesionEnEnvio && !rechazadaPorElServidor
+        ? textoPlanDeHoy(planDeHoy(entry.personaId))
+        : null,
     );
   }
 
@@ -942,6 +962,24 @@ export default function MarcarPage() {
     [roster, sedeSeleccionada],
   );
 
+  // Lo planificado de una persona para hoy, recortado a su turno de hoy (el de
+  // jornada-esperada, que ya trae `sugerencias.ts`). En su día libre, nada.
+  function planDeHoy(personaId: string) {
+    const plan = planVista.get(personaId);
+    const h = horariosVista.get(personaId);
+    if (!plan || h?.libreHoy) return { todoElTurno: false, tramos: [] };
+    const turno =
+      h?.entradaEsperada && h.horaSalidaEsperada != null
+        ? { desde: horaDecimalDeHHMM(h.entradaEsperada), hasta: h.horaSalidaEsperada }
+        : null;
+    return tramosPlanificados(plan, turno);
+  }
+
+  // Lo real más lo planificado, para la regla única de `ubicacionActual`.
+  function cambiosConPlan(personaId: string) {
+    return [...(ubicacionesVista.get(personaId) ?? []), ...cambiosDelPlan(planDeHoy(personaId), rangoDelDiaLima().inicio)];
+  }
+
   // En qué punto del día está cada persona de la sede, o `undefined` mientras el
   // estado de hoy no se pudo confirmar (entonces las casillas son las de siempre).
   const presenciaPorPersona = useMemo(() => {
@@ -954,11 +992,13 @@ export default function MarcarPage() {
         // Quien está trabajando y se fue al almacén sigue «laborando» —no es una
         // pausa ni cambia sus horas—; solo la línea bajo su nombre dice dónde.
         if (casilla.clave !== "laborando") return [p.id, casilla] as const;
-        const enAlmacen = detalleCasillaAlmacen(ubicacionActual(ubicacionesVista.get(p.id) ?? [], marcas, ahora));
+        const enAlmacen = detalleCasillaAlmacen(ubicacionActual(cambiosConPlan(p.id), marcas, ahora));
         return [p.id, enAlmacen ? { ...casilla, detalle: enAlmacen } : casilla] as const;
       }),
     );
-  }, [estadoConfirmado, rosterFiltrado, marcajesVista, horariosVista, ubicacionesVista, ahoraMs]);
+    // cambiosConPlan lee planVista, horariosVista y ubicacionesVista, que van en la lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoConfirmado, rosterFiltrado, marcajesVista, horariosVista, ubicacionesVista, planVista, ahoraMs]);
 
   // La casilla del menú de salida: «Voy a almacén» o «Vuelvo a tienda». Solo
   // cuando el estado de la persona está confirmado — con el menú de respaldo
@@ -966,12 +1006,13 @@ export default function MarcarPage() {
   const opcionAlmacen = useMemo(() => {
     if (!personaActual || !salidaConfig || salidaConfig.aviso) return undefined;
     const estado = ubicacionActual(
-      ubicacionesVista.get(personaActual.id) ?? [],
+      cambiosConPlan(personaActual.id),
       marcajesVista.get(personaActual.id) ?? [],
       new Date(ahoraMs),
     );
     return {
-      estado: textoEstadoAlmacen(estado),
+      // En tienda, el renglón recuerda lo planificado si hay algo («Hoy te toca almacén de …»).
+      estado: textoEstadoAlmacen(estado) ?? textoPlanDeHoy(planDeHoy(personaActual.id)),
       enAlmacen: estado.enAlmacen,
       onVoyAlmacen: () => setPantalla("elegir_tiempo_almacen"),
       onVuelvoTienda: () => void registrarUbicacion("tienda", null),
@@ -979,7 +1020,7 @@ export default function MarcarPage() {
     // registrarUbicacion se redefine en cada render y lee lo vigente; la
     // casilla solo tiene que recalcularse cuando cambia de quién o de dónde.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personaActual, salidaConfig, ubicacionesVista, marcajesVista, ahoraMs]);
+  }, [personaActual, salidaConfig, ubicacionesVista, marcajesVista, planVista, horariosVista, ahoraMs]);
 
   const conteosPresencia = useMemo(
     () => contarPresencias(presenciaPorPersona?.values() ?? []),
@@ -1183,7 +1224,7 @@ export default function MarcarPage() {
           />
         )}
 
-        {pantalla === "mensaje" && <PantallaMensaje mensaje={mensaje} tono={tonoMensaje} />}
+        {pantalla === "mensaje" && <PantallaMensaje mensaje={mensaje} tono={tonoMensaje} detalle={detalleMensaje} />}
       </main>
     </div>
   );

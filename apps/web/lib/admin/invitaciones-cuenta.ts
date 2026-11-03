@@ -58,9 +58,17 @@ export function normalizarCorreo(correo: string | null | undefined): string {
 }
 
 /**
+ * Los vínculos que reciben cuenta. La lista va escrita y no como «todos menos
+ * no_trabajador» a propósito: un vínculo nuevo que se agregue a la base no
+ * empieza a mandar correos por su cuenta — entra acá cuando alguien lo decide.
+ */
+const VINCULOS_CON_CUENTA = ["planilla", "prueba", "practicante", "rxh"] as const;
+
+/**
  * A quién se invita para que deje su constancia: integrantes activas, en
- * planilla o practicantes, sin cuenta. Es la ÚNICA definición —la usan la lista
- * de la pantalla y el envío automático—, así que no pueden contestar distinto.
+ * planilla, preselección, practicantes o recibo por honorarios, sin cuenta. Es
+ * la ÚNICA definición —la usan la lista de la pantalla y el envío automático—,
+ * así que no pueden contestar distinto.
  *
  * La Ley 30709 obliga a INFORMAR la política salarial a cada persona y a poder
  * probarlo, y `fn_acusar_politica_salarial` solo acepta el acuse de quien tiene
@@ -75,10 +83,29 @@ export function normalizarCorreo(correo: string | null | undefined): string {
  * También entra la practicante (`en_planilla` es falso para ella: no es
  * 'planilla' ni 'prueba'), aunque su motivo no sea la Ley 30709 — tiene horario
  * y marca en el terminal igual que cualquiera, así que necesita la misma cuenta
- * mínima para entrar a lo suyo. RxH y no_trabajador se quedan afuera a
- * propósito: a un locador no se le mide jornada (0191), y darle una cuenta de
- * este tipo sería la misma señal de subordinación que esa migración existe
- * para evitar.
+ * mínima para entrar a lo suyo.
+ *
+ * ⚠ RECIBO POR HONORARIOS — DECISIÓN DE FELIPE, 2026-11-03. Hasta ese día el
+ * locador quedaba fuera: a un locador no se le mide jornada (0191), y una
+ * cuenta en el sistema de asistencia se leía como la misma señal de
+ * subordinación que esa migración evita. Pero la regla solo cerraba ESTA
+ * puerta: decide a quién invitar, no le quita la cuenta a nadie. Medido ese
+ * día: de las seis personas en «Honorarios · RxH» de Planilla, la recién
+ * llegada era la única integrante sin cuenta — las otras integrantes con
+ * honorarios ya la tenían, por caminos que esta regla no mira. Felipe decidió
+ * que el locador también la reciba, para tratarlos a todos igual.
+ *
+ * Lo que la decisión NO resuelve, y queda dicho para que no se lea como
+ * resuelto: «Lo mío» todavía no distingue el vínculo, así que a un locador le
+ * muestra su horario, lo que le tocaba trabajar, sus tardanzas, Disciplina y
+ * un estimado que dice «tu planilla». Ese es el riesgo de subordinación de
+ * verdad, y está abierto para las seis personas, no solo para la nueva.
+ *
+ * no_trabajador sigue fuera: es quien figura en el sistema sin prestar
+ * servicios (un accionista), y no tiene nada suyo que ver adentro.
+ *
+ * Reversible: quitar 'rxh' de `VINCULOS_CON_CUENTA`. Las cuentas que ya
+ * salieron no se tocan solas — se quitan, si hace falta, de a una.
  */
 export async function invitablesSinCuenta(admin: Admin) {
   const { data, error } = await admin
@@ -86,7 +113,7 @@ export async function invitablesSinCuenta(admin: Admin) {
     .select("id, nombres, apellidos, email, sedes:sede_base_id(codigo)")
     .eq("rol", "integrante")
     .eq("estado", "activo").eq("cuenta_de_servicio", false)
-    .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+    .in("tipo_vinculo", [...VINCULOS_CON_CUENTA])
     .is("auth_user_id", null)
     .order("apellidos");
   if (error) throw error;

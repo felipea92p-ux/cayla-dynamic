@@ -567,7 +567,7 @@ export default function CuentasPage() {
         ) : errListado && invitables.length === 0 ? (
           <ListaNoCargada que="a quién falta invitar" motivo={errListado} noSignifica="no quede nadie por invitar" reintentar={() => void listar()} />
         ) : invitables.length === 0 ? (
-          <SinDatos texto="No hay integrantes por invitar." pista="Acá aparece quien está en planilla y todavía no tiene cuenta. Si está vacío, cualquiera puede dejar su constancia." />
+          <SinDatos texto="No hay integrantes por invitar." pista="Acá aparece quien todavía no tiene cuenta: planilla, preselección, practicantes y recibo por honorarios. Si está vacío, todas tienen la suya." />
         ) : (
           <div className="flex flex-wrap gap-2">
             {invitables.some((p) => p.email) && (
