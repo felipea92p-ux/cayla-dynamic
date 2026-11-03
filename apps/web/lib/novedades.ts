@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-metas-de-cobertura-por-rangos",
+    fecha: "2026-11-03",
+    titulo: "La meta de cobertura va por rangos de hora y por temporada",
+    queMejoro:
+      "En Turnos, «Metas de cobertura»: cuánta gente y cuántos líderes hacen falta en piso, por rangos de hora que tú " +
+      "eliges, y ya no solo mañana y tarde. Hay una meta predeterminada por día de la semana y excepciones para una " +
+      "campaña, un mes o un feriado, que rigen el tiempo que elijas.\n\n" +
+      "En las tiendas se ve al lado lo que pide la venta, hora por hora, para comparar o usarlo de un clic. Manda la " +
+      "meta; donde un rango no tiene número, manda la venta. Las cambian admin y DO.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-03-almacen-puesto-base",
     fecha: "2026-11-03",
     titulo: "El almacén puede ser el puesto de siempre",
