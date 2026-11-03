@@ -127,6 +127,29 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-11-03-disponibilidad-mas-clara",
+    fecha: "2026-11-03",
+    titulo: "Mi disponibilidad se marca con un toque por día",
+    queMejoro:
+      "Cada día tiene cuatro botones a la vista: «Puedo», «Prefiero no», «No puedo» y «Depende de la hora». Ya no hay " +
+      "desplegables uno dentro de otro. Al elegir «Depende de la hora», cada horario dice si es «No puedo» o «Prefiero no», " +
+      "y puedes copiar lo marcado en un día a todos los demás.\n\n" +
+      "Arriba se explica qué significa cada opción: «No puedo» es firme, y «Prefiero no» se intenta respetar, pero " +
+      "si falta gente te puede tocar.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-03-lider-registra-disponibilidad",
+    fecha: "2026-11-03",
+    titulo: "La líder de equipo ya puede registrar la disponibilidad de su equipo",
+    queMejoro:
+      "En «Disponibilidad del equipo», la líder de equipo puede registrar la disponibilidad de una integrante de su " +
+      "tienda por ella, por ejemplo si se lo dijo en persona o si todavía no tiene cuenta. Queda aprobada en el acto.\n\n" +
+      "Al registrarla hay que elegir por qué la registras tú y no ella. En «Cambios de horario» se ve quién la registró " +
+      "y por qué. La disponibilidad de una líder de equipo la sigue registrando Desarrollo Organizacional.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-03-almacen-puesto-base",
     fecha: "2026-11-03",
     titulo: "El almacén puede ser el puesto de siempre",

@@ -72,6 +72,32 @@ export const MOTIVOS: readonly { valor: Motivo; label: string }[] = [
   { valor: "otro", label: "Otro" },
 ];
 
+/**
+ * Por qué la registró otra persona (su líder o DO) y no ella (0589). De lo más
+ * simple a lo más complejo; «Otro» exige escribir. Igual al CHECK de la base:
+ * tests/disponibilidad.test.ts compara las dos listas.
+ */
+export type MotivoRegistro =
+  | "en_persona" | "por_mensaje" | "preseleccion_sin_cuenta" | "sin_acceso"
+  | "conversacion_horario" | "documento" | "otro";
+
+export const MOTIVOS_REGISTRO: readonly { valor: MotivoRegistro; label: string }[] = [
+  { valor: "en_persona", label: "Me lo dijo en persona" },
+  { valor: "por_mensaje", label: "Me lo escribió por mensaje" },
+  { valor: "preseleccion_sin_cuenta", label: "Está en preselección y todavía no tiene cuenta" },
+  { valor: "sin_acceso", label: "Tiene cuenta, pero no puede entrar a «Lo mío»" },
+  { valor: "conversacion_horario", label: "Lo acordamos en una conversación de horario" },
+  { valor: "documento", label: "Presentó un documento (estudios o salud)" },
+  { valor: "otro", label: "Otro" },
+];
+
+export function textoMotivoRegistro(m: string | null | undefined, detalle?: string | null): string | null {
+  if (!m) return null;
+  if (m === "otro") return detalle?.trim() || "Otro";
+  const label = MOTIVOS_REGISTRO.find((x) => x.valor === m)?.label ?? m;
+  return detalle?.trim() ? `${label} — ${detalle.trim()}` : label;
+}
+
 /** De lunes a domingo, como se lee una semana en la tienda. */
 export const ORDEN_DIAS = [1, 2, 3, 4, 5, 6, 0] as const;
 
@@ -146,6 +172,18 @@ export function aBloques(semana: SemanaTipo, excepciones: Excepcion[]): Bloque[]
   }
   for (const e of excepciones) out.push({ fecha: e.fecha, desde: e.desde, hasta: e.hasta, estado: e.estado });
   return out;
+}
+
+/**
+ * Copia lo marcado en un día (el modo y sus tramos) a todos los demás: para
+ * quien repite lo mismo toda la semana («no puedo de 14:00 a 18:30»). Devuelve
+ * una semana nueva; la de entrada no se toca.
+ */
+export function copiarDia(semana: SemanaTipo, origen: number): SemanaTipo {
+  const fuente = semana[origen];
+  const s: SemanaTipo = {};
+  for (let d = 0; d < 7; d++) s[d] = structuredClone(fuente);
+  return s;
 }
 
 export function semanaSinRestricciones(semana: SemanaTipo): boolean {

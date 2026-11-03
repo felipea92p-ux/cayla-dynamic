@@ -5630,6 +5630,8 @@ export type Database = {
           resuelta_por: string | null
           resuelta_at: string | null
           respuesta: string | null
+          registro_motivo: string | null
+          registro_detalle: string | null
         }
         Insert: {
           id?: string
@@ -5646,6 +5648,8 @@ export type Database = {
           resuelta_por?: string | null
           resuelta_at?: string | null
           respuesta?: string | null
+          registro_motivo?: string | null
+          registro_detalle?: string | null
         }
         Update: {
           id?: string
@@ -5662,6 +5666,8 @@ export type Database = {
           resuelta_por?: string | null
           resuelta_at?: string | null
           respuesta?: string | null
+          registro_motivo?: string | null
+          registro_detalle?: string | null
         }
         Relationships: []
       }
@@ -11294,6 +11300,8 @@ export type Database = {
           p_motivo: string | null
           p_nota?: string | null
           p_persona_id: string
+          p_registro_detalle?: string | null
+          p_registro_motivo?: string | null
           p_tipo: string
         }
         Returns: string

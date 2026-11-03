@@ -65,11 +65,18 @@ describe("la disponibilidad", () => {
     expect(es[0].detalle).toBe("No puede: los martes de 08:30 a 14:00. Desde el 10 nov.");
     expect(es[1].quien).toBe(LIDER);
   });
-  it("registrada por DO es un solo momento, y dice quién", () => {
+  it("registrada por otra persona es un solo momento, y dice quién", () => {
     const es = desdeDisponibilidad(disp({ registrada_por: DO, resuelta_por: DO, horario_fijo: true }));
     expect(es).toHaveLength(1);
-    expect(es[0].accion).toBe("Disponibilidad registrada por DO");
+    expect(es[0].accion).toBe("Disponibilidad registrada por otra persona");
     expect(es[0].quien).toBe(DO);
+    expect(es[0].motivo).toBeNull();   // de antes de la 0589: sin motivo del registro
+  });
+  it("registrada por su líder (0589): dice por qué", () => {
+    const es = desdeDisponibilidad(disp({ registrada_por: LIDER, resuelta_por: LIDER, registro_motivo: "otro", registro_detalle: "Lo dejó en el cuaderno" }));
+    expect(es).toHaveLength(1);
+    expect(es[0].quien).toBe(LIDER);
+    expect(es[0].motivo).toBe("Lo dejó en el cuaderno");
   });
   it("conversada: muestra lo que le escribió su líder", () => {
     const es = desdeDisponibilidad(disp({ estado: "conversar", respuesta: "¿Lo vemos el jueves?" }));

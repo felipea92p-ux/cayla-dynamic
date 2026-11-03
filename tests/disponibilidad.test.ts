@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  aBloques, aplicarAtajo, avisoDeHoras, desdeBloques, horasDisponibles, opcionesHora, resumenEnPalabras,
+  aBloques, aplicarAtajo, avisoDeHoras, copiarDia, desdeBloques, horasDisponibles, opcionesHora, resumenEnPalabras,
   semanaSinRestricciones, semanaVacia, validar, type Ventana,
 } from "@/lib/disponibilidad";
 
@@ -135,5 +135,37 @@ describe("en palabras", () => {
     const s = semanaVacia();
     s[6] = { modo: "no_puede", tramos: [] };
     expect(resumenEnPalabras(s, [], "ella")).toEqual(["No puede: los sábados todo el día."]);
+  });
+});
+
+
+describe("copiar un día a los demás", () => {
+  it("repite el modo y los tramos en los siete días, sin compartir referencias", () => {
+    const s = semanaVacia();
+    s[1] = { modo: "horas", tramos: [{ desde: "14:00", hasta: "18:30", estado: "no_puede" }] };
+    s[3] = { modo: "no_puede", tramos: [] };
+    const c = copiarDia(s, 1);
+    for (let d = 0; d < 7; d++) expect(c[d]).toEqual(s[1]);
+    c[2].tramos[0].desde = "09:00";
+    expect(c[1].tramos[0].desde).toBe("14:00");
+    expect(s[3].modo).toBe("no_puede"); // la semana de entrada no se toca
+  });
+});
+
+describe("el motivo del registro (0589)", () => {
+  it("es la misma lista que el CHECK de la base, en el mismo orden", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { MOTIVOS_REGISTRO } = await import("@/lib/disponibilidad");
+    const dir = join(__dirname, "..", "supabase", "migrations");
+    const sql = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith("0589_"))!), "utf8");
+    const enSql = sql.match(/registro_motivo in \(\s*([^)]*)\)/)![1].match(/'([a-z_]+)'/g)!.map((x) => x.slice(1, -1));
+    expect(MOTIVOS_REGISTRO.map((m) => m.valor)).toEqual(enSql);
+  });
+  it("«Otro» se muestra con lo que escribió; los demás con su etiqueta", async () => {
+    const { textoMotivoRegistro } = await import("@/lib/disponibilidad");
+    expect(textoMotivoRegistro("otro", "Lo dejó en el cuaderno")).toBe("Lo dejó en el cuaderno");
+    expect(textoMotivoRegistro("en_persona")).toBe("Me lo dijo en persona");
+    expect(textoMotivoRegistro(null)).toBeNull();
   });
 });

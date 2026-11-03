@@ -49,7 +49,7 @@ export function useHistorialHorario(
           .limit(MAX_FILAS),
         // Si la 0584 no estuviera, la tabla no existe: la disponibilidad se calla y el resto se muestra.
         supabase.from("disponibilidades")
-          .select("id, persona_id, tipo, estado, vigente_desde, vigente_hasta, horario_fijo, registrada_por, creada_at, resuelta_por, resuelta_at, respuesta, disponibilidad_bloques(dia_semana, fecha, desde, hasta, estado)")
+          .select("id, persona_id, tipo, estado, vigente_desde, vigente_hasta, horario_fijo, registrada_por, creada_at, resuelta_por, resuelta_at, respuesta, registro_motivo, registro_detalle, disponibilidad_bloques(dia_semana, fecha, desde, hasta, estado)")
           .in("persona_id", personaIds)
           .gte("creada_at", desdeIso)
           .order("creada_at", { ascending: false })
