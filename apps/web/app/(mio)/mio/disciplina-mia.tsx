@@ -15,8 +15,8 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { citaDeFalta } from "@/lib/admin/conducta";
 import { fechaLarga, horaLima } from "@/components/disciplina/memo-documento";
 import {
-  hayAliento, mensajeDeAliento, ordenarParaLaPersona, paginar, porLeer, queFaltaEs, textoComoVas, tituloDe,
-  type CuentaMia, type DocMio,
+  cargoPorRecibir, hayAliento, mensajeDeAliento, ordenarParaLaPersona, paginar, porLeer, queFaltaEs, textoComoVas, tituloDe,
+  type CargoMio, type CuentaMia, type DocMio,
 } from "@/lib/mio-disciplina";
 
 /**
@@ -62,8 +62,8 @@ type Cliente = ReturnType<typeof createAdminSupabaseClient>;
  *
  * Los textos son de aquí y no de `terminos.ts`: explican la pantalla, no
  * piden aceptar nada. Y dicen lo que la pantalla de verdad hace —abrir un
- * documento, dar la constancia de lectura—, no lo que haría otra: esta sección
- * no tiene hoy dónde presentar un descargo.
+ * documento, dar la constancia de lectura—, no lo que haría otra. El descargo
+ * se escribe al abrir unos cargos (0581), no en esta lista.
  */
 export const PASOS_GUIA_DISCIPLINA: readonly PasoRecorrido[] = [
   { selector: '[data-tour="mio-disciplina-header"]', titulo: "Tu legajo",
@@ -77,7 +77,7 @@ export const PASOS_GUIA_DISCIPLINA: readonly PasoRecorrido[] = [
 const SIN_DETALLE = "No se pudo abrir el documento ahora. Vuelve a intentarlo en un rato; si sigue, avisa a tu líder de equipo.";
 
 export function DisciplinaMia({
-  supabase, personaId, docs, error, cuenta, onCambio,
+  supabase, personaId, docs, error, cuenta, cargos = [], onCambio,
 }: {
   supabase: Cliente;
   personaId: string;
@@ -85,6 +85,8 @@ export function DisciplinaMia({
   docs: DocMio[] | null;
   error: boolean;
   cuenta: CuentaMia | null;
+  /** Los cargos en curso (0581): lo que le comunicaron antes de decidir nada. */
+  cargos?: CargoMio[];
   /** Recargar la lista (y con ella el menú y el Resumen) después de leer o firmar. */
   onCambio: () => void;
 }) {
@@ -155,7 +157,15 @@ export function DisciplinaMia({
         <p className="text-taupe">Cargando…</p>
       ) : (
         <>
-          {hayAliento(docs) && (
+          {/* Los cargos en curso, primero: su plazo de descargo ya corre (0581). */}
+          {cargos.length > 0 && (
+            <ul data-tour="mio-disciplina-cargos" className="grid gap-3">
+              {cargos.map((c) => <li key={c.id}><TarjetaCargos c={c} /></li>)}
+            </ul>
+          )}
+
+          {/* El mensaje de aliento es para quien no tiene nada pendiente. */}
+          {hayAliento(docs) && cargos.length === 0 && (
             <section className="grid justify-items-center gap-2 rounded-2xl border border-sand bg-papel px-5 py-6 text-center" aria-live="polite">
               <p className="max-w-[34ch] text-balance font-serif text-xl">{mensajeDeAliento(personaId, hoyLima(), salto)}</p>
               <Boton variante="enlace" className="text-xs text-taupe" onClick={() => setSalto((s) => s + 1)}>Ver otro mensaje</Boton>
@@ -201,6 +211,43 @@ export function DisciplinaMia({
         </>
       )}
     </div>
+  );
+}
+
+// ── Unos cargos en curso (0581) ──────────────────────────────────────────────
+
+/**
+ * Unos cargos que le comunicaron. Genérica a propósito, como la tarjeta del
+ * Resumen: el motivo se lee al abrirla, no de reojo en la lista. Lo único que se
+ * le pide es confirmar que los recibió (Felipe, 2026-11-03).
+ */
+function TarjetaCargos({ c }: { c: CargoMio }) {
+  const router = useRouter();
+  const porRecibir = cargoPorRecibir(c);
+  return (
+    <TarjetaInfo como="article" className={porRecibir ? "grid gap-2.5 border-ambar/50 shadow-[inset_3px_0_0_var(--color-ambar)]" : "grid gap-2.5"}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <strong className="font-serif text-lg font-semibold">Comunicación de cargos</strong>
+        {porRecibir
+          ? <Insignia variante="advertencia" punto={false}>Por recibir</Insignia>
+          : <Insignia variante="neutral" punto={false}>Recibida</Insignia>}
+      </div>
+      <p className="text-xs text-taupe">
+        Te la comunicaron el {fechaLarga(c.cargos_comunicados_at)}.{" "}
+        {c.descargo_vence_at && (c.plazo_vigente
+          ? `Puedes presentar tu descargo hasta el ${fechaLarga(c.descargo_vence_at)}, a las ${horaLima(c.descargo_vence_at)} h.`
+          : `El plazo para tu descargo venció el ${fechaLarga(c.descargo_vence_at)}.`)}
+        {c.descargos > 0 && ` Presentaste ${c.descargos === 1 ? "un descargo" : `${c.descargos} descargos`}.`}
+      </p>
+      <p className="text-xs text-taupe">
+        Todavía no se decidió nada: esto no es una sanción. Te cuenta qué se te atribuye para que puedas responder.
+      </p>
+      <div>
+        <Boton variante={porRecibir ? "primario" : "secundario"} tamano="sm" onClick={() => router.push(`/mio/cargos/${c.id}`)}>
+          {porRecibir ? "Abrir y confirmar" : "Ver los cargos"}
+        </Boton>
+      </div>
+    </TarjetaInfo>
   );
 }
 

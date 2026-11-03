@@ -1170,6 +1170,38 @@ export type Database = {
           },
         ]
       }
+      cargos_recomunicados: {
+        Row: {
+          antes_comunicados_at: string
+          antes_vence_at: string
+          expediente_id: string
+          motivo: string
+          recomunicado_at: string
+        }
+        Insert: {
+          antes_comunicados_at: string
+          antes_vence_at: string
+          expediente_id: string
+          motivo: string
+          recomunicado_at?: string
+        }
+        Update: {
+          antes_comunicados_at?: string
+          antes_vence_at?: string
+          expediente_id?: string
+          motivo?: string
+          recomunicado_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cargos_recomunicados_expediente_id_fkey"
+            columns: ["expediente_id"]
+            isOneToOne: true
+            referencedRelation: "expediente_disciplinario"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalogo_campos_perfil: {
         Row: {
           campo: string
@@ -1827,6 +1859,35 @@ export type Database = {
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      descargos_presentados: {
+        Row: {
+          expediente_id: string
+          id: string
+          presentado_at: string
+          texto: string
+        }
+        Insert: {
+          expediente_id: string
+          id?: string
+          presentado_at?: string
+          texto: string
+        }
+        Update: {
+          expediente_id?: string
+          id?: string
+          presentado_at?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "descargos_presentados_expediente_id_fkey"
+            columns: ["expediente_id"]
+            isOneToOne: false
+            referencedRelation: "expediente_disciplinario"
             referencedColumns: ["id"]
           },
         ]
@@ -5547,6 +5608,32 @@ export type Database = {
           },
         ]
       }
+      recepciones_cargos: {
+        Row: {
+          abierto_at: string
+          expediente_id: string
+          recibido_at: string | null
+        }
+        Insert: {
+          abierto_at?: string
+          expediente_id: string
+          recibido_at?: string | null
+        }
+        Update: {
+          abierto_at?: string
+          expediente_id?: string
+          recibido_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recepciones_cargos_expediente_id_fkey"
+            columns: ["expediente_id"]
+            isOneToOne: true
+            referencedRelation: "expediente_disciplinario"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rendimiento_mensual: {
         Row: {
           anio: number
@@ -7880,6 +7967,11 @@ export type Database = {
         Args: { p_rol: Database["public"]["Enums"]["rol_usuario"] | null }
         Returns: string
       }
+      fn_cargos_reabrir_plazo_sin_info: {
+        Args: { p_corte: string | null }
+        Returns: number
+      }
+      fn_cargos_detalle: { Args: { p_id: string | null }; Returns: Json }
       fn_casos_resumen: {
         Args: { p_desde?: string | null }
         Returns: {
@@ -9468,6 +9560,7 @@ export type Database = {
           vista_at: string
         }[]
       }
+      fn_mis_cargos: { Args: never; Returns: Json }
       fn_mis_medidas: {
         Args: never
         Returns: {
@@ -9873,6 +9966,10 @@ export type Database = {
         Returns: string
       }
       fn_politica_salarial_vigente: { Args: never; Returns: Json }
+      fn_presentar_descargo: {
+        Args: { p_id: string | null; p_texto: string | null }
+        Returns: string
+      }
       fn_provisiones: {
         Args: { p_as_of?: string | null; p_salario_asof?: string | null }
         Returns: Json
@@ -10039,6 +10136,7 @@ export type Database = {
         Returns: undefined
       }
       fn_rechazar_firma_memo: { Args: { p_id: string | null }; Returns: undefined }
+      fn_recibir_cargos: { Args: { p_id: string | null }; Returns: string }
       fn_recibir_memo_digital: {
         Args: { p_firmar: boolean | null; p_id: string | null }
         Returns: undefined

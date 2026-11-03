@@ -17,7 +17,7 @@ import {
 } from "./guias-de-documentos";
 import { PASOS_GUIA_HISTORIAL, PASOS_GUIA_OBJETIVOS, PASOS_GUIA_REPORTES } from "./guias-de-seguimiento";
 import { SaludoCumpleanos } from "./saludo-cumpleanos";
-import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
+import { cargoPorRecibir, cuantosPidenConCargos, porLeer, type CargoMio, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -1268,13 +1268,18 @@ export default function MioPage() {
   const [miDisciplina, setMiDisciplina] = useState<DocMio[] | null>(null);
   const [miDisciplinaError, setMiDisciplinaError] = useState(false);
   const [miCuenta, setMiCuenta] = useState<CuentaMia | null>(null);
+  // Los cargos en curso (0581): lo que le comunicaron antes de decidir nada. Si la
+  // migración todavía no está pegada, la función no existe y la lista queda vacía.
+  const [misCargos, setMisCargos] = useState<CargoMio[]>([]);
   const cargarMiDisciplina = useCallback(async () => {
-    if (!yo?.id) { setMiDisciplina(null); setMiCuenta(null); return; }
-    const [{ data, error }, { data: cuenta }] = await Promise.all([
+    if (!yo?.id) { setMiDisciplina(null); setMiCuenta(null); setMisCargos([]); return; }
+    const [{ data, error }, { data: cuenta }, { data: cargos }] = await Promise.all([
       supabase.rpc("fn_mi_disciplina"),
       supabase.rpc("fn_mi_cuenta_de_tardanzas", {}),
+      supabase.rpc("fn_mis_cargos"),
     ]);
     setMiCuenta((cuenta as unknown as CuentaMia | null) ?? null);
+    setMisCargos(((cargos as unknown as { cargos?: CargoMio[] } | null)?.cargos) ?? []);
     if (error) { setMiDisciplinaError(true); return; }
     setMiDisciplinaError(false);
     setMiDisciplina(((data as unknown as { documentos?: DocMio[] } | null)?.documentos) ?? []);
@@ -1285,7 +1290,8 @@ export default function MioPage() {
   // Lo que le pide algo: recibir lo enviado a su Info, o leer lo entregado en papel.
   const memosPorRecibir = useMemo(() => (miDisciplina ?? []).filter((d) => d.estado === "por_recibir"), [miDisciplina]);
   const memosPorLeer = useMemo(() => (miDisciplina ?? []).filter(porLeer), [miDisciplina]);
-  const disciplinaPide = useMemo(() => cuantosPiden(miDisciplina ?? []), [miDisciplina]);
+  const disciplinaPide = useMemo(() => cuantosPidenConCargos(miDisciplina ?? [], misCargos), [miDisciplina, misCargos]);
+  const cargosPorRecibir = useMemo(() => misCargos.filter(cargoPorRecibir), [misCargos]);
 
   // Sus propias solicitudes de vacaciones. Aparte del bloque grande de arriba
   // por la misma razón que `vacas`: depende solo de quién es, no del rango de
@@ -1674,6 +1680,16 @@ export default function MioPage() {
         ir: () => { cambiarSeccion("disciplina"); irArriba(); },
       });
     }
+    // Los cargos van primero: su plazo de descargo ya está corriendo (0581).
+    // Genérico igual que los de abajo: ni el motivo ni el nivel se ven de reojo.
+    for (const c of cargosPorRecibir) {
+      out.push({
+        clave: `cargos-recibir:${c.id}`,
+        texto: "Te comunicaron unos cargos",
+        detalle: "Ábrelos y confirma que los recibiste. Todavía no se decidió nada: si quieres, puedes escribir ahí tu descargo.",
+        ir: () => router.push(`/mio/cargos/${c.id}`),
+      });
+    }
     // Uno por documento, y no «tienes N»: cada uno se abre por su cuenta y lo
     // que se confirma es ESE documento. Genérico igual que el de arriba.
     for (const m of memosPorRecibir) {
@@ -1686,7 +1702,7 @@ export default function MioPage() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, pendientesRevision, vacas, memosPorLeer, memosPorRecibir, miBono]);
+  }, [resumen, respondidas, pendientesRevision, vacas, memosPorLeer, memosPorRecibir, cargosPorRecibir, miBono]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -3056,7 +3072,7 @@ export default function MioPage() {
       {tab === "disciplina" && yo && (
         <DisciplinaMia
           supabase={supabase} personaId={yo.id}
-          docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta}
+          docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta} cargos={misCargos}
           onCambio={() => void cargarMiDisciplina()}
         />
       )}

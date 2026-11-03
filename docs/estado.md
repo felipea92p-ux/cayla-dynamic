@@ -6,6 +6,27 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-03 — Los cargos llegan a la Info de la persona, sin papel · migración 0581 (SIN PEGAR · SIN FUSIONAR)
+
+**De dónde sale.** El 2026-11-02 una amonestación por conducta quedó en borrador —correcto: desde la 0566 el 55.2 no deja firmar
+antes del plazo de descargo— y se le entregó a la colaboradora el borrador del memo para que lo firmara, porque Dynamic no le
+mostraba los cargos. Felipe (2026-11-03): «no usaremos hojas o imprimir, tiene que verlo en su sistema» · «solo confirmar que lo
+recibió» · «para los 2 borradores actuales y los futuros» · el plazo corre **desde que se comunican**, no desde que ella confirma.
+
+**Qué hace.** Comunicados los cargos, ella los ve en su Info (`/mio/cargos/[id]`), confirma que los recibió y, si quiere, escribe
+su descargo dentro del plazo; Disciplina muestra si los abrió, si los confirmó y qué escribió (también en «Valorar descargo»).
+`fn_cargos_detalle` arma la comunicación en un solo sitio, con los antecedentes y el corte (56.6) que cuenta la base. **Reinicio
+único al pegarla:** los borradores con cargos comunicados y sin valorar empiezan su plazo en ese momento (rastro en
+`cargos_recomunicados` y `[RECOMUNICADO …]`); repegar no lo repite. No reescribe ninguna función existente: no hay md5 que pedir.
+
+**Cómo se midió.** Postgres local de Supabase construido desde cero con las 581 migraciones; prueba 471 (30) en verde, 384 y 456
+siguen en verde; repegada dos veces (idempotente); simulado el caso real de los dos borradores en `begin … rollback`.
+
+**Pendiente, no de este cambio:** el memo no imprime la valoración del descargo que el 55.3 exige; un borrador ANULADO se sigue
+viendo como borrador al abrir su memo.
+
+---
+
 ## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA** · **0576 SIN PEGAR (por hora con tope semanal)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
 
 **De dónde sale.** Felipe (2026-10-31): el pago de los practicantes no calzaba con sus horas. Tras simular base 45 y base 30

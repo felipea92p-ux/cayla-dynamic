@@ -399,7 +399,7 @@ export function antecedentesVigentes(
 // ── Historial: lo que hoy se guarda como texto en `observacion` ──────────────
 
 export interface EventoObservacion {
-  tipo: "anulado" | "reabierto" | "cerrado_sin_entrega" | "nota";
+  tipo: "anulado" | "reabierto" | "cerrado_sin_entrega" | "recomunicado" | "nota";
   /** `YYYY-MM-DD` tal como lo escribe la base, o null en una nota suelta. */
   fecha: string | null;
   texto: string;
@@ -409,6 +409,8 @@ const MARCAS: Record<string, EventoObservacion["tipo"]> = {
   "ANULADO": "anulado",
   "REABIERTO": "reabierto",
   "CERRADO SIN ENTREGA": "cerrado_sin_entrega",
+  // 0581: el plazo de descargo que se reabrió, una vez, al llegar los cargos a su Info.
+  "RECOMUNICADO": "recomunicado",
 };
 
 /**
@@ -423,7 +425,7 @@ const MARCAS: Record<string, EventoObservacion["tipo"]> = {
 export function eventosDeObservacion(observacion: string | null): EventoObservacion[] {
   if (!observacion?.trim()) return [];
   const eventos: EventoObservacion[] = [];
-  const patron = /\[(ANULADO|REABIERTO|CERRADO SIN ENTREGA)\s+(\d{4}-\d{2}-\d{2}):\s*([^\]]*)\]/g;
+  const patron = /\[(ANULADO|REABIERTO|CERRADO SIN ENTREGA|RECOMUNICADO)\s+(\d{4}-\d{2}-\d{2}):\s*([^\]]*)\]/g;
   const resto = observacion.replace(patron, (_, marca: string, fecha: string, texto: string) => {
     eventos.push({ tipo: MARCAS[marca], fecha, texto: texto.trim() });
     return "\n";
@@ -431,6 +433,44 @@ export function eventosDeObservacion(observacion: string | null): EventoObservac
   const nota = resto.split("\n").map((l) => l.trim()).filter(Boolean).join("\n");
   if (nota) eventos.unshift({ tipo: "nota", fecha: null, texto: nota });
   return eventos;
+}
+
+// ── Los cargos en su Info (0581) ─────────────────────────────────────────────
+
+/** Una fila de `recepciones_cargos`: cuándo abrió los cargos en su Info y cuándo confirmó que los recibió. */
+export interface RecepcionCargos { expediente_id: string; abierto_at: string; recibido_at: string | null }
+/** Una fila de `descargos_presentados`: lo que escribió en su Info. Nunca se edita. */
+export interface DescargoPresentado { id: string; expediente_id: string; texto: string; presentado_at: string }
+
+export type EstadoRecepcionCargos =
+  | { tipo: "no_aplica" }
+  | { tipo: "recibido"; recibido_at: string }
+  | { tipo: "abierto"; abierto_at: string }
+  | { tipo: "sin_abrir" };
+
+/**
+ * Qué se sabe de si le llegaron los cargos. Solo aplica a un borrador gradual
+ * con los cargos comunicados: antes no hay nada en su Info, y después de firmar
+ * el documento sigue su propio camino.
+ *
+ * Importa más de lo normal porque el plazo de descargo corre DESDE QUE SE
+ * COMUNICAN, no desde que ella los abre (Felipe, 2026-11-03): «sin abrir» es la
+ * señal de que hay que avisarle antes de que el plazo se le vaya sin saberlo.
+ */
+export function estadoDeRecepcionCargos(
+  d: Pick<DocDisciplina, "estado" | "nivel" | "cargos_comunicados_at">,
+  r: RecepcionCargos | undefined,
+): EstadoRecepcionCargos {
+  if (d.estado !== "borrador" || !esGradual(d.nivel) || d.cargos_comunicados_at === null) return { tipo: "no_aplica" };
+  if (r?.recibido_at) return { tipo: "recibido", recibido_at: r.recibido_at };
+  if (r) return { tipo: "abierto", abierto_at: r.abierto_at };
+  return { tipo: "sin_abrir" };
+}
+
+/** El aviso para mandarle por chat cuando se le comunican los cargos. Sin el motivo: viaja por un chat. */
+export function avisoDeCargos(origen: string, venceSello: string | null): string {
+  return `Hola, te llegaron unos cargos a tu Info en Dynamic. Entra a ${origen}/mio, ábrelos y confirma que los recibiste.`
+    + (venceSello ? ` Si quieres presentar tu descargo, puedes escribirlo ahí mismo hasta el ${venceSello}.` : "");
 }
 
 // ── Persona cesada ───────────────────────────────────────────────────────────

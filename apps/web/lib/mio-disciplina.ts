@@ -57,6 +57,32 @@ export const pideAtencion = (d: DocMio): boolean => d.estado === "por_recibir" |
 export const cuantosPiden = (docs: readonly DocMio[]): number => docs.filter(pideAtencion).length;
 
 /**
+ * Unos cargos en curso, tal como los devuelve `fn_mis_cargos` (0581): un
+ * borrador con los cargos ya comunicados, antes de que se decida nada. No es un
+ * documento del legajo todavía: por eso va aparte de `DocMio`.
+ */
+export interface CargoMio {
+  id: string;
+  nivel: string;
+  tipo_causal: string;
+  cargos_comunicados_at: string;
+  descargo_vence_at: string | null;
+  plazo_vigente: boolean;
+  abierto_at: string | null;
+  recibido_at: string | null;
+  /** Cuántos descargos escribió. */
+  descargos: number;
+  falta: { numeral: string; literal: string; rotulo: string | null; gravedad: string } | null;
+}
+
+/** Lo único que se le pide: confirmar que los recibió (Felipe, 2026-11-03). */
+export const cargoPorRecibir = (c: CargoMio): boolean => !c.recibido_at;
+
+/** Cuántas cosas de Disciplina le piden algo: documentos y cargos sin recibir. Lo usan el menú y el Resumen. */
+export const cuantosPidenConCargos = (docs: readonly DocMio[], cargos: readonly CargoMio[]): number =>
+  cuantosPiden(docs) + cargos.filter(cargoPorRecibir).length;
+
+/**
  * ¿Pesa este documento hoy? Una amonestación o una suspensión pesan doce meses
  * desde su entrega (56.1); una imputación o una carta de despido no caducan
  * como antecedente. La llamada verbal no es sanción ni antecedente (54.2).

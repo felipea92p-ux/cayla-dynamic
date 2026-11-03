@@ -303,3 +303,36 @@ describe("notificación reforzada del art. 57.8", () => {
     expect(exigeNotificacionReforzada("cualquier_cosa")).toBe(false);
   });
 });
+
+// ── Los cargos en su Info (0581) ─────────────────────────────────────────────
+import { avisoDeCargos, estadoDeRecepcionCargos } from "@/lib/admin/disciplina";
+
+describe("si le llegaron los cargos", () => {
+  const borrador = { estado: "borrador" as const, nivel: "amonestacion", cargos_comunicados_at: "2026-11-03T15:00:00Z" };
+
+  it("sin cargos comunicados, o fuera del borrador, no aplica", () => {
+    expect(estadoDeRecepcionCargos({ ...borrador, cargos_comunicados_at: null }, undefined).tipo).toBe("no_aplica");
+    expect(estadoDeRecepcionCargos({ ...borrador, estado: "firmado" }, undefined).tipo).toBe("no_aplica");
+    expect(estadoDeRecepcionCargos({ ...borrador, nivel: "imputacion" }, undefined).tipo).toBe("no_aplica");
+  });
+
+  it("distingue sin abrir, abierto y recibido", () => {
+    expect(estadoDeRecepcionCargos(borrador, undefined).tipo).toBe("sin_abrir");
+    const abierto = { expediente_id: "x", abierto_at: "2026-11-03T16:00:00Z", recibido_at: null };
+    expect(estadoDeRecepcionCargos(borrador, abierto)).toEqual({ tipo: "abierto", abierto_at: abierto.abierto_at });
+    expect(estadoDeRecepcionCargos(borrador, { ...abierto, recibido_at: "2026-11-03T16:01:00Z" }).tipo).toBe("recibido");
+  });
+
+  it("el aviso por chat no dice el motivo, y sí hasta cuándo puede responder", () => {
+    const t = avisoDeCargos("https://x.app", "05 nov., 11:59 p. m.");
+    expect(t).toContain("https://x.app/mio");
+    expect(t).toContain("hasta el 05 nov., 11:59 p. m.");
+    expect(t).not.toMatch(/amonest|suspens|falta|tardanza/i);
+  });
+
+  it("el plazo reabierto por la 0581 aparece en el historial", () => {
+    const ev = eventosDeObservacion("Cargos comunicados el 02/11/2026 18:14\n[RECOMUNICADO 2026-11-03: los cargos se le comunican por su Info. Antes: comunicados el 02/11/2026 18:14, vencía el 04/11/2026 23:59]");
+    expect(ev.map((e) => e.tipo)).toEqual(["nota", "recomunicado"]);
+    expect(ev[1].fecha).toBe("2026-11-03");
+  });
+});

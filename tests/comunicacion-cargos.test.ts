@@ -3,41 +3,54 @@ import { describe, it, expect } from "vitest";
 // ya hace `alertas-encargadas-ruta.test.ts` con Sentry.
 import { createElement } from "../apps/web/node_modules/react";
 import { renderToStaticMarkup } from "../apps/web/node_modules/react-dom/server.node.js";
-import { ComunicacionCargos, type DocCargos } from "@/components/disciplina/comunicacion-cargos";
+import { ComunicacionCargos, escalonDeSuspension, type CargosDetalle } from "@/components/disciplina/comunicacion-cargos";
 import { MemoDocumento, type DocMemo } from "@/components/disciplina/memo-documento";
 import { AREAS_FALLBACK } from "@/lib/areas";
 
 // Lo que pasó el 2026-11-02: con el plazo de descargo corriendo, a una
 // colaboradora se le entregó el BORRADOR del memo —«se le impone AMONESTACIÓN
-// ESCRITA», con su «Recibí conforme»— para que lo firmara, porque era el único
-// papel que Dynamic imprimía. El 55.2 del RIT manda comunicar los hechos ANTES de
-// imponer nada, y un papel que ya impone es la prueba de que se decidió sin
-// escucharla.
+// ESCRITA», con su «Recibí conforme»— para que lo firmara, porque Dynamic no
+// le mostraba los cargos. Desde la 0581 los cargos le llegan a su Info.
 //
-// Estas pruebas fijan las dos mitades del arreglo, sobre el HTML que se imprime:
-//   1. la comunicación de cargos dice lo que el 55.2 exige y nunca impone nada;
-//   2. el borrador del memo no recoge la firma de la persona.
+// Estas pruebas fijan, sobre el HTML que ella ve:
+//   1. la comunicación de cargos dice lo que el 55.2 y el 19.3 exigen, nunca
+//      impone nada, y no trae líneas de firma (la constancia es su clic);
+//   2. lo que corrigió la revisión del 2026-11-03: el escalón de la suspensión
+//      sin días fijados, el corte del 56.6, «la autoría o la hora» del 19.5, y
+//      minutos que no contradicen en silencio a la hora;
+//   3. el borrador del memo no recoge la firma de la persona.
 
-const persona = { nombres: "Ana", apellidos: "Prueba", documento: "00000000", funcion: "calidad_servicio" };
+const persona = { nombres: "Ana", apellidos: "Prueba", documento: "00000000", funcion: "calidad_servicio", sede_codigo: "TRU" };
 
-const base: DocCargos = {
+const base: CargosDetalle = {
   id: "abcdef12-0000-0000-0000-000000000000",
   tipo_causal: "conducta",
   nivel: "amonestacion",
+  estado: "borrador",
   periodo_desde: "2026-09-13",
+  periodo_hasta: "2026-09-13",
   hechos: [{ fecha: "2026-09-13", relato: "Relato de prueba." }],
   suspension_dias: null,
   cargos_comunicados_at: null,
   descargo_vence_at: null,
-  falta: { numeral: "53.2", literal: "e", texto: "Incumplir una instrucción.", gravedad: "significativa" },
+  plazo_vigente: false,
   conocido_el: "2026-09-13",
+  falta: { numeral: "53.2", literal: "e", texto: "Incumplir una instrucción.", gravedad: "significativa" },
+  persona,
+  previas: [],
+  corte: null,
+  medicion: [],
+  recepcion: null,
+  descargos: [],
+  recomunicado: null,
 };
 
-function carta(doc: Partial<DocCargos> = {}, medicion: { fecha: string; esperada: string; marco: string; minutos: number | null }[] = []) {
-  return renderToStaticMarkup(createElement(ComunicacionCargos, {
-    doc: { ...base, ...doc }, persona, sede: "TRU", areas: AREAS_FALLBACK, previas: [], medicion,
-  }));
+function carta(doc: Partial<CargosDetalle> = {}) {
+  return renderToStaticMarkup(createElement(ComunicacionCargos, { doc: { ...base, ...doc }, areas: AREAS_FALLBACK }));
 }
+
+const suspension = { correlativo: "SU-1", nivel: "suspension", firmado_at: null, entregado_at: "2026-05-01T15:00:00Z" };
+const amonestacion = { correlativo: "AM-1", nivel: "amonestacion", firmado_at: null, entregado_at: "2026-04-01T15:00:00Z" };
 
 describe("la comunicación de cargos", () => {
   it("no impone ninguna sanción: dice que no lo es y que se decide después del descargo", () => {
@@ -48,16 +61,18 @@ describe("la comunicación de cargos", () => {
     expect(html).toContain("Lo que se decida dependerá de la evaluación de su descargo");
   });
 
-  it("sin cargos comunicados en Dynamic, el plazo se cuenta desde la recepción del papel", () => {
-    expect(carta()).toContain("dos (2) días hábiles</strong> siguientes a la recepción");
+  it("se ve en pantalla: no trae líneas de firma ni acta de negativa", () => {
+    const html = carta();
+    expect(html).not.toContain("Recibí");
+    expect(html).not.toContain("Testigo");
   });
 
-  it("con cargos comunicados, trae el día y la hora exactos en que vence el plazo (hora de Lima)", () => {
+  it("con cargos comunicados, dice hasta qué día y hora puede responder (hora de Lima)", () => {
     // 04-nov 23:59 en Lima = 05-nov 04:59 UTC: el caso real, y el que se corre
     // un día si alguien formatea en UTC.
     const html = carta({ cargos_comunicados_at: "2026-11-02T23:14:00Z", descargo_vence_at: "2026-11-05T04:59:59Z" });
-    expect(html).toContain("04 de noviembre de 2026, a las 23:59 h");
-    expect(html).not.toContain("siguientes a la recepción");
+    expect(html).toContain("hasta el 04 de noviembre de 2026, a las 23:59 h");
+    expect(html).toContain("dos (2) días hábiles</strong> siguientes a esta comunicación");
   });
 
   it("en una conducta cita el literal del catálogo y el relato", () => {
@@ -66,20 +81,50 @@ describe("la comunicación de cargos", () => {
     expect(html).toContain("Relato de prueba.");
   });
 
-  it("en tardanzas entrega la hora programada y la registrada de cada día (19.3)", () => {
-    const html = carta(
-      { tipo_causal: "tardanza", falta: null, hechos: [{ fecha: "2026-10-03", minutos: 12 }] },
-      [{ fecha: "2026-10-03", esperada: "09:00", marco: "09:12", minutos: 12 }],
-    );
+  it("en tardanzas entrega la hora programada y la registrada, y avisa si los minutos de hoy difieren (19.3)", () => {
+    const html = carta({
+      tipo_causal: "tardanza", falta: null, hechos: [{ fecha: "2026-10-03", minutos: 12 }],
+      medicion: [{ fecha: "2026-10-03", entrada_ts: "2026-10-03T14:03:00Z", minutos_tarde: 3, entrada_programada: "09:00:00", es_descanso: false }],
+    });
     expect(html).toContain("09:00");
-    expect(html).toContain("09:12");
+    expect(html).toContain("09:03");
+    expect(html).toContain("12′ (hoy 3′)");
     expect(html).toContain("literal b) del numeral 53.2");
   });
 
-  it("la persona firma que la RECIBIÓ, no que está conforme", () => {
-    const html = carta();
-    expect(html).toContain("Recibí esta comunicación");
-    expect(html).not.toContain("Recibí conforme");
+  it("en tardanzas le dice que puede cuestionar la autoría O LA HORA (19.5)", () => {
+    expect(carta({ tipo_causal: "tardanza", falta: null, hechos: [{ fecha: "2026-10-03", minutos: 12 }] }))
+      .toContain("la autoría o la hora");
+  });
+
+  it("en una inasistencia no promete una hora que ese día no existe", () => {
+    const html = carta({ tipo_causal: "falta", falta: null, hechos: [{ fecha: "2026-10-03" }] });
+    expect(html).not.toContain("Hora programada");
+    expect(html).toContain("descanso semanal");
+  });
+
+  it("dice el corte del cómputo (56.6), haya o no un documento anterior", () => {
+    expect(carta({ corte: "2026-08-31" })).toContain("No se computa ningún hecho anterior al 31 de agosto de 2026");
+    expect(carta()).toContain("No hay un documento entregado anterior por la misma causa");
+  });
+
+  it("la suspensión dice su escalón y su rango, no los días ya decididos", () => {
+    const html = carta({ tipo_causal: "tardanza", nivel: "suspension", falta: null, suspension_dias: 2,
+      hechos: [{ fecha: "2026-10-03", minutos: 12 }], previas: [amonestacion] });
+    expect(html).toContain("literal c) del numeral 19.2");
+    expect(html).toContain("de uno (1) a dos (2) días");
+    expect(html).not.toContain("de 2 días");
+  });
+});
+
+describe("el escalón de una suspensión", () => {
+  it("con una suspensión previa es la segunda, de mayor duración", () => {
+    expect(escalonDeSuspension("tardanza", [suspension])).toContain("literal d) del numeral 19.2");
+    expect(escalonDeSuspension("falta", [suspension])).toContain("literal c) del numeral 21.2");
+  });
+  it("sin ella es la primera, de uno a dos días", () => {
+    expect(escalonDeSuspension("tardanza", [amonestacion])).toContain("literal c) del numeral 19.2");
+    expect(escalonDeSuspension("falta", [])).toContain("literal b) del numeral 21.2");
   });
 });
 
@@ -102,7 +147,7 @@ describe("el borrador del memo", () => {
     expect(html).not.toContain("Recibí conforme");
     expect(html).not.toContain("Fírmalo");
     expect(html).toContain("la colaboradora no lo firma");
-    expect(html).toContain("comunicación de cargos");
+    expect(html).toContain("se le comunican los cargos en su Info");
   });
 
   it("firmado, vuelve a traer su «Recibí conforme» como siempre", () => {
