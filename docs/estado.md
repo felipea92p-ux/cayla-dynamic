@@ -31,7 +31,7 @@ funciones y «585 · la_venta_de_cada_hora_llega_a_turnos»); comprobada contra 
 
 ---
 
-## 2026-11-03 — «Mi disponibilidad» y la jornada que fija DO · migración **0584 SIN PEGAR** · prueba 474 · rama `claude/mi-disponibilidad`
+## 2026-11-03 — «Mi disponibilidad» y la jornada que fija DO · migración **0584 PEGADA (2026-11-03)** · prueba 474 · fusionada en [#654](https://github.com/felipea92p-ux/cayla-dynamic/pull/654) · historial en [#656](https://github.com/felipea92p-ux/cayla-dynamic/pull/656)
 
 **De dónde sale.** Felipe (2026-11-02/03), módulo «Lo mío · Mis turnos / Mi disponibilidad», entrega 2 de 4 (la 1, «Tu semana»,
 se fusionó en el #638). Decidió: horas exactas y no franjas; bloques por día de la semana o por fecha; disponibilidad permanente
@@ -48,8 +48,16 @@ el encabezado). No reescribe ninguna función: no lleva md5 de partida. Se desca
 **Cómo se midió.** Sin Docker: Postgres 16 con pgTAP y stubs de Supabase, las 562 migraciones. Prueba 474 (42 casos); seis
 mutaciones la ponen en rojo. Suite completa: 381 de 381 archivos en verde, ninguna prueba que pasaba dejó de pasar.
 
-**Falta:** pegar la 0584 ANTES de fusionar (sin ella, «Mi disponibilidad» dice que todavía no está lista y «Tu semana» sigue
-contra el horario). Después, DO tiene que cargar la jornada de cada persona.
+**0584 PEGADA por Felipe el 2026-11-03**, unos minutos DESPUÉS de fusionar el #654 (17:08 UTC): durante ese rato «Mi
+disponibilidad» y el panel dijeron «todavía no está lista», que es el camino previsto, y no se rompió nada. Antes de pegar se
+verificó en producción que no existiera nada con esos nombres (`0 · null · false`). Fila final exacta: las siete columnas en `t` y
+«584 · cada_quien_dice_cuando_puede_trabajar».
+
+**Historial de horario (#656, sin SQL):** «Cambios de horario» en el panel y «Cambios a tu horario» en Mis turnos, desde
+`correcciones_auditoria` (horario base, turno, puesto, jornada) y `disponibilidades`.
+
+**Falta:** que DO cargue la jornada de cada persona (Panel · Disponibilidad). Mientras esté vacía, el aviso de horas no sale y
+«Tu semana» compara contra el horario base. Siguen las entregas 3 («Este día no me calza») y 4 («Cambiar con una compañera»).
 
 ## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (PEGADA 2026-11-03 · fusionada en #647)
 
