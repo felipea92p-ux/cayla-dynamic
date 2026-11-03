@@ -12,8 +12,8 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 cortas seguidas («que no tenga un hueco de 3 horas»); la venta base es el promedio de las últimas 4 semanas; es una propuesta que
 la líder revisa y publica; y **la líder de equipo puede publicarse su propio turno «con tal que cumpla su horario y horas»**.
 
-**Depende de dos PR sin fusionar:** la 0584 (#654, disponibilidad y jornada) y la 0585 (#655, la venta de cada hora). La 0586
-exige la 0584 en su guardia.
+**Depende de:** la 0584 (#654, disponibilidad y jornada — ya en `main`), que la 0586 exige en su guardia, y la 0585 (#655, la
+venta de cada hora — sin fusionar), que este PR trae dentro: se fusiona después del #655.
 
 **0586.** `fn_publicar_semana(sede, lunes, turnos, motivo)`: todo o nada, desde el lunes, solo días que todavía no llegan, de
 gente activa de esa sede. Las demás pasan por `fn_set_turno`/`fn_set_descanso`; el turno PROPIO de una líder se escribe ahí mismo
