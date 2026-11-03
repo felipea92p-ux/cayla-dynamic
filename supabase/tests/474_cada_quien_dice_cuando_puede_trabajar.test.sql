@@ -218,11 +218,12 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000474a2
 select throws_ok(
   format('select fn_disponibilidad_registrar(%L, ''total'', null, %L, null, ''[]'')',
          '00000000-0000-0000-0000-000000047414', fn_hoy_lima()),
-  'P0001', null, 'una líder de equipo no registra por otra persona');
+  'P0001', null, 'una líder de equipo no registra por alguien de otra sede (0589: la de su sede, sí — ver la 479)');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000474a0', true);
 insert into _ids select 'y3', fn_disponibilidad_registrar('00000000-0000-0000-0000-000000047414', 'parcial', 'otro_trabajo',
-  fn_hoy_lima(), null, '[{"dia_semana":6,"desde":"14:00","hasta":"20:30","estado":"no_puede"}]', false, 'Registrada por DO');
+  fn_hoy_lima(), null, '[{"dia_semana":6,"desde":"14:00","hasta":"20:30","estado":"no_puede"}]', false, 'Registrada por DO',
+  'en_persona');  -- el motivo del registro, desde la 0589
 select ok((select estado = 'aprobada' and registrada_por = '00000000-0000-0000-0000-000000047410'
              from disponibilidades where id = (select id from _ids where clave = 'y3')),
   'lo que registra DO entra aprobado y dice quién lo registró');

@@ -151,3 +151,21 @@ describe("copiar un día a los demás", () => {
     expect(s[3].modo).toBe("no_puede"); // la semana de entrada no se toca
   });
 });
+
+describe("el motivo del registro (0589)", () => {
+  it("es la misma lista que el CHECK de la base, en el mismo orden", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { MOTIVOS_REGISTRO } = await import("@/lib/disponibilidad");
+    const dir = join(__dirname, "..", "supabase", "migrations");
+    const sql = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith("0589_"))!), "utf8");
+    const enSql = sql.match(/registro_motivo in \(\s*([^)]*)\)/)![1].match(/'([a-z_]+)'/g)!.map((x) => x.slice(1, -1));
+    expect(MOTIVOS_REGISTRO.map((m) => m.valor)).toEqual(enSql);
+  });
+  it("«Otro» se muestra con lo que escribió; los demás con su etiqueta", async () => {
+    const { textoMotivoRegistro } = await import("@/lib/disponibilidad");
+    expect(textoMotivoRegistro("otro", "Lo dejó en el cuaderno")).toBe("Lo dejó en el cuaderno");
+    expect(textoMotivoRegistro("en_persona")).toBe("Me lo dijo en persona");
+    expect(textoMotivoRegistro(null)).toBeNull();
+  });
+});
