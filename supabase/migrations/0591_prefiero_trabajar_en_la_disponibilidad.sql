@@ -59,6 +59,26 @@
 --     valores: la web (lib/disponibilidad.ts, sugerencia-turnos.ts y
 --     sugerencia-entrada.ts) ya conoce los tres.
 --
+-- CÓMO SE PEGA — EN TRES PARTES, UNA POR UNA (aprendido el 2026-11-03)
+--   El SQL Editor corre todo lo pegado en UNA transacción. Pegada entera, esta
+--   migración tomaba un bloqueo exclusivo sobre `disponibilidad_bloques` y,
+--   sin soltarlo, pedía otro sobre `disponibilidades`; una pantalla que lee las
+--   dos tablas en el orden contrario (primero `disponibilidades`, después sus
+--   bloques) cierra el ciclo y Postgres aborta con «40P01 deadlock detected». Eso
+--   pasó en producción al primer intento: no se aplicó nada (la transacción se
+--   revirtió entera) y se reprodujo después en un Postgres local con dos sesiones.
+--   La salida es que cada transacción toque UNA sola tabla:
+--     PARTE 1 · el estado de los bloques        (solo `disponibilidad_bloques`)
+--     PARTE 2 · el motivo de la disponibilidad  (solo `disponibilidades`)
+--     PARTE 3 · comentarios y registro          (ninguna tabla en uso)
+--   Cada parte se pega y se corre sola, en ese orden, y empieza con
+--   `set local lock_timeout = '3s'`: si no consigue el bloqueo en 3 segundos
+--   falla con 55P03 en vez de quedarse en cola —y una ALTER en cola frena a todos
+--   los que vienen detrás—; se repega y listo. Las partes 2 y 3 se niegan a
+--   correr si falta la anterior, para que el registro nunca diga «aplicada» sin
+--   estarlo. Todas son idempotentes. Entera, en un solo bloque, sigue siendo
+--   válida en una base sin tráfico (`supabase db reset`, las pruebas).
+--
 -- CÓMO SE REVIERTE
 --   Con datos nuevos ya guardados NO se revierte soltando el CHECK sin más: las
 --   filas con 'prefiere_trabajar' / 'preferencia' dejarían de cumplirlo y
@@ -70,7 +90,9 @@
 --   Las personas nunca se borran ni se pierden: esto solo toca bloques y motivos.
 -- ============================================================================
 
--- ── 1 · El estado de un bloque ───────────────────────────────────────────────
+-- ═══ PARTE 1 · El estado de un bloque (solo disponibilidad_bloques) ═════════
+
+set local lock_timeout = '3s';
 
 do $$
 declare
@@ -98,7 +120,24 @@ begin
 end;
 $$;
 
--- ── 2 · El motivo de una disponibilidad ──────────────────────────────────────
+comment on column public.disponibilidad_bloques.estado is
+  'no_puede (nunca ahí) · prefiere_no (se respeta si alcanza la gente) · prefiere_trabajar (cuenta a favor '
+  'de poner a la persona ahí; nunca obliga). 0584, 0591.';
+
+-- ═══ PARTE 2 · El motivo de una disponibilidad (solo disponibilidades) ══════
+-- Se pega DESPUÉS de la parte 1 y sola.
+
+set local lock_timeout = '3s';
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.disponibilidad_bloques'::regclass
+                    and conname = 'disponibilidad_bloque_estado_valido') then
+    raise exception 'Falta la PARTE 1 (el estado de los bloques): pégala primero y sola, y después esta.';
+  end if;
+end;
+$$;
 
 do $$
 declare
@@ -126,15 +165,23 @@ begin
 end;
 $$;
 
--- ── 3 · Que quien lea la base lo encuentre dicho ─────────────────────────────
-
-comment on column public.disponibilidad_bloques.estado is
-  'no_puede (nunca ahí) · prefiere_no (se respeta si alcanza la gente) · prefiere_trabajar (cuenta a favor '
-  'de poner a la persona ahí; nunca obliga). 0584, 0591.';
-
 comment on column public.disponibilidades.motivo is
   'estudios, hijos, salud, otro_trabajo, otro: por qué no puede. preferencia: solo marcó lo que prefiere '
   'trabajar (no hay nada que justificar); la pone la pantalla, no se elige. 0584, 0591.';
+
+-- ═══ PARTE 3 · El contrato de lectura y el registro (ninguna tabla en uso) ═══
+-- Se pega DESPUÉS de las partes 1 y 2 y sola.
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.disponibilidad_bloques'::regclass
+                  and conname = 'disponibilidad_bloque_estado_valido')
+     or not exists (select 1 from pg_constraint where conrelid = 'public.disponibilidades'::regclass
+                     and conname = 'disponibilidad_motivo_valido') then
+    raise exception 'Faltan la PARTE 1 o la PARTE 2: pégalas primero, cada una sola, y después esta.';
+  end if;
+end;
+$$;
 
 do $$
 declare
@@ -148,7 +195,6 @@ begin
 end;
 $$;
 
--- ── 4 · Registro ─────────────────────────────────────────────────────────────
-
+-- Registro
 insert into migraciones_aplicadas (numero, nombre) values (591, 'prefiero_trabajar_en_la_disponibilidad')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();

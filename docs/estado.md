@@ -24,6 +24,11 @@ sesión): la prueba 481 la corre `db-tests`.
 cuánto de su turno cae ahí. Referencia: pisar un «prefiero no» cuesta 150, una hora de diferencia con su jornada 300. **Desempata, no
 manda:** nunca deja un hueco de la venta por él ni mueve a nadie de un «no puedo». Sin aviso en pantalla cuando no se logra.
 
+**La 0591 se pega EN TRES PARTES, una por una.** Pegada entera en el SQL Editor dio `40P01 deadlock detected` el 2026-11-03 (no se aplicó
+nada: es una sola transacción): tomaba un bloqueo exclusivo sobre `disponibilidad_bloques` y, sin soltarlo, pedía otro sobre
+`disponibilidades`, y una pantalla que lee las dos en el orden contrario cierra el ciclo. Reproducido en un Postgres local con dos sesiones;
+con las partes por separado (una tabla por transacción, `lock_timeout` de 3 s, guardias entre ellas) no se repite.
+
 **La 0591 se pega ANTES de fusionar.** Si el código llega primero, quien marque «Prefiero trabajar» recibe «Revisa los días marcados» al
 enviar (la base rechaza el estado). Pegar después de fusionar deja esa ventana abierta.
 
