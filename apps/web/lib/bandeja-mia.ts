@@ -11,6 +11,7 @@ import { puedePedirBono, traerMiBono, type MiBono } from "./mi-bono";
 import { formatSoles } from "./rangos";
 import { esBoletaPorFirmar } from "./boletas";
 import { nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "./mis-boletas";
+import { COLUMNAS_PEDIDO, resumenPedido, tituloRespuesta, type PedidoTurno } from "./pedidos-turno";
 import { fechaEnPalabras, traerMisReportes, tituloDeReporte, type FilaMiReporte } from "./reportes";
 import { compartirMientrasVuela } from "./compartir-mientras-vuela";
 
@@ -120,7 +121,9 @@ export type OrigenBandeja =
   | "turno"
   // Sus reportes (0483/0488): lo que le respondieron y no leyó, y lo que sigue
   // abierto esperando respuesta.
-  | "reporte";
+  | "reporte"
+  // «Este día no me calza» (0587): lo que pidió sobre un día con turno.
+  | "pedido-turno";
 
 /**
  * `atendido` es de las revisiones y no es lo mismo que `aprobado`: a un pedido
@@ -359,6 +362,8 @@ export interface FuentesBandeja {
   boletas?: FilaBoletaBandeja[];
   /** Sus reportes (0488), de `fn_reportes_mios`. Opcional: sin ellos, no se dice nada de reportes. */
   reportes?: FilaMiReporte[];
+  /** Sus pedidos «Este día no me calza» (0587). Opcional: sin la 0587, no se dice nada. */
+  pedidosTurno?: PedidoTurno[];
   /** Sus constancias de estudios (0450). Opcional: quien no estudia no trae nada. */
   educacionEntregas?: FilaEducacionEntrega[];
   /** Sus estudios y en qué está cada constancia (0450). */
@@ -1014,6 +1019,40 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   }
 
+  // «Este día no me calza» (0587). Abierto: lo está esperando. Respondido:
+  // le contestaron, y caduca como las demás. Retirado: lo retiró ella, no hay
+  // nada que decirle.
+  for (const p of fuentes.pedidosTurno ?? []) {
+    if (p.estado === "abierto") {
+      esperando.push({
+        instante: Date.parse(p.creado_at),
+        m: {
+          clave: `pedido-turno:${p.id}`, origen: "pedido-turno", estado: "pendiente", fecha: fechaLima(p.creado_at),
+          titulo: `Pediste cambiar tu turno del ${diaYMes(p.fecha)}`,
+          respuesta: null,
+          detalle: `${resumenPedido(p)}. Mientras tanto tu turno sigue igual.`,
+          nuevo: false,
+          ir: "/mio?tab=turnos",
+          marcarVistoComo: null,
+        },
+      });
+    } else if (p.estado === "resuelto" && p.resuelto_at) {
+      const fecha = fechaLima(p.resuelto_at);
+      respuestas.push({
+        instante: Date.parse(p.resuelto_at),
+        m: {
+          clave: `pedido-turno:${p.id}`, origen: "pedido-turno", estado: "atendido", fecha,
+          titulo: tituloRespuesta(p),
+          respuesta: p.respuesta,
+          detalle: resumenPedido(p),
+          nuevo: esNueva(fecha) && !fueVista("pedido_turno", p.id),
+          ir: "/mio?tab=turnos",
+          marcarVistoComo: { tipo: "pedido_turno", itemId: p.id },
+        },
+      });
+    }
+  }
+
   // ── LAS CONSTANCIAS DE ESTUDIOS (0450) ─────────────────────────────────
   // Lo que envió y espera, lo que le contestaron, y lo que depende de ella.
   // Solo lo que envió ELLA: lo que carga DO a su nombre no contesta nada que
@@ -1161,7 +1200,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes, ficha] =
+    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes, ficha, pedidosTurno] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -1252,6 +1291,12 @@ export async function traerBandeja(
     // se dice «planilla», que es lo que decía antes — y NO entra en `noSePudo`,
     // por lo mismo que las etiquetas del catálogo.
     supabase.from("personas").select("tipo_vinculo").eq("id", personaId).maybeSingle(),
+    // Sus pedidos «Este día no me calza» (0587). El `.eq` es el freno de siempre:
+    // a una líder la RLS le abre los de toda su sede.
+    supabase.from("turno_pedidos").select(COLUMNAS_PEDIDO)
+      .eq("persona_id", personaId)
+      .order("creado_at", { ascending: false })
+      .limit(LIMITE),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -1295,6 +1340,7 @@ export async function traerBandeja(
     practicante: (ficha.data as { tipo_vinculo?: string } | null)?.tipo_vinculo === "practicante",
     boletas: boletas.filas,
     reportes: reportes.filas,
+    pedidosTurno: (pedidosTurno.data ?? []) as unknown as PedidoTurno[],
     vistos: new Set(
       ((vistos.data ?? []) as { tipo_item: string; item_id: string }[])
         .map((v) => `${v.tipo_item}:${v.item_id}`),
@@ -1332,6 +1378,7 @@ export async function traerBandeja(
       // boleta que sí hay. (Si la 0482 no está pegada, esto lo dice a gritos.)
       { error: boletas.error, que: "tus boletas" },
       { error: reportes.error, que: "tus reportes" },
+      { error: pedidosTurno.error, que: "tus pedidos de cambiar un turno" },
     ]),
   };
 }

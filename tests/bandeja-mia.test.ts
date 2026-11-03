@@ -946,3 +946,35 @@ describe("armarBandeja · boleta oficial (0482)", () => {
     expect(b.pendientes.filter((m) => m.origen === "boleta")).toHaveLength(0);
   });
 });
+
+describe("armarBandeja · «Este día no me calza» (0587)", () => {
+  const pedido = {
+    id: "p1", persona_id: "yo", fecha: "2026-09-12", motivo: "estudios" as const, propuesta: "tarde" as const,
+    comentario: null, creado_at: enLima("2026-09-06"), resuelto_por: null, resuelto_at: null, resolucion: null, respuesta: null,
+  };
+
+  it("abierto: lo está esperando, nunca cuenta en el número", () => {
+    const b = armarBandeja({ ...VACIO, pedidosTurno: [{ ...pedido, estado: "abierto" }] }, HOY);
+    expect(b.esperando).toHaveLength(1);
+    expect(b.esperando[0].titulo).toBe("Pediste cambiar tu turno del 12 de setiembre");
+    expect(b.esperando[0].nuevo).toBe(false);
+    expect(b.respuestas).toHaveLength(0);
+  });
+
+  it("respondido: le llega la respuesta con lo que escribió su líder, y se marca con 'pedido_turno'", () => {
+    const resuelto = { ...pedido, estado: "resuelto" as const, resuelto_por: "lider", resuelto_at: enLima("2026-09-07"),
+      resolucion: "se_mantiene" as const, respuesta: "Ese día hay inventario" };
+    const b = armarBandeja({ ...VACIO, pedidosTurno: [resuelto] }, HOY);
+    expect(b.respuestas[0].titulo).toBe("Tu pedido del 12 set: el turno se mantiene");
+    expect(b.respuestas[0].respuesta).toBe("Ese día hay inventario");
+    expect(b.respuestas[0].nuevo).toBe(true);
+    expect(b.respuestas[0].marcarVistoComo).toEqual({ tipo: "pedido_turno", itemId: "p1" });
+    expect(armarBandeja({ ...VACIO, pedidosTurno: [resuelto], vistos: new Set(["pedido_turno:p1"]) }, HOY).respuestas[0].nuevo).toBe(false);
+  });
+
+  it("retirado: no hay nada que decirle", () => {
+    const b = armarBandeja({ ...VACIO, pedidosTurno: [{ ...pedido, estado: "retirado" }] }, HOY);
+    expect(b.esperando).toHaveLength(0);
+    expect(b.respuestas).toHaveLength(0);
+  });
+});

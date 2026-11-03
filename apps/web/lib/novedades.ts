@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-este-dia-no-me-calza",
+    fecha: "2026-11-03",
+    titulo: "Si un día de tu turno no te calza, ya puedes decirlo",
+    queMejoro:
+      "En «Lo mío · Mis turnos», debajo de tu semana, está el botón «Este día no me calza». Eliges el día, por qué " +
+      "(estudios, tus hijos, salud, otro trabajo u otro motivo) y qué te calza: en la tarde, en la mañana o ese día no " +
+      "puedes. Le llega a tu líder de equipo; si en 48 horas no te responde, lo ve Desarrollo Organizacional.\n\n" +
+      "Mientras tanto tu turno sigue igual. La respuesta te llega a tu Bandeja. Las líderes de equipo los responden en " +
+      "«Disponibilidad del equipo».",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-03-terminal-piso-o-almacen",
     fecha: "2026-11-03",
     titulo: "En el terminal de tienda se ve quién está en piso y quién en almacén",

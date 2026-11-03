@@ -443,7 +443,8 @@ with repo(numero, nombre, nunca) as (values
     (583, 'el_almacen_es_solo_de_las_tiendas', false),
     (584, 'cada_quien_dice_cuando_puede_trabajar', false),
     (585, 'la_venta_de_cada_hora_llega_a_turnos', false),
-    (586, 'la_semana_sugerida_se_publica_de_una_vez', false)
+    (586, 'la_semana_sugerida_se_publica_de_una_vez', false),
+    (587, 'este_dia_no_me_calza', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

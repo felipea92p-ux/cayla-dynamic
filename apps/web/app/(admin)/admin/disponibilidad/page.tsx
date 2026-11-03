@@ -32,6 +32,7 @@ import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { EditorDisponibilidad, type EnvioDisponibilidad } from "@/components/disponibilidad/editor-disponibilidad";
+import { PedidosDelEquipo } from "@/components/pedidos-turno/pedidos-del-equipo";
 import {
   MOTIVOS, avisoDeHoras, desdeBloques, diaMes, horasDisponibles, resumenEnPalabras,
   type Bloque, type Motivo, type Ventana,
@@ -156,6 +157,10 @@ export default function DisponibilidadDelEquipo() {
         <p className="text-sm">
           <strong>{pendientes.length}</strong> {pendientes.length === 1 ? "espera" : "esperan"} tu respuesta.
         </p>
+      )}
+
+      {personas && personas.length > 0 && (
+        <PedidosDelEquipo supabase={supabase} personas={personas} yoId={yo.id} esDO={esDO} avisar={toast.avisar} />
       )}
 
       {personas && personas.length === 0 && <EstadoVacio>No hay personas activas en esta sede.</EstadoVacio>}
