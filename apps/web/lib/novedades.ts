@@ -123,6 +123,7 @@ export const NOVEDADES: readonly Novedad[] = [
       "tienda por ella, por ejemplo si se lo dijo en persona o si todavía no tiene cuenta. Queda aprobada en el acto.\n\n" +
       "Al registrarla hay que elegir por qué la registras tú y no ella. En «Cambios de horario» se ve quién la registró " +
       "y por qué. La disponibilidad de una líder de equipo la sigue registrando Desarrollo Organizacional.",
+    audiencia: "panel",
   },
   {
     id: "2026-11-03-almacen-puesto-base",
