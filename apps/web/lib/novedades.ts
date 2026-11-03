@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-02-el-terminal-dice-si-hoy-te-toca-almacen",
+    fecha: "2026-11-02",
+    titulo: "Al marcar tu entrada, el terminal te dice si hoy te toca almacén",
+    queMejoro:
+      "Si tu líder de equipo te planificó almacén para hoy en Turnos, al marcar tu entrada el terminal te lo dice: «Hoy " +
+      "te toca almacén de 10:30 a 12:30». No tienes que tocar nada más: a esa hora ya figuras en almacén, y al terminar " +
+      "vuelves a figurar en tienda.\n\n" +
+      "Si al final no fuiste, o volviste antes, marca «Vuelvo a tienda»: cuenta lo que pasó de verdad. Lo planificado " +
+      "no cambia ni tus horas ni tu pago.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-02-mis-turnos-muestra-tu-semana",
     fecha: "2026-11-02",
     titulo: "Mis turnos muestra tu semana completa",
