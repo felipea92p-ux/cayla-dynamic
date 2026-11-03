@@ -26,7 +26,7 @@ mutaciones la ponen en rojo. Suite completa: 381 de 381 archivos en verde, ningu
 **Falta:** pegar la 0584 ANTES de fusionar (sin ella, «Mi disponibilidad» dice que todavía no está lista y «Tu semana» sigue
 contra el horario). Después, DO tiene que cargar la jornada de cada persona.
 
-## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (SIN PEGAR · SIN FUSIONAR)
+## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (PEGADA 2026-11-03 · fusionada en #647)
 
 **De dónde sale.** La revisión adversarial de la 0581 reprodujo en el Postgres local dos huecos que dejan anulable una sanción:
 después de que ella confirmó los cargos, `fn_expediente_editar_borrador` y `fn_expediente_elevar_a_suspension` podían cambiar lo
@@ -40,7 +40,8 @@ semanal (20.5); la suspensión cita su escalón (19.2 c/d, 21.2 b/c, 54.8); las 
 (`lib/admin/previas-del-memo.ts`) sin la llamada verbal; el art. 22 se comunica a DO, no en el descargo.
 
 **Cómo se midió.** Prueba 472 (11) con control A/B: sin la 0582 fallan las 5 que deben frenar. Las 42 pruebas pgTAP del
-expediente siguen completas y en verde con los triggers puestos.
+expediente siguen completas y en verde con los triggers puestos. En producción, la consulta de verificación devolvió
+los dos triggers (`trg_expediente_descargo_se_lee_antes`, `trg_expediente_lo_comunicado_no_cambia`) y el registro 582 con su nombre.
 
 **Queda abierto (decisión de Felipe):** la comunicación cita antecedentes y corte con el criterio del 19.1 c) —notificados antes
 del hecho—, y `fn_tardanza_escalon_al` (0311) cuenta los vigentes al cierre del mes: en un caso de borde los dos no coinciden;
@@ -137,8 +138,14 @@ o la sede base de la persona no es `tienda`. El terminal ya no ofrece el botón 
 473 (8; sin la migración, 4 en rojo). Y el terminal carga solo una versión nueva (`/api/version`) cuando está en la lista y lleva
 un minuto sin tocarse (`lib/terminal/recarga-version.ts`); lo guardado sin enviar vive en IndexedDB y sobrevive.
 
-**Abierto:** guardar `'piso'` en vez de `'tienda'` (propuesta de la sesión de Turnos; la tabla está vacía, sería una 0581). **Falta:** entrega 2 (cuando exista `puestos_planificados`): «Hoy te toca almacén de … a …» al
-marcar la entrada.
+**Cerrado (2026-11-03).** La entrega 2 («Hoy te toca almacén de … a …» al marcar la entrada) salió con el PR #643, y la 0583
+con el #650, fusionado por Felipe. Se descartó guardar `'piso'` en lugar de `'tienda'` (Felipe: «déjalo como tienda»). Medido
+ese día: el terminal de la Oficina TRU (`OTRU`, tipo `central`) **no** ofrece el almacén ni a las chicas de tienda, y es lo
+pedido: ellas marcan en la Mac mini de su tienda. Hoy lo ofrecen TRU y AQP; la `003 · Tienda LIM` es `tienda` pero está inactiva.
+
+**Falta medir:** que una Mac mini de tienda se recargue sola con el despliegue SIGUIENTE al #650 (la primera vez hubo que
+recargarlas a mano). Si no lo hace, es la sospecha de *skew protection* anotada en «Aviso de versión nueva»: `/api/version`
+contestaría la versión fijada y la recarga no saltaría nunca, sin ningún error a la vista.
 
 ## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA** · **0576 SIN PEGAR (por hora con tope semanal)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
 
@@ -971,9 +978,9 @@ pestaña vieja queda fijada a SU despliegue y la consulta a `/api/version` podr�
 (falla hacia el lado seguro: no avisa, jamás avisa de más). Prueba: con una pestaña del panel abierta, publicar cualquier cambio y
 esperar ≤3 min; si no baja la barra, es esto y el arreglo es pedirle a Vercel la versión sin fijar. Quien lo mida: anotarlo aquí.
 
-**Fuera, a propósito.** El **terminal** (la Mac mini de la sede): lo toca cualquiera para marcar, tiene su propio service worker y su
-cola sin conexión, y recargarlo por un aviso es una decisión aparte. Si el terminal necesita enterarse de las versiones nuevas, es otra
-rebanada con su propio criterio.
+**El terminal va aparte, con su propio criterio** (desde el 2026-11-03, PR #650): no avisa, se recarga solo, pero únicamente en la
+lista de nombres, sin envío en curso y tras un minuto sin que nadie lo toque (`lib/terminal/recarga-version.ts`). Usa la misma
+`/api/version`, así que la sospecha de *skew protection* de arriba le aplica igual.
 
 **Publicar.** No hay migración. Fusionar el PR ES publicar (`main` se publica sola): pedir OK a Felipe.
 
