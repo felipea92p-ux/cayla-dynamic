@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-lider-registra-disponibilidad",
+    fecha: "2026-11-03",
+    titulo: "La líder de equipo ya puede registrar la disponibilidad de su equipo",
+    queMejoro:
+      "En «Disponibilidad del equipo», la líder de equipo puede registrar la disponibilidad de una integrante de su " +
+      "tienda por ella, por ejemplo si se lo dijo en persona o si todavía no tiene cuenta. Queda aprobada en el acto.\n\n" +
+      "Al registrarla hay que elegir por qué la registras tú y no ella. En «Cambios de horario» se ve quién la registró " +
+      "y por qué. La disponibilidad de una líder de equipo la sigue registrando Desarrollo Organizacional.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-03-almacen-puesto-base",
     fecha: "2026-11-03",
     titulo: "El almacén puede ser el puesto de siempre",

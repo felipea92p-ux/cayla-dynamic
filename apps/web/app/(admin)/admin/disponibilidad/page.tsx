@@ -3,9 +3,9 @@
 // «Disponibilidad del equipo» (0584).
 //
 // QUÉ PROMETE · que la líder de equipo vea qué días u horas puede trabajar cada
-//               persona de su sede, y apruebe o converse lo que le mandaron; y
-//               que DO, además, fije la jornada de cada una y registre una
-//               disponibilidad por ella. Lo aprobado es lo que lee la
+//               persona de su sede, apruebe o converse lo que le mandaron, y
+//               registre una por ella (0589, con el motivo del registro); y
+//               que DO, además, fije la jornada de cada una. Lo aprobado es lo que lee la
 //               sugerencia de turnos (`fn_disponibilidad_vigente`).
 // QUÉ ASUME   · la RLS de la 0584 decide qué filas ve cada quien (la líder, su
 //               sede; DO, todas), y `fn_puede_resolver_disponibilidad` decide a
@@ -23,7 +23,7 @@ import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
-import { Campo } from "@/components/ui/campo";
+import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
@@ -34,8 +34,8 @@ import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { EditorDisponibilidad, type EnvioDisponibilidad } from "@/components/disponibilidad/editor-disponibilidad";
 import { PedidosDelEquipo } from "@/components/pedidos-turno/pedidos-del-equipo";
 import {
-  MOTIVOS, avisoDeHoras, desdeBloques, diaMes, horasDisponibles, resumenEnPalabras,
-  type Bloque, type Motivo, type Ventana,
+  MOTIVOS, MOTIVOS_REGISTRO, avisoDeHoras, desdeBloques, diaMes, horasDisponibles, resumenEnPalabras,
+  type Bloque, type Motivo, type MotivoRegistro, type Ventana,
 } from "@/lib/disponibilidad";
 
 interface Persona {
@@ -290,7 +290,7 @@ function FilaPersona({
           </div>
         )}
 
-        {esDO && (
+        {puedeResolver && (
           <Boton variante="enlace" className="self-start" onClick={onRegistrar}>Registrar su disponibilidad por ella</Boton>
         )}
       </div>
@@ -303,11 +303,21 @@ function ModalRegistrar({
 }: { persona: Persona; ventana: Ventana[]; supabase: Cliente; onCerrar: () => void; onListo: () => void; avisar: Avisar }) {
   const [enviando, setEnviando] = useState(false);
   const [fijo, setFijo] = useState(false);
+  // Sin valor de entrada a propósito: el motivo del registro lo elige quien registra (0589).
+  const [motivoRegistro, setMotivoRegistro] = useState<MotivoRegistro | "">("");
+  const [detalle, setDetalle] = useState("");
+  const faltaMotivo = motivoRegistro === "" || (motivoRegistro === "otro" && detalle.trim().length < 5);
   const registrar = async (e: EnvioDisponibilidad) => {
+    if (faltaMotivo) {
+      return avisar("error", motivoRegistro === "otro"
+        ? "Escribe por qué la registras (al menos 5 caracteres)."
+        : "Elige por qué la registras tú y no ella.");
+    }
     setEnviando(true);
     const { error } = await supabase.rpc("fn_disponibilidad_registrar", {
       p_persona_id: persona.id, p_tipo: e.tipo, p_motivo: e.motivo, p_desde: e.desde, p_hasta: e.hasta,
       p_bloques: e.bloques as unknown as never, p_horario_fijo: fijo, p_nota: e.nota,
+      p_registro_motivo: motivoRegistro, p_registro_detalle: detalle.trim() || null,
     });
     setEnviando(false);
     if (error) return avisar("error", mensajeDeError(error));
@@ -317,7 +327,18 @@ function ModalRegistrar({
   return (
     <Modal abierto onCerrar={onCerrar} titulo={`Disponibilidad de ${persona.nombres}`} ancho="lg" bloqueado={enviando}>
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-taupe">Entra aprobada. Si ella tenía una pendiente, esta la reemplaza.</p>
+        <p className="text-sm text-taupe">
+          Entra aprobada. Si ella tenía una pendiente, esta la reemplaza. Queda en «Cambios de horario» quién la registró y por qué.
+        </p>
+        <CampoSelect etiqueta="¿Por qué la registras tú y no ella?" value={motivoRegistro}
+          onChange={(e) => setMotivoRegistro(e.target.value as MotivoRegistro | "")}>
+          <option value="">Elige un motivo</option>
+          {MOTIVOS_REGISTRO.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
+        </CampoSelect>
+        {motivoRegistro !== "" && (
+          <AreaTexto etiqueta={motivoRegistro === "otro" ? "Escribe el motivo (obligatorio)" : "Aclaración (opcional)"}
+            value={detalle} rows={2} maxLength={300} onChange={(e) => setDetalle(e.target.value)} />
+        )}
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" checked={fijo} onChange={(e) => setFijo(e.target.checked)} className="mt-1 accent-tinta" />
           <span>Horario fijo: conserva su horario de siempre y la sugerencia de turnos no la mueve.</span>

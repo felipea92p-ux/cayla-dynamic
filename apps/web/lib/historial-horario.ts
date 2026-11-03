@@ -27,7 +27,7 @@
 
 import { rotuloDeCampo } from "@cayla-dynamic/shared";
 import { describirCambio, type Auditoria } from "@/lib/admin/historial-correcciones";
-import { desdeBloques, diaMes, resumenEnPalabras, type Bloque } from "@/lib/disponibilidad";
+import { desdeBloques, diaMes, resumenEnPalabras, textoMotivoRegistro, type Bloque } from "@/lib/disponibilidad";
 
 export type TipoCambio = "horario" | "turno" | "puesto" | "jornada" | "disponibilidad";
 
@@ -37,6 +37,9 @@ export const CAMPOS_DE_HORARIO: Record<string, Exclude<TipoCambio, "disponibilid
   "turnos.horario": "turno",
   "turnos.puesto": "puesto",
   "personas.jornada_semanal_horas": "jornada",
+  // El puesto base del horario (0588, sesión de Turnos): «Puesto base desde el DD/MM/YYYY: …».
+  // Es una vigencia, no un día: diaDelMotivo no lo confunde con «Puesto del DD/MM».
+  "horarios.puesto_base": "puesto",
 };
 
 export const TIPOS: readonly { valor: TipoCambio; label: string }[] = [
@@ -64,6 +67,9 @@ export interface FilaDisponibilidad {
   resuelta_por: string | null;
   resuelta_at: string | null;
   respuesta: string | null;
+  /** Por qué la registró otra persona (0589). Opcional: lecturas viejas no lo traen. */
+  registro_motivo?: string | null;
+  registro_detalle?: string | null;
   disponibilidad_bloques: Bloque[];
 }
 
@@ -122,8 +128,10 @@ export function desdeDisponibilidad(d: FilaDisponibilidad, quien: "tu" | "ella" 
   const out: EntradaHistorial[] = [];
   out.push({
     clave: `d-${d.id}-envio`, personaId: d.persona_id, tipo: "disponibilidad", cuando: d.creada_at, dia: null,
-    accion: porOtra ? "Disponibilidad registrada por DO" : "Disponibilidad enviada",
-    detalle: `${lo} ${vigencia}`, quien: porOtra ? d.registrada_por : null, motivo: null,
+    // Desde la 0589 también la registra su líder: no se dice «por DO», se dice quién (ver `quien`).
+    accion: porOtra ? "Disponibilidad registrada por otra persona" : "Disponibilidad enviada",
+    detalle: `${lo} ${vigencia}`, quien: porOtra ? d.registrada_por : null,
+    motivo: porOtra ? textoMotivoRegistro(d.registro_motivo, d.registro_detalle) : null,
   });
   if (d.resuelta_at && d.resuelta_por && !(porOtra && d.estado === "aprobada" && d.resuelta_por === d.registrada_por)) {
     out.push({
