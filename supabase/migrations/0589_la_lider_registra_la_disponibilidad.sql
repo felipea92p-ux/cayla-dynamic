@@ -43,10 +43,45 @@
 --   `fn_puede_resolver_disponibilidad` NO se toca (md5 de producción
 --   `76f2653c1a091036ad8a4eb3455fd030`, 686, igual al local).
 --
--- ENTRE PEGAR Y FUSIONAR
---   La pantalla publicada todavía llama sin motivo del registro: la base lo
---   rechaza con «Elige por qué la registras» hasta que se fusione el PR. No
---   rompe nada: solo DO no puede registrar en esos minutos.
+-- ENTRE PEGAR Y FUSIONAR (corregido el 2026-11-03: el PR #662 se fusionó ANTES de pegar)
+--   Se pensó para pegarse antes de fusionar. No pasó: el #662 ya está en `main`
+--   y publicado, así que la pantalla llama con `p_registro_motivo` y
+--   `p_registro_detalle` mientras producción sigue con la función de 8
+--   argumentos. Hasta pegar esto, registrar por otra persona (DO y líder) falla
+--   por no encontrar esa firma. Enviar su propia disponibilidad no se ve
+--   afectado (esa es otra función). Por eso pegarla es urgente, no opcional.
+--
+-- CÓMO SE PEGA — EN DOS PARTES, UNA POR UNA (la lección de la 0591, 2026-11-03)
+--   El SQL Editor corre todo lo pegado en UNA transacción. Esta migración altera
+--   una sola tabla (`disponibilidades`) y cambia una función, así que no cierra
+--   un ciclo de bloqueos por sí sola; aun así se parte, por dos razones:
+--   (a) la parte 1 empieza con `set local lock_timeout = '3s'`: si no consigue el
+--   bloqueo falla con 55P03 en vez de quedarse en cola frenando a todos los que
+--   vienen detrás, y se repega; (b) la función nueva NO puede existir sin las
+--   columnas que escribe, y la guardia de la parte 2 lo impide.
+--     PARTE 1 · las columnas y sus candados      (solo `disponibilidades`)
+--     PARTE 2 · la puerta, su registro y la comprobación
+--   Cada una se pega SOLA, en ese orden. Entera, en un solo bloque, sigue siendo
+--   válida en una base sin tráfico (`supabase db reset`, las pruebas).
+--
+-- ANTES DE PEGAR: LO QUE HAY QUE PEDIRLE A PRODUCCIÓN (solo lee)
+--   El md5 de partida es una foto y caduca (CLAUDE.md): se vuelve a pedir el día
+--   que se pega. Si no sale exactamente esto, PARAR.
+--     select (select md5(prosrc) || ' · ' || length(prosrc) from pg_proc
+--              where proname = 'fn_disponibilidad_registrar') as la_funcion_hoy,
+--            (select count(*) from pg_proc where proname = 'fn_disponibilidad_registrar') as versiones,
+--            exists (select 1 from information_schema.columns where table_name = 'disponibilidades'
+--                     and column_name = 'registro_motivo') as ya_tiene_la_columna;
+--   Esperado: `6a553cab51679590a25291fae1510243 · 837`, 1 versión y false.
+--   Si da `ae579eb75a2efdf906554dcfbe105e94 · 854` es el MISMO código pegado
+--   desde Windows (un `\r` por línea, 17 líneas): seguir. Cualquier otro número,
+--   o 2 versiones, o true: alguien tocó la función o la pegó a medias. Parar.
+--
+-- CÓMO SE COMPRUEBA DESPUÉS (la consulta del final de la parte 2)
+--   Todo en true y una sola versión. md5 de llegada de la función nueva, medido
+--   al escribir esta versión del archivo (2026-11-03, sin renumerar):
+--   `e9f7c9c0efc2c258275046f473e3a202 · 1609`, 33 líneas. Si llega con un `\r`
+--   por línea es el mismo código pegado desde Windows: `ea5ed9d1e726a2e2bc8f23fcba01f027 · 1642`.
 --
 -- CÓMO SE REVIERTE
 --   drop function if exists fn_disponibilidad_registrar(uuid, text, text, date, date, jsonb, boolean, text, text, text);
@@ -61,7 +96,9 @@
 --   «589 · la_lider_registra_la_disponibilidad».
 -- ============================================================================
 
--- ── 1 · El motivo del registro ───────────────────────────────────────────────
+-- ═══ PARTE 1 · El motivo del registro (solo disponibilidades) ═══════════════
+
+set local lock_timeout = '3s';
 
 alter table disponibilidades add column if not exists registro_motivo text;
 alter table disponibilidades add column if not exists registro_detalle text;
@@ -87,7 +124,20 @@ comment on column disponibilidades.registro_motivo is
 comment on column disponibilidades.registro_detalle is
   'El texto de «Otro» (obligatorio en ese caso) o una aclaración del registro. 0589.';
 
--- ── 2 · La puerta ────────────────────────────────────────────────────────────
+-- ═══ PARTE 2 · La puerta, su registro y la comprobación ═════════════════════
+-- Se pega DESPUÉS de la parte 1 y sola.
+
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'disponibilidades' and column_name = 'registro_motivo')
+     or not exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'disponibilidades' and column_name = 'registro_detalle')
+     or not exists (select 1 from pg_constraint where conname = 'disponibilidad_registro_otro_con_texto') then
+    raise exception 'Falta la PARTE 1 (las columnas del registro): pégala primero y sola, y después esta.';
+  end if;
+end;
+$$;
 
 drop function if exists fn_disponibilidad_registrar(uuid, text, text, date, date, jsonb, boolean, text);
 
@@ -142,7 +192,7 @@ comment on function fn_disponibilidad_registrar(uuid, text, text, date, date, js
 revoke all on function fn_disponibilidad_registrar(uuid, text, text, date, date, jsonb, boolean, text, text, text) from public, anon;
 grant execute on function fn_disponibilidad_registrar(uuid, text, text, date, date, jsonb, boolean, text, text, text) to authenticated;
 
--- ── 3 · Registro ─────────────────────────────────────────────────────────────
+-- Registro
 
 insert into migraciones_aplicadas (numero, nombre) values (589, 'la_lider_registra_la_disponibilidad')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
