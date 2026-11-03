@@ -12,8 +12,8 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 cortas seguidas («que no tenga un hueco de 3 horas»); la venta base es el promedio de las últimas 4 semanas; es una propuesta que
 la líder revisa y publica; y **la líder de equipo puede publicarse su propio turno «con tal que cumpla su horario y horas»**.
 
-**Depende de:** la 0584 (disponibilidad y jornada — pegada y en `main`), que la 0586 exige en su guardia, y la 0585 (#655, la
-venta de cada hora — pegada, sin fusionar), que este PR trae dentro: se fusiona después del #655.
+**Depende de:** la 0584 (disponibilidad y jornada) y la 0585 (la venta de cada hora, #655): las dos pegadas y en `main`. La
+0586 exige la 0584 en su guardia.
 
 **0586.** `fn_publicar_semana(sede, lunes, turnos, motivo)`: todo o nada, desde el lunes, solo días que todavía no llegan, de
 gente activa de esa sede. Las demás pasan por `fn_set_turno`/`fn_set_descanso`; el turno PROPIO de una líder se escribe ahí mismo
@@ -28,7 +28,7 @@ sin Supabase local; se ve en la vista previa con la 0584, la 0585 y la 0586 pega
 
 ---
 
-## 2026-11-03 — Turnos repite un día cerrado contra la venta de cada hora · migración **0585 PEGADA (2026-11-03)** · rama `claude/turnos-repeticion-del-dia`
+## 2026-11-03 — Turnos repite un día cerrado contra la venta de cada hora · migración **0585 PEGADA (2026-11-03)** · fusionada en [#655](https://github.com/felipea92p-ux/cayla-dynamic/pull/655)
 
 **De dónde sale.** Felipe (2026-11-03): la repetición de un día que ya pasó (la maqueta C) va dentro de la vista Día; el ritmo
 (compras por hora que atiende una persona en piso) y el mínimo en piso van a Parámetros, uno por tienda; una compra es un ticket
