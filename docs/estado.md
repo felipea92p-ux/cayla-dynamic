@@ -6,6 +6,26 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-03 — «Mi disponibilidad» y la jornada que fija DO · migración **0584 SIN PEGAR** · prueba 474 · rama `claude/mi-disponibilidad`
+
+**De dónde sale.** Felipe (2026-11-02/03), módulo «Lo mío · Mis turnos / Mi disponibilidad», entrega 2 de 4 (la 1, «Tu semana»,
+se fusionó en el #638). Decidió: horas exactas y no franjas; bloques por día de la semana o por fecha; disponibilidad permanente
+con corte semanal; «horario fijo» lo marca quien aprueba; la jornada la fija DO; las horas disponibles se miden contra la ventana
+de la sede deducida de los horarios del equipo; DO registra y fija la jornada desde `/admin/disponibilidad`.
+
+**0584 (no mueve plata).** `personas.jornada_semanal_horas` con su puerta `fn_set_jornada` y trigger; `disponibilidades` +
+`disponibilidad_bloques`, escritas solo por `fn_disponibilidad_enviar / _retirar / _resolver / _registrar`; RLS para ella, la
+líder de su sede, DO y admin; `fn_sede_ventana_semanal`; y el **contrato de lectura para la sugerencia de Turnos**,
+`fn_disponibilidad_vigente(desde, hasta, sede, aprobada_antes)` → `no_puede / prefiere_no / horario_fijo` por fecha (detalle en
+el encabezado). No reescribe ninguna función: no lleva md5 de partida. Se descartó reusar `horarios_asignados.horas_semana_objetivo`
+(vale 45 para todos porque ninguna puerta la escribe).
+
+**Cómo se midió.** Sin Docker: Postgres 16 con pgTAP y stubs de Supabase, las 562 migraciones. Prueba 474 (42 casos); seis
+mutaciones la ponen en rojo. Suite completa: 381 de 381 archivos en verde, ninguna prueba que pasaba dejó de pasar.
+
+**Falta:** pegar la 0584 ANTES de fusionar (sin ella, «Mi disponibilidad» dice que todavía no está lista y «Tu semana» sigue
+contra el horario). Después, DO tiene que cargar la jornada de cada persona.
+
 ## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (SIN PEGAR · SIN FUSIONAR)
 
 **De dónde sale.** La revisión adversarial de la 0581 reprodujo en el Postgres local dos huecos que dejan anulable una sanción:
