@@ -39,14 +39,14 @@ export interface EnvioDisponibilidad {
 type Hasta = "sin_fin" | "fin_ciclo" | "fecha";
 
 // Un día se marca con UN toque, sin desplegables encadenados: el color nunca va
-// solo, cada opción lleva su ícono y su palabra. «Por horas» abre sus tramos, y
+// solo, cada opción lleva su ícono y su palabra. «Depende de la hora» abre sus tramos, y
 // cada tramo dice su propio estado (antes era un desplegable «Solo algunas
 // horas» y, adentro, otro «No puedo»: se leía como una doble negación).
 const MODOS: { valor: ModoDia; label: string; icono: LucideIcon }[] = [
   { valor: "puede", label: "Puedo", icono: Check },
   { valor: "prefiere_no", label: "Prefiero no", icono: CircleAlert },
   { valor: "no_puede", label: "No puedo", icono: Ban },
-  { valor: "horas", label: "Por horas", icono: Clock },
+  { valor: "horas", label: "Depende de la hora", icono: Clock },
 ];
 
 const ESTADOS: { valor: EstadoBloque; label: string }[] = [
@@ -174,29 +174,32 @@ export function EditorDisponibilidad({
                   </div>
                   {dia.modo === "horas" && (
                     <div className="flex flex-col gap-3 border-l-2 border-sand pl-3">
+                      <p className="text-sm text-taupe">
+                        Marca las horas que no te calzan. El resto del día queda como «Puedo».
+                      </p>
                       {dia.tramos.map((t, i) => (
                         <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
-                          <div role="group" aria-label="Estado del tramo" className="flex gap-1.5">
+                          <div role="group" aria-label="Estado del horario" className="flex gap-1.5">
                             {ESTADOS.map((x) => (
                               <Filtro key={x.valor} tamano="sm" activo={t.estado === x.valor} className="min-h-9"
                                 onClick={() => cambiarTramo(d, i, "estado", x.valor)}>{x.label}</Filtro>
                             ))}
                           </div>
-                          <span>de</span>
+                          <span>desde las</span>
                           <select aria-label="Desde" className={selectClase} value={t.desde} onChange={(e) => cambiarTramo(d, i, "desde", e.target.value)}>
                             {opciones.slice(0, -1).map((h) => <option key={h} value={h}>{h}</option>)}
                           </select>
-                          <span>a</span>
+                          <span>hasta las</span>
                           <select aria-label="Hasta" className={selectClase} value={t.hasta} onChange={(e) => cambiarTramo(d, i, "hasta", e.target.value)}>
                             {opciones.slice(1).map((h) => <option key={h} value={h}>{h}</option>)}
                           </select>
-                          <button type="button" aria-label="Quitar este tramo" onClick={() => quitarTramo(d, i)}
+                          <button type="button" aria-label="Quitar este horario" onClick={() => quitarTramo(d, i)}
                             className="rounded-control p-1 text-taupe hover:text-tinta"><X className="h-4 w-4" /></button>
                         </div>
                       ))}
                       <div className="flex flex-wrap gap-x-4 gap-y-1">
                         <Boton variante="enlace" className="text-sm" onClick={() => agregarTramo(d)}>
-                          <Plus className="mr-1 inline h-3.5 w-3.5" />Otro tramo
+                          <Plus className="mr-1 inline h-3.5 w-3.5" />Otro horario
                         </Boton>
                         <Boton variante="enlace" className="text-sm" onClick={() => setSemana((s) => copiarDia(s, d))}>
                           <Copy className="mr-1 inline h-3.5 w-3.5" />Copiar a los demás días

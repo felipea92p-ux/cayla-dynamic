@@ -119,8 +119,8 @@ export const NOVEDADES: readonly Novedad[] = [
     fecha: "2026-11-03",
     titulo: "Mi disponibilidad se marca con un toque por día",
     queMejoro:
-      "Cada día tiene cuatro botones a la vista: «Puedo», «Prefiero no», «No puedo» y «Por horas». Ya no hay " +
-      "desplegables uno dentro de otro. Al elegir «Por horas», cada tramo dice si es «No puedo» o «Prefiero no», " +
+      "Cada día tiene cuatro botones a la vista: «Puedo», «Prefiero no», «No puedo» y «Depende de la hora». Ya no hay " +
+      "desplegables uno dentro de otro. Al elegir «Depende de la hora», cada horario dice si es «No puedo» o «Prefiero no», " +
       "y puedes copiar lo marcado en un día a todos los demás.\n\n" +
       "Arriba se explica qué significa cada opción: «No puedo» es firme, y «Prefiero no» se intenta respetar, pero " +
       "si falta gente te puede tocar.",
