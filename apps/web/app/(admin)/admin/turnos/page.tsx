@@ -23,7 +23,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Filtro } from "@/components/ui/filtro";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
-import { cuentaEnCobertura, esRolEncargada, fechaLima, horaLima, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes, rangoDelDiaLima, type MarcajeDelDia } from "@cayla-dynamic/shared";
+import { cuentaEnCobertura, esRolEncargada, fechaLima, horaLima, hoyLima, leCorrespondeHorario, puedeOperarEquipo, puedeVerTodasLasSedes, rangoDelDiaLima, type MarcajeDelDia } from "@cayla-dynamic/shared";
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { consecuenciaDeUsarBase as consecuenciaDeUsarBaseLib } from "@/lib/admin/revision-turnos";
@@ -39,6 +39,8 @@ import type { CambioUbicacion, Ubicacion } from "@/lib/terminal/ubicacion";
 import { TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
 import { RepeticionDelDia } from "./repeticion-del-dia";
 import { PropuestaDeLaSemana } from "./sugerencia-semana";
+import { BorradorDeLaSemana, type FilaComparativa } from "./borrador-de-la-semana";
+import { comoPropuesta, compararSemanas, esTablaInexistente, filasDelBorradorParaGuardar, semanaDesdeBorrador, type FilaDiaBorrador, type SemanaTurnos } from "@/lib/admin/borrador-semana";
 import { ventaPedia, type PersonaRepeticion } from "@/lib/admin/repeticion";
 import { lideresDelDia, metasPorFecha, pideEn, type MetaDelDia, type FilaMeta } from "@/lib/admin/metas-cobertura";
 import { leerMetasDeCobertura } from "@/lib/admin/leer-metas";
@@ -1317,13 +1319,150 @@ export default function TurnosPage() {
     await trasGuardar();
   }
 
+  // ── El borrador de la semana (0592): la propuesta guardada sin publicar ─────────
+  const [borrador, setBorrador] = useState<{
+    id: string; lunes: string; sede: string; origen: "sugerido" | "manual"; actualizadoAt: string; actualizadoPor: string | null;
+    filas: FilaDiaBorrador[]; notas: Map<string, string>;
+  } | null>(null);
+  // false mientras la 0592 no esté pegada: la pantalla esconde el borrador en vez de fallar.
+  const [hayBorradores, setHayBorradores] = useState(true);
+  const [jornadasSede, setJornadasSede] = useState<Map<string, number | null>>(new Map());
+  const [verBorrador, setVerBorrador] = useState(false);
+  const [guardandoBorrador, setGuardandoBorrador] = useState(false);
+  const [publicandoBorrador, setPublicandoBorrador] = useState(false);
+  const [releerBorrador, setReleerBorrador] = useState(0);
+  const borradorVigente = borrador && borrador.lunes === lunes && borrador.sede === sedeSel ? borrador : null;
+
+  useEffect(() => {
+    if (!sedeSel || !puedeVer) return;
+    let vivo = true;
+    void (async () => {
+      const [b, j] = await Promise.all([
+        supabase.from("turnos_borradores")
+          .select("id, lunes, origen, actualizado_at, actualizado_por, turnos_borrador_dias(persona_id, fecha, entrada, salida), turnos_borrador_notas(persona_id, nota)")
+          .eq("sede_id", sedeSel).eq("lunes", lunes).is("publicado_at", null).is("descartado_at", null).maybeSingle(),
+        supabase.from("personas").select("id, jornada_semanal_horas").eq("sede_base_id", sedeSel),
+      ]);
+      if (!vivo) return;
+      if (!j.error) {
+        setJornadasSede(new Map(((j.data ?? []) as { id: string; jornada_semanal_horas: number | null }[])
+          .map((x) => [x.id, x.jornada_semanal_horas === null ? null : Number(x.jornada_semanal_horas)])));
+      }
+      if (b.error) {
+        setBorrador(null);
+        if (esTablaInexistente(b.error)) setHayBorradores(false);
+        return;
+      }
+      setHayBorradores(true);
+      const d = b.data as null | {
+        id: string; lunes: string; origen: string; actualizado_at: string; actualizado_por: string | null;
+        turnos_borrador_dias: FilaDiaBorrador[] | null; turnos_borrador_notas: { persona_id: string; nota: string }[] | null;
+      };
+      setBorrador(d ? {
+        id: d.id, lunes: d.lunes, sede: sedeSel, origen: d.origen === "sugerido" ? "sugerido" : "manual",
+        actualizadoAt: d.actualizado_at, actualizadoPor: d.actualizado_por,
+        filas: d.turnos_borrador_dias ?? [], notas: new Map((d.turnos_borrador_notas ?? []).map((n) => [n.persona_id, n.nota])),
+      } : null);
+    })();
+    return () => { vivo = false; };
+  }, [sedeSel, lunes, puedeVer, releerBorrador, alDia]);
+
+  const refrigerioDe = useCallback((id: string) => horarioVigente(horarios.get(id) ?? [], lunes)?.almuerzo_min_minutos ?? 0, [horarios, lunes]);
+  const conHorario = useCallback((id: string) => {
+    const p = personas.find((x) => x.id === id);
+    return leCorrespondeHorario(p?.tipoVinculo ?? null, null);
+  }, [personas]);
+  const semanaBorrador: SemanaTurnos | null = useMemo(
+    () => (borradorVigente ? semanaDesdeBorrador(borradorVigente.filas, dias, turnoActualMin) : null),
+    [borradorVigente, dias, turnoActualMin],
+  );
+  const publicacionBorrador = semanaBorrador
+    ? filasParaPublicar({
+        propuesta: comoPropuesta(semanaBorrador, dias, refrigerioDe), actual: turnoActualMin, fechas: dias,
+        lider: esRolEncargada(rol) && yo ? { id: yo.id, jornada: jornadasSede.get(yo.id) ?? null } : undefined,
+      })
+    : null;
+  const hoyIso = hoyLima();
+  const filasBorradorFuturas = publicacionBorrador?.filas.filter((f) => f.fecha > hoyIso) ?? [];
+  const nombreLargo = (id: string) => {
+    const p = personas.find((x) => x.id === id);
+    return p ? `${p.nombres} ${p.apellidos ?? ""}`.trim() : "—";
+  };
+  const filasComparativa: FilaComparativa[] = semanaBorrador
+    ? (() => {
+        const medir = (despues: SemanaTurnos) => compararSemanas({
+          fechas: dias, antes: turnoActualMin, despues, refrigerioMin: refrigerioDe, jornada: (id) => jornadasSede.get(id) ?? null,
+        });
+        const sugerido = new Map((propuestaVigente ? medir(propuestaVigente.prop.turnos) : []).map((x) => [x.id, x.despues]));
+        return medir(semanaBorrador)
+          .map((c) => ({ id: c.id, nombre: nombreLargo(c.id), ahora: c.antes, sugerido: sugerido.get(c.id) ?? null, borrador: c.despues, cambian: c.cambian.length, cumple: c.cumple }))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+      })()
+    : [];
+  const notasBorrador = borradorVigente
+    ? personas.filter((p) => !conHorario(p.id) || borradorVigente.notas.has(p.id))
+        .map((p) => ({ id: p.id, nombre: nombreLargo(p.id), nota: borradorVigente.notas.get(p.id) ?? "" }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+    : [];
+
+  async function guardarBorrador(semana: SemanaTurnos, origen: "sugerido" | "manual", notas: ReadonlyMap<string, string>): Promise<boolean> {
+    setGuardandoBorrador(true);
+    const { error } = await supabase.rpc("fn_turnos_borrador_guardar", {
+      p_sede_id: sedeSel, p_lunes: lunes,
+      p_dias: filasDelBorradorParaGuardar(semana, dias, hoyLima(), conHorario) as unknown as Json,
+      p_notas: [...notas].filter(([, t]) => t.trim()).map(([persona_id, nota]) => ({ persona_id, nota: nota.trim() })) as unknown as Json,
+      p_origen: origen,
+    });
+    setGuardandoBorrador(false);
+    if (error) { avisar("error", mensajeDeError(error, "guardar el borrador")); return false; }
+    setReleerBorrador((n) => n + 1);
+    return true;
+  }
+
+  async function guardarPropuestaComoBorrador() {
+    if (!propuestaVigente) return;
+    if (await guardarBorrador(propuestaVigente.prop.turnos, "sugerido", borradorVigente?.notas ?? new Map())) {
+      avisar("ok", "Se guardó el borrador de la semana. Todavía no está publicado: el equipo sigue viendo sus turnos.");
+      setPropuesta(null);
+      setVerBorrador(true);
+    }
+  }
+
+  async function publicarElBorrador() {
+    if (!borradorVigente || filasBorradorFuturas.length === 0) return;
+    setPublicandoBorrador(true);
+    const { data, error } = await supabase.rpc("fn_turnos_borrador_publicar", {
+      p_sede_id: sedeSel, p_lunes: lunes, p_turnos: filasBorradorFuturas as unknown as Json, p_motivo: "Borrador de Turnos revisado y publicado.",
+    });
+    setPublicandoBorrador(false);
+    if (error) { avisar("error", mensajeDeError(error, "publicar el borrador")); return; }
+    avisar("ok", `Se publicó el borrador: ${data ?? filasBorradorFuturas.length} días.${publicacionBorrador?.suyoFuera ? ` ${publicacionBorrador.suyoFuera}` : ""}`);
+    setVerBorrador(false);
+    setReleerBorrador((n) => n + 1);
+    await trasGuardar();
+  }
+
+  async function descartarElBorrador() {
+    if (!window.confirm("¿Descartar el borrador de esta semana? Lo publicado no cambia, y el borrador no se puede recuperar.")) return;
+    const { error } = await supabase.rpc("fn_turnos_borrador_descartar", { p_sede_id: sedeSel, p_lunes: lunes });
+    if (error) { avisar("error", mensajeDeError(error, "descartar el borrador")); return; }
+    avisar("ok", "Se descartó el borrador. Lo publicado sigue igual.");
+    setVerBorrador(false);
+    setReleerBorrador((n) => n + 1);
+  }
+
+  // Lo que se dibuja encima de lo publicado: la propuesta a la vista, o el borrador si se pidió verlo.
+  const capa = propuestaVigente
+    ? { ids: propuestaVigente.ids, turnos: propuestaVigente.prop.turnos as SemanaTurnos }
+    : verBorrador && semanaBorrador ? { ids: new Set(Object.keys(semanaBorrador)), turnos: semanaBorrador } : null;
+
   // Los turnos de un día tal como los dibuja la Integrada, con la propuesta encima si la hay.
   const turnosDeLaIntegrada = (iso: string): TurnoConNombre[] => {
-    if (!propuestaVigente) return turnosConNombreDe(iso);
-    const propios = turnosConNombreDe(iso).filter((t) => !propuestaVigente.ids.has(t.id));
+    if (!capa) return turnosConNombreDe(iso);
+    const propios = turnosConNombreDe(iso).filter((t) => !capa.ids.has(t.id));
     const propuestos = personas.flatMap((p) => {
-      if (!propuestaVigente.ids.has(p.id)) return [];
-      const t = propuestaVigente.prop.turnos[p.id]?.[iso] ?? null;
+      if (!capa.ids.has(p.id)) return [];
+      const t = capa.turnos[p.id]?.[iso] ?? null;
       if (!t) return [];
       const cuenta = esOperativa(p), lider = esEncargada(p);
       const corto = `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`;
@@ -1508,7 +1647,7 @@ export default function TurnosPage() {
                 { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma. Quien está en preselección tampoco suma hasta que deje de estarlo: da igual si es practicante o tiene otro cargo." },
                 { titulo: "Las vistas", texto: "Integrada muestra la semana hora por hora y quién está en cada hora, con el resumen de horas al pie; Día, la línea de cada persona en un día." },
                 { titulo: "Piso o almacén", texto: "En Día, toca la barra de una persona para decir si ese día trabaja en piso, todo el turno en almacén o unas horas en almacén (con una sugerencia de las horas en que el piso aguanta sin ella). Se planifica de hoy en adelante. Quien está en almacén no cuenta en piso, y no cambia su turno, sus horas ni su pago." },
-                { titulo: "Sugerir la semana", texto: "En la Integrada, en una semana que todavía no empieza, «Sugerir la semana» arma una propuesta: a qué hora entra y sale cada persona y qué día descansa, para cubrir la venta de cada hora (el promedio de las últimas 4 semanas). Respeta la disponibilidad aprobada, las ausencias y los horarios fijos, y cada una suma las horas de su jornada sin pasar de 48. No se guarda nada hasta que aprietas «Publicar la semana». La líder de equipo también puede publicarse su propio turno si suma su jornada." },
+                { titulo: "Sugerir la semana", texto: "En la Integrada, en una semana que todavía no empieza, «Sugerir la semana» arma una propuesta: a qué hora entra y sale cada persona y qué día descansa, para cubrir la venta de cada hora (el promedio de las últimas 4 semanas). Respeta la disponibilidad aprobada, las ausencias y los horarios fijos, y cada una suma las horas de su jornada sin pasar de 48. Si no la publicas en el momento, «Guardar como borrador» la deja guardada sin publicar: la ven la líder, DO y administración, se compara con lo que hoy tiene cada persona (horas, días que cambian y si cumple su jornada) y se publica o descarta después. La líder de equipo también puede publicarse su propio turno si suma su jornada." },
                 { titulo: "Repetición de un día cerrado", texto: "En Día, al elegir un día que ya pasó, arriba aparece su repetición: mueve la hora o dale «Reproducir» y se ve quién estaba en piso, en almacén, en refrigerio, por llegar o ya se había ido, con lo que se marcó de verdad en el terminal. En las tiendas, además, cuántas compras hubo en esa hora y cuánta gente pedía la venta: las compras ÷ el ritmo de la tienda, nunca menos que su mínimo (los dos se cambian en Parámetros)." },
                 { titulo: "Lo marcado en el terminal", texto: "En Día, la línea azul bajo la barra es lo que la persona marcó en el terminal con «Voy a almacén». Hoy, la cobertura cuenta lo que pasó hasta la hora actual (la línea roja) y el plan de ahí en adelante; si alguien marca «Vuelvo a tienda» antes de tiempo, vuelve a contar en piso desde esa hora. La Integrada muestra solo el plan." },
               ]}
@@ -1678,6 +1817,27 @@ export default function TurnosPage() {
                     porAprobar={propuestaVigente.porAprobar}
                     onPublicar={() => void publicarLaSemana()}
                     onDescartar={() => setPropuesta(null)}
+                    onGuardarBorrador={hayBorradores ? () => void guardarPropuestaComoBorrador() : undefined}
+                    guardando={guardandoBorrador}
+                    hayBorrador={Boolean(borradorVigente)}
+                  />
+                )}
+                {borradorVigente && semanaBorrador && (
+                  <BorradorDeLaSemana
+                    semana={`del ${etiquetaDia(dias[0]).num} al ${etiquetaDia(dias[6]).num}`}
+                    guardado={`${borradorVigente.actualizadoPor ? `por ${nombreLargo(borradorVigente.actualizadoPor)}, ` : ""}el ${etiquetaDia(fechaLima(borradorVigente.actualizadoAt)).num} a las ${horaLima(borradorVigente.actualizadoAt)}${borradorVigente.origen === "sugerido" ? ", desde «Sugerir la semana»" : ""}`}
+                    filas={filasComparativa}
+                    notas={notasBorrador}
+                    porPublicar={filasBorradorFuturas.length}
+                    yaLlegaron={(publicacionBorrador?.filas.length ?? 0) - filasBorradorFuturas.length}
+                    noVa={publicacionBorrador?.suyoFuera ?? null}
+                    viendo={verBorrador && !propuestaVigente}
+                    publicando={publicandoBorrador}
+                    guardando={guardandoBorrador}
+                    onVer={() => setVerBorrador((v) => !v)}
+                    onPublicar={() => void publicarElBorrador()}
+                    onDescartar={() => void descartarElBorrador()}
+                    onGuardarNotas={(notas) => void guardarBorrador(semanaBorrador, borradorVigente.origen, notas).then((ok) => { if (ok) avisar("ok", "Se guardaron las notas del borrador."); })}
                   />
                 )}
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-taupe">

@@ -6,6 +6,31 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-03 — El borrador de la semana · migración **0592 SIN PEGAR** · prueba 482 · rama `claude/turnos-borrador-semana` ([#668](https://github.com/felipea92p-ux/cayla-dynamic/pull/668))
+
+**De dónde sale.** Felipe (2026-11-03): tener a la vista «el horario sugerido (lo que predice el sistema), el que muestra el
+sistema y un borrador», comparar el actual con el recomendado o el modificado, y el «cumple 45 h / 30 h» medido contra lo
+planificado y contra lo marcado. Para RxH: «sin horario, pero solo hacer un borrador para saber cuándo se la necesita, como una
+nota; lo puede ver la líder, DO y superiores». Es la fase 2b; la 2a fueron las metas por rangos (0590).
+
+**0592.** `turnos_borradores` (uno VIVO por sede y lunes: índice único parcial; los publicados y descartados se quedan como
+historia) con `turnos_borrador_dias` (turno o descanso por persona y fecha) y `turnos_borrador_notas` (una por persona). RLS: solo
+admin, DO y la líder de esa sede; nadie escribe directo. Puertas: `fn_turnos_borrador_guardar` (reemplaza el borrador entero;
+rechaza días que ya llegaron y turnos para RxH o no trabajador), `fn_turnos_borrador_descartar` y `fn_turnos_borrador_publicar`,
+que exige que cada fila sea un día del borrador y publica con `fn_publicar_semana` (0586) en la misma transacción. No reescribe
+ninguna función (no lleva md5) ni altera tablas en uso.
+
+**En pantalla.** Turnos: «Guardar como borrador» junto a «Publicar la semana»; la tarjeta del borrador con la comparativa
+Ahora / Sugerido / Borrador por persona (horas, días que cambian, «cumple su jornada» con 15 min de margen y avisos de más de
+48 h y de días de menos de 4 h), las notas de RxH, «Ver el borrador en la grilla», «Publicar el borrador» y «Descartar». Un día que
+el borrador no trae se completa con lo que la persona ya tiene: nunca se publica como descanso. Horas: en una semana de lunes a
+domingo ya terminada, «cumple su jornada» o un neutro «marcó X h de 45» (no dice «faltan»: ahí no se descuentan feriados ni
+ausencias). Lógica en `lib/admin/borrador-semana.ts` con su prueba.
+
+**Sigue (fase 3):** arrastrar en la Integrada (el nombre desde la cobertura) y en Día (la barra), editando el borrador.
+
+---
+
 ## 2026-11-03 — «Prefiero trabajar» en la disponibilidad · migración **0591 PEGADA (2026-11-03)** · prueba 481 · rama `claude/exciting-clarke-npajc5`
 
 **De dónde sale.** Felipe (2026-11-03), tras ver «Mi disponibilidad» en el teléfono: que cada día se marque con un toque (Puedo · Prefiero no ·

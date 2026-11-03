@@ -78,3 +78,18 @@ describe("compararSemanas — lo que hay contra lo que se propone", () => {
     expect(horasNetas({ a: T(9, 9.5) }, ["a"], 60).total).toBe(0);
   });
 });
+
+describe("lo que se guarda", () => {
+  it("solo días que todavía no llegan, y nadie sin horario (RxH va como nota)", async () => {
+    const { filasDelBorradorParaGuardar } = await import("../apps/web/lib/admin/borrador-semana");
+    const semana = { ana: { "2026-11-09": T(9, 17), "2026-11-10": T(9, 17) }, rxh: { "2026-11-10": T(12, 16) } };
+    const filas = filasDelBorradorParaGuardar(semana, ["2026-11-09", "2026-11-10"], "2026-11-09", (id) => id !== "rxh");
+    expect(filas).toEqual([{ persona_id: "ana", fecha: "2026-11-10", entrada: "09:00", salida: "17:00" }]);
+  });
+  it("la tabla que no existe todavía (0592 sin pegar) se reconoce", async () => {
+    const { esTablaInexistente } = await import("../apps/web/lib/admin/borrador-semana");
+    expect(esTablaInexistente({ code: "PGRST205" })).toBe(true);
+    expect(esTablaInexistente({ code: "42501" })).toBe(false);
+    expect(esTablaInexistente(null)).toBe(false);
+  });
+});

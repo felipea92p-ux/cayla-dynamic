@@ -178,3 +178,22 @@ export function comoPropuesta(
   }
   return { turnos: semana, resumen };
 }
+
+/**
+ * ¿El error dice que la tabla del borrador no existe? Es lo que pasa mientras
+ * la 0592 no está pegada: la pantalla esconde el borrador en vez de fallar.
+ */
+export const esTablaInexistente = (e: { code?: string } | null): boolean =>
+  e !== null && (e.code === "42P01" || e.code === "PGRST205" || e.code === "PGRST200");
+
+/** Las filas de una semana para guardarlas: solo los días que todavía no llegan, y nadie a quien no le corresponde horario. */
+export function filasDelBorradorParaGuardar(
+  semana: SemanaTurnos,
+  fechas: readonly string[],
+  hoy: string,
+  conHorario: (personaId: string) => boolean,
+): FilaDiaBorrador[] {
+  const futuras = fechas.filter((f) => f > hoy);
+  const soloConHorario: SemanaTurnos = Object.fromEntries(Object.entries(semana).filter(([id]) => conHorario(id)));
+  return filasParaGuardar(soloConHorario, futuras);
+}
