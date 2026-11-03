@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
-import { MemoDocumento, TITULO, fechaLarga, type Hecho, type Previa } from "@/components/disciplina/memo-documento";
+import { MemoDocumento, TITULO, fechaLarga, type DescargoMemo, type Hecho, type Previa } from "@/components/disciplina/memo-documento";
 import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { type Rol } from "@cayla-dynamic/shared";
+import { previasDelMemo } from "@/lib/admin/previas-del-memo";
 import { AREAS_FALLBACK, parseAreas, type Area } from "@/lib/areas";
 
 /**
@@ -53,6 +54,8 @@ interface Doc {
   falta_rit_version?: number | null; falta_numeral?: string | null; falta_literal?: string | null;
   conocido_el?: string | null;
   falta?: { numeral: string; literal: string; texto: string; gravedad: string } | null;
+  /** El descargo previo y su valoración (55.3): el documento la dice. */
+  cargos_comunicados_at: string | null; descargo_acogido: string | null; descargo_valoracion: string | null;
 }
 interface Persona { nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; rol: string }
 
@@ -98,6 +101,7 @@ export default function MemoPage() {
   // cita del memo con `docs/reglamento-interno-de-trabajo.md`.
 
   const [previas, setPrevias] = useState<Previa[]>([]);
+  const [descargos, setDescargos] = useState<DescargoMemo[]>([]);
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
   const [sede, setSede] = useState<string>("");
   // ⚠️ ARRANCAN EN null, NO en la constante de la empresa, y es el punto entero.
@@ -130,7 +134,7 @@ export default function MemoPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const { data: d, error: eD } = await supabase.from("expediente_disciplinario")
-      .select("id, correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, firmante_id, firmado_at, creado_at, firma_sancionado, firma_sancionado_confirmada_at, sancionado_rechazo_firma_at, medio_entrega, entregado_at, falta_rit_version, falta_numeral, falta_literal, conocido_el")
+      .select("id, correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, firmante_id, firmado_at, creado_at, firma_sancionado, firma_sancionado_confirmada_at, sancionado_rechazo_firma_at, medio_entrega, entregado_at, falta_rit_version, falta_numeral, falta_literal, conocido_el, cargos_comunicados_at, descargo_acogido, descargo_valoracion")
       .eq("id", id).maybeSingle();
     if (eD || !d) { setErr("No se encontró el documento (o no tienes permiso para verlo)."); setCargando(false); return; }
     const doc = d as unknown as Doc;
@@ -172,15 +176,21 @@ export default function MemoPage() {
     // «Firmados — por entregar».
     // Solo firmadas o entregadas: un borrador no sancionó nada y citarlo sería
     // afirmar en un documento legal algo que no ocurrió.
-    const { data: prev } = await supabase.from("expediente_disciplinario")
-      .select("correlativo, nivel, firmado_at, entregado_at")
-      .eq("persona_id", doc.persona_id)
-      .eq("tipo_causal", doc.tipo_causal)
-      .eq("estado", "entregado")
-      .neq("id", doc.id)
-      .gte("firmado_at", new Date(Date.now() - 365 * 24 * 3600 * 1000).toISOString())
-      .order("firmado_at", { ascending: true });
-    setPrevias((prev as Previa[]) ?? []);
+    //
+    // Y solo las SANCIONES, medidas desde el hecho (2026-11-03). Antes entraba
+    // la llamada verbal —que «no es sanción» (19.2 a, 54.2)— y la ventana se
+    // contaba desde hoy por la firma, no desde el hecho por la entrega (56.1):
+    // la carta de imputación podía nombrar una verbal como «sanción previa» y
+    // dejar fuera una suspensión entregada dentro de los doce meses. Es el
+    // criterio de `fn_cargos_detalle` (0581) y de `fn_conducta_antecedentes`,
+    // y vive en `lib/admin/previas-del-memo.ts` porque su Info pinta el mismo memo.
+    const [prev, { data: des }] = await Promise.all([
+      previasDelMemo(supabase, doc),
+      // Lo que escribió en su Info (0581). Tolerante: sin la tabla, el memo dice solo la valoración.
+      supabase.from("descargos_presentados").select("texto, presentado_at").eq("expediente_id", doc.id).order("presentado_at"),
+    ]);
+    setPrevias(prev);
+    setDescargos(Array.isArray(des) ? (des as DescargoMemo[]) : []);
     const pl = (ps as Array<Persona & { id: string }>) ?? [];
     const p = pl.find((x) => x.id === doc.persona_id) ?? null;
     setPersona(p);
@@ -280,6 +290,7 @@ export default function MemoPage() {
             previas={previas}
             firmanteIlegible={firmanteIlegible}
             recepcion={doc.medio_entrega === "digital" && doc.entregado_at ? { at: doc.entregado_at, firma: doc.firma_sancionado } : null}
+            descargos={descargos}
           >
             {/* Constancia DIGITAL del sancionado (0404) — solo en pantalla,
                 nunca en el papel: el «Recibí conforme» de arriba sigue en

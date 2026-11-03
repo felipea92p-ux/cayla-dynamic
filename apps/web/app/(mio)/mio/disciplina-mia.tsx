@@ -77,7 +77,7 @@ export const PASOS_GUIA_DISCIPLINA: readonly PasoRecorrido[] = [
 const SIN_DETALLE = "No se pudo abrir el documento ahora. Vuelve a intentarlo en un rato; si sigue, avisa a tu líder de equipo.";
 
 export function DisciplinaMia({
-  supabase, personaId, docs, error, cuenta, cargos = [], onCambio,
+  supabase, personaId, docs, error, cuenta, cargos = [], cargosError = false, onCambio,
 }: {
   supabase: Cliente;
   personaId: string;
@@ -87,6 +87,8 @@ export function DisciplinaMia({
   cuenta: CuentaMia | null;
   /** Los cargos en curso (0581): lo que le comunicaron antes de decidir nada. */
   cargos?: CargoMio[];
+  /** No se pudieron leer los cargos: entonces no se dice «no tienes nada». */
+  cargosError?: boolean;
   /** Recargar la lista (y con ella el menú y el Resumen) después de leer o firmar. */
   onCambio: () => void;
 }) {
@@ -164,8 +166,14 @@ export function DisciplinaMia({
             </ul>
           )}
 
+          {cargosError && (
+            <p className="text-taupe">
+              No se pudieron cargar tus cargos en curso. Vuelve a intentarlo en un rato; si sigue, avisa a tu líder de equipo.
+            </p>
+          )}
+
           {/* El mensaje de aliento es para quien no tiene nada pendiente. */}
-          {hayAliento(docs) && cargos.length === 0 && (
+          {hayAliento(docs) && cargos.length === 0 && !cargosError && (
             <section className="grid justify-items-center gap-2 rounded-2xl border border-sand bg-papel px-5 py-6 text-center" aria-live="polite">
               <p className="max-w-[34ch] text-balance font-serif text-xl">{mensajeDeAliento(personaId, hoyLima(), salto)}</p>
               <Boton variante="enlace" className="text-xs text-taupe" onClick={() => setSalto((s) => s + 1)}>Ver otro mensaje</Boton>
