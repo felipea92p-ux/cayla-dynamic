@@ -252,13 +252,23 @@ export function EditorDisponibilidad({
             </Boton>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Rotulo>¿Por qué? {quien === "tu" ? "(lo ven solo tu líder de equipo y DO)" : "(lo ven solo su líder de equipo y DO)"}</Rotulo>
+          <div role="group" aria-label="Motivo" data-campo="motivo"
+            className={`flex flex-col gap-3 rounded-control border-2 bg-hueso p-4 ${motivo ? "border-sand" : "border-tinta"}`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <span className="text-base font-medium">¿Por qué {quien === "tu" ? "no puedes" : "no puede"} en esos días u horas?</span>
+              <span className={`text-sm ${motivo ? "text-verde" : "font-medium text-tinta"}`}>
+                {motivo ? "✓ Elegido" : "Obligatorio: elige uno"}
+              </span>
+            </div>
             <div className="flex flex-wrap gap-2">
               {MOTIVOS.map((m) => (
-                <Filtro key={m.valor} tamano="sm" activo={motivo === m.valor} onClick={() => setMotivo(m.valor)}>{m.label}</Filtro>
+                <Filtro key={m.valor} activo={motivo === m.valor} className="min-h-11 px-4 text-base"
+                  onClick={() => setMotivo(m.valor)}>{m.label}</Filtro>
               ))}
             </div>
+            <p className="text-sm text-taupe">
+              {quien === "tu" ? "Lo ven solo tu líder de equipo y DO." : "Lo ven solo su líder de equipo y DO."}
+            </p>
           </div>
         </>
       )}
