@@ -43,6 +43,12 @@ export interface PresenciaCasilla {
    * se entienda: dice de cuándo a cuándo estuvo fuera.
    */
   detalle2?: string;
+  /**
+   * Solo en tiendas y solo para quien está trabajando: si está en el piso o en
+   * el almacén (0580/0583). La casilla lo dice con un ícono en la foto. Ausente
+   * en Central, el Taller o la Oficina, donde no hay almacén que marcar.
+   */
+  ubicacion?: "piso" | "almacen";
 }
 
 /**
