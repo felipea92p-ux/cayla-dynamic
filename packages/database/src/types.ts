@@ -10260,6 +10260,16 @@ export type Database = {
           persona_id: string
         }[]
       }
+      fn_puestos_resueltos: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          desde: string | null
+          fecha: string
+          hasta: string | null
+          origen: string
+          persona_id: string
+        }[]
+      }
       fn_publicar_politica_salarial: {
         Args: { p_documento: string | null; p_notas?: string | null }
         Returns: Json
@@ -11371,6 +11381,10 @@ export type Database = {
       }
       fn_set_practicante_modalidad: {
         Args: { p_modalidad: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_puesto_base: {
+        Args: { p_desde: string; p_motivo?: string | null; p_persona_id: string; p_puesto: string }
         Returns: undefined
       }
       fn_set_regimen_pension: {

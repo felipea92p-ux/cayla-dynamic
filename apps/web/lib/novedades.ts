@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-almacen-puesto-base",
+    fecha: "2026-11-03",
+    titulo: "El almacén puede ser el puesto de siempre",
+    queMejoro:
+      "En las tiendas, al elegir si alguien trabaja en piso o en almacén, ahora se dice hasta cuándo: «Solo este día» " +
+      "(todo el turno o unas horas) o «Siempre, desde este día», que lo deja como su puesto base todos los días que " +
+      "trabaje.\n\n" +
+      "El puesto base también se ve y se cambia en Horarios. Lo de un día suelto manda sobre la base, y la cobertura, " +
+      "el terminal y «Mis turnos» ya lo cuentan. Horarios dice además «horario por definir» a quien todavía no tiene uno.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-03-este-dia-no-me-calza",
     fecha: "2026-11-03",
     titulo: "Si un día de tu turno no te calza, ya puedes decirlo",

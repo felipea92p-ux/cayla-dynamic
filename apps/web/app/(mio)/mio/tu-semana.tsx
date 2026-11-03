@@ -13,6 +13,7 @@ import {
   textoRotacion, totalDeSemana, type DiaDeMiSemana, type PuestoFila,
 } from "@/lib/mi-semana";
 import { esPiso, textoPuesto } from "@/lib/admin/almacen";
+import { leerPuestosResueltos } from "@/lib/puestos-resueltos";
 
 /**
  * «Tu semana», en «Lo mío · Mis turnos».
@@ -23,8 +24,8 @@ import { esPiso, textoPuesto } from "@/lib/admin/almacen";
  *               siempre y, si no cuadra, por qué preguntar. Las reglas viven en
  *               lib/mi-semana.ts, con sus pruebas.
  * QUÉ ASUME   · la RLS le deja leer sus filas de `turnos`, `horarios_asignados`
- *               y `feriados` (las mismas que ya leía la sección vieja), y las de
- *               `puestos_planificados` cuando esa tabla exista.
+ *               y `feriados` (las mismas que ya leía la sección vieja), y su plan
+ *               de piso/almacén por `fn_puestos_resueltos` (0588).
  *
  * Pide sus propios datos —tres semanas fijas alrededor de hoy— en vez de
  * colgarse de los de «Mis días», que cambian con el rango que ella elige allá:
@@ -91,30 +92,16 @@ export function useMiSemana(supabase: Cliente, personaId: string | null): MiSema
 }
 
 /**
- * Lo planificado de piso/almacén. La tabla la crea la sesión de Turnos y puede
- * no existir todavía en la base que se está mirando: cualquier error devuelve
- * null, que la pantalla entiende como «no se sabe» y calla el puesto. No se
- * distingue «no existe» de «no se pudo leer» porque las dos merecen lo mismo:
- * no afirmar un puesto que no se leyó.
+ * Lo planificado de piso/almacén, ya resuelto con su puesto base (0588): la
+ * lectura única de `lib/puestos-resueltos.ts`, que nunca lee la tabla directo.
+ * Cualquier error devuelve null, que la pantalla entiende como «no se sabe» y
+ * calla el puesto: no afirmar un puesto que no se leyó.
  */
 async function leerPuestos(supabase: Cliente, personaId: string, desde: string, hasta: string): Promise<PuestoFila[] | null> {
   try {
-    // Sin tipos generados todavía: la tabla llega con la migración de Turnos.
-    const sb = supabase as unknown as {
-      from: (t: string) => {
-        select: (c: string) => {
-          eq: (k: string, v: string) => {
-            gte: (k: string, v: string) => {
-              lte: (k: string, v: string) => PromiseLike<{ data: unknown; error: unknown }>;
-            };
-          };
-        };
-      };
-    };
-    const { data, error } = await sb.from("puestos_planificados")
-      .select("fecha, desde, hasta").eq("persona_id", personaId).gte("fecha", desde).lte("fecha", hasta);
-    if (error) return null;
-    return (data as PuestoFila[] | null) ?? [];
+    const { data, error } = await leerPuestosResueltos(supabase, desde, hasta, { personaId });
+    if (error || !data) return null;
+    return data.map((f) => ({ fecha: f.fecha, desde: f.desde, hasta: f.hasta }));
   } catch {
     return null;
   }
