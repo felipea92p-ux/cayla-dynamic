@@ -16,11 +16,11 @@
 //   Felipe decidió (2026-11-02) que la jornada —completa o parcial, y cuántas
 //   horas— la fije DO en un campo propio de la persona. Ese campo todavía no
 //   existe; llega con la migración de «Mi disponibilidad». Mientras tanto la
-//   referencia es su HORARIO BASE de esa misma semana, sin los turnos puntuales,
-//   y la pantalla lo dice así: «de tu horario». Es honesto pero limitado: solo
-//   avisa cuando un turno puntual mueve horas respecto de su horario de siempre,
-//   no cuando el horario de siempre está mal armado. El día que exista la
-//   jornada, `referencia` cambia de fuente y la frase de «horario» a «jornada».
+//   referencia era su HORARIO BASE de esa misma semana, sin los turnos puntuales.
+//   Desde la 0584 existe `personas.jornada_semanal_horas`, la que fija DO: si
+//   está, manda ella y la pantalla dice «de tu jornada»; si no, se sigue
+//   comparando con el horario base y dice «de tu horario». La fuente viaja en
+//   `fuente` para que la frase nunca diga una cosa y mida otra.
 //
 // EL PUESTO (piso o almacén)
 //   Lo planificado vive en `puestos_planificados` (persona_id, fecha, desde,
@@ -60,8 +60,10 @@ export interface DiaDeMiSemana {
 export interface TotalDeSemana {
   horas: number;
   diasDeTrabajo: number;
-  /** Suma del horario base de esos siete días; null si no hay horario base con qué comparar. */
+  /** La jornada que fijó DO o, si no hay, la suma del horario base de esos siete días; null si no hay con qué comparar. */
   referencia: number | null;
+  /** De dónde salió `referencia`: es lo que dice la pantalla («de tu jornada» / «de tu horario»). */
+  fuente: "jornada" | "horario";
 }
 
 // ── Fechas ───────────────────────────────────────────────────────────────────
@@ -104,14 +106,22 @@ export function armarSemana(args: {
   });
 }
 
-export function totalDeSemana(dias: DiaDeMiSemana[]): TotalDeSemana {
+export function totalDeSemana(dias: DiaDeMiSemana[], jornada: number | null = null): TotalDeSemana {
   const horas = dias.reduce((s, d) => s + d.esperado.horas, 0);
+  const diasDeTrabajo = dias.filter((d) => d.esperado.trabaja).length;
+  if (jornada !== null && jornada > 0) return { horas, diasDeTrabajo, referencia: jornada, fuente: "jornada" };
   const hayBase = dias.some((d) => d.base.origen !== "sin_horario");
   return {
     horas,
-    diasDeTrabajo: dias.filter((d) => d.esperado.trabaja).length,
+    diasDeTrabajo,
     referencia: hayBase ? dias.reduce((s, d) => s + d.base.horas, 0) : null,
+    fuente: "horario",
   };
+}
+
+/** «de tu jornada» / «de tu horario»: la misma palabra en la sección y en el Resumen. */
+export function deQue(t: TotalDeSemana): string {
+  return t.fuente === "jornada" ? "de tu jornada" : "de tu horario";
 }
 
 // ── En palabras ──────────────────────────────────────────────────────────────
@@ -133,11 +143,12 @@ export function textoHoras(horas: number): string {
 export function cuadreDeSemana(t: TotalDeSemana): { tono: "positivo" | "advertencia"; texto: string } | null {
   if (t.referencia === null) return null;
   const dif = t.horas - t.referencia;
-  if (Math.abs(dif) < 1 / 60) return { tono: "positivo", texto: "Coincide con tu horario de siempre." };
+  const contra = t.fuente === "jornada" ? "tu jornada" : "tu horario de siempre";
+  if (Math.abs(dif) < 1 / 60) return { tono: "positivo", texto: `Coincide con ${contra}.` };
   const cuanto = textoHoras(Math.abs(dif));
   return {
     tono: "advertencia",
-    texto: `Esta semana tienes ${cuanto} ${dif < 0 ? "menos" : "más"} que tu horario de siempre. ` +
+    texto: `Esta semana tienes ${cuanto} ${dif < 0 ? "menos" : "más"} que ${contra}. ` +
       "Si nadie te lo explicó, pregúntale a tu líder de equipo.",
   };
 }

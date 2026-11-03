@@ -9,7 +9,7 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cargando } from "@/components/cargando";
 import { dowDe, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import {
-  armarSemana, cuadreDeSemana, inclinacionDeSemana, lunesDe, sumarDias, textoHoras,
+  armarSemana, cuadreDeSemana, deQue, inclinacionDeSemana, lunesDe, sumarDias, textoHoras,
   textoRotacion, totalDeSemana, type DiaDeMiSemana, type PuestoFila,
 } from "@/lib/mi-semana";
 import { esPiso, textoPuesto } from "@/lib/admin/almacen";
@@ -39,6 +39,8 @@ export interface MiSemana {
   error: string | null;
   hoy: string;
   semanas: Record<Desfase, DiaDeMiSemana[]>;
+  /** La jornada que fijó DO (0584), o null. */
+  jornada: number | null;
 }
 
 const VACIA: Record<Desfase, DiaDeMiSemana[]> = { [-1]: [], 0: [], 1: [] };
@@ -46,7 +48,7 @@ const VACIA: Record<Desfase, DiaDeMiSemana[]> = { [-1]: [], 0: [], 1: [] };
 export function useMiSemana(supabase: Cliente, personaId: string | null): MiSemana {
   const hoy = hoyLima();
   const lunes = lunesDe(hoy);
-  const [estado, setEstado] = useState<MiSemana>({ cargando: true, error: null, hoy, semanas: VACIA });
+  const [estado, setEstado] = useState<MiSemana>({ cargando: true, error: null, hoy, semanas: VACIA, jornada: null });
 
   useEffect(() => {
     if (!personaId) return;
@@ -54,7 +56,7 @@ export function useMiSemana(supabase: Cliente, personaId: string | null): MiSema
     void (async () => {
     const desde = sumarDias(lunes, -7);
     const hasta = sumarDias(lunes, 13);
-    const [{ data: hs, error: errHs }, { data: ts, error: errTs }, { data: fer }, puestos] = await Promise.all([
+    const [{ data: hs, error: errHs }, { data: ts, error: errTs }, { data: fer }, puestos, { data: yo }] = await Promise.all([
       supabase.from("horarios_asignados")
         .select("persona_id, vigente_desde, vigente_hasta, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos")
         .eq("persona_id", personaId)
@@ -65,17 +67,23 @@ export function useMiSemana(supabase: Cliente, personaId: string | null): MiSema
         .gte("fecha", desde).lte("fecha", hasta),
       supabase.from("feriados").select("fecha, nombre").gte("fecha", desde).lte("fecha", hasta),
       leerPuestos(supabase, personaId, desde, hasta),
+      // Si la 0584 todavía no estuviera, la columna no existe: falla sola y queda
+      // en null, que es «comparar con el horario».
+      supabase.from("personas").select("jornada_semanal_horas").eq("id", personaId).maybeSingle(),
     ]);
     if (!vivo) return;
     if (errHs || errTs) {
-      setEstado({ cargando: false, error: "No se pudo leer tu horario. Vuelve a intentarlo en un momento.", hoy, semanas: VACIA });
+      setEstado({ cargando: false, error: "No se pudo leer tu horario. Vuelve a intentarlo en un momento.", hoy, semanas: VACIA, jornada: null });
       return;
     }
     const tramos = (hs as unknown as HorarioTramo[]) ?? [];
     const turnos = new Map(((ts as unknown as (TurnoDia & { fecha: string })[]) ?? []).map((t) => [t.fecha, t]));
     const feriados = new Map(((fer as { fecha: string; nombre: string }[] | null) ?? []).map((f) => [f.fecha, f.nombre]));
     const semana = (d: Desfase) => armarSemana({ lunes: sumarDias(lunes, 7 * d), turnos, tramos, feriados, puestos });
-    setEstado({ cargando: false, error: null, hoy, semanas: { [-1]: semana(-1), 0: semana(0), 1: semana(1) } });
+    setEstado({
+      cargando: false, error: null, hoy, semanas: { [-1]: semana(-1), 0: semana(0), 1: semana(1) },
+      jornada: (yo?.jornada_semanal_horas as number | null | undefined) ?? null,
+    });
     })();
     return () => { vivo = false; };
   }, [supabase, personaId, lunes, hoy]);
@@ -125,7 +133,7 @@ const ETIQUETA: Record<Desfase, string> = { [-1]: "Anterior", 0: "Esta semana", 
 export function TuSemana({ datos }: { datos: MiSemana }) {
   const [desfase, setDesfase] = useState<Desfase>(0);
   const dias = datos.semanas[desfase];
-  const total = useMemo(() => totalDeSemana(dias), [dias]);
+  const total = useMemo(() => totalDeSemana(dias, datos.jornada), [dias, datos.jornada]);
   const cuadre = cuadreDeSemana(total);
   const rotacion = desfase === 0
     ? textoRotacion(inclinacionDeSemana(datos.semanas[0]), inclinacionDeSemana(datos.semanas[1]))
@@ -160,7 +168,7 @@ export function TuSemana({ datos }: { datos: MiSemana }) {
             <div className="font-serif text-3xl leading-none">
               {textoHoras(total.horas)}
               {total.referencia !== null && (
-                <span className="ml-2 font-sans text-sm text-taupe">de {textoHoras(total.referencia)} de tu horario</span>
+                <span className="ml-2 font-sans text-sm text-taupe">de {textoHoras(total.referencia)} {deQue(total)}</span>
               )}
             </div>
             {total.referencia !== null && total.referencia > 0 && (

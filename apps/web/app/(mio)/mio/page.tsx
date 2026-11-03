@@ -11,7 +11,7 @@ import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
 import { TuSemana, useMiSemana } from "./tu-semana";
 import { MiDisponibilidad } from "./mi-disponibilidad";
-import { hoyEnUnaLinea, textoHoras, totalDeSemana } from "@/lib/mi-semana";
+import { deQue, hoyEnUnaLinea, textoHoras, totalDeSemana } from "@/lib/mi-semana";
 import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
 import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_DISPONIBILIDAD, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
 import { PASOS_GUIA_BOLETAS, PASOS_GUIA_EDUCACION, PASOS_GUIA_MOVILIDAD } from "./guias-de-pago";
@@ -1555,7 +1555,7 @@ export default function MioPage() {
   const hoyDeMiSemana = useMemo(() => {
     const dias = miSemana.semanas[0];
     if (dias.length === 0) return null;
-    const total = totalDeSemana(dias);
+    const total = totalDeSemana(dias, miSemana.jornada);
     return { hoy: dias.find((d) => d.fecha === miSemana.hoy), total };
   }, [miSemana]);
 
@@ -2134,7 +2134,7 @@ export default function MioPage() {
             valor={hoyDeMiSemana ? hoyEnUnaLinea(hoyDeMiSemana.hoy) : "—"}
             pie={hoyDeMiSemana
               ? `Esta semana: ${textoHoras(hoyDeMiSemana.total.horas)}${
-                  hoyDeMiSemana.total.referencia !== null ? ` de ${textoHoras(hoyDeMiSemana.total.referencia)} de tu horario` : ""}.${
+                  hoyDeMiSemana.total.referencia !== null ? ` de ${textoHoras(hoyDeMiSemana.total.referencia)} ${deQue(hoyDeMiSemana.total)}` : ""}.${
                   feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
               : miSemana.cargando ? "Leyendo tu horario…" : "No hay turnos ni horario cargados para esta semana. Si eso no es lo que esperabas, avísale a tu líder de equipo."}
             accion={

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  armarSemana, cuadreDeSemana, hoyEnUnaLinea, inclinacionDeSemana, lunesDe,
+  armarSemana, cuadreDeSemana, deQue, hoyEnUnaLinea, inclinacionDeSemana, lunesDe,
   semanaDe, textoHoras, textoRotacion, totalDeSemana,
 } from "@/lib/mi-semana";
 import type { HorarioTramo, TurnoDia } from "@/lib/admin/jornada-esperada";
@@ -140,5 +140,21 @@ describe("el puesto", () => {
     expect(hoyEnUnaLinea(dias[1])).toBe("08:30–14:30 · almacén 10:30–12:30");
     expect(hoyEnUnaLinea(dias[6])).toBe("Descansas");
     expect(hoyEnUnaLinea(semana()[0])).toBe("08:30–14:30");   // sin saber el puesto, no lo inventa
+  });
+});
+
+describe("con la jornada que fija DO (0584)", () => {
+  it("si hay jornada, se compara con ella y lo dice", () => {
+    const t = totalDeSemana(semana(), 45);
+    expect(t.referencia).toBe(45);
+    expect(t.fuente).toBe("jornada");
+    expect(deQue(t)).toBe("de tu jornada");
+    expect(cuadreDeSemana(t)?.texto).toContain("4 h 15 min menos que tu jornada");
+  });
+  it("sin jornada sigue contra el horario, y lo dice", () => {
+    const t = totalDeSemana(semana(), null);
+    expect(t.fuente).toBe("horario");
+    expect(deQue(t)).toBe("de tu horario");
+    expect(cuadreDeSemana(t)?.texto).toBe("Coincide con tu horario de siempre.");
   });
 });

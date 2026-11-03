@@ -8,7 +8,7 @@
 // probar con vitest en entorno node, que es el único que este repo tiene.
 
 import {
-  LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
+  LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, CalendarCheck2, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
   BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare, Archive, ShieldCheck, FileStack, SlidersHorizontal,
@@ -127,6 +127,9 @@ export const GRUPOS: Grupo[] = [
     { href: "/admin/incidencias", label: "Incidencias", Icon: TriangleAlert, roles: SEDE, contador: "revisiones" },
     { href: "/admin/correcciones", label: "Correcciones", Icon: PencilLine, roles: SEDE },
     { href: "/admin/turnos", label: "Turnos", Icon: CalendarClock, roles: SEDE },
+    // Qué días u horas puede trabajar cada quien (0584). Junto a Turnos: lo que
+    // se aprueba acá es lo que usa la sugerencia de allá.
+    { href: "/admin/disponibilidad", label: "Disponibilidad", Icon: CalendarCheck2, roles: SEDE },
     { href: "/admin/horarios", label: "Horarios", Icon: Clock, roles: SEDE },
     // La ruta sigue siendo /admin/horas —hay enlaces vivos— pero el nombre no
     // decía lo que hay ahí: el desempeño de TODO el equipo, sin entrar a nadie.
