@@ -10,9 +10,10 @@ import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
 import { TuSemana, useMiSemana } from "./tu-semana";
+import { MiDisponibilidad } from "./mi-disponibilidad";
 import { hoyEnUnaLinea, textoHoras, totalDeSemana } from "@/lib/mi-semana";
 import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
-import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
+import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_DISPONIBILIDAD, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
 import { PASOS_GUIA_BOLETAS, PASOS_GUIA_EDUCACION, PASOS_GUIA_MOVILIDAD } from "./guias-de-pago";
 import {
   PASOS_GUIA_CONTRATO, PASOS_GUIA_DATOS, PASOS_GUIA_DNI, PASOS_GUIA_FIRMA, PASOS_GUIA_SEGURO,
@@ -319,6 +320,7 @@ const GUIAS_POR_SECCION: Partial<Record<Tab, readonly PasoRecorrido[]>> = {
   educacion: PASOS_GUIA_EDUCACION,
   dias: PASOS_GUIA_DIAS,
   turnos: PASOS_GUIA_TURNOS,
+  disponibilidad: PASOS_GUIA_DISPONIBILIDAD,
   ausencias: PASOS_GUIA_AUSENCIAS,
   disciplina: PASOS_GUIA_DISCIPLINA,
 };
@@ -2446,6 +2448,16 @@ export default function MioPage() {
       )}
 
       {/* ── MIS TURNOS ───────────────────────────────────────────────────── */}
+      {tab === "disponibilidad" && yo && (
+        <section data-tour="mio-disponibilidad-seccion" className="rounded-2xl border border-sand p-5">
+          <h2 className="mb-1 font-serif text-lg">Mi disponibilidad</h2>
+          <p className="mb-3 text-sm text-taupe">
+            Qué días u horas no puedes trabajar. Va a tu líder de equipo, que la aprueba o la conversa contigo.
+          </p>
+          <MiDisponibilidad supabase={supabase} personaId={yo.id} />
+        </section>
+      )}
+
       {tab === "turnos" && (
         <section data-tour="mio-turnos-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Tu semana</h2>

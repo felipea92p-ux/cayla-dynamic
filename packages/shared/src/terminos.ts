@@ -108,6 +108,17 @@ export const TERMINOS: readonly TerminosModulo[] = [
       "Una tardanza registrada no es una sanción; cualquier medida disciplinaria requiere conversación y constancia.",
   },
   {
+    modulo: "disponibilidad", titulo: "Mi disponibilidad", peso: "aviso", version: 1, estado: "borrador",
+    puntos: [
+      "Aquí dices qué días u horas no puedes trabajar, por qué y desde cuándo.",
+      "Tu motivo lo ven solo tu líder de equipo y Desarrollo Organizacional.",
+      "Hasta que tu líder la aprueba, tus turnos siguen como están.",
+    ],
+    texto:
+      "Tu disponibilidad ayuda a armar los turnos; no cambia tu jornada, que fija Desarrollo Organizacional en tu " +
+      "contrato. Si con lo que marcas no alcanzan las horas de tu jornada, tu líder de equipo lo conversará contigo.",
+  },
+  {
     modulo: "turnos", titulo: "Mis turnos", peso: "aviso", version: 1, estado: "borrador",
     puntos: [
       "Tu turno es el horario que tu líder de equipo te asigna.",
