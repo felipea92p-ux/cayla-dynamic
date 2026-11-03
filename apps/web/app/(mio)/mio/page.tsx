@@ -11,6 +11,7 @@ import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
 import { TuSemana, useMiSemana } from "./tu-semana";
 import { MiDisponibilidad } from "./mi-disponibilidad";
+import { CambiosATuHorario } from "./cambios-a-tu-horario";
 import { deQue, hoyEnUnaLinea, textoHoras, totalDeSemana } from "@/lib/mi-semana";
 import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
 import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_DISPONIBILIDAD, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
@@ -2465,6 +2466,7 @@ export default function MioPage() {
             Lo que te toca trabajar. Lo que de verdad marcaste está en «Mis días».
           </p>
           <TuSemana datos={miSemana} />
+          {yo && <CambiosATuHorario supabase={supabase} personaId={yo.id} />}
           {feriados.length > 0 && (
             <ul data-tour="mio-turnos-feriados" className="mt-4 space-y-1 border-t border-sand pt-3 text-sm">
               {feriados.map((f) => (

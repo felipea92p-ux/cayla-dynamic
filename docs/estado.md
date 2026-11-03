@@ -12,8 +12,8 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 cortas seguidas («que no tenga un hueco de 3 horas»); la venta base es el promedio de las últimas 4 semanas; es una propuesta que
 la líder revisa y publica; y **la líder de equipo puede publicarse su propio turno «con tal que cumpla su horario y horas»**.
 
-**Depende de:** la 0584 (#654, disponibilidad y jornada — ya en `main`), que la 0586 exige en su guardia, y la 0585 (#655, la
-venta de cada hora — sin fusionar), que este PR trae dentro: se fusiona después del #655.
+**Depende de:** la 0584 (disponibilidad y jornada — pegada y en `main`), que la 0586 exige en su guardia, y la 0585 (#655, la
+venta de cada hora — pegada, sin fusionar), que este PR trae dentro: se fusiona después del #655.
 
 **0586.** `fn_publicar_semana(sede, lunes, turnos, motivo)`: todo o nada, desde el lunes, solo días que todavía no llegan, de
 gente activa de esa sede. Las demás pasan por `fn_set_turno`/`fn_set_descanso`; el turno PROPIO de una líder se escribe ahí mismo
@@ -28,7 +28,7 @@ sin Supabase local; se ve en la vista previa con la 0584, la 0585 y la 0586 pega
 
 ---
 
-## 2026-11-03 — Turnos repite un día cerrado contra la venta de cada hora · migración **0585 SIN PEGAR** · rama `claude/turnos-repeticion-del-dia`
+## 2026-11-03 — Turnos repite un día cerrado contra la venta de cada hora · migración **0585 PEGADA (2026-11-03)** · rama `claude/turnos-repeticion-del-dia`
 
 **De dónde sale.** Felipe (2026-11-03): la repetición de un día que ya pasó (la maqueta C) va dentro de la vista Día; el ritmo
 (compras por hora que atiende una persona en piso) y el mínimo en piso van a Parámetros, uno por tienda; una compra es un ticket
@@ -46,9 +46,10 @@ No reescribe ninguna función: no lleva md5.
 en almacén, en refrigerio, en pausa, todavía no llega, ya salió) con «llegó 08:34 · plan 08:30» —sin juzgar: las tardanzas tienen su
 pantalla—; en tiendas, compras de la hora y «la venta pedía N»; el día completo hora por hora y un resumen. La regla es
 `lib/admin/repeticion.ts`: el estado sale de `estadoPresencia` (la máquina del terminal) cortada en el instante, y el almacén de
-`almacenConLoReal`. **La 0585 se pega ANTES de fusionar;** si el código llega primero, la repetición sale sin la venta y lo dice.
+`almacenConLoReal`. **La 0585 ya está pegada** (2026-11-03, Felipe devolvió la fila: los cuatro parámetros de AQP y TRU, las dos
+funciones y «585 · la_venta_de_cada_hora_llega_a_turnos»); comprobada contra producción leyendo la venta de ayer de las dos tiendas.
 
-**Sigue:** la sugerencia de turnos con propuesta y «Publicar» (#657), sobre esta venta y la disponibilidad del #654.
+**Sigue:** la sugerencia de turnos con propuesta y «Publicar» (#657), sobre esta venta y la disponibilidad de la 0584 (pegada).
 
 ---
 

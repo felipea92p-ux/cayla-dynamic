@@ -139,6 +139,17 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-11-03-cambios-de-horario",
+    fecha: "2026-11-03",
+    titulo: "Todo lo que cambió en un horario, en una sola lista",
+    queMejoro:
+      "En Asistencia hay una pantalla nueva, «Cambios de horario»: de una persona o de todo el equipo, cada cambio a su " +
+      "horario base, a un turno de un día, a piso o almacén, a su jornada o a su disponibilidad, con quién lo hizo, " +
+      "cuándo y de qué a qué. Se filtra por tipo de cambio y por período.\n\n" +
+      "Cada colaboradora ve los suyos en «Lo mío · Mis turnos», debajo de su semana, en «Cambios a tu horario».",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-03-mi-disponibilidad",
     fecha: "2026-11-03",
     titulo: "Ya puedes decir qué días u horas no puedes trabajar",
