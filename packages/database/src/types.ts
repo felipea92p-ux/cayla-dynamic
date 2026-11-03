@@ -10248,6 +10248,10 @@ export type Database = {
         }
         Returns: number
       }
+      fn_publicar_semana: {
+        Args: { p_lunes: string; p_motivo?: string | null; p_sede_id: string; p_turnos: Json }
+        Returns: number
+      }
       fn_puestos_del_dia: {
         Args: { p_fecha: string | null; p_sede_id: string | null }
         Returns: {

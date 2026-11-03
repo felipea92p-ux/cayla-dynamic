@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { createAdminSupabaseClient, type Json } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, type Area } from "@/lib/areas";
 import { Cargando, SinDatos } from "@/components/cargando";
@@ -23,7 +23,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Filtro } from "@/components/ui/filtro";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
-import { cuentaEnCobertura, fechaLima, horaLima, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes, rangoDelDiaLima, type MarcajeDelDia } from "@cayla-dynamic/shared";
+import { cuentaEnCobertura, esRolEncargada, fechaLima, horaLima, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes, rangoDelDiaLima, type MarcajeDelDia } from "@cayla-dynamic/shared";
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { consecuenciaDeUsarBase as consecuenciaDeUsarBaseLib } from "@/lib/admin/revision-turnos";
@@ -37,7 +37,10 @@ import type { FilaPrueba } from "@/lib/admin/pruebas";
 import type { CambioUbicacion, Ubicacion } from "@/lib/terminal/ubicacion";
 import { CampoMeta, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
 import { RepeticionDelDia } from "./repeticion-del-dia";
-import type { PersonaRepeticion } from "@/lib/admin/repeticion";
+import { PropuestaDeLaSemana } from "./sugerencia-semana";
+import { ventaPedia, type PersonaRepeticion } from "@/lib/admin/repeticion";
+import { semillaDe, sugerirSemana, type DiaSugerencia, type PersonaSugerencia, type Propuesta, type Turno as TurnoMin } from "@/lib/admin/sugerencia-turnos";
+import { aMinutos, diaDeLaSemana, diasDeAusencia, filasParaPublicar, promedioDeCompras, restriccionesDesdeDisponibilidad } from "@/lib/admin/sugerencia-entrada";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -1162,6 +1165,130 @@ export default function TurnosPage() {
       return [{ id: p.id, nombre: corto, entrada, salida, cuenta, lider, aparte, almacen }];
     });
 
+  // ── La propuesta de la semana (2026-11-03): se arma aquí, se dibuja en la Integrada, se publica con la 0586 ──
+  const [propuesta, setPropuesta] = useState<{
+    lunes: string; sede: string; prop: Propuesta; ids: Set<string>; notas: string[];
+    jornadas: Map<string, number | null>; porAprobar: number | null;
+  } | null>(null);
+  const [sugiriendo, setSugiriendo] = useState(false);
+  const [publicandoSemana, setPublicandoSemana] = useState(false);
+  // Una propuesta es de UNA semana y UNA sede: al cambiar cualquiera de las dos, deja de dibujarse.
+  const propuestaVigente = propuesta && propuesta.lunes === lunes && propuesta.sede === sedeSel ? propuesta : null;
+  // Lo que tiene hoy cada persona cada día, en minutos (turno puntual u horario base); null = descansa.
+  const turnoActualMin = useCallback((personaId: string, fecha: string): TurnoMin | null => {
+    const c = celda(personaId, fecha);
+    if (c.tipo !== "turno" && c.tipo !== "default") return null;
+    return { entrada: aMinutos(c.entrada), salida: c.salida ? aMinutos(c.salida) : HORA_FIN * 60 };
+  }, [celda]);
+
+  async function sugerirLaSemana() {
+    if (!(lunes > hoyLima())) return;
+    setSugiriendo(true);
+    try {
+      const domingoSem = addDays(lunes, 6);
+      const desde4 = addDays(lunes, -28), hasta4 = addDays(lunes, -1);
+      const esTienda = tipoSedeSel === "tienda";
+      const [{ data: com, error: comE }, { data: disp, error: dispE }, { data: ven, error: venE }, { data: jor, error: jorE }, { data: aus, error: ausE }, { count: porAprobar }] = await Promise.all([
+        esTienda ? supabase.rpc("fn_compras_por_hora", { p_sede_id: sedeSel, p_desde: desde4, p_hasta: hasta4 }) : Promise.resolve({ data: [], error: null }),
+        supabase.rpc("fn_disponibilidad_vigente", { p_desde: lunes, p_hasta: domingoSem, p_sede_id: sedeSel }),
+        supabase.rpc("fn_sede_ventana_semanal", { p_sede_id: sedeSel }),
+        supabase.from("personas").select("id, jornada_semanal_horas").eq("sede_base_id", sedeSel),
+        supabase.rpc("fn_ausencias", { p_desde: lunes, p_hasta: domingoSem }),
+        supabase.from("disponibilidades").select("id", { count: "exact", head: true }).eq("estado", "enviada"),
+      ]);
+      if (dispE || venE || jorE) {
+        avisar("error", "No se pudo leer la disponibilidad, la jornada o el horario de la sede. Si la 0584 todavía no está pegada, la propuesta no se puede armar.");
+        return;
+      }
+      const notas: string[] = [];
+      if (ausE) notas.push("No se pudieron leer las ausencias: revisa que nadie quede con turno en sus vacaciones o descanso médico.");
+      const prom = esTienda && !comE ? promedioDeCompras((com ?? []) as { fecha: string; hora: number; compras: number }[], desde4, hasta4) : null;
+      if (esTienda && comE) notas.push("No se pudieron leer las compras de retail: la propuesta usa las metas de la mañana y la tarde.");
+      const ventana = new Map(((ven ?? []) as { dia: number; abre: string; cierra: string }[]).map((v) => [v.dia, v]));
+      const params = coberturaVenta ?? { ritmo: 1.5, minimo: 3 };
+      const diasSug: DiaSugerencia[] = dias.map((iso) => {
+        const dow = diaDeLaSemana(iso);
+        const v = ventana.get(dow);
+        const metaMan = metas.get(diaSemana(iso)) ?? 0, metaTar = metasTarde.get(diaSemana(iso)) ?? 0;
+        return {
+          fecha: iso,
+          abre: v ? aMinutos(v.abre) : null,
+          cierra: v ? aMinutos(v.cierra) : null,
+          pedia: (min) => prom ? (ventaPedia(prom(dow, Math.floor(min / 60)), params) ?? params.minimo) : metaDeHora(min / 60, metaMan, metaTar),
+          compras: (min) => (prom ? prom(dow, Math.floor(min / 60)) : 0),
+          metaLideres: metasEncargadas.get(diaSemana(iso)) ?? 0,
+        };
+      });
+      const restr = restriccionesDesdeDisponibilidad((disp ?? []) as { persona_id: string; fecha: string; desde: string | null; hasta: string | null; estado: string }[]);
+      const ausencias = diasDeAusencia((aus ?? []) as { persona_id: string; fecha_inicio: string; fecha_fin: string; anulada: boolean }[], dias);
+      const jornadas = new Map(((jor ?? []) as { id: string; jornada_semanal_horas: number | null }[]).map((x) => [x.id, x.jornada_semanal_horas === null ? null : Number(x.jornada_semanal_horas)]));
+      const personasSug: PersonaSugerencia[] = personas.filter((p) => esOperativa(p) || esEncargada(p)).flatMap((p) => {
+        const actual = Object.fromEntries(dias.map((f) => [f, turnoActualMin(p.id, f)]));
+        const refrigerioMin = horarioVigente(horarios.get(p.id) ?? [], lunes)?.almuerzo_min_minutos ?? 0;
+        const trabajados = dias.filter((f) => actual[f]);
+        if (trabajados.length === 0) return [];
+        const r = restr.get(p.id) ?? { fijos: new Set<string>(), bloques: {} };
+        // Una ausencia es un «no puede» de todo el día, y descuenta de lo que tiene que sumar esa semana.
+        const ausente = ausencias.get(p.id) ?? new Set<string>();
+        const perdidos = trabajados.filter((f) => ausente.has(f)).length;
+        for (const f of ausente) (r.bloques[f] ??= []).push({ desde: 0, hasta: 24 * 60, estado: "no_puede" });
+        const netoActual = trabajados.reduce((a, f) => a + Math.max(0, actual[f]!.salida - actual[f]!.entrada - refrigerioMin), 0) / 60;
+        const jornada = jornadas.get(p.id) ?? null;
+        const diasTrabajo = Math.max(0, trabajados.length - perdidos);
+        const base = jornada ?? netoActual;
+        const objetivoHoras = trabajados.length > 0 ? Math.round((base * diasTrabajo / trabajados.length) * 4) / 4 : 0;
+        const corto = `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`;
+        return [{ id: p.id, nombre: corto, cuenta: esOperativa(p), lider: esEncargada(p), objetivoHoras, diasTrabajo, refrigerioMin, actual, fijos: r.fijos, bloques: r.bloques }];
+      });
+      if (personasSug.length === 0) {
+        avisar("error", "No hay a quién proponerle turno: nadie de la sede tiene horario esta semana.");
+        return;
+      }
+      // Que se vea «Armando la propuesta…» antes de los cálculos.
+      await new Promise((r) => setTimeout(r, 30));
+      const prop = sugerirSemana({ dias: diasSug, personas: personasSug, semilla: semillaDe(`${sedeSel}|${lunes}`) });
+      setPropuesta({ lunes, sede: sedeSel, prop, ids: new Set(personasSug.map((x) => x.id)), notas, jornadas, porAprobar: porAprobar ?? null });
+    } finally {
+      setSugiriendo(false);
+    }
+  }
+
+  const filasDeLaPropuesta = propuestaVigente
+    ? filasParaPublicar({
+        propuesta: propuestaVigente.prop, actual: turnoActualMin, fechas: dias,
+        lider: esRolEncargada(rol) && yo ? { id: yo.id, jornada: propuestaVigente.jornadas.get(yo.id) ?? null } : undefined,
+      })
+    : null;
+
+  async function publicarLaSemana() {
+    if (!propuestaVigente || !filasDeLaPropuesta || filasDeLaPropuesta.filas.length === 0) return;
+    setPublicandoSemana(true);
+    const { data, error } = await supabase.rpc("fn_publicar_semana", {
+      p_sede_id: sedeSel, p_lunes: lunes, p_turnos: filasDeLaPropuesta.filas as unknown as Json, p_motivo: "Propuesta de Turnos revisada y publicada.",
+    });
+    setPublicandoSemana(false);
+    if (error) { avisar("error", mensajeDeError(error, "publicar la semana")); return; }
+    avisar("ok", `Se publicó la semana: ${data ?? filasDeLaPropuesta.filas.length} días.${filasDeLaPropuesta.suyoFuera ? ` ${filasDeLaPropuesta.suyoFuera}` : ""}`);
+    setPropuesta(null);
+    await trasGuardar();
+  }
+
+  // Los turnos de un día tal como los dibuja la Integrada, con la propuesta encima si la hay.
+  const turnosDeLaIntegrada = (iso: string): TurnoConNombre[] => {
+    if (!propuestaVigente) return turnosConNombreDe(iso);
+    const propios = turnosConNombreDe(iso).filter((t) => !propuestaVigente.ids.has(t.id));
+    const propuestos = personas.flatMap((p) => {
+      if (!propuestaVigente.ids.has(p.id)) return [];
+      const t = propuestaVigente.prop.turnos[p.id]?.[iso] ?? null;
+      if (!t) return [];
+      const cuenta = esOperativa(p), lider = esEncargada(p);
+      const corto = `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`;
+      const entrada = t.entrada / 60, salida = t.salida / 60;
+      return [{ id: p.id, nombre: corto, entrada, salida, cuenta, lider, almacen: almacenDe(p.id, iso, { desde: entrada, hasta: salida }, false) }];
+    });
+    return [...propios, ...propuestos];
+  };
+
   // ── «¿Dónde trabaja ese día?»: piso o almacén planificado (0579) ────────────
   const [almacenEdit, setAlmacenEdit] = useState<{ personaId: string; fecha: string } | null>(null);
   const [almacenSel, setAlmacenSel] = useState<PuestoDelDia>(PISO);
@@ -1340,6 +1467,7 @@ export default function TurnosPage() {
                 { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma. Quien está en preselección tampoco suma hasta que deje de estarlo: da igual si es practicante o tiene otro cargo." },
                 { titulo: "Las vistas", texto: "Integrada muestra la semana hora por hora y quién está en cada hora, con el resumen de horas al pie; Día, la línea de cada persona en un día." },
                 { titulo: "Piso o almacén", texto: "En Día, toca la barra de una persona para decir si ese día trabaja en piso, todo el turno en almacén o unas horas en almacén (con una sugerencia de las horas en que el piso aguanta sin ella). Se planifica de hoy en adelante. Quien está en almacén no cuenta en piso, y no cambia su turno, sus horas ni su pago." },
+                { titulo: "Sugerir la semana", texto: "En la Integrada, en una semana que todavía no empieza, «Sugerir la semana» arma una propuesta: a qué hora entra y sale cada persona y qué día descansa, para cubrir la venta de cada hora (el promedio de las últimas 4 semanas). Respeta la disponibilidad aprobada, las ausencias y los horarios fijos, y cada una suma las horas de su jornada sin pasar de 48. No se guarda nada hasta que aprietas «Publicar la semana». La líder de equipo también puede publicarse su propio turno si suma su jornada." },
                 { titulo: "Repetición de un día cerrado", texto: "En Día, al elegir un día que ya pasó, arriba aparece su repetición: mueve la hora o dale «Reproducir» y se ve quién estaba en piso, en almacén, en refrigerio, por llegar o ya se había ido, con lo que se marcó de verdad en el terminal. En las tiendas, además, cuántas compras hubo en esa hora y cuánta gente pedía la venta: las compras ÷ el ritmo de la tienda, nunca menos que su mínimo (los dos se cambian en Parámetros)." },
                 { titulo: "Lo marcado en el terminal", texto: "En Día, la línea azul bajo la barra es lo que la persona marcó en el terminal con «Voy a almacén». Hoy, la cobertura cuenta lo que pasó hasta la hora actual (la línea roja) y el plan de ahí en adelante; si alguien marca «Vuelvo a tienda» antes de tiempo, vuelve a contar en piso desde esa hora. La Integrada muestra solo el plan." },
               ]}
@@ -1449,7 +1577,7 @@ export default function TurnosPage() {
             // vive en lib/admin/semana-con-nombres.ts con sus pruebas; aquí solo se dibuja. El dibujo es el
             // de la maqueta B elegida por Felipe (2026-11-02): casillas claras con borde de su estado, la
             // cuenta arriba y los nombres como fichas.
-            const porDia = dias.map((iso) => ({ iso, turnos: turnosConNombreDe(iso) }));
+            const porDia = dias.map((iso) => ({ iso, turnos: turnosDeLaIntegrada(iso) }));
             const horasSemana = horasDeLaSemana(porDia.map((d) => d.turnos));
             if (personas.length === 0) {
               return <SinDatos texto="Todavía no hay nadie asignado a esta sede." pista="Ve a Equipo, abre a una persona y elige esta sede como su sede base." />;
@@ -1480,8 +1608,32 @@ export default function TurnosPage() {
             const muestra = (t: { fondo: string; texto: string }) => (
               <span aria-hidden className="inline-block h-3 w-3 rounded-[4px] border-[1.5px]" style={{ background: t.fondo, borderColor: t.texto }} />
             );
+            const nombres = new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos ?? ""}`.trim()]));
+            const semanaFutura = lunes > hoyLima();
             return (
               <div className="space-y-3">
+                {puedeVer && !propuestaVigente && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Boton variante="secundario" tamano="sm" disabled={!semanaFutura || sugiriendo} onClick={() => void sugerirLaSemana()}
+                      title={semanaFutura ? "Arma una propuesta con la venta de las últimas 4 semanas, la disponibilidad aprobada y la jornada de cada una" : "Solo se sugiere una semana que todavía no empieza"}>
+                      {sugiriendo ? "Armando la propuesta…" : "Sugerir la semana"}
+                    </Boton>
+                    {!semanaFutura && <span className="text-xs text-taupe">Para sugerir, pasa a una semana que todavía no empieza.</span>}
+                  </div>
+                )}
+                {propuestaVigente && filasDeLaPropuesta && (
+                  <PropuestaDeLaSemana
+                    propuesta={propuestaVigente.prop}
+                    nombres={nombres}
+                    semana={`del ${etiquetaDia(dias[0]).num} al ${etiquetaDia(dias[6]).num}`}
+                    cambios={filasDeLaPropuesta.filas.length}
+                    publicando={publicandoSemana}
+                    notas={[...propuestaVigente.notas, ...(filasDeLaPropuesta.suyoFuera ? [filasDeLaPropuesta.suyoFuera] : [])]}
+                    porAprobar={propuestaVigente.porAprobar}
+                    onPublicar={() => void publicarLaSemana()}
+                    onDescartar={() => setPropuesta(null)}
+                  />
+                )}
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-taupe">
                   <span className="flex items-center gap-1.5">{muestra(TONO.ok)}Alcanza</span>
                   <span className="flex items-center gap-1.5">{muestra(TONO.falta)}Falta gente en piso</span>
