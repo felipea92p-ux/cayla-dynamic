@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Marca } from "@/components/marca";
 import { EMPRESA, TZ_LIMA } from "@cayla-dynamic/shared";
 import { areaNombre, type Area } from "@/lib/areas";
+import { esGradual } from "@/lib/admin/disciplina";
 
 // El memo disciplinario tal como se lee y se imprime. Vive acá y no dentro de la
 // pantalla del panel porque lo pintan DOS pantallas: la de Disciplina, donde
@@ -65,7 +66,6 @@ export const TITULO: Record<string, string> = {
   despido: "Carta de despido por causa justa",
 };
 const CAUSAL: Record<string, string> = { tardanza: "tardanzas reiteradas", falta: "inasistencias injustificadas", conducta: "conducta" };
-
 /**
  * Qué inciso del art. 25 de la LPCL corresponde a cada causal.
  *
@@ -276,6 +276,7 @@ export function MemoDocumento({
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "—";
   const n = doc.hechos?.length ?? 0;
   const esNivel4 = doc.nivel === "imputacion" || doc.nivel === "despido";
+  const borrador = doc.estado === "borrador";
 
   return (
       <div className="memo hoja mx-auto max-w-[760px] rounded-lg border border-sand p-5 sm:p-10 font-serif text-[13px] leading-relaxed text-tinta print:rounded-none print:border-0 print:p-0">
@@ -290,9 +291,18 @@ export function MemoDocumento({
           // «borrador», e impreso no ponía nada. Imprimir un borrador para
           // revisarlo es legítimo y por eso no se deshabilita el botón —
           // lo que no puede pasar es que el papel no diga lo que es.
+          //
+          // Y dice QUÉ NO SE HACE con él. Hasta el 2026-11-02 terminaba en
+          // «Fírmalo en la pantalla de Disciplina», que en una amonestación con
+          // el plazo de descargo corriendo no se puede, y ese día este borrador
+          // —«se le impone AMONESTACIÓN ESCRITA»— se le entregó a la
+          // colaboradora para que lo firmara como si fueran los cargos.
           <p className="mb-4 rounded border border-ambar/40 bg-ambar/15 px-3 py-2 text-xs text-ambar">
             <strong>BORRADOR — sin numerar y sin firmar.</strong> No tiene validez como
-            documento entregado. Fírmalo en la pantalla de Disciplina para asignarle su número.
+            documento entregado y <strong>la colaboradora no lo firma</strong>.
+            {esGradual(doc.nivel)
+              ? " Es la sanción que se propone: antes de firmarla, se le entrega la comunicación de cargos y se espera su plazo de descargo (numeral 55.2 del RIT)."
+              : " Fírmalo en la pantalla de Disciplina para asignarle su número."}
           </p>
         )}
         {firmanteIlegible && (
@@ -364,6 +374,13 @@ export function MemoDocumento({
             <div className="border-t pt-1">{firmante ?? "Pendiente de firma"}</div>
             <p className="text-taupe">{cargoFirmante ? `${cargoFirmante} — ${EMPRESA.nombre}` : EMPRESA.nombre}</p>
           </div>
+          {borrador ? (
+            // Un borrador no recoge la firma de la persona: sin línea con su
+            // nombre, no hay dónde firmarlo por error.
+            <div className="flex h-28 items-end text-taupe">
+              <p>La colaboradora firma el documento ya firmado y numerado, no este borrador.</p>
+            </div>
+          ) : (
           <div>
             {recepcion ? (
               <div className="flex h-28 items-end justify-center">
@@ -384,10 +401,12 @@ export function MemoDocumento({
               <p className="mt-1 text-taupe">Fecha: __________  Hora: ______</p>
             )}
           </div>
+          )}
         </div>
         {/* Con una entrega digital ya no hay nada que negar: la persona lo abrió y
-            confirmó que lo recibió, y esa constancia está arriba. */}
-        {!recepcion && (
+            confirmó que lo recibió, y esa constancia está arriba. Un borrador
+            tampoco se le entrega, así que no hay negativa que registrar. */}
+        {!recepcion && !borrador && (
           <p className="mt-6 text-[11px] text-taupe">
             Constancia de negativa a recibir (si aplica): el colaborador se negó a recibir el presente documento.
             Testigo 1: __________________  ·  Testigo 2: __________________

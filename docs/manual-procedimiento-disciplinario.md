@@ -181,7 +181,7 @@ Esa acta **no es sanción, no constituye antecedente agravante y no es peldaño 
 
 **Cómo se hace:**
 
-1. Se emite la **comunicación de cargos** (Modelo 2) con los hechos, sus fechas, la calificación conforme al artículo 53 —tardanzas reiteradas, literal b) del numeral 53.2—, la sanción que podría corresponder y **el detalle de la medición** (55.2).
+1. Se emite la **comunicación de cargos** (Modelo 2) con los hechos, sus fechas, la calificación conforme al artículo 53 —tardanzas reiteradas, literal b) del numeral 53.2—, la sanción que podría corresponder y **el detalle de la medición** (55.2). Dynamic la imprime desde Disciplina, en el «⋯» del borrador → **Comunicación de cargos**. **El memo de la sanción no se entrega ni se hace firmar en este paso**: es la sanción propuesta y no lleva línea de firma para la colaboradora mientras sea borrador.
 2. Se otorga **plazo no menor de dos (2) días hábiles** para descargo escrito, o verbal con acta (19.3, 55.2).
 3. El documento **permanece como borrador** durante ese plazo (55.2).
 4. Vencido el plazo, se **valora el descargo por escrito en el propio documento** (55.2, 19.3).
