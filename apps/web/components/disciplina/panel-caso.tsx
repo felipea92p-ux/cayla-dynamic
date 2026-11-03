@@ -544,7 +544,8 @@ function InformacionDelDocumento({
         )}
         {etapa && etapa !== "comunicar" && exigeDescargo && esGradual(doc.nivel) && doc.cargos_comunicados_at && descargos.length === 0 && (
           <p className="text-xs text-taupe">
-            No presentó descargo escrito en su Info. Si lo dio de palabra, resúmelo al valorar.
+            No presentó descargo escrito en su Info. Si lo dio de palabra, levanta el acta (Modelo 3 del Manual) y
+            resúmelo al valorar.
           </p>
         )}
         {editores}
