@@ -4816,6 +4816,7 @@ export type Database = {
           sueldo_fijo: boolean
           tipo_documento: string | null
           tipo_vinculo: string
+          jornada_semanal_horas: number | null
           updated_at: string
           visible_todas_sedes: boolean
         }
@@ -4861,6 +4862,7 @@ export type Database = {
           sueldo_fijo?: boolean
           tipo_documento?: string | null
           tipo_vinculo?: string
+          jornada_semanal_horas?: number | null
           updated_at?: string
           visible_todas_sedes?: boolean
         }
@@ -4906,6 +4908,7 @@ export type Database = {
           sueldo_fijo?: boolean
           tipo_documento?: string | null
           tipo_vinculo?: string
+          jornada_semanal_horas?: number | null
           updated_at?: string
           visible_todas_sedes?: boolean
         }
@@ -5565,6 +5568,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      disponibilidades: {
+        Row: {
+          id: string
+          persona_id: string
+          tipo: string
+          motivo: string | null
+          nota: string | null
+          vigente_desde: string
+          vigente_hasta: string | null
+          estado: string
+          horario_fijo: boolean
+          registrada_por: string
+          creada_at: string
+          resuelta_por: string | null
+          resuelta_at: string | null
+          respuesta: string | null
+        }
+        Insert: {
+          id?: string
+          persona_id: string
+          tipo: string
+          motivo?: string | null
+          nota?: string | null
+          vigente_desde: string
+          vigente_hasta?: string | null
+          estado?: string
+          horario_fijo?: boolean
+          registrada_por: string
+          creada_at?: string
+          resuelta_por?: string | null
+          resuelta_at?: string | null
+          respuesta?: string | null
+        }
+        Update: {
+          id?: string
+          persona_id?: string
+          tipo?: string
+          motivo?: string | null
+          nota?: string | null
+          vigente_desde?: string
+          vigente_hasta?: string | null
+          estado?: string
+          horario_fijo?: boolean
+          registrada_por?: string
+          creada_at?: string
+          resuelta_por?: string | null
+          resuelta_at?: string | null
+          respuesta?: string | null
+        }
+        Relationships: []
+      }
+      disponibilidad_bloques: {
+        Row: {
+          id: string
+          disponibilidad_id: string
+          dia_semana: number | null
+          fecha: string | null
+          desde: string | null
+          hasta: string | null
+          estado: string
+        }
+        Insert: {
+          id?: string
+          disponibilidad_id: string
+          dia_semana?: number | null
+          fecha?: string | null
+          desde?: string | null
+          hasta?: string | null
+          estado: string
+        }
+        Update: {
+          id?: string
+          disponibilidad_id?: string
+          dia_semana?: number | null
+          fecha?: string | null
+          desde?: string | null
+          hasta?: string | null
+          estado?: string
+        }
+        Relationships: []
       }
       puestos_planificados: {
         Row: {
@@ -11092,6 +11176,74 @@ export type Database = {
       }
       fn_set_funcion: {
         Args: { p_funcion: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_disponibilidad_enviar: {
+        Args: {
+          p_bloques: Json
+          p_desde: string
+          p_hasta: string | null
+          p_motivo: string | null
+          p_nota?: string | null
+          p_tipo: string
+        }
+        Returns: string
+      }
+      fn_disponibilidad_registrar: {
+        Args: {
+          p_bloques: Json
+          p_desde: string
+          p_hasta: string | null
+          p_horario_fijo?: boolean
+          p_motivo: string | null
+          p_nota?: string | null
+          p_persona_id: string
+          p_tipo: string
+        }
+        Returns: string
+      }
+      fn_disponibilidad_resolver: {
+        Args: {
+          p_decision: string
+          p_horario_fijo?: boolean
+          p_id: string
+          p_respuesta?: string | null
+        }
+        Returns: undefined
+      }
+      fn_disponibilidad_retirar: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      fn_disponibilidad_vigente: {
+        Args: {
+          p_aprobada_antes?: string | null
+          p_desde: string
+          p_hasta: string
+          p_sede_id?: string | null
+        }
+        Returns: {
+          desde: string | null
+          estado: string
+          fecha: string
+          hasta: string | null
+          persona_id: string
+        }[]
+      }
+      fn_puede_resolver_disponibilidad: {
+        Args: { p_persona_id: string }
+        Returns: boolean
+      }
+      fn_sede_ventana_semanal: {
+        Args: { p_sede_id: string }
+        Returns: {
+          abre: string
+          cierra: string
+          dia: number
+        }[]
+      }
+      fn_set_jornada: {
+        Args: { p_horas: number | null; p_motivo: string; p_persona_id: string }
         Returns: undefined
       }
       fn_set_horario_semanal: {

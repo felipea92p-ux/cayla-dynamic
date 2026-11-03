@@ -14,6 +14,7 @@ import {
   puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada, recibeAvisoDeLecturaPendiente,
   puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo, puedeGestionarSeguros,
   puedeExportarListaDeAsegurados, puedeEstamparFirmaDeEmpresa, puedeDecidirPrueba, puedeMarcarPagoPersona,
+  puedeVerDisponibilidadEquipo, puedeFijarJornada,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS,
 } from "@cayla-dynamic/shared";
 
@@ -359,6 +360,27 @@ describe("cerrar la prueba de tres días (0536)", () => {
   it("hoy coincide con quien opera el equipo, pero es otra pregunta: decidir deja a alguien sin pago", () => {
     for (const rol of [...ROLES, null, undefined, "", "contador"]) {
       expect(puedeDecidirPrueba(rol)).toBe(puedeOperarEquipo(rol));
+    }
+  });
+});
+
+describe("disponibilidad del equipo y jornada (0584)", () => {
+  it("la pantalla la abren la líder de equipo, DO y admin", () => {
+    expect(puedeVerDisponibilidadEquipo("supervisor_sede")).toBe(true);
+    expect(puedeVerDisponibilidadEquipo("lider_do")).toBe(true);
+    expect(puedeVerDisponibilidadEquipo("admin")).toBe(true);
+    expect(puedeVerDisponibilidadEquipo("integrante")).toBe(false);
+  });
+  it("la jornada y el registro por otra persona: solo DO", () => {
+    expect(puedeFijarJornada("admin")).toBe(true);
+    expect(puedeFijarJornada("lider_do")).toBe(true);
+    expect(puedeFijarJornada("supervisor_sede")).toBe(false);
+    expect(puedeFijarJornada("integrante")).toBe(false);
+  });
+  it("null nunca pasa", () => {
+    for (const raro of [null, undefined, "", "contador"]) {
+      expect(puedeVerDisponibilidadEquipo(raro)).toBe(false);
+      expect(puedeFijarJornada(raro)).toBe(false);
     }
   });
 });

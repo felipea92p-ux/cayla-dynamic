@@ -582,3 +582,23 @@ export const ROLES_GESTIONAN_BOLETAS: readonly Rol[] = DO;
 
 /** Los roles de DO, para filtrar listas (p. ej. "a quién puedo corregirle el marcaje"). */
 export const ROLES_DO: readonly string[] = DO;
+
+/**
+ * ¿Entra a «Disponibilidad del equipo» (/admin/disponibilidad, 0584)? La líder
+ * de equipo, DO y admin. Qué ve cada una lo decide la RLS (la líder, solo su
+ * sede), y quién APRUEBA a quién lo decide `fn_puede_resolver_disponibilidad`:
+ * la líder aprueba a las integrantes de su sede, nunca a otra líder ni a sí
+ * misma. Si se desincronizan gana la base.
+ */
+export function puedeVerDisponibilidadEquipo(rol: RolPosible): boolean {
+  return tiene(DO_Y_ENCARGADA, rol);
+}
+
+/**
+ * ¿Puede fijar la jornada de alguien (`fn_set_jornada`, 0584) y registrar una
+ * disponibilidad por ella (`fn_disponibilidad_registrar`)? Solo DO: la jornada
+ * es lo que dice el contrato, no una decisión de la sede.
+ */
+export function puedeFijarJornada(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
