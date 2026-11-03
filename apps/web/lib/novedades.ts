@@ -115,8 +115,8 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
-    id: "2026-11-03-el-terminal-dice-si-hoy-te-toca-almacen",
-    fecha: "2026-11-03",
+    id: "2026-11-02-el-terminal-dice-si-hoy-te-toca-almacen",
+    fecha: "2026-11-02",
     titulo: "Al marcar tu entrada, el terminal te dice si hoy te toca almacén",
     queMejoro:
       "Si tu líder de equipo te planificó almacén para hoy en Turnos, al marcar tu entrada el terminal te lo dice: «Hoy " +
