@@ -6,6 +6,30 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-03 — Turnos repite un día cerrado contra la venta de cada hora · migración **0584 SIN PEGAR** · rama `claude/turnos-repeticion-del-dia`
+
+**De dónde sale.** Felipe (2026-11-03): la repetición de un día que ya pasó (la maqueta C) va dentro de la vista Día; el ritmo
+(compras por hora que atiende una persona en piso) y el mínimo en piso van a Parámetros, uno por tienda; una compra es un ticket
+completado; y la lectura de la venta vive en Dynamic, no en el repo de retail (las dos bases son la misma).
+
+**0584.** `fn_compras_por_hora(sede, desde, hasta)`: tickets completados de `retail.ventas` (sin anuladas ni de prueba, sin montos)
+por día y hora de Lima, vía `retail.ubicaciones.sede_dynamic_id`; admin, Líder DO o la líder de esa sede; hasta 62 días. Es plpgsql
+porque la `retail.ventas` que construyen las migraciones de ESTE repo es vieja (0220, con `sede_id`): si retail cambia esas columnas,
+la función **falla** —no devuelve cero— y la pantalla lo dice. `configuracion.cobertura_por_venta` + 2 parámetros por tienda activa
+(`cobertura_ritmo_<código>` 1,5 y `cobertura_minimo_<código>` 3, operativos, admin y Líder DO); `fn_cobertura_por_venta(sede)` los lee.
+Prueba 474 (14), que arma la forma de producción de retail dentro de la transacción. Medida contra producción: TRU, 2-nov, 24 compras.
+No reescribe ninguna función: no lleva md5.
+
+**En pantalla.** Día, en un día anterior a hoy: «Repetición del día» con «Reproducir» y la barra de la hora; seis columnas (en piso,
+en almacén, en refrigerio, en pausa, todavía no llega, ya salió) con «llegó 08:34 · plan 08:30» —sin juzgar: las tardanzas tienen su
+pantalla—; en tiendas, compras de la hora y «la venta pedía N»; el día completo hora por hora y un resumen. La regla es
+`lib/admin/repeticion.ts`: el estado sale de `estadoPresencia` (la máquina del terminal) cortada en el instante, y el almacén de
+`almacenConLoReal`. **La 0584 se pega ANTES de fusionar;** si el código llega primero, la repetición sale sin la venta y lo dice.
+
+**Sigue:** la base de la disponibilidad (Lo mío la dibuja) y la sugerencia de turnos con propuesta y «Publicar».
+
+---
+
 ## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (SIN PEGAR · SIN FUSIONAR)
 
 **De dónde sale.** La revisión adversarial de la 0581 reprodujo en el Postgres local dos huecos que dejan anulable una sanción:

@@ -36,6 +36,8 @@ import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, lineaDeSemana, TEXTO
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 import type { CambioUbicacion, Ubicacion } from "@/lib/terminal/ubicacion";
 import { CampoMeta, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
+import { RepeticionDelDia } from "./repeticion-del-dia";
+import type { PersonaRepeticion } from "@/lib/admin/repeticion";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -697,6 +699,11 @@ export default function TurnosPage() {
   // Lo marcado en el terminal (0580), por persona y día: los cambios de ubicación y la salida final, que cierra
   // un tramo abierto. null = no se pudo leer: Día sigue solo con el plan, como antes.
   const [reales, setReales] = useState<{ cambios: Map<string, CambioUbicacion[]>; marcajes: Map<string, MarcajeDelDia[]> } | null>(null);
+  // La venta de cada hora (retail, 0584) para la repetición de un día cerrado: por «fecha» → hora → compras.
+  // null = no se pudo leer: la repetición lo dice con palabras, nunca como cero.
+  const [compras, setCompras] = useState<Map<string, Map<number, number>> | null>(new Map());
+  // El ritmo y el mínimo de la tienda (Parámetros, 0584); null = no se pudieron leer.
+  const [coberturaVenta, setCoberturaVenta] = useState<{ ritmo: number; minimo: number } | null>(null);
   const [metas, setMetas] = useState<Map<number, number>>(new Map()); // meta operativas MAÑANA
   const [metasTarde, setMetasTarde] = useState<Map<number, number>>(new Map()); // meta operativas TARDE
   const [metasEncargadas, setMetasEncargadas] = useState<Map<number, number>>(new Map());
@@ -789,6 +796,8 @@ export default function TurnosPage() {
       { data: pue, error: pueErr },
       { data: cam, error: camErr },
       { data: sal, error: salErr },
+      { data: com, error: comErr },
+      { data: cpv, error: cpvErr },
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
       // igual que cualquiera y cuenta para la meta de cobertura de la sede —
@@ -813,10 +822,14 @@ export default function TurnosPage() {
       supabase.from("cambios_ubicacion" as never).select("persona_id, ubicacion, timestamp_cambio, vuelve_previsto")
         .eq("sede_id" as never, sedeSel as never).is("anulado_at" as never, null)
         .gte("timestamp_cambio" as never, rangoDelDiaLima(lunes).inicio as never).lte("timestamp_cambio" as never, rangoDelDiaLima(domingo).fin as never),
-      // La salida final cierra un tramo abierto (la misma regla del terminal y de fn_ubicaciones_del_dia).
+      // Lo marcado de la semana, sin anulados: la salida final cierra un tramo abierto (la misma regla del terminal y de
+      // fn_ubicaciones_del_dia), y la repetición de un día cerrado usa todas las marcas.
       supabase.from("marcajes").select("persona_id, tipo, timestamp_marca, fecha_jornada")
-        .eq("tipo", "salida_final").is("anulada_at", null)
+        .is("anulada_at", null)
         .gte("timestamp_marca", rangoDelDiaLima(lunes).inicio).lte("timestamp_marca", rangoDelDiaLima(domingo).fin),
+      // La venta de cada hora y los dos números de la tienda (0584). Tampoco frenan la semana.
+      supabase.rpc("fn_compras_por_hora", { p_sede_id: sedeSel, p_desde: lunes, p_hasta: domingo }),
+      supabase.rpc("fn_cobertura_por_venta", { p_sede_id: sedeSel }),
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (modo !== "fondo") cargaConMetas.current = 0;
@@ -866,6 +879,19 @@ export default function TurnosPage() {
       }
       setReales({ cambios, marcajes });
     }
+    if (comErr) {
+      setCompras(null);
+    } else {
+      const porFecha = new Map<string, Map<number, number>>();
+      for (const x of (com ?? []) as { fecha: string; hora: number; compras: number }[]) {
+        const dia = porFecha.get(x.fecha) ?? new Map<number, number>();
+        dia.set(x.hora, x.compras);
+        porFecha.set(x.fecha, dia);
+      }
+      setCompras(porFecha);
+    }
+    const filaCpv = !cpvErr && Array.isArray(cpv) ? (cpv as { ritmo: number; minimo: number }[])[0] : undefined;
+    setCoberturaVenta(filaCpv ? { ritmo: Number(filaCpv.ritmo), minimo: Number(filaCpv.minimo) } : null);
     setCargando(false);
     // Las metas solo se cambian desde esta pantalla, y se guardan al salir del
     // campo: una lectura de fondo que salió antes de ese guardado traería la
@@ -1314,6 +1340,7 @@ export default function TurnosPage() {
                 { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma. Quien está en preselección tampoco suma hasta que deje de estarlo: da igual si es practicante o tiene otro cargo." },
                 { titulo: "Las vistas", texto: "Integrada muestra la semana hora por hora y quién está en cada hora, con el resumen de horas al pie; Día, la línea de cada persona en un día." },
                 { titulo: "Piso o almacén", texto: "En Día, toca la barra de una persona para decir si ese día trabaja en piso, todo el turno en almacén o unas horas en almacén (con una sugerencia de las horas en que el piso aguanta sin ella). Se planifica de hoy en adelante. Quien está en almacén no cuenta en piso, y no cambia su turno, sus horas ni su pago." },
+                { titulo: "Repetición de un día cerrado", texto: "En Día, al elegir un día que ya pasó, arriba aparece su repetición: mueve la hora o dale «Reproducir» y se ve quién estaba en piso, en almacén, en refrigerio, por llegar o ya se había ido, con lo que se marcó de verdad en el terminal. En las tiendas, además, cuántas compras hubo en esa hora y cuánta gente pedía la venta: las compras ÷ el ritmo de la tienda, nunca menos que su mínimo (los dos se cambian en Parámetros)." },
                 { titulo: "Lo marcado en el terminal", texto: "En Día, la línea azul bajo la barra es lo que la persona marcó en el terminal con «Voy a almacén». Hoy, la cobertura cuenta lo que pasó hasta la hora actual (la línea roja) y el plan de ahí en adelante; si alguien marca «Vuelvo a tienda» antes de tiempo, vuelve a contar en piso desde esa hora. La Integrada muestra solo el plan." },
               ]}
             />
@@ -1658,6 +1685,40 @@ export default function TurnosPage() {
                         );
                       })}
                     </div>
+
+                    {/* LA REPETICIÓN de un día que ya cerró (2026-11-03): lo marcado de verdad, hora por hora, contra la
+                        venta. Solo con lo marcado leído; un día que todavía no termina no se repite. */}
+                    {iso < hoyLima() && reales && (() => {
+                      const medianocheIso = rangoDelDiaLima(iso).inicio;
+                      const personasRep: PersonaRepeticion[] = personas.flatMap((p) => {
+                        const c = celda(p.id, iso);
+                        const marcajesDia = reales.marcajes.get(`${p.id}|${iso}`) ?? [];
+                        const trabaja = c.tipo === "turno" || c.tipo === "default";
+                        if (!trabaja && marcajesDia.length === 0) return [];
+                        const plan = trabaja ? { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN } : null;
+                        return [{
+                          id: p.id,
+                          nombre: `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`,
+                          cuenta: esOperativa(p), lider: esEncargada(p),
+                          marcajes: marcajesDia,
+                          almacen: plan ? almacenDe(p.id, iso, plan, true) : marcadoDe(p.id, iso, { desde: 0, hasta: 24 }),
+                          plan,
+                        }];
+                      });
+                      if (personasRep.length === 0) return null;
+                      const delDia = compras?.get(iso);
+                      return (
+                        <RepeticionDelDia
+                          key={iso}
+                          personas={personasRep}
+                          medianocheIso={medianocheIso}
+                          esTienda={tipoSedeSel === "tienda"}
+                          comprasFallo={tipoSedeSel === "tienda" && compras === null}
+                          comprasDe={tipoSedeSel === "tienda" && compras !== null ? (h) => delDia?.get(h) ?? 0 : null}
+                          parametros={coberturaVenta}
+                        />
+                      );
+                    })()}
 
                     {/* LA LÍNEA DEL DÍA, arriba y siempre a la vista (antes vivía plegada en «Ver hora por hora»):
                         una barra por persona, con su tramo de almacén en azul, y abajo cuántas quedan en piso. */}
