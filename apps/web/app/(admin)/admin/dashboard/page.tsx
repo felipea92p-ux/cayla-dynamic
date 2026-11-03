@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { leerMetasDeCobertura, metasComoAntes } from "@/lib/admin/leer-metas";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
@@ -85,10 +86,6 @@ function irA(id: string, block: "start" | "center") {
   }));
 }
 
-function diaSemanaDe(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-}
 
 // Hora actual de Lima en decimal (13:30 → 13.5), para saber el tramo vigente.
 function horaDecimalLimaAhora(): number {
@@ -586,7 +583,6 @@ export default function DashboardPage() {
     }
 
     const hoy = hoyLima();
-    const diaHoy = diaSemanaDe(hoy);
     const pedirSedes = () => supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad").eq("activa", true).order("codigo");
     const pedirAreas = () => supabase.rpc("fn_areas");
     const pedirTiposAusencia = () => supabase.from("tipos_ausencia").select("codigo, nombre, requiere_aprobacion");
@@ -643,7 +639,8 @@ export default function DashboardPage() {
       supabase.rpc("fn_jornadas_extra", { p_desde: hoy, p_hasta: hoy }),
       supabase.rpc("fn_personas_funciones"),
       guardado ? (guardado.areas as Awaited<ReturnType<typeof pedirAreas>>) : pedirAreas(),
-      supabase.from("metas_cobertura").select("sede_id, meta, meta_tarde, meta_encargadas").eq("dia_semana", diaHoy),
+      // La meta de hoy de cada sede (0590), dicha en mañana / tarde / líderes como la contaba esta pantalla.
+      leerMetasDeCobertura(supabase, null, hoy, hoy).then((r) => ({ data: r.data ? metasComoAntes(r.data) : null, error: r.error })),
       // anulada_at is null: una ausencia anulada no cubre nada. El rango incluye
       // hoy con <= / >=, igual que el `between` que ya usa fn_faltas_resumen.
       supabase.from("ausencias").select("persona_id, tipo, aprobada_at").is("anulada_at", null).lte("fecha_inicio", hoy).gte("fecha_fin", hoy),

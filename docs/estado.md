@@ -6,7 +6,35 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-03 — El almacén puede ser el puesto de siempre · migración **0588 SIN PEGAR** · prueba 478 · rama `claude/turnos-puesto-base`
+## 2026-11-03 — La meta de cobertura va por rangos de hora y por temporada · migración **0590 SIN PEGAR** · prueba 480 · rama `claude/turnos-borrador-y-metas`
+
+**De dónde sale.** Felipe (2026-11-03): «agregar rangos de hora, personal, líderes, por día o semana o mensual, para cada tienda o
+sede; se puede dejar en cero; predeterminada, sugerido y comparar». «Por día, semana o mes» es **por cuánto tiempo rige** la meta.
+Manda la meta; un rango sin meta deja que mande lo que pide la venta; un 0 = no se exige a nadie. Primero las metas, después el borrador.
+
+**0590.** `metas_cobertura_periodos` (la predeterminada de cada sede, sin fechas, y sus excepciones con vigencia; una excepción
+reemplaza solo los días de la semana que define y, si dos se pisan, manda la más corta, desempate por la más reciente y el id) +
+`metas_cobertura_rangos` (minutos 0–1440 por día de la semana, 0 = domingo; personal y líderes, null = sin meta). Lectura única
+`fn_metas_cobertura(sede | null, desde, hasta)`, SECURITY INVOKER con las políticas de `metas_cobertura` (admin y DO todo, la líder
+su sede). Puertas `fn_guardar_meta_cobertura` (la meta entera, todo o nada) y `fn_anular_meta_cobertura`: admin y DO, como la 0379.
+**Siembra la 0039 tal cual** —mañana [00:00, 14:15), tarde [14:15, 24:00), líderes en los dos, el 0 viejo como null— y no toca
+`metas_cobertura`. No reescribe ninguna función: no lleva md5. Prueba 480 (18).
+
+**En pantalla.** Turnos, botón «Metas de cobertura»: predeterminada y excepciones (un día, una o dos semanas, uno o dos meses, o
+el «Hasta» que se elija), rangos por día con personal y líderes, «copiar a toda la semana» y, en tiendas, lo que pide la venta hora
+por hora al lado, con la diferencia y «usar lo que pide la venta». La hora por hora de Turnos (Integrada, Día, almacén) mide contra
+los rangos de cada fecha, y donde no hay meta, en tiendas, contra la venta del promedio de 4 semanas; los resúmenes mañana /
+tarde / líderes salen de lo mismo. «Sugerir la semana»: manda la meta, si no hay, la venta. Dashboard, Reporte de sede e
+Incidencias dejan de leer `metas_cobertura` (`lib/admin/leer-metas.ts`, con respaldo a la 0039 si la 0590 no está pegada).
+
+**Ojo, medido el 2026-11-03:** TRU tiene metas de 6 a 9 personas por tramo y la venta pide 3–4 por hora. Con «manda la meta»,
+la sugerencia arma TRU contra 6–9. La comparación queda a la vista en el editor; bajar la meta es decisión de quien la fija.
+
+**Sigue (fase 2b):** el borrador de la semana con la comparativa Actual / Sugerido / Borrador y el «cumple» (planificado y marcado).
+
+---
+
+## 2026-11-03 — El almacén puede ser el puesto de siempre · migración **0588 PEGADA (2026-11-03)** · prueba 478 · fusionada en [#661](https://github.com/felipea92p-ux/cayla-dynamic/pull/661)
 
 **De dónde sale.** Felipe (2026-11-03): «plasmar desde Horarios quién tiene de base ir a tienda o almacén», y al elegir el almacén de
 un día, decir «si solo es por ese día (completo o solo por tramo), o si se queda ahí siempre en todo su horario predeterminado».
@@ -27,7 +55,8 @@ el turno toda la semana.
 
 **Nadie lee `puestos_planificados` directo** desde este PR: Turnos, «Mis turnos» (`tu-semana.tsx`, de la sesión de Lo mío) y el
 terminal (`ubicacion-cola.ts`) pasan por `lib/puestos-resueltos.ts`, que cae a la tabla si la 0588 todavía no está pegada. Una
-lectura directa tomaría una fila «piso» por «todo el turno en almacén». **La 0588 se pega ANTES de fusionar.**
+lectura directa tomaría una fila «piso» por «todo el turno en almacén». **Pegada** 16:21:07 de Lima, 5 segundos antes de fusionar
+el #661 (16:21:12) con el CI en verde; las seis funciones con el md5 idéntico al del repositorio y las cuatro políticas.
 
 **Sigue:** el borrador de la semana con la comparativa y el «cumple» (planificado y marcado), y después el arrastre. Las RxH:
 sin horario; en el borrador, solo una nota de «cuándo se la necesita» para líder, DO y superiores.
