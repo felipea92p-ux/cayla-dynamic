@@ -6,7 +6,29 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-03 — Turnos repite un día cerrado contra la venta de cada hora · migración **0585 PEGADA (2026-11-03)** · rama `claude/turnos-repeticion-del-dia`
+## 2026-11-03 — Turnos propone la semana y se publica de una vez · migración **0586 SIN PEGAR** · prueba 476 · rama `claude/turnos-sugerencia`
+
+**De dónde sale.** Felipe (2026-11-03): la propuesta mueve entrada, salida y día libre, sin turno partido y sin dejar horas
+cortas seguidas («que no tenga un hueco de 3 horas»); la venta base es el promedio de las últimas 4 semanas; es una propuesta que
+la líder revisa y publica; y **la líder de equipo puede publicarse su propio turno «con tal que cumpla su horario y horas»**.
+
+**Depende de:** la 0584 (disponibilidad y jornada) y la 0585 (la venta de cada hora, #655): las dos pegadas y en `main`. La
+0586 exige la 0584 en su guardia.
+
+**0586.** `fn_publicar_semana(sede, lunes, turnos, motivo)`: todo o nada, desde el lunes, solo días que todavía no llegan, de
+gente activa de esa sede. Las demás pasan por `fn_set_turno`/`fn_set_descanso`; el turno PROPIO de una líder se escribe ahí mismo
+si DO le fijó su jornada, manda los siete días y suma esa jornada (±15 min, con el refrigerio de su horario vigente). Prueba 476 (16).
+No reescribe ninguna función: no lleva md5.
+
+**El motor** (`lib/admin/sugerencia-turnos.ts`): recocido simulado con semilla fija (`sede|lunes`): la misma entrada da la misma
+propuesta. Nunca pisa un «no puedo» ni una ausencia; «prefiero no» solo si no alcanza la gente, y se avisa; «horario fijo» no se
+mueve; nunca más de 48 h. Lo que lee y lo que publica, en `lib/admin/sugerencia-entrada.ts`. En pantalla, «Sugerir la semana» en la
+Integrada; la propuesta se dibuja en la misma grilla, con cifras, avisos y «Publicar la semana». **No probado contra datos reales:**
+sin Supabase local; se ve en la vista previa con la 0584, la 0585 y la 0586 pegadas.
+
+---
+
+## 2026-11-03 — Turnos repite un día cerrado contra la venta de cada hora · migración **0585 PEGADA (2026-11-03)** · fusionada en [#655](https://github.com/felipea92p-ux/cayla-dynamic/pull/655)
 
 **De dónde sale.** Felipe (2026-11-03): la repetición de un día que ya pasó (la maqueta C) va dentro de la vista Día; el ritmo
 (compras por hora que atiende una persona en piso) y el mínimo en piso van a Parámetros, uno por tienda; una compra es un ticket
