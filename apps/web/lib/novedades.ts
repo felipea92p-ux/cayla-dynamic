@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-terminal-piso-o-almacen",
+    fecha: "2026-11-03",
+    titulo: "En el terminal de tienda se ve quién está en piso y quién en almacén",
+    queMejoro:
+      "En los terminales de tienda, quien está trabajando lleva un ícono más en su foto, en la esquina izquierda: una " +
+      "tienda si está en piso, un almacén si está en el almacén. Al pasar el mouse dice cuál es.\n\n" +
+      "Además, las casillas de la lista miden lo mismo en todas las sedes, y la última fila queda centrada.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-03-turnos-repeticion-del-dia",
     fecha: "2026-11-03",
     titulo: "Turnos repite un día que ya pasó, contra la venta de cada hora",
