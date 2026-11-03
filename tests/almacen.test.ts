@@ -1,7 +1,7 @@
 // almacen.test.ts — piso o almacén, planificado por día (0579)
 import { describe, expect, it } from "vitest";
 import {
-  PISO, argumentosDeGuardado, esPiso, problemaDeTramos, puestoDesdeFilas, sugerirTramo, textoPuesto, tramosEnAlmacen,
+  PISO, almacenConLoReal, argumentosDeGuardado, esPiso, problemaDeTramos, puestoDesdeFilas, sugerirTramo, textoPuesto, tramosEnAlmacen,
 } from "../apps/web/lib/admin/almacen";
 
 describe("puestoDesdeFilas", () => {
@@ -76,5 +76,82 @@ describe("sugerirTramo", () => {
   it("respeta el largo pedido y no se sale del turno", () => {
     const t = sugerirTramo({ turno: { desde: 14, hasta: 15 }, largo: 2, enPisoSinElla, metaEn });
     expect(t).toBeNull();
+  });
+});
+
+describe("almacenConLoReal — Día: lo real hasta ahora y el plan después (2026-11-03)", () => {
+  // Un martes cualquiera en Lima. Turno de 08:30 a 17:00.
+  const medianocheIso = "2026-11-03T00:00:00-05:00";
+  const a = (hhmm: string) => new Date(`2026-11-03T${hhmm}:00-05:00`);
+  const iso = (hhmm: string) => a(hhmm).toISOString();
+  const turno = { desde: 8.5, hasta: 17 };
+  const sinMarcas = [] as const;
+
+  it("un día que todavía no llega es solo el plan, y no hay nada marcado", () => {
+    const r = almacenConLoReal({
+      plan: [{ desde: 10.5, hasta: 12 }], cambios: [], marcajes: sinMarcas, medianocheIso, ahora: a("07:00"), turno,
+    });
+    expect(r.cobertura).toEqual([{ desde: 10.5, hasta: 12 }]);
+    expect(r.marcado).toEqual([]);
+  });
+
+  it("si nadie marcó nada, el plan que ya empezó cuenta como pasado (lo mismo que el terminal)", () => {
+    const r = almacenConLoReal({
+      plan: [{ desde: 10.5, hasta: 12 }], cambios: [], marcajes: sinMarcas, medianocheIso, ahora: a("11:00"), turno,
+    });
+    expect(r.cobertura).toEqual([{ desde: 10.5, hasta: 12 }]);
+  });
+
+  it("un «Vuelvo a tienda» real corta el plan desde esa hora, y su resto no vuelve", () => {
+    const r = almacenConLoReal({
+      plan: [{ desde: 10.5, hasta: 12 }],
+      cambios: [{ ubicacion: "tienda", timestamp: iso("11:15"), vuelvePrevisto: null }],
+      marcajes: sinMarcas, medianocheIso, ahora: a("11:30"), turno,
+    });
+    expect(r.cobertura).toEqual([{ desde: 10.5, hasta: 11.25 }]);
+  });
+
+  it("un «Voy a almacén» real sin plan cuenta, y sigue hasta su vuelta prevista", () => {
+    const r = almacenConLoReal({
+      plan: [],
+      cambios: [{ ubicacion: "almacen", timestamp: iso("14:00"), vuelvePrevisto: iso("15:00") }],
+      marcajes: sinMarcas, medianocheIso, ahora: a("14:30"), turno,
+    });
+    expect(r.cobertura).toEqual([{ desde: 14, hasta: 15 }]);
+    expect(r.marcado).toEqual([{ desde: 14, hasta: 14.5 }]); // lo marcado llega solo hasta ahora
+  });
+
+  it("«hasta que vuelva» sin vuelta se estira hasta el fin del turno; la salida final lo cierra", () => {
+    const abierto = almacenConLoReal({
+      plan: [],
+      cambios: [{ ubicacion: "almacen", timestamp: iso("15:00"), vuelvePrevisto: null }],
+      marcajes: sinMarcas, medianocheIso, ahora: a("15:30"), turno,
+    });
+    expect(abierto.cobertura).toEqual([{ desde: 15, hasta: 17 }]);
+    const cerrado = almacenConLoReal({
+      plan: [],
+      cambios: [{ ubicacion: "almacen", timestamp: iso("15:00"), vuelvePrevisto: null }],
+      marcajes: [{ tipo: "salida_final", timestamp: iso("16:00") }], medianocheIso, ahora: a("16:30"), turno,
+    });
+    expect(cerrado.cobertura).toEqual([{ desde: 15, hasta: 16 }]);
+  });
+
+  it("lo que empieza después de ahora es plan, junto a lo real de antes", () => {
+    const r = almacenConLoReal({
+      plan: [{ desde: 10.5, hasta: 12 }, { desde: 15, hasta: 16.5 }],
+      cambios: [{ ubicacion: "tienda", timestamp: iso("11:00"), vuelvePrevisto: null }],
+      marcajes: sinMarcas, medianocheIso, ahora: a("13:00"), turno,
+    });
+    expect(r.cobertura).toEqual([{ desde: 10.5, hasta: 11 }, { desde: 15, hasta: 16.5 }]);
+  });
+
+  it("todo se recorta a su turno, y lo que se toca se une", () => {
+    const r = almacenConLoReal({
+      plan: [{ desde: 16, hasta: 17 }],
+      cambios: [{ ubicacion: "almacen", timestamp: iso("07:30"), vuelvePrevisto: iso("09:00") }],
+      marcajes: sinMarcas, medianocheIso, ahora: a("12:00"), turno,
+    });
+    expect(r.cobertura).toEqual([{ desde: 8.5, hasta: 9 }, { desde: 16, hasta: 17 }]);
+    expect(r.marcado).toEqual([{ desde: 7.5, hasta: 9 }]); // lo marcado se muestra tal cual, aunque cruce la entrada
   });
 });

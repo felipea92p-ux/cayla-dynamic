@@ -16,6 +16,8 @@
 // Si se cambia una regla, se cambia en los dos lados: la prueba
 // tests/almacen.test.ts lista las reglas que la 0579 hace cumplir.
 // ============================================================================
+import type { MarcajeDelDia } from "@cayla-dynamic/shared";
+import { cambiosDelPlan, tramosDelDia, type CambioUbicacion } from "../terminal/ubicacion";
 
 export interface TramoDecimal {
   desde: number;
@@ -134,4 +136,89 @@ export function sugerirTramo(args: {
     if (!mejor || peor > mejor.holgura + 1e-9) mejor = { t: { desde: d, hasta: d + largo }, holgura: peor };
   }
   return mejor ? mejor.t : null;
+}
+
+// ----------------------------------------------------------------------------
+// Lo real del terminal (0580), junto al plan, para la vista Día (2026-11-03)
+// ----------------------------------------------------------------------------
+// Decidido con Felipe el 2026-11-03: la Integrada sigue mostrando SOLO el plan
+// (es la herramienta para planificar la semana); la vista Día muestra el plan
+// y lo que marcaron en el terminal, y su cobertura cuenta lo real hasta ahora
+// y el plan de ahí en adelante.
+//
+// «¿Dónde estuvo?» NO se decide aquí: lo decide `tramosDelDia`, de
+// lib/terminal/ubicacion.ts, que es la regla del terminal y de
+// fn_ubicaciones_del_dia (0580). Lo planificado entra como cambios con
+// `cambiosDelPlan`, igual que en el terminal: un «Vuelvo a tienda» real corta
+// el plan desde esa hora y un «Voy a almacén» real siempre cuenta. Así la
+// pantalla y el terminal no pueden decir cosas distintas de la misma persona.
+// Lo único que agrega este archivo es lo que el terminal no necesita: lo que
+// TODAVÍA NO PASÓ (el plan que empieza después de ahora, y hasta dónde se
+// estira el tramo abierto) y pasar todo a horas decimales.
+// ----------------------------------------------------------------------------
+
+/** La hora decimal del día (desde su medianoche de Lima) de un instante ISO. */
+function decimalDelDia(iso: string, medianocheIso: string): number {
+  return (new Date(iso).getTime() - new Date(medianocheIso).getTime()) / 3_600_000;
+}
+
+/** Une tramos que se cruzan o se tocan y los recorta a [desde, hasta). */
+function unirYRecortar(tramos: TramoDecimal[], limite: TramoDecimal): TramoDecimal[] {
+  const recortados = tramos
+    .map((t) => ({ desde: Math.max(t.desde, limite.desde), hasta: Math.min(t.hasta, limite.hasta) }))
+    .filter((t) => t.hasta > t.desde)
+    .sort((a, b) => a.desde - b.desde);
+  const unidos: TramoDecimal[] = [];
+  for (const t of recortados) {
+    const ultimo = unidos[unidos.length - 1];
+    if (ultimo && t.desde <= ultimo.hasta + 1e-9) ultimo.hasta = Math.max(ultimo.hasta, t.hasta);
+    else unidos.push({ ...t });
+  }
+  return unidos;
+}
+
+export function almacenConLoReal(args: {
+  /** El plan del día ya recortado a su turno: `tramosEnAlmacen(puesto, turno)`. */
+  plan: TramoDecimal[];
+  /** Los cambios reales de ese día (cambios_ubicacion sin anular). */
+  cambios: readonly CambioUbicacion[];
+  /** Sus marcajes de ese día: de aquí solo cuenta la salida final, que cierra un tramo abierto. */
+  marcajes: readonly MarcajeDelDia[];
+  /** El inicio del día en Lima: `rangoDelDiaLima(fecha).inicio`. */
+  medianocheIso: string;
+  ahora: Date;
+  /** Su turno ese día, en horas decimales. */
+  turno: TramoDecimal;
+}): {
+  /** Lo que cuenta para la cobertura: lo real (con el plan como si hubiera pasado) hasta ahora, y el plan después. */
+  cobertura: TramoDecimal[];
+  /** Solo lo marcado en el terminal, hasta ahora. Para dibujarlo aparte del plan. */
+  marcado: TramoDecimal[];
+} {
+  const { plan, cambios, marcajes, medianocheIso, ahora, turno } = args;
+  const aDec = (iso: string) => decimalDelDia(iso, medianocheIso);
+  const ahoraDec = aDec(ahora.toISOString());
+
+  // Hasta ahora: la regla del terminal, con lo planificado como cambios.
+  const combinados = tramosDelDia([...cambios, ...cambiosDelPlan({ todoElTurno: false, tramos: plan }, medianocheIso)], marcajes, ahora);
+  // El tramo abierto sigue hasta su vuelta prevista (que todavía no venció: si
+  // no, tramosDelDia ya lo habría cerrado) o, con «hasta que vuelva», hasta el
+  // fin de su turno.
+  const pasado = combinados.map((t) => ({
+    desde: aDec(t.desde),
+    hasta: t.hasta !== null ? aDec(t.hasta) : t.vuelve !== null ? aDec(t.vuelve) : turno.hasta,
+  }));
+  // Lo que todavía no empezó es solo plan. Un tramo planificado que ya empezó
+  // está en `pasado`, cortado o no por lo real: no se resucita su resto.
+  const futuro = plan.filter((t) => t.desde > ahoraDec);
+
+  const marcado = tramosDelDia(cambios, marcajes, ahora).map((t) => ({
+    desde: aDec(t.desde),
+    hasta: t.hasta !== null ? aDec(t.hasta) : ahoraDec,
+  }));
+
+  return {
+    cobertura: unirYRecortar([...pasado, ...futuro], turno),
+    marcado: unirYRecortar(marcado, { desde: 0, hasta: 24 }),
+  };
 }
