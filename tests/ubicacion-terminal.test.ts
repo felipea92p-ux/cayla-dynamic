@@ -12,6 +12,7 @@ import {
   DURACIONES_ALMACEN,
   cambiosDelPlan,
   textoPlanDeHoy,
+  tramosDelDia,
   tramosPlanificados,
   detalleCasillaAlmacen,
   textoEstadoAlmacen,
@@ -131,5 +132,26 @@ describe("lo planificado (0579)", () => {
     const plan = cambiosDelPlan(tramosPlanificados({ todoElTurno: true, tramos: [] }, null), medianoche);
     expect(ubicacionActual(plan, [], a("15:00")).enAlmacen).toBe(true);
     expect(ubicacionActual(plan, [salida("17:00")], a("17:30")).enAlmacen).toBe(false);
+  });
+});
+
+describe("tramosDelDia: la regla única, en tramos (la usa Turnos)", () => {
+  const h = (iso: string | null) => (iso ? new Date(iso).toISOString() : null);
+  const tramos = (cs: CambioUbicacion[], ms: MarcajeDelDia[], ahora: string) =>
+    tramosDelDia(cs, ms, a(ahora)).map((t) => [h(t.desde), h(t.hasta)]);
+
+  it("los mismos casos que la prueba 469 de la base", () => {
+    expect(tramos([alm("10:00"), tienda("11:00")], [], "20:00")).toEqual([[h(lima("10:00")), h(lima("11:00"))]]);
+    expect(tramos([alm("12:00", "12:30")], [], "20:00")).toEqual([[h(lima("12:00")), h(lima("12:30"))]]);
+    expect(tramos([alm("14:00")], [salida("15:00")], "20:00")).toEqual([[h(lima("14:00")), h(lima("15:00"))]]);
+    expect(tramos([alm("09:00", "09:30"), alm("09:05"), tienda("10:00")], [], "20:00")).toEqual([[h(lima("09:00")), h(lima("10:00"))]]);
+    expect(tramos([alm("16:00", "16:30"), alm("17:00", "17:30")], [], "20:00")).toEqual([
+      [h(lima("16:00")), h(lima("16:30"))],
+      [h(lima("17:00")), h(lima("17:30"))],
+    ]);
+  });
+
+  it("el tramo de ahora queda abierto (hasta = null)", () => {
+    expect(tramos([alm("10:00", "11:00")], [], "10:30")).toEqual([[h(lima("10:00")), null]]);
   });
 });
