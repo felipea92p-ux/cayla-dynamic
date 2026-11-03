@@ -10,6 +10,9 @@ import { describe, it, expect } from "vitest";
 import type { MarcajeDelDia } from "@cayla-dynamic/shared";
 import {
   DURACIONES_ALMACEN,
+  cambiosDelPlan,
+  textoPlanDeHoy,
+  tramosPlanificados,
   detalleCasillaAlmacen,
   textoEstadoAlmacen,
   ubicacionActual,
@@ -87,5 +90,46 @@ describe("¿Por cuánto tiempo?", () => {
   it("la vuelta se calcula desde ahora; «hasta que vuelva» no lleva hora", () => {
     expect(vueltaPrevista(a("12:32"), 60)).toBe(new Date(lima("13:32")).toISOString());
     expect(vueltaPrevista(a("12:32"), null)).toBeNull();
+  });
+});
+
+describe("lo planificado (0579)", () => {
+  const medianoche = "2026-10-15T00:00:00-05:00";
+  const turno = { desde: 9, hasta: 18 };
+
+  it("dice dónde le toca hoy; si es piso, no dice nada", () => {
+    expect(textoPlanDeHoy({ todoElTurno: false, tramos: [{ desde: 10.5, hasta: 12.5 }] })).toBe("Hoy te toca almacén de 10:30 a 12:30");
+    expect(textoPlanDeHoy({ todoElTurno: true, tramos: [] })).toBe("Hoy te toca almacén todo el turno");
+    expect(textoPlanDeHoy({ todoElTurno: false, tramos: [] })).toBeNull();
+    expect(
+      textoPlanDeHoy({ todoElTurno: false, tramos: [{ desde: 10, hasta: 11 }, { desde: 15, hasta: 16 }] }),
+    ).toBe("Hoy te toca almacén de 10:00 a 11:00 y de 15:00 a 16:00");
+  });
+
+  it("se recorta a su turno: lo que cae fuera no se anuncia", () => {
+    expect(tramosPlanificados({ todoElTurno: false, tramos: [{ desde: 8, hasta: 10 }, { desde: 19, hasta: 20 }] }, turno))
+      .toEqual({ todoElTurno: false, tramos: [{ desde: 9, hasta: 10 }] });
+    expect(tramosPlanificados({ todoElTurno: true, tramos: [] }, turno)).toEqual({ todoElTurno: true, tramos: [turno] });
+  });
+
+  it("dentro del tramo planificado está en almacén sin marcar nada", () => {
+    const plan = cambiosDelPlan({ todoElTurno: false, tramos: [{ desde: 10.5, hasta: 12.5 }] }, medianoche);
+    const e = ubicacionActual(plan, [], a("11:00"));
+    expect(e.enAlmacen).toBe(true);
+    expect(new Date(e.desde!).getTime()).toBe(a("10:30").getTime());
+    expect(new Date(e.vuelve!).getTime()).toBe(a("12:30").getTime());
+    expect(ubicacionActual(plan, [], a("12:31")).enAlmacen).toBe(false);
+    expect(ubicacionActual(plan, [], a("10:00")).enAlmacen).toBe(false);
+  });
+
+  it("si marca «Vuelvo a tienda» durante lo planificado, manda lo real", () => {
+    const plan = cambiosDelPlan({ todoElTurno: false, tramos: [{ desde: 10.5, hasta: 12.5 }] }, medianoche);
+    expect(ubicacionActual([...plan, tienda("11:00")], [], a("11:30")).enAlmacen).toBe(false);
+  });
+
+  it("todo el turno sin horario conocido: hasta que vuelva o hasta su salida final", () => {
+    const plan = cambiosDelPlan(tramosPlanificados({ todoElTurno: true, tramos: [] }, null), medianoche);
+    expect(ubicacionActual(plan, [], a("15:00")).enAlmacen).toBe(true);
+    expect(ubicacionActual(plan, [salida("17:00")], a("17:30")).enAlmacen).toBe(false);
   });
 });
