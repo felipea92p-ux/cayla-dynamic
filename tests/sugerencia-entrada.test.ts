@@ -37,6 +37,14 @@ describe("restriccionesDesdeDisponibilidad y ausencias", () => {
     expect(r.bloques["2026-11-10"]).toEqual([{ desde: 0, hasta: 1440, estado: "no_puede" }]);
     expect(r.bloques["2026-11-11"]).toEqual([{ desde: 960, hasta: 1260, estado: "prefiere_no" }]);
   });
+  it("«prefiero trabajar» también llega a la sugerencia, con sus horas", () => {
+    const r = restriccionesDesdeDisponibilidad([
+      { persona_id: "a", fecha: "2026-11-12", desde: "14:00:00", hasta: "18:30:00", estado: "prefiere_trabajar" },
+      { persona_id: "a", fecha: "2026-11-13", desde: null, hasta: null, estado: "prefiere_trabajar" },
+    ]).get("a")!;
+    expect(r.bloques["2026-11-12"]).toEqual([{ desde: 840, hasta: 1110, estado: "prefiere_trabajar" }]);
+    expect(r.bloques["2026-11-13"]).toEqual([{ desde: 0, hasta: 1440, estado: "prefiere_trabajar" }]);
+  });
   it("las ausencias anuladas no cuentan; las demás, solo dentro de la semana", () => {
     const m = diasDeAusencia([
       { persona_id: "a", fecha_inicio: "2026-11-05", fecha_fin: "2026-11-10", anulada: false },

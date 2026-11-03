@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-prefiero-trabajar",
+    fecha: "2026-11-03",
+    titulo: "En Mi disponibilidad ahora puedes marcar las horas que prefieres trabajar",
+    queMejoro:
+      "En «Por horas», además de «No puedo» y «Prefiero no», cada horario puede ser «Prefiero trabajar». Tu líder " +
+      "de equipo lo tiene en cuenta cuando arma los turnos y, si se puede, te pone en esas horas. No es una " +
+      "promesa: si la tienda necesita otra cosa, el turno puede ser distinto.\n\n" +
+      "Si solo marcas lo que prefieres trabajar, ya no te pide decir por qué: el motivo solo se pide cuando marcas " +
+      "algo que no puedes o que prefieres no hacer.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-03-metas-de-cobertura-por-rangos",
     fecha: "2026-11-03",
     titulo: "La meta de cobertura va por rangos de hora y por temporada",
@@ -131,8 +143,8 @@ export const NOVEDADES: readonly Novedad[] = [
     fecha: "2026-11-03",
     titulo: "Mi disponibilidad se marca con un toque por día",
     queMejoro:
-      "Cada día tiene cuatro botones a la vista: «Puedo», «Prefiero no», «No puedo» y «Depende de la hora». Ya no hay " +
-      "desplegables uno dentro de otro. Al elegir «Depende de la hora», cada horario dice si es «No puedo» o «Prefiero no», " +
+      "Cada día tiene cuatro botones a la vista: «Puedo», «Prefiero no», «No puedo» y «Por horas». Ya no hay " +
+      "desplegables uno dentro de otro. Al elegir «Por horas», cada horario dice si es «No puedo» o «Prefiero no», " +
       "y puedes copiar lo marcado en un día a todos los demás.\n\n" +
       "Arriba se explica qué significa cada opción: «No puedo» es firme, y «Prefiero no» se intenta respetar, pero " +
       "si falta gente te puede tocar.",

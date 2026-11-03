@@ -6,7 +6,39 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-03 — La meta de cobertura va por rangos de hora y por temporada · migración **0590 SIN PEGAR** · prueba 480 · rama `claude/turnos-borrador-y-metas`
+## 2026-11-03 — «Prefiero trabajar» en la disponibilidad · migración **0591 PEGADA (2026-11-03)** · prueba 481 · rama `claude/exciting-clarke-npajc5`
+
+**De dónde sale.** Felipe (2026-11-03), tras ver «Mi disponibilidad» en el teléfono: que cada día se marque con un toque (Puedo · Prefiero no ·
+No puedo · Por horas —«Depende de la hora» en el #663; Felipe lo pidió más formal el mismo día—) y que además exista **«Prefiero trabajar»**. La decisión de que Turnos lo use para
+priorizar la dio él: «sí, hazlo con prefiero trabajar».
+
+**Solo por horas (Felipe, 2026-11-03, mirando la vista previa):** «quita el prefiero trabajar, pero déjalo dentro de la opción depende de
+la hora». No es un botón del día: es un estado de cada horario dentro de «Por horas» y de las horas de un día puntual (con «Todo el día»
+no se ofrece). La base no cambia —la 0591 acepta el estado con o sin horas—; la regla vive en `vaDiaEntero` (`lib/disponibilidad.ts`), y
+si la base trajera un día entero que prefiere trabajar, la pantalla lo dibuja como un horario de 06:00 a 24:00 para que se vea y se corrija.
+
+**0591 (no mueve plata, no reescribe ninguna función).** Dos CHECK con nombre propio: `disponibilidad_bloques.estado` acepta
+`prefiere_trabajar` y `disponibilidades.motivo` acepta `preferencia` (el motivo es obligatorio en una parcial y los cinco de antes explican
+por qué NO se puede; la pantalla lo pone sola cuando solo se marcó lo que se prefiere). `fn_disponibilidad_guardar_interno` y
+`fn_disponibilidad_vigente` pasan el estado tal cual, así que no hay md5 de partida. Auditada en un Postgres 16 real con las tablas
+exactas de la 0584 y 0589, dentro de `BEGIN … ROLLBACK`: estado nuevo entra, inventado no; el cruce se rechaza sea cual sea el estado;
+pegada dos veces deja un solo CHECK de cada y un solo texto en el comentario. **No se corrió `supabase test db`** (sin Docker en esa
+sesión): la prueba 481 la corre `db-tests`.
+
+**En la sugerencia.** `BONO_PREFIERE_TRABAJAR = 30` resta al costo de un día en que la persona trabaja en esas horas, proporcional a
+cuánto de su turno cae ahí. Referencia: pisar un «prefiero no» cuesta 150, una hora de diferencia con su jornada 300. **Desempata, no
+manda:** nunca deja un hueco de la venta por él ni mueve a nadie de un «no puedo». Sin aviso en pantalla cuando no se logra.
+
+**La 0591 se pega EN TRES PARTES, una por una.** Pegada entera en el SQL Editor dio `40P01 deadlock detected` el 2026-11-03 (no se aplicó
+nada: es una sola transacción): tomaba un bloqueo exclusivo sobre `disponibilidad_bloques` y, sin soltarlo, pedía otro sobre
+`disponibilidades`, y una pantalla que lee las dos en el orden contrario cierra el ciclo. Reproducido en un Postgres local con dos sesiones;
+con las partes por separado (una tabla por transacción, `lock_timeout` de 3 s, guardias entre ellas) no se repite.
+
+**La 0591 ya está pegada** (registro 591 · prefiero_trabajar_en_la_disponibilidad, 2026-11-03 23:17 UTC), antes de fusionar, como debe ser.
+
+---
+
+## 2026-11-03 — La meta de cobertura va por rangos de hora y por temporada · migración **0590 PEGADA (2026-11-03)** · prueba 480 · fusionada en [#664](https://github.com/felipea92p-ux/cayla-dynamic/pull/664)
 
 **De dónde sale.** Felipe (2026-11-03): «agregar rangos de hora, personal, líderes, por día o semana o mensual, para cada tienda o
 sede; se puede dejar en cero; predeterminada, sugerido y comparar». «Por día, semana o mes» es **por cuánto tiempo rige** la meta.

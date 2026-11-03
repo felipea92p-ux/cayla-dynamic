@@ -562,6 +562,12 @@ en silencio toda la lógica de marcas anuladas. Lo cazaron dos pruebas por azar.
   su historial sostiene los reportes de periodos pasados.
 - **Numeración sin huecos.** Un hueco significa que algo se aplicó en producción
   sin quedar en el repo. Si tienes que saltarte un número, documenta por qué.
+- **Una migración que altera más de una tabla en uso se pega en PARTES, una tabla por parte.** El SQL Editor corre todo lo pegado en una
+  sola transacción: dos `alter table` seguidos retienen los dos bloqueos exclusivos hasta el final, y una pantalla que lee esas tablas en el
+  orden contrario cierra un ciclo —`40P01 deadlock detected`, y no se aplica nada—. Pasó con la 0591 el 2026-11-03 (bloques primero,
+  `disponibilidades` después). Cada parte empieza con `set local lock_timeout = '3s'` (una ALTER en cola frena a todos los que vienen detrás;
+  mejor que falle y se repegue), las siguientes se niegan a correr si falta la anterior, y el registro va en la última. Entera sigue valiendo
+  en una base sin tráfico (`db reset`, las pruebas). Se comprueba con dos sesiones: un lector que toma una tabla y lee la otra después.
 - **El registro va con `do update`, no con `do nothing`.** La línea del final de
   cada migración se escribe así:
 

@@ -11,8 +11,8 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Rotulo } from "@/components/ui/rotulo";
 import { sumarDias } from "@/lib/mi-semana";
 import {
-  ATAJOS, MOTIVOS, NOMBRE_DIA, ORDEN_DIAS, aBloques, aplicarAtajo, copiarDia, avisoDeHoras, horasDisponibles, opcionesHora,
-  resumenEnPalabras, semanaVacia, validar,
+  ATAJOS, MOTIVOS_A_ELEGIR, NOMBRE_DIA, ORDEN_DIAS, aBloques, aplicarAtajo, copiarDia, avisoDeHoras, hayRestriccion, horasDisponibles, opcionesHora,
+  resumenEnPalabras, semanaVacia, vaDiaEntero, validar,
   type Bloque, type EstadoBloque, type Excepcion, type ModoDia, type Motivo, type SemanaTipo, type Ventana,
 } from "@/lib/disponibilidad";
 
@@ -39,19 +39,22 @@ export interface EnvioDisponibilidad {
 type Hasta = "sin_fin" | "fin_ciclo" | "fecha";
 
 // Un día se marca con UN toque, sin desplegables encadenados: el color nunca va
-// solo, cada opción lleva su ícono y su palabra. «Depende de la hora» abre sus tramos, y
+// solo, cada opción lleva su ícono y su palabra. «Por horas» abre sus tramos, y
 // cada tramo dice su propio estado (antes era un desplegable «Solo algunas
 // horas» y, adentro, otro «No puedo»: se leía como una doble negación).
+// «Prefiero trabajar» no es un botón del día: es un estado de cada horario, dentro
+// de «Por horas» y de las horas de un día puntual (Felipe, 2026-11-03).
 const MODOS: { valor: ModoDia; label: string; icono: LucideIcon }[] = [
   { valor: "puede", label: "Puedo", icono: Check },
   { valor: "prefiere_no", label: "Prefiero no", icono: CircleAlert },
   { valor: "no_puede", label: "No puedo", icono: Ban },
-  { valor: "horas", label: "Depende de la hora", icono: Clock },
+  { valor: "horas", label: "Por horas", icono: Clock }, // antes «Depende de la hora»: Felipe lo pidió más formal (2026-11-03)
 ];
 
 const ESTADOS: { valor: EstadoBloque; label: string }[] = [
-  { valor: "no_puede", label: "No puedo" },
+  { valor: "prefiere_trabajar", label: "Prefiero trabajar" },
   { valor: "prefiere_no", label: "Prefiero no" },
+  { valor: "no_puede", label: "No puedo" },
 ];
 
 const selectClase = "rounded-control border border-borde-control bg-hueso px-2 py-1.5 text-sm text-tinta";
@@ -72,7 +75,8 @@ export function EditorDisponibilidad({
   const [tipo, setTipo] = useState<"total" | "parcial">(inicial?.tipo ?? "parcial");
   const [semana, setSemana] = useState<SemanaTipo>(inicial?.semana ?? semanaVacia());
   const [excepciones, setExcepciones] = useState<Excepcion[]>(inicial?.excepciones ?? []);
-  const [motivo, setMotivo] = useState<Motivo | null>(inicial?.motivo ?? null);
+  // «preferencia» no se elige: la pone esta pantalla cuando no hay nada que justificar (0591).
+  const [motivo, setMotivo] = useState<Motivo | null>(inicial?.motivo === "preferencia" ? null : inicial?.motivo ?? null);
   const [desde, setDesde] = useState(hoy);
   const [hastaModo, setHastaModo] = useState<Hasta>("sin_fin");
   const [hastaFecha, setHastaFecha] = useState(sumarDias(hoy, 90));
@@ -85,7 +89,9 @@ export function EditorDisponibilidad({
   const aviso = avisoDeHoras(libres, jornada, quien);
   const bloques = parcial ? aBloques(semana, excepciones) : [];
   const hasta = hastaModo === "sin_fin" ? null : hastaFecha;
-  const faltaMotivo = parcial && !motivo;
+  const conRestriccion = hayRestriccion(bloques);
+  const soloPreferencias = parcial && bloques.length > 0 && !conRestriccion;
+  const faltaMotivo = parcial && conRestriccion && !motivo;
   const sinNada = parcial && bloques.length === 0;
   const fechaFuera = excepciones.find((x) => x.fecha < desde || (hasta !== null && x.fecha > hasta));
   const hastaAntes = hasta !== null && hasta < desde;
@@ -111,7 +117,7 @@ export function EditorDisponibilidad({
 
   const enviar = () => {
     if (bloqueo) return;
-    onEnviar({ tipo, motivo: parcial ? motivo : null, desde, hasta, bloques, nota: nota.trim() || null });
+    onEnviar({ tipo, motivo: !parcial ? null : conRestriccion ? motivo : "preferencia", desde, hasta, bloques, nota: nota.trim() || null });
   };
 
   return (
@@ -119,7 +125,7 @@ export function EditorDisponibilidad({
       <div role="radiogroup" aria-label="Disponibilidad" className="grid gap-2 sm:grid-cols-2">
         {([
           ["total", "Cualquier día y hora", quien === "tu" ? "Tu líder de equipo te puede poner en cualquier turno." : "Se le puede poner en cualquier turno."],
-          ["parcial", "Hay días u horas que no puedo", "Marca cada día como lo necesites. Lo que no toques queda como «Puedo»."],
+          ["parcial", "Quiero marcar días u horas", "Di qué puedes, qué prefieres y qué no puedes. Lo que no toques queda como «Puedo»."],
         ] as const).map(([v, titulo, texto]) => (
           <label key={v}
             className={`flex cursor-pointer gap-3 rounded-control border p-3 ${tipo === v ? "border-tinta bg-papel" : "border-sand bg-hueso"}`}>
@@ -134,7 +140,13 @@ export function EditorDisponibilidad({
 
       {parcial && (
         <>
-          <dl className="grid gap-1 rounded-control bg-hueso p-3 text-sm sm:grid-cols-3">
+          <dl className="grid gap-2 rounded-control bg-hueso p-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="font-medium">Prefiero trabajar</dt>
+              <dd className="text-taupe">
+                Se marca en «Por horas». {quien === "tu" ? "Tu líder de equipo lo tiene en cuenta al armar turnos" : "Se tiene en cuenta al armar turnos"}, pero no es una promesa.
+              </dd>
+            </div>
             <div>
               <dt className="font-medium">Puedo</dt>
               <dd className="text-taupe">{quien === "tu" ? "Tu líder de equipo te puede poner." : "Se la puede poner."}</dd>
@@ -175,7 +187,7 @@ export function EditorDisponibilidad({
                   {dia.modo === "horas" && (
                     <div className="flex flex-col gap-3 border-l-2 border-sand pl-3">
                       <p className="text-sm text-taupe">
-                        Marca las horas que no te calzan. El resto del día queda como «Puedo».
+                        Marca las horas y elige qué aplica en cada una. El resto del día queda como «Puedo».
                       </p>
                       {dia.tramos.map((t, i) => (
                         <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
@@ -219,13 +231,15 @@ export function EditorDisponibilidad({
                 <Campo etiqueta="Fecha" type="date" value={x.fecha} min={desde}
                   onChange={(e) => e.target.value && setExcepciones((xs) => xs.map((y, j) => (j === i ? { ...y, fecha: e.target.value } : y)))} />
                 <div role="group" aria-label="Estado" className="flex gap-1.5">
-                  {ESTADOS.map((e2) => (
+                  {ESTADOS.filter((e2) => x.desde || vaDiaEntero(e2.valor)).map((e2) => (
                     <Filtro key={e2.valor} tamano="sm" activo={x.estado === e2.valor} className="min-h-9"
                       onClick={() => setExcepciones((xs) => xs.map((y, j) => (j === i ? { ...y, estado: e2.valor } : y)))}>{e2.label}</Filtro>
                   ))}
                 </div>
                 <div role="group" aria-label="Todo el día o unas horas" className="flex gap-1.5">
-                  <Filtro tamano="sm" activo={!x.desde} className="min-h-9"
+                  {/* «Prefiero trabajar» va solo por horas: con ese estado elegido, «Todo el día» no se ofrece. */}
+                  <Filtro tamano="sm" activo={!x.desde} className="min-h-9 disabled:cursor-not-allowed disabled:opacity-50" disabled={!vaDiaEntero(x.estado)}
+                    title={vaDiaEntero(x.estado) ? undefined : "«Prefiero trabajar» se marca por horas"}
                     onClick={() => setExcepciones((xs) => xs.map((y, j) => (j === i ? { ...y, desde: null, hasta: null } : y)))}>Todo el día</Filtro>
                   <Filtro tamano="sm" activo={!!x.desde} className="min-h-9"
                     onClick={() => setExcepciones((xs) => xs.map((y, j) => (j === i && !y.desde ? { ...y, desde: "16:00", hasta: "20:00" } : y)))}>Unas horas</Filtro>
@@ -252,24 +266,31 @@ export function EditorDisponibilidad({
             </Boton>
           </div>
 
-          <div role="group" aria-label="Motivo" data-campo="motivo"
-            className={`flex flex-col gap-3 rounded-control border-2 bg-hueso p-4 ${motivo ? "border-sand" : "border-tinta"}`}>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <span className="text-base font-medium">¿Por qué {quien === "tu" ? "no puedes" : "no puede"} en esos días u horas?</span>
-              <span className={`text-sm ${motivo ? "text-verde" : "font-medium text-tinta"}`}>
-                {motivo ? "✓ Elegido" : "Obligatorio: elige uno"}
-              </span>
+          {conRestriccion && (
+            <div role="group" aria-label="Motivo" data-campo="motivo"
+              className={`flex flex-col gap-3 rounded-control border-2 bg-hueso p-4 ${motivo ? "border-sand" : "border-tinta"}`}>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <span className="text-base font-medium">¿Por qué {quien === "tu" ? "no te calzan" : "no le calzan"} esos días u horas?</span>
+                <span className={`text-sm ${motivo ? "text-verde" : "font-medium text-tinta"}`}>
+                  {motivo ? "✓ Elegido" : "Obligatorio: elige uno"}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {MOTIVOS_A_ELEGIR.map((m) => (
+                  <Filtro key={m.valor} activo={motivo === m.valor} className="min-h-11 px-4 text-base"
+                    onClick={() => setMotivo(m.valor)}>{m.label}</Filtro>
+                ))}
+              </div>
+              <p className="text-sm text-taupe">
+                {quien === "tu" ? "Lo ven solo tu líder de equipo y DO." : "Lo ven solo su líder de equipo y DO."}
+              </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {MOTIVOS.map((m) => (
-                <Filtro key={m.valor} activo={motivo === m.valor} className="min-h-11 px-4 text-base"
-                  onClick={() => setMotivo(m.valor)}>{m.label}</Filtro>
-              ))}
-            </div>
+          )}
+          {soloPreferencias && (
             <p className="text-sm text-taupe">
-              {quien === "tu" ? "Lo ven solo tu líder de equipo y DO." : "Lo ven solo su líder de equipo y DO."}
+              {quien === "tu" ? "Como solo marcaste lo que prefieres trabajar" : "Como solo marcó lo que prefiere trabajar"}, no hace falta decir por qué.
             </p>
-          </div>
+          )}
         </>
       )}
 

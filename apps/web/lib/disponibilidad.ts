@@ -10,7 +10,9 @@
 // QUÉ ASUME
 //   · El modelo es el de la 0584: un bloque es de un día de la semana (0 =
 //     domingo) o de una fecha; sin horas = todo el día; las horas van de media
-//     en media hora; «no_puede» o «prefiere_no». Si la base cambia una regla,
+//     en media hora; «no_puede», «prefiere_no» o «prefiere_trabajar» (0591; este
+//     último es un deseo, nunca una obligación ni una restricción). Si la base
+//     cambia una regla,
 //     cambia acá también (validarSemana espeja los CHECK y el EXCLUDE).
 //   · La VENTANA de la sede (fn_sede_ventana_semanal) es contra lo que se miden
 //     las horas libres: de la entrada más temprana a la salida más tarde del
@@ -20,7 +22,7 @@
 
 import { CORTE_MANANA_TARDE } from "@/lib/mi-semana";
 
-export type EstadoBloque = "no_puede" | "prefiere_no";
+export type EstadoBloque = "no_puede" | "prefiere_no" | "prefiere_trabajar";
 
 /** Una fila de disponibilidad_bloques, como viaja a fn_disponibilidad_enviar. */
 export interface Bloque {
@@ -37,6 +39,9 @@ export interface Tramo {
   estado: EstadoBloque;
 }
 
+// «Prefiero trabajar» no es un modo del día: va solo por horas, como estado de un
+// horario dentro de «Por horas» (Felipe, 2026-11-03: «quita el prefiero trabajar,
+// pero déjalo dentro de la opción depende de la hora»).
 export type ModoDia = "puede" | "no_puede" | "prefiere_no" | "horas";
 
 export interface DiaTipo {
@@ -62,7 +67,7 @@ export interface Ventana {
   cierra: string;
 }
 
-export type Motivo = "estudios" | "hijos" | "salud" | "otro_trabajo" | "otro";
+export type Motivo = "estudios" | "hijos" | "salud" | "otro_trabajo" | "otro" | "preferencia";
 
 export const MOTIVOS: readonly { valor: Motivo; label: string }[] = [
   { valor: "estudios", label: "Estudios" },
@@ -70,7 +75,31 @@ export const MOTIVOS: readonly { valor: Motivo; label: string }[] = [
   { valor: "salud", label: "Salud" },
   { valor: "otro_trabajo", label: "Otro trabajo" },
   { valor: "otro", label: "Otro" },
+  { valor: "preferencia", label: "Solo preferencias" },
 ];
+
+/**
+ * Los que la persona puede elegir: son motivos de por qué NO puede. «preferencia»
+ * (0591) la pone la pantalla sola cuando solo se marcó lo que se prefiere
+ * trabajar —no hay nada que justificar—, así que nunca es un botón.
+ */
+export const MOTIVOS_A_ELEGIR = MOTIVOS.filter((m) => m.valor !== "preferencia");
+
+/** ¿Algún bloque limita de verdad (no puede / prefiere no)? «Prefiero trabajar» no limita. */
+export function hayRestriccion(bloques: readonly { estado: EstadoBloque }[]): boolean {
+  return bloques.some((b) => b.estado !== "prefiere_trabajar");
+}
+
+/** Los estados que un día ENTERO puede tener (el otro modo, «horas», abre tramos). Sin «prefiere_trabajar»: ese va por horas. */
+const ESTADOS_DE_DIA = ["no_puede", "prefiere_no"] as const;
+type EstadoDeDia = (typeof ESTADOS_DE_DIA)[number];
+const esEstadoDeDia = (m: ModoDia | EstadoBloque): m is EstadoDeDia => (ESTADOS_DE_DIA as readonly string[]).includes(m);
+
+/** Los estados de un horario (un tramo de «Por horas» o unas horas de un día puntual), en el orden en que se dicen. */
+export const ESTADOS_DE_TRAMO: readonly EstadoBloque[] = ["no_puede", "prefiere_no", "prefiere_trabajar"];
+
+/** ¿Este estado puede ir en un día entero? «Prefiero trabajar» no: solo por horas. */
+export const vaDiaEntero = (e: EstadoBloque): boolean => e !== "prefiere_trabajar";
 
 /**
  * Por qué la registró otra persona (su líder o DO) y no ella (0589). De lo más
@@ -123,6 +152,10 @@ export function opcionesHora(): string[] {
   return out;
 }
 
+/** El primer y el último horario que la pantalla ofrece (los de `opcionesHora`). */
+const PRIMERA_HORA = aHora(6 * 60);
+const ULTIMA_HORA = aHora(24 * 60);
+
 const redondeoAbajo = (min: number) => Math.floor(min / 30) * 30;
 const redondeoArriba = (min: number) => Math.ceil(min / 30) * 30;
 
@@ -142,12 +175,23 @@ export function desdeBloques(bloques: Bloque[]): { semana: SemanaTipo; excepcion
     const desde = b.desde ? b.desde.slice(0, 5) : null;
     const hasta = b.hasta ? b.hasta.slice(0, 5) : null;
     if (b.fecha) {
-      excepciones.push({ fecha: b.fecha, desde, hasta, estado: b.estado });
+      // Un día entero que «prefiere trabajar» ya no se puede marcar así (va por horas): se dibuja
+      // como unas horas que cubren todo lo que la pantalla ofrece, para que se vea y se pueda corregir.
+      const entero = !desde || !hasta;
+      excepciones.push(entero && !vaDiaEntero(b.estado)
+        ? { fecha: b.fecha, desde: PRIMERA_HORA, hasta: ULTIMA_HORA, estado: b.estado }
+        : { fecha: b.fecha, desde, hasta, estado: b.estado });
     } else if (b.dia_semana !== undefined && b.dia_semana !== null) {
       const dia = semana[b.dia_semana];
       if (!desde || !hasta) {
-        dia.modo = b.estado;
-        dia.tramos = [];
+        if (esEstadoDeDia(b.estado)) {
+          dia.modo = b.estado;
+          dia.tramos = [];
+        } else {
+          // Lo mismo que en un día puntual: el día entero que prefiere trabajar se dibuja como un horario.
+          dia.modo = "horas";
+          dia.tramos.push({ desde: PRIMERA_HORA, hasta: ULTIMA_HORA, estado: b.estado });
+        }
       } else {
         dia.modo = "horas";
         dia.tramos.push({ desde, hasta, estado: b.estado });
@@ -164,7 +208,7 @@ export function aBloques(semana: SemanaTipo, excepciones: Excepcion[]): Bloque[]
   const out: Bloque[] = [];
   for (const d of ORDEN_DIAS) {
     const dia = semana[d];
-    if (dia.modo === "no_puede" || dia.modo === "prefiere_no") {
+    if (esEstadoDeDia(dia.modo)) {
       out.push({ dia_semana: d, desde: null, hasta: null, estado: dia.modo });
     } else if (dia.modo === "horas") {
       for (const t of dia.tramos) out.push({ dia_semana: d, desde: t.desde, hasta: t.hasta, estado: t.estado });
@@ -187,7 +231,11 @@ export function copiarDia(semana: SemanaTipo, origen: number): SemanaTipo {
 }
 
 export function semanaSinRestricciones(semana: SemanaTipo): boolean {
-  return ORDEN_DIAS.every((d) => semana[d].modo === "puede" || (semana[d].modo === "horas" && semana[d].tramos.length === 0));
+  return ORDEN_DIAS.every((d) => {
+    const dia = semana[d];
+    if (dia.modo === "puede") return true;
+    return dia.modo === "horas" && dia.tramos.every((t) => t.estado === "prefiere_trabajar");
+  });
 }
 
 // ── Atajos ───────────────────────────────────────────────────────────────────
@@ -320,22 +368,26 @@ function lista(xs: string[]): string {
  *  16:00 a 20:00.» — o «Puedes cualquier día y hora.» si no hay nada.
  */
 export function resumenEnPalabras(semana: SemanaTipo, excepciones: Excepcion[], quien: "tu" | "ella" = "tu"): string[] {
-  const verbo = (e: EstadoBloque) =>
-    e === "no_puede" ? (quien === "tu" ? "No puedes" : "No puede") : quien === "tu" ? "Prefieres no" : "Prefiere no";
-  const partes: Record<EstadoBloque, string[]> = { no_puede: [], prefiere_no: [] };
+  const verbo = (e: EstadoBloque) => {
+    const tu = quien === "tu";
+    if (e === "no_puede") return tu ? "No puedes" : "No puede";
+    if (e === "prefiere_no") return tu ? "Prefieres no" : "Prefiere no";
+    return tu ? "Prefieres trabajar" : "Prefiere trabajar";
+  };
+  const partes: Record<EstadoBloque, string[]> = { no_puede: [], prefiere_no: [], prefiere_trabajar: [] };
   for (const d of ORDEN_DIAS) {
     const dia = semana[d];
-    if (dia.modo === "no_puede" || dia.modo === "prefiere_no") {
+    if (esEstadoDeDia(dia.modo)) {
       partes[dia.modo].push(`los ${PLURAL_DIA[d]} todo el día`);
     } else if (dia.modo === "horas") {
-      for (const e of ["no_puede", "prefiere_no"] as const) {
+      for (const e of ESTADOS_DE_TRAMO) {
         const ts = dia.tramos.filter((t) => t.estado === e).map((t) => `de ${t.desde} a ${t.hasta}`);
         if (ts.length) partes[e].push(`los ${PLURAL_DIA[d]} ${lista(ts)}`);
       }
     }
   }
   const lineas: string[] = [];
-  for (const e of ["no_puede", "prefiere_no"] as const) {
+  for (const e of ESTADOS_DE_TRAMO) {
     if (partes[e].length) lineas.push(`${verbo(e)}: ${lista(partes[e])}.`);
   }
   if (excepciones.length) {

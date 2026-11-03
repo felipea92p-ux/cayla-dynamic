@@ -19,7 +19,10 @@
 //   · Mueve la entrada, la salida y el día libre. Cada día es UN turno corrido:
 //     nunca un turno partido.
 //   · «No puedo» nunca se pisa. «Prefiero no» se respeta si alcanza la gente; si
-//     no, se usa y se avisa. «Horario fijo» deja ese día como estaba.
+//     no, se usa y se avisa. «Prefiero trabajar» (0591) cuenta un poco a favor de
+//     poner a esa persona ahí —BONO_PREFIERE_TRABAJAR—, mucho menos que cubrir un
+//     hueco de la venta o que respetar un «prefiero no»: desempata, no manda.
+//     «Horario fijo» deja ese día como estaba.
 //   · Cada persona mantiene sus días de trabajo por semana y las horas de su
 //     jornada (la que fijó DO; si no hay, las de su horario de siempre).
 //   · Primero los picos: faltar gente en piso pesa más que sobrar, y sobrar
@@ -38,7 +41,7 @@ export type Min = number; // minutos desde la medianoche
 
 export interface Turno { entrada: Min; salida: Min }
 
-export interface Bloque { desde: Min; hasta: Min; estado: "no_puede" | "prefiere_no" }
+export interface Bloque { desde: Min; hasta: Min; estado: "no_puede" | "prefiere_no" | "prefiere_trabajar" }
 
 export interface DiaSugerencia {
   fecha: string;
@@ -86,6 +89,14 @@ export interface Propuesta {
 
 const PASO: Min = 15;
 const MAX_SEMANA_MIN: Min = 48 * 60;
+/**
+ * Cuánto baja el costo de un día en que la persona trabaja justo en horas que
+ * prefiere trabajar (proporcional a cuánto de su turno cae ahí). Para dimensionarlo:
+ * un «prefiero no» pisado cuesta 150, una hora de diferencia con su jornada 300 y
+ * repetir el turno de la semana pasada 6. 30 alcanza para desempatar entre dos
+ * propuestas igual de buenas, y no para dejar un hueco de cobertura.
+ */
+export const BONO_PREFIERE_TRABAJAR = 30;
 const MIN_NETO: Min = 4 * 60;
 const MAX_NETO: Min = 9 * 60;
 const nombreDia = (fecha: string) =>
@@ -111,6 +122,10 @@ export function semillaDe(texto: string): number {
 }
 
 const cruza = (t: Turno, b: { desde: Min; hasta: Min }) => t.entrada < b.hasta && b.desde < t.salida;
+
+/** Qué parte del turno (0 a 1) cae dentro de un bloque. */
+const fraccionDentro = (t: Turno, b: { desde: Min; hasta: Min }) =>
+  Math.max(0, Math.min(t.salida, b.hasta) - Math.max(t.entrada, b.desde)) / Math.max(1, t.salida - t.entrada);
 
 /** Los turnos posibles de una persona un día: dentro de la ventana, de 15 en 15, del largo que le cabe, sin pisar un «no puedo». */
 function opcionesDelDia(p: PersonaSugerencia, d: DiaSugerencia): Turno[] {
@@ -189,8 +204,12 @@ export function sugerirSemana(args: {
     for (let i = 0; i < personas.length; i++) {
       const t = G[i][j];
       if (!t) continue;
-      const prefiere = (personas[i].bloques[dias[j].fecha] ?? []).filter((b) => b.estado === "prefiere_no");
-      for (const b of prefiere) if (cruza(t, b)) c += 150;
+      const bloques = personas[i].bloques[dias[j].fecha] ?? [];
+      for (const b of bloques) if (b.estado === "prefiere_no" && cruza(t, b)) c += 150;
+      // Con varios bloques que prefiere trabajar el mismo día, cuenta el que más de su turno cubre (no se suman).
+      let gusto = 0;
+      for (const b of bloques) if (b.estado === "prefiere_trabajar") gusto = Math.max(gusto, fraccionDentro(t, b));
+      c -= BONO_PREFIERE_TRABAJAR * gusto;
       const ant = personas[i].anterior?.[j];
       if (ant && ant.entrada === t.entrada && ant.salida === t.salida) c += 6;
     }

@@ -61,7 +61,7 @@ export function restriccionesDesdeDisponibilidad(
   for (const f of filas) {
     const r = out.get(f.persona_id) ?? { fijos: new Set<string>(), bloques: {} };
     if (f.estado === "horario_fijo") r.fijos.add(f.fecha);
-    else if (f.estado === "no_puede" || f.estado === "prefiere_no") {
+    else if (f.estado === "no_puede" || f.estado === "prefiere_no" || f.estado === "prefiere_trabajar") {
       const b: Bloque = {
         desde: f.desde ? aMinutos(f.desde) : 0,
         hasta: f.hasta ? aMinutos(f.hasta) : 24 * 60,
