@@ -1267,15 +1267,18 @@ export default function MioPage() {
   // Los cargos en curso (0581): lo que le comunicaron antes de decidir nada. Si la
   // migración todavía no está pegada, la función no existe y la lista queda vacía.
   const [misCargos, setMisCargos] = useState<CargoMio[]>([]);
+  // Si no se pudieron leer, la sección no dice «no tienes nada» (ver DisciplinaMia).
+  const [misCargosError, setMisCargosError] = useState(false);
   const cargarMiDisciplina = useCallback(async () => {
     if (!yo?.id) { setMiDisciplina(null); setMiCuenta(null); setMisCargos([]); return; }
-    const [{ data, error }, { data: cuenta }, { data: cargos }] = await Promise.all([
+    const [{ data, error }, { data: cuenta }, { data: cargos, error: eCargos }] = await Promise.all([
       supabase.rpc("fn_mi_disciplina"),
       supabase.rpc("fn_mi_cuenta_de_tardanzas", {}),
       supabase.rpc("fn_mis_cargos"),
     ]);
     setMiCuenta((cuenta as unknown as CuentaMia | null) ?? null);
     setMisCargos(((cargos as unknown as { cargos?: CargoMio[] } | null)?.cargos) ?? []);
+    setMisCargosError(Boolean(eCargos));
     if (error) { setMiDisciplinaError(true); return; }
     setMiDisciplinaError(false);
     setMiDisciplina(((data as unknown as { documentos?: DocMio[] } | null)?.documentos) ?? []);
@@ -1681,7 +1684,10 @@ export default function MioPage() {
       out.push({
         clave: `cargos-recibir:${c.id}`,
         texto: "Te comunicaron unos cargos",
-        detalle: "Ábrelos y confirma que los recibiste. Todavía no se decidió nada: si quieres, puedes escribir ahí tu descargo.",
+        // Después del plazo ya no se le ofrece escribir el descargo.
+        detalle: c.plazo_vigente
+          ? "Ábrelos y confirma que los recibiste. Todavía no se decidió nada: si quieres, puedes escribir ahí tu descargo."
+          : "Ábrelos y confirma que los recibiste.",
         ir: () => router.push(`/mio/cargos/${c.id}`),
       });
     }
@@ -3054,7 +3060,7 @@ export default function MioPage() {
       {tab === "disciplina" && yo && (
         <DisciplinaMia
           supabase={supabase} personaId={yo.id}
-          docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta} cargos={misCargos}
+          docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta} cargos={misCargos} cargosError={misCargosError}
           onCambio={() => void cargarMiDisciplina()}
         />
       )}

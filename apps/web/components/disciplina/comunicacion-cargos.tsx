@@ -270,13 +270,24 @@ export function ComunicacionCargos({
           </p>
         )}
         {t === "falta" && (
-          <p>
-            No constituyen inasistencia ni se computan el descanso semanal, los feriados, los días sin jornada
-            programada, el descanso vacacional aprobado, el descanso médico o el certificado de incapacidad temporal, los
-            permisos y licencias autorizados o previstos por ley, los días de suspensión ya cumplida, el descanso
-            sustitutorio y los días amparados por el artículo 22 del RIT (numeral 20.2 del RIT). Si alguno de esos días
-            corresponde a una de estas situaciones, indíquelo: en ese caso no se computa.
-          </p>
+          <>
+            <p>
+              No constituyen inasistencia ni se computan el descanso semanal, los feriados, los días sin jornada
+              programada, el descanso vacacional aprobado, el descanso médico o el certificado de incapacidad temporal,
+              los permisos y licencias autorizados o previstos por ley, los días de suspensión ya cumplida y el descanso
+              sustitutorio (numeral 20.2 del RIT). Si alguno de esos días corresponde a una de estas situaciones,
+              indíquelo: en ese caso no se computa. La justificación presentada fuera de plazo, con documento idóneo, se
+              evalúa igualmente (numeral 20.4 del RIT).
+            </p>
+            {/* El art. 22 va aparte y a DO: su descargo lo lee su líder de equipo, y
+                el 22.2 y el 22.5 dicen que ese motivo no se explica ni se le comunica
+                a ella (revisión del 2026-11-03). */}
+            <p>
+              Si alguno de esos días corresponde a una situación del artículo 22 del RIT, comuníquelo directamente a
+              Desarrollo Organizacional, sin dar explicaciones y no en este descargo: ese día no se computa y el motivo
+              se mantiene en reserva.
+            </p>
+          </>
         )}
       </div>
 

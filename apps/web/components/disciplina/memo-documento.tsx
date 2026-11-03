@@ -112,7 +112,15 @@ export interface DocMemo {
    *  y cuándo supo la empresa del hecho (52.6). */
   falta?: { numeral: string; literal: string; texto: string; gravedad: string } | null;
   conocido_el?: string | null;
+  /** La fecha final del periodo que cubre: el corte del cómputo siguiente (56.6). */
+  periodo_hasta?: string | null;
+  /** El descargo previo (55.2) y su valoración (19.3): el documento la tiene que decir (55.3). */
+  cargos_comunicados_at?: string | null;
+  descargo_acogido?: string | null;
+  descargo_valoracion?: string | null;
 }
+/** Lo que escribió en su Info durante el plazo (0581). */
+export interface DescargoMemo { texto: string; presentado_at: string }
 /** Lo que el papel necesita de la persona. */
 export interface PersonaMemo { nombres: string; apellidos: string; documento: string | null; funcion: string }
 
@@ -133,16 +141,26 @@ function Cuerpo({ doc, previas }: { doc: DocMemo; previas: Previa[] }) {
       return (
         <>
           <p>El presente memorándum deja constancia de que, correspondiéndole laborar en la(s) fecha(s) que se detalla(n), usted <strong>no concurrió al centro de trabajo ni registró marca alguna</strong> en el sistema de control de asistencia, sin que exista justificación aceptada dentro del plazo previsto en el numeral 20.4 del RIT.</p>
-          <p>La inasistencia injustificada constituye falta conforme al literal c) del numeral 53.2 del RIT, con la gradación del literal a) del numeral 21.2, y contraviene el deber de asistencia y puntualidad (artículo 20 del RIT). El descuento del día no laborado y de la parte proporcional del descanso semanal es independiente de esta sanción.</p>
+          <p>La inasistencia injustificada constituye falta conforme al literal c) del numeral 53.2 del RIT, con la gradación del literal a) del numeral 21.2, y contraviene el deber de asistencia y puntualidad (artículo 20 del RIT). El día no laborado no aporta horas a su pago, sin descuento adicional alguno, tampoco sobre el descanso semanal (numeral 20.5 del RIT); ese efecto no es sanción y es independiente de esta.</p>
           <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, incorporada a su legajo por doce (12) meses (numeral 56.1 del RIT). Una nueva inasistencia injustificada dará lugar a <strong>suspensión sin goce de haber</strong> (literal b) del numeral 21.2 del RIT), y la acumulación de ausencias puede configurar causal de despido conforme al artículo 25-h de la LPCL.</p>
         </>
       );
     }
     if (nivel === "suspension") {
-      const art = t === "tardanza" ? "literal c) del numeral 19.2" : "literal b) del numeral 21.2";
+      // Hasta el 2026-11-03 citaba siempre el escalón de la PRIMERA suspensión
+      // —también en la segunda—, una suspensión por conducta salía con el
+      // literal de inasistencias, y toda primera suspensión advertía el despido
+      // cuando el paso siguiente es la segunda (19.2 d, 21.2 c).
+      const segunda = previas.some((p) => p.nivel === "suspension");
+      const art = t === "tardanza"
+        ? (segunda ? "literal d) del numeral 19.2" : "literal c) del numeral 19.2")
+        : t === "falta"
+          ? (segunda ? "literal c) del numeral 21.2" : "literal b) del numeral 21.2")
+          : "numeral 54.8";
+      const antes = segunda ? "suspendido con anterioridad" : "amonestado por escrito con anterioridad";
       return (
         <>
-          <p>Habiendo sido usted <strong>amonestado por escrito con anterioridad</strong> por {CAUSAL[t]}, y habiendo reincidido según el detalle que se indica, se configura el {art} del RIT. Estos hechos son nuevos y posteriores a la sanción previa; no se recuenta ninguno ya sancionado.</p>
+          <p>Habiendo sido usted <strong>{antes}</strong> por {CAUSAL[t]}, y habiendo reincidido según el detalle que se indica, se configura el {art} del RIT. Estos hechos son nuevos y posteriores a la sanción previa; no se recuenta ninguno ya sancionado.</p>
           {/* Con las fechas exactas se enumeran una por una; sin ellas se cae al
               rango, que es lo único que había antes de la 0075. Un rango sobre
               días no contiguos afirma algo falso sobre el alcance del castigo. */}
@@ -155,7 +173,15 @@ function Cuerpo({ doc, previas }: { doc: DocMemo; previas: Previa[] }) {
               papel no informa cuánto pesa en el legajo — y de esa vigencia
               depende que la siguiente sanción escale o vuelva a empezar. */}
           <p>Esta sanción se incorpora a su legajo como antecedente disciplinario con vigencia de <strong>doce (12) meses</strong> desde su notificación (numeral 56.1 del RIT).</p>
-          <p>Se le advierte que, de persistir, {EMPRESA.nombre} iniciará el procedimiento de despido por causa justa previsto en el artículo 31 de la LPCL.</p>
+          <p>{t === "tardanza"
+            ? segunda
+              ? <>Se le advierte que una nueva tardanza dará lugar a la imputación de cargos (literal e) del numeral 19.2 del RIT), con el procedimiento del artículo 31 de la LPCL.</>
+              : <>Se le advierte que, de reiterarse, la sanción siguiente es una <strong>segunda suspensión sin goce de haber</strong>, de mayor duración que esta (literal d) del numeral 19.2 del RIT).</>
+            : t === "falta"
+              ? segunda
+                ? <>Se le advierte que, si la conducta configura alguna de las causales del numeral 21.5 del RIT, podrá iniciarse la imputación de cargos, con el procedimiento del artículo 31 de la LPCL.</>
+                : <>Se le advierte que, de reiterarse, la sanción siguiente es una <strong>segunda suspensión sin goce de haber</strong>, de mayor duración que esta (literal c) del numeral 21.2 del RIT).</>
+              : <>Se le advierte que, de reiterarse la misma conducta, {EMPRESA.nombre} evaluará la medida que corresponda conforme al numeral 54.8 del RIT.</>}</p>
         </>
       );
     }
@@ -248,8 +274,57 @@ function Cuerpo({ doc, previas }: { doc: DocMemo; previas: Previa[] }) {
     return <p>Documento de {CAUSAL[t]}.</p>;
 }
 
+/**
+ * Lo que el 55.3 exige que la sanción diga además de la sanción: la valoración
+ * del descargo; y el corte del cómputo (56.6) y la reconsideración (55.5), que
+ * el Modelo 4 del Manual pone en cada amonestación. Hasta el 2026-11-03 el memo
+ * no traía ninguna de las tres: la valoración se guardaba en el expediente y el
+ * documento que se le entrega no la decía.
+ */
+function Cierre({ doc, descargos }: { doc: DocMemo; descargos: readonly DescargoMemo[] }) {
+  if (!esGradual(doc.nivel)) return null;
+  const a = doc.descargo_acogido ?? null;
+  const escrito = descargos.length > 0;
+  const motivo = doc.descargo_valoracion?.trim() ? `: ${doc.descargo_valoracion.trim().replace(/\.\s*$/, "")}.` : ".";
+  const veredicto = a === "total" ? "Se acoge totalmente" : a === "parcial" ? "Se acoge parcialmente" : "No se acoge, por las siguientes razones";
+  return (
+    <div className="mt-4 grid gap-3">
+      {(doc.cargos_comunicados_at || a) && (
+        <p>
+          <strong>Descargo y su valoración.</strong>{" "}
+          {a === "sin_descargo" && !escrito
+            ? <>Vencido el plazo concedido, no se recibió descargo. Este hecho no se interpreta como aceptación de los cargos; {EMPRESA.nombre} resuelve con los elementos disponibles (numeral 55.2 del RIT).</>
+            : <>
+                {escrito
+                  ? <>Con fecha {fechaLarga(descargos[0].presentado_at)} usted presentó su descargo por escrito en su Info de Dynamic{descargos.length > 1 ? ", y lo amplió después" : ""}. </>
+                  : a ? <>Valorado su descargo: </> : null}
+                {a
+                  ? <>{veredicto}{motivo}</>
+                  : <em>Pendiente de valorar: se valora cuando vence el plazo de descargo (numeral 55.2 del RIT).</em>}
+              </>}
+        </p>
+      )}
+      {doc.periodo_hasta && (
+        <p>
+          <strong>Corte del cómputo.</strong> El cómputo de una eventual medida posterior solo considerará hechos
+          posteriores al {fechaLarga(doc.periodo_hasta)} (numeral 56.6 del RIT).
+        </p>
+      )}
+      <p>
+        <strong>Reconsideración.</strong> Puede solicitarla por escrito ante la Gerencia General dentro de los cinco (5)
+        días hábiles siguientes a la recepción; se resuelve por escrito en no más de diez (10) días hábiles (numeral 55.5
+        del RIT). Esta vía es voluntaria y no restringe su derecho a acudir a la Autoridad Inspectiva de Trabajo o al
+        Poder Judicial. Se deja constancia, conforme al mismo numeral, de que según el criterio del IX Pleno
+        Jurisdiccional Supremo en materia Laboral y Previsional el plazo para impugnar judicialmente una sanción distinta
+        al despido es de treinta (30) días hábiles contados desde el día siguiente de su notificación, y de que esta vía
+        interna no lo suspende, no lo interrumpe ni lo sustituye.
+      </p>
+    </div>
+  );
+}
+
 export function MemoDocumento({
-  doc, persona, sede, areas, firmante, cargoFirmante, firmaUrl, previas, firmanteIlegible = false, recepcion = null, children,
+  doc, persona, sede, areas, firmante, cargoFirmante, firmaUrl, previas, firmanteIlegible = false, recepcion = null, descargos = [], children,
 }: {
   doc: DocMemo;
   persona: PersonaMemo | null;
@@ -270,6 +345,8 @@ export function MemoDocumento({
    * puño y letra y esa es la que de verdad prueba la entrega en mano.
    */
   recepcion?: { at: string; firma: string | null } | null;
+  /** Lo que escribió en su Info durante el plazo de descargo (0581), para su valoración. */
+  descargos?: readonly DescargoMemo[];
   /** Lo que la pantalla agrega debajo del papel — nunca va impreso. */
   children?: ReactNode;
 }) {
@@ -363,6 +440,8 @@ export function MemoDocumento({
             </tbody>
           </table>
         )}
+
+        <Cierre doc={doc} descargos={descargos} />
 
         <div className="firma mt-10 grid grid-cols-2 gap-8 text-[12px] print:break-inside-avoid">
           <div>

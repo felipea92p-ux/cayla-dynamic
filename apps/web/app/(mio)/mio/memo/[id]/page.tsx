@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
-import { MemoDocumento, TITULO, fechaLarga, horaLima, type Hecho } from "@/components/disciplina/memo-documento";
+import { MemoDocumento, TITULO, fechaLarga, horaLima, type DescargoMemo, type Hecho, type Previa } from "@/components/disciplina/memo-documento";
+import { previasDelMemo } from "@/lib/admin/previas-del-memo";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -57,6 +58,11 @@ function MiMemoContenido() {
   const { avisar } = useToast();
 
   const [memo, setMemo] = useState<MemoDigital | null>(null);
+  // La valoración de su descargo y lo que escribió (55.3, 0581): el documento las
+  // dice. Se leen de su propia fila y de su descargo, que su RLS le deja leer.
+  const [valoracion, setValoracion] = useState<{ cargos_comunicados_at: string | null; descargo_acogido: string | null; descargo_valoracion: string | null } | null>(null);
+  const [descargos, setDescargos] = useState<DescargoMemo[]>([]);
+  const [previas, setPrevias] = useState<Previa[]>([]);
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [nombreOficial, setNombreOficial] = useState("");
@@ -84,6 +90,25 @@ function MiMemoContenido() {
     if (eM) { setError(mensajeDeError(eM, "abrir el documento")); setCargando(false); return; }
     // null = no existe, no es tuyo, o todavía no te lo enviaron: la base no distingue, ni esta pantalla.
     setMemo((m as unknown as MemoDigital | null) ?? null);
+    if (m) {
+      const [{ data: v }, { data: des }] = await Promise.all([
+        supabase.from("expediente_disciplinario")
+          .select("persona_id, cargos_comunicados_at, descargo_acogido, descargo_valoracion, falta_numeral, falta_literal")
+          .eq("id", id).maybeSingle(),
+        supabase.from("descargos_presentados").select("texto, presentado_at").eq("expediente_id", id).order("presentado_at"),
+      ]);
+      const fila = v as (NonNullable<typeof valoracion> & { persona_id: string; falta_numeral: string | null; falta_literal: string | null }) | null;
+      setValoracion(fila);
+      setDescargos(Array.isArray(des) ? (des as DescargoMemo[]) : []);
+      // Las mismas previas que el memo de Disciplina: el escalón de una suspensión sale de ahí.
+      const md = m as unknown as MemoDigital;
+      if (fila) {
+        setPrevias(await previasDelMemo(supabase, {
+          id, persona_id: fila.persona_id, tipo_causal: md.tipo_causal, periodo_hasta: md.periodo_hasta,
+          falta_numeral: fila.falta_numeral, falta_literal: fila.falta_literal,
+        }));
+      }
+    }
     setAreas(parseAreas(ar, eAr));
     setMiFirma((mf as string | null) ?? null);
 
@@ -165,8 +190,8 @@ function MiMemoContenido() {
           <h1 className="mb-1 font-serif text-lg">Este documento te está esperando</h1>
           <p className="mb-3 text-sm text-taupe">
             Léelo completo aquí abajo. Cuando confirmes, queda anotado que lo recibiste en ese momento y desde
-            entonces cuenta como entregado. Recibirlo no es aceptar lo que dice: puedes firmarlo y presentar tu
-            descargo, o recibirlo sin firmar.
+            entonces cuenta como entregado. Recibirlo no es aceptar lo que dice: puedes firmarlo o recibirlo sin
+            firmar. Si no estás de acuerdo, al final del documento se explica cómo pedir su reconsideración.
           </p>
 
           {paso === null ? (
@@ -254,14 +279,19 @@ function MiMemoContenido() {
           suspension_hasta: memo.suspension_hasta, suspension_fechas: memo.suspension_fechas,
           firmado_at: memo.firmado_at, creado_at: memo.creado_at,
           falta: memo.falta ?? null, conocido_el: memo.conocido_el ?? null,
+          periodo_hasta: memo.periodo_hasta,
+          cargos_comunicados_at: valoracion?.cargos_comunicados_at ?? null,
+          descargo_acogido: valoracion?.descargo_acogido ?? null,
+          descargo_valoracion: valoracion?.descargo_valoracion ?? null,
         }}
+        descargos={descargos}
         persona={memo.persona}
         sede={memo.persona.sede_codigo ?? ""}
         areas={areas}
         firmante={memo.firmante?.nombre ?? null}
         cargoFirmante={memo.firmante?.cargo ?? null}
         firmaUrl={memo.firma_emisor}
-        previas={[]}
+        previas={previas}
         recepcion={memo.medio_entrega === "digital" && memo.entregado_at
           ? { at: memo.entregado_at, firma: memo.firma_sancionado }
           : null}
