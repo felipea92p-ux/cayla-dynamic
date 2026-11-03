@@ -1056,12 +1056,19 @@ export default function MarcarPage() {
         // pausa ni cambia sus horas—; solo la línea bajo su nombre dice dónde.
         if (casilla.clave !== "laborando") return [p.id, casilla] as const;
         const enAlmacen = detalleCasillaAlmacen(ubicacionActual(cambiosConPlan(p.id), marcas, ahora));
-        return [p.id, enAlmacen ? { ...casilla, detalle: enAlmacen } : casilla] as const;
+        // El ícono de piso/almacén (Felipe, 2026-11-03), con la misma regla que
+        // el botón: solo si el terminal y la persona son de tienda (0583).
+        const ubicacion = ofreceAlmacen(terminal?.sedesTienda, terminal?.sedeCodigo, p.sedeCodigo)
+          ? enAlmacen
+            ? ("almacen" as const)
+            : ("piso" as const)
+          : undefined;
+        return [p.id, { ...casilla, ...(enAlmacen ? { detalle: enAlmacen } : {}), ubicacion }] as const;
       }),
     );
     // cambiosConPlan lee planVista, horariosVista y ubicacionesVista, que van en la lista.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estadoConfirmado, rosterFiltrado, marcajesVista, horariosVista, ubicacionesVista, planVista, ahoraMs]);
+  }, [estadoConfirmado, rosterFiltrado, marcajesVista, horariosVista, ubicacionesVista, planVista, ahoraMs, terminal]);
 
   // La casilla del menú de salida: «Voy a almacén» o «Vuelvo a tienda». Solo
   // cuando el estado de la persona está confirmado — con el menú de respaldo
