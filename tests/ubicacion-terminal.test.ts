@@ -11,6 +11,7 @@ import type { MarcajeDelDia } from "@cayla-dynamic/shared";
 import {
   DURACIONES_ALMACEN,
   cambiosDelPlan,
+  ofreceAlmacen,
   textoPlanDeHoy,
   tramosDelDia,
   tramosPlanificados,
@@ -20,6 +21,7 @@ import {
   vueltaPrevista,
   type CambioUbicacion,
 } from "@/lib/terminal/ubicacion";
+import { puedeRecargar } from "@/lib/terminal/recarga-version";
 
 const lima = (hora: string) => `2026-10-15T${hora}:00-05:00`;
 const a = (hora: string) => new Date(lima(hora));
@@ -153,5 +155,32 @@ describe("tramosDelDia: la regla única, en tramos (la usa Turnos)", () => {
 
   it("el tramo de ahora queda abierto (hasta = null)", () => {
     expect(tramos([alm("10:00", "11:00")], [], "10:30")).toEqual([[h(lima("10:00")), null]]);
+  });
+});
+
+describe("almacén solo en tiendas (0583)", () => {
+  const tiendas = ["TRU", "AQP"];
+  it("se ofrece solo si el terminal y la persona son de tienda", () => {
+    expect(ofreceAlmacen(tiendas, "TRU", "TRU")).toBe(true);
+    expect(ofreceAlmacen(tiendas, "TRU", "AQP")).toBe(true);
+    expect(ofreceAlmacen(tiendas, "TRU", "CCO")).toBe(false);
+    expect(ofreceAlmacen(tiendas, "LIM", "LIM")).toBe(false);
+  });
+  it("sin saber qué sedes son tienda, no se ofrece", () => {
+    expect(ofreceAlmacen(undefined, "TRU", "TRU")).toBe(false);
+  });
+});
+
+describe("la versión nueva se carga sola, sin interrumpir a nadie", () => {
+  const base = { hayVersionNueva: true, pantalla: "lista", enviando: false, msDesdeUltimoToque: 61_000 };
+  it("recarga cuando hay versión nueva y nadie usa el terminal", () => {
+    expect(puedeRecargar(base)).toBe(true);
+  });
+  it("no recarga a media marca, a medio envío ni si lo tocaron hace poco", () => {
+    expect(puedeRecargar({ ...base, pantalla: "confirmando" })).toBe(false);
+    expect(puedeRecargar({ ...base, pantalla: "elegir_tiempo_almacen" })).toBe(false);
+    expect(puedeRecargar({ ...base, enviando: true })).toBe(false);
+    expect(puedeRecargar({ ...base, msDesdeUltimoToque: 5_000 })).toBe(false);
+    expect(puedeRecargar({ ...base, hayVersionNueva: false })).toBe(false);
   });
 });

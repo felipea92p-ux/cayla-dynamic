@@ -215,3 +215,18 @@ export function cambiosDelPlan(
   }
   return plan.tramos.map((t) => ({ ubicacion: "almacen" as const, timestamp: iso(t.desde), vuelvePrevisto: iso(t.hasta) }));
 }
+
+/**
+ * ¿Se le ofrece «Voy a almacén» a esta persona en este terminal? Solo si la
+ * sede del terminal y la sede base de la persona son tienda (0583, Felipe
+ * 2026-11-03). Sin la lista de tiendas no se ofrece: es la respuesta segura, y
+ * la base lo rechazaría igual.
+ */
+export function ofreceAlmacen(
+  sedesTienda: readonly string[] | undefined,
+  sedeTerminal: string | undefined,
+  sedePersona: string | undefined,
+): boolean {
+  if (!sedesTienda || !sedeTerminal || !sedePersona) return false;
+  return sedesTienda.includes(sedeTerminal) && sedesTienda.includes(sedePersona);
+}

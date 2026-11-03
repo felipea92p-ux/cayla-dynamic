@@ -439,7 +439,8 @@ with repo(numero, nombre, nunca) as (values
     (579, 'el_almacen_se_planifica_por_dia', false),
     (580, 'ir_al_almacen_se_marca_en_el_terminal', false),
     (581, 'los_cargos_llegan_a_su_info', false),
-    (582, 'lo_comunicado_no_cambia_y_el_descargo_se_lee_antes', false)
+    (582, 'lo_comunicado_no_cambia_y_el_descargo_se_lee_antes', false),
+    (583, 'el_almacen_es_solo_de_las_tiendas', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

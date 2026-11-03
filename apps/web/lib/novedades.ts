@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-el-terminal-se-pone-al-dia-solo",
+    fecha: "2026-11-03",
+    titulo: "El terminal se pone al día solo, y el almacén queda para las tiendas",
+    queMejoro:
+      "Cuando hay una versión nueva de Dynamic, el terminal de tu sede la carga solo. Lo hace cuando nadie lo está " +
+      "usando: en la lista de nombres y después de un minuto sin que lo toquen. Las marcas guardadas sin enviar no se " +
+      "pierden.\n\n" +
+      "«Voy a almacén» aparece solo en los terminales de tienda y solo para el equipo de tienda. En Central y en el " +
+      "Taller ya no se muestra.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-02-turnos-dia-con-lo-marcado-en-el-terminal",
     fecha: "2026-11-02",
     titulo: "Turnos, vista Día, muestra quién está de verdad en almacén",

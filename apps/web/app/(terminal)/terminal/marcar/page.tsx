@@ -33,10 +33,13 @@ import type { PuestoDelDia } from "@/lib/admin/almacen";
 import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
+import { puedeRecargar } from "@/lib/terminal/recarga-version";
+import { CADA_CUANTO_MS, VERSION_DE_ESTA_PAGINA, hayVersionNueva } from "@/lib/version-despliegue";
 import {
   DURACIONES_ALMACEN,
   cambiosDelPlan,
   detalleCasillaAlmacen,
+  ofreceAlmacen,
   horaUbicacion,
   textoEstadoAlmacen,
   textoPlanDeHoy,
@@ -270,6 +273,11 @@ export default function MarcarPage() {
   // intermitente — o sea, invisible.
   const [desfase, setDesfase] = useState<MedidaDesfase | null>(null);
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
+  // Para recargar sola con una versión nueva sin interrumpir a nadie: cuándo se
+  // tocó el terminal por última vez, y si ya se sabe que hay versión nueva.
+  // 0 = nadie lo tocó desde que cargó: recién abierto no hay a quién interrumpir.
+  const ultimoToqueRef = useRef(0);
+  const [versionNueva, setVersionNueva] = useState(false);
 
   useEffect(() => {
     const id = window.setInterval(() => setAhoraMs(Date.now()), 30_000);
@@ -526,6 +534,60 @@ export default function MarcarPage() {
       window.clearInterval(iv);
     };
   }, [cargarTodo]);
+
+  // LA VERSIÓN NUEVA SE CARGA SOLA, cuando nadie está usando el terminal
+  // (lib/terminal/recarga-version.ts). Pregunta cada 3 minutos con la pestaña a
+  // la vista —la misma pregunta que el aviso del panel— y, cuando la hay, espera
+  // a que la pantalla esté en la lista y lleve un minuto sin tocarse. Lo
+  // guardado sin enviar vive en IndexedDB y sobrevive a la recarga.
+  useEffect(() => {
+    if (!VERSION_DE_ESTA_PAGINA || versionNueva) return;
+    const preguntar = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const r = await fetch(`/api/version?t=${Date.now()}`, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+        if (!r.ok) return;
+        const { version } = (await r.json()) as { version?: unknown };
+        if (hayVersionNueva(VERSION_DE_ESTA_PAGINA, version)) setVersionNueva(true);
+      } catch {
+        // Sin red no es versión nueva: se vuelve a preguntar.
+      }
+    };
+    void preguntar();
+    const t = window.setInterval(() => void preguntar(), CADA_CUANTO_MS);
+    return () => window.clearInterval(t);
+  }, [versionNueva]);
+
+  // Cualquier toque en la pantalla cuenta como «alguien lo está usando».
+  useEffect(() => {
+    const tocar = () => { ultimoToqueRef.current = Date.now(); };
+    window.addEventListener("pointerdown", tocar, { passive: true });
+    window.addEventListener("keydown", tocar);
+    return () => {
+      window.removeEventListener("pointerdown", tocar);
+      window.removeEventListener("keydown", tocar);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!versionNueva) return;
+    const revisar = () => {
+      if (
+        puedeRecargar({
+          hayVersionNueva: true,
+          pantalla,
+          enviando: confirmandoRef.current,
+          msDesdeUltimoToque: Date.now() - ultimoToqueRef.current,
+        }) &&
+        (typeof navigator === "undefined" || navigator.onLine)
+      ) {
+        window.location.reload();
+      }
+    };
+    revisar();
+    const t = window.setInterval(revisar, 10_000);
+    return () => window.clearInterval(t);
+  }, [versionNueva, pantalla]);
 
   function volverALista() {
     confirmandoRef.current = false;
@@ -937,7 +999,8 @@ export default function MarcarPage() {
       sinSesionEnEnvio || rechazadaPorElServidor ? "alerta" : "ok",
       // Al entrar, dónde le toca hoy (0579). Solo si la marca no fue rechazada
       // y solo si le toca almacén: un «hoy te toca piso» a todo el equipo sería ruido.
-      entry.tipo === "entrada" && !sinSesionEnEnvio && !rechazadaPorElServidor
+      entry.tipo === "entrada" && !sinSesionEnEnvio && !rechazadaPorElServidor &&
+        ofreceAlmacen(terminal.sedesTienda, terminal.sedeCodigo, personaActual.sedeCodigo)
         ? textoPlanDeHoy(planDeHoy(entry.personaId))
         : null,
     );
@@ -1005,6 +1068,8 @@ export default function MarcarPage() {
   // (`aviso`), que existe porque no sabemos si entró, no se ofrece.
   const opcionAlmacen = useMemo(() => {
     if (!personaActual || !salidaConfig || salidaConfig.aviso) return undefined;
+    // Solo en tiendas: la sede de este terminal y la de la persona (0583).
+    if (!ofreceAlmacen(terminal?.sedesTienda, terminal?.sedeCodigo, personaActual.sedeCodigo)) return undefined;
     const estado = ubicacionActual(
       cambiosConPlan(personaActual.id),
       marcajesVista.get(personaActual.id) ?? [],
@@ -1020,7 +1085,7 @@ export default function MarcarPage() {
     // registrarUbicacion se redefine en cada render y lee lo vigente; la
     // casilla solo tiene que recalcularse cuando cambia de quién o de dónde.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personaActual, salidaConfig, ubicacionesVista, marcajesVista, planVista, horariosVista, ahoraMs]);
+  }, [personaActual, salidaConfig, ubicacionesVista, marcajesVista, planVista, horariosVista, ahoraMs, terminal]);
 
   const conteosPresencia = useMemo(
     () => contarPresencias(presenciaPorPersona?.values() ?? []),
