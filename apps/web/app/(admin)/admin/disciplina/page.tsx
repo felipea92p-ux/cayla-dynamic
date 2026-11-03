@@ -252,11 +252,6 @@ export default function DisciplinaPage() {
   const [entregandoSinPapel, setEntregandoSinPapel] = useState<DocDisciplina | null>(null);
   const [medio, setMedio] = useState("fisico");
   const [confirmandoCargos, setConfirmandoCargos] = useState<DocDisciplina | null>(null);
-  // `fechaCargos` NACE EN HOY y no en "": un campo de fecha cuyo vacío bloquea
-  // el envío no puede arrancar vacío (quinta regla de CLAUDE.md).
-  const [declarando, setDeclarando] = useState<DocDisciplina | null>(null);
-  const [fechaCargos, setFechaCargos] = useState(hoyLima());
-  const [constanciaTexto, setConstanciaTexto] = useState("");
   const [valorando, setValorando] = useState<{ d: DocDisciplina; acogido: string } | null>(null);
   const [valoracionTexto, setValoracionTexto] = useState("");
   const [firmando, setFirmando] = useState<string | null>(null);
@@ -282,7 +277,7 @@ export default function DisciplinaPage() {
   const [faltasCatalogo, setFaltasCatalogo] = useState<FaltaCatalogo[]>([]);
 
   const modalAbierto = verReglas || subiendoCargo !== null || entregandoSinPapel !== null || confirmandoCargos !== null
-    || declarando !== null || valorando !== null || firmando !== null || resolviendo !== null || reabriendo !== null
+    || valorando !== null || firmando !== null || resolviendo !== null || reabriendo !== null
     || anulando !== null || cerrandoSinEntrega !== null || registrandoFalta || traspasando !== null;
 
   // ── Carga ──────────────────────────────────────────────────────────────
@@ -495,55 +490,18 @@ export default function DisciplinaPage() {
   }
 
   /**
-   * Registrar una comunicación de cargos que YA OCURRIÓ, con su fecha (0266).
-   * No adelanta nada: la base sigue exigiendo que el plazo de ESA fecha venza.
-   * El día se elige en un calendario, no se teclea (hallazgo 34, 2026-09-03).
+   * Se relee el descargo al abrir. La pantalla carga todo una vez, y una pestaña
+   * abierta desde el día en que se comunicaron los cargos no sabe que ella
+   * escribió su descargo después: el modal decía «no presentó descargo» con uno
+   * en la base (revisión del 2026-11-03). Desde la 0582 la base además rechaza
+   * valorar así, pero el modal no tiene que ofrecerlo.
    */
-  function abrirDeclaracion(d: DocDisciplina) {
-    setFechaCargos(hoyLima());
-    setConstanciaTexto("");
-    setDeclarando(d);
-  }
-
-  async function confirmarDeclararCargos(d: DocDisciplina) {
-    const dia = fechaCargos;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) {
-      avisar("error", "Elige en el calendario el día en que se le comunicaron los cargos.");
-      return;
-    }
-    if (dia > hoyLima()) {
-      avisar("error", "Ese día todavía no llega: los cargos no pudieron comunicarse en el futuro.");
-      return;
-    }
-    const constancia = constanciaTexto.trim();
-    if (constancia.length < 15) {
-      avisar("error", "Falta decir cómo consta, y con detalle: va a ser la única prueba de que esa comunicación existió.");
-      return;
-    }
-    setOcupado(d.id);
-    // Dentro del `try` va SOLO la llamada: un fallo al refrescar no puede decir
-    // «no se pudo registrar» si ya se registró.
-    let vence: string;
-    try {
-      const { data, error } = await supabase.rpc("fn_expediente_declarar_cargos_comunicados", {
-        p_id: d.id, p_fecha: instanteEntrega(dia, null), p_constancia: constancia, p_dias: 2,
-      });
-      if (error) { avisar("error", mensajeDeError(error, "registrar la comunicación")); return; }
-      vence = String(data);
-    } catch {
-      avisar("error", "No se pudo registrar la comunicación. Vuelve a elegir el día en el calendario y repítelo; si sigue igual, avisa a Felipe.");
-      return;
-    } finally {
-      setOcupado(null);
-    }
-    setDeclarando(null);
-    const plazo = `Comunicación registrada · su plazo de descargo venció o vence el ${selloLima(vence)}`;
-    try {
-      await cargar();
-      avisar("ok", plazo);
-    } catch {
-      avisar("ok", `${plazo}. La lista no se pudo actualizar: recarga la página para verla al día.`);
-    }
+  async function abrirValoracion(d: DocDisciplina) {
+    setValoracionTexto("");
+    const { data } = await supabase.from("descargos_presentados")
+      .select("id, expediente_id, texto, presentado_at").order("presentado_at");
+    if (Array.isArray(data)) setDescargosInfo(data as unknown as DescargoPresentado[]);
+    setValorando({ d, acogido: "" });
   }
 
   // ── Valorar el descargo (19.3): se deja por escrito aunque no haya ─────
@@ -1021,19 +979,22 @@ export default function DisciplinaPage() {
       if (exigeDescargo && esGradual(d.nivel)) menu.push(cargosPapel);
       // El plazo corre desde que se comunican, no desde que ella entra: el aviso
       // por chat es lo que evita que se le vaya sin saberlo.
-      if (exigeDescargo && esGradual(d.nivel) && d.cargos_comunicados_at && d.estado === "borrador") {
+      // Solo mientras corre: después le prometería una fecha que ya pasó.
+      if (etapa === "esperando") {
         menu.push({ etiqueta: "Copiar el aviso para ella", alPulsar: () => void copiarAvisoCargos(d), disabled: ocup });
       }
       let principal: Accion | null = null;
       let estado: string | null = null;
       if (etapa === "comunicar") {
         principal = { etiqueta: "Comunicar cargos", alPulsar: () => setConfirmandoCargos(d), variante: "primario", disabled: ocup || desfase, title: desfase ? TXT_DESFASE : undefined };
-        // Para lo que ya ocurrió: el camino normal es comunicar hoy.
-        menu.push({ etiqueta: "Ya se lo comuniqué", alPulsar: () => abrirDeclaracion(d), disabled: ocup || desfase });
+        // «Ya se lo comuniqué» (0266) ya no se ofrece: desde la 0581 los cargos
+        // se comunican por su Info (Felipe, 2026-11-03: «todo es por el
+        // sistema»), y declarar una comunicación pasada le ponía en su Info unos
+        // cargos con fecha vieja y, a veces, con el plazo ya vencido.
       } else if (etapa === "esperando") {
         estado = `Descargo hasta ${d.descargo_vence_at ? selloLima(d.descargo_vence_at) : "—"}`;
       } else if (etapa === "valorar") {
-        principal = { etiqueta: "Valorar descargo", alPulsar: () => { setValoracionTexto(""); setValorando({ d, acogido: "" }); }, variante: "primario", disabled: ocup };
+        principal = { etiqueta: "Valorar descargo", alPulsar: () => void abrirValoracion(d), variante: "primario", disabled: ocup };
       } else {
         // `=== 0` y no `?? []`: la clave ausente es «todavía no se preguntó», y
         // ahí se deja pasar para que decida la base (art. 54.4 c).
@@ -1692,32 +1653,6 @@ export default function DisciplinaPage() {
           )}
         </Modal>
 
-        <Modal abierto={declarando !== null} onCerrar={() => setDeclarando(null)}
-          titulo="Registrar una comunicación que ya ocurrió" bloqueado={ocupado === declarando?.id}>
-          {declarando && (
-            <div className="grid gap-3">
-              <p className="text-sm text-taupe">
-                Desde ese día corren los dos días hábiles de descargo; si todavía no han pasado, el documento seguirá sin
-                poder firmarse. Queda escrito con tu nombre y la fecha de hoy.
-              </p>
-              <div className="w-44">
-                <Campo etiqueta="Día de la comunicación" type="date" value={fechaCargos} max={hoyLima()}
-                  onChange={(e) => setFechaCargos(e.target.value)} />
-              </div>
-              <label htmlFor="constancia" className="grid gap-1 text-sm">
-                Cómo consta (obligatorio)
-                <AreaTexto id="constancia" value={constanciaTexto} onChange={(e) => setConstanciaTexto(e.target.value)} rows={3}
-                  placeholder="ej. se lo comuniqué en persona en la oficina de la sede, delante de su líder de equipo" />
-              </label>
-              <p className="text-xs text-taupe">Quién se la hizo, dónde y quién más estaba. Si fue verbal, dilo: es más débil que un cargo firmado.</p>
-              <div className="flex justify-end gap-3">
-                <Boton variante="secundario" onClick={() => setDeclarando(null)} disabled={ocupado === declarando.id}>Cancelar</Boton>
-                <Boton variante="primario" onClick={() => void confirmarDeclararCargos(declarando)} cargando={ocupado === declarando.id}>Registrar</Boton>
-              </div>
-            </div>
-          )}
-        </Modal>
-
         <Modal abierto={valorando !== null} onCerrar={() => setValorando(null)} titulo="Valorar el descargo" bloqueado={ocupado === valorando?.d.id}>
           {valorando && (
             <div className="grid gap-3">
@@ -1742,6 +1677,7 @@ export default function DisciplinaPage() {
                 {Object.entries(ETIQUETA_DESCARGO).map(([valor, etiqueta]) => (
                   <label key={valor} htmlFor={`valora-${valor}`} className="flex items-center gap-2 text-sm">
                     <input id={`valora-${valor}`} type="radio" name="valoracion" value={valor} checked={valorando.acogido === valor}
+                      disabled={valor === "sin_descargo" && descargosInfo.some((x) => x.expediente_id === valorando.d.id)}
                       onChange={() => setValorando({ ...valorando, acogido: valor })} />
                     {etiqueta}
                   </label>

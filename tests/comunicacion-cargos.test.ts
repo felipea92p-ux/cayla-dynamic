@@ -154,3 +154,67 @@ describe("el borrador del memo", () => {
     expect(memo("firmado")).toContain("Recibí conforme");
   });
 });
+
+// ── Lo que corrigió la revisión del PR 644 (2026-11-03) ──────────────────────
+describe("el memo dice lo que el 55.3 y el 55.5 exigen", () => {
+  const firmado = (extra: Partial<DocMemo> = {}, descargos: { texto: string; presentado_at: string }[] = [], previas: { correlativo: string | null; nivel: string; firmado_at: string | null; entregado_at: string | null }[] = []) => {
+    const doc: DocMemo = {
+      correlativo: "AM-2026-001", tipo_causal: "conducta", nivel: "amonestacion", estado: "firmado",
+      periodo_desde: "2026-09-13", periodo_hasta: "2026-09-13", hechos: [{ fecha: "2026-09-13", relato: "Relato." }],
+      suspension_dias: null, suspension_desde: null, suspension_hasta: null, suspension_fechas: null,
+      firmado_at: "2026-11-05T15:00:00Z", creado_at: "2026-11-02T23:00:00Z",
+      falta: base.falta, conocido_el: "2026-09-13", cargos_comunicados_at: "2026-11-03T00:58:00Z",
+      ...extra,
+    };
+    return renderToStaticMarkup(createElement(MemoDocumento, {
+      doc, persona, sede: "TRU", areas: AREAS_FALLBACK, firmante: "Quien firma", cargoFirmante: null, firmaUrl: null, previas, descargos,
+    }));
+  };
+
+  it("trae la valoración del descargo que ella escribió en su Info", () => {
+    const html = firmado({ descargo_acogido: "no", descargo_valoracion: "Su líder confirma que no avisó." },
+      [{ texto: "Avisé.", presentado_at: "2026-11-03T14:00:00Z" }]);
+    expect(html).toContain("Descargo y su valoración");
+    expect(html).toContain("presentó su descargo por escrito en su Info");
+    expect(html).toContain("No se acoge, por las siguientes razones: Su líder confirma que no avisó.");
+  });
+
+  it("sin descargo, lo dice sin tomarlo como aceptación", () => {
+    expect(firmado({ descargo_acogido: "sin_descargo" })).toContain("no se recibió descargo. Este hecho no se interpreta como aceptación");
+  });
+
+  it("dice el corte del cómputo y cómo pedir la reconsideración (56.6, 55.5)", () => {
+    const html = firmado({ descargo_acogido: "sin_descargo" });
+    expect(html).toContain("solo considerará hechos posteriores al 13 de setiembre de 2026");
+    expect(html).toContain("Reconsideración.");
+    expect(html).toContain("cinco (5) días hábiles");
+  });
+
+  it("la amonestación por inasistencia ya no afirma un descuento del descanso semanal (20.5)", () => {
+    const html = firmado({ tipo_causal: "falta", falta: null, hechos: [{ fecha: "2026-10-03" }] });
+    expect(html).not.toContain("parte proporcional del descanso semanal");
+    expect(html).toContain("sin descuento adicional alguno");
+  });
+
+  it("la suspensión cita su escalón: primera o segunda, y por conducta el 54.8", () => {
+    const susp = { nivel: "suspension", tipo_causal: "tardanza", falta: null, suspension_dias: 2, hechos: [{ fecha: "2026-10-03", minutos: 12 }] };
+    const primera = firmado(susp, [], [amonestacion]);
+    expect(primera).toContain("literal c) del numeral 19.2");
+    // «despido» sí aparece, en la reconsideración («sanción distinta al despido»);
+    // lo que no puede aparecer es la amenaza de despido tras la primera.
+    expect(primera).not.toContain("procedimiento de despido");
+    expect(primera).toContain("segunda suspensión sin goce de haber");
+    expect(firmado(susp, [], [amonestacion, suspension])).toContain("literal d) del numeral 19.2");
+    const conducta = firmado({ nivel: "suspension", suspension_dias: 1 }, [], [amonestacion]);
+    expect(conducta).toContain("numeral 54.8");
+    expect(conducta).not.toContain("numeral 21.2");
+  });
+});
+
+describe("la comunicación de una inasistencia y el artículo 22", () => {
+  it("manda el caso del artículo 22 a DO, no al descargo que lee su líder", () => {
+    const html = carta({ tipo_causal: "falta", falta: null, hechos: [{ fecha: "2026-10-03" }] });
+    expect(html).toContain("comuníquelo directamente a Desarrollo Organizacional");
+    expect(html).toContain("numeral 20.4");
+  });
+});

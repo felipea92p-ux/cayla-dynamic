@@ -6,7 +6,30 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-03 — Los cargos llegan a la Info de la persona, sin papel · migración 0581 (SIN PEGAR · SIN FUSIONAR)
+## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (SIN PEGAR · SIN FUSIONAR)
+
+**De dónde sale.** La revisión adversarial de la 0581 reprodujo en el Postgres local dos huecos que dejan anulable una sanción:
+después de que ella confirmó los cargos, `fn_expediente_editar_borrador` y `fn_expediente_elevar_a_suspension` podían cambiar lo
+comunicado sin reabrir el plazo; y la base dejaba valorar con el plazo vivo, valorar «sin descargo» con un descargo escrito y
+firmarlo así (el modal de Disciplina lo ofrecía con datos viejos).
+
+**Qué hace.** Dos triggers BEFORE UPDATE (no reescriben ninguna función: no hay md5 que pedir). Sin sesión —SQL Editor— no frenan.
+En la pantalla: «Valorar descargo» relee el descargo y no ofrece «no presentó» si lo hay; sale «Ya se lo comuniqué»; el memo dice
+la valoración del descargo, el corte (56.6) y la reconsideración (55.5); el de inasistencia ya no afirma descontar el descanso
+semanal (20.5); la suspensión cita su escalón (19.2 c/d, 21.2 b/c, 54.8); las previas del memo salen de una sola consulta
+(`lib/admin/previas-del-memo.ts`) sin la llamada verbal; el art. 22 se comunica a DO, no en el descargo.
+
+**Cómo se midió.** Prueba 472 (11) con control A/B: sin la 0582 fallan las 5 que deben frenar. Las 42 pruebas pgTAP del
+expediente siguen completas y en verde con los triggers puestos.
+
+**Queda abierto (decisión de Felipe):** la comunicación cita antecedentes y corte con el criterio del 19.1 c) —notificados antes
+del hecho—, y `fn_tardanza_escalon_al` (0311) cuenta los vigentes al cierre del mes: en un caso de borde los dos no coinciden;
+`exp_select_propia` (0056) le deja a la persona leer su propio borrador antes de comunicárselo, con sus notas internas; el freno
+«sin cuenta» no ve a quien fue invitada y nunca entró.
+
+---
+
+## 2026-11-03 — Los cargos llegan a la Info de la persona, sin papel · migración 0581 (PEGADA 2026-11-02 · fusionada en #644)
 
 **De dónde sale.** El 2026-11-02 una amonestación por conducta quedó en borrador —correcto: desde la 0566 el 55.2 no deja firmar
 antes del plazo de descargo— y se le entregó a la colaboradora el borrador del memo para que lo firmara, porque Dynamic no le
