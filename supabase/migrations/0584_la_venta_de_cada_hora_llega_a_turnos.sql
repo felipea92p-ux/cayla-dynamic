@@ -67,8 +67,10 @@
 --
 -- SE ROMPE SI
 --   · Retail renombra `estado`, `es_prueba`, `ubicacion_id` o
---     `sede_dynamic_id`. Falla ruidoso (ver arriba) y se arregla aquí. Queda
---     anotado del lado de retail que Turnos lee esas columnas.
+--     `sede_dynamic_id`. Falla ruidoso (ver arriba) y se arregla aquí. Del
+--     lado de retail tiene que quedar escrito que Turnos lee esas columnas
+--     (cayla-retail, docs/datos/14-DYNAMIC.md, §8 «Qué NO se puede tocar desde
+--     retail»): va en su propio PR, en ese repo.
 --
 -- CÓMO SE REVIERTE
 --   drop function if exists fn_compras_por_hora(uuid, date, date);
