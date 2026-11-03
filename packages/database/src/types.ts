@@ -5569,6 +5569,51 @@ export type Database = {
           },
         ]
       }
+      turno_pedidos: {
+        Row: {
+          id: string
+          persona_id: string
+          fecha: string
+          motivo: string
+          propuesta: string
+          comentario: string | null
+          estado: string
+          creado_at: string
+          resuelto_por: string | null
+          resuelto_at: string | null
+          resolucion: string | null
+          respuesta: string | null
+        }
+        Insert: {
+          id?: string
+          persona_id: string
+          fecha: string
+          motivo: string
+          propuesta: string
+          comentario?: string | null
+          estado?: string
+          creado_at?: string
+          resuelto_por?: string | null
+          resuelto_at?: string | null
+          resolucion?: string | null
+          respuesta?: string | null
+        }
+        Update: {
+          id?: string
+          persona_id?: string
+          fecha?: string
+          motivo?: string
+          propuesta?: string
+          comentario?: string | null
+          estado?: string
+          creado_at?: string
+          resuelto_por?: string | null
+          resuelto_at?: string | null
+          resolucion?: string | null
+          respuesta?: string | null
+        }
+        Relationships: []
+      }
       disponibilidades: {
         Row: {
           id: string
@@ -11231,6 +11276,22 @@ export type Database = {
           p_id: string
           p_respuesta?: string | null
         }
+        Returns: undefined
+      }
+      fn_turno_pedido_con_do: {
+        Args: { p_creado_at: string; p_estado: string }
+        Returns: boolean
+      }
+      fn_turno_pedido_crear: {
+        Args: { p_comentario?: string | null; p_fecha: string; p_motivo: string; p_propuesta: string }
+        Returns: string
+      }
+      fn_turno_pedido_responder: {
+        Args: { p_id: string; p_resolucion: string; p_respuesta?: string | null }
+        Returns: undefined
+      }
+      fn_turno_pedido_retirar: {
+        Args: { p_id: string }
         Returns: undefined
       }
       fn_disponibilidad_retirar: {
