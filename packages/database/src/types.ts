@@ -5569,6 +5569,69 @@ export type Database = {
           },
         ]
       }
+      turno_cambios: {
+        Row: {
+          id: string
+          fecha: string
+          solicitante_id: string
+          companera_id: string
+          propuesto_por: string
+          pedido_id: string | null
+          sol_entrada: string
+          sol_salida: string
+          comp_entrada: string
+          comp_salida: string
+          comentario: string | null
+          estado: string
+          creado_at: string
+          contestado_at: string | null
+          respuesta_companera: string | null
+          resuelto_por: string | null
+          resuelto_at: string | null
+          respuesta: string | null
+        }
+        Insert: {
+          id?: string
+          fecha: string
+          solicitante_id: string
+          companera_id: string
+          propuesto_por: string
+          pedido_id?: string | null
+          sol_entrada: string
+          sol_salida: string
+          comp_entrada: string
+          comp_salida: string
+          comentario?: string | null
+          estado?: string
+          creado_at?: string
+          contestado_at?: string | null
+          respuesta_companera?: string | null
+          resuelto_por?: string | null
+          resuelto_at?: string | null
+          respuesta?: string | null
+        }
+        Update: {
+          id?: string
+          fecha?: string
+          solicitante_id?: string
+          companera_id?: string
+          propuesto_por?: string
+          pedido_id?: string | null
+          sol_entrada?: string
+          sol_salida?: string
+          comp_entrada?: string
+          comp_salida?: string
+          comentario?: string | null
+          estado?: string
+          creado_at?: string
+          contestado_at?: string | null
+          respuesta_companera?: string | null
+          resuelto_por?: string | null
+          resuelto_at?: string | null
+          respuesta?: string | null
+        }
+        Relationships: []
+      }
       turno_pedidos: {
         Row: {
           id: string
@@ -11314,6 +11377,39 @@ export type Database = {
           p_respuesta?: string | null
         }
         Returns: undefined
+      }
+      fn_turno_cambio_candidatas: {
+        Args: { p_fecha: string; p_persona_id?: string | null }
+        Returns: { persona_id: string; nombre: string; hora_entrada: string; hora_salida: string }[]
+      }
+      fn_turno_cambio_contestar: {
+        Args: { p_acepta: boolean; p_id: string; p_respuesta?: string | null }
+        Returns: undefined
+      }
+      fn_turno_cambio_proponer: {
+        Args: { p_comentario?: string | null; p_companera_id: string; p_fecha: string }
+        Returns: string
+      }
+      fn_turno_cambio_proponer_por_pedido: {
+        Args: { p_companera_id: string; p_pedido_id: string }
+        Returns: string
+      }
+      fn_turno_cambio_resolver: {
+        Args: { p_aprueba: boolean; p_id: string; p_respuesta?: string | null }
+        Returns: undefined
+      }
+      fn_turno_cambio_retirar: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      fn_turno_cambios_mios: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string; fecha: string; soy: string; otra_nombre: string
+          mi_entrada: string; mi_salida: string; otra_entrada: string; otra_salida: string
+          estado: string; comentario: string | null; respuesta_companera: string | null; respuesta: string | null
+          lo_propuso_su_lider: boolean; creado_at: string; contestado_at: string | null; resuelto_at: string | null
+        }[]
       }
       fn_turno_pedido_con_do: {
         Args: { p_creado_at: string; p_estado: string }

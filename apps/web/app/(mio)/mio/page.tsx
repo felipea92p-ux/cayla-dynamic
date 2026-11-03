@@ -13,6 +13,7 @@ import { TuSemana, useMiSemana } from "./tu-semana";
 import { MiDisponibilidad } from "./mi-disponibilidad";
 import { CambiosATuHorario } from "./cambios-a-tu-horario";
 import { EsteDiaNoMeCalza } from "./este-dia-no-me-calza";
+import { CambiarConCompanera } from "./cambiar-con-companera";
 import { deQue, hoyEnUnaLinea, textoHoras, totalDeSemana } from "@/lib/mi-semana";
 import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
 import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_DISPONIBILIDAD, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
@@ -2468,6 +2469,7 @@ export default function MioPage() {
           </p>
           <TuSemana datos={miSemana} />
           {yo && <EsteDiaNoMeCalza supabase={supabase} personaId={yo.id} semana={miSemana} />}
+          {yo && <CambiarConCompanera supabase={supabase} semana={miSemana} />}
           {yo && <CambiosATuHorario supabase={supabase} personaId={yo.id} />}
           {feriados.length > 0 && (
             <ul data-tour="mio-turnos-feriados" className="mt-4 space-y-1 border-t border-sand pt-3 text-sm">

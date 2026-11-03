@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-cambiar-con-una-companera",
+    fecha: "2026-11-03",
+    titulo: "Ya puedes cambiarte el turno de un día con una compañera",
+    queMejoro:
+      "En «Lo mío · Mis turnos» está el botón «Cambiar con una compañera». Eliges el día y con quién: aparecen las " +
+      "compañeras de tu tienda que ese día trabajan otro horario del mismo largo. Ella lo acepta o no desde sus turnos " +
+      "o su Bandeja, y después lo aprueba tu líder de equipo.\n\n" +
+      "Recién cuando lo aprueba se cambian los dos turnos. Mientras tanto, cada una sigue con el suyo. Las dos trabajan " +
+      "las mismas horas, así que no cambia tu pago.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-03-prefiero-trabajar",
     fecha: "2026-11-03",
     titulo: "En Mi disponibilidad ahora puedes marcar las horas que prefieres trabajar",
