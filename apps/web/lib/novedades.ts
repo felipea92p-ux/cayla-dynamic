@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-turnos-sugerir-la-semana",
+    fecha: "2026-11-03",
+    titulo: "Turnos propone la semana y se publica de una vez",
+    queMejoro:
+      "En Turnos, vista Integrada, en una semana que todavía no empieza hay un botón nuevo: «Sugerir la semana». Arma una " +
+      "propuesta con la hora de entrada y de salida de cada persona y su día libre, para cubrir la venta de cada hora.\n\n" +
+      "La propuesta respeta la disponibilidad aprobada, las ausencias y los horarios fijos, y cada persona suma las horas " +
+      "de su jornada. Se ve en la misma grilla, con lo que conviene mirar, y no se guarda hasta «Publicar la semana». La " +
+      "líder de equipo también puede publicarse su propio turno, siempre que sume su jornada.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-03-turnos-repeticion-del-dia",
     fecha: "2026-11-03",
     titulo: "Turnos repite un día que ya pasó, contra la venta de cada hora",
