@@ -10,6 +10,7 @@ import { AreaTexto } from "@/components/ui/area-texto";
 import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { ProponerCambioDesdePedido } from "@/components/cambios-turno/cambios-del-equipo";
 import {
   COLUMNAS_PEDIDO, MIN_RESPUESTA, RESOLUCIONES, horasParaDo, pasoADo, respuestaValida, resumenPedido,
   type PedidoTurno, type ResolucionPedido,
@@ -130,6 +131,8 @@ function Pedido({ pedido, persona, puedeResponder, supabase, avisar, onListo }: 
               disabled={!respuestaValida(resolucion, respuesta)} onClick={() => void responder()}>
               Responder
             </Boton>
+            <ProponerCambioDesdePedido supabase={supabase} pedidoId={pedido.id} personaId={pedido.persona_id}
+              fecha={pedido.fecha} avisar={avisar} onListo={onListo} />
           </div>
         ) : (
           <p className="text-taupe">Lo responde Desarrollo Organizacional.</p>
