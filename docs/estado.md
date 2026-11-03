@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (SIN PEGAR · SIN FUSIONAR)
+## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (PEGADA 2026-11-03 · fusionada en #647)
 
 **De dónde sale.** La revisión adversarial de la 0581 reprodujo en el Postgres local dos huecos que dejan anulable una sanción:
 después de que ella confirmó los cargos, `fn_expediente_editar_borrador` y `fn_expediente_elevar_a_suspension` podían cambiar lo
@@ -20,7 +20,8 @@ semanal (20.5); la suspensión cita su escalón (19.2 c/d, 21.2 b/c, 54.8); las 
 (`lib/admin/previas-del-memo.ts`) sin la llamada verbal; el art. 22 se comunica a DO, no en el descargo.
 
 **Cómo se midió.** Prueba 472 (11) con control A/B: sin la 0582 fallan las 5 que deben frenar. Las 42 pruebas pgTAP del
-expediente siguen completas y en verde con los triggers puestos.
+expediente siguen completas y en verde con los triggers puestos. En producción, la consulta de verificación devolvió
+los dos triggers (`trg_expediente_descargo_se_lee_antes`, `trg_expediente_lo_comunicado_no_cambia`) y el registro 582 con su nombre.
 
 **Queda abierto (decisión de Felipe):** la comunicación cita antecedentes y corte con el criterio del 19.1 c) —notificados antes
 del hecho—, y `fn_tardanza_escalon_al` (0311) cuenta los vigentes al cierre del mes: en un caso de borde los dos no coinciden;
