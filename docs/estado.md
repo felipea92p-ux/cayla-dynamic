@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-02 — Piso o almacén, planificado por día · migración **0579 SIN PEGAR** · PR [#640](https://github.com/felipea92p-ux/cayla-dynamic/pull/640) en borrador · rama `claude/turnos-almacen`
+## 2026-11-02 — Piso o almacén, planificado por día · migración **0579 PEGADA (2026-11-03)** · PR [#640](https://github.com/felipea92p-ux/cayla-dynamic/pull/640) fusionado · rama `claude/turnos-almacen`
 
 **De dónde sale.** Felipe (2026-11-02): van a empezar a llevar unas 2 chicas de piso al almacén (dentro de la misma sede), y la
 líder tiene que poder decir con anticipación, o el mismo día, quién está en piso y quién no: todo el turno o unas horas,
@@ -21,20 +21,25 @@ líder de equipo también se planifique a sí misma** (distinto de los turnos, a
 - `fn_puestos_del_dia(sede, fecha)`: la lectura del terminal.
 - No reescribe ninguna función existente, así que no lleva md5. Prueba 470 (24 aserciones).
 
-**Se pega ANTES de fusionar #640.** Si la pantalla llega primero, no se rompe nada: Turnos sigue sin el plan de almacén y la
-hoja dice que no puede guardar.
+**0579 PEGADA por Felipe el 2026-11-03 (≈01:00 UTC)**, unos 20 minutos DESPUÉS de fusionar #640: el orden quedó al revés de la
+regla. En ese rato no se rompió nada —la lectura del plan falla sola y Turnos sigue sin él—, pero la novedad ya anunciaba algo
+que todavía no funcionaba. Fila final completa en `true` y «579 · el_almacen_se_planifica_por_dia». Medido en producción
+después de pegar: `fn_set_almacen_del_dia` 4538 caracteres, `fn_puestos_del_dia` 480 y `fn_puesto_texto` 317, sin `\r`;
+las dos primeras las ejecuta `authenticated` y no `anon`, y la tercera no la ejecuta nadie de afuera.
 
 **Lo usan otras dos sesiones** (los nombres son contrato, no se renombran):
-- **Terminal** (PR #639 fusionado, 0580 pegada, `cambios_ubicacion`): su entrega 2 leerá `fn_puestos_del_dia` para avisar «hoy te toca almacén».
-- **Lo mío** (rama `claude/mis-turnos-tu-semana`): lee `puestos_planificados` para el puesto de cada día en «Mis turnos».
+- **Terminal** (PR #639 fusionado, 0580 pegada, `cambios_ubicacion`): su entrega 2 (PR #643) lee `puestos_planificados` por
+  `puestos_select_terminal` para avisar «hoy te toca almacén». La regla que junta plan y real vive UNA vez, en
+  `apps/web/lib/terminal/ubicacion.ts` (`tramosDelDia`, `cambiosDelPlan`, `tramosPlanificados`): Turnos la importa de ahí, no escribe otra.
+- **Lo mío** (PR #638): lee `puestos_planificados` para el puesto de cada día en «Tu semana».
 
 **En pantalla (#640).**
 - Día: la línea del día queda arriba y siempre visible, con el almacén en azul. La barra abre «¿Dónde trabaja ese día?»
   (piso, todo el turno, el tramo sugerido o a mano). La fila de cobertura usa la misma regla que la Integrada.
 - Integrada: quien está en almacén va aparte y no cuenta en piso.
 
-**Pendiente:** la repetición de un día cerrado (con lo real del terminal), y que la sugerencia de turnos use la disponibilidad
-de «Lo mío».
+**Pendiente:** mostrar lo real del terminal en Turnos (espera la decisión de Felipe y el #643), la repetición de un día cerrado,
+y que la sugerencia de turnos use la disponibilidad de «Lo mío».
 
 ## 2026-11-02 — «Voy a almacén» en el terminal · migración **0580 PEGADA (2026-11-02)** · prueba 469 · PR [#639](https://github.com/felipea92p-ux/cayla-dynamic/pull/639) · rama `claude/terminal-almacen`
 
