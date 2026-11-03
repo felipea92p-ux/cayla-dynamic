@@ -204,8 +204,17 @@ reset role;
 
 
 -- ── 7 · Con otra aprobada, el pago sigue ────────────────────────────────────
+-- La 005 tiene que ser una constancia que NO mueve el calendario (está en hoy + 26
+-- desde la 002). Desde la 0527 también lo mueve una pagada dentro del MES de esa
+-- fecha, así que «hoy − 2» a secas fallaba los días 3, 4 y 5 de casi todos los
+-- meses: ahí hoy − 2 y hoy + 26 caen en el mismo mes (29 días de 2026; se cazó el
+-- 2026-11-03). Se paga el último día del mes ANTERIOR al de hoy + 26, o hoy − 2 si
+-- es antes: nunca futura, nunca dentro de ese mes, y la prueba ya no depende del
+-- día en que corre.
 set local role authenticated;
-select t419_enviar('2', '2', '005', '1', fn_hoy_lima() - 2, fn_hoy_lima() + 28);
+select t419_enviar('2', '2', '005', '1',
+  least(fn_hoy_lima() - 2, date_trunc('month', (fn_hoy_lima() + 26)::timestamp)::date - 1),
+  fn_hoy_lima() + 28);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000525f01', true);
 select fn_educacion_resolver_entrega('00000000-0000-0000-0000-00000525e005', true);
 

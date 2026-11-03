@@ -75,6 +75,8 @@ de menos de 30 min — ese filtro es de los reportes. Encabezado de la 0580. La 
 
 **0580 PEGADA por Felipe el 2026-11-02**, antes de fusionar. Fila final exacta (`t · t · t · t · 2 · 580 · ir_al_almacen_se_marca_en_el_terminal`) y md5 de producción = repositorio, sin `\r`: `fn_anular_cambio_ubicacion` `ce796c18…` (1296), `fn_registrar_cambio_ubicacion` `d3053031…` (3829), `fn_ubicaciones_del_dia` `b660fb3e…` (2313).
 
+**Ese mismo día (2026-11-03) se pegaron las cinco que faltaban en producción** —0570, 0542, 0509, 0546 y 0547—, tras medir allá los cuerpos de partida. La 0546 figuraba aquí como pegada el 30-oct y no lo estaba: la consulta de qué falta pegar y el md5 lo desmintieron.
+
 **Abierto:** guardar `'piso'` en vez de `'tienda'` (propuesta de la sesión de Turnos; la tabla está vacía, sería una 0581). **Falta:** entrega 2 (cuando exista `puestos_planificados`): «Hoy te toca almacén de … a …» al
 marcar la entrada.
 
@@ -147,7 +149,7 @@ Prueba 466 (13); la 463 y la 465 ajustan lo que cambia a propósito. Suite compl
 `fn_planilla_calcular_nucleo(fecha_ini, fecha_fin, id)` del periodo de hoy, filtrando `base_horas_semana is not null` (la consulta va en
 el mensaje del 2026-10-31).
 
-## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya estaban pegadas) · **0546 PEGADA (2026-10-30)** · 0547 entregada · PR #620 · rama `claude/vigilant-hopper-d48cdd`
+## 2026-10-30 — Cinco migraciones que existían solo en ramas sin fusionar vuelven al repo · migraciones 0523 · 0545 (ya estaban pegadas) · **0546 y 0547 PEGADAS (2026-11-03)** · PR #620 · rama `claude/vigilant-hopper-d48cdd`
 
 **De dónde sale.** El checkout principal llevaba 943 commits congelado desde el 27 de septiembre y `core.hooksPath` apunta a SUS
 hooks: durante cinco semanas todo push de cualquier worktree corrió los guardianes del 27-sep. Al ponerlo al día (`78179af3` →
@@ -222,7 +224,7 @@ que dejó pasar las colisiones de la 0405 y la 0409. Las tres conclusiones de ar
 **Y `db-tests` cerró lo que el banco local no pudo:** los 4 checks del PR #620 en verde, sobre una base construida desde cero — o sea
 que las pruebas **437, 438 y 439** pasan. Era la señal que faltaba, y es la que CLAUDE.md llama fiable.
 
-**La 0546 se pegó en producción el 2026-10-30** (confirmado por Felipe; guardia superada). La 0547 se entregó a continuación con
+~~La 0546 se pegó en producción el 2026-10-30~~ **Falso, medido el 2026-11-03:** producción seguía con el cuerpo de partida de `fn_revertir_pago` (`ac66bb05…`, 4 472) y sin fila 546 en el registro. Se pegaron la 0546 y la 0547 ese día, con la guardia superada: `tiene_el_cambio t` y el registro con su nombre en las dos. La 0547 se entregó a continuación con
 `dame-el-sql.sh`, comprobada byte por byte contra el archivo y con sus acentos contados desde fuera del script —110 y 110—, porque la
 verificación interna corre bajo el mismo locale y puede declararse conforme sobre texto corrupto.
 
@@ -1402,7 +1404,7 @@ y una tienda de 3 con 2 en piso y meta 3): la oficina sale verde con «5 / 4 int
 «Requiere atención», y la tienda sigue en rojo con «2 / 3 operativas». **No probado:** contra datos reales de
 producción (esta sesión no los consulta) ni el Reporte de sede ni Turnos en pantalla.
 
-## 2026-10-21 — La diferencia real de una liquidación pagada se cierra con una constancia · migración 0542 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/remover-pago-duplicado-8c818a`
+## 2026-10-21 — La diferencia real de una liquidación pagada se cierra con una constancia · migración 0542 · **PEGADA (2026-11-03)** · SIN FUSIONAR · rama `claude/remover-pago-duplicado-8c818a`
 
 **Qué es.** La pantalla de Liquidaciones decía «pagarla, compensarla o dejar constancia», y «dejar constancia»
 nunca existió: una diferencia real en una liquidación ya pagada no se podía cerrar, así que «3 con
@@ -3169,7 +3171,7 @@ a la 353); la pantalla de Correcciones, que solo LEE la tabla (se comprobó por 
 
 ---
 
-## 2026-10-04 — Tres tablas que solo se escriben por sus funciones · migración 0509 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+## 2026-10-04 — Tres tablas que solo se escriben por sus funciones · migración 0509 · **PEGADA (2026-11-03)**, siete `t` · SIN FUSIONAR
 
 **Origen:** al cerrar la puerta de `personas` (0507) se midió que otras cinco tablas admitían INSERT directo de admin o
 líder DO, y se pidió medir cuáles tienen un guardián que esa puerta se salte. Esta es la lista, con jwt de un `lider_do`
