@@ -30,7 +30,6 @@ pantalla—; en tiendas, compras de la hora y «la venta pedía N»; el día com
 
 ---
 
-## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (PEGADA 2026-11-03 · fusionada en #647)
 
 ## 2026-11-03 — «Mi disponibilidad» y la jornada que fija DO · migración **0584 SIN PEGAR** · prueba 474 · rama `claude/mi-disponibilidad`
 
@@ -52,7 +51,7 @@ mutaciones la ponen en rojo. Suite completa: 381 de 381 archivos en verde, ningu
 **Falta:** pegar la 0584 ANTES de fusionar (sin ella, «Mi disponibilidad» dice que todavía no está lista y «Tu semana» sigue
 contra el horario). Después, DO tiene que cargar la jornada de cada persona.
 
-## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (SIN PEGAR · SIN FUSIONAR)
+## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (PEGADA 2026-11-03 · fusionada en #647)
 
 **De dónde sale.** La revisión adversarial de la 0581 reprodujo en el Postgres local dos huecos que dejan anulable una sanción:
 después de que ella confirmó los cargos, `fn_expediente_editar_borrador` y `fn_expediente_elevar_a_suspension` podían cambiar lo
