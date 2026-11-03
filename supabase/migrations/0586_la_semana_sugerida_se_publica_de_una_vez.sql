@@ -203,8 +203,10 @@ begin
         insert into correcciones_auditoria
           (marcaje_id, persona_id, campo_modificado, valor_anterior, valor_nuevo, corregido_por, motivo)
         values (null, r.persona_id, 'turnos.horario', v_txt_antes, v_txt_ahora, v_editor.id,
-                'Su propio turno del ' || to_char(r.fecha, 'DD/MM/YYYY')
-                || ', publicado con la semana de su sede dentro de su jornada de '
+                -- Empieza con «Turno del DD/MM/YYYY», como fn_set_turno: el historial de horario saca el día de ahí
+                -- (diaDelMotivo, apps/web/lib/historial-horario.ts).
+                'Turno del ' || to_char(r.fecha, 'DD/MM/YYYY')
+                || ' (su propio turno), publicado con la semana de su sede dentro de su jornada de '
                 || trim(to_char(v_editor.jornada_semanal_horas, 'FM990D99')) || ' h.'
                 || coalesce(' ' || nullif(btrim(p_motivo), ''), ''));
       end if;

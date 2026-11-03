@@ -89,7 +89,7 @@ select lives_ok(
   'la líder se publica su propia semana si suma su jornada (45 h)');
 select ok(
   exists (select 1 from correcciones_auditoria
-           where persona_id = '00000000-0000-0000-0000-000000476011' and motivo like 'Su propio turno%'),
+           where persona_id = '00000000-0000-0000-0000-000000476011' and motivo like 'Turno del __/__/____ (su propio turno)%'),
   'y el rastro dice que fue su propio turno, dentro de su jornada');
 
 select throws_ok(
