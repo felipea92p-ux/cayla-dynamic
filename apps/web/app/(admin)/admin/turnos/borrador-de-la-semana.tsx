@@ -10,7 +10,7 @@
 // fn_turnos_borrador_publicar; la comparación sale de lib/admin/borrador-semana.ts.
 // ============================================================================
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
@@ -89,10 +89,8 @@ export function BorradorDeLaSemana({
   onDescartar: () => void;
   onGuardarNotas: (notas: Map<string, string>) => void;
 }) {
+  // Las notas arrancan en lo guardado. Si el borrador se vuelve a guardar, quien llama cambia la `key` y esto arranca de nuevo.
   const [texto, setTexto] = useState<Map<string, string>>(() => new Map(notas.map((n) => [n.id, n.nota])));
-  // Si el borrador se vuelve a leer (otra persona lo guardó), las notas siguen a lo guardado.
-  const clave = notas.map((n) => `${n.id}:${n.nota}`).join("|");
-  useEffect(() => { setTexto(new Map(notas.map((n) => [n.id, n.nota]))); }, [clave]); // eslint-disable-line react-hooks/exhaustive-deps
   const notasCambiaron = notas.some((n) => (texto.get(n.id) ?? "").trim() !== n.nota.trim());
   const hayAvisos = filas.some((f) => f.cumple.pasa48 || f.cumple.diasCortos.length > 0);
   const noCumplen = filas.filter((f) => f.cumple.estado === "faltan" || f.cumple.estado === "sobra").length;

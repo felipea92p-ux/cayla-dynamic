@@ -1824,6 +1824,7 @@ export default function TurnosPage() {
                 )}
                 {borradorVigente && semanaBorrador && (
                   <BorradorDeLaSemana
+                    key={`${borradorVigente.id}|${borradorVigente.actualizadoAt}`}
                     semana={`del ${etiquetaDia(dias[0]).num} al ${etiquetaDia(dias[6]).num}`}
                     guardado={`${borradorVigente.actualizadoPor ? `por ${nombreLargo(borradorVigente.actualizadoPor)}, ` : ""}el ${etiquetaDia(fechaLima(borradorVigente.actualizadoAt)).num} a las ${horaLima(borradorVigente.actualizadoAt)}${borradorVigente.origen === "sugerido" ? ", desde «Sugerir la semana»" : ""}`}
                     filas={filasComparativa}
