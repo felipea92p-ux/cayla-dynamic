@@ -437,7 +437,8 @@ with repo(numero, nombre, nunca) as (values
     (577, 'la_base_y_el_tope_del_practicante_se_cambian_desde_parametros', false),
     (578, 'el_sueldo_se_cambia_por_grupo_y_avisa_a_quien_toca', false),
     (579, 'el_almacen_se_planifica_por_dia', false),
-    (580, 'ir_al_almacen_se_marca_en_el_terminal', false)
+    (580, 'ir_al_almacen_se_marca_en_el_terminal', false),
+    (581, 'los_cargos_llegan_a_su_info', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
