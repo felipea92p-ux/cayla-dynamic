@@ -512,6 +512,14 @@ function InformacionDelDocumento({
                   : `Cargos comunicados el ${doc.cargos_comunicados_at ? selloLima(doc.cargos_comunicados_at) : "—"} · ${ETIQUETA_DESCARGO[doc.descargo_acogido ?? ""] ?? doc.descargo_acogido}${doc.descargo_valoracion ? `: ${doc.descargo_valoracion}` : ""}`}
           </p>
         )}
+        {(etapa === "comunicar" || etapa === "esperando") && exigeDescargo && esGradual(doc.nivel) && (
+          // La pregunta del 2026-11-02: «¿por qué ella no lo ve?». Porque un
+          // borrador no se entrega; lo que se le entrega en este paso es otro papel.
+          <p className="text-xs text-taupe">
+            Ella todavía no ve este memo en su Info, y así debe ser: lo verá cuando esté firmado y se lo envíes. Lo
+            que se le entrega ahora es la comunicación de cargos (en «⋯»), no el memo.
+          </p>
+        )}
         {etapa && exigeDescargo && esGradual(doc.nivel) && doc.cargos_comunicados_at && (
           // Medido el 2026-09-15: la regla del bucket `expedientes` solo deja
           // subir archivos a documentos firmados o entregados, así que el botón
