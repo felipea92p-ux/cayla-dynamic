@@ -9708,7 +9708,7 @@ export type Database = {
         }[]
       }
       fn_metas_cobertura: {
-        Args: { p_desde: string; p_hasta: string; p_sede_id: string }
+        Args: { p_desde: string; p_hasta: string; p_sede_id: string | null }
         Returns: {
           desde_min: number
           es_predeterminada: boolean
@@ -9718,6 +9718,7 @@ export type Database = {
           periodo_id: string
           periodo_nombre: string
           personal: number | null
+          sede_id: string
         }[]
       }
       fn_mi_bono_cumpleanos: {

@@ -13,9 +13,9 @@ const lunes: RangoMeta[] = [
 describe("metasPorFecha — las filas de la base, por fecha", () => {
   it("agrupa, ordena y guarda de qué meta sale", () => {
     const m = metasPorFecha([
-      { fecha: "2026-11-09", desde_min: 720, hasta_min: 1260, personal: 5, lideres: 1, periodo_id: "p", periodo_nombre: "Predeterminada", es_predeterminada: true },
-      { fecha: "2026-11-09", desde_min: 540, hasta_min: 720, personal: 3, lideres: 1, periodo_id: "p", periodo_nombre: "Predeterminada", es_predeterminada: true },
-      { fecha: "2026-11-14", desde_min: 540, hasta_min: 1260, personal: 9, lideres: null, periodo_id: "c", periodo_nombre: "Campaña", es_predeterminada: false },
+      { sede_id: "S", fecha: "2026-11-09", desde_min: 720, hasta_min: 1260, personal: 5, lideres: 1, periodo_id: "p", periodo_nombre: "Predeterminada", es_predeterminada: true },
+      { sede_id: "S", fecha: "2026-11-09", desde_min: 540, hasta_min: 720, personal: 3, lideres: 1, periodo_id: "p", periodo_nombre: "Predeterminada", es_predeterminada: true },
+      { sede_id: "S", fecha: "2026-11-14", desde_min: 540, hasta_min: 1260, personal: 9, lideres: null, periodo_id: "c", periodo_nombre: "Campaña", es_predeterminada: false },
     ]);
     expect(m.get("2026-11-09")?.rangos).toEqual(lunes);
     expect(m.get("2026-11-14")?.origen).toEqual({ id: "c", nombre: "Campaña", predeterminada: false });

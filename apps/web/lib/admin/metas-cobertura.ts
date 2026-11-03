@@ -34,6 +34,7 @@ export interface MetaDelDia {
 
 /** Una fila de fn_metas_cobertura. */
 export interface FilaMeta {
+  sede_id: string;
   fecha: string;
   desde_min: number;
   hasta_min: number;
@@ -44,7 +45,7 @@ export interface FilaMeta {
   es_predeterminada: boolean;
 }
 
-/** Las filas de fn_metas_cobertura → la meta de cada fecha. */
+/** Las filas de fn_metas_cobertura de UNA sede → la meta de cada fecha. */
 export function metasPorFecha(filas: readonly FilaMeta[]): Map<string, MetaDelDia> {
   const m = new Map<string, MetaDelDia>();
   for (const f of filas) {
@@ -84,6 +85,13 @@ export function pideEn(rangos: readonly RangoMeta[], h: number, sugerido: number
 /** El mayor número de líderes que pide el día (para lo que todavía mide «un líder en piso» por día). */
 export function lideresDelDia(rangos: readonly RangoMeta[]): number {
   return Math.max(0, ...rangos.map((r) => r.lideres ?? 0));
+}
+
+/** Las filas de varias sedes → sede → fecha → su meta. */
+export function metasPorSedeYFecha(filas: readonly FilaMeta[]): Map<string, Map<string, MetaDelDia>> {
+  const porSede = new Map<string, FilaMeta[]>();
+  for (const f of filas) porSede.set(f.sede_id, [...(porSede.get(f.sede_id) ?? []), f]);
+  return new Map([...porSede].map(([sede, fs]) => [sede, metasPorFecha(fs)]));
 }
 
 export const CORTE_MANANA_TARDE = 14.25; // 14:15, el corte de la 0039

@@ -31,6 +31,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { leerMetasDeCobertura, lideresPorSedeYFecha } from "@/lib/admin/leer-metas";
 import { esRolEncargada, etiquetaDeSede, hoyLima, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, EsqueletoSecciones } from "@/components/cargando";
@@ -234,7 +235,8 @@ function IncidenciasContenido() {
       // quién cuenta en cada sede lo decide cuentaEnCobertura, dentro de la detección.
       supabase.from("personas").select("id, sede_base_id, rol, tipo_vinculo, es_encargada_piso")
         .eq("estado", "activo").eq("cuenta_de_servicio", false).or("rol.eq.supervisor_sede,es_encargada_piso.eq.true,rol.in.(admin,lider_do)"),
-      supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
+      // Los líderes que pide cada sede cada día de estas dos semanas (0590): la meta de ESA fecha, con sus excepciones.
+      leerMetasDeCobertura(supabase, null, v.lunesActual, v.domingoSiguiente).then((r) => ({ data: r.data ? lideresPorSedeYFecha(r.data) : null, error: r.error })),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", v.domingoSiguiente).or(`vigente_hasta.is.null,vigente_hasta.gte.${v.lunesActual}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", v.lunesActual).lte("fecha", v.domingoSiguiente),
       // Vistos buenos, también los deshechos: la detección usa los vigentes y el
@@ -325,7 +327,7 @@ function IncidenciasContenido() {
       encargadas: (encargadasData as DatosDeteccion["encargadas"] | null) ?? [],
       // Con error llega vacío = «no se sabe»: el aviso sale como siempre (ver `equipo`).
       equipo: (equipoData as DatosDeteccion["equipo"] | null) ?? [],
-      metas: (metasData as { sede_id: string; dia_semana: number; meta_encargadas: number }[] | null) ?? [],
+      metas: (metasData as { sede_id: string; fecha: string; dia_semana: number; meta_encargadas: number }[] | null) ?? [],
       horarios: (horariosData as HorarioTramo[] | null) ?? [],
       turnos: (turnosData as DatosDeteccion["turnos"] | null) ?? [],
       faltas: (faltasData as unknown as DatosDeteccion["faltas"] | null) ?? [],

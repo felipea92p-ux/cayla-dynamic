@@ -192,12 +192,13 @@ select p.id, m.dia_semana, t.desde_min, t.hasta_min,
    and not exists (select 1 from metas_cobertura_rangos r where r.periodo_id = p.id);
 
 -- ── 5 · La lectura única ────────────────────────────────────────────────────
--- Para cada fecha del rango: la meta que rige ese día de la semana (la excepción
--- vigente más corta que lo define; si no hay, la predeterminada) y sus rangos.
--- Una fecha sin rangos no devuelve filas: sin meta.
+-- Para cada sede y fecha del rango: la meta que rige ese día de la semana (la
+-- excepción vigente más corta que lo define; si no hay, la predeterminada) y sus
+-- rangos. Una fecha sin rangos no devuelve filas: sin meta. Con p_sede_id null,
+-- todas las sedes que quien pregunta puede ver (el Dashboard las mira juntas).
 create or replace function fn_metas_cobertura(p_sede_id uuid, p_desde date, p_hasta date)
 returns table (
-  fecha date, desde_min int, hasta_min int, personal int, lideres int,
+  sede_id uuid, fecha date, desde_min int, hasta_min int, personal int, lideres int,
   periodo_id uuid, periodo_nombre text, es_predeterminada boolean
 )
 language plpgsql
@@ -220,32 +221,32 @@ begin
       from generate_series(p_desde, p_hasta, interval '1 day') d(d)
   ),
   candidatas as (
-    select x.fecha, p.id as periodo_id, p.nombre, p.es_predeterminada,
+    select p.sede_id, x.fecha, p.id as periodo_id, p.nombre, p.es_predeterminada,
            row_number() over (
-             partition by x.fecha
+             partition by p.sede_id, x.fecha
              order by p.es_predeterminada,                                -- primero las excepciones
                       (p.vigente_hasta - p.vigente_desde) nulls last,     -- la más corta
                       p.created_at desc, p.id desc                        -- desempate estable
            ) as orden
       from dias x
       join metas_cobertura_periodos p
-        on p.sede_id = p_sede_id and p.anulada_at is null
+        on (p_sede_id is null or p.sede_id = p_sede_id) and p.anulada_at is null
        and (p.es_predeterminada or x.fecha between p.vigente_desde and p.vigente_hasta)
      where exists (select 1 from metas_cobertura_rangos r where r.periodo_id = p.id and r.dia_semana = x.dow)
   )
-  select c.fecha, r.desde_min, r.hasta_min, r.personal, r.lideres, c.periodo_id, c.nombre, c.es_predeterminada
+  select c.sede_id, c.fecha, r.desde_min, r.hasta_min, r.personal, r.lideres, c.periodo_id, c.nombre, c.es_predeterminada
     from candidatas c
     join dias x on x.fecha = c.fecha
     join metas_cobertura_rangos r on r.periodo_id = c.periodo_id and r.dia_semana = x.dow
    where c.orden = 1
-   order by 1, 2;
+   order by 1, 2, 3;
 end
 $fn$;
 
 comment on function fn_metas_cobertura(uuid, date, date) is
-  'La meta de cobertura que rige cada fecha de una sede: los rangos de hora con su personal y sus líderes, de la '
-  'excepción vigente más corta que define ese día de la semana o, si no hay, de la predeterminada. Sin filas = sin '
-  'meta. Lee con las políticas de cada quien (SECURITY INVOKER). Hasta 92 días. 0590.';
+  'La meta de cobertura que rige cada fecha de una sede (o de todas, con p_sede_id null): los rangos de hora con su '
+  'personal y sus líderes, de la excepción vigente más corta que define ese día de la semana o, si no hay, de la '
+  'predeterminada. Sin filas = sin meta. Lee con las políticas de cada quien (SECURITY INVOKER). Hasta 92 días. 0590.';
 
 revoke all on function fn_metas_cobertura(uuid, date, date) from public, anon;
 grant execute on function fn_metas_cobertura(uuid, date, date) to authenticated;
