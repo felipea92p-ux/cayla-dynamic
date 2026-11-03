@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Store, Warehouse } from "lucide-react";
 import { etiquetaDePrueba, type TipoMarca } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
@@ -187,11 +188,16 @@ export function NombreGrid({
     // columnas en vez de apilar filas.
     //
     // Flex y no grid (Felipe, 2026-11-03): con 6 personas en 5 columnas la
-    // sexta quedaba sola a la izquierda. Una grilla no sabe centrar su última
-    // fila; un flex con `justify-center` sí. Cada casilla mide lo mismo que su
-    // columna de antes —(100% − huecos) / columnas, con el `gap-3` de 0.75rem—,
-    // así que las filas llenas se ven idénticas y solo la incompleta se centra.
-    <div className="flex w-full max-w-5xl flex-wrap content-start justify-center gap-3 [&>*]:shrink-0 [&>*]:grow-0 [&>*]:basis-[calc((100%-0.75rem)/2)] sm:[&>*]:basis-[calc((100%-1.5rem)/3)] lg:[&>*]:basis-[calc((100%-2.25rem)/4)] xl:[&>*]:basis-[calc((100%-3rem)/5)]">
+    // sexta quedaba sola a la izquierda; un flex con `justify-center` centra la
+    // última fila.
+    //
+    // Y ANCHO FIJO, no un porcentaje: la lista vive dentro de columnas que se
+    // ajustan a su contenido (`items-center`), así que un «20 % del ancho» se
+    // medía contra la propia lista y cada sede salía con casillas de otro
+    // tamaño —angostas con 3 personas, anchas con 12—. 12rem (192 px) es lo
+    // que medía una columna de cinco en `max-w-5xl`: cinco por fila caben
+    // justas (5 × 192 + 4 × 12 = 1008 ≤ 1024) y la casilla es igual en todas.
+    <div className="flex w-full max-w-5xl flex-wrap content-start justify-center gap-3 [&>*]:w-40 [&>*]:shrink-0 [&>*]:grow-0 sm:[&>*]:w-48">
       {roster.map((persona) => {
         const pres = presencia?.get(persona.id);
 
@@ -227,13 +233,13 @@ export function NombreGrid({
             // El estado ya no se dice con una palabra en la tarjeta —lo dicen el
             // ícono de la foto y, al pasar el mouse, su etiqueta—, así que quien
             // usa lector de pantalla lo escucha acá completo.
-            aria-label={`${nombre}${textoDePrueba(persona) ? `, ${textoDePrueba(persona)}` : ""}: ${etiqueta}, ${pres.detalle}${pres.detalle2 ? `, ${pres.detalle2}` : ""}`}
+            aria-label={`${nombre}${textoDePrueba(persona) ? `, ${textoDePrueba(persona)}` : ""}: ${etiqueta}${pres.ubicacion ? (pres.ubicacion === "almacen" ? ", en almacén" : ", en piso") : ""}, ${pres.detalle}${pres.detalle2 ? `, ${pres.detalle2}` : ""}`}
             className={`${CAJA_PRESENCIA} ${claseDePrueba(persona)} ${encendida ? estilo.iluminada : REPOSO_PRESENCIA} ${
               atenuada ? "opacity-30" : ""
             } flex flex-col items-center gap-1 px-3 pb-4 pt-5 text-center font-serif text-xl`}
           >
             <CintaDePrueba persona={persona} />
-            <AvatarPersona persona={persona} presencia={estilo} etiqueta={etiqueta} />
+            <AvatarPersona persona={persona} presencia={estilo} etiqueta={etiqueta} ubicacion={pres.ubicacion} />
             <span className={estilo.apagada ? "text-taupe" : undefined}>{nombre}</span>
             <EtiquetaDePrueba persona={persona} />
             <span className="font-sans text-sm text-taupe">{pres.detalle}</span>
@@ -311,11 +317,14 @@ function AvatarPersona({
   persona,
   presencia,
   etiqueta,
+  ubicacion,
 }: {
   persona: RosterEntry;
   presencia?: EstiloPresencia | null;
   /** La palabra del estado: es lo que sale al pasar el mouse por el ícono. */
   etiqueta?: string;
+  /** Solo en tiendas, para quien está trabajando: el ícono de piso o almacén. */
+  ubicacion?: "piso" | "almacen";
 }) {
   // El cliente es un singleton cacheado por storageKey (client.ts): pedirlo
   // acá no crea una conexión nueva por cada tile de la grilla.
@@ -359,6 +368,24 @@ function AvatarPersona({
       {presencia && (
         <ConEtiqueta texto={etiqueta ?? ""} className="absolute -bottom-2 -right-2">
           <InsigniaDeEstado presencia={presencia} />
+        </ConEtiqueta>
+      )}
+      {/* Piso o almacén, en la esquina opuesta al estado (Felipe, 2026-11-03).
+          Neutro a propósito: el azul ya es «en pausa», y el almacén no es una
+          pausa —sigue trabajando—. Lo distinguen el ícono y su palabra. */}
+      {ubicacion && (
+        <ConEtiqueta texto={ubicacion === "almacen" ? "En almacén" : "En piso"} className="absolute -bottom-2 -left-2">
+          <span
+            className={`grid h-7 w-7 place-items-center rounded-pildora border-2 border-[var(--anillo)] ${
+              ubicacion === "almacen" ? "bg-tinta text-crema" : "bg-sand text-taupe"
+            }`}
+          >
+            {ubicacion === "almacen" ? (
+              <Warehouse size={15} strokeWidth={2.5} aria-hidden />
+            ) : (
+              <Store size={15} strokeWidth={2.5} aria-hidden />
+            )}
+          </span>
         </ConEtiqueta>
       )}
     </span>
