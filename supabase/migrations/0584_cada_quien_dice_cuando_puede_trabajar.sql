@@ -46,6 +46,16 @@
 --     de sede, y escribirlo a mano sería una lista que miente el día que cambie.
 --   · DO registra la disponibilidad y fija la jornada desde /admin/disponibilidad.
 --
+-- DESCARTÉ
+--   · Reusar `horarios_asignados.horas_semana_objetivo` como jornada. Existe
+--     desde la 0001 con `default 45`, pero ninguna puerta de horario la escribe
+--     (ni fn_set_horario_semanal ni la 0440): solo la copian las reactivaciones
+--     (0209, 0327). Vale 45 para todo el mundo porque nadie la decidió, y es
+--     de cada TRAMO de horario, no de la persona. Leerla como «la jornada que
+--     fijó DO» diría algo que nadie fijó. Queda como está.
+--   · Reusar Reportes (0483/0488) para los pedidos de horario: es el canal del
+--     RIT, con plazos legales. Eso es la entrega siguiente y va aparte.
+--
 -- CÓMO SE ARMA (y por qué)
 --   · `disponibilidades`: una fila por cada envío, nunca se pisa. Estado:
 --       enviada     → la mandó ella; espera a su líder.
