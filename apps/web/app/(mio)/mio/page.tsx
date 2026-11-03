@@ -9,6 +9,8 @@ import { MiSeguro } from "./seguro/mi-seguro";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
+import { TuSemana, useMiSemana } from "./tu-semana";
+import { hoyEnUnaLinea, textoHoras, totalDeSemana } from "@/lib/mi-semana";
 import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
 import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
 import { PASOS_GUIA_BOLETAS, PASOS_GUIA_EDUCACION, PASOS_GUIA_MOVILIDAD } from "./guias-de-pago";
@@ -440,15 +442,6 @@ function corrimiento(n: number): string {
 }
 const haceDias = (n: number) => corrimiento(-n);
 
-/** «mañana», «el martes», «el 3 de setiembre» — cómo lo diría una persona. */
-function cuando(fecha: string): string {
-  if (fecha === hoyLima()) return "hoy";
-  if (fecha === corrimiento(1)) return "mañana";
-  const dow = dowDe(fecha);
-  const nombres = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-  if (fecha <= corrimiento(6)) return `el ${nombres[dow]}`;
-  return `el ${diaYMes(fecha)}`;
-}
 
 // Los mismos colores que el panel, con el mismo significado. Que la persona y su
 // encargada vean el mismo día del mismo color no es cosmético: es lo que hace
@@ -521,6 +514,9 @@ export default function MioPage() {
   const router = useRouter();
   const [sesion, setSesion] = useState<boolean | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
+  // «Tu semana» (Mis turnos y la tarjeta de hoy del Resumen) pide sus propias
+  // tres semanas: no depende del rango que ella elija en «Mis días».
+  const miSemana = useMiSemana(supabase, yo?.id ?? null);
   // PRIMERO LO QUE SE VE, DESPUÉS LO QUE SE CUENTA. Abrir /mio disparaba unas 64
   // consultas a la vez (medido el 2026-10-24), y las que pintan el Resumen —el
   // periodo, los turnos, los objetivos— esperaban en la misma cola que las que
@@ -1548,16 +1544,15 @@ export default function MioPage() {
     };
   }, [jornadas, perdonadas, dias]);
 
-  // Los próximos turnos, de hoy en adelante. Solo los días que se trabajan: una
-  // lista de descansos no es lo que se viene a consultar.
-  const proximos = useMemo(() => {
-    if (!yo) return [];
-    const hoy = hoyLima();
-    return fechasDelRango(hoy, corrimiento(14))
-      .map((fecha) => ({ fecha, esperado: esperadoDelDia(fecha, turnos.get(fecha) ?? null, horarioVigente(tramos, fecha)) }))
-      .filter((x) => x.esperado.trabaja)
-      .slice(0, 7);
-  }, [yo, turnos, tramos]);
+  // Hoy y el total de esta semana, para la tarjeta del Resumen. Las mismas
+  // reglas que «Tu semana» (lib/mi-semana.ts): la tarjeta y la sección no
+  // pueden decir dos cosas distintas.
+  const hoyDeMiSemana = useMemo(() => {
+    const dias = miSemana.semanas[0];
+    if (dias.length === 0) return null;
+    const total = totalDeSemana(dias);
+    return { hoy: dias.find((d) => d.fecha === miSemana.hoy), total };
+  }, [miSemana]);
 
   // Cuatro filas de «Permiso personal» seguidas son cuatro días que ella vivió
   // como un episodio. Se juntan los consecutivos del mismo tipo.
@@ -2127,17 +2122,17 @@ export default function MioPage() {
               hasta hoy se respondía por WhatsApp. */}
           <TarjetaClave
             dataTour="mio-resumen-turno"
-            titulo="Tu próximo turno"
-            valor={proximos.length > 0
-              ? `${proximos[0].esperado.entrada}${proximos[0].esperado.salida ? `–${proximos[0].esperado.salida}` : ""}`
-              : "—"}
-            pie={proximos.length > 0
-              ? `Te toca ${cuando(proximos[0].fecha)}.${feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
-              : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo."}
+            titulo="Hoy"
+            valor={hoyDeMiSemana ? hoyEnUnaLinea(hoyDeMiSemana.hoy) : "—"}
+            pie={hoyDeMiSemana
+              ? `Esta semana: ${textoHoras(hoyDeMiSemana.total.horas)}${
+                  hoyDeMiSemana.total.referencia !== null ? ` de ${textoHoras(hoyDeMiSemana.total.referencia)} de tu horario` : ""}.${
+                  feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
+              : miSemana.cargando ? "Leyendo tu horario…" : "No hay turnos ni horario cargados para esta semana. Si eso no es lo que esperabas, avísale a tu líder de equipo."}
             accion={
               <button onClick={() => { cambiarSeccion("turnos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
-                Ver mis próximos días →
+                Ver mi semana →
               </button>
             }
           />
@@ -2447,24 +2442,11 @@ export default function MioPage() {
       {/* ── MIS TURNOS ───────────────────────────────────────────────────── */}
       {tab === "turnos" && (
         <section data-tour="mio-turnos-seccion" className="rounded-2xl border border-sand p-5">
-          <h2 className="mb-1 font-serif text-lg">Cuándo te toca</h2>
-          <p className="mb-3 text-sm text-taupe">Tus próximos días de trabajo, de hoy en adelante.</p>
-          {proximos.length === 0 ? (
-            <p className="text-sm text-taupe">
-              No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo.
-            </p>
-          ) : (
-            <ul data-tour="mio-turnos-proximos" className="flex flex-wrap gap-2">
-              {proximos.map(({ fecha, esperado }) => (
-                <li key={fecha}
-                  className={`rounded-xl border px-3 py-2 ${fecha === hoyLima() ? "border-tinta bg-papel" : "border-sand"}`}>
-                  <div className="text-xs capitalize text-taupe">{cuando(fecha)}</div>
-                  <div className="font-medium">{esperado.entrada}{esperado.salida ? `–${esperado.salida}` : ""}</div>
-                  {esperado.origen === "turno" && <div className="text-[10px] text-taupe">turno del día</div>}
-                </li>
-              ))}
-            </ul>
-          )}
+          <h2 className="mb-1 font-serif text-lg">Tu semana</h2>
+          <p className="mb-3 text-sm text-taupe">
+            Lo que te toca trabajar. Lo que de verdad marcaste está en «Mis días».
+          </p>
+          <TuSemana datos={miSemana} />
           {feriados.length > 0 && (
             <ul data-tour="mio-turnos-feriados" className="mt-4 space-y-1 border-t border-sand pt-3 text-sm">
               {feriados.map((f) => (

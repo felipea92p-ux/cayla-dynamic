@@ -78,6 +78,14 @@ export interface Esperado {
   salida: string | null;
   /** Horas de la jornada ya sin refrigerio. 0 si no le tocaba o no se sabe. */
   horas: number;
+  /**
+   * Minutos de refrigerio que se descontaron para llegar a `horas` (0 si no
+   * trabaja). Opcional solo para no obligar a reescribir los `Esperado` armados
+   * a mano en pruebas; `esperadoDelDia` siempre lo devuelve cuando trabaja.
+   * Lo usa «Tu semana» en /mio para decir «lleva refrigerio» con la misma regla
+   * con la que se calcularon las horas, en vez de volver a deducirla.
+   */
+  refrigerioMin?: number;
   /** De dónde salió la respuesta, para poder decirlo en pantalla. */
   origen: "turno" | "horario" | "legacy" | "sin_horario";
 }
@@ -134,7 +142,7 @@ export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: H
     if (turno.hora_entrada) {
       const e = turno.hora_entrada.slice(0, 5);
       const s = turno.hora_salida?.slice(0, 5) ?? delDia?.s?.slice(0, 5) ?? horario?.hora_salida?.slice(0, 5) ?? null;
-      return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, origen: "turno" };
+      return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, refrigerioMin: refrigerio, origen: "turno" };
     }
   }
 
@@ -146,7 +154,7 @@ export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: H
     if (!delDia?.e) return { trabaja: false, entrada: null, salida: null, horas: 0, origen: "horario" };
     const e = delDia.e.slice(0, 5);
     const s = delDia.s?.slice(0, 5) ?? null;
-    return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, origen: "horario" };
+    return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, refrigerioMin: refrigerio, origen: "horario" };
   }
 
   // 3 · El resumen legacy, para los horarios que nunca se migraron al jsonb.
@@ -155,7 +163,7 @@ export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: H
     if (!toca) return { trabaja: false, entrada: null, salida: null, horas: 0, origen: "legacy" };
     const e = horario.hora_entrada.slice(0, 5);
     const s = horario.hora_salida?.slice(0, 5) ?? null;
-    return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, origen: "legacy" };
+    return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, refrigerioMin: refrigerio, origen: "legacy" };
   }
 
   return NADA;
