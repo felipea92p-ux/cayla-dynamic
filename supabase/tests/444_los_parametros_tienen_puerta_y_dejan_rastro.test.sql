@@ -56,8 +56,11 @@ set session_replication_role = origin;
 
 -- ── 0 · Lo instalado ────────────────────────────────────────────────────────
 select is(
-  -- Desde la 0577 el catálogo suma parámetros de plata (practicante, sueldos por defecto); esta prueba mira solo la primera rebanada.
-  (select array_agg(parametro order by orden) from parametros_catalogo where clase <> 'plata'),
+  -- Desde la 0577 el catálogo suma parámetros de plata (practicante, sueldos por defecto), y desde la 0585 el ritmo y el
+  -- mínimo de cada tienda (`cobertura_*`, uno por sede, así que su número depende de las sedes); esta prueba mira solo la
+  -- primera rebanada.
+  (select array_agg(parametro order by orden) from parametros_catalogo
+    where clase <> 'plata' and parametro not like 'cobertura\_%'),
   array['prueba_dias', 'auto_cierre_horas', 'descanso_medico_avisar_desde', 'descanso_medico_tope_essalud']::text[],
   'El catálogo trae los cuatro parámetros de la primera rebanada, en su orden');
 

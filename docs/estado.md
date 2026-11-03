@@ -6,6 +6,31 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-03 — Turnos repite un día cerrado contra la venta de cada hora · migración **0585 PEGADA (2026-11-03)** · rama `claude/turnos-repeticion-del-dia`
+
+**De dónde sale.** Felipe (2026-11-03): la repetición de un día que ya pasó (la maqueta C) va dentro de la vista Día; el ritmo
+(compras por hora que atiende una persona en piso) y el mínimo en piso van a Parámetros, uno por tienda; una compra es un ticket
+completado; y la lectura de la venta vive en Dynamic, no en el repo de retail (las dos bases son la misma).
+
+**0585.** `fn_compras_por_hora(sede, desde, hasta)`: tickets completados de `retail.ventas` (sin anuladas ni de prueba, sin montos)
+por día y hora de Lima, vía `retail.ubicaciones.sede_dynamic_id`; admin, Líder DO o la líder de esa sede; hasta 62 días. Es plpgsql
+porque la `retail.ventas` que construyen las migraciones de ESTE repo es vieja (0220, con `sede_id`): si retail cambia esas columnas,
+la función **falla** —no devuelve cero— y la pantalla lo dice. `configuracion.cobertura_por_venta` + 2 parámetros por tienda activa
+(`cobertura_ritmo_<código>` 1,5 y `cobertura_minimo_<código>` 3, operativos, admin y Líder DO); `fn_cobertura_por_venta(sede)` los lee.
+Prueba 475 (14), que arma la forma de producción de retail dentro de la transacción. Medida contra producción: TRU, 2-nov, 24 compras.
+No reescribe ninguna función: no lleva md5.
+
+**En pantalla.** Día, en un día anterior a hoy: «Repetición del día» con «Reproducir» y la barra de la hora; seis columnas (en piso,
+en almacén, en refrigerio, en pausa, todavía no llega, ya salió) con «llegó 08:34 · plan 08:30» —sin juzgar: las tardanzas tienen su
+pantalla—; en tiendas, compras de la hora y «la venta pedía N»; el día completo hora por hora y un resumen. La regla es
+`lib/admin/repeticion.ts`: el estado sale de `estadoPresencia` (la máquina del terminal) cortada en el instante, y el almacén de
+`almacenConLoReal`. **La 0585 ya está pegada** (2026-11-03, Felipe devolvió la fila: los cuatro parámetros de AQP y TRU, las dos
+funciones y «585 · la_venta_de_cada_hora_llega_a_turnos»); comprobada contra producción leyendo la venta de ayer de las dos tiendas.
+
+**Sigue:** la sugerencia de turnos con propuesta y «Publicar» (#657), sobre esta venta y la disponibilidad de la 0584 (pegada).
+
+---
+
 ## 2026-11-03 — «Mi disponibilidad» y la jornada que fija DO · migración **0584 PEGADA (2026-11-03)** · prueba 474 · fusionada en [#654](https://github.com/felipea92p-ux/cayla-dynamic/pull/654) · historial en [#656](https://github.com/felipea92p-ux/cayla-dynamic/pull/656)
 
 **De dónde sale.** Felipe (2026-11-02/03), módulo «Lo mío · Mis turnos / Mi disponibilidad», entrega 2 de 4 (la 1, «Tu semana»,

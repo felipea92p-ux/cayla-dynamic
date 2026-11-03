@@ -8151,6 +8151,14 @@ export type Database = {
         Returns: undefined
       }
       fn_cierre_lima: { Args: { p_fecha: string | null }; Returns: string }
+      fn_cobertura_por_venta: {
+        Args: { p_sede_id: string }
+        Returns: { minimo: number; ritmo: number }[]
+      }
+      fn_compras_por_hora: {
+        Args: { p_desde: string; p_hasta: string; p_sede_id: string }
+        Returns: { compras: number; fecha: string; hora: number }[]
+      }
       fn_conducta_antecedentes: {
         Args: {
           p_fecha_hecho?: string | null

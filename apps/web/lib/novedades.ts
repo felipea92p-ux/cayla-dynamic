@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-turnos-repeticion-del-dia",
+    fecha: "2026-11-03",
+    titulo: "Turnos repite un día que ya pasó, contra la venta de cada hora",
+    queMejoro:
+      "En Turnos, vista Día, al elegir un día que ya cerró aparece su repetición. Mueve la hora o dale «Reproducir» y se " +
+      "ve quién estaba en piso, en almacén, en refrigerio, por llegar o ya se había ido, con lo que se marcó de verdad en " +
+      "el terminal.\n\n" +
+      "En las tiendas se ve además cuántas compras hubo en cada hora y cuánta gente pedía la venta. Esa cuenta usa el " +
+      "ritmo y el mínimo de cada tienda, que DO cambia en Parámetros.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-03-cambios-de-horario",
     fecha: "2026-11-03",
     titulo: "Todo lo que cambió en un horario, en una sola lista",
