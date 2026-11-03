@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { leerMetasDeCobertura, metasComoAntes } from "@/lib/admin/leer-metas";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas";
 import { Marca } from "@/components/marca";
 import { Cargando } from "@/components/cargando";
@@ -38,10 +39,6 @@ function rangoLabel(desde: string, hasta: string): string {
   if (mismoMes) return `${Number(desde.slice(8, 10))}–${fmtDia(hasta, { day: "numeric", month: "long", year: "numeric" })}`;
   const izq = fmtDia(desde, mismoAnio ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" });
   return `${izq} – ${fmtDia(hasta, { day: "numeric", month: "short", year: "numeric" })}`;
-}
-function diaSemanaDe(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 function horaDecimalLimaAhora(): number {
   const p = new Intl.DateTimeFormat("en-GB", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
@@ -185,7 +182,6 @@ function ReporteSedeContenido() {
     if (!sedeId || !desde || !hasta || hasta < desde) return;
     setCargando(true);
     const hoy = hoyLima();
-    const diaHoy = diaSemanaDe(hoy);
     const codigoSede = sedes.find((s) => s.id === sedeId)?.codigo ?? "";
 
     const [
@@ -227,7 +223,8 @@ function ReporteSedeContenido() {
       supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_personas_funciones"),
       supabase.rpc("fn_areas"),
-      supabase.from("metas_cobertura").select("sede_id, meta, meta_tarde, meta_encargadas").eq("dia_semana", diaHoy).eq("sede_id", sedeId),
+      // La meta de hoy de la sede (0590), dicha en mañana / tarde / líderes como la contaba esta pantalla.
+      leerMetasDeCobertura(supabase, sedeId, hoy, hoy).then((r) => ({ data: r.data ? metasComoAntes(r.data) : null, error: r.error })),
       // `p_as_of` es el fin del rango elegido, no la fecha de hoy: sin esto,
       // mirar un periodo cerrado mostraba en «Necesita atención» el estado de
       // HOY con el umbral de hoy, no el del periodo que se está archivando.

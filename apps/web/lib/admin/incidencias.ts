@@ -201,7 +201,8 @@ export interface DatosDeteccion {
    * se reconoce mirando a TODA la sede, no solo a quien podría liderarla. Vacío = no se
    * sabe: el aviso sale como siempre. */
   equipo: { id: string; sede_base_id: string }[];
-  metas: { sede_id: string; dia_semana: number; meta_encargadas: number }[];
+  /** Los líderes que pide cada sede: por fecha (0590, con sus excepciones) o, en lo viejo, por día de la semana. */
+  metas: { sede_id: string; dia_semana: number; fecha?: string; meta_encargadas: number }[];
   horarios: HorarioTramo[];
   turnos: (TurnoDia & { persona_id: string; fecha: string })[];
   faltas: { persona_id: string; nombre: string; sede: string; fecha: string; justificada: boolean; motivo: string | null }[];
@@ -468,7 +469,7 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
     const proximaSemana = i >= 7;
     const dow = diaSemanaNum(dia);
     for (const m of d.metas) {
-      if (m.dia_semana !== dow) continue;
+      if (m.fecha !== undefined ? m.fecha !== dia : m.dia_semana !== dow) continue;
       // Misma definición que el Dashboard, Turnos y Reporte de sede: en Central
       // manda un administrador; en una tienda solo cuenta quien es líder o
       // lleva la marca de piso. Tener la propia aquí hacía que Central saliera

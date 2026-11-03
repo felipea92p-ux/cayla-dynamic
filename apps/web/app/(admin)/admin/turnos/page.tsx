@@ -36,10 +36,13 @@ import { baseEsAlmacen, baseVigenteDesde, leerPuestosResueltos, type PeriodoBase
 import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, lineaDeSemana, TEXTO_CONFIRMAR_TRABAJO_EN_FERIADO, tituloDelAviso, type PersonaEnFeriado } from "@/lib/admin/prueba-en-feriado";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 import type { CambioUbicacion, Ubicacion } from "@/lib/terminal/ubicacion";
-import { CampoMeta, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
+import { TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
 import { RepeticionDelDia } from "./repeticion-del-dia";
 import { PropuestaDeLaSemana } from "./sugerencia-semana";
 import { ventaPedia, type PersonaRepeticion } from "@/lib/admin/repeticion";
+import { lideresDelDia, metasPorFecha, pideEn, type MetaDelDia, type FilaMeta } from "@/lib/admin/metas-cobertura";
+import { leerMetasDeCobertura } from "@/lib/admin/leer-metas";
+import { MetasDeCobertura } from "./metas-de-cobertura";
 import { semillaDe, sugerirSemana, type DiaSugerencia, type PersonaSugerencia, type Propuesta, type Turno as TurnoMin } from "@/lib/admin/sugerencia-turnos";
 import { aMinutos, diaDeLaSemana, diasDeAusencia, filasParaPublicar, promedioDeCompras, restriccionesDesdeDisponibilidad } from "@/lib/admin/sugerencia-entrada";
 
@@ -119,8 +122,6 @@ function pctEnRango(horaDec: number): number {
 // La meta cambia a media tarde: hasta 14:15 es la meta de la MAÑANA, después la
 // de la TARDE (fijo por ahora, ambas sedes — decisión de Felipe).
 const CORTE_TARDE = 14.25; // 14:15
-const metaDeHora = (horaFranjaIni: number, metaMan: number, metaTar: number) =>
-  horaFranjaIni >= CORTE_TARDE ? metaTar : metaMan;
 // Resumen de OPERATIVAS: promedio de qué tan lleno corriste vs la meta del tramo
 // (topado a 100% por franja para que la tarde de sobra NO tape una mañana vacía),
 // más el motor de sugerencia: redistribuir (hay gente que mover) vs falta
@@ -712,9 +713,11 @@ export default function TurnosPage() {
   const [compras, setCompras] = useState<Map<string, Map<number, number>> | null>(new Map());
   // El ritmo y el mínimo de la tienda (Parámetros, 0585); null = no se pudieron leer.
   const [coberturaVenta, setCoberturaVenta] = useState<{ ritmo: number; minimo: number } | null>(null);
-  const [metas, setMetas] = useState<Map<number, number>>(new Map()); // meta operativas MAÑANA
-  const [metasTarde, setMetasTarde] = useState<Map<number, number>>(new Map()); // meta operativas TARDE
-  const [metasEncargadas, setMetasEncargadas] = useState<Map<number, number>>(new Map());
+  // La meta de cada fecha de la semana, ya resuelta (0590): la predeterminada o la excepción que rige, por rangos.
+  const [metasFecha, setMetasFecha] = useState<Map<string, MetaDelDia>>(new Map());
+  // Lo que pide la venta, del promedio de las últimas 4 semanas (0585): manda donde no hay meta. null si no se leyó.
+  const [promVenta, setPromVenta] = useState<((dow: number, hora: number) => number) | null>(null);
+  const [metasAbierto, setMetasAbierto] = useState(false);
   const [cargando, setCargando] = useState(true);
   // Cuántos turnos puntuales tiene la semana anterior, para el botón "Copiar
   // semana anterior" — null mientras no se sabe, 0 = no hay nada que copiar
@@ -807,6 +810,7 @@ export default function TurnosPage() {
       { data: com, error: comErr },
       { data: cpv, error: cpvErr },
       { data: pba, error: pbaErr },
+      { data: c4, error: c4Err },
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
       // igual que cualquiera y cuenta para la meta de cobertura de la sede —
@@ -819,7 +823,8 @@ export default function TurnosPage() {
         .eq("sueldo_fijo", false).order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunes).lte("fecha", domingo),
-      supabase.from("metas_cobertura").select("dia_semana, meta, meta_tarde, meta_encargadas").eq("sede_id", sedeSel),
+      // La meta ya resuelta por fecha (0590); si la 0590 no está pegada, la de la 0039 con la misma forma.
+      leerMetasDeCobertura(supabase, sedeSel, lunes, domingo),
       supabase.rpc("fn_personas_funciones"), // "funcion" vía RPC: el schema cache de PostgREST no expone la columna
       supabase.rpc("fn_areas"), // catálogo dinámico de áreas (nunca .from("areas"): schema cache trabado)
       supabase.from("feriados").select("fecha, nombre").gte("fecha", lunes).lte("fecha", domingo),
@@ -843,6 +848,8 @@ export default function TurnosPage() {
       // El puesto base (0588), para decir en el diálogo del almacén cuál es y desde cuándo. `as never`: la tabla
       // todavía no está en los tipos generados. Si falla (la 0588 sin pegar), el diálogo no ofrece «siempre».
       supabase.from("puestos_base" as never).select("persona_id, vigente_desde, vigente_hasta"),
+      // Lo que pide la venta donde no hay meta: el promedio de las últimas 4 semanas (vacío en una sede que no vende).
+      supabase.rpc("fn_compras_por_hora", { p_sede_id: sedeSel, p_desde: addDays(hoyLima(), -28), p_hasta: addDays(hoyLima(), -1) }),
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (modo !== "fondo") cargaConMetas.current = 0;
@@ -916,14 +923,9 @@ export default function TurnosPage() {
     const filaCpv = !cpvErr && Array.isArray(cpv) ? (cpv as { ritmo: number; minimo: number }[])[0] : undefined;
     setCoberturaVenta(filaCpv ? { ritmo: Number(filaCpv.ritmo), minimo: Number(filaCpv.minimo) } : null);
     setCargando(false);
-    // Las metas solo se cambian desde esta pantalla, y se guardan al salir del
-    // campo: una lectura de fondo que salió antes de ese guardado traería la
-    // meta vieja y la pintaría encima de la recién tecleada. Así que el fondo
-    // no las toca; se leen al entrar, al cambiar de sede o de semana, y tras guardar.
-    if (modo === "fondo") return;
-    setMetas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta])));
-    setMetasTarde(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_tarde ?? x.meta ?? 0])));
-    setMetasEncargadas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_encargadas ?? 0])));
+    // Las metas se cambian en su editor (0590), que guarda entera la meta y recarga: el fondo ya puede leerlas.
+    setMetasFecha(metasPorFecha((m as FilaMeta[] | null) ?? []));
+    setPromVenta(() => (c4Err ? null : promedioDeCompras((c4 ?? []) as { fecha: string; hora: number; compras: number }[], addDays(hoyLima(), -28), addDays(hoyLima(), -1))));
     // `recarga` no se lee dentro: está en las dependencias para que pedir una recarga haga correr el efecto que ya llama a cargar().
   }, [supabase, sedeSel, lunes, avisar, recarga]);
 
@@ -1070,6 +1072,22 @@ export default function TurnosPage() {
   // es_encargada_piso sigue sirviendo para un admin de confianza que además está
   // en el piso de una tienda, como Janis.
   const tipoSedeSel = sedes.find((x) => x.id === sedeSel)?.tipo ?? null;
+  // ── La meta (0590): manda la meta; donde no hay, lo que pide la venta (solo tiendas) ──
+  const rangosDe = (iso: string) => metasFecha.get(iso)?.rangos ?? [];
+  const ventaEn = (iso: string, h: number): number | null =>
+    tipoSedeSel === "tienda" && promVenta && coberturaVenta ? ventaPedia(promVenta(diaDeLaSemana(iso), Math.floor(h)), coberturaVenta) : null;
+  /** El personal que se pide a la hora decimal `h` de esa fecha (0 si no hay meta ni venta). */
+  const metaHoraDe = (iso: string) => (h: number) => pideEn(rangosDe(iso), h, ventaEn(iso, h)).n ?? 0;
+  /** La meta del día dicha en mañana / tarde / líderes, para los resúmenes que cuentan así: el peor momento de cada tramo. */
+  const mtDe = (iso: string) => {
+    const enLa = metaHoraDe(iso);
+    const muestras = (desde: number, hasta: number) => {
+      const xs: number[] = [];
+      for (let x = desde; x < hasta; x += 0.25) xs.push(enLa(x));
+      return Math.max(0, ...xs);
+    };
+    return { manana: muestras(HORA_INICIO, CORTE_TARDE), tarde: muestras(CORTE_TARDE, HORA_FIN), lideres: lideresDelDia(rangosDe(iso)) };
+  };
   const cuentaEnPiso = useCallback(
     (p: Persona) => cuentaEnCobertura(
       { rol: p.rol, tipoVinculo: p.tipoVinculo, esEncargadaPiso: p.esEncargadaPiso, areaOperativa: esOperativaEn(areas, p.funcion) },
@@ -1088,7 +1106,7 @@ export default function TurnosPage() {
     const dia = diaSemana(iso);
     return etiquetaSedeSinTurnos(
       diaDeLaSedeDe(personas.map((p) => p.id), iso, (id) => turnos.get(`${id}|${iso}`) ?? null, (id) => horarios.get(id) ?? []),
-      { manana: metas.get(dia) ?? 0, tarde: metasTarde.get(dia) ?? 0, lideres: metasEncargadas.get(dia) ?? 0 },
+      mtDe(iso),
     );
   };
   const coberturaPorHora = useCallback(
@@ -1103,13 +1121,13 @@ export default function TurnosPage() {
       return [{ id: p.id, entrada: horaADecimal(c.entrada), salida: c.salida ? horaADecimal(c.salida) : HORA_FIN }];
     });
   const tramosDelDia = (iso: string) => {
-    const dia = diaSemana(iso);
+    const mt = mtDe(iso);
     const ops = turnosDecimalesDe(iso, esOperativa);
     const lid = turnosDecimalesDe(iso, esEncargada);
     return {
-      manana: resumenDelTramo({ turnos: ops, tramo: "manana", meta: metas.get(dia) ?? 0, inicioDia: HORA_INICIO, finDia: HORA_FIN }),
-      tarde: resumenDelTramo({ turnos: ops, tramo: "tarde", meta: metasTarde.get(dia) ?? 0, inicioDia: HORA_INICIO, finDia: HORA_FIN }),
-      lideres: resumenDeLideres(lid.length, metasEncargadas.get(dia) ?? 0),
+      manana: resumenDelTramo({ turnos: ops, tramo: "manana", meta: mt.manana, inicioDia: HORA_INICIO, finDia: HORA_FIN }),
+      tarde: resumenDelTramo({ turnos: ops, tramo: "tarde", meta: mt.tarde, inicioDia: HORA_INICIO, finDia: HORA_FIN }),
+      lideres: resumenDeLideres(lid.length, mt.lideres),
       idsLideres: new Set(lid.map((t) => t.id)),
     };
   };
@@ -1131,8 +1149,8 @@ export default function TurnosPage() {
   };
   // La sugerencia de siempre (redistribuir / falta personal), con el candidato concreto a mover.
   const sugerenciaDe = (iso: string): string | null => {
-    const dia = diaSemana(iso);
-    const r = resumenOperativas(coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esOperativa), metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0, HORA_INICIO_SEMANA, 0.5);
+    const mt = mtDe(iso);
+    const r = resumenOperativas(coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esOperativa), mt.manana, mt.tarde, HORA_INICIO_SEMANA, 0.5);
     if (!r.sug) return null;
     let candidato = "";
     const operativas = personas.filter(esOperativa);
@@ -1229,14 +1247,17 @@ export default function TurnosPage() {
       const diasSug: DiaSugerencia[] = dias.map((iso) => {
         const dow = diaDeLaSemana(iso);
         const v = ventana.get(dow);
-        const metaMan = metas.get(diaSemana(iso)) ?? 0, metaTar = metasTarde.get(diaSemana(iso)) ?? 0;
         return {
           fecha: iso,
           abre: v ? aMinutos(v.abre) : null,
           cierra: v ? aMinutos(v.cierra) : null,
-          pedia: (min) => prom ? (ventaPedia(prom(dow, Math.floor(min / 60)), params) ?? params.minimo) : metaDeHora(min / 60, metaMan, metaTar),
+          // Manda la meta (0590, Felipe 2026-11-03); donde no hay meta, lo que pide la venta.
+          pedia: (min) => {
+            const venta = prom ? (ventaPedia(prom(dow, Math.floor(min / 60)), params) ?? params.minimo) : null;
+            return pideEn(rangosDe(iso), min / 60, venta).n ?? 0;
+          },
           compras: (min) => (prom ? prom(dow, Math.floor(min / 60)) : 0),
-          metaLideres: metasEncargadas.get(diaSemana(iso)) ?? 0,
+          metaLideres: lideresDelDia(rangosDe(iso)),
         };
       });
       const restr = restriccionesDesdeDisponibilidad((disp ?? []) as { persona_id: string; fecha: string; desde: string | null; hasta: string | null; estado: string }[]);
@@ -1462,30 +1483,6 @@ export default function TurnosPage() {
   const marcarDescanso = () => edit && ejecutar(() => supabase.rpc("fn_set_descanso", { p_persona_id: edit.personaId, p_fecha: edit.fecha }));
   const quitar = () => edit && ejecutar(() => supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha }));
 
-  // Al teclear solo actualiza el estado local (para que el semáforo reaccione en vivo).
-  function editarMeta(dia: number, tramo: "manana" | "tarde", valor: string) {
-    const meta = Math.max(0, Math.round(Number(valor) || 0));
-    (tramo === "manana" ? setMetas : setMetasTarde)((m) => new Map(m).set(dia, meta));
-  }
-  // Guarda de verdad al salir del campo — manda mañana + tarde juntas (una sola escritura).
-  async function comprometerMeta(dia: number) {
-    const { error } = await supabase.rpc("fn_set_meta_cobertura", {
-      p_sede_id: sedeSel, p_dia_semana: dia,
-      p_meta_manana: metas.get(dia) ?? 0, p_meta_tarde: metasTarde.get(dia) ?? 0,
-    });
-    if (error) { avisar("error", mensajeDeError(error, "guardar la meta")); setRecarga((n) => n + 1); }
-  }
-
-  function editarMetaEncargadas(dia: number, valor: string) {
-    const meta = Math.max(0, Math.round(Number(valor) || 0));
-    setMetasEncargadas((m) => new Map(m).set(dia, meta));
-  }
-  async function comprometerMetaEncargadas(dia: number, valor: string) {
-    const meta = Math.max(0, Math.round(Number(valor) || 0));
-    const { error } = await supabase.rpc("fn_set_meta_encargadas", { p_sede_id: sedeSel, p_dia_semana: dia, p_meta: meta });
-    if (error) { avisar("error", mensajeDeError(error, "guardar la meta de líderes")); setRecarga((n) => n + 1); }
-  }
-
   if (rol !== null && !puedeVer) {
     return (
       <div className="flex flex-1 flex-col">
@@ -1507,7 +1504,7 @@ export default function TurnosPage() {
               intro="Un turno puntual manda sobre el horario base de esa persona ese día, y de él depende si se le cuenta tardanza o falta."
               secciones={[
                 { titulo: "Poner un turno", texto: "Toca la fila de una persona en un día: eliges su hora de entrada y salida, o la marcas de descanso." },
-                { titulo: "La meta", texto: "Tiene dos tramos: mañana y tarde (el corte es 14:15). La franja de abajo de cada día compara la gente de cada hora contra la meta de su tramo." },
+                { titulo: "La meta", texto: "Va por rangos de hora, con su personal y sus líderes: «Metas de cobertura». Hay una predeterminada por día de la semana y excepciones para una campaña, un mes o un feriado, que rigen el tiempo que elijas; si dos se pisan, manda la más corta. Manda la meta: donde un rango no tiene número, en las tiendas manda lo que pide la venta; un 0 dice que ahí no se exige a nadie. La franja de abajo de cada día compara la gente de cada hora contra eso. Las cambian admin y DO." },
                 { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma. Quien está en preselección tampoco suma hasta que deje de estarlo: da igual si es practicante o tiene otro cargo." },
                 { titulo: "Las vistas", texto: "Integrada muestra la semana hora por hora y quién está en cada hora, con el resumen de horas al pie; Día, la línea de cada persona en un día." },
                 { titulo: "Piso o almacén", texto: "En Día, toca la barra de una persona para decir si ese día trabaja en piso, todo el turno en almacén o unas horas en almacén (con una sugerencia de las horas en que el piso aguanta sin ella). Se planifica de hoy en adelante. Quien está en almacén no cuenta en piso, y no cambia su turno, sus horas ni su pago." },
@@ -1549,6 +1546,12 @@ export default function TurnosPage() {
               <BotonIcono etiqueta="Semana siguiente" icono={<ChevronRight aria-hidden />} disabled={cargando} onClick={() => setLunes(addDays(lunes, 7))} />
               <Boton variante="secundario" tamano="sm" disabled={cargando} onClick={() => setLunes(lunesDeLaSemana(hoyLima()))}>Hoy</Boton>
             </div>
+            {/* La meta de cobertura (0590): predeterminada y excepciones, por rangos de hora. La cambian admin y DO; la líder la ve. */}
+            {puedeVer && (
+              <Boton variante="secundario" tamano="sm" disabled={cargando} onClick={() => setMetasAbierto(true)}>
+                Metas de cobertura
+              </Boton>
+            )}
             {/* Solo aparece si de verdad hay algo que copiar — un botón que nunca hace nada enseña a ignorarlo. El
                 número es un techo («hasta N»): fn_copiar_semana_anterior salta los días que esta semana ya tiene
                 editados a mano, así que lo que se aplique de verdad puede ser menos. */}
@@ -1631,11 +1634,10 @@ export default function TurnosPage() {
             }
             // Cada casilla se calcula una vez: la usan la grilla y el resumen del pie.
             const celdas = porDia.map(({ iso, turnos: delDia }) => {
-              const dia = diaSemana(iso);
               return horasSemana.map((h) => celdaConNombres({
                 turnos: delDia, hora: h,
-                metaEn: (x) => metaDeHora(x, metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0),
-                metaLideres: metasEncargadas.get(dia) ?? 0,
+                metaEn: metaHoraDe(iso),
+                metaLideres: lideresDelDia(rangosDe(iso)),
               }));
             });
             const resumenes = porDia.map((d, di) => resumenDelDia(celdas[di], d.turnos));
@@ -1852,16 +1854,6 @@ export default function TurnosPage() {
                 const deLaMeta = (ids: Set<string>) => trabajan.filter((p) => ids.has(p.id));
                 const opsTrabajan = trabajan.filter(esOperativa);
                 const abrirChip = puedeVer ? (id: string) => abrir(id, iso) : undefined;
-                const campoMeta = (tramo: "manana" | "tarde") => esAdmin ? (
-                  <CampoMeta
-                    valor={tramo === "manana" ? (metas.get(dia) ?? 0) : (metasTarde.get(dia) ?? 0)}
-                    etiqueta={`Meta de la ${tramo === "manana" ? "mañana" : "tarde"}`}
-                    titulo={`meta de la ${tramo === "manana" ? "mañana" : "tarde"} de todos los ${DIAS_PLURAL[dia]}`}
-                    cuando={`todos los ${DIAS_PLURAL[dia]}`}
-                    onCambio={(v) => editarMeta(dia, tramo, v)}
-                    onSalir={() => comprometerMeta(dia)}
-                  />
-                ) : undefined;
                 const lideresChips = t.lideres.n > 0 ? deLaMeta(t.idsLideres).map((p) => personaDelDia(p, iso)) : [];
                 const libres = personas.filter((p) => { const c = celda(p.id, iso); return c.tipo === "descanso" || c.tipo === "libre"; }).map((p) => personaDelDia(p, iso));
                 const otrasAreas = opsTrabajan.length + deLaMeta(t.idsLideres).length < trabajan.length
@@ -1924,9 +1916,7 @@ export default function TurnosPage() {
                 const { abr, num } = etiquetaDia(iso);
                 const hoy = iso === hoyLima();
                 const dia = diaSemana(iso);
-                const metaMan = metas.get(dia) ?? 0;
-                const metaTar = metasTarde.get(dia) ?? 0;
-                const metaEnc = metasEncargadas.get(dia) ?? 0;
+                const { manana: metaMan, tarde: metaTar, lideres: metaEnc } = mtDe(iso);
                 const horas = coberturaPorHora(iso);
                 const covFr = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esOperativa);
                 const covFrEnc = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esEncargada);
@@ -2074,7 +2064,7 @@ export default function TurnosPage() {
                           return horas.map((_, i) => {
                             const cel = celdaConNombres({
                               turnos: delDia, hora: HORA_INICIO + i,
-                              metaEn: (x) => metaDeHora(x, metaMan, metaTar), metaLideres: metaEnc,
+                              metaEn: metaHoraDe(iso), metaLideres: metaEnc,
                             });
                             const n = cel.fuera ? 0 : cel.enPiso;
                             const e = estiloDeHora(n, cel.fuera ? 0 : cel.meta);
@@ -2114,21 +2104,11 @@ export default function TurnosPage() {
                     ) : (
                       <>
                         <div className="grid gap-4 lg:grid-cols-2">
-                          <TarjetaTramo titulo="Mañana" subtitulo="hasta las 14:15" {...t.manana} gente={t.manana.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} metaEditable={campoMeta("manana")} onAbrir={abrirChip} />
-                          <TarjetaTramo titulo="Tarde" subtitulo="desde las 14:15" {...t.tarde} gente={t.tarde.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} metaEditable={campoMeta("tarde")} onAbrir={abrirChip} />
+                          <TarjetaTramo titulo="Mañana" subtitulo="hasta las 14:15" {...t.manana} gente={t.manana.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} onAbrir={abrirChip} />
+                          <TarjetaTramo titulo="Tarde" subtitulo="desde las 14:15" {...t.tarde} gente={t.tarde.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} onAbrir={abrirChip} />
                         </div>
                         <TarjetaTramo
                           titulo="Líderes" subtitulo="meta plana, todo el día" {...t.lideres} gente={lideresChips} onAbrir={abrirChip}
-                          metaEditable={esAdmin ? (
-                            <CampoMeta
-                              valor={metasEncargadas.get(dia) ?? 0}
-                              etiqueta="Meta de líderes"
-                              titulo={`meta de líderes de todos los ${DIAS_PLURAL[dia]}`}
-                              cuando={`todos los ${DIAS_PLURAL[dia]}`}
-                              onCambio={(v) => editarMetaEncargadas(dia, v)}
-                              onSalir={(v) => comprometerMetaEncargadas(dia, v)}
-                            />
-                          ) : undefined}
                         />
                         {sug && (
                           <p className="text-sm" style={{ color: sug.startsWith("↔") ? "var(--color-ambar)" : "var(--color-rojo)" }}>{sug}</p>
@@ -2161,6 +2141,21 @@ export default function TurnosPage() {
           </p>
         )}
 
+        {metasAbierto && (
+          <MetasDeCobertura
+            sedeId={sedeSel}
+            sedeNombre={sedes.find((x) => x.id === sedeSel)?.nombre ?? ""}
+            esTienda={tipoSedeSel === "tienda"}
+            puedeEditar={esAdmin}
+            ventaDe={tipoSedeSel === "tienda" && promVenta && coberturaVenta
+              ? (dia, hora) => ventaPedia(promVenta(dia, hora), coberturaVenta)
+              : null}
+            lunes={lunes}
+            onCerrar={() => setMetasAbierto(false)}
+            onGuardado={() => setRecarga((n) => n + 1)}
+          />
+        )}
+
         {/* «¿Dónde trabaja ese día?»: piso, todo el turno en almacén o tramos (0579). */}
         {almacenEdit && (() => {
           const { personaId, fecha } = almacenEdit;
@@ -2170,7 +2165,7 @@ export default function TurnosPage() {
           const turno: TramoDecimal = { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN };
           const { abr, num } = etiquetaDia(fecha);
           const dia = diaSemana(fecha);
-          const metaEn = (x: number) => metaDeHora(x, metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0);
+          const metaEn = metaHoraDe(fecha);
           const delDia = turnosConNombreDe(fecha);
           const otras = delDia.filter((x) => x.id !== personaId);
           const enAlm = (x: TurnoConNombre, h: number) => (x.almacen ?? []).some((a) => a.desde <= h && h < a.hasta);
