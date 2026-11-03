@@ -89,7 +89,7 @@ describe("la decisión de cuánto pesa cada uno (2026-10-19)", () => {
   });
 
   it("el resto es un aviso", () => {
-    expect(de("aviso")).toEqual(["contrato", "educacion", "historial", "objetivos", "resumen", "seguro", "turnos", "dias"].sort());
+    expect(de("aviso")).toEqual(["contrato", "educacion", "historial", "objetivos", "resumen", "seguro", "turnos", "dias", "disponibilidad"].sort());
   });
 
   it("solo los que apuntan a una constancia propia dicen a cuál", () => {

@@ -127,6 +127,31 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-11-03-mi-disponibilidad",
+    fecha: "2026-11-03",
+    titulo: "Ya puedes decir qué días u horas no puedes trabajar",
+    queMejoro:
+      "En «Lo mío» hay una sección nueva, «Mi disponibilidad»: marcas los días u horas que no puedes (o que prefieres " +
+      "no) trabajar, por qué y desde cuándo, y se la mandas a tu líder de equipo. Hasta que la aprueba, tus turnos " +
+      "siguen como están.\n\n" +
+      "Cada día eliges «Puedo todo el día», «No puedo», «Prefiero no» o «Solo algunas horas», y hay atajos como «Solo " +
+      "mañanas» o «No domingos». También puedes marcar un día puntual, como un examen. Abajo te dice en palabras lo " +
+      "que elegiste. Tu motivo lo ven solo tu líder de equipo y Desarrollo Organizacional.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-03-disponibilidad-del-equipo",
+    fecha: "2026-11-03",
+    titulo: "Disponibilidad del equipo, para aprobar lo que manda cada una",
+    queMejoro:
+      "En Asistencia hay una pantalla nueva, «Disponibilidad»: ves qué días u horas puede trabajar cada persona de tu " +
+      "sede y apruebas o conversas lo que te mandan. Al aprobar puedes marcar «horario fijo» para quien no rota. Lo " +
+      "aprobado es lo que va a usar la sugerencia de turnos.\n\n" +
+      "Desarrollo Organizacional, además, fija ahí la jornada de cada persona (las horas por semana de su contrato) y " +
+      "puede registrar una disponibilidad por ella. Si lo que alguien marcó no alcanza para su jornada, la pantalla lo avisa.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-03-el-terminal-se-pone-al-dia-solo",
     fecha: "2026-11-03",
     titulo: "El terminal se pone al día solo, y el almacén queda para las tiendas",

@@ -1,5 +1,5 @@
 import {
-  CalendarClock, CalendarDays, Car, FileSignature, Gavel, GraduationCap, History, IdCard, LayoutDashboard,
+  CalendarCheck2, CalendarClock, CalendarDays, Car, FileSignature, Gavel, GraduationCap, History, IdCard, LayoutDashboard,
   MessageSquareText, ReceiptText, ScrollText, ShieldCheck, Target, TreePalm, UserRound,
 } from "lucide-react";
 import type { GrupoDetalle } from "./secciones-de-menu";
@@ -8,13 +8,13 @@ import type { GrupoDetalle } from "./secciones-de-menu";
 // Las secciones de «Lo mío» (/mio), en el orden y los grupos en que se leen.
 // ============================================================================
 
-/** Las dieciséis secciones de la pantalla. Ver el comentario de `tab` en mio/page.tsx. */
+/** Las diecisiete secciones de la pantalla. Ver el comentario de `tab` en mio/page.tsx. */
 export type Tab =
   | "resumen" | "dias" | "turnos" | "dni" | "seguro" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad"
-  | "educacion" | "firma" | "objetivos" | "reportes" | "disciplina" | "historial";
+  | "educacion" | "firma" | "objetivos" | "reportes" | "disciplina" | "historial" | "disponibilidad";
 
 /**
- * Las dieciséis, agrupadas.
+ * Las diecisiete, agrupadas.
  *
  * LOS GRUPOS (2026-10-06). Hasta ese día eran una sola lista, en el orden en que
  * se fueron agregando: «Mi DNI» y «Tus datos» quedaban entre «Mis turnos» y
@@ -68,6 +68,9 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
   { label: "Asistencia", secciones: [
     { valor: "dias", label: "Mis días", Icon: CalendarDays, alias: ["asistencia", "marcaje", "tardanza", "falta", "horas"] },
     { valor: "turnos", label: "Mis turnos", Icon: CalendarClock, alias: ["horario", "feriado"] },
+    // Qué días u horas no puede trabajar (0584). Junto a Mis turnos: una dice qué
+    // le toca, la otra cuándo puede.
+    { valor: "disponibilidad", label: "Mi disponibilidad", Icon: CalendarCheck2, alias: ["no puedo", "estudios", "horario fijo", "cuándo puedo", "disponible"] },
     { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm, alias: ["descanso médico", "licencia"] },
   ] },
   { label: "Pago", secciones: [
@@ -99,7 +102,7 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
   ] },
 ];
 
-/** Las dieciséis, en el orden del menú. */
+/** Las diecisiete, en el orden del menú. */
 export const TABS: readonly Tab[] = GRUPOS_MIO.flatMap((g) => g.secciones.map((s) => s.valor));
 
 /** Si un texto que llegó de fuera (un `?tab=` de un enlace) es una sección que existe. */

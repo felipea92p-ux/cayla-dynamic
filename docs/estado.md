@@ -26,11 +26,31 @@ pantalla—; en tiendas, compras de la hora y «la venta pedía N»; el día com
 `lib/admin/repeticion.ts`: el estado sale de `estadoPresencia` (la máquina del terminal) cortada en el instante, y el almacén de
 `almacenConLoReal`. **La 0585 se pega ANTES de fusionar;** si el código llega primero, la repetición sale sin la venta y lo dice.
 
-**Sigue:** la base de la disponibilidad (Lo mío la dibuja) y la sugerencia de turnos con propuesta y «Publicar».
+**Sigue:** la sugerencia de turnos con propuesta y «Publicar» (#657), sobre esta venta y la disponibilidad del #654.
 
 ---
 
-## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (SIN PEGAR · SIN FUSIONAR)
+## 2026-11-03 — «Mi disponibilidad» y la jornada que fija DO · migración **0584 SIN PEGAR** · prueba 474 · rama `claude/mi-disponibilidad`
+
+**De dónde sale.** Felipe (2026-11-02/03), módulo «Lo mío · Mis turnos / Mi disponibilidad», entrega 2 de 4 (la 1, «Tu semana»,
+se fusionó en el #638). Decidió: horas exactas y no franjas; bloques por día de la semana o por fecha; disponibilidad permanente
+con corte semanal; «horario fijo» lo marca quien aprueba; la jornada la fija DO; las horas disponibles se miden contra la ventana
+de la sede deducida de los horarios del equipo; DO registra y fija la jornada desde `/admin/disponibilidad`.
+
+**0584 (no mueve plata).** `personas.jornada_semanal_horas` con su puerta `fn_set_jornada` y trigger; `disponibilidades` +
+`disponibilidad_bloques`, escritas solo por `fn_disponibilidad_enviar / _retirar / _resolver / _registrar`; RLS para ella, la
+líder de su sede, DO y admin; `fn_sede_ventana_semanal`; y el **contrato de lectura para la sugerencia de Turnos**,
+`fn_disponibilidad_vigente(desde, hasta, sede, aprobada_antes)` → `no_puede / prefiere_no / horario_fijo` por fecha (detalle en
+el encabezado). No reescribe ninguna función: no lleva md5 de partida. Se descartó reusar `horarios_asignados.horas_semana_objetivo`
+(vale 45 para todos porque ninguna puerta la escribe).
+
+**Cómo se midió.** Sin Docker: Postgres 16 con pgTAP y stubs de Supabase, las 562 migraciones. Prueba 474 (42 casos); seis
+mutaciones la ponen en rojo. Suite completa: 381 de 381 archivos en verde, ninguna prueba que pasaba dejó de pasar.
+
+**Falta:** pegar la 0584 ANTES de fusionar (sin ella, «Mi disponibilidad» dice que todavía no está lista y «Tu semana» sigue
+contra el horario). Después, DO tiene que cargar la jornada de cada persona.
+
+## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (PEGADA 2026-11-03 · fusionada en #647)
 
 **De dónde sale.** La revisión adversarial de la 0581 reprodujo en el Postgres local dos huecos que dejan anulable una sanción:
 después de que ella confirmó los cargos, `fn_expediente_editar_borrador` y `fn_expediente_elevar_a_suspension` podían cambiar lo
@@ -44,7 +64,8 @@ semanal (20.5); la suspensión cita su escalón (19.2 c/d, 21.2 b/c, 54.8); las 
 (`lib/admin/previas-del-memo.ts`) sin la llamada verbal; el art. 22 se comunica a DO, no en el descargo.
 
 **Cómo se midió.** Prueba 472 (11) con control A/B: sin la 0582 fallan las 5 que deben frenar. Las 42 pruebas pgTAP del
-expediente siguen completas y en verde con los triggers puestos.
+expediente siguen completas y en verde con los triggers puestos. En producción, la consulta de verificación devolvió
+los dos triggers (`trg_expediente_descargo_se_lee_antes`, `trg_expediente_lo_comunicado_no_cambia`) y el registro 582 con su nombre.
 
 **Queda abierto (decisión de Felipe):** la comunicación cita antecedentes y corte con el criterio del 19.1 c) —notificados antes
 del hecho—, y `fn_tardanza_escalon_al` (0311) cuenta los vigentes al cierre del mes: en un caso de borde los dos no coinciden;
