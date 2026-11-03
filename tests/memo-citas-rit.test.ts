@@ -29,6 +29,9 @@ import { join } from "node:path";
 
 const RAIZ = join(import.meta.dirname, "..");
 const MEMO = readFileSync(join(RAIZ, "apps/web/components/disciplina/memo-documento.tsx"), "utf8");
+// La comunicación de cargos (2026-11-03) también es un papel que se le entrega a
+// una persona y cita el RIT: el mismo freno, la misma razón.
+const CARGOS = readFileSync(join(RAIZ, "apps/web/components/disciplina/comunicacion-cargos.tsx"), "utf8");
 const RIT = readFileSync(join(RAIZ, "docs/reglamento-interno-de-trabajo.md"), "utf8");
 
 /**
@@ -84,6 +87,26 @@ function citasRotas(texto: string): string[] {
 describe("las citas del memo disciplinario", () => {
   it("existen en el RIT vigente y dicen lo que el memo cree", () => {
     expect(citasRotas(MEMO)).toEqual([]);
+  });
+
+  it("las de la comunicación de cargos también", () => {
+    expect(citasRotas(CARGOS)).toEqual([]);
+  });
+
+  it("la comunicación de cargos cita lo que el 55.2 le exige decir", () => {
+    // Los hechos con su calificación conforme al artículo 53, la sanción que
+    // podría corresponder y el plazo de descargo. Si alguien las borra en vez de
+    // corregirlas, la prueba de arriba pasaría en verde.
+    for (const cita of [
+      "numeral 55.2",                // la comunicación y el plazo
+      "literal b) del numeral 53.2", // tardanzas reiteradas
+      "literal c) del numeral 53.2", // inasistencia injustificada
+      "literal b) del numeral 19.2", // amonestación por tardanzas
+      "literal a) del numeral 21.2", // amonestación por inasistencia
+      "numeral 54.8",                // la sanción posible en la conducta
+    ]) {
+      expect(CARGOS).toContain(cita);
+    }
   });
 
   it("el memo cita al menos los numerales que el RIT 55.3 le exige", () => {

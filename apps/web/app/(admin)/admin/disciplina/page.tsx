@@ -968,6 +968,7 @@ export default function DisciplinaPage() {
     const info = infoDe(d.persona_id);
     const ocup = ocupado === d.id;
     const memo: Accion = { etiqueta: "Ver memo", alPulsar: () => router.push(`/admin/disciplina/memo/${d.id}`) };
+    const cargosPapel: Accion = { etiqueta: "Comunicación de cargos", alPulsar: () => router.push(`/admin/disciplina/cargos/${d.id}`) };
     // Sin poder tramitar (0510): ver sí, actuar no. Antes se dibujaban todos
     // los botones y cada uno solo podía devolver «Sin permiso».
     if (!puedeTramitar) return { principal: null, estado: null, menu: [memo] };
@@ -993,6 +994,9 @@ export default function DisciplinaPage() {
       const etapa = etapaDelBorrador(d, exigeDescargo);
       const desfase = (evidencias.get(d.id)?.noCuentan ?? 0) > 0;
       const menu: Acciones["menu"] = [memo];
+      // El papel que SÍ se le entrega mientras el memo es borrador (55.2). Antes
+      // no existía y se le entregaba el memo de la sanción (2026-11-02).
+      if (exigeDescargo && esGradual(d.nivel)) menu.push(cargosPapel);
       let principal: Accion | null = null;
       let estado: string | null = null;
       if (etapa === "comunicar") {
@@ -1638,11 +1642,16 @@ export default function DisciplinaPage() {
                 <strong className="text-tinta">El plazo no se reabre.</strong>
               </p>
               <p className="mb-4 text-sm text-taupe">
-                Antes de continuar: entrégale por escrito los hechos con sus fechas, la norma que se le imputa y el
-                detalle de la medición. El sistema guarda la fecha; el documento lo entregas tú.
+                Entrégale hoy la <strong className="text-tinta">comunicación de cargos</strong>, con su firma de recibido:
+                trae los hechos con sus fechas, la norma que se le imputa y el detalle de la medición. El memo{" "}
+                <strong className="text-tinta">no</strong> se le entrega ni lo firma: es la sanción propuesta y sigue en
+                borrador hasta que venza su plazo.
               </p>
               <div className="flex justify-end gap-3">
                 <Boton variante="secundario" onClick={() => setConfirmandoCargos(null)} disabled={ocupado === confirmandoCargos.id}>Cancelar</Boton>
+                <Boton variante="secundario" onClick={() => router.push(`/admin/disciplina/cargos/${confirmandoCargos.id}`)} disabled={ocupado === confirmandoCargos.id}>
+                  Ver el papel
+                </Boton>
                 <Boton variante="primario" onClick={() => void confirmarComunicarCargos(confirmandoCargos)} cargando={ocupado === confirmandoCargos.id}>
                   Comunicar cargos
                 </Boton>
