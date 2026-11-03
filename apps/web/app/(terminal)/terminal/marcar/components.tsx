@@ -185,7 +185,13 @@ export function NombreGrid({
     // la pantalla y la fila 13 caía por debajo del borde sin que nada avisara
     // que había más gente. `lg:`/`xl:` dejan que el ancho del monitor sume
     // columnas en vez de apilar filas.
-    <div className="grid w-full max-w-5xl grid-cols-2 content-start gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    //
+    // Flex y no grid (Felipe, 2026-11-03): con 6 personas en 5 columnas la
+    // sexta quedaba sola a la izquierda. Una grilla no sabe centrar su última
+    // fila; un flex con `justify-center` sí. Cada casilla mide lo mismo que su
+    // columna de antes —(100% − huecos) / columnas, con el `gap-3` de 0.75rem—,
+    // así que las filas llenas se ven idénticas y solo la incompleta se centra.
+    <div className="flex w-full max-w-5xl flex-wrap content-start justify-center gap-3 [&>*]:shrink-0 [&>*]:grow-0 [&>*]:basis-[calc((100%-0.75rem)/2)] sm:[&>*]:basis-[calc((100%-1.5rem)/3)] lg:[&>*]:basis-[calc((100%-2.25rem)/4)] xl:[&>*]:basis-[calc((100%-3rem)/5)]">
       {roster.map((persona) => {
         const pres = presencia?.get(persona.id);
 
