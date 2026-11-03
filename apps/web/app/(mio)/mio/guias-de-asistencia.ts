@@ -40,6 +40,13 @@ export const PASOS_GUIA_TURNOS: readonly PasoRecorrido[] = [
     texto: "Para que los tengas presentes al planear tus días." },
 ];
 
+export const PASOS_GUIA_DISPONIBILIDAD: readonly PasoRecorrido[] = [
+  { selector: '[data-tour="mio-disponibilidad-seccion"]', titulo: "Mi disponibilidad",
+    texto: "Dices qué días u horas no puedes trabajar. Va a tu líder de equipo; hasta que la aprueba, tus turnos siguen igual." },
+  { selector: '[data-tour="mio-disponibilidad-editor"]', titulo: "Cómo se marca",
+    texto: "Cada día: puedo, no puedo, prefiero no o solo algunas horas. Los atajos llenan la semana de un toque. Abajo ves en palabras lo que elegiste." },
+];
+
 export const PASOS_GUIA_AUSENCIAS: readonly PasoRecorrido[] = [
   { selector: '[data-tour="mio-ausencias-pedir"]', titulo: "Pedir vacaciones",
     texto: "Si te corresponden, eliges el rango y avisas. Las aprueba Desarrollo Organizacional, no tu líder de equipo, y abajo ves cómo va cada pedido." },
