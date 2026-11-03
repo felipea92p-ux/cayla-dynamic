@@ -111,6 +111,7 @@ const ROTULOS: Record<string, string> = {
   "turnos.horario": "Turno cambiado",
   "turnos.puesto": "Piso o almacén planificado",
   horarios_asignados: "Horario cambiado",
+  "personas.jornada_semanal_horas": "Jornada cambiada",
   organos_titulo_x: "Nombramiento para investigar el Título X",
   cambio_ubicacion: "Cambio de tienda / almacén anulado",
   "pruebas.resultado": "Preselección de tres días cerrada",
