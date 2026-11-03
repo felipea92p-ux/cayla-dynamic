@@ -828,7 +828,16 @@ export function MotivoReentrada({
  * mala es sobre todo el color, y quien marca lo mira de reojo mientras guarda
  * el celular.
  */
-export function PantallaMensaje({ mensaje, tono = "ok" }: { mensaje: string; tono?: "ok" | "alerta" }) {
+export function PantallaMensaje({
+  mensaje,
+  tono = "ok",
+  detalle = null,
+}: {
+  mensaje: string;
+  tono?: "ok" | "alerta";
+  /** Segunda línea, más discreta: hoy, «Hoy te toca almacén de … a …» al entrar (0579). */
+  detalle?: string | null;
+}) {
   const alerta = tono === "alerta";
   return (
     <div className={`flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center ${alerta ? "bg-rojo/[0.06]" : ""}`}>
@@ -836,6 +845,12 @@ export function PantallaMensaje({ mensaje, tono = "ok" }: { mensaje: string; ton
       <p className={`font-serif text-3xl ${alerta ? "font-medium text-rojo" : ""}`} role={alerta ? "alert" : undefined}>
         {mensaje}
       </p>
+      {detalle && (
+        <p className="flex items-center gap-2 text-xl text-azul" role="status">
+          <span aria-hidden>▣</span>
+          {detalle}
+        </p>
+      )}
     </div>
   );
 }
