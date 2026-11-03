@@ -448,7 +448,8 @@ with repo(numero, nombre, nunca) as (values
     (588, 'el_almacen_puede_ser_el_puesto_de_siempre', false),
     (589, 'la_lider_registra_la_disponibilidad', false),
     (590, 'la_meta_de_cobertura_va_por_rangos_y_por_temporada', false),
-    (591, 'prefiero_trabajar_en_la_disponibilidad', false)
+    (591, 'prefiero_trabajar_en_la_disponibilidad', false),
+    (592, 'el_borrador_de_la_semana', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
