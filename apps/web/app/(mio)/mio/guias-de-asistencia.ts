@@ -36,6 +36,8 @@ export const PASOS_GUIA_TURNOS: readonly PasoRecorrido[] = [
     texto: "El total, comparado con tu horario de siempre. Si una semana tiene más o menos horas, aquí te lo dice." },
   { selector: '[data-tour="mio-turnos-semana"]', titulo: "Cada día",
     texto: "Entrada, salida, horas y refrigerio. Si trabajas en piso o en almacén, también. «Cambia de tu horario» marca los días que tu líder de equipo armó distinto." },
+  { selector: '[data-tour="mio-turnos-cambios"]', titulo: "Cambios a tu horario",
+    texto: "Lo que cambió en tu horario, tus turnos, tu puesto, tu jornada o tu disponibilidad en los últimos tres meses." },
   { selector: '[data-tour="mio-turnos-feriados"]', titulo: "Los próximos feriados",
     texto: "Para que los tengas presentes al planear tus días." },
 ];
