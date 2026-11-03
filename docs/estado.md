@@ -6,6 +6,27 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-03 — Los cargos llegan a la Info de la persona, sin papel · migración 0581 (SIN PEGAR · SIN FUSIONAR)
+
+**De dónde sale.** El 2026-11-02 una amonestación por conducta quedó en borrador —correcto: desde la 0566 el 55.2 no deja firmar
+antes del plazo de descargo— y se le entregó a la colaboradora el borrador del memo para que lo firmara, porque Dynamic no le
+mostraba los cargos. Felipe (2026-11-03): «no usaremos hojas o imprimir, tiene que verlo en su sistema» · «solo confirmar que lo
+recibió» · «para los 2 borradores actuales y los futuros» · el plazo corre **desde que se comunican**, no desde que ella confirma.
+
+**Qué hace.** Comunicados los cargos, ella los ve en su Info (`/mio/cargos/[id]`), confirma que los recibió y, si quiere, escribe
+su descargo dentro del plazo; Disciplina muestra si los abrió, si los confirmó y qué escribió (también en «Valorar descargo»).
+`fn_cargos_detalle` arma la comunicación en un solo sitio, con los antecedentes y el corte (56.6) que cuenta la base. **Reinicio
+único al pegarla:** los borradores con cargos comunicados y sin valorar empiezan su plazo en ese momento (rastro en
+`cargos_recomunicados` y `[RECOMUNICADO …]`); repegar no lo repite. No reescribe ninguna función existente: no hay md5 que pedir.
+
+**Cómo se midió.** Postgres local de Supabase construido desde cero con las 581 migraciones; prueba 471 (30) en verde, 384 y 456
+siguen en verde; repegada dos veces (idempotente); simulado el caso real de los dos borradores en `begin … rollback`.
+
+**Pendiente, no de este cambio:** el memo no imprime la valoración del descargo que el 55.3 exige; un borrador ANULADO se sigue
+viendo como borrador al abrir su memo.
+
+---
+
 ## 2026-11-02 — Piso o almacén, planificado por día · migración **0579 PEGADA (2026-11-03)** · PR [#640](https://github.com/felipea92p-ux/cayla-dynamic/pull/640) fusionado · rama `claude/turnos-almacen`
 
 **De dónde sale.** Felipe (2026-11-02): van a empezar a llevar unas 2 chicas de piso al almacén (dentro de la misma sede), y la

@@ -41,6 +41,10 @@ const RIT = readFileSync(join(RAIZ, "docs/reglamento-interno-de-trabajo.md"), "u
  */
 const ARTICULOS_REVISADOS: Record<string, string> = {
   "20": "INASISTENCIAS", // «contraviene el deber de asistencia (artículo 20 del RIT)»
+  // La comunicación de cargos (0581): la justificación de una tardanza y los
+  // días amparados por hechos de violencia, que no se computan (20.2).
+  "18": "JUSTIFICACIÓN DE TARDANZAS",
+  "22": "AUSENCIAS Y TARDANZAS POR HECHOS DE VIOLENCIA",
 };
 
 /** El texto de un numeral del RIT, desde «**19.2. » hasta el siguiente numeral o artículo. */

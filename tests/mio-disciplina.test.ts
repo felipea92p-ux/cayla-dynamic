@@ -205,3 +205,22 @@ describe("textoComoVas", () => {
     expect(textoComoVas(cuenta(2, 3, "despido"))).toBeNull();
   });
 });
+
+// ── Los cargos en curso (0581) ───────────────────────────────────────────────
+import { cargoPorRecibir, cuantosPidenConCargos, type CargoMio } from "@/lib/mio-disciplina";
+
+describe("los cargos en su Info", () => {
+  const cargo = (recibido_at: string | null): CargoMio => ({
+    id: "c", nivel: "amonestacion", tipo_causal: "conducta", cargos_comunicados_at: "2026-11-03T15:00:00Z",
+    descargo_vence_at: "2026-11-06T04:59:59Z", plazo_vigente: true, abierto_at: null, recibido_at, descargos: 0, falta: null,
+  });
+
+  it("solo le pide algo mientras no confirma que los recibió", () => {
+    expect(cargoPorRecibir(cargo(null))).toBe(true);
+    expect(cargoPorRecibir(cargo("2026-11-03T16:00:00Z"))).toBe(false);
+  });
+
+  it("el menú cuenta los cargos sin recibir junto con los documentos", () => {
+    expect(cuantosPidenConCargos([], [cargo(null), cargo("2026-11-03T16:00:00Z")])).toBe(1);
+  });
+});

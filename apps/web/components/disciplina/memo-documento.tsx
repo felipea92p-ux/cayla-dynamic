@@ -301,7 +301,7 @@ export function MemoDocumento({
             <strong>BORRADOR — sin numerar y sin firmar.</strong> No tiene validez como
             documento entregado y <strong>la colaboradora no lo firma</strong>.
             {esGradual(doc.nivel)
-              ? " Es la sanción que se propone: antes de firmarla, se le entrega la comunicación de cargos y se espera su plazo de descargo (numeral 55.2 del RIT)."
+              ? " Es la sanción que se propone: antes de firmarla, se le comunican los cargos en su Info y se espera su plazo de descargo (numeral 55.2 del RIT)."
               : " Fírmalo en la pantalla de Disciplina para asignarle su número."}
           </p>
         )}

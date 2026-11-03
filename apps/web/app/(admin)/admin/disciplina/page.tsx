@@ -61,9 +61,9 @@ import {
 import { addDias, fechaCorta, selloLima } from "@/components/disciplina/formato";
 import { evidenciaDeDocumento, type Evidencia } from "@/lib/admin/disciplina-evidencia";
 import {
-  ETAPAS, ETAPA_LABEL, admiteEntregaAnteriorAlCese, esGradual, etapaDelBorrador, eventosDeObservacion,
+  ETAPAS, ETAPA_LABEL, admiteEntregaAnteriorAlCese, avisoDeCargos, esGradual, etapaDelBorrador, eventosDeObservacion,
   normalizarBusqueda, pendientesDeEntregado, pestanaDelDocumento, situacionFalta, situacionTardanza, ultimoDiaDeEntrega,
-  type Adjunto, type DocDisciplina, type FaltaRow, type LecturaMemo, type Pestana, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
+  type Adjunto, type DescargoPresentado, type DocDisciplina, type FaltaRow, type LecturaMemo, type Pestana, type RecepcionCargos, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import {
   NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, etiquetaDeSede, fechaLima, hoyLima, mesesRecientesLima, nombreDelMesLima,
@@ -273,6 +273,9 @@ export default function DisciplinaPage() {
   const [traspasos, setTraspasos] = useState<Traspaso[]>([]);
   /** Quién abrió y quién leyó lo entregado en papel (0516). Tolerante: sin ellas el caso se ve igual, sin la constancia. */
   const [lecturas, setLecturas] = useState<LecturaMemo[]>([]);
+  // Los cargos en su Info (0581): si los abrió y confirmó, y lo que escribió.
+  const [recepciones, setRecepciones] = useState<RecepcionCargos[]>([]);
+  const [descargosInfo, setDescargosInfo] = useState<DescargoPresentado[]>([]);
   const [traspasando, setTraspasando] = useState<{ id: string; accion: "tomar" | "devolver" } | null>(null);
   const [motivoTraspaso, setMotivoTraspaso] = useState("");
   /** El catálogo de faltas del RIT (0510) y sus nombres cortos (0514), para nombrar la que cita cada documento de conducta. */
@@ -298,7 +301,7 @@ export default function DisciplinaPage() {
       // Todos los estados: anulados y cerrados sin entrega desaparecían de la
       // pantalla y no había dónde consultarlos.
       supabase.from("expediente_disciplinario").select(COLUMNAS_DOC).order("creado_at", { ascending: false }),
-      supabase.from("personas").select("id, nombres, apellidos, estado, sede_base_id, fecha_cese, rol").eq("cuenta_de_servicio", false),
+      supabase.from("personas").select("id, nombres, apellidos, estado, sede_base_id, fecha_cese, rol, auth_user_id").eq("cuenta_de_servicio", false),
       supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad").order("codigo"),
       supabase.from("tipos_ausencia").select("codigo, nombre"),
     ]);
@@ -327,7 +330,7 @@ export default function DisciplinaPage() {
     // El rótulo sale del tipo y la ciudad de la propia sede (etiquetaDeSede), no de una lista por código.
     const rotuloDeCodigo = new Map(sedesList.map((x) => [x.codigo, etiquetaDeSede(x)]));
     setSedes([...rotuloDeCodigo.values()].map((e) => ({ codigo: e.codigo, titulo: e.titulo, texto: e.texto })));
-    const personasList = (p ?? []) as Array<{ id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string | null; fecha_cese: string | null; rol: string }>;
+    const personasList = (p ?? []) as Array<{ id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string | null; fecha_cese: string | null; rol: string; auth_user_id: string | null }>;
     setPersonas(new Map(personasList.map((x) => [x.id, {
       nombre: `${x.nombres} ${x.apellidos}`,
       sede: (x.sede_base_id && codigoDeSede.get(x.sede_base_id)) || "",
@@ -336,6 +339,8 @@ export default function DisciplinaPage() {
       fechaCese: x.fecha_cese,
       // Quién inició un caso decide si DO puede tomarlo (0511): solo los de una líder.
       rol: x.rol,
+      // Sin cuenta no tiene Info: los cargos no le llegarían (0581).
+      tieneCuenta: x.auth_user_id !== null,
     }])));
     const tipos = new Map(((ta ?? []) as { codigo: string; nombre: string }[]).map((x) => [x.codigo, x.nombre]));
     setNombresAusencia(tipos);
@@ -368,6 +373,14 @@ export default function DisciplinaPage() {
     setTraspasos(Array.isArray(tr) ? (tr as unknown as Traspaso[]) : []);
     const { data: lect } = await supabase.from("lecturas_memo").select("expediente_id, abierto_at, leido_at");
     setLecturas(Array.isArray(lect) ? (lect as unknown as LecturaMemo[]) : []);
+    // Tolerante como las lecturas: si la 0581 todavía no está pegada, las tablas
+    // no existen y el panel solo deja de decir si ella abrió los cargos.
+    const [{ data: rec }, { data: des }] = await Promise.all([
+      supabase.from("recepciones_cargos").select("expediente_id, abierto_at, recibido_at"),
+      supabase.from("descargos_presentados").select("id, expediente_id, texto, presentado_at").order("presentado_at"),
+    ]);
+    setRecepciones(Array.isArray(rec) ? (rec as unknown as RecepcionCargos[]) : []);
+    setDescargosInfo(Array.isArray(des) ? (des as unknown as DescargoPresentado[]) : []);
 
     const borradores = lista.filter((x) => x.estado === "borrador");
     const [pares, evs, { data: cfg }, { data: sc }] = await Promise.all([
@@ -478,7 +491,7 @@ export default function DisciplinaPage() {
     if (error) { avisar("error", mensajeDeError(error)); return; }
     setConfirmandoCargos(null);
     await cargar();
-    avisar("ok", `Cargos comunicados · su plazo de descargo vence el ${selloLima(String(data))}`);
+    avisar("ok", `Cargos comunicados: ya los ve en su Info. Su plazo de descargo vence el ${selloLima(String(data))}. Avísale con «Copiar el aviso para ella».`);
   }
 
   /**
@@ -728,6 +741,15 @@ export default function DisciplinaPage() {
     }
   }
 
+  async function copiarAvisoCargos(d: DocDisciplina) {
+    try {
+      await navigator.clipboard.writeText(avisoDeCargos(window.location.origin, d.descargo_vence_at ? selloLima(d.descargo_vence_at) : null));
+      avisar("ok", "Aviso copiado. Pégalo en el chat con ella.");
+    } catch {
+      avisar("error", "No se pudo copiar. Avísale que tiene cargos por recibir en su Info.");
+    }
+  }
+
   // ── Resolver una imputación (art. 31): NO es anular ─────────────────────
   async function confirmarResolver() {
     if (!resolviendo) return;
@@ -968,7 +990,7 @@ export default function DisciplinaPage() {
     const info = infoDe(d.persona_id);
     const ocup = ocupado === d.id;
     const memo: Accion = { etiqueta: "Ver memo", alPulsar: () => router.push(`/admin/disciplina/memo/${d.id}`) };
-    const cargosPapel: Accion = { etiqueta: "Comunicación de cargos", alPulsar: () => router.push(`/admin/disciplina/cargos/${d.id}`) };
+    const cargosPapel: Accion = { etiqueta: "Ver los cargos como los ve ella", alPulsar: () => router.push(`/admin/disciplina/cargos/${d.id}`) };
     // Sin poder tramitar (0510): ver sí, actuar no. Antes se dibujaban todos
     // los botones y cada uno solo podía devolver «Sin permiso».
     if (!puedeTramitar) return { principal: null, estado: null, menu: [memo] };
@@ -994,9 +1016,14 @@ export default function DisciplinaPage() {
       const etapa = etapaDelBorrador(d, exigeDescargo);
       const desfase = (evidencias.get(d.id)?.noCuentan ?? 0) > 0;
       const menu: Acciones["menu"] = [memo];
-      // El papel que SÍ se le entrega mientras el memo es borrador (55.2). Antes
-      // no existía y se le entregaba el memo de la sanción (2026-11-02).
+      // Lo que ella ve en su Info mientras el memo es borrador (55.2, 0581). Antes
+      // no existía y se le entregó el memo de la sanción (2026-11-02).
       if (exigeDescargo && esGradual(d.nivel)) menu.push(cargosPapel);
+      // El plazo corre desde que se comunican, no desde que ella entra: el aviso
+      // por chat es lo que evita que se le vaya sin saberlo.
+      if (exigeDescargo && esGradual(d.nivel) && d.cargos_comunicados_at && d.estado === "borrador") {
+        menu.push({ etiqueta: "Copiar el aviso para ella", alPulsar: () => void copiarAvisoCargos(d), disabled: ocup });
+      }
       let principal: Accion | null = null;
       let estado: string | null = null;
       if (etapa === "comunicar") {
@@ -1579,6 +1606,8 @@ export default function DisciplinaPage() {
           faltas={faltasCatalogo}
           traspasos={traspasos}
           lecturas={lecturas}
+          recepciones={recepciones}
+          descargos={descargosInfo}
         />
 
         {/* La falta de conducta: la misma puerta que en la ficha de la persona. */}
@@ -1638,21 +1667,24 @@ export default function DisciplinaPage() {
                 ¿Comunicar los cargos a <strong className="text-tinta">{nombreDe(confirmandoCargos.persona_id)}</strong>?
               </p>
               <p className="mb-2 text-sm text-taupe">
-                Se abre el plazo de dos días hábiles para su descargo, y hasta que venza no se podrá firmar.{" "}
-                <strong className="text-tinta">El plazo no se reabre.</strong>
+                Le aparecen en su Info en Dynamic —los hechos, la norma que se le imputa y el detalle de la medición— y
+                desde ahora corren dos días hábiles para su descargo. Ahí confirma que los recibió y, si quiere, escribe
+                su descargo. No se imprime nada.
               </p>
               <p className="mb-4 text-sm text-taupe">
-                Entrégale hoy la <strong className="text-tinta">comunicación de cargos</strong>, con su firma de recibido:
-                trae los hechos con sus fechas, la norma que se le imputa y el detalle de la medición. El memo{" "}
-                <strong className="text-tinta">no</strong> se le entrega ni lo firma: es la sanción propuesta y sigue en
-                borrador hasta que venza su plazo.
+                El plazo corre aunque ella no entre a Dynamic: avísale con «Copiar el aviso para ella». Hasta que venza
+                no se podrá firmar, y <strong className="text-tinta">el plazo no se reabre</strong>.
               </p>
+              {infoDe(confirmandoCargos.persona_id)?.tieneCuenta === false && (
+                <BannerAviso variante="alerta" enLinea className="mb-4">
+                  {nombreDe(confirmandoCargos.persona_id)} no tiene cuenta en Dynamic: no podría ver los cargos y el plazo
+                  correría sin que lo sepa. Invítala a su cuenta antes de comunicarlos.
+                </BannerAviso>
+              )}
               <div className="flex justify-end gap-3">
                 <Boton variante="secundario" onClick={() => setConfirmandoCargos(null)} disabled={ocupado === confirmandoCargos.id}>Cancelar</Boton>
-                <Boton variante="secundario" onClick={() => router.push(`/admin/disciplina/cargos/${confirmandoCargos.id}`)} disabled={ocupado === confirmandoCargos.id}>
-                  Ver el papel
-                </Boton>
-                <Boton variante="primario" onClick={() => void confirmarComunicarCargos(confirmandoCargos)} cargando={ocupado === confirmandoCargos.id}>
+                <Boton variante="primario" onClick={() => void confirmarComunicarCargos(confirmandoCargos)} cargando={ocupado === confirmandoCargos.id}
+                  disabled={infoDe(confirmandoCargos.persona_id)?.tieneCuenta === false}>
                   Comunicar cargos
                 </Boton>
               </div>
@@ -1690,6 +1722,21 @@ export default function DisciplinaPage() {
           {valorando && (
             <div className="grid gap-3">
               <p className="text-sm text-taupe">Queda escrito en el documento (art. 19.3 del RIT), también si no presentó ninguno.</p>
+              {/* Lo que escribió en su Info (0581), a la vista de quien valora: el
+                  55.2 manda evaluarlo ANTES de decidir. */}
+              {descargosInfo.some((x) => x.expediente_id === valorando.d.id) ? (
+                <div className="grid gap-2 rounded-control border border-sand p-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.08em] text-taupe">Lo que escribió en su Info</p>
+                  {descargosInfo.filter((x) => x.expediente_id === valorando.d.id).map((x) => (
+                    <div key={x.id}>
+                      <p className="whitespace-pre-line text-sm text-tinta">{x.texto}</p>
+                      <p className="text-xs text-taupe">{selloLima(x.presentado_at)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-taupe">No presentó descargo escrito en su Info.</p>
+              )}
               <fieldset className="grid gap-1.5">
                 <legend className="sr-only">Cómo se valora</legend>
                 {Object.entries(ETIQUETA_DESCARGO).map(([valor, etiqueta]) => (
