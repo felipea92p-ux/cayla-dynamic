@@ -48,10 +48,9 @@ pantalla—; en tiendas, compras de la hora y «la venta pedía N»; el día com
 `lib/admin/repeticion.ts`: el estado sale de `estadoPresencia` (la máquina del terminal) cortada en el instante, y el almacén de
 `almacenConLoReal`. **La 0585 se pega ANTES de fusionar;** si el código llega primero, la repetición sale sin la venta y lo dice.
 
-**Sigue:** la base de la disponibilidad (Lo mío la dibuja) y la sugerencia de turnos con propuesta y «Publicar».
+**Sigue:** la sugerencia de turnos con propuesta y «Publicar» (#657), sobre esta venta y la disponibilidad del #654.
 
 ---
-
 
 ## 2026-11-03 — «Mi disponibilidad» y la jornada que fija DO · migración **0584 SIN PEGAR** · prueba 474 · rama `claude/mi-disponibilidad`
 
