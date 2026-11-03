@@ -59,8 +59,13 @@ las dos primeras las ejecuta `authenticated` y no `anon`, y la tercera no la eje
   (piso, todo el turno, el tramo sugerido o a mano). La fila de cobertura usa la misma regla que la Integrada.
 - Integrada: quien está en almacén va aparte y no cuenta en piso.
 
-**Pendiente:** mostrar lo real del terminal en Turnos (espera la decisión de Felipe y el #643), la repetición de un día cerrado,
-y que la sugerencia de turnos use la disponibilidad de «Lo mío».
+**Lo real del terminal en Turnos — PR #646, fusionado el 2026-11-03, sin SQL.** Decisión de Felipe: la Integrada muestra SOLO el
+plan (es para planificar la semana); la vista Día muestra el plan («alm.» arriba) y, debajo de cada barra, una línea azul con lo
+marcado en el terminal. Hoy, una línea roja marca la hora actual: a su izquierda la cobertura cuenta lo que pasó, a su derecha el
+plan. Quién estuvo dónde lo decide `tramosDelDia` de `apps/web/lib/terminal/ubicacion.ts` (la regla del terminal y de
+`fn_ubicaciones_del_dia`); `almacenConLoReal` (`lib/admin/almacen.ts`) solo suma el plan que todavía no empezó.
+
+**Pendiente:** la repetición de un día cerrado, y que la sugerencia de turnos use la disponibilidad de «Lo mío».
 
 ## 2026-11-02 — «Voy a almacén» en el terminal · migración **0580 PEGADA (2026-11-02)** · prueba 469 · PR [#639](https://github.com/felipea92p-ux/cayla-dynamic/pull/639) · rama `claude/terminal-almacen`
 
