@@ -87,3 +87,24 @@ describe("antes de guardar", () => {
     ]);
   });
 });
+
+describe("el respaldo sin la 0590 da lo mismo que su siembra", () => {
+  it("mañana hasta las 14:15, tarde desde las 14:15, el 0 viejo como sin meta", async () => {
+    const { filasDesdeMetaVieja } = await import("../apps/web/lib/admin/leer-metas");
+    const { mananaTarde: mt, metasPorFecha: porFecha } = await import("../apps/web/lib/admin/metas-cobertura");
+    // 2026-11-09 es lunes (1) y 2026-11-15 domingo (0).
+    const filas = filasDesdeMetaVieja([
+      { sede_id: "S", dia_semana: 1, meta: 6, meta_tarde: 7, meta_encargadas: 2 },
+      { sede_id: "S", dia_semana: 0, meta: 0, meta_tarde: 0, meta_encargadas: 0 },
+      { sede_id: "S", dia_semana: 2, meta: 0, meta_tarde: 0, meta_encargadas: 1 },
+    ], "2026-11-09", "2026-11-15");
+    const m = porFecha(filas);
+    expect(m.get("2026-11-09")?.rangos).toEqual([
+      { desde: 0, hasta: 14.25, personal: 6, lideres: 2 },
+      { desde: 14.25, hasta: 24, personal: 7, lideres: 2 },
+    ]);
+    expect(mt(m.get("2026-11-09")!.rangos)).toEqual({ manana: 6, tarde: 7, lideres: 2 });
+    expect(m.get("2026-11-15")).toBeUndefined();
+    expect(m.get("2026-11-10")?.rangos.map((r) => r.personal)).toEqual([null, null]);
+  });
+});

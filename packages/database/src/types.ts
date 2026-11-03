@@ -7772,6 +7772,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      fn_anular_meta_cobertura: {
+        Args: { p_periodo_id: string }
+        Returns: undefined
+      }
       fn_anuncios_vigentes: {
         Args: { p_incluir_anulados?: boolean | null }
         Returns: {
@@ -9449,6 +9453,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_guardar_meta_cobertura: {
+        Args: {
+          p_desde: string | null
+          p_hasta: string | null
+          p_nombre: string | null
+          p_periodo_id: string | null
+          p_rangos: Json
+          p_sede_id: string
+        }
+        Returns: string
+      }
       fn_guardar_sede: {
         Args: {
           p_codigo: string | null
@@ -9690,6 +9705,19 @@ export type Database = {
         Returns: {
           dias: number
           meses: number
+        }[]
+      }
+      fn_metas_cobertura: {
+        Args: { p_desde: string; p_hasta: string; p_sede_id: string }
+        Returns: {
+          desde_min: number
+          es_predeterminada: boolean
+          fecha: string
+          hasta_min: number
+          lideres: number | null
+          periodo_id: string
+          periodo_nombre: string
+          personal: number | null
         }[]
       }
       fn_mi_bono_cumpleanos: {
