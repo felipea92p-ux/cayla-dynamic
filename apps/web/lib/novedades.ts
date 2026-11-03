@@ -127,6 +127,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-11-02-turnos-dia-con-lo-marcado-en-el-terminal",
+    fecha: "2026-11-02",
+    titulo: "Turnos, vista Día, muestra quién está de verdad en almacén",
+    queMejoro:
+      "En Turnos, vista Día, debajo de la barra de cada persona aparece una línea azul con lo que marcó en el terminal " +
+      "con «Voy a almacén». El almacén planificado sigue arriba, con «alm.».\n\n" +
+      "Hoy, la fila de cobertura cuenta lo que pasó hasta la hora actual (la línea roja) y el plan de ahí en adelante: si " +
+      "alguien vuelve antes de tiempo, cuenta en piso desde que marcó «Vuelvo a tienda». La Integrada sigue mostrando " +
+      "solo el plan, para planificar la semana.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-02-el-terminal-dice-si-hoy-te-toca-almacen",
     fecha: "2026-11-02",
     titulo: "Al marcar tu entrada, el terminal te dice si hoy te toca almacén",

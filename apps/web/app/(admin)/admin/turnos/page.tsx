@@ -23,7 +23,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Filtro } from "@/components/ui/filtro";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
-import { cuentaEnCobertura, horaLima, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { cuentaEnCobertura, fechaLima, horaLima, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes, rangoDelDiaLima, type MarcajeDelDia } from "@cayla-dynamic/shared";
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { consecuenciaDeUsarBase as consecuenciaDeUsarBaseLib } from "@/lib/admin/revision-turnos";
@@ -31,9 +31,10 @@ import { avisarCambioDeTurnos, useTurnosAlDia } from "@/lib/admin/turnos-al-dia"
 import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 import { resumenDeLideres, resumenDelTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
 import { celdaConNombres, horasDeLaSemana, resumenDelDia, type TurnoConNombre } from "@/lib/admin/semana-con-nombres";
-import { PISO, aHHMM, argumentosDeGuardado, esPiso, problemaDeTramos, puestoDesdeFilas, sugerirTramo, textoPuesto, tramosEnAlmacen, type PuestoDelDia, type TramoDecimal } from "@/lib/admin/almacen";
+import { PISO, aHHMM, almacenConLoReal, argumentosDeGuardado, esPiso, problemaDeTramos, puestoDesdeFilas, sugerirTramo, textoPuesto, tramosEnAlmacen, type PuestoDelDia, type TramoDecimal } from "@/lib/admin/almacen";
 import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, lineaDeSemana, TEXTO_CONFIRMAR_TRABAJO_EN_FERIADO, tituloDelAviso, type PersonaEnFeriado } from "@/lib/admin/prueba-en-feriado";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
+import type { CambioUbicacion, Ubicacion } from "@/lib/terminal/ubicacion";
 import { CampoMeta, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
@@ -693,6 +694,9 @@ export default function TurnosPage() {
   // Piso o almacén planificado (0579), por «persona|fecha». `null` = no se pudo leer (la tabla todavía no
   // existe en esa base, o falló la consulta): la cobertura cuenta a todas en piso y la hoja de almacén lo dice.
   const [puestos, setPuestos] = useState<Map<string, PuestoDelDia> | null>(new Map());
+  // Lo marcado en el terminal (0580), por persona y día: los cambios de ubicación y la salida final, que cierra
+  // un tramo abierto. null = no se pudo leer: Día sigue solo con el plan, como antes.
+  const [reales, setReales] = useState<{ cambios: Map<string, CambioUbicacion[]>; marcajes: Map<string, MarcajeDelDia[]> } | null>(null);
   const [metas, setMetas] = useState<Map<number, number>>(new Map()); // meta operativas MAÑANA
   const [metasTarde, setMetasTarde] = useState<Map<number, number>>(new Map()); // meta operativas TARDE
   const [metasEncargadas, setMetasEncargadas] = useState<Map<number, number>>(new Map());
@@ -783,6 +787,8 @@ export default function TurnosPage() {
       { data: fer },
       { data: pru },
       { data: pue, error: pueErr },
+      { data: cam, error: camErr },
+      { data: sal, error: salErr },
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
       // igual que cualquiera y cuenta para la meta de cobertura de la sede —
@@ -802,6 +808,15 @@ export default function TurnosPage() {
       supabase.rpc("fn_pruebas_abiertas"),
       // El almacén no frena la semana: si falla (p. ej. la 0579 todavía no está pegada), se sigue sin él.
       supabase.from("puestos_planificados").select("persona_id, fecha, desde, hasta").gte("fecha", lunes).lte("fecha", domingo),
+      // Lo real del terminal (0580), solo para la vista Día. Tampoco frena la semana. `as never`: la tabla todavía
+      // no está en los tipos generados (el terminal la lee igual, en lib/terminal/ubicacion-cola.ts).
+      supabase.from("cambios_ubicacion" as never).select("persona_id, ubicacion, timestamp_cambio, vuelve_previsto")
+        .eq("sede_id" as never, sedeSel as never).is("anulado_at" as never, null)
+        .gte("timestamp_cambio" as never, rangoDelDiaLima(lunes).inicio as never).lte("timestamp_cambio" as never, rangoDelDiaLima(domingo).fin as never),
+      // La salida final cierra un tramo abierto (la misma regla del terminal y de fn_ubicaciones_del_dia).
+      supabase.from("marcajes").select("persona_id, tipo, timestamp_marca, fecha_jornada")
+        .eq("tipo", "salida_final").is("anulada_at", null)
+        .gte("timestamp_marca", rangoDelDiaLima(lunes).inicio).lte("timestamp_marca", rangoDelDiaLima(domingo).fin),
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (modo !== "fondo") cargaConMetas.current = 0;
@@ -835,6 +850,21 @@ export default function TurnosPage() {
         porDia.set(k, [...(porDia.get(k) ?? []), { desde: x.desde, hasta: x.hasta }]);
       }
       setPuestos(new Map([...porDia].map(([k, filas]) => [k, puestoDesdeFilas(filas)])));
+    }
+    if (camErr || salErr) {
+      setReales(null);
+    } else {
+      const cambios = new Map<string, CambioUbicacion[]>();
+      for (const x of (cam ?? []) as unknown as { persona_id: string; ubicacion: Ubicacion; timestamp_cambio: string; vuelve_previsto: string | null }[]) {
+        const k = `${x.persona_id}|${fechaLima(x.timestamp_cambio)}`;
+        cambios.set(k, [...(cambios.get(k) ?? []), { ubicacion: x.ubicacion, timestamp: x.timestamp_cambio, vuelvePrevisto: x.vuelve_previsto }]);
+      }
+      const marcajes = new Map<string, MarcajeDelDia[]>();
+      for (const x of (sal ?? []) as { persona_id: string; tipo: MarcajeDelDia["tipo"]; timestamp_marca: string; fecha_jornada: string | null }[]) {
+        const k = `${x.persona_id}|${x.fecha_jornada ?? fechaLima(x.timestamp_marca)}`;
+        marcajes.set(k, [...(marcajes.get(k) ?? []), { tipo: x.tipo, timestamp: x.timestamp_marca }]);
+      }
+      setReales({ cambios, marcajes });
     }
     setCargando(false);
     // Las metas solo se cambian desde esta pantalla, y se guardan al salir del
@@ -1070,9 +1100,30 @@ export default function TurnosPage() {
 
   // El plan de piso/almacén de una persona un día (piso si no hay nada, o si no se pudo leer).
   const puestoDe = (personaId: string, iso: string): PuestoDelDia => puestos?.get(`${personaId}|${iso}`) ?? PISO;
+  // El almacén de una persona un día. La Integrada usa SOLO el plan (planificar la semana); la vista Día usa
+  // `conLoReal`: lo marcado en el terminal hasta ahora y el plan después (decisión de Felipe, 2026-11-03). Quién
+  // estuvo dónde lo decide la regla del terminal (almacenConLoReal → tramosDelDia), no esta pantalla.
+  const almacenDe = (personaId: string, iso: string, turno: TramoDecimal, conLoReal: boolean): TramoDecimal[] => {
+    const plan = tramosEnAlmacen(puestoDe(personaId, iso), turno);
+    if (!conLoReal || !reales) return plan;
+    return almacenConLoReal({
+      plan, turno, ahora: new Date(), medianocheIso: rangoDelDiaLima(iso).inicio,
+      cambios: reales.cambios.get(`${personaId}|${iso}`) ?? [],
+      marcajes: reales.marcajes.get(`${personaId}|${iso}`) ?? [],
+    }).cobertura;
+  };
+  // Solo lo marcado en el terminal, hasta ahora: se dibuja aparte del plan en la línea del día.
+  const marcadoDe = (personaId: string, iso: string, turno: TramoDecimal): TramoDecimal[] => {
+    const cambios = reales?.cambios.get(`${personaId}|${iso}`);
+    if (!reales || !cambios?.length) return [];
+    return almacenConLoReal({
+      plan: [], turno, cambios, ahora: new Date(), medianocheIso: rangoDelDiaLima(iso).inicio,
+      marcajes: reales.marcajes.get(`${personaId}|${iso}`) ?? [],
+    }).marcado;
+  };
   // Integrada: los turnos de un día con su nombre corto y si suman (ver lib/admin/semana-con-nombres.ts).
   // Nombre y primera letra del apellido: en una casilla no cabe el completo, y dos «Diana» se distinguen igual.
-  const turnosConNombreDe = (iso: string): TurnoConNombre[] =>
+  const turnosConNombreDe = (iso: string, conLoReal = false): TurnoConNombre[] =>
     personas.flatMap((p) => {
       const c = celda(p.id, iso);
       if (c.tipo !== "turno" && c.tipo !== "default") return [];
@@ -1081,7 +1132,7 @@ export default function TurnosPage() {
       const corto = `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`;
       const entrada = horaADecimal(c.entrada), salida = c.salida ? horaADecimal(c.salida) : HORA_FIN;
       // El plan de almacén de un día sin turno se ignora: no hay en qué piso descontarlo.
-      const almacen = tramosEnAlmacen(puestoDe(p.id, iso), { desde: entrada, hasta: salida });
+      const almacen = almacenDe(p.id, iso, { desde: entrada, hasta: salida }, conLoReal);
       return [{ id: p.id, nombre: corto, entrada, salida, cuenta, lider, aparte, almacen }];
     });
 
@@ -1263,6 +1314,7 @@ export default function TurnosPage() {
                 { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma. Quien está en preselección tampoco suma hasta que deje de estarlo: da igual si es practicante o tiene otro cargo." },
                 { titulo: "Las vistas", texto: "Integrada muestra la semana hora por hora y quién está en cada hora, con el resumen de horas al pie; Día, la línea de cada persona en un día." },
                 { titulo: "Piso o almacén", texto: "En Día, toca la barra de una persona para decir si ese día trabaja en piso, todo el turno en almacén o unas horas en almacén (con una sugerencia de las horas en que el piso aguanta sin ella). Se planifica de hoy en adelante. Quien está en almacén no cuenta en piso, y no cambia su turno, sus horas ni su pago." },
+                { titulo: "Lo marcado en el terminal", texto: "En Día, la línea azul bajo la barra es lo que la persona marcó en el terminal con «Voy a almacén». Hoy, la cobertura cuenta lo que pasó hasta la hora actual (la línea roja) y el plan de ahí en adelante; si alguien marca «Vuelvo a tienda» antes de tiempo, vuelve a contar en piso desde esa hora. La Integrada muestra solo el plan." },
               ]}
             />
           }
@@ -1632,6 +1684,12 @@ export default function TurnosPage() {
                 // ¿Alguien de un área operativa trabaja este día? Si nadie, la franja de
                 // cobertura de abajo no tiene nada que contar y lo dice con palabras.
                 const sinOperativasHoy = horas.every((n) => n === 0);
+                // Hoy se marca con una línea la hora actual: a su izquierda la cobertura cuenta lo marcado en el
+                // terminal; a su derecha, el plan.
+                const ahoraEnLinea = hoy ? pctEnRango(horaADecimal(horaLima())) : null;
+                const lineaAhora = ahoraEnLinea === null ? null : (
+                  <span aria-hidden className="pointer-events-none absolute inset-y-0 z-20 w-px bg-rojo/70" style={{ left: `${ahoraEnLinea}%` }} />
+                );
                 return (
                   <section key={iso} id={`turnos-dia-${iso}`} className={`overflow-hidden rounded-2xl border bg-papel ${hoy ? "border-tinta" : "border-sand"}`}>
                     {/* Cabecera del día: fecha + resumen (las metas se editan en las tarjetas de arriba) */}
@@ -1670,9 +1728,10 @@ export default function TurnosPage() {
                       // La barra de quien trabaja abre «¿Dónde trabaja ese día?» (de hoy en adelante: 0579); la de quien
                       // descansa o no tiene turno abre su turno, igual que su nombre.
                       const barraAlmacen = puedeVer && trabajaEseDia && iso >= hoyLima();
-                      const almacenDeHoy = trabajaEseDia
-                        ? tramosEnAlmacen(puestoDe(p.id, iso), { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN })
-                        : [];
+                      const turnoDec = trabajaEseDia ? { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN } : null;
+                      const almacenDeHoy = turnoDec ? tramosEnAlmacen(puestoDe(p.id, iso), turnoDec) : [];
+                      // Lo marcado en el terminal (0580): solo de hoy hacia atrás, y aunque ese día no tuviera turno.
+                      const marcadoHoy = iso <= hoyLima() ? marcadoDe(p.id, iso, turnoDec ?? { desde: 0, hasta: 24 }) : [];
                       return (
                         <div key={p.id} className="flex w-full items-center border-t border-sand/60 transition-colors hover:bg-sand/20">
                           {/* Sin `truncate`: con el nombre y el área más largos que la
@@ -1728,6 +1787,13 @@ export default function TurnosPage() {
                                 alm.
                               </span>
                             ))}
+                            {/* Lo marcado en el terminal, debajo de la barra: lo que pasó de verdad, aparte de lo planificado. */}
+                            {marcadoHoy.map((a) => (
+                              <span key={`m${a.desde}`} className="absolute bottom-0 z-10 h-[3px] rounded-full bg-azul"
+                                style={{ left: `${pctEnRango(a.desde)}%`, width: `${Math.max(0.5, pctEnRango(a.hasta) - pctEnRango(a.desde))}%` }}
+                                title={`Marcó almacén en el terminal: ${decimalAHHMM(a.desde)}–${decimalAHHMM(a.hasta)}`} />
+                            ))}
+                            {lineaAhora}
                             {c.tipo === "descanso" && <span className="absolute left-2 top-1.5 rounded bg-sand px-1.5 py-0.5 text-[10px] text-taupe">descanso</span>}
                             {c.tipo === "libre" && <span className="absolute left-2 top-1.5 text-[10px] text-taupe">+</span>}
                           </button>
@@ -1745,7 +1811,9 @@ export default function TurnosPage() {
                           // La misma regla que la Integrada (semana-con-nombres.ts): el peor cuarto de cada hora,
                           // sin quien está en almacén, y sin medir lo que queda fuera de la primera entrada y la
                           // última salida del día. Así Día e Integrada dan el mismo número para la misma hora.
-                          const delDia = turnosConNombreDe(iso);
+                          // Con lo real (decisión de Felipe, 2026-11-03): lo marcado en el terminal hasta ahora y el plan
+                          // después. La Integrada sigue con el plan solo.
+                          const delDia = turnosConNombreDe(iso, true);
                           return horas.map((_, i) => {
                             const cel = celdaConNombres({
                               turnos: delDia, hora: HORA_INICIO + i,
@@ -1769,6 +1837,7 @@ export default function TurnosPage() {
                         {/* Si nadie de un área operativa trabaja ese día, la franja no
                             tiene nada que contar: se dice, en vez de dejar un bloque
                             que parezca «todo cubierto». */}
+                        {lineaAhora}
                         {sinOperativasHoy && (
                           <span className="absolute inset-0 flex items-center bg-papel/80 px-3 text-[11px] text-taupe">
                             Nadie de un área operativa trabaja este día: aquí no hay cobertura que medir.
@@ -1824,11 +1893,14 @@ export default function TurnosPage() {
         {vista === "dia" && !cargando && (
           <p className="mt-3 text-xs text-taupe">
             Cada barra es el rango de entrada–salida del turno de esa persona ese día (más clarita = horario por
-            defecto del periodo, no se fijó turno puntual). En <strong className="text-azul">azul</strong>, lo que pasa en almacén:
-            toca la barra para elegir piso o almacén, y el nombre para cambiar su turno. La fila de abajo cuenta, en el peor
-            momento de cada hora, a las <strong>áreas operativas de sede</strong> que están en piso
-            ({areas.filter((a) => a.operativa && a.activa).map((a) => a.nombre).join(", ")}): la misma cuenta de la Integrada.
-            El área se cambia en Equipo.
+            defecto del periodo, no se fijó turno puntual). En <strong className="text-azul">azul con «alm.»</strong>, el almacén
+            planificado: toca la barra para elegir piso o almacén, y el nombre para cambiar su turno. La{" "}
+            <strong className="text-azul">línea azul de abajo</strong> es lo que marcaron en el terminal con «Voy a almacén».
+            La fila de abajo cuenta, en el peor momento de cada hora, a las <strong>áreas operativas de sede</strong> que
+            están en piso ({areas.filter((a) => a.operativa && a.activa).map((a) => a.nombre).join(", ")}). Hoy, a la izquierda
+            de la <strong className="text-rojo">línea roja</strong> (la hora actual) cuenta lo que pasó de verdad —el plan,
+            salvo que alguien marcara «Vuelvo a tienda»— y a la derecha, el plan. Por eso puede no coincidir con la
+            Integrada, que muestra solo el plan. El área se cambia en Equipo.
           </p>
         )}
 
