@@ -25,6 +25,8 @@ import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Insignia } from "@/components/ui/insignia";
 import { EtiquetaPrueba, usePruebasPorPersona } from "@/components/pruebas/etiqueta-prueba";
 import { Drawer } from "@/components/ui/drawer";
+import { Rotulo } from "@/components/ui/rotulo";
+import { baseEsAlmacen, baseVigenteDesde, type PeriodoBase } from "@/lib/puestos-resueltos";
 // Drawer y Modal son hermanos, no uno el reemplazo del otro (lo dice la
 // cabecera de modal.tsx). El drawer de 460px es el sitio correcto para editar
 // UN horario; la corrección retroactiva enseña antes una tabla comparativa de
@@ -406,6 +408,15 @@ export default function HorariosPage() {
   // Incidencias y Dashboard).
   const [etiquetas, setEtiquetas] = useState<Map<string, EtiquetaDeSede>>(new Map());
   const [cargando, setCargando] = useState(true);
+  /** El tipo de cada sede (tienda, taller, central): el puesto base solo existe en tiendas (0583, 0588). */
+  const [tiposSede, setTiposSede] = useState<Record<string, string | null>>({});
+  /** Periodos en que su puesto base es el almacén (0588); null si no se pudieron leer. */
+  const [bases, setBases] = useState<Map<string, PeriodoBase[]> | null>(new Map());
+  /** La jornada que fijó DO (0584), contra la que se mide el total de la semana; sin ella, la meta general. */
+  const [jornadas, setJornadas] = useState<Map<string, number>>(new Map());
+  const [puestoBaseSel, setPuestoBaseSel] = useState<"piso" | "almacen">("piso");
+  const [puestoBaseDesde, setPuestoBaseDesde] = useState(hoyLima());
+  const [guardandoBase, setGuardandoBase] = useState(false);
 
   // ── Buscador y filtros ──
   const [busca, setBusca] = useState("");
@@ -469,6 +480,8 @@ export default function HorariosPage() {
       { data: h, error: errH },
       { data: s, error: errS },
       { data: f, error: errF },
+      { data: pb, error: errPb },
+      { data: jo, error: errJo },
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id, personal_direccion").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, vigente_desde, almuerzo_min_minutos, almuerzo_max_minutos, dias_laborables, horario_por_dia").is("vigente_hasta", null),
@@ -478,6 +491,9 @@ export default function HorariosPage() {
       // hace falta esta RPC. Tolerante: si falla, nadie ve el aviso — no se
       // cae la pantalla entera por un dato que hoy es informativo.
       supabase.rpc("fn_personas_funciones"),
+      // El puesto base (0588) y la jornada (0584): informativos. Si fallan, la pantalla sigue sin ellos.
+      supabase.from("puestos_base" as never).select("persona_id, vigente_desde, vigente_hasta"),
+      supabase.from("personas").select("id, jornada_semanal_horas").eq("estado", "activo"),
     ]);
     if (errP || errH || errS) {
       avisar("error", mensajeDeError((errP ?? errH ?? errS)!, "cargar los horarios"));
@@ -498,6 +514,18 @@ export default function HorariosPage() {
     setHorarios(new Map(abiertos.map((x) => [x.persona_id, x])));
     const filasSede = (s as { id: string; codigo: string; nombre: string; tipo: string | null; ciudad: string | null }[] | null) ?? [];
     setSedes(Object.fromEntries(filasSede.map((x) => [x.id, x.codigo])));
+    setTiposSede(Object.fromEntries(filasSede.map((x) => [x.id, x.tipo])));
+    if (errPb) {
+      setBases(null);
+    } else {
+      const porPersona = new Map<string, PeriodoBase[]>();
+      for (const x of (pb ?? []) as unknown as (PeriodoBase & { persona_id: string })[]) {
+        porPersona.set(x.persona_id, [...(porPersona.get(x.persona_id) ?? []), { vigente_desde: x.vigente_desde, vigente_hasta: x.vigente_hasta }]);
+      }
+      setBases(porPersona);
+    }
+    setJornadas(new Map(errJo ? [] : ((jo ?? []) as { id: string; jornada_semanal_horas: number | null }[])
+      .filter((x) => x.jornada_semanal_horas !== null).map((x) => [x.id, Number(x.jornada_semanal_horas)] as const)));
     setEtiquetas(new Map(filasSede.map((x) => [x.codigo, etiquetaDeSede(x)])));
 
     // El tramo abierto puede empezar a futuro (alguien programó un cambio de
@@ -576,6 +604,8 @@ export default function HorariosPage() {
     form.aplicarAnalisis(analizar(horarios.get(p.id)));
     setEditando(p);
     setDesde(hoyLima());
+    setPuestoBaseSel(bases && baseEsAlmacen(bases.get(p.id) ?? [], hoyLima()) ? "almacen" : "piso");
+    setPuestoBaseDesde(hoyLima());
     setMotivo("");
     setCopiarDeId("");
     setHistorial([]);
@@ -648,6 +678,20 @@ export default function HorariosPage() {
     return turnosTyped
       .filter((t) => esTurnoEspejoViejo(t.fecha, { hora_entrada: t.hora_entrada, hora_salida: t.hora_salida, es_descanso: t.es_descanso }, tramos))
       .map((t) => t.fecha);
+  }
+
+  // El puesto base (0588): su propia puerta, aparte del horario. No toca horas, turnos ni pago.
+  async function guardarPuestoBase() {
+    if (!editando) return;
+    setGuardandoBase(true);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_set_puesto_base", {
+      p_persona_id: editando.id, p_desde: puestoBaseDesde, p_puesto: puestoBaseSel,
+    });
+    setGuardandoBase(false);
+    if (error) { avisar("error", mensajeDeError(error, "cambiar el puesto base")); return; }
+    avisar("ok", `Listo: desde el ${puestoBaseDesde.split("-").reverse().join("/")}, ${editando.nombres} trabaja de base en ${puestoBaseSel === "almacen" ? "almacén" : "piso"}.`);
+    await cargar();
   }
 
   async function guardar() {
@@ -860,7 +904,8 @@ export default function HorariosPage() {
                 { titulo: "Cada día", texto: "Puede tener una hora distinta (martes 8:00, miércoles 14:00…), con su refrigerio, y se repite cada semana." },
                 { titulo: "Tardanza", texto: "La hora de entrada define la tardanza: sin horario no hay contra qué medir y ese día no cuenta tardanza ni falta." },
                 { titulo: "Cambiar", texto: "Un cambio puede aplicarse desde una fecha determinada y conserva el historial. «Corregir días ya trabajados» reabre lo que se midió con el horario anterior." },
-                { titulo: "Sin horario", texto: "Quien lo necesita sale arriba en rojo. No lo requieren quienes cobran por recibo o son personal de dirección." },
+                { titulo: "Horario por definir", texto: "Quien necesita horario y todavía no tiene uno sale arriba en rojo. Quienes cobran por recibo (RxH) dicen «sin horario fijo»: no tienen jornada ni horario (Reglamento, art. 2.5), y en Turnos solo se anota cuándo se les necesita. El personal de dirección no lo requiere." },
+                { titulo: "Puesto base", texto: "En las tiendas, al editar a una persona se elige si de base trabaja en piso o en almacén, desde una fecha. Lo de un día suelto se elige en Turnos y manda sobre esto. No cambia sus horas ni su pago." },
               ]}
             />
           }
@@ -872,7 +917,7 @@ export default function HorariosPage() {
                 aparece «Asignar horario a las N», que arma la selección y abre el cajón masivo de siempre. ── */}
             <ParaAtender
               items={[
-                { clave: "sin", texto: `${sinHorarioHoy} sin horario`, n: sinHorarioHoy, tono: "rojo" },
+                { clave: "sin", texto: `${sinHorarioHoy} con horario por definir`, n: sinHorarioHoy, tono: "rojo" },
                 { clave: "prog", texto: `${programadosCount} programado${programadosCount === 1 ? "" : "s"}`, n: programadosCount, tono: "pizarra" },
               ]}
               activa={filtroEstado === "sin_horario" ? "sin" : soloProgramados ? "prog" : null}
@@ -986,12 +1031,21 @@ export default function HorariosPage() {
                                 aria-label={`Seleccionar a ${p.nombres} ${p.apellidos}`}
                               />
                             </td>
-                            <td className="px-4 py-2">{p.nombres} {p.apellidos}<EtiquetaPrueba fila={pruebas.get(p.id)} className="ml-2" /></td>
+                            <td className="px-4 py-2">
+                              {p.nombres} {p.apellidos}<EtiquetaPrueba fila={pruebas.get(p.id)} className="ml-2" />
+                              {bases && baseEsAlmacen(bases.get(p.id) ?? [], hoy) && (
+                                <Insignia variante="neutral" tamano="sm" className="ml-2">almacén de base</Insignia>
+                              )}
+                            </td>
                             <td className="px-4 py-2">
                               {(!a || a.dias.length === 0) && !leCorresponde(p) ? (
-                                <span className="text-taupe" title="RxH o personal de dirección: no le corresponde horario">no requiere horario</span>
+                                p.tipo_vinculo === "rxh" ? (
+                                  <span className="text-taupe" title="Por honorarios: no tiene jornada ni horario (Reglamento, art. 2.5). En Turnos solo se anota cuándo se la necesita.">sin horario fijo</span>
+                                ) : (
+                                  <span className="text-taupe" title="Personal de dirección o sin vínculo de trabajo: no le corresponde horario">no requiere horario</span>
+                                )
                               ) : !a || a.dias.length === 0 ? (
-                                <span className="text-taupe">sin horario{programado ? " hoy" : ""}</span>
+                                <span className="text-taupe" title="Le corresponde horario y todavía no tiene uno">horario por definir{programado ? " hoy" : ""}</span>
                               ) : a.uniforme ? (
                                 `${a.e}–${a.s}`
                               ) : (
@@ -1103,9 +1157,9 @@ export default function HorariosPage() {
                       </div>
                       <p className="text-sm">
                         {(!a || a.dias.length === 0) && !leCorresponde(p) ? (
-                          <span className="text-taupe">no requiere horario</span>
+                          <span className="text-taupe">{p.tipo_vinculo === "rxh" ? "sin horario fijo" : "no requiere horario"}</span>
                         ) : !a || a.dias.length === 0 ? (
-                          <span className="text-taupe">sin horario{programado ? " hoy" : ""}</span>
+                          <span className="text-taupe">horario por definir{programado ? " hoy" : ""}</span>
                         ) : a.uniforme ? (
                           `${a.e}–${a.s}`
                         ) : (
@@ -1231,12 +1285,46 @@ export default function HorariosPage() {
                 </div>
               );
             }
+            // La jornada que fijó DO (0584) manda sobre la meta general: quien tiene 30 h se mide contra 30.
+            const jornada = editando ? jornadas.get(editando.id) ?? null : null;
+            const meta = jornada ?? META_SEMANA;
             return (
               <div className="mt-4 rounded-control bg-sand/30 px-3 py-2 text-sm">
                 Total semana: <span className="font-medium text-tinta">{fmtH(form.totalSemana)}</span>
-                <span className="text-taupe"> · meta {META_SEMANA} h</span>
-                {form.totalSemana > META_SEMANA + 0.01 && <span className="text-ambar"> (te pasas {fmtH(form.totalSemana - META_SEMANA)})</span>}
-                {form.totalSemana < META_SEMANA - 0.01 && <span className="text-taupe"> (faltan {fmtH(META_SEMANA - form.totalSemana)})</span>}
+                <span className="text-taupe"> · {jornada !== null ? `su jornada: ${fmtH(jornada)}` : `meta ${META_SEMANA} h`}</span>
+                {form.totalSemana > meta + 0.01 && <span className="text-ambar"> (te pasas {fmtH(form.totalSemana - meta)})</span>}
+                {form.totalSemana < meta - 0.01 && <span className="text-taupe"> (faltan {fmtH(meta - form.totalSemana)})</span>}
+                {Math.abs(form.totalSemana - meta) <= 0.01 && <span className="text-verde"> · cumple</span>}
+              </div>
+            );
+          })()}
+
+          {editando && bases !== null && tiposSede[editando.sede_base_id] === "tienda" && (() => {
+            const desdeBase = baseVigenteDesde(bases.get(editando.id) ?? [], hoy);
+            const programada = (bases.get(editando.id) ?? []).find((x) => x.vigente_desde > hoy) ?? null;
+            const actual = desdeBase ? "almacen" : "piso";
+            return (
+              <div className="mt-4 space-y-2 border-t border-sand pt-4">
+                <Rotulo como="h3">Puesto base</Rotulo>
+                <p className="text-xs text-taupe">
+                  Dónde trabaja todos los días que le toca, todo su turno: en piso o en almacén. Lo de un día suelto
+                  (o unas horas) se elige en Turnos y manda sobre esto. No cambia sus horas, su turno ni su pago.
+                </p>
+                <p className="text-sm">
+                  Hoy: <strong>{desdeBase ? `almacén, desde el ${desdeBase.split("-").reverse().join("/")}` : "piso"}</strong>
+                  {programada && <span className="text-taupe"> · programado: almacén desde el {programada.vigente_desde.split("-").reverse().join("/")}</span>}
+                </p>
+                <div role="group" aria-label="Puesto base" className="flex flex-wrap gap-2">
+                  <Filtro activo={puestoBaseSel === "piso"} onClick={() => setPuestoBaseSel("piso")}>Piso</Filtro>
+                  <Filtro activo={puestoBaseSel === "almacen"} onClick={() => setPuestoBaseSel("almacen")}>Almacén</Filtro>
+                </div>
+                <div className="flex flex-wrap items-end gap-3">
+                  <Campo etiqueta="Desde" type="date" min={hoy} value={puestoBaseDesde} onChange={(e) => setPuestoBaseDesde(e.target.value || hoy)} />
+                  <Boton variante="secundario" onClick={() => void guardarPuestoBase()} cargando={guardandoBase}
+                    disabled={guardandoBase || (puestoBaseSel === actual && !programada)}>
+                    Cambiar el puesto base
+                  </Boton>
+                </div>
               </div>
             );
           })()}

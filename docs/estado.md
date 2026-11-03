@@ -6,7 +6,35 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-03 — Turnos propone la semana y se publica de una vez · migración **0586 SIN PEGAR** · prueba 476 · rama `claude/turnos-sugerencia`
+## 2026-11-03 — El almacén puede ser el puesto de siempre · migración **0588 SIN PEGAR** · prueba 478 · rama `claude/turnos-puesto-base`
+
+**De dónde sale.** Felipe (2026-11-03): «plasmar desde Horarios quién tiene de base ir a tienda o almacén», y al elegir el almacén de
+un día, decir «si solo es por ese día (completo o solo por tramo), o si se queda ahí siempre en todo su horario predeterminado».
+Y que Horarios distinga «sin horario» de «todavía no hay horario establecido», con las RxH sin horario fijo.
+
+**0588.** `puestos_base` (periodos en que la base es el almacén; fuera de ellos, piso), con su puerta `fn_set_puesto_base` (las
+reglas de quién de `fn_set_almacen_del_dia`; solo tiendas; de hoy en adelante; rastro `horarios.puesto_base`).
+`puestos_planificados.puesto = 'piso'` anota «este día en piso» cuando la base es el almacén (solo entonces). La regla, una sola
+vez: `fn_puestos_resueltos(desde, hasta)` — el plan del día manda; si no hay, la base; si no, piso — SECURITY INVOKER, con las
+mismas cuatro políticas copiadas a `puestos_base`. Reescribe `fn_set_almacen_del_dia`, `fn_puestos_del_dia` y `fn_puesto_texto`
+sobre la 0579, **md5 de producción pedido ANTES de escribir** (los tres idénticos a la 0579). Prueba 478 (22).
+
+**En pantalla.** Turnos · Día, el diálogo «¿Dónde trabaja…?»: «¿Hasta cuándo? Solo este día / Siempre, desde este día» (siempre =
+el turno entero; los tramos son de un día; solo tiendas). Horarios: «Puesto base» en el editor, «almacén de base» en la lista,
+«horario por definir» (le corresponde y no tiene) y «sin horario fijo» (RxH, Reglamento art. 2.5), y el total de la semana contra
+la jornada que fijó DO cuando la hay («su jornada: 30 h · cumple»). La sugerencia no cuenta en piso a quien está en almacén todo
+el turno toda la semana.
+
+**Nadie lee `puestos_planificados` directo** desde este PR: Turnos, «Mis turnos» (`tu-semana.tsx`, de la sesión de Lo mío) y el
+terminal (`ubicacion-cola.ts`) pasan por `lib/puestos-resueltos.ts`, que cae a la tabla si la 0588 todavía no está pegada. Una
+lectura directa tomaría una fila «piso» por «todo el turno en almacén». **La 0588 se pega ANTES de fusionar.**
+
+**Sigue:** el borrador de la semana con la comparativa y el «cumple» (planificado y marcado), y después el arrastre. Las RxH:
+sin horario; en el borrador, solo una nota de «cuándo se la necesita» para líder, DO y superiores.
+
+---
+
+## 2026-11-03 — Turnos propone la semana y se publica de una vez · migración **0586 PEGADA (2026-11-03)** · prueba 476 · fusionada en [#657](https://github.com/felipea92p-ux/cayla-dynamic/pull/657)
 
 **De dónde sale.** Felipe (2026-11-03): la propuesta mueve entrada, salida y día libre, sin turno partido y sin dejar horas
 cortas seguidas («que no tenga un hueco de 3 horas»); la venta base es el promedio de las últimas 4 semanas; es una propuesta que
@@ -23,8 +51,13 @@ No reescribe ninguna función: no lleva md5.
 **El motor** (`lib/admin/sugerencia-turnos.ts`): recocido simulado con semilla fija (`sede|lunes`): la misma entrada da la misma
 propuesta. Nunca pisa un «no puedo» ni una ausencia; «prefiero no» solo si no alcanza la gente, y se avisa; «horario fijo» no se
 mueve; nunca más de 48 h. Lo que lee y lo que publica, en `lib/admin/sugerencia-entrada.ts`. En pantalla, «Sugerir la semana» en la
-Integrada; la propuesta se dibuja en la misma grilla, con cifras, avisos y «Publicar la semana». **No probado contra datos reales:**
-sin Supabase local; se ve en la vista previa con la 0584, la 0585 y la 0586 pegadas.
+Integrada; la propuesta se dibuja en la misma grilla, con cifras, avisos y «Publicar la semana». **No probado todavía contra datos
+reales** (no hay Supabase local): la primera semana que se sugiera en producción es la prueba, y «Publicar» escribe turnos de verdad.
+
+**Pegada y comprobada** (2026-11-03): la función, su permiso, anon sin acceso y «586 · la_semana_sugerida_se_publica_de_una_vez»,
+registrada 13:31:59 de Lima; md5 en producción idéntico al del repositorio (`713aa3be…`, 6 864 caracteres, sin `\r`). **El orden salió
+al revés por ~80 segundos:** el #657 se fusionó a las 13:30:39 y la 0586 se pegó a las 13:31:59. En esa ventana «Publicar la semana»
+habría dado error sin escribir nada (la función no existía); no hay datos a medias que revisar.
 
 ---
 

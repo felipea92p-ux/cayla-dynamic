@@ -123,6 +123,17 @@ export const NOVEDADES: readonly Novedad[] = [
       "tienda por ella, por ejemplo si se lo dijo en persona o si todavía no tiene cuenta. Queda aprobada en el acto.\n\n" +
       "Al registrarla hay que elegir por qué la registras tú y no ella. En «Cambios de horario» se ve quién la registró " +
       "y por qué. La disponibilidad de una líder de equipo la sigue registrando Desarrollo Organizacional.",
+  },
+  {
+    id: "2026-11-03-almacen-puesto-base",
+    fecha: "2026-11-03",
+    titulo: "El almacén puede ser el puesto de siempre",
+    queMejoro:
+      "En las tiendas, al elegir si alguien trabaja en piso o en almacén, ahora se dice hasta cuándo: «Solo este día» " +
+      "(todo el turno o unas horas) o «Siempre, desde este día», que lo deja como su puesto base todos los días que " +
+      "trabaje.\n\n" +
+      "El puesto base también se ve y se cambia en Horarios. Lo de un día suelto manda sobre la base, y la cobertura, " +
+      "el terminal y «Mis turnos» ya lo cuentan. Horarios dice además «horario por definir» a quien todavía no tiene uno.",
     audiencia: "panel",
   },
   {

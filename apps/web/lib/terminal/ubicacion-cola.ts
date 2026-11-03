@@ -26,6 +26,7 @@
 import { openDB, type IDBPDatabase } from "idb";
 import { hoyLima, rangoDelDiaLima } from "@cayla-dynamic/shared";
 import { puestoDesdeFilas, type PuestoDelDia } from "@/lib/admin/almacen";
+import { leerPuestosResueltos } from "@/lib/puestos-resueltos";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { conTope, topeDeRed } from "./tope-de-red";
 import { esFalloDeRed, esRechazoDeSesion, SEGUNDOS_ESPERA_ENVIO } from "./enviar-marcaje";
@@ -253,9 +254,10 @@ export async function cargarCambiosDeHoy(): Promise<CambiosPorPersona> {
 }
 
 /**
- * Lo planificado para HOY (0579, `puestos_planificados`): por persona, sus
- * tramos en almacén, sin recortar todavía a su turno. La política
- * `puestos_select_terminal` ya acota a las personas de este terminal.
+ * Lo planificado para HOY (0579), ya resuelto con su puesto base (0588,
+ * `fn_puestos_resueltos`): por persona, sus tramos en almacén, sin recortar
+ * todavía a su turno. Las políticas `puestos_select_terminal` y
+ * `puestos_base_select_terminal` ya acotan a las personas de este terminal.
  *
  * Nunca lanza. Sin red, sin la 0579 pegada o con cualquier error devuelve un
  * mapa vacío, y el terminal se comporta como en la entrega 1: no anuncia nada y
@@ -266,14 +268,12 @@ export async function cargarPlanDeHoy(): Promise<Map<string, PuestoDelDia>> {
   const mapa = new Map<string, PuestoDelDia>();
   if (typeof navigator !== "undefined" && !navigator.onLine) return mapa;
   try {
-    const res = await createTerminalSupabaseClient()
-      .from("puestos_planificados" as never)
-      .select("persona_id, desde, hasta")
-      .eq("fecha", hoyLima())
-      .abortSignal(topeDeRed());
-    if (res.error) return mapa;
+    // Ya resuelto con su puesto base (0588), por la lectura única: nunca la tabla directo.
+    const hoy = hoyLima();
+    const res = await leerPuestosResueltos(createTerminalSupabaseClient(), hoy, hoy, { senal: topeDeRed() });
+    if (res.error || !res.data) return mapa;
     const porPersona = new Map<string, { desde: string | null; hasta: string | null }[]>();
-    for (const f of (res.data ?? []) as unknown as Array<{ persona_id: string; desde: string | null; hasta: string | null }>) {
+    for (const f of res.data) {
       porPersona.set(f.persona_id, [...(porPersona.get(f.persona_id) ?? []), { desde: f.desde, hasta: f.hasta }]);
     }
     for (const [id, filas] of porPersona) mapa.set(id, puestoDesdeFilas(filas));
