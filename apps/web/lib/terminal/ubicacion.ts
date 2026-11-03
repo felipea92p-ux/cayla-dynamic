@@ -50,39 +50,72 @@ export const DURACIONES_ALMACEN: ReadonlyArray<{ etiqueta: string; minutos: numb
 
 const ms = (iso: string) => new Date(iso).getTime();
 
+/** Un tramo en almacén: ISO desde, ISO hasta (null = sigue allí ahora). */
+export interface TramoAlmacen {
+  desde: string;
+  hasta: string | null;
+  /** ISO, la vuelta prevista del tramo abierto, o null si es «hasta que vuelva». */
+  vuelve: string | null;
+}
+
 /**
- * Dónde está ahora, según los cambios de hoy y sus marcas de hoy.
+ * LA REGLA de «¿dónde estuvo y dónde está?», hasta `ahora`. Es la misma de
+ * `fn_ubicaciones_del_dia` (0580) y la usan el terminal y Turnos: una sola.
  *
- * Recorre los cambios en orden. Un tramo abierto se cierra antes del siguiente
- * cambio si su vuelta prevista ya había vencido; un «tienda» lo cierra; un
- * «almacen» lo abre o, si ya estaba abierto, lo alarga con la nueva vuelta.
- * Al final se cierra si venció la vuelta o si marcó su salida final después de
- * entrar al almacén.
+ * Recorre los cambios en orden —los reales y, si se le pasan, los planificados
+ * convertidos con `cambiosDelPlan`—. Lo que todavía no pasó no cuenta. Un
+ * tramo se cierra con lo primero de: el siguiente «tienda», su vuelta prevista
+ * ya vencida, o su salida final. Un «almacen» con el tramo abierto lo alarga
+ * con la nueva vuelta (un doble toque es un tramo).
  */
+export function tramosDelDia(
+  cambios: readonly CambioUbicacion[],
+  marcajesHoy: readonly MarcajeDelDia[],
+  ahora: Date,
+): TramoAlmacen[] {
+  const t = ahora.getTime();
+  const ordenados = cambios
+    .filter((c) => ms(c.timestamp) <= t)
+    .sort((a, b) => ms(a.timestamp) - ms(b.timestamp));
+  const salidas = marcajesHoy.filter((m) => m.tipo === "salida_final").map((m) => ms(m.timestamp));
+  const tramos: TramoAlmacen[] = [];
+  type Abierto = { desde: string; vuelve: string | null; ultimo: string };
+  let abierto = null as Abierto | null;
+
+  // Cierra el tramo abierto en el primer corte que ocurra antes de `limite`.
+  const cerrarSiCorresponde = (limite: number) => {
+    if (!abierto) return;
+    const salida = salidas.filter((s) => s > ms(abierto!.ultimo)).sort((a, b) => a - b)[0];
+    const cortes = [abierto.vuelve ? ms(abierto.vuelve) : Infinity, salida ?? Infinity].filter((c) => c <= limite);
+    if (cortes.length === 0) return;
+    tramos.push({ desde: abierto.desde, hasta: new Date(Math.min(...cortes)).toISOString(), vuelve: abierto.vuelve });
+    abierto = null;
+  };
+
+  for (const c of ordenados) {
+    cerrarSiCorresponde(ms(c.timestamp));
+    if (c.ubicacion === "almacen") {
+      abierto = { desde: abierto?.desde ?? c.timestamp, vuelve: c.vuelvePrevisto, ultimo: c.timestamp };
+    } else if (abierto) {
+      tramos.push({ desde: abierto.desde, hasta: c.timestamp, vuelve: abierto.vuelve });
+      abierto = null;
+    }
+  }
+  cerrarSiCorresponde(t);
+  const final = abierto as Abierto | null;
+  if (final) tramos.push({ desde: final.desde, hasta: null, vuelve: final.vuelve });
+  return tramos.filter((x) => x.hasta === null || ms(x.hasta) > ms(x.desde));
+}
+
+/** Dónde está ahora: el último tramo, si sigue abierto. */
 export function ubicacionActual(
   cambios: readonly CambioUbicacion[],
   marcajesHoy: readonly MarcajeDelDia[],
   ahora: Date,
 ): EstadoUbicacion {
-  const ordenados = [...cambios].sort((a, b) => ms(a.timestamp) - ms(b.timestamp));
-  type Tramo = { desde: string; vuelve: string | null; ultimo: string };
-  let tramo = null as Tramo | null;
-
-  for (const c of ordenados) {
-    if (tramo && tramo.vuelve && ms(tramo.vuelve) <= ms(c.timestamp)) tramo = null;
-    if (c.ubicacion === "almacen") {
-      tramo = { desde: tramo?.desde ?? c.timestamp, vuelve: c.vuelvePrevisto, ultimo: c.timestamp };
-    } else {
-      tramo = null;
-    }
-  }
-
-  const abierto = tramo;
-  if (!abierto) return { enAlmacen: false };
-  if (abierto.vuelve && ms(abierto.vuelve) <= ahora.getTime()) return { enAlmacen: false };
-  const salio = marcajesHoy.some((m) => m.tipo === "salida_final" && ms(m.timestamp) > ms(abierto.ultimo));
-  if (salio) return { enAlmacen: false };
-  return { enAlmacen: true, desde: abierto.desde, vuelve: abierto.vuelve };
+  const ultimo = tramosDelDia(cambios, marcajesHoy, ahora).at(-1);
+  if (!ultimo || ultimo.hasta !== null) return { enAlmacen: false };
+  return { enAlmacen: true, desde: ultimo.desde, vuelve: ultimo.vuelve };
 }
 
 /** «12:32», en la hora de Lima y en 24 h, como la maqueta. */
@@ -111,4 +144,74 @@ export function textoEstadoAlmacen(e: EstadoUbicacion): string | null {
 export function detalleCasillaAlmacen(e: EstadoUbicacion): string | null {
   if (!e.enAlmacen || !e.desde) return null;
   return e.vuelve ? `En almacén · vuelve ${horaUbicacion(e.vuelve)}` : `En almacén desde ${horaUbicacion(e.desde)}`;
+}
+
+// ── Lo planificado (0579, sesión de Turnos) ─────────────────────────────────
+//
+// Turnos planifica por día quién va al almacén (`puestos_planificados`). El
+// terminal NO escribe nada con eso: solo lo dice al marcar la entrada («Hoy te
+// toca almacén de 10:30 a 12:30») y lo usa para saber qué botón ofrecer. Lo que
+// pasa de verdad sigue siendo lo que se registra: si lo planificado dice
+// almacén y ella marca «Vuelvo a tienda», queda ese cambio real y lo
+// planificado no se toca (decisión de Felipe, 2026-11-02).
+//
+// Por eso cada tramo planificado entra a `ubicacionActual` como si fuera un
+// «Voy a almacén» a su hora de inicio, con su fin como vuelta prevista. Así la
+// regla es una sola: lo último que pasó manda, sea lo planificado o lo real.
+
+export interface TramoHoras {
+  /** Hora decimal de Lima (10:30 → 10.5). */
+  desde: number;
+  hasta: number;
+}
+
+/**
+ * Los tramos en almacén planificados para hoy, ya recortados a su turno.
+ * `turno` null = no se sabe su horario: «todo el turno» queda abierto hasta su
+ * salida final y los tramos van tal cual. Fuera del turno no cuentan.
+ */
+export function tramosPlanificados(
+  plan: { todoElTurno: boolean; tramos: TramoHoras[] },
+  turno: TramoHoras | null,
+): { todoElTurno: boolean; tramos: TramoHoras[] } {
+  if (plan.todoElTurno) return { todoElTurno: true, tramos: turno ? [turno] : [] };
+  const tramos = turno
+    ? plan.tramos
+        .map((t) => ({ desde: Math.max(t.desde, turno.desde), hasta: Math.min(t.hasta, turno.hasta) }))
+        .filter((t) => t.hasta > t.desde)
+    : plan.tramos;
+  return { todoElTurno: false, tramos: [...tramos].sort((a, b) => a.desde - b.desde) };
+}
+
+const hhmm = (dec: number): string => {
+  const h = Math.floor(dec + 1e-9);
+  const m = Math.round((dec - h) * 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+
+/** «Hoy te toca almacén de 10:30 a 12:30», o null si hoy le toca piso. */
+export function textoPlanDeHoy(plan: { todoElTurno: boolean; tramos: TramoHoras[] }): string | null {
+  if (plan.todoElTurno) return "Hoy te toca almacén todo el turno";
+  if (plan.tramos.length === 0) return null;
+  const partes = plan.tramos.map((t) => `de ${hhmm(t.desde)} a ${hhmm(t.hasta)}`);
+  const lista = partes.length === 1 ? partes[0] : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`;
+  return `Hoy te toca almacén ${lista}`;
+}
+
+/**
+ * Lo planificado como cambios, para que `ubicacionActual` lo combine con lo
+ * real. `medianocheIso` es el inicio del día en Lima (`rangoDelDiaLima().inicio`).
+ * «Todo el turno» sin horario conocido empieza a medianoche y no tiene vuelta:
+ * lo cierra un «Vuelvo a tienda» o su salida final.
+ */
+export function cambiosDelPlan(
+  plan: { todoElTurno: boolean; tramos: TramoHoras[] },
+  medianocheIso: string,
+): CambioUbicacion[] {
+  const base = new Date(medianocheIso).getTime();
+  const iso = (dec: number) => new Date(base + Math.round(dec * 3_600_000)).toISOString();
+  if (plan.todoElTurno && plan.tramos.length === 0) {
+    return [{ ubicacion: "almacen", timestamp: iso(0), vuelvePrevisto: null }];
+  }
+  return plan.tramos.map((t) => ({ ubicacion: "almacen" as const, timestamp: iso(t.desde), vuelvePrevisto: iso(t.hasta) }));
 }
