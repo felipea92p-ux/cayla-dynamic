@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Ban, Check, CircleAlert, Clock, Copy, Plus, X, type LucideIcon } from "lucide-react";
 import { hoyLima } from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
@@ -11,7 +11,7 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Rotulo } from "@/components/ui/rotulo";
 import { sumarDias } from "@/lib/mi-semana";
 import {
-  ATAJOS, MOTIVOS, NOMBRE_DIA, ORDEN_DIAS, aBloques, aplicarAtajo, avisoDeHoras, horasDisponibles, opcionesHora,
+  ATAJOS, MOTIVOS, NOMBRE_DIA, ORDEN_DIAS, aBloques, aplicarAtajo, copiarDia, avisoDeHoras, horasDisponibles, opcionesHora,
   resumenEnPalabras, semanaVacia, validar,
   type Bloque, type EstadoBloque, type Excepcion, type ModoDia, type Motivo, type SemanaTipo, type Ventana,
 } from "@/lib/disponibilidad";
@@ -38,11 +38,15 @@ export interface EnvioDisponibilidad {
 
 type Hasta = "sin_fin" | "fin_ciclo" | "fecha";
 
-const MODOS: { valor: ModoDia; label: string }[] = [
-  { valor: "puede", label: "Puedo todo el día" },
-  { valor: "no_puede", label: "No puedo todo el día" },
-  { valor: "prefiere_no", label: "Prefiero no todo el día" },
-  { valor: "horas", label: "Solo algunas horas" },
+// Un día se marca con UN toque, sin desplegables encadenados: el color nunca va
+// solo, cada opción lleva su ícono y su palabra. «Por horas» abre sus tramos, y
+// cada tramo dice su propio estado (antes era un desplegable «Solo algunas
+// horas» y, adentro, otro «No puedo»: se leía como una doble negación).
+const MODOS: { valor: ModoDia; label: string; icono: LucideIcon }[] = [
+  { valor: "puede", label: "Puedo", icono: Check },
+  { valor: "prefiere_no", label: "Prefiero no", icono: CircleAlert },
+  { valor: "no_puede", label: "No puedo", icono: Ban },
+  { valor: "horas", label: "Por horas", icono: Clock },
 ];
 
 const ESTADOS: { valor: EstadoBloque; label: string }[] = [
@@ -115,7 +119,7 @@ export function EditorDisponibilidad({
       <div role="radiogroup" aria-label="Disponibilidad" className="grid gap-2 sm:grid-cols-2">
         {([
           ["total", "Cualquier día y hora", quien === "tu" ? "Tu líder de equipo te puede poner en cualquier turno." : "Se le puede poner en cualquier turno."],
-          ["parcial", "Hay días u horas que no puedo", "Marca solo lo que no puedes. Lo demás queda libre."],
+          ["parcial", "Hay días u horas que no puedo", "Marca cada día como lo necesites. Lo que no toques queda como «Puedo»."],
         ] as const).map(([v, titulo, texto]) => (
           <label key={v}
             className={`flex cursor-pointer gap-3 rounded-control border p-3 ${tipo === v ? "border-tinta bg-papel" : "border-sand bg-hueso"}`}>
@@ -130,6 +134,21 @@ export function EditorDisponibilidad({
 
       {parcial && (
         <>
+          <dl className="grid gap-1 rounded-control bg-hueso p-3 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="font-medium">Puedo</dt>
+              <dd className="text-taupe">{quien === "tu" ? "Tu líder de equipo te puede poner." : "Se la puede poner."}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Prefiero no</dt>
+              <dd className="text-taupe">Se intenta evitar, pero si falta gente {quien === "tu" ? "te puede tocar" : "le puede tocar"}.</dd>
+            </div>
+            <div>
+              <dt className="font-medium">No puedo</dt>
+              <dd className="text-taupe">{quien === "tu" ? "No te ponen" : "No se la pone"} en ese día u hora.</dd>
+            </div>
+          </dl>
+
           <div className="flex flex-wrap gap-2" aria-label="Atajos">
             {ATAJOS.map((a) => (
               <Boton key={a.valor} tamano="sm" onClick={() => setSemana((s) => aplicarAtajo(s, a.valor, ventana))}>{a.label}</Boton>
@@ -140,22 +159,29 @@ export function EditorDisponibilidad({
             {ORDEN_DIAS.map((d) => {
               const dia = semana[d];
               return (
-                <li key={d} className="flex flex-col gap-2 rounded-control bg-hueso px-3 py-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium capitalize">{NOMBRE_DIA[d]}</span>
-                    <select aria-label={`Qué pasa el ${NOMBRE_DIA[d]}`} className={selectClase} value={dia.modo}
-                      onChange={(e) => cambiarDia(d, e.target.value as ModoDia)}>
-                      {MODOS.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
-                    </select>
+                <li key={d} className="flex flex-col gap-2 rounded-control bg-hueso px-3 py-2.5">
+                  <span className="font-medium capitalize">{NOMBRE_DIA[d]}</span>
+                  <div role="group" aria-label={`Qué pasa el ${NOMBRE_DIA[d]}`} className="flex flex-wrap gap-2">
+                    {MODOS.map((m) => {
+                      const Icono = m.icono;
+                      return (
+                        <Filtro key={m.valor} activo={dia.modo === m.valor} className="inline-flex min-h-10 items-center gap-1.5"
+                          onClick={() => cambiarDia(d, m.valor)}>
+                          <Icono className="h-3.5 w-3.5" aria-hidden="true" />{m.label}
+                        </Filtro>
+                      );
+                    })}
                   </div>
                   {dia.modo === "horas" && (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3 border-l-2 border-sand pl-3">
                       {dia.tramos.map((t, i) => (
                         <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
-                          <select aria-label="Estado del tramo" className={selectClase} value={t.estado}
-                            onChange={(e) => cambiarTramo(d, i, "estado", e.target.value)}>
-                            {ESTADOS.map((x) => <option key={x.valor} value={x.valor}>{x.label}</option>)}
-                          </select>
+                          <div role="group" aria-label="Estado del tramo" className="flex gap-1.5">
+                            {ESTADOS.map((x) => (
+                              <Filtro key={x.valor} tamano="sm" activo={t.estado === x.valor} className="min-h-9"
+                                onClick={() => cambiarTramo(d, i, "estado", x.valor)}>{x.label}</Filtro>
+                            ))}
+                          </div>
                           <span>de</span>
                           <select aria-label="Desde" className={selectClase} value={t.desde} onChange={(e) => cambiarTramo(d, i, "desde", e.target.value)}>
                             {opciones.slice(0, -1).map((h) => <option key={h} value={h}>{h}</option>)}
@@ -168,9 +194,14 @@ export function EditorDisponibilidad({
                             className="rounded-control p-1 text-taupe hover:text-tinta"><X className="h-4 w-4" /></button>
                         </div>
                       ))}
-                      <Boton variante="enlace" className="self-start text-sm" onClick={() => agregarTramo(d)}>
-                        <Plus className="mr-1 inline h-3.5 w-3.5" />Otro tramo
-                      </Boton>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        <Boton variante="enlace" className="text-sm" onClick={() => agregarTramo(d)}>
+                          <Plus className="mr-1 inline h-3.5 w-3.5" />Otro tramo
+                        </Boton>
+                        <Boton variante="enlace" className="text-sm" onClick={() => setSemana((s) => copiarDia(s, d))}>
+                          <Copy className="mr-1 inline h-3.5 w-3.5" />Copiar a los demás días
+                        </Boton>
+                      </div>
                     </div>
                   )}
                 </li>
@@ -184,17 +215,18 @@ export function EditorDisponibilidad({
               <div key={i} className="flex flex-wrap items-end gap-2 text-sm">
                 <Campo etiqueta="Fecha" type="date" value={x.fecha} min={desde}
                   onChange={(e) => e.target.value && setExcepciones((xs) => xs.map((y, j) => (j === i ? { ...y, fecha: e.target.value } : y)))} />
-                <select aria-label="Estado" className={selectClase} value={x.estado}
-                  onChange={(e) => setExcepciones((xs) => xs.map((y, j) => (j === i ? { ...y, estado: e.target.value as EstadoBloque } : y)))}>
-                  {ESTADOS.map((s) => <option key={s.valor} value={s.valor}>{s.label}</option>)}
-                </select>
-                <select aria-label="Todo el día o unas horas" className={selectClase} value={x.desde ? "horas" : "dia"}
-                  onChange={(e) => setExcepciones((xs) => xs.map((y, j) => (j === i
-                    ? (e.target.value === "dia" ? { ...y, desde: null, hasta: null } : { ...y, desde: "16:00", hasta: "20:00" })
-                    : y)))}>
-                  <option value="dia">todo el día</option>
-                  <option value="horas">unas horas</option>
-                </select>
+                <div role="group" aria-label="Estado" className="flex gap-1.5">
+                  {ESTADOS.map((e2) => (
+                    <Filtro key={e2.valor} tamano="sm" activo={x.estado === e2.valor} className="min-h-9"
+                      onClick={() => setExcepciones((xs) => xs.map((y, j) => (j === i ? { ...y, estado: e2.valor } : y)))}>{e2.label}</Filtro>
+                  ))}
+                </div>
+                <div role="group" aria-label="Todo el día o unas horas" className="flex gap-1.5">
+                  <Filtro tamano="sm" activo={!x.desde} className="min-h-9"
+                    onClick={() => setExcepciones((xs) => xs.map((y, j) => (j === i ? { ...y, desde: null, hasta: null } : y)))}>Todo el día</Filtro>
+                  <Filtro tamano="sm" activo={!!x.desde} className="min-h-9"
+                    onClick={() => setExcepciones((xs) => xs.map((y, j) => (j === i && !y.desde ? { ...y, desde: "16:00", hasta: "20:00" } : y)))}>Unas horas</Filtro>
+                </div>
                 {x.desde && x.hasta && (
                   <>
                     <select aria-label="Desde" className={selectClase} value={x.desde}

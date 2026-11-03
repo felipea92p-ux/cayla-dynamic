@@ -46,7 +46,7 @@ export const PASOS_GUIA_DISPONIBILIDAD: readonly PasoRecorrido[] = [
   { selector: '[data-tour="mio-disponibilidad-seccion"]', titulo: "Mi disponibilidad",
     texto: "Dices qué días u horas no puedes trabajar. Va a tu líder de equipo; hasta que la aprueba, tus turnos siguen igual." },
   { selector: '[data-tour="mio-disponibilidad-editor"]', titulo: "Cómo se marca",
-    texto: "Cada día: puedo, no puedo, prefiero no o solo algunas horas. Los atajos llenan la semana de un toque. Abajo ves en palabras lo que elegiste." },
+    texto: "Cada día lo marcas con un toque: puedo, prefiero no, no puedo o por horas. «No puedo» es firme; «prefiero no» se intenta respetar, pero si falta gente te puede tocar. Los atajos llenan la semana de un toque. Abajo ves en palabras lo que elegiste." },
 ];
 
 export const PASOS_GUIA_AUSENCIAS: readonly PasoRecorrido[] = [

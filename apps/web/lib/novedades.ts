@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-03-disponibilidad-mas-clara",
+    fecha: "2026-11-03",
+    titulo: "Mi disponibilidad se marca con un toque por día",
+    queMejoro:
+      "Cada día tiene cuatro botones a la vista: «Puedo», «Prefiero no», «No puedo» y «Por horas». Ya no hay " +
+      "desplegables uno dentro de otro. Al elegir «Por horas», cada tramo dice si es «No puedo» o «Prefiero no», " +
+      "y puedes copiar lo marcado en un día a todos los demás.\n\n" +
+      "Arriba se explica qué significa cada opción: «No puedo» es firme, y «Prefiero no» se intenta respetar, pero " +
+      "si falta gente te puede tocar.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-03-almacen-puesto-base",
     fecha: "2026-11-03",
     titulo: "El almacén puede ser el puesto de siempre",
