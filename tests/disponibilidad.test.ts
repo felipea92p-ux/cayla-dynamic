@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  aBloques, aplicarAtajo, avisoDeHoras, desdeBloques, horasDisponibles, opcionesHora, resumenEnPalabras,
+  aBloques, aplicarAtajo, avisoDeHoras, copiarDia, desdeBloques, horasDisponibles, opcionesHora, resumenEnPalabras,
   semanaSinRestricciones, semanaVacia, validar, type Ventana,
 } from "@/lib/disponibilidad";
 
@@ -135,6 +135,20 @@ describe("en palabras", () => {
     const s = semanaVacia();
     s[6] = { modo: "no_puede", tramos: [] };
     expect(resumenEnPalabras(s, [], "ella")).toEqual(["No puede: los sábados todo el día."]);
+  });
+});
+
+
+describe("copiar un día a los demás", () => {
+  it("repite el modo y los tramos en los siete días, sin compartir referencias", () => {
+    const s = semanaVacia();
+    s[1] = { modo: "horas", tramos: [{ desde: "14:00", hasta: "18:30", estado: "no_puede" }] };
+    s[3] = { modo: "no_puede", tramos: [] };
+    const c = copiarDia(s, 1);
+    for (let d = 0; d < 7; d++) expect(c[d]).toEqual(s[1]);
+    c[2].tramos[0].desde = "09:00";
+    expect(c[1].tramos[0].desde).toBe("14:00");
+    expect(s[3].modo).toBe("no_puede"); // la semana de entrada no se toca
   });
 });
 

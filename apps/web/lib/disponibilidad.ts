@@ -174,6 +174,18 @@ export function aBloques(semana: SemanaTipo, excepciones: Excepcion[]): Bloque[]
   return out;
 }
 
+/**
+ * Copia lo marcado en un día (el modo y sus tramos) a todos los demás: para
+ * quien repite lo mismo toda la semana («no puedo de 14:00 a 18:30»). Devuelve
+ * una semana nueva; la de entrada no se toca.
+ */
+export function copiarDia(semana: SemanaTipo, origen: number): SemanaTipo {
+  const fuente = semana[origen];
+  const s: SemanaTipo = {};
+  for (let d = 0; d < 7; d++) s[d] = structuredClone(fuente);
+  return s;
+}
+
 export function semanaSinRestricciones(semana: SemanaTipo): boolean {
   return ORDEN_DIAS.every((d) => semana[d].modo === "puede" || (semana[d].modo === "horas" && semana[d].tramos.length === 0));
 }
