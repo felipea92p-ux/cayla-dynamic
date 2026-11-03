@@ -5505,6 +5505,65 @@ export type Database = {
           },
         ]
       }
+      puestos_planificados: {
+        Row: {
+          creado_por: string
+          created_at: string
+          desde: string | null
+          fecha: string
+          hasta: string | null
+          id: string
+          persona_id: string
+        }
+        Insert: {
+          creado_por: string
+          created_at?: string
+          desde?: string | null
+          fecha: string
+          hasta?: string | null
+          id?: string
+          persona_id: string
+        }
+        Update: {
+          creado_por?: string
+          created_at?: string
+          desde?: string | null
+          fecha?: string
+          hasta?: string | null
+          id?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "puestos_planificados_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "puestos_planificados_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "puestos_planificados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "puestos_planificados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           activo: boolean
@@ -9955,6 +10014,14 @@ export type Database = {
         }
         Returns: number
       }
+      fn_puestos_del_dia: {
+        Args: { p_fecha: string | null; p_sede_id: string | null }
+        Returns: {
+          desde: string | null
+          hasta: string | null
+          persona_id: string
+        }[]
+      }
       fn_publicar_politica_salarial: {
         Args: { p_documento: string | null; p_notas?: string | null }
         Returns: Json
@@ -10807,6 +10874,15 @@ export type Database = {
           texto_alta: string
           texto_baja: string
         }[]
+      }
+      fn_set_almacen_del_dia: {
+        Args: {
+          p_fecha: string | null
+          p_persona_id: string | null
+          p_todo_el_turno: boolean | null
+          p_tramos?: Json | null
+        }
+        Returns: undefined
       }
       fn_set_cargo: {
         Args: { p_cargo: string | null; p_persona_id: string | null }

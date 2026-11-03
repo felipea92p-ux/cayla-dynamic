@@ -436,6 +436,7 @@ with repo(numero, nombre, nunca) as (values
     (576, 'el_practicante_se_paga_por_hora_con_tope_semanal', false),
     (577, 'la_base_y_el_tope_del_practicante_se_cambian_desde_parametros', false),
     (578, 'el_sueldo_se_cambia_por_grupo_y_avisa_a_quien_toca', false),
+    (579, 'el_almacen_se_planifica_por_dia', false),
     (580, 'ir_al_almacen_se_marca_en_el_terminal', false)
 ),
 diff as (

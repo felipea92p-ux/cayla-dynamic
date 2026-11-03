@@ -9,9 +9,10 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cargando } from "@/components/cargando";
 import { dowDe, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import {
-  armarSemana, cuadreDeSemana, inclinacionDeSemana, lunesDe, sumarDias, textoHoras, textoPuesto,
+  armarSemana, cuadreDeSemana, inclinacionDeSemana, lunesDe, sumarDias, textoHoras,
   textoRotacion, totalDeSemana, type DiaDeMiSemana, type PuestoFila,
 } from "@/lib/mi-semana";
+import { esPiso, textoPuesto } from "@/lib/admin/almacen";
 
 /**
  * «Tu semana», en «Lo mío · Mis turnos».
@@ -230,7 +231,7 @@ function FilaDia({ dia, esHoy }: { dia: DiaDeMiSemana; esHoy: boolean }) {
       )}
       <span>
         {e.trabaja && dia.puesto && (
-          <Insignia variante={dia.puesto.tipo === "piso" ? "positivo" : "informativo"}>{textoPuesto(dia.puesto)}</Insignia>
+          <Insignia variante={esPiso(dia.puesto) ? "positivo" : "informativo"}>{textoPuesto(dia.puesto)}</Insignia>
         )}
       </span>
     </li>

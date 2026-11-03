@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  armarSemana, cuadreDeSemana, hoyEnUnaLinea, inclinacionDeSemana, lunesDe, puestoDelDia,
-  semanaDe, textoHoras, textoPuesto, textoRotacion, totalDeSemana,
+  armarSemana, cuadreDeSemana, hoyEnUnaLinea, inclinacionDeSemana, lunesDe,
+  semanaDe, textoHoras, textoRotacion, totalDeSemana,
 } from "@/lib/mi-semana";
 import type { HorarioTramo, TurnoDia } from "@/lib/admin/jornada-esperada";
+import { puestoDesdeFilas, textoPuesto } from "@/lib/admin/almacen";
 
 // Una semana de TRU: lunes a sábado, descanso el domingo, refrigerio de 60 solo
 // el sábado (turno largo). 6 h × 5 + 11.75 − 1 = 40.75 h.
@@ -127,9 +128,9 @@ describe("el puesto", () => {
   });
 
   it("varios tramos del mismo día salen en orden", () => {
-    expect(textoPuesto(puestoDelDia([
-      { fecha: "x", desde: "16:00", hasta: "17:00" },
-      { fecha: "x", desde: "10:30", hasta: "11:00" },
+    expect(textoPuesto(puestoDesdeFilas([
+      { desde: "16:00", hasta: "17:00" },
+      { desde: "10:30", hasta: "11:00" },
     ]))).toBe("Almacén 10:30–11:00, 16:00–17:00");
   });
 

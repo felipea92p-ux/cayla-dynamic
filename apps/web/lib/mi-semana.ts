@@ -28,11 +28,15 @@
 //   el turno en almacén; con horas = almacén en ese tramo. Si la tabla todavía no
 //   existe o no se pudo leer, `puestos` llega en null y NO se muestra ningún
 //   puesto: decir «Piso» sin saberlo sería afirmar algo que no se leyó.
+//   Cómo se leen las filas y qué palabras se usan NO se escriben acá: son
+//   `puestoDesdeFilas` y `textoPuesto` de lib/admin/almacen.ts, las mismas del
+//   panel de Turnos y de `fn_puesto_texto` (0579).
 
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe,
   type Esperado, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
+import { esPiso, puestoDesdeFilas, textoPuesto, type PuestoDelDia } from "@/lib/admin/almacen";
 
 /** Una fila de `puestos_planificados` de esta persona. */
 export interface PuestoFila {
@@ -40,10 +44,6 @@ export interface PuestoFila {
   desde: string | null;
   hasta: string | null;
 }
-
-export type Puesto =
-  | { tipo: "piso" }
-  | { tipo: "almacen"; tramos: { desde: string; hasta: string }[] | null };
 
 export interface DiaDeMiSemana {
   fecha: string;
@@ -54,7 +54,7 @@ export interface DiaDeMiSemana {
   /** Nombre del feriado, si lo es. */
   feriado: string | null;
   /** null = no se sabe (tabla ausente o ilegible) o ese día no trabaja. */
-  puesto: Puesto | null;
+  puesto: PuestoDelDia | null;
 }
 
 export interface TotalDeSemana {
@@ -85,16 +85,6 @@ export function semanaDe(lunes: string): string[] {
 
 // ── Armar la semana ──────────────────────────────────────────────────────────
 
-/** El puesto de un día a partir de sus filas planificadas. */
-export function puestoDelDia(filas: PuestoFila[]): Puesto {
-  if (filas.length === 0) return { tipo: "piso" };
-  if (filas.some((f) => !f.desde || !f.hasta)) return { tipo: "almacen", tramos: null };
-  const tramos = filas
-    .map((f) => ({ desde: f.desde!.slice(0, 5), hasta: f.hasta!.slice(0, 5) }))
-    .sort((a, b) => a.desde.localeCompare(b.desde));
-  return { tipo: "almacen", tramos };
-}
-
 export function armarSemana(args: {
   lunes: string;
   turnos: Map<string, TurnoDia>;
@@ -108,7 +98,7 @@ export function armarSemana(args: {
     const esperado = esperadoDelDia(fecha, args.turnos.get(fecha) ?? null, horario);
     const base = esperadoDelDia(fecha, null, horario);
     const puesto = args.puestos && esperado.trabaja
-      ? puestoDelDia(args.puestos.filter((p) => p.fecha === fecha))
+      ? puestoDesdeFilas(args.puestos.filter((p) => p.fecha === fecha))
       : null;
     return { fecha, esperado, base, feriado: args.feriados.get(fecha) ?? null, puesto };
   });
@@ -133,19 +123,6 @@ export function textoHoras(horas: number): string {
   const m = min % 60;
   if (h === 0) return `${m} min`;
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
-}
-
-/**
- * «Piso», «Almacén todo el turno» o «Almacén 10:30–12:30, 15:00–16:30»: las
- * mismas palabras que `fn_puesto_texto` (0579) y que `textoPuesto` de
- * lib/admin/almacen.ts en el panel, para que la colaboradora y su líder lean lo
- * mismo. Cuando ese archivo llegue a `main`, esta función y `puestoDelDia` se
- * reemplazan por las suyas (`textoPuesto`, `puestoDesdeFilas`).
- */
-export function textoPuesto(p: Puesto): string {
-  if (p.tipo === "piso") return "Piso";
-  if (!p.tramos) return "Almacén todo el turno";
-  return `Almacén ${p.tramos.map((t) => `${t.desde}–${t.hasta}`).join(", ")}`;
 }
 
 /**
@@ -218,6 +195,7 @@ export function hoyEnUnaLinea(dia: DiaDeMiSemana | undefined): string {
   const { entrada, salida } = dia.esperado;
   const horario = `${entrada}${salida ? `–${salida}` : ""}`;
   if (!dia.puesto) return horario;
-  if (dia.puesto.tipo === "piso") return `${horario} en piso`;
-  return dia.puesto.tramos ? `${horario} · ${textoPuesto(dia.puesto).toLowerCase()}` : `${horario} en almacén`;
+  if (esPiso(dia.puesto)) return `${horario} en piso`;
+  if (dia.puesto.todoElTurno) return `${horario} en almacén`;
+  return `${horario} · ${textoPuesto(dia.puesto).toLowerCase()}`;
 }

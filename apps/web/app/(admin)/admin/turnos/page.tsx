@@ -31,6 +31,7 @@ import { avisarCambioDeTurnos, useTurnosAlDia } from "@/lib/admin/turnos-al-dia"
 import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 import { resumenDeLideres, resumenDelTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
 import { celdaConNombres, horasDeLaSemana, resumenDelDia, type TurnoConNombre } from "@/lib/admin/semana-con-nombres";
+import { PISO, aHHMM, argumentosDeGuardado, esPiso, problemaDeTramos, puestoDesdeFilas, sugerirTramo, textoPuesto, tramosEnAlmacen, type PuestoDelDia, type TramoDecimal } from "@/lib/admin/almacen";
 import { avisoDeCopiar, conviveDarDescanso, cuerpoDelAviso, lineaDeSemana, TEXTO_CONFIRMAR_TRABAJO_EN_FERIADO, tituloDelAviso, type PersonaEnFeriado } from "@/lib/admin/prueba-en-feriado";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 import { CampoMeta, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
@@ -669,8 +670,6 @@ export default function TurnosPage() {
   // El día que se mira en la vista Día (uno a la vez: «mañana y tarde» de ese día). Se guarda como fecha; si la semana
   // cambia y esa fecha ya no está en ella, se cae a hoy (o al lunes) sin necesitar un efecto que lo corrija.
   const [diaSel, setDiaSel] = useState<string | null>(null);
-  // Abierto/cerrado de «hora por hora», que además trae el campo de las metas.
-  const [detalleHora, setDetalleHora] = useState(false);
   function irADia(iso: string) {
     setDiaSel(iso);
     setVista("dia");
@@ -678,7 +677,6 @@ export default function TurnosPage() {
   // Desde la Integrada: el día, con la línea de cada persona ya abierta y a la vista.
   function verLineaDelDia(iso: string) {
     irADia(iso);
-    setDetalleHora(true);
     window.requestAnimationFrame(() => document.getElementById(`turnos-dia-${iso}`)?.scrollIntoView({ block: "start", behavior: "smooth" }));
   }
   // Desde el diagnóstico: salta a la semana Y al día del turno a revisar.
@@ -692,6 +690,9 @@ export default function TurnosPage() {
   const [funcionesFallo, setFuncionesFallo] = useState(false);
   const [horarios, setHorarios] = useState<Map<string, Horario[]>>(new Map());
   const [turnos, setTurnos] = useState<Map<string, Turno>>(new Map());
+  // Piso o almacén planificado (0579), por «persona|fecha». `null` = no se pudo leer (la tabla todavía no
+  // existe en esa base, o falló la consulta): la cobertura cuenta a todas en piso y la hoja de almacén lo dice.
+  const [puestos, setPuestos] = useState<Map<string, PuestoDelDia> | null>(new Map());
   const [metas, setMetas] = useState<Map<number, number>>(new Map()); // meta operativas MAÑANA
   const [metasTarde, setMetasTarde] = useState<Map<number, number>>(new Map()); // meta operativas TARDE
   const [metasEncargadas, setMetasEncargadas] = useState<Map<number, number>>(new Map());
@@ -781,6 +782,7 @@ export default function TurnosPage() {
       { data: ar, error: arErr },
       { data: fer },
       { data: pru },
+      { data: pue, error: pueErr },
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
       // igual que cualquiera y cuenta para la meta de cobertura de la sede —
@@ -798,6 +800,8 @@ export default function TurnosPage() {
       supabase.rpc("fn_areas"), // catálogo dinámico de áreas (nunca .from("areas"): schema cache trabado)
       supabase.from("feriados").select("fecha, nombre").gte("fecha", lunes).lte("fecha", domingo),
       supabase.rpc("fn_pruebas_abiertas"),
+      // El almacén no frena la semana: si falla (p. ej. la 0579 todavía no está pegada), se sigue sin él.
+      supabase.from("puestos_planificados").select("persona_id, fecha, desde, hasta").gte("fecha", lunes).lte("fecha", domingo),
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (modo !== "fondo") cargaConMetas.current = 0;
@@ -822,6 +826,16 @@ export default function TurnosPage() {
     }
     setHorarios(mapH);
     setTurnos(new Map(((t as any[]) ?? []).map((x) => [`${x.persona_id}|${x.fecha}`, { es_descanso: x.es_descanso, hora_entrada: x.hora_entrada, hora_salida: x.hora_salida }])));
+    if (pueErr) {
+      setPuestos(null);
+    } else {
+      const porDia = new Map<string, { desde: string | null; hasta: string | null }[]>();
+      for (const x of pue ?? []) {
+        const k = `${x.persona_id}|${x.fecha}`;
+        porDia.set(k, [...(porDia.get(k) ?? []), { desde: x.desde, hasta: x.hasta }]);
+      }
+      setPuestos(new Map([...porDia].map(([k, filas]) => [k, puestoDesdeFilas(filas)])));
+    }
     setCargando(false);
     // Las metas solo se cambian desde esta pantalla, y se guardan al salir del
     // campo: una lectura de fondo que salió antes de ese guardado traería la
@@ -1054,6 +1068,8 @@ export default function TurnosPage() {
   };
 
 
+  // El plan de piso/almacén de una persona un día (piso si no hay nada, o si no se pudo leer).
+  const puestoDe = (personaId: string, iso: string): PuestoDelDia => puestos?.get(`${personaId}|${iso}`) ?? PISO;
   // Integrada: los turnos de un día con su nombre corto y si suman (ver lib/admin/semana-con-nombres.ts).
   // Nombre y primera letra del apellido: en una casilla no cabe el completo, y dos «Diana» se distinguen igual.
   const turnosConNombreDe = (iso: string): TurnoConNombre[] =>
@@ -1063,8 +1079,33 @@ export default function TurnosPage() {
       const cuenta = esOperativa(p), lider = esEncargada(p);
       const aparte = cuenta || lider ? undefined : p.tipoVinculo === "prueba" ? "preselección" : areaCorto(areas, p.funcion);
       const corto = `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`;
-      return [{ id: p.id, nombre: corto, entrada: horaADecimal(c.entrada), salida: c.salida ? horaADecimal(c.salida) : HORA_FIN, cuenta, lider, aparte }];
+      const entrada = horaADecimal(c.entrada), salida = c.salida ? horaADecimal(c.salida) : HORA_FIN;
+      // El plan de almacén de un día sin turno se ignora: no hay en qué piso descontarlo.
+      const almacen = tramosEnAlmacen(puestoDe(p.id, iso), { desde: entrada, hasta: salida });
+      return [{ id: p.id, nombre: corto, entrada, salida, cuenta, lider, aparte, almacen }];
     });
+
+  // ── «¿Dónde trabaja ese día?»: piso o almacén planificado (0579) ────────────
+  const [almacenEdit, setAlmacenEdit] = useState<{ personaId: string; fecha: string } | null>(null);
+  const [almacenSel, setAlmacenSel] = useState<PuestoDelDia>(PISO);
+  const [guardandoAlmacen, setGuardandoAlmacen] = useState(false);
+  function abrirAlmacen(personaId: string, fecha: string) {
+    setAlmacenSel(puestoDe(personaId, fecha));
+    setAlmacenEdit({ personaId, fecha });
+  }
+  async function guardarAlmacen() {
+    if (!almacenEdit) return;
+    setGuardandoAlmacen(true);
+    const { error } = await supabase.rpc("fn_set_almacen_del_dia", {
+      p_persona_id: almacenEdit.personaId, p_fecha: almacenEdit.fecha, ...argumentosDeGuardado(almacenSel),
+    });
+    setGuardandoAlmacen(false);
+    if (error) { avisar("error", mensajeDeError(error, "guardar dónde trabaja ese día")); return; }
+    const p = personas.find((x) => x.id === almacenEdit.personaId);
+    avisar("ok", `Listo: ${p?.nombres ?? "la persona"} · ${textoPuesto(almacenSel)}.`);
+    setAlmacenEdit(null);
+    await trasGuardar();
+  }
 
   function abrir(personaId: string, fecha: string) {
     const c = celda(personaId, fecha);
@@ -1221,6 +1262,7 @@ export default function TurnosPage() {
                 { titulo: "La meta", texto: "Tiene dos tramos: mañana y tarde (el corte es 14:15). La franja de abajo de cada día compara la gente de cada hora contra la meta de su tramo." },
                 { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma. Quien está en preselección tampoco suma hasta que deje de estarlo: da igual si es practicante o tiene otro cargo." },
                 { titulo: "Las vistas", texto: "Integrada muestra la semana hora por hora y quién está en cada hora, con el resumen de horas al pie; Día, la línea de cada persona en un día." },
+                { titulo: "Piso o almacén", texto: "En Día, toca la barra de una persona para decir si ese día trabaja en piso, todo el turno en almacén o unas horas en almacén (con una sugerencia de las horas en que el piso aguanta sin ella). Se planifica de hoy en adelante. Quien está en almacén no cuenta en piso, y no cambia su turno, sus horas ni su pago." },
               ]}
             />
           }
@@ -1377,6 +1419,11 @@ export default function TurnosPage() {
                     <span aria-hidden className="inline-block h-3 w-6 rounded-full border border-dashed border-taupe/60" />
                     No suma a la meta (preselección u otra área)
                   </span>
+                  <span className="flex items-center gap-1.5">
+                    <span aria-hidden className="inline-block h-3 w-6 rounded-full border"
+                      style={{ background: "color-mix(in srgb, var(--color-azul) 10%, var(--color-papel))", borderColor: "color-mix(in srgb, var(--color-azul) 45%, transparent)" }} />
+                    En almacén: no cuenta en piso
+                  </span>
                 </div>
                 <p className="max-w-3xl text-xs text-taupe">
                   Arriba de cada casilla, cuántas hay en piso en el peor momento de esa hora contra la meta. «entra» y «sale» marcan a
@@ -1431,15 +1478,19 @@ export default function TurnosPage() {
                                   {palabra}{c.meta > 0 && !c.fuera ? ` · meta ${c.meta}` : ""}
                                 </span>
                               </button>
-                              <ul className="flex flex-col gap-1">
-                                {c.gente.map((g) => {
+                              {(() => {
+                                // Quien pasa TODA su presencia de esta hora en almacén va aparte y no suma al piso;
+                                // quien pasa solo una parte sigue en piso, con su tramo de almacén al lado.
+                                const ficha = (g: (typeof c.gente)[number]) => {
                                   const tt = delDia.find((x) => x.id === g.id);
                                   const turno = tt ? `${decimalAHHMM(tt.entrada)}–${decimalAHHMM(tt.salida)} · ${fmtH(tt.salida - tt.entrada)} h en tienda ese día` : "";
+                                  const alm = g.almacen.map((x) => `${decimalAHHMM(x.desde)}–${decimalAHHMM(x.hasta)}`).join(", ");
                                   return (
                                     <li key={g.id}>
                                       <button type="button" disabled={!puedeVer} onClick={() => abrir(g.id, iso)}
-                                        title={`${g.nombre}${turno ? ` · ${turno}` : ""}${g.aparte ? ` · ${g.aparte}: no suma a la meta` : ""}${puedeVer ? ". Toca para cambiar su turno." : ""}`}
-                                        className={`flex w-full items-center gap-1.5 rounded-full border bg-papel px-1.5 py-0.5 text-left text-[12.5px] transition-colors enabled:hover:border-taupe disabled:cursor-default ${g.cuenta || g.lider ? "border-sand" : "border-dashed border-taupe/60 text-taupe"}`}>
+                                        title={`${g.nombre}${turno ? ` · ${turno}` : ""}${alm ? ` · en almacén ${alm}` : ""}${g.aparte ? ` · ${g.aparte}: no suma a la meta` : ""}${puedeVer ? ". Toca para cambiar su turno o su puesto." : ""}`}
+                                        className={`flex w-full items-center gap-1.5 rounded-full border bg-papel px-1.5 py-0.5 text-left text-[12.5px] transition-colors enabled:hover:border-taupe disabled:cursor-default ${g.cuenta || g.lider ? "border-sand" : "border-dashed border-taupe/60 text-taupe"}`}
+                                        style={g.soloAlmacen ? { background: "color-mix(in srgb, var(--color-azul) 10%, var(--color-papel))", borderColor: "color-mix(in srgb, var(--color-azul) 45%, transparent)" } : undefined}>
                                         {g.lider ? (
                                           <span aria-label="Líder de equipo" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-tinta text-[9px] font-semibold text-crema">L</span>
                                         ) : (
@@ -1447,13 +1498,26 @@ export default function TurnosPage() {
                                         )}
                                         <span className="min-w-0 truncate">{g.nombre}</span>
                                         {g.aparte && <span className="ml-auto max-w-[6.5rem] shrink-0 truncate text-[10px]">{g.aparte}</span>}
+                                        {!g.soloAlmacen && alm && <span className="ml-auto shrink-0 text-[10.5px] tabular-nums text-azul">alm. {alm}</span>}
                                         {g.entra !== null && <span className="ml-auto shrink-0 text-[10.5px] tabular-nums text-verde">entra {decimalAHHMM(g.entra)}</span>}
                                         {g.sale !== null && <span className="ml-auto shrink-0 text-[10.5px] tabular-nums text-rojo-profundo">sale {decimalAHHMM(g.sale)}</span>}
                                       </button>
                                     </li>
                                   );
-                                })}
-                              </ul>
+                                };
+                                const enAlmacen = c.gente.filter((g) => g.soloAlmacen);
+                                return (
+                                  <>
+                                    <ul className="flex flex-col gap-1">{c.gente.filter((g) => !g.soloAlmacen).map(ficha)}</ul>
+                                    {enAlmacen.length > 0 && (
+                                      <>
+                                        <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-azul">En almacén</span>
+                                        <ul className="flex flex-col gap-1">{enAlmacen.map(ficha)}</ul>
+                                      </>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                           );
                         })}
@@ -1543,42 +1607,9 @@ export default function TurnosPage() {
                       })}
                     </div>
 
-                    {sinTurnos ? (
-                      <TarjetaInfo>
-                        <p className="text-sm text-taupe"><strong>{sinTurnos.texto}.</strong> A nadie de la sede le toca este día.</p>
-                      </TarjetaInfo>
-                    ) : (
-                      <>
-                        <div className="grid gap-4 lg:grid-cols-2">
-                          <TarjetaTramo titulo="Mañana" subtitulo="hasta las 14:15" {...t.manana} gente={t.manana.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} metaEditable={campoMeta("manana")} onAbrir={abrirChip} />
-                          <TarjetaTramo titulo="Tarde" subtitulo="desde las 14:15" {...t.tarde} gente={t.tarde.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} metaEditable={campoMeta("tarde")} onAbrir={abrirChip} />
-                        </div>
-                        <TarjetaTramo
-                          titulo="Líderes" subtitulo="meta plana, todo el día" {...t.lideres} gente={lideresChips} onAbrir={abrirChip}
-                          metaEditable={esAdmin ? (
-                            <CampoMeta
-                              valor={metasEncargadas.get(dia) ?? 0}
-                              etiqueta="Meta de líderes"
-                              titulo={`meta de líderes de todos los ${DIAS_PLURAL[dia]}`}
-                              cuando={`todos los ${DIAS_PLURAL[dia]}`}
-                              onCambio={(v) => editarMetaEncargadas(dia, v)}
-                              onSalir={(v) => comprometerMetaEncargadas(dia, v)}
-                            />
-                          ) : undefined}
-                        />
-                        {sug && (
-                          <p className="text-sm" style={{ color: sug.startsWith("↔") ? "var(--color-ambar)" : "var(--color-rojo)" }}>{sug}</p>
-                        )}
-                        <div className="grid gap-4 lg:grid-cols-2">
-                          <TarjetaGrupo titulo="Sin turno ese día" nota={puedeVer ? "toca a alguien para ponerle turno" : undefined} gente={libres} onAbrir={abrirChip} vacio="Todos tienen turno." />
-                          <TarjetaGrupo titulo="Otras áreas" nota="no suman a la meta" gente={otrasAreas} onAbrir={abrirChip} />
-                        </div>
-                      </>
-                    )}
-
-                    <details open={detalleHora} onToggle={(e) => setDetalleHora((e.target as HTMLDetailsElement).open)}>
-                      <summary className="cursor-pointer text-sm font-medium text-taupe hover:text-tinta">Ver hora por hora</summary>
-                      <div className="mt-3 overflow-x-auto">
+                    {/* LA LÍNEA DEL DÍA, arriba y siempre a la vista (antes vivía plegada en «Ver hora por hora»):
+                        una barra por persona, con su tramo de almacén en azul, y abajo cuántas quedan en piso. */}
+                    <div className="overflow-x-auto">
                         <div className="min-w-[700px] space-y-4">
                           {[iso].map((iso) => {
                 const { abr, num } = etiquetaDia(iso);
@@ -1635,20 +1666,29 @@ export default function TurnosPage() {
                     {personas.map((p) => {
                       const c = celda(p.id, iso);
                       const operativa = esOperativa(p);
+                      const trabajaEseDia = c.tipo === "turno" || c.tipo === "default";
+                      // La barra de quien trabaja abre «¿Dónde trabaja ese día?» (de hoy en adelante: 0579); la de quien
+                      // descansa o no tiene turno abre su turno, igual que su nombre.
+                      const barraAlmacen = puedeVer && trabajaEseDia && iso >= hoyLima();
+                      const almacenDeHoy = trabajaEseDia
+                        ? tramosEnAlmacen(puestoDe(p.id, iso), { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN })
+                        : [];
                       return (
-                        <button key={p.id} onClick={() => abrir(p.id, iso)}
-                          className="flex w-full items-center border-t border-sand/60 text-left transition-colors hover:bg-sand/20">
+                        <div key={p.id} className="flex w-full items-center border-t border-sand/60 transition-colors hover:bg-sand/20">
                           {/* Sin `truncate`: con el nombre y el área más largos que la
                               columna, el recorte se comía justo la etiqueta del área y
                               quedaba «…» —con la barra en ámbar y ninguna explicación de
                               por qué—. Ahora la etiqueta baja de renglón. */}
-                          <span className="flex w-[176px] shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 py-2 text-xs">
+                          <button type="button" onClick={() => abrir(p.id, iso)} title={`Cambiar el turno de ${p.nombres}`}
+                            className="flex w-[176px] shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 py-2 text-left text-xs">
                             <span>{p.nombres} {p.apellidos}</span>
                             {!operativa && (
                               <Insignia variante="advertencia" tamano="sm">{areaCorto(areas, p.funcion)}</Insignia>
                             )}
-                          </span>
-                          <span className="relative h-7 flex-1">
+                          </button>
+                          <button type="button" onClick={() => (barraAlmacen ? abrirAlmacen(p.id, iso) : abrir(p.id, iso))}
+                            title={barraAlmacen ? `¿Piso o almacén? Toca para elegir dónde trabaja ${p.nombres} ese día` : `Cambiar el turno de ${p.nombres}`}
+                            className="relative h-7 flex-1 text-left">
                             {(c.tipo === "turno" || c.tipo === "default") && (() => {
                               const left = pctEnRango(horaADecimal(c.entrada));
                               const right = pctEnRango(c.salida ? horaADecimal(c.salida) : HORA_FIN);
@@ -1680,10 +1720,18 @@ export default function TurnosPage() {
                                   title={tituloBase} />
                               );
                             })()}
+                            {/* El almacén planificado, encima de su barra: no cuenta en piso. */}
+                            {almacenDeHoy.map((a) => (
+                              <span key={a.desde} className="absolute top-1 z-10 flex h-5 items-center overflow-hidden rounded bg-azul px-1 text-[9.5px] font-semibold text-crema"
+                                style={{ left: `${pctEnRango(a.desde)}%`, width: `${Math.max(1, pctEnRango(a.hasta) - pctEnRango(a.desde))}%` }}
+                                title={`Almacén ${decimalAHHMM(a.desde)}–${decimalAHHMM(a.hasta)}`}>
+                                alm.
+                              </span>
+                            ))}
                             {c.tipo === "descanso" && <span className="absolute left-2 top-1.5 rounded bg-sand px-1.5 py-0.5 text-[10px] text-taupe">descanso</span>}
                             {c.tipo === "libre" && <span className="absolute left-2 top-1.5 text-[10px] text-taupe">+</span>}
-                          </span>
-                        </button>
+                          </button>
+                        </div>
                       );
                     })}
 
@@ -1693,20 +1741,31 @@ export default function TurnosPage() {
                     <div className="flex items-stretch border-t-2 border-sand">
                       <span className="w-[176px] shrink-0 px-3 py-2 text-xs text-taupe">Cobertura</span>
                       <div className="relative flex h-8 flex-1 gap-px overflow-hidden">
-                        {horas.map((n, i) => {
-                          const metaHora = metaDeHora(HORA_INICIO + i, metaMan, metaTar);
-                          const e = estiloDeHora(n, metaHora);
-                          return (
-                            <span
-                              key={i}
-                              className="flex flex-1 items-center justify-center text-[11px] font-medium tabular-nums"
-                              style={{ background: e.fondo, color: e.texto }}
-                              title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} persona${n === 1 ? "" : "s"}${metaHora > 0 ? ` (meta ${metaHora})` : ""}`}
-                            >
-                              {n > 0 ? n : ""}
-                            </span>
-                          );
-                        })}
+                        {(() => {
+                          // La misma regla que la Integrada (semana-con-nombres.ts): el peor cuarto de cada hora,
+                          // sin quien está en almacén, y sin medir lo que queda fuera de la primera entrada y la
+                          // última salida del día. Así Día e Integrada dan el mismo número para la misma hora.
+                          const delDia = turnosConNombreDe(iso);
+                          return horas.map((_, i) => {
+                            const cel = celdaConNombres({
+                              turnos: delDia, hora: HORA_INICIO + i,
+                              metaEn: (x) => metaDeHora(x, metaMan, metaTar), metaLideres: metaEnc,
+                            });
+                            const n = cel.fuera ? 0 : cel.enPiso;
+                            const e = estiloDeHora(n, cel.fuera ? 0 : cel.meta);
+                            const enAlm = cel.gente.filter((g) => g.almacen.length > 0).length;
+                            return (
+                              <span
+                                key={i}
+                                className="flex flex-1 items-center justify-center text-[11px] font-medium tabular-nums"
+                                style={{ background: e.fondo, color: e.texto }}
+                                title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} en piso en el peor momento${cel.meta > 0 ? ` (meta ${cel.meta})` : ""}${enAlm ? ` · ${enAlm} en almacén parte o toda la hora` : ""}`}
+                              >
+                                {cel.fuera ? "" : n}
+                              </span>
+                            );
+                          });
+                        })()}
                         {/* Si nadie de un área operativa trabaja ese día, la franja no
                             tiene nada que contar: se dice, en vez de dejar un bloque
                             que parezca «todo cubierto». */}
@@ -1722,7 +1781,39 @@ export default function TurnosPage() {
               })}
                         </div>
                       </div>
-                    </details>
+                    {sinTurnos ? (
+                      <TarjetaInfo>
+                        <p className="text-sm text-taupe"><strong>{sinTurnos.texto}.</strong> A nadie de la sede le toca este día.</p>
+                      </TarjetaInfo>
+                    ) : (
+                      <>
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <TarjetaTramo titulo="Mañana" subtitulo="hasta las 14:15" {...t.manana} gente={t.manana.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} metaEditable={campoMeta("manana")} onAbrir={abrirChip} />
+                          <TarjetaTramo titulo="Tarde" subtitulo="desde las 14:15" {...t.tarde} gente={t.tarde.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} metaEditable={campoMeta("tarde")} onAbrir={abrirChip} />
+                        </div>
+                        <TarjetaTramo
+                          titulo="Líderes" subtitulo="meta plana, todo el día" {...t.lideres} gente={lideresChips} onAbrir={abrirChip}
+                          metaEditable={esAdmin ? (
+                            <CampoMeta
+                              valor={metasEncargadas.get(dia) ?? 0}
+                              etiqueta="Meta de líderes"
+                              titulo={`meta de líderes de todos los ${DIAS_PLURAL[dia]}`}
+                              cuando={`todos los ${DIAS_PLURAL[dia]}`}
+                              onCambio={(v) => editarMetaEncargadas(dia, v)}
+                              onSalir={(v) => comprometerMetaEncargadas(dia, v)}
+                            />
+                          ) : undefined}
+                        />
+                        {sug && (
+                          <p className="text-sm" style={{ color: sug.startsWith("↔") ? "var(--color-ambar)" : "var(--color-rojo)" }}>{sug}</p>
+                        )}
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <TarjetaGrupo titulo="Sin turno ese día" nota={puedeVer ? "toca a alguien para ponerle turno" : undefined} gente={libres} onAbrir={abrirChip} vacio="Todos tienen turno." />
+                          <TarjetaGrupo titulo="Otras áreas" nota="no suman a la meta" gente={otrasAreas} onAbrir={abrirChip} />
+                        </div>
+                      </>
+                    )}
+
                   </>
                 );
               })()
@@ -1733,11 +1824,118 @@ export default function TurnosPage() {
         {vista === "dia" && !cargando && (
           <p className="mt-3 text-xs text-taupe">
             Cada barra es el rango de entrada–salida del turno de esa persona ese día (más clarita = horario por
-            defecto del periodo, no se fijó turno puntual). El mapa de calor de abajo cuenta solo a las{" "}
-            <strong>áreas operativas de sede</strong> ({areas.filter((a) => a.operativa && a.activa).map((a) => a.nombre).join(", ")}
-            ) — más verde = más cerca de la meta de ese tramo (mañana o tarde). El área se cambia en Equipo.
+            defecto del periodo, no se fijó turno puntual). En <strong className="text-azul">azul</strong>, lo que pasa en almacén:
+            toca la barra para elegir piso o almacén, y el nombre para cambiar su turno. La fila de abajo cuenta, en el peor
+            momento de cada hora, a las <strong>áreas operativas de sede</strong> que están en piso
+            ({areas.filter((a) => a.operativa && a.activa).map((a) => a.nombre).join(", ")}): la misma cuenta de la Integrada.
+            El área se cambia en Equipo.
           </p>
         )}
+
+        {/* «¿Dónde trabaja ese día?»: piso, todo el turno en almacén o tramos (0579). */}
+        {almacenEdit && (() => {
+          const { personaId, fecha } = almacenEdit;
+          const p = personas.find((x) => x.id === personaId);
+          const c = celda(personaId, fecha);
+          if (!p || (c.tipo !== "turno" && c.tipo !== "default")) return null;
+          const turno: TramoDecimal = { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN };
+          const { abr, num } = etiquetaDia(fecha);
+          const dia = diaSemana(fecha);
+          const metaEn = (x: number) => metaDeHora(x, metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0);
+          const delDia = turnosConNombreDe(fecha);
+          const otras = delDia.filter((x) => x.id !== personaId);
+          const enAlm = (x: TurnoConNombre, h: number) => (x.almacen ?? []).some((a) => a.desde <= h && h < a.hasta);
+          const enPisoSinElla = (h: number) => otras.filter((x) => x.cuenta && x.entrada <= h && h < x.salida && !enAlm(x, h)).length;
+          const sugerido = sugerirTramo({ turno, enPisoSinElla, metaEn });
+          const modo: "piso" | "todo" | "tramos" = almacenSel.todoElTurno ? "todo" : almacenSel.tramos.length > 0 ? "tramos" : "piso";
+          const problema = modo === "tramos" ? problemaDeTramos(almacenSel.tramos, turno) : null;
+          // Cómo queda el piso con este plan: el peor momento de su turno, con la misma cuenta de la Integrada.
+          const yo = delDia.find((x) => x.id === personaId);
+          const conPlan = yo ? [...otras, { ...yo, almacen: tramosEnAlmacen(almacenSel, turno) }] : otras;
+          let peor: { hora: number; n: number; meta: number } | null = null;
+          for (let h = Math.floor(turno.desde); h < Math.ceil(turno.hasta); h++) {
+            const cel = celdaConNombres({ turnos: conPlan, hora: h, metaEn, metaLideres: 0 });
+            if (cel.fuera || cel.meta === 0) continue;
+            if (!peor || cel.enPiso - cel.meta < peor.n - peor.meta) peor = { hora: h, n: cel.enPiso, meta: cel.meta };
+          }
+          const cambiarTramo = (i: number, campo: "desde" | "hasta", valor: string) => {
+            if (!valor) return;
+            const [hh, mm] = valor.split(":").map(Number);
+            const tramos = almacenSel.tramos.map((t, k) => (k === i ? { ...t, [campo]: (hh ?? 0) + (mm ?? 0) / 60 } : t));
+            setAlmacenSel({ todoElTurno: false, tramos });
+          };
+          const agregarTramo = () => {
+            const ultimo = almacenSel.tramos[almacenSel.tramos.length - 1];
+            const base = ultimo ? { desde: ultimo.hasta, hasta: Math.min(turno.hasta, ultimo.hasta + 1) } : (sugerido ?? { desde: turno.desde, hasta: Math.min(turno.hasta, turno.desde + 2) });
+            setAlmacenSel({ todoElTurno: false, tramos: [...almacenSel.tramos, base] });
+          };
+          return (
+            <Modal abierto onCerrar={() => setAlmacenEdit(null)} bloqueado={guardandoAlmacen} ancho="sm"
+              titulo={`¿Dónde trabaja ${p.nombres} el ${abr} ${num}?`}>
+              <div className="space-y-4">
+                <p className="text-sm text-taupe">
+                  Su turno es de {decimalAHHMM(turno.desde)} a {decimalAHHMM(turno.hasta)}. Esto no cambia su turno, sus horas ni su pago:
+                  solo dice si está en piso o en almacén. Lo ve en «Mis turnos».
+                </p>
+                {puestos === null && (
+                  <BannerAviso variante="advertencia" className="text-sm">
+                    No se pudo leer el plan de almacén. Si la migración 0579 todavía no está pegada, aún no se puede guardar.
+                  </BannerAviso>
+                )}
+                <div role="group" aria-label="Dónde trabaja" className="flex flex-wrap gap-2">
+                  <Filtro activo={modo === "piso"} onClick={() => setAlmacenSel(PISO)}>En piso</Filtro>
+                  <Filtro activo={modo === "todo"} onClick={() => setAlmacenSel({ todoElTurno: true, tramos: [] })}>Todo el turno en almacén</Filtro>
+                  <Filtro activo={modo === "tramos"} onClick={() => setAlmacenSel({ todoElTurno: false, tramos: almacenSel.tramos.length ? almacenSel.tramos : sugerido ? [sugerido] : [{ desde: turno.desde, hasta: Math.min(turno.hasta, turno.desde + 2) }] })}>
+                    Unas horas en almacén
+                  </Filtro>
+                </div>
+                {modo === "tramos" && (
+                  <div className="space-y-2">
+                    {almacenSel.tramos.map((t, i) => (
+                      <div key={i} className="flex flex-wrap items-end gap-2">
+                        <Campo etiqueta={i === 0 ? "Va al almacén" : undefined} type="time" step={900} value={aHHMM(t.desde)} onChange={(e) => cambiarTramo(i, "desde", e.target.value)} aria-label={`Tramo ${i + 1}: va al almacén`} />
+                        <Campo etiqueta={i === 0 ? "Vuelve a piso" : undefined} type="time" step={900} value={aHHMM(t.hasta)} onChange={(e) => cambiarTramo(i, "hasta", e.target.value)} aria-label={`Tramo ${i + 1}: vuelve a piso`} />
+                        <Boton variante="enlace" onClick={() => setAlmacenSel({ todoElTurno: false, tramos: almacenSel.tramos.filter((_, k) => k !== i) })}>Quitar</Boton>
+                      </div>
+                    ))}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Boton variante="secundario" tamano="sm" onClick={agregarTramo}>Agregar otro tramo</Boton>
+                      {sugerido && !almacenSel.tramos.some((t) => t.desde === sugerido.desde && t.hasta === sugerido.hasta) && (
+                        <Boton variante="enlace" onClick={() => setAlmacenSel({ todoElTurno: false, tramos: [sugerido] })}>
+                          Usar el sugerido: {decimalAHHMM(sugerido.desde)}–{decimalAHHMM(sugerido.hasta)}
+                        </Boton>
+                      )}
+                    </div>
+                    <p className="text-xs text-taupe">
+                      {sugerido
+                        ? `Sugerido: de ${decimalAHHMM(sugerido.desde)} a ${decimalAHHMM(sugerido.hasta)}, las dos horas de su turno en que el piso queda más holgado sin ella.`
+                        : "Ninguna franja de dos horas de su turno deja el piso con su meta sin ella: si va igual, el piso queda corto."}
+                    </p>
+                    {problema && <p role="alert" className="text-sm text-rojo-profundo">{problema}</p>}
+                  </div>
+                )}
+                {!esPiso(almacenSel) && peor && (
+                  peor.n < peor.meta ? (
+                    <BannerAviso variante="advertencia" className="text-sm">
+                      El piso queda corto: a las {String(peor.hora).padStart(2, "0")}:00 quedan {peor.n} en piso y la meta es {peor.meta}.
+                    </BannerAviso>
+                  ) : (
+                    <p className="text-sm text-taupe">
+                      En el peor momento de su turno quedan {peor.n} en piso (meta {peor.meta}), a las {String(peor.hora).padStart(2, "0")}:00.
+                    </p>
+                  )
+                )}
+                <div className="flex justify-end gap-2">
+                  <Boton variante="secundario" disabled={guardandoAlmacen} onClick={() => setAlmacenEdit(null)}>Cancelar</Boton>
+                  <Boton variante="primario" disabled={guardandoAlmacen || puestos === null || Boolean(problema)} cargando={guardandoAlmacen}
+                    onClick={() => void guardarAlmacen()}>
+                    Guardar
+                  </Boton>
+                </div>
+              </div>
+            </Modal>
+          );
+        })()}
 
         {edit && (() => {
           const p = personas.find((x) => x.id === edit.personaId);
@@ -1819,6 +2017,18 @@ export default function TurnosPage() {
                       <strong>De aquí en adelante</strong> cambia su horario base de los {DIAS_PLURAL[diaSemana(edit.fecha)]} desde esta fecha y no deja turno puntual.
                     </p>
                   </div>
+                  {/* Desde la Integrada, tocar un nombre abre este editor: de aquí se llega al almacén de ese día. */}
+                  {(() => {
+                    const ce = celda(edit.personaId, edit.fecha);
+                    if ((ce.tipo !== "turno" && ce.tipo !== "default") || edit.fecha < hoyLima()) return null;
+                    return (
+                      <p className="mt-3 text-sm">
+                        <Boton variante="enlace" disabled={guardando} onClick={() => { const e = edit; setEdit(null); abrirAlmacen(e.personaId, e.fecha); }}>
+                          ¿Piso o almacén ese día? Ahora: {textoPuesto(puestoDe(edit.personaId, edit.fecha))}
+                        </Boton>
+                      </p>
+                    );
+                  })()}
                   <div className="mt-3 flex flex-wrap justify-between gap-2">
                     <div className="flex gap-2">
                       <Boton variante="secundario" disabled={guardando} onClick={marcarDescanso}>Descanso</Boton>
