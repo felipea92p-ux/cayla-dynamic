@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { rangoDelDiaLima } from "@cayla-dynamic/shared";
+import { sumarDias } from "@/lib/mi-semana";
 import { Boton } from "@/components/ui/boton";
 import { Filtro } from "@/components/ui/filtro";
 import { AreaTexto } from "@/components/ui/area-texto";
@@ -98,7 +100,7 @@ export function EsteDiaNoMeCalza({ supabase, personaId, semana }: {
   };
 
   // Lo abierto, y lo respondido de los últimos 30 días: lo viejo ya está en su Bandeja.
-  const hace30 = Date.now() - 30 * 86400_000;
+  const hace30 = Date.parse(rangoDelDiaLima(sumarDias(semana.hoy, -30)).inicio);
   const visibles = pedidos.filter((p) => p.estado === "abierto"
     || (p.estado === "resuelto" && p.resuelto_at && Date.parse(p.resuelto_at) >= hace30));
 
