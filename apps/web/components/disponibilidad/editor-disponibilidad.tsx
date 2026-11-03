@@ -39,7 +39,7 @@ export interface EnvioDisponibilidad {
 type Hasta = "sin_fin" | "fin_ciclo" | "fecha";
 
 // Un día se marca con UN toque, sin desplegables encadenados: el color nunca va
-// solo, cada opción lleva su ícono y su palabra. «Depende de la hora» abre sus tramos, y
+// solo, cada opción lleva su ícono y su palabra. «Por horas» abre sus tramos, y
 // cada tramo dice su propio estado (antes era un desplegable «Solo algunas
 // horas» y, adentro, otro «No puedo»: se leía como una doble negación).
 const MODOS: { valor: ModoDia; label: string; icono: LucideIcon }[] = [
@@ -47,7 +47,7 @@ const MODOS: { valor: ModoDia; label: string; icono: LucideIcon }[] = [
   { valor: "prefiere_trabajar", label: "Prefiero trabajar", icono: ThumbsUp },
   { valor: "prefiere_no", label: "Prefiero no", icono: CircleAlert },
   { valor: "no_puede", label: "No puedo", icono: Ban },
-  { valor: "horas", label: "Depende de la hora", icono: Clock },
+  { valor: "horas", label: "Por horas", icono: Clock }, // antes «Depende de la hora»: Felipe lo pidió más formal (2026-11-03)
 ];
 
 const ESTADOS: { valor: EstadoBloque; label: string }[] = [
@@ -186,7 +186,7 @@ export function EditorDisponibilidad({
                   {dia.modo === "horas" && (
                     <div className="flex flex-col gap-3 border-l-2 border-sand pl-3">
                       <p className="text-sm text-taupe">
-                        Marca las horas y di qué pasa en cada una. El resto del día queda como «Puedo».
+                        Marca las horas y elige qué aplica en cada una. El resto del día queda como «Puedo».
                       </p>
                       {dia.tramos.map((t, i) => (
                         <div key={i} className="flex flex-wrap items-center gap-2 text-sm">

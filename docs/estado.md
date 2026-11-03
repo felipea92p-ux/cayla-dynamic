@@ -9,7 +9,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 ## 2026-11-03 — «Prefiero trabajar» en la disponibilidad · migración **0591 SIN PEGAR** · prueba 481 · rama `claude/exciting-clarke-npajc5`
 
 **De dónde sale.** Felipe (2026-11-03), tras ver «Mi disponibilidad» en el teléfono: que cada día se marque con un toque (Puedo · Prefiero no ·
-No puedo · Depende de la hora, ya fusionado en el #663) y que además exista **«Prefiero trabajar»**. La decisión de que Turnos lo use para
+No puedo · Por horas —«Depende de la hora» en el #663; Felipe lo pidió más formal el mismo día—) y que además exista **«Prefiero trabajar»**. La decisión de que Turnos lo use para
 priorizar la dio él: «sí, hazlo con prefiero trabajar».
 
 **0591 (no mueve plata, no reescribe ninguna función).** Dos CHECK con nombre propio: `disponibilidad_bloques.estado` acepta
