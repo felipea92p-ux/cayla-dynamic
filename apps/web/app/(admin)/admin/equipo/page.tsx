@@ -1519,6 +1519,13 @@ export default function EquipoPage() {
             onChange={(e) => setForm({ ...form, fechaIngreso: e.target.value })}
             className="rounded-lg border px-3 py-2"
           />
+          {/* Una fecha futura es válida (alguien que empieza pronto). Se dice qué pasa mientras tanto,
+              porque el terminal y el pago se rigen por esta fecha y no por cuándo se cargó la ficha. */}
+          {form.fechaIngreso > hoyLima() && (
+            <span className="text-xs text-taupe">
+              Todavía no ingresa: no aparece en el terminal ni puede marcar hasta ese día, y no se le cuenta nada antes.
+            </span>
+          )}
           {(() => {
             const primera = editandoId ? ingresos.get(editandoId)?.primera_entrada : null;
             if (!primera || primera === form.fechaIngreso) return null;
