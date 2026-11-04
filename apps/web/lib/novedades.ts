@@ -127,6 +127,17 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-11-04-aviso-de-constancias-sin-estorbar",
+    fecha: "2026-11-04",
+    titulo: "El aviso de constancias pendientes ya no se te cruza al ir a leerlas",
+    queMejoro:
+      "Antes, al pulsar «Leer y dejar constancia» el aviso volvía a aparecer encima del documento que querías leer, " +
+      "y cuando había varias constancias pendientes se salía de la pantalla sin poder bajar. Ahora el aviso cabe en la " +
+      "pantalla y tiene su propio scroll, y no te sigue a la pantalla donde dejas la constancia.\n\n" +
+      "Si pulsas «Ahora no», no vuelve a salir en esa visita; al recargar la página sí, hasta que dejes la constancia.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-03-cambiar-con-una-companera",
     fecha: "2026-11-03",
     titulo: "Ya puedes cambiarte el turno de un día con una compañera",

@@ -18,9 +18,10 @@
 //     urgente un domingo, y ese precio no lo paga la ley.
 //   · NO firma nada por nadie. Lleva a la pantalla donde se firma y ahí la
 //     persona lee y decide. El valor probatorio del acuse depende justo de eso.
-//   · NO se guarda que lo cerraste. Vuelve a salir en la siguiente visita, y
-//     desaparece para siempre en cuanto firmas. Recordar el «ahora no» sería
-//     construir la forma de que nunca se firme.
+//   · NO se guarda que lo cerraste. Se recuerda solo en memoria: vuelve a salir
+//     al recargar, y desaparece para siempre en cuanto firmas. Guardar el
+//     «ahora no» sería construir la forma de que nunca se firme.
+//   · NO sale en las pantallas donde se firma: ahí taparía el documento.
 //
 // EL AVISO DEL MENÚ, QUE APLICA A MEDIAS. `nav.tsx` dice —con razón— que «un
 // aviso que aparece en todos lados deja de ser un aviso», y por eso solo tiene
@@ -31,9 +32,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { traerAcusesPendientes, type AcusePendiente } from "@/lib/acuses-pendientes";
+import { Modal } from "@/components/ui/modal";
+import {
+  avisoYaCerrado,
+  esPantallaDeConstancia,
+  recordarAvisoCerrado,
+  traerAcusesPendientes,
+  type AcusePendiente,
+} from "@/lib/acuses-pendientes";
 
 // QUÉ falta acusar se decide en lib/acuses-pendientes.ts, no acá: la Bandeja
 // cuenta lo mismo que este aviso enseña, y dos copias del mismo
@@ -41,11 +50,11 @@ import { traerAcusesPendientes, type AcusePendiente } from "@/lib/acuses-pendien
 
 export function AcusesPendientes() {
   const persona = usePersonaActual();
+  const enPantallaDeConstancia = esPantallaDeConstancia(usePathname() ?? "");
   const [pendientes, setPendientes] = useState<AcusePendiente[]>([]);
-  const [cerrado, setCerrado] = useState(false);
 
   useEffect(() => {
-    if (!persona) return;
+    if (!persona || enPantallaDeConstancia || avisoYaCerrado(persona.id)) return;
     let vivo = true;
     const supabase = createAdminSupabaseClient();
 
@@ -57,60 +66,61 @@ export function AcusesPendientes() {
 
     return () => { vivo = false; };
     // `persona` y no `persona.id`: si cambia la sesión, se vuelve a preguntar.
-  }, [persona]);
+  }, [persona, enPantallaDeConstancia]);
 
-  if (cerrado || pendientes.length === 0) return null;
+  function cerrar() {
+    if (persona) recordarAvisoCerrado(persona.id);
+    setPendientes([]);
+  }
 
   const uno = pendientes.length === 1;
 
+  // Un <Modal> y no un `fixed inset-0` a mano: el Modal acota su alto al 90 % de
+  // la pantalla y hace scroll por dentro. La caja de antes crecía con la lista
+  // (seis constancias ya la sacaban de la pantalla, sin scroll), no atrapaba el
+  // foco y no cerraba con Escape.
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="acuses-titulo"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+    <Modal
+      abierto={pendientes.length > 0 && !enPantallaDeConstancia}
+      onCerrar={cerrar}
+      titulo={uno ? "Te falta dejar una constancia" : `Te faltan ${pendientes.length} constancias`}
+      ancho="lg"
     >
-      <div className="w-full max-w-lg rounded-2xl border border-taupe/35 bg-papel p-6">
-        <h2 id="acuses-titulo" className="font-serif text-xl text-tinta">
-          {uno ? "Te falta dejar una constancia" : "Te faltan dos constancias"}
-        </h2>
+      <p className="text-sm text-taupe">
+        CAYLA tiene que poder demostrar que te informó de esto, y la única forma
+        es que lo dejes tú desde tu propia cuenta. Se lee en un minuto y no
+        firmas ningún compromiso: dejas constancia de haber sido informada.
+      </p>
 
-        <p className="mt-2 text-sm text-taupe">
-          CAYLA tiene que poder demostrar que te informó de esto, y la única forma
-          es que lo dejes tú desde tu propia cuenta. Se lee en un minuto y no
-          firmas ningún compromiso: dejas constancia de haber sido informada.
-        </p>
+      <ul className="mt-4 space-y-2">
+        {pendientes.map((x) => (
+          <li key={x.clave} className="rounded-xl border border-sand bg-hueso p-3">
+            <p className="text-sm font-medium text-tinta">{x.titulo}</p>
+            {x.detalle && <p className="mt-0.5 text-xs text-taupe">{x.detalle}</p>}
+            {/* Nativo a propósito: es un <Link> de navegación, no un
+                <button> — <Boton> no acepta href (mismo criterio que los
+                <Link> "Ver documento" ya dejados nativos en otras pantallas
+                migradas). */}
+            <Link
+              href={x.href}
+              onClick={cerrar}
+              className="mt-2 inline-block rounded-lg bg-tinta px-3 py-1.5 text-xs text-crema hover:bg-tinta/90"
+            >
+              Leer y dejar constancia
+            </Link>
+          </li>
+        ))}
+      </ul>
 
-        <ul className="mt-4 space-y-2">
-          {pendientes.map((x) => (
-            <li key={x.clave} className="rounded-xl border border-sand bg-hueso p-3">
-              <p className="text-sm font-medium text-tinta">{x.titulo}</p>
-              {x.detalle && <p className="mt-0.5 text-xs text-taupe">{x.detalle}</p>}
-              {/* Nativo a propósito: es un <Link> de navegación, no un
-                  <button> — <Boton> no acepta href (mismo criterio que los
-                  <Link> "Ver documento" ya dejados nativos en otras pantallas
-                  migradas). */}
-              <Link
-                href={x.href}
-                onClick={() => setCerrado(true)}
-                className="mt-2 inline-block rounded-lg bg-tinta px-3 py-1.5 text-xs text-crema hover:bg-tinta/90"
-              >
-                Leer y dejar constancia
-              </Link>
-            </li>
-          ))}
-        </ul>
-
-        {/* Nativo a propósito: arranca en text-taupe y oscurece a text-tinta en
-            hover — lo opuesto a <Boton variante="enlace"> (hover:text-taupe).
-            Forzarlo invertiría la dirección del único cambio visible. */}
-        <button
-          onClick={() => setCerrado(true)}
-          className="mt-4 text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta"
-        >
-          Ahora no — me lo recuerdas la próxima vez
-        </button>
-      </div>
-    </div>
+      {/* Nativo a propósito: arranca en text-taupe y oscurece a text-tinta en
+          hover — lo opuesto a <Boton variante="enlace"> (hover:text-taupe).
+          Forzarlo invertiría la dirección del único cambio visible. */}
+      <button
+        onClick={cerrar}
+        className="mt-4 text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta"
+      >
+        Ahora no — me lo recuerdas la próxima vez
+      </button>
+    </Modal>
   );
 }
