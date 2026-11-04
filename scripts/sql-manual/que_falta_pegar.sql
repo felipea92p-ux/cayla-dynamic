@@ -449,7 +449,8 @@ with repo(numero, nombre, nunca) as (values
     (589, 'la_lider_registra_la_disponibilidad', false),
     (590, 'la_meta_de_cobertura_va_por_rangos_y_por_temporada', false),
     (591, 'prefiero_trabajar_en_la_disponibilidad', false),
-    (592, 'cambiar_el_turno_con_una_companera', false)
+    (592, 'cambiar_el_turno_con_una_companera', false),
+    (594, 'quien_ingresa_despues_no_marca_ni_devenga_antes_de_su_fecha', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
