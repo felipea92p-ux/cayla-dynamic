@@ -310,9 +310,10 @@ con el #650, fusionado por Felipe. Se descartó guardar `'piso'` en lugar de `'t
 ese día: el terminal de la Oficina TRU (`OTRU`, tipo `central`) **no** ofrece el almacén ni a las chicas de tienda, y es lo
 pedido: ellas marcan en la Mac mini de su tienda. Hoy lo ofrecen TRU y AQP; la `003 · Tienda LIM` es `tienda` pero está inactiva.
 
-**Falta medir:** que una Mac mini de tienda se recargue sola con el despliegue SIGUIENTE al #650 (la primera vez hubo que
-recargarlas a mano). Si no lo hace, es la sospecha de *skew protection* anotada en «Aviso de versión nueva»: `/api/version`
-contestaría la versión fijada y la recarga no saltaría nunca, sin ningún error a la vista.
+**Medido (2026-11-03): el terminal se recarga solo.** Tras recargar a mano una vez después del #650, la Mac mini de tienda
+cargó sola el despliegue del #659 (ícono de piso/almacén), sin que nadie la tocara (Felipe: «sí, se actualizó sola»). Así que
+`/api/version` contesta la versión nueva también a una pestaña vieja: la sospecha de *skew protection* no se cumple en el
+terminal.
 
 ## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA** · **0576 SIN PEGAR (por hora con tope semanal)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
 
@@ -1147,7 +1148,8 @@ esperar ≤3 min; si no baja la barra, es esto y el arreglo es pedirle a Vercel 
 
 **El terminal va aparte, con su propio criterio** (desde el 2026-11-03, PR #650): no avisa, se recarga solo, pero únicamente en la
 lista de nombres, sin envío en curso y tras un minuto sin que nadie lo toque (`lib/terminal/recarga-version.ts`). Usa la misma
-`/api/version`, así que la sospecha de *skew protection* de arriba le aplica igual.
+`/api/version`, y ahí se midió el 2026-11-03 que una pestaña vieja SÍ ve la versión nueva (se recargó sola con el #659): la
+sospecha de *skew protection* de arriba no se cumplió, al menos en el terminal.
 
 **Publicar.** No hay migración. Fusionar el PR ES publicar (`main` se publica sola): pedir OK a Felipe.
 
