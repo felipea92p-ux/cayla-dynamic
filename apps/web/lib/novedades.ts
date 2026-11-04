@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-04-ingreso-con-fecha-futura",
+    fecha: "2026-11-04",
+    titulo: "Ya puedes registrar que alguien ingresa en una fecha futura",
+    queMejoro:
+      "En Equipo, al editar a una persona, la «Fecha de ingreso» ahora acepta una fecha posterior a hoy —por ejemplo, " +
+      "alguien que empieza mañana—. Antes decía «no puede ser futura» y no dejaba guardarla.\n\n" +
+      "Mientras esa fecha no llega, la persona no aparece en el terminal de marcaje y no puede registrar marcas. Desde " +
+      "su día de ingreso todo sigue como siempre. Si ya tiene horas marcadas antes de la fecha que pones, el sistema no " +
+      "te deja moverla a una fecha futura.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-03-cambiar-con-una-companera",
     fecha: "2026-11-03",
     titulo: "Ya puedes cambiarte el turno de un día con una compañera",
