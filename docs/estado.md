@@ -27,21 +27,29 @@ el borrador no trae se completa con lo que la persona ya tiene: nunca se publica
 domingo ya terminada, «cumple su jornada» o un neutro «marcó X h de 45» (no dice «faltan»: ahí no se descuentan feriados ni
 ausencias). Lógica en `lib/admin/borrador-semana.ts` con su prueba.
 
-**Sigue (fase 3):** arrastrar en la Integrada (el nombre desde la cobertura) y en Día (la barra), editando el borrador.
+**Freno contra borradores viejos.** Publicar se niega si un día que va a pisar tiene un turno cambiado DESPUÉS de guardar el borrador
+(un cambio con una compañera aprobado, 0592, o uno hecho a mano; se mide con `turnos.created_at`, que cada cambio reescribe) y dice
+cuál. Hoy la salida es descartar y volver a armar, o cambiar ese día a mano.
+
+**Sigue:** (1) Felipe decidió (2026-11-03, «la recomendada») que en vez de negarse en bloque se muestren esos días y se elija día por
+día «mantener lo publicado» (por defecto) o «pisarlo con el borrador», con la base exigiendo la confirmación: va en una migración
+propia que agrega ese parámetro a `fn_turnos_borrador_publicar`. (2) Fase 3: arrastrar en la Integrada y en Día, editando el borrador.
 
 ---
 
-## 2026-11-03 — La líder registra la disponibilidad de su equipo · migración **0589 SIN PEGAR (urgente)** · prueba 479 · fusionada en [#662](https://github.com/felipea92p-ux/cayla-dynamic/pull/662)
+## 2026-11-03 — La líder registra la disponibilidad de su equipo · migración **0589 PEGADA (2026-11-03)** · prueba 479 · fusionada en [#662](https://github.com/felipea92p-ux/cayla-dynamic/pull/662)
 
-**Por qué es urgente.** El #662 se fusionó (y se publicó) ANTES de pegar la 0589: la pantalla ya llama a `fn_disponibilidad_registrar`
-con `p_registro_motivo` y `p_registro_detalle`, y producción tiene la de 8 argumentos. Hasta pegarla, DO y la líder no pueden registrar
-la disponibilidad de otra persona. Enviar la propia no se ve afectado.
+**Orden que no se respetó, y cómo quedó.** El #662 se fusionó (y se publicó) ANTES de pegar la 0589: la pantalla llama a
+`fn_disponibilidad_registrar` con `p_registro_motivo` y `p_registro_detalle`, que la de 8 argumentos no tiene. Quedó pegada el mismo día y
+Felipe la confirmó en el SQL Editor: una sola versión de la función, las dos columnas y el candado, registro `589 · la_lider_registra_la_disponibilidad`
+y md5 de llegada `e9f7c9c0efc2c258275046f473e3a202 · 1609`, idéntico al del repositorio y sin `\r`. Su consulta previa ya devolvía ese md5, o sea que
+alguien la había pegado antes de que se corriera la comprobación; como es repegable, volver a pegarla no cambió nada.
 
 **0589.** Suma `disponibilidades.registro_motivo` y `registro_detalle` (con sus dos candados) y reescribe `fn_disponibilidad_registrar`
 (firma de 10 argumentos: se borra la de 8, no queda sobrecarga). La regla de quién puede es la de aprobar
 (`fn_puede_resolver_disponibilidad`, sin tocar). **Se pega en dos partes, una por una** (columnas; función y registro), con una guardia que
 impide la función sin las columnas. **El md5 de partida se vuelve a pedir a producción el día que se pega** (la consulta está en el
-encabezado de la migración): `6a553cab… · 837`, una versión y sin la columna. Auditada en un Postgres 16 real con la función vieja
+encabezado de la migración): `6a553cab… · 837`, una versión y sin la columna; si ya devuelve el de llegada, ya está pegada. Auditada en un Postgres 16 real con la función vieja
 exacta de la 0584 y stubs de las funciones de las que depende: nueve casos de la puerta, permisos, idempotencia, el archivo entero en una
 transacción y una carrera con un lector. `supabase test db` la corre `db-tests`.
 
