@@ -80,6 +80,41 @@ export function acusesPendientes(
   return lista;
 }
 
+/**
+ * Las pantallas donde se deja la constancia: los `href` de arriba, sin el ancla.
+ *
+ * Ahí el aviso sobra, y además estorba: quien llega a `/admin/normas#doc-…` —desde
+ * este aviso o desde la Bandeja— ya tiene el documento abierto en su propio modal,
+ * y el aviso se le pintaba encima, tapando justo lo que le pedía leer.
+ */
+export function esPantallaDeConstancia(ruta: string): boolean {
+  return ["/admin/politica-salarial", "/admin/normas"].some(
+    (r) => ruta === r || ruta.startsWith(`${r}/`),
+  );
+}
+
+/**
+ * Quién ya respondió al aviso en esta visita, con «Ahora no» o yendo a leer.
+ *
+ * Vive en el módulo y no en el `useState` del componente porque el aviso se monta
+ * en dos árboles distintos: `/mio` y el marco del panel. Ir de uno a otro desmonta
+ * el primero y monta el segundo desde cero, así que con la memoria en el componente
+ * el aviso que acababas de cerrar volvía a abrirse al llegar (2026-11-04).
+ *
+ * Se guarda la persona y no un `true`: la pestaña sobrevive a un cambio de sesión.
+ * Y solo en memoria, a propósito: al recargar se olvida y el aviso vuelve a salir.
+ * Guardarlo en el navegador sería construir la forma de que nunca se firme.
+ */
+let avisoCerradoPor: string | null = null;
+
+export function recordarAvisoCerrado(personaId: string): void {
+  avisoCerradoPor = personaId;
+}
+
+export function avisoYaCerrado(personaId: string): boolean {
+  return avisoCerradoPor === personaId;
+}
+
 /** Las dos consultas, para quien no las tenga ya hechas. */
 export async function traerAcusesPendientes(supabase: ClienteCayla): Promise<AcusePendiente[]> {
   const [pol, docs] = await Promise.all([
