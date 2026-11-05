@@ -21,7 +21,7 @@
       "forma": "identica",
       "en_el_arbol": true,
       "por_que_viaja": "Es el mismo archivo en los dos repositorios, byte por byte. La versión 4 nació aquí para que Retail la pegue; hasta entonces el aviso dice que Retail va atrás, y se cierra solo cuando la pegue.",
-      "huella": "sha256:7a9c5ad48f51f68655e80625a552c6a2e0650f5ed999fbd30a04b40bf6d7045a",
+      "huella": "sha256:e3d8c461d9e540567db471c137bb5c21c222ced5d681a63b362c015259f4af7c",
       "tomada_de": null,
       "tomada_el": null
     }
