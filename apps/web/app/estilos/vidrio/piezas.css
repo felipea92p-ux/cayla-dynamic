@@ -25,6 +25,13 @@
     font-weight: 600;
   }
 
+  /* ---------- Lo que empuja la página de lado ----------
+     Un `grid` sin columnas dadas crece hasta lo que pide su hijo más ancho, aunque ese hijo tenga su propio desplazamiento: así, Equipo y Contratos se salen hoy de la
+     pantalla a 768 px, con o sin vidrio. Con esto la tabla se desplaza dentro de su caja, que es lo que ya querían. */
+  [data-vidrio="panel"] .grid > *:not(.hoja *) {
+    min-width: 0;
+  }
+
   /* ---------- Las líneas: el hilo de las tablas ----------
      Primero, para que las piezas de abajo le ganen. Un botón o un campo conservan el borde que dice que se tocan. */
   [data-vidrio="panel"] .border-sand:not(a, button, input, select, textarea, [role="button"], .hoja, .hoja *),
@@ -401,12 +408,15 @@
     margin-inline: 0;
     gap: 2px;
     padding: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
     border: 0;
     border-radius: 999px;
     background: var(--pozo-fondo);
     box-shadow: var(--pozo-sombra);
   }
   [data-vidrio="panel"] :is(.vidrio-pestanas > button, [role="tablist"] > [role="tab"]):not(.hoja *) {
+    flex: none;
     margin: 0;
     min-height: 36px;
     padding: 0 15px;
