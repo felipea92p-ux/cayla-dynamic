@@ -9802,6 +9802,21 @@ export type Database = {
         Args: { p_periodo_id: string | null }
         Returns: Json
       }
+      fn_liquidaciones_lista: {
+        Args: never
+        Returns: {
+          dias_restantes: number
+          fecha_cese: string
+          fecha_ingreso: string
+          pagada: boolean
+          persona: string
+          persona_id: string
+          sede: string
+          total: number
+          vence_el: string
+          vencido: boolean
+        }[]
+      }
       fn_liquidaciones_pendientes: {
         Args: never
         Returns: {
