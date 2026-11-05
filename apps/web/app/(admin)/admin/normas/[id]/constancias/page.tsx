@@ -314,7 +314,7 @@ export default function ConstanciasDocumentoPage() {
         <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
           <div><dt className="inline text-taupe">Documento: </dt><dd className="inline">{doc.titulo}</dd></div>
           <div><dt className="inline text-taupe">Versión: </dt><dd className="inline">{version}</dd></div>
-          <div><dt className="inline text-taupe">Vigente desde: </dt><dd className="inline">{fechaLarga(doc.vigente_desde)}</dd></div>
+          <div><dt className="inline text-taupe">Vigente desde: </dt><dd className="inline">{fechaLargaLima(doc.vigente_desde)}</dd></div>
           <div><dt className="inline text-taupe">Publicado el: </dt><dd className="inline">{selloLima(doc.publicado_at)}</dd></div>
         </dl>
         {legal && <p className="mt-2 border-t border-sand pt-2 text-taupe">{legal}</p>}
