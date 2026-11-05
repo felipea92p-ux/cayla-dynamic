@@ -4,10 +4,14 @@
 // viven en `globals.css`; este hook solo decide y recuerda CUÁL de las tres
 // está activa, y lo refleja en `data-tema` sobre <html>.
 //
-// "Sistema" no se guarda como valor: es la AUSENCIA de la clave en
-// localStorage, y así el CSS ya sabía leerla (`prefers-color-scheme`) antes
-// de que este hook existiera. Guardarlo como un tercer string habría hecho
-// falta enseñarle a la CSS un tercer estado que no necesita.
+// "Sistema" elegido A MANO sí se guarda ("sistema"), distinto de no haber
+// elegido nada (la AUSENCIA de la clave). La diferencia importa: sin elección
+// manda la configuración global de /admin/apariencia; con "sistema" guardado
+// manda el sistema operativo. Cuando "sistema" se borraba en vez de guardarse,
+// quien pasaba de oscuro a "sistema" veía la pantalla clara y, al recargar o
+// cambiar de pantalla, volvía al oscuro global — como si no hubiera elegido
+// nada. La CSS no necesita un tercer estado: sin atributo `data-tema` ya sigue
+// `prefers-color-scheme`.
 //
 // Arranca en "sistema" para coincidir con el primer render del servidor —
 // donde no hay `localStorage`— y recién se sincroniza con lo guardado DESPUÉS
@@ -63,8 +67,7 @@ export function apariencia(tema: Tema): "claro" | "oscuro" {
 function aplicar(tema: Tema) {
   aplicarAtributo(tema);
   try {
-    if (tema === "sistema") localStorage.removeItem(CLAVE);
-    else localStorage.setItem(CLAVE, tema);
+    localStorage.setItem(CLAVE, tema);
   } catch {
     // localStorage puede fallar (modo privado, cuota llena) — el tema sigue
     // aplicado en esta pestaña, solo no se acuerda entre visitas.
@@ -82,7 +85,7 @@ export function useTema(cliente?: ClienteCayla): [Tema, (tema: Tema) => void] {
       // sin localStorage no hay nada guardado que leer.
     }
 
-    if (guardado === "claro" || guardado === "oscuro") {
+    if (guardado === "claro" || guardado === "oscuro" || guardado === "sistema") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTemaState(guardado);
       return; // preferencia personal: no hace falta preguntarle a la base.
@@ -116,7 +119,7 @@ export function useTema(cliente?: ClienteCayla): [Tema, (tema: Tema) => void] {
           } catch {
             // sin localStorage no hay preferencia personal que respetar aquí.
           }
-          if (personal === "claro" || personal === "oscuro") return;
+          if (personal === "claro" || personal === "oscuro" || personal === "sistema") return;
 
           aplicarAtributo(global);
           setTemaState(global);
