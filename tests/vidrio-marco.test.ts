@@ -133,7 +133,7 @@ const sinAtributo = (css: string) =>
     .replaceAll(':root[data-vidrio="panel"]:not([data-tema="oscuro"])', ":root")
     .replaceAll(':root[data-vidrio="panel"][data-tema="oscuro"]', ':root[data-tema="oscuro"]')
     .replace(/@media screen and \(prefers-color-scheme: dark\) \{[\s\S]*?\n\}\n/g, "")
-    .replace(/@media \(prefers-reduced-transparency: reduce\) \{[\s\S]*?\n\}\n/g, "")
+    .replace(/@media \(prefers-reduced-transparency: reduce\)[^{]*\{[\s\S]*?\n\}\n/g, "")
     .replaceAll(":root[data-vidrio][data-tema=\"oscuro\"]", ':root[data-tema="oscuro"]')
     .replaceAll(":root[data-vidrio]", ":root");
 const TEMAS = temasDe(
@@ -171,5 +171,69 @@ describe.each(["claro", "oscuro"] as const)("se lee sobre el vidrio: %s", (tema)
   });
   it("la marca roja de la fila donde estás se distingue de su ficha: ≥ 3:1", () => {
     expect(contraste(color("var(--color-rojo)", t), color("var(--menu-activa-fondo)", t))).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// Las piezas, medidas como se pintan: sobre lo que de verdad puede haber detrás. La receta del tono es la de piezas.css, con su color puesto.
+const lente = (tono: string, tema: "claro" | "oscuro") =>
+  tema === "claro"
+    ? `linear-gradient(180deg, color-mix(in srgb, var(--color-vidrio) 73%, var(--color-${tono}) 7%), color-mix(in srgb, var(--color-vidrio) 42%, var(--color-${tono}) 8%))`
+    : `linear-gradient(180deg, color-mix(in srgb, var(--color-${tono}) 22%, transparent), color-mix(in srgb, var(--color-${tono}) 12%, transparent))`;
+const avisoDe = (tono: string) =>
+  `linear-gradient(180deg, color-mix(in srgb, var(--color-${tono}) 7%, transparent), color-mix(in srgb, var(--color-${tono}) 3%, transparent)), var(--placa-fondo)`;
+
+describe.each(["claro", "oscuro"] as const)("las piezas se leen: %s", (tema) => {
+  const t = TEMAS[tema];
+  const TARJETA = ["var(--color-crema)", "var(--color-papel)"];
+  const PIEZAS: Array<[nombre: string, letra: string, fondo: string | null, detras: string[]]> = [
+    ["la tarjeta: la letra", "var(--color-tinta)", "var(--serena-fondo)", PAGINA],
+    ["la tarjeta: lo secundario", "var(--color-taupe)", "var(--serena-fondo)", PAGINA],
+    ["una placa dentro de una tarjeta", "var(--color-taupe)", "var(--placa-fondo)", TARJETA],
+    ["el campo: lo que escribes", "var(--color-tinta)", "var(--pozo-fondo)", TARJETA],
+    ["el campo: lo que sugiere", tinte("tinta", 64), "var(--pozo-fondo)", TARJETA],
+    ["el botón secundario", "var(--color-tinta)", "var(--gota-fondo)", PAGINA],
+    ["el botón peligroso", "var(--color-rojo-profundo)", "var(--gota-peligro-fondo)", TARJETA],
+    ["el botón principal", "var(--color-crema)", "var(--ahumado-fondo)", PAGINA],
+    // En oscuro el filtro no es la gota: piezas.css lo pinta con apenas tinta. Va sobre la página o una tarjeta, nunca sobre arena.
+    ["el filtro sin poner", tinte("tinta", 82), tema === "claro" ? "var(--gota-fondo-encima)" : tinte("tinta", 9), TARJETA],
+    ["el filtro puesto", "var(--color-crema)", "var(--ahumado-denso-fondo)", PAGINA],
+    ["la pestaña sin elegir", tinte("tinta", 72), "var(--pozo-fondo)", TARJETA],
+    ["la pestaña elegida", "var(--color-tinta)", "var(--gota-marca)", TARJETA],
+    ["la hoja: la letra", "var(--color-tinta)", "var(--vidrio-hoja-fondo)", PAGINA],
+    ["la hoja: lo secundario", "var(--color-taupe)", "var(--vidrio-hoja-fondo)", PAGINA],
+    ["el menú «⋯»", "var(--color-tinta)", "var(--vidrio-flota-fondo)", PAGINA],
+    ["la insignia ámbar", "var(--color-ambar)", lente("ambar", tema), TARJETA],
+    ["la insignia verde", "var(--color-verde)", lente("verde", tema), TARJETA],
+    ["la insignia roja", "var(--color-rojo-profundo)", lente("rojo", tema), TARJETA],
+    ["la insignia pizarra", "var(--color-pizarra)", lente("pizarra", tema), TARJETA],
+    ["la insignia neutra", "var(--color-tinta)", lente("taupe", tema), TARJETA],
+    ["el aviso ámbar: la letra", "var(--color-tinta)", avisoDe("ambar"), TARJETA],
+    ["el aviso rojo: la letra", "var(--color-tinta)", avisoDe("rojo"), TARJETA],
+    ["el aviso rojo: su título", "var(--color-rojo-profundo)", avisoDe("rojo"), TARJETA],
+    ["el aviso ámbar: su título", "var(--color-ambar)", avisoDe("ambar"), TARJETA],
+    ["el vacío", "var(--color-taupe)", null, ["var(--color-crema)"]],
+  ];
+  it.each(PIEZAS)("%s ≥ 4.5:1", (_n, letra, fondo, detras) => {
+    expect(peorLetra(letra, fondo, t, detras)).toBeGreaterThanOrEqual(UMBRAL.texto);
+  });
+  it("el contorno de un campo y de un filtro se ve: ≥ 3:1", () => {
+    expect(peorBorde("var(--color-borde-control)", t, { fondo: "var(--pozo-fondo)", detras: TARJETA })).toBeGreaterThanOrEqual(UMBRAL.bordeControl);
+    expect(peorBorde("var(--color-borde-control)", t, { fondo: "var(--gota-fondo-encima)", detras: TARJETA })).toBeGreaterThanOrEqual(UMBRAL.bordeControl);
+  });
+});
+
+describe("las reglas de la casa, en las piezas", () => {
+  const piezas = leer("apps/web/app/estilos/vidrio/piezas.css");
+  it("ninguna tarjeta lleva desenfoque: las ventanas viven dentro de las pantallas y quedarían encerradas en ella", () => {
+    const reglaTarjeta = piezas.match(/ul, li, details\)\.bg-papel[^{]*\{[^}]*\}/);
+    expect(reglaTarjeta, "no encontré la regla de la tarjeta").not.toBeNull();
+    expect(reglaTarjeta![0]).not.toContain("backdrop-filter");
+  });
+  it("lo que simula el papel no toma vidrio: las reglas de las piezas excluyen .hoja", () => {
+    for (const bloque of ["bg-tinta:is(.rounded-control", "rounded-control.border-borde-control", ".rounded-pildora[class*=\"bg-ambar/\"]", "button[aria-pressed]:is("]) {
+      const i = piezas.indexOf(bloque);
+      expect(i, bloque).toBeGreaterThan(-1);
+      expect(piezas.slice(i, piezas.indexOf("{", i))).toContain(".hoja");
+    }
   });
 });

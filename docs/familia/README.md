@@ -85,6 +85,8 @@ DESCARTÉ:  copiarlo tal cual, porque se vería mal en todo teléfono en oscuro 
            que nada avise. DESCARTÉ pedirle a Retail que cuelgue sus recetas del atributo, porque le cambia el código por algo que en Dynamic muere el
            día del estreno. DESCARTÉ envolver también clases y `@keyframes`: una clase apunta al HTML de Retail, y un `@keyframes` tiene nombre global y
            pisaría al de Dynamic aunque el vidrio esté apagado.
+           Desde el #1650 de Retail hay dos formas más: `prefers-reduced-transparency` o `prefers-contrast`, y `prefers-contrast` sola. Sus variables viajan; sus reglas,
+           una lista exacta, no: Dynamic las escribe en `estilos/vidrio/piezas.css`, solo para el panel. Si Retail cambia esa lista, la copia se detiene.
 SE ROMPE SI: Retail agrega a recetas.css una forma nueva (`@media (min-width…)`, una clase, un `@keyframes`). La copia se detiene y el aviso lo dice; lo que
            cambie después tampoco llega hasta resolverlo. Es a propósito, y por eso la regla de Retail debe decir que ese archivo es solo variables.
            También, ya con vidrio, si una pieza usa `var(--gota-fondo)` sin colgar ella misma del atributo: apagado, esa propiedad queda en nada.

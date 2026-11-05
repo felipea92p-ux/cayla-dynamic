@@ -1,5 +1,5 @@
 /* GENERADO por scripts/familia/envolver-recetas.mjs. No se edita a mano: se pisa en la próxima toma.
-   Origen: felipea92p-ux/cayla-retail@02135569a50cd38d892b54f134ca2f71fc07a351 apps/web/app/estilos/vidrio/recetas.css (sha256:1822b54f8e57f4c0b5d3c2190145d6c725698382afa7b6083661b3c059160ef7).
+   Origen: felipea92p-ux/cayla-retail@e5b9edd54550cfd4bb7c4fdd76d4a893f45da46e apps/web/app/estilos/vidrio/recetas.css (sha256:445025196a6290e2e7ad5fc5469321d2705149ae00a0c191d8e092eb84a2074d).
    Todo cuelga de :root[data-vidrio]: con el vidrio apagado este archivo no le hace nada a ninguna pantalla. */
 
 /* =====================================================================
@@ -867,3 +867,54 @@
       --insumo-entra-base-abajo: var(--color-papel);
     }
 }
+
+/* ---------- El vidrio que aguanta (ADR-0611, mejora 7) ----------
+   El vidrio es lindo, pero baja el contraste y no todos lo pueden leer. Quien en su aparato pidió menos transparencia o más contraste ve las mismas piezas macizas: nada
+   translúcido detrás y nada desenfocado (Apple pide lo mismo para su Liquid Glass). Es automático, lo decide el sistema operativo, y una receta nueva cuyo fondo sea
+   translúcido se agrega aquí: lo vigila `lib/vidrio-que-aguanta.test.ts`. */
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root[data-vidrio],
+  :root[data-vidrio][data-tema="oscuro"],
+  :root[data-vidrio]:not([data-tema="claro"]) {
+      --gota-fondo: var(--color-papel);
+      --gota-fondo-encima: var(--color-papel);
+      --gota-marca: var(--color-hueso);
+      --gota-chica-fondo: var(--color-papel);
+      --gota-crema-fondo: var(--color-crema);
+      --pozo-fondo: var(--color-hueso);
+      --pozo-encendido-fondo: var(--color-papel);
+      --hundido-fondo: var(--color-hueso);
+      --bandeja-fondo: var(--color-hueso);
+      --hueco-fondo: var(--color-hueso);
+      --tubo-fondo: var(--color-hueso);
+      --estante-tubo-fondo: var(--color-papel);
+      --lente-fondo: var(--color-papel);
+      --lente-avatar-fondo: var(--color-sand);
+      --marco-vidrio-fondo: var(--color-papel);
+      --ahumado-fondo: var(--color-tinta);
+      --ahumado-denso-fondo: var(--color-tinta);
+      --ahumado-hover: var(--color-rojo-profundo);
+      --rojo-vidrio-fondo: var(--color-rojo);
+      --rojo-vidrio-hover: var(--color-rojo-profundo);
+      --gota-roja-fondo: var(--color-rojo);
+      --gota-roja-hover: var(--color-rojo-profundo);
+      --tubo-brillo: none;
+      /* Más contraste no es solo más sólido: sin transparencia, las recetas de arriba (`prefers-reduced-transparency`) también valen aquí. */
+      --vidrio-hoja-fondo: var(--color-papel);
+      --vidrio-pie-fondo: var(--color-papel);
+      --vidrio-flota-fondo: var(--color-papel);
+      --globo-tabla-fondo: var(--color-papel);
+      --cajon-movil-fondo: var(--color-papel);
+      --placa-fondo: var(--color-papel);
+      --lamina-fondo: var(--color-papel);
+      --serena-fondo: var(--color-papel);
+      --serena-fondo-encima: var(--color-papel);
+      --lente-grande-fondo: var(--color-papel);
+      --lamina-mapa-fondo: var(--color-papel);
+      --ticket-placa-fondo: var(--color-papel);
+      --placa-paso-fondo: var(--color-papel);
+    }
+}
+
+/* Más contraste: además de macizo, el texto secundario pasa a tinta y lo que se toca lleva un borde que se ve. */

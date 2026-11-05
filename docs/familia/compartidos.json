@@ -11,8 +11,8 @@
       "forma": "envuelta",
       "en_el_arbol": true,
       "por_que_viaja": "Son 204 variables y ninguna regla: el material del vidrio, sin saber nada de cómo se arma una pieza. No se copia tal cual: pasa por scripts/familia/envolver-recetas.mjs. En esta etapa solo se guarda su huella; el archivo no existe en Dynamic hasta que haya vidrio.",
-      "huella": "sha256:1822b54f8e57f4c0b5d3c2190145d6c725698382afa7b6083661b3c059160ef7",
-      "tomada_de": "02135569a50cd38d892b54f134ca2f71fc07a351",
+      "huella": "sha256:445025196a6290e2e7ad5fc5469321d2705149ae00a0c191d8e092eb84a2074d",
+      "tomada_de": "e5b9edd54550cfd4bb7c4fdd76d4a893f45da46e",
       "tomada_el": "2026-11-05"
     },
     {

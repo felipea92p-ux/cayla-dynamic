@@ -15,5 +15,5 @@ export function HoraLima() {
     const id = window.setInterval(tic, 30_000);
     return () => window.clearInterval(id);
   }, []);
-  return hora ? <span className="tabular-nums"> · {hora}</span> : null;
+  return hora ? <span className="whitespace-nowrap tabular-nums"> · {hora}</span> : null;
 }

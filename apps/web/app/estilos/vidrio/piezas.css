@@ -113,7 +113,7 @@
     box-shadow: var(--pozo-encendido-sombra);
   }
   /* El buscador de una lista: el mismo pozo, en píldora. */
-  [data-vidrio="panel"] input:is([type="search"], [placeholder^="Buscar"]):not(.hoja *) {
+  [data-vidrio="panel"] input:is([type="search"], [placeholder^="Buscar"]):is(.bg-hueso, .bg-crema, .border-borde-control):not(.hoja *) {
     border-radius: var(--radius-boton);
   }
   [data-vidrio="panel"] :is(input, textarea):not(.hoja *)::placeholder {
@@ -196,6 +196,12 @@
   }
   [data-vidrio="panel"] :is(tr, td).bg-hueso:not(.hoja *) {
     background-color: color-mix(in srgb, var(--color-tinta) 3%, transparent);
+  }
+  /* Una barra pegada sobre lo que corre (el encabezado de Bandeja): vidrio, como la cabecera; sin él, en oscuro quedaba como una franja negra. */
+  [data-vidrio="panel"] div.sticky.bg-crema:not(.hoja *) {
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: var(--vidrio-flota-filtro);
+    backdrop-filter: var(--vidrio-flota-filtro);
   }
   /* La tarjeta que se toca (una cifra que filtra o lleva a otra pantalla): se alza 2 px al pasar. La puesta se hunde, como un campo que ya tiene tu dato. */
   [data-vidrio="panel"] :is(button, a).rounded-superficie.bg-papel:not(.hoja *) {
@@ -367,6 +373,10 @@
     background: var(--ahumado-denso-fondo);
     box-shadow: var(--ahumado-denso-luz);
   }
+  /* Lo de adentro (el número, «1 vencido») hereda la letra: con su color propio no se leía sobre el ahumado, y eso se vio en Bandeja. */
+  [data-vidrio="panel"] button[aria-pressed="true"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) * {
+    color: inherit;
+  }
   [data-vidrio="panel"] button[aria-pressed="true"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *)::before {
     content: "";
     flex: none;
@@ -481,6 +491,10 @@
     font-size: 27px;
     line-height: 1.1;
   }
+  /* El buscador y los atajos son ventanas escritas aparte, con su propio radio. */
+  [data-vidrio="panel"] [role="dialog"].fixed.bg-papel:is(.rounded-xl, .rounded-2xl, .rounded-flotante) {
+    border-radius: var(--radius-tarjeta);
+  }
   @media (min-width: 40rem) {
     [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"] > [role="dialog"].bg-papel.overflow-y-auto {
       border-radius: var(--radius-hoja);
@@ -535,6 +549,12 @@
   [data-vidrio="panel"] [role="dialog"] .sticky:is(.bg-papel, .bg-crema) {
     background: var(--vidrio-pie-fondo);
   }
+  /* Una nota en arena dentro de una hoja («Por qué salió este aviso»): la placa. Solo si tiene relleno: una barra de avance también es `bg-sand`. */
+  [data-vidrio="panel"] [role="dialog"] :is(div, p).bg-sand:is([class*="p-"], [class*="px-"]):not(.sticky, .fixed, .absolute, .rounded-full, .rounded-pildora, .hoja *) {
+    border-color: var(--placa-borde);
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
 
   /* ---------- Quien pidió menos transparencia o más contraste en su aparato ----------
      Las recetas ya pasan a sólido solas (recetas.generado.css); esto es lo que Retail le agrega a las piezas: sin nada desenfocado y, con más contraste, la letra
@@ -548,6 +568,13 @@
     }
   }
   @media (prefers-contrast: more) {
+    /* Con el mismo peso que marca.css y cargados después: colgados de las recetas, los colores de marca les ganarían. */
+    :root[data-vidrio="panel"]:not([data-tema="oscuro"]),
+    :root[data-vidrio="panel"][data-tema="oscuro"] {
+      --color-taupe: var(--color-tinta);
+      --color-taupe-profundo: var(--color-tinta);
+      --color-borde-control: var(--color-tinta);
+    }
     [data-vidrio="panel"] [class*="text-tinta/"] {
       color: var(--color-tinta);
     }
