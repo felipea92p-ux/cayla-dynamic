@@ -1,0 +1,80 @@
+/* El marco con vidrio: el fondo y el botón del tema. Copiado de apps/web/app/estilos/vidrio/marco.css y estilos/tema.css de
+   Retail, colgado del atributo. Va creciendo con el menú y la cabecera. */
+@media screen {
+  /* ---------- El fondo: la aurora ----------
+     Tres nubes muy tenues y quietas detrás de todo: el vidrio necesita algo detrás. Entran una vez con un fundido y no se mueven
+     más. z-index negativo: quedan sobre el crema del <body> y bajo el contenido. */
+  [data-vidrio="panel"] .vidrio-aurora {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  [data-vidrio="panel"] .vidrio-aurora i {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: var(--vidrio-aurora-o);
+    animation: vidrio-aurora-entra 1.4s var(--ease-cayla) both;
+  }
+  [data-vidrio="panel"] .vidrio-aurora i:nth-child(1) {
+    width: 620px; height: 520px; right: 12%; top: -260px;
+    background: var(--color-rojo);
+    --vidrio-aurora-o: 0.12;
+  }
+  [data-vidrio="panel"] .vidrio-aurora i:nth-child(2) {
+    width: 700px; height: 560px; right: -220px; top: 120px;
+    background: var(--color-pizarra);
+    --vidrio-aurora-o: 0.12;
+  }
+  [data-vidrio="panel"] .vidrio-aurora i:nth-child(3) {
+    width: 560px; height: 460px; left: 30%; bottom: -260px;
+    background: var(--color-ambar);
+    --vidrio-aurora-o: 0.1;
+  }
+  :root[data-vidrio="panel"][data-tema="oscuro"] .vidrio-aurora i {
+    --vidrio-aurora-o: 0.1;
+  }
+
+  /* Las envolturas de cada pantalla traen `bg-crema`, que taparía la aurora. Se quitan aquí y no en cada archivo: apagado, el HTML
+     de esas pantallas sigue idéntico. El color de fondo sigue siendo crema: es el del <body>. */
+  [data-vidrio="panel"] .bg-crema.min-h-screen {
+    background-color: transparent;
+  }
+
+  /* ---------- El botón del tema ----------
+     Las dos figuras comparten la celda y el atributo de <html> decide cuál se ve: sale bien desde la primera pintura, sin esperar
+     a React. La luna se ve en claro, porque el clic lleva al oscuro; el sol, en oscuro. */
+  [data-vidrio="panel"] .boton-tema > svg {
+    grid-area: 1 / 1;
+    transition: opacity 0.24s var(--ease-cayla), transform 0.32s var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .boton-tema .tema-sol {
+    opacity: 0;
+    transform: rotate(-60deg) scale(0.6);
+  }
+  :root[data-vidrio="panel"][data-tema="oscuro"] .boton-tema .tema-luna {
+    opacity: 0;
+    transform: rotate(60deg) scale(0.6);
+  }
+  :root[data-vidrio="panel"][data-tema="oscuro"] .boton-tema .tema-sol {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-vidrio="panel"] .vidrio-aurora i {
+      animation: none;
+    }
+    [data-vidrio="panel"] .boton-tema > svg {
+      transition: none;
+    }
+  }
+}
+
+@keyframes vidrio-aurora-entra {
+  from {
+    opacity: 0;
+  }
+}

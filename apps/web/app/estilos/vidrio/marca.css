@@ -1,0 +1,54 @@
+/* Los colores de la familia, con el vidrio encendido. Retail manda: estos valores son los de docs/familia/contrato.json
+   (marca.colores_claro y marca.colores_oscuro), y tests/familia.test.ts falla si divergen. Apagado, nada de esto existe.
+
+   Solo el panel y Lo mío. El terminal sigue con sus colores hasta su módulo: una regla pensada para el panel que se cuela al
+   terminal ya pasó una vez (ver el comentario en globals.css). Y solo en pantalla: lo impreso se queda con el bloque
+   `@media print` de globals.css, porque un contrato no puede salir con vidrio.
+
+   El claro va con `:not([data-tema="oscuro"])` y no sin nada, para ganarle al bloque `prefers-color-scheme: dark` de
+   globals.css: con el vidrio, el tema lo decide el botón de cada aparato y no el sistema operativo (lib/vidrio.ts).
+
+   Un cambio que llega a medias hasta el bloque de piezas: `hueso`. En Retail el oscuro lo pinta MÁS CLARO que la página, y sus
+   campos no lo usan directo sino con la receta del pozo. Los campos de Dynamic todavía pintan `bg-hueso`, así que en oscuro se
+   ven salidos en vez de hundidos hasta que llegue esa receta. */
+@media screen {
+  :root[data-vidrio="panel"]:not([data-tema="oscuro"]) {
+    color-scheme: light;
+    --color-borde-control: #96786a;
+    --color-vidrio: #ffffff;
+    --color-sombra: #1a1a18;
+    --ease-cayla: cubic-bezier(0.32, 0.72, 0.24, 1);
+  }
+
+  :root[data-vidrio="panel"][data-tema="oscuro"] {
+    color-scheme: dark;
+    --color-crema: #1c1a17;
+    --color-papel: #26241f;
+    --color-hueso: #33302a;
+    --color-sand: #403b34;
+    --color-tinta: #f5f0e8;
+    --color-taupe: #c4a898;
+    --color-borde-control: #8d7a6e;
+    --color-rojo: #e8806a;
+    --color-rojo-profundo: #f29a86;
+    --color-verde: #9ccb8d;
+    --color-ambar: #e4b968;
+    --color-pizarra: #a2b8cd;
+    --color-vidrio: #33302a;
+    --color-sombra: #000000;
+    --ease-cayla: cubic-bezier(0.32, 0.72, 0.24, 1);
+  }
+
+  /* El foco de teclado en tinta (P3 del contrato): el rojo es escaso, y el foco aparece en cada Tab. */
+  [data-vidrio="panel"] :focus-visible {
+    outline-color: var(--color-tinta);
+  }
+
+  /* El cambio de tema se funde en toda la página: corto y sin rebote. Sin la API del navegador, o con movimiento reducido,
+     lib/vidrio-tema.ts lo cambia al instante. */
+  :root[data-vidrio="panel"]::view-transition-old(root),
+  :root[data-vidrio="panel"]::view-transition-new(root) {
+    animation-duration: 280ms;
+    animation-timing-function: var(--ease-cayla);
+  }
+}
