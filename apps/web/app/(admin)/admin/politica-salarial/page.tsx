@@ -595,7 +595,7 @@ export default function PoliticaSalarialPage() {
             <footer className="mt-10 border-t border-sand pt-6 print:break-inside-avoid">
               {firmaUrl !== null && puedeEstamparFirmaDeEmpresa(persona?.rol) && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
+                <img src={firmaUrl} alt="" className="firma-tinta mb-1 h-16 object-contain" />
               )}
               <p className="text-sm font-medium text-tinta">{doc.empresa.firmante}</p>
               <p className="text-sm text-taupe">{doc.empresa.cargo} — {doc.empresa.nombre}</p>

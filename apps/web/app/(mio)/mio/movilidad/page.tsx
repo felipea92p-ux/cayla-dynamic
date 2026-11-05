@@ -571,7 +571,7 @@ function MiMovilidadContenido() {
                   <div className="text-center">
                     <div className="flex h-24 items-end justify-center">
                       {miDocumento.firma && (
-                        <img src={miDocumento.firma} alt="" aria-hidden className="block h-24 w-auto max-w-full" />
+                        <img src={miDocumento.firma} alt="" aria-hidden className="firma-tinta block h-24 w-auto max-w-full" />
                       )}
                     </div>
                     <div className="mb-1 border-t border-tinta pt-2 text-xs">{yo?.nombreOficial}</div>
@@ -580,7 +580,7 @@ function MiMovilidadContenido() {
                   <div className="text-center">
                     <div className="flex h-24 items-end justify-center">
                       {firmaEmpresa && (
-                        <img src={firmaEmpresa} alt="" aria-hidden className="block h-24 w-auto max-w-full" />
+                        <img src={firmaEmpresa} alt="" aria-hidden className="firma-tinta block h-24 w-auto max-w-full" />
                       )}
                     </div>
                     <div className="mb-1 border-t border-tinta pt-2 text-xs">{firmanteNombre}</div>
@@ -772,14 +772,14 @@ function MiMovilidadContenido() {
                 <div className="grid grid-cols-2 gap-10 border-t border-sand pt-6">
                   <div>
                     <div className="flex h-16 items-end justify-center">
-                      {miFirma && <img src={miFirma} alt="Tu firma" className="max-h-16" />}
+                      {miFirma && <img src={miFirma} alt="Tu firma" className="firma-tinta max-h-16" />}
                     </div>
                     <p className="border-t border-tinta pt-1 text-center text-xs">{yo?.nombreOficial}</p>
                     <p className="text-center text-xs text-taupe">DNI {yo?.documento ?? "—"} · el/la declarante</p>
                   </div>
                   <div>
                     <div className="flex h-16 items-end justify-center">
-                      {firmaEmpresa && <img src={firmaEmpresa} alt="Firma de la empresa" className="max-h-16" />}
+                      {firmaEmpresa && <img src={firmaEmpresa} alt="Firma de la empresa" className="firma-tinta max-h-16" />}
                     </div>
                     <p className="border-t border-tinta pt-1 text-center text-xs">{firmanteNombre ?? "—"}</p>
                     <p className="text-center text-xs text-taupe">{firmanteCargo ?? "—"} · {EMPRESA.nombre}</p>

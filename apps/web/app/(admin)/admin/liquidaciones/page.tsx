@@ -1496,7 +1496,7 @@ function Desglose({
             Anular — se marcó por error
           </Boton>
           <span className="flex items-center gap-2 text-xs text-taupe">
-            {miFirma && <img src={miFirma} alt="Firma" className="h-6 w-auto" />}
+            {miFirma && <img src={miFirma} alt="Firma" className="firma-tinta h-6 w-auto" />}
             Ya congelada. Volver a marcarla guarda una versión nueva; la anterior queda como histórico.
           </span>
         </div>
@@ -1553,7 +1553,7 @@ function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
           <div className="mt-1">{s(d.persona)}</div>
         </div>
         <div>
-          {miFirma && <img src={miFirma} alt="Firma" className="h-14 w-auto" />}
+          {miFirma && <img src={miFirma} alt="Firma" className="firma-tinta h-14 w-auto" />}
           <div className="w-56 border-t border-tinta pt-1">Por CAYLA</div>
           <div className="mt-1">Fecha: {fechaLarga(hoy)}</div>
         </div>
@@ -1589,7 +1589,7 @@ function Identidad({ p }: { p: PapelesCese }) {
 function FirmaEmpresa({ firmante, firma }: { firmante: FirmanteEmpresa | null; firma: string | null }) {
   return (
     <div className="text-center text-xs">
-      {firma && <img src={firma} alt="Firma" className="mx-auto h-14 w-auto" />}
+      {firma && <img src={firma} alt="Firma" className="firma-tinta mx-auto h-14 w-auto" />}
       <div className="w-56 border-t border-tinta pt-1">{firmante?.nombre ?? "—"}</div>
       {firmante?.dni && <div>DNI N.° {firmante.dni}</div>}
       <div>{firmante?.cargo ?? "Gerencia General"}</div>
