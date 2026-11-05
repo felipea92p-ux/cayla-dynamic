@@ -2,8 +2,9 @@
 // en 46 px (36 en el teléfono). Recibe lo mismo que `CabeceraPagina`, que es quien lo elige según el interruptor.
 //
 // QUÉ VA A LA VISTA Y QUÉ NO
-//   Una frase (texto) va al «?». Lo que no es una frase —«en vivo», un rango de fechas, un dato que cambia— se queda a la vista: la frase explica la
-//   pantalla, pero un dato sirve para decidir, y tenerlo que abrir para verlo sería peor que el párrafo que se quería evitar.
+//   La frase que explica la pantalla va al «?». Lo que no es una frase —«en vivo», un rango de fechas, un total— se queda a la vista: un dato sirve para
+//   decidir, y tenerlo que abrir para verlo sería peor que el párrafo que se quería evitar. Una `descripcion` de texto se toma por frase; quien
+//   trae un dato o un aviso escrito como texto lo envuelve, y quien junta los dos los separa con la prop `vidrio`. Lo decide `CabeceraPagina`.
 
 import type { ReactNode } from "react";
 import { AyudaCabecera } from "@/components/vidrio/ayuda-cabecera";
@@ -11,18 +12,18 @@ import { AyudaCabecera } from "@/components/vidrio/ayuda-cabecera";
 export function CabeceraPaginaVidrio({
   sobretitulo,
   titulo,
-  descripcion,
+  frase,
+  dato,
   ayuda,
   accion,
 }: {
   sobretitulo?: ReactNode;
   titulo: string;
-  descripcion?: ReactNode;
+  frase?: string;
+  dato?: ReactNode;
   ayuda?: ReactNode;
   accion?: ReactNode;
 }) {
-  const frase = typeof descripcion === "string" ? descripcion : null;
-  const dato = typeof descripcion === "string" ? null : descripcion;
   return (
     <div className="vidrio-cabecera mb-5 flex flex-wrap items-center justify-between gap-x-10 gap-y-4 sm:mb-8">
       <div className="min-w-0">

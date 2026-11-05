@@ -28,6 +28,7 @@ export function CabeceraPagina({
   descripcion,
   ayuda,
   accion,
+  vidrio,
 }: {
   /**
    * La línea chica encima del título («Planilla», «Hoja de sede»). Mayúsculas con
@@ -45,9 +46,23 @@ export function CabeceraPagina({
    */
   ayuda?: ReactNode;
   accion?: ReactNode;
+  /**
+   * Con el vidrio, cuando `descripcion` junta un dato y una frase: el dato sigue a la vista y la frase va al «?». Apagado no se usa. El día del
+   * estreno, esto y `descripcion` pasan a ser una sola cosa.
+   */
+  vidrio?: { dato?: ReactNode; frase?: string };
 }) {
   if (interruptoresVidrio().panel) {
-    return <CabeceraPaginaVidrio sobretitulo={sobretitulo} titulo={titulo} descripcion={descripcion} ayuda={ayuda} accion={accion} />;
+    return (
+      <CabeceraPaginaVidrio
+        sobretitulo={sobretitulo}
+        titulo={titulo}
+        frase={vidrio?.frase ?? (typeof descripcion === "string" ? descripcion : undefined)}
+        dato={vidrio ? vidrio.dato : typeof descripcion === "string" ? undefined : descripcion}
+        ayuda={ayuda}
+        accion={accion}
+      />
+    );
   }
   return (
     // `mb-5` en celular (2026-10-06): 32 px de aire bajo el título eran 32 px

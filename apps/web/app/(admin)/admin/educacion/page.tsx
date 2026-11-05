@@ -783,7 +783,7 @@ function EducacionContenido() {
           sobretitulo={sobretituloDeHoy("Pago")}
           titulo="Educación"
           descripcion={puedeGestionar && !cargando
-            ? `${apoyosPagandose} apoyo${apoyosPagandose === 1 ? "" : "s"} pagándose · ${soles(totalMensual)} al mes`
+            ? <>{`${apoyosPagandose} apoyo${apoyosPagandose === 1 ? "" : "s"} pagándose · ${soles(totalMensual)} al mes`}</>
             : undefined}
           accion={puedeGestionar ? (
             <Boton variante="primario"

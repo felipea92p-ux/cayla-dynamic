@@ -1319,6 +1319,7 @@ function DesempenoContenido() {
           sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Desempeño del equipo"
           descripcion={<>Toca una fila para ver sus días · {resumen}</>}
+          vidrio={{ dato: resumen, frase: "Toca una fila para ver sus días." }}
           ayuda={
             <AyudaPantalla titulo="Cómo leer el desempeño" intro="Cada fila es una persona y cada cuadrito, un día: tócalo para ver qué pasó y resolverlo ahí mismo.">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-taupe">

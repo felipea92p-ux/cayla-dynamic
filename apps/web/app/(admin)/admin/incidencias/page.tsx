@@ -511,6 +511,7 @@ function IncidenciasContenido() {
           sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Incidencias"
           descripcion={<>{fechaCorta(desde)} – {fechaCorta(hasta)} · Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya.</>}
+          vidrio={{ dato: <>{fechaCorta(desde)} – {fechaCorta(hasta)}</>, frase: "Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya." }}
           ayuda={
             <AyudaPantalla
               titulo="Cómo se detectan las incidencias"

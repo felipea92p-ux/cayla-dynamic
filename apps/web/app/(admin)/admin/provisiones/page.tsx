@@ -228,6 +228,7 @@ export default function ProvisionesPage() {
           sobretitulo={sobretituloDeHoy("Pago")}
           titulo="Provisiones"
           descripcion={data ? `Obligaciones laborales acumuladas y próximos desembolsos, al ${fechaCorta(data.as_of)}.` : "Obligaciones laborales acumuladas y próximos desembolsos."}
+          vidrio={{ dato: data ? `Al ${fechaCorta(data.as_of)}` : undefined, frase: "Obligaciones laborales acumuladas y próximos desembolsos." }}
           ayuda={
             data ? (
               <AyudaPantalla
