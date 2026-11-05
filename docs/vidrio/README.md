@@ -118,6 +118,9 @@ Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** c
 - En computadora usa todo el ancho. En el teléfono, nada queda tapado por el teclado ni por una barra.
 - Texto con 4.5:1 o más y borde de un control con 3:1 o más, en los dos temas. Sobre vidrio se mide con el degradado real.
 - Alguien sin formación técnica la entiende sin que le expliquen.
+- **Responsive:** se mide en cada parada a 375, 768, 1024, 1280, 1440 y 1920 px. Nada se sale, se corta ni queda apretado, sobre todo el menú, la cabecera y las tablas. Las capturas para Felipe van a 1440 y 375 px, más cualquier ancho donde algo se vea mal.
+- **Pocas palabras:** títulos, botones y etiquetas dicen la palabra exacta. Una explicación larga se recorta a una línea a la vista, y lo que de verdad necesite más va detrás del «?» de vidrio. No se tocan los textos de boletas, contratos, memos y bonos ni lo que tenga valor legal, no se quita un aviso que la persona necesita para decidir, como «No se puede deshacer», y no cambia qué hace ningún botón.
+- **Los textos recortados se muestran:** en cada parada, Felipe los ve antes y después. Si una palabra deja dudas, se le pregunta con la pantalla a la vista.
 
 ## Etapa 3: el estreno
 
