@@ -89,9 +89,10 @@ function IndiceSticky({
 }: { titulos: string[]; activo: string | null; onIr: (t: string) => void }) {
   return (
     <>
-      {/* Desktop: columna fija que se desplaza con la página. */}
+      {/* Desktop: columna fija que se desplaza con la página. `top-20` son los 64 px de la barra superior,
+          que se queda pegada arriba, más 16 de aire: con menos, tapa las primeras entradas del índice. */}
       <nav className="hidden w-56 shrink-0 lg:block">
-        <div className="sticky top-6 flex flex-col gap-0.5 border-l border-sand pl-4">
+        <div className="sticky top-20 flex flex-col gap-0.5 border-l border-sand pl-4">
           {titulos.map((t) => (
             <button
               key={t}
@@ -125,11 +126,12 @@ function IndiceSticky({
 // ── Una sección colapsable con ancla ────────────────────────────────────────
 // El ancla es su propio `id` (seccionSlug), no una ref en un Map: alcanza con
 // document.getElementById para desplazarse, sin mantener una referencia aparte.
+// `scroll-mt-20`: el salto se detiene debajo de la barra superior (64 px), no detrás de ella.
 function SeccionColapsable({
   titulo, abierta, onToggle, children,
 }: { titulo: string; abierta: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
-    <div id={seccionSlug(titulo)} className="mb-3 scroll-mt-6 rounded-superficie border border-sand bg-papel print:rounded-none print:border-0 print:mb-6">
+    <div id={seccionSlug(titulo)} className="mb-3 scroll-mt-20 rounded-superficie border border-sand bg-papel print:rounded-none print:border-0 print:mb-6">
       <button
         onClick={onToggle}
         className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left print:hidden"
