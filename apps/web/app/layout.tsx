@@ -61,7 +61,20 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // El interruptor del diseño nuevo (lib/vidrio.ts). Apagado, esto es `children` a secas y no un `{x && <y />}` junto a
+  // los otros guiones: esa forma deja un hueco en los hijos de <body>, y un hueco cambia el HTML de TODAS las páginas (se
+  // midió comparando dos `next build`: el payload y los ids de `useId`). Va antes de la pantalla, así que corre antes de
+  // que haya algo que pintar.
   const guionVidrio = guionVidrioAntesDePintar();
+  const contenido = guionVidrio ? (
+    <>
+      <script dangerouslySetInnerHTML={{ __html: guionVidrio }} />
+      <VidrioEnRuta />
+      {children}
+    </>
+  ) : (
+    children
+  );
   return (
     <html
       lang="es"
@@ -97,9 +110,6 @@ export default function RootLayout({
               "try{var t=localStorage.getItem('cayla-tema');if(t!=='claro'&&t!=='oscuro'&&t!=='sistema')t=localStorage.getItem('cayla-tema-global');if(t==='claro'||t==='oscuro')document.documentElement.setAttribute('data-tema',t);}catch(e){}",
           }}
         />
-        {/* El interruptor del diseño nuevo (lib/vidrio.ts). Apagado no existe: ni guion ni componente. */}
-        {guionVidrio && <script dangerouslySetInnerHTML={{ __html: guionVidrio }} />}
-        {guionVidrio && <VidrioEnRuta />}
         {/* Safari de iPhone no dispara `:active` en toques salvo que el documento
             tenga un listener de touch propio — sin esto, los botones y enlaces que
             "prenden" al presionar con el dedo solo lo hacían con mouse. */}
@@ -110,7 +120,7 @@ export default function RootLayout({
         />
         {/* Envuelve TODO —admin, terminal, lo mío— para que `useToast()` esté
             disponible desde cualquier pantalla, sin volver a montarlo por ruta. */}
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>{contenido}</ToastProvider>
       </body>
     </html>
   );

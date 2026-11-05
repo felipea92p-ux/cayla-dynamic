@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readdirSync } from "node:fs";
 import path from "node:path";
-import { createElement } from "../apps/web/node_modules/react";
+import { createElement, type ReactElement } from "../apps/web/node_modules/react";
 import { renderToStaticMarkup } from "../apps/web/node_modules/react-dom/server.node.js";
 import {
   aplicarVidrio,
@@ -91,6 +91,16 @@ describe("sin variable, sin atributo", () => {
     expect(html).not.toContain("document.documentElement.setAttribute(\"data-vidrio");
     // Los dos guiones de siempre (el tema y el toque en Safari), y ninguno más.
     expect(html.match(/<script/g)).toHaveLength(2);
+  });
+
+  it("apagado, el árbol de <body> es el de siempre: un hueco cambiaría el HTML de todas las páginas", () => {
+    apagar();
+    // Un `{x && <y />}` apagado no dibuja nada, pero deja un null entre los hijos: ese null viaja en el payload de cada
+    // página y corre los ids de `useId` de todo lo que viene después. Lo cazó comparar dos `next build` el 2026-11-05.
+    const html = RootLayout({ children: "contenido" }) as ReactElement<{ children: ReactElement<{ children: ReactElement<{ children: unknown }>[] }> }>;
+    const hijos = html.props.children.props.children;
+    expect(hijos.filter((h) => !h)).toEqual([]);
+    expect(hijos[hijos.length - 1].props.children).toBe("contenido");
   });
 
   it("encendido, el layout raíz lleva el guion antes del contenido, y aun así no escribe el atributo en el HTML", () => {
