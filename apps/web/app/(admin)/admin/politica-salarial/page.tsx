@@ -106,8 +106,9 @@ function IndiceSticky({
           ))}
         </div>
       </nav>
-      {/* Mobile/tablet: selector desplegable. */}
-      <div className="mb-4 lg:hidden">
+      {/* Mobile/tablet: selector desplegable. `print:hidden`: una hoja de papel mide menos que `lg`,
+          así que sin esto el selector también salía en el PDF. */}
+      <div className="mb-4 lg:hidden print:hidden">
         <select
           value=""
           onChange={(e) => { if (e.target.value) onIr(e.target.value); }}
@@ -531,7 +532,10 @@ export default function PoliticaSalarialPage() {
       </div>
 
       {doc && (
-        <div className="flex gap-8">
+        // Dos columnas solo desde `lg`, donde el índice es una columna de verdad. Con `flex` en todos los
+        // anchos (hasta el 2026-11-05), en el celular el selector ocupaba una columna al lado del documento
+        // y le dejaba 141 de 375 px.
+        <div className="lg:flex lg:gap-8">
           <IndiceSticky
             titulos={doc.secciones.map((s) => s.titulo).filter((t) => t !== "La escala")}
             activo={seccionActiva}
@@ -612,8 +616,12 @@ export default function PoliticaSalarialPage() {
                     <p className="mb-3 text-sm text-tinta">
                       Escribe tu nombre para dejar constancia de que recibiste y leíste este documento. Dejar constancia no significa estar de acuerdo con su contenido: si tienes una discrepancia, puedes plantearla a la Gerencia y recibirás respuesta por escrito.
                     </p>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Campo type="text" value={nombreAcuse} onChange={(e) => setNombreAcuseEditado(e.target.value)} placeholder="Tu nombre completo" className="min-w-64 flex-1" />
+                    {/* En el celular, campo y botón ocupan todo el ancho. El ancho se pone en un contenedor porque
+                        `Campo` le pasa `className` al input, no a su etiqueta. */}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="min-w-0 sm:w-64">
+                        <Campo type="text" value={nombreAcuse} onChange={(e) => setNombreAcuseEditado(e.target.value)} placeholder="Tu nombre completo" />
+                      </div>
                       <Boton variante="primario" onClick={() => void acusar()} disabled={guardando || nombreAcuse.trim() === ""} cargando={guardando}>Dejar constancia</Boton>
                     </div>
                   </>
