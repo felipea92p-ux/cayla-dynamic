@@ -9,6 +9,7 @@
 
 import type { ReactNode } from "react";
 import { cx } from "./cx";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 type Variante = "neutral" | "alerta" | "advertencia" | "positivo" | "informativo";
 
@@ -58,16 +59,18 @@ export function BannerAviso({
   children: ReactNode;
   className?: string;
 }) {
+  // Con el vidrio, la lente de su color (piezas.css). Apagado no agrega nada al HTML.
+  const lente = interruptoresVidrio().panel ? "vidrio-aviso" : undefined;
   if (enLinea) {
     return (
-      <div role={role} className={cx("rounded-control border px-4 py-3 text-sm", TONOS[variante], className)}>
+      <div role={role} data-tono={lente ? variante : undefined} className={cx(lente, "rounded-control border px-4 py-3 text-sm", TONOS[variante], className)}>
         {titulo && <b className={cx("font-medium", TEXTO_TITULO[variante])}>{titulo} </b>}
         {children}
       </div>
     );
   }
   return (
-    <div role={role} className={cx("rounded-superficie border p-5 text-sm", TONOS[variante], className)}>
+    <div role={role} data-tono={lente ? variante : undefined} className={cx(lente, "rounded-superficie border p-5 text-sm", TONOS[variante], className)}>
       {titulo && <h2 className={cx("mb-1 font-serif text-lg", TEXTO_TITULO[variante])}>{titulo}</h2>}
       {children}
     </div>

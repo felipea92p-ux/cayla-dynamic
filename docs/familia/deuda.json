@@ -1,10 +1,4 @@
 {
   "nota": "Lo que Dynamic todavía no cumple del contrato, valor por valor. tests/familia.test.ts mide cada línea contra globals.css. Esta lista SOLO BAJA: al pagar un valor se borra su línea y se baja TOPE_DEUDA en la prueba. `hoy` es lo que Dynamic pinta ahora, ya resuelto (null: el token no existe).",
-  "deuda": [
-    { "clave": "radio:boton", "hoy": null, "nota": "hoy lo pinta radius-control, 8 px" },
-    { "clave": "radio:campo", "hoy": null, "nota": "hoy lo pinta radius-control, 8 px" },
-    { "clave": "radio:tarjeta", "hoy": null, "nota": "hoy lo pinta radius-superficie, 16 px" },
-    { "clave": "radio:cajon", "hoy": null, "nota": "hoy lo pinta radius-flotante, 20 px" },
-    { "clave": "radio:hoja", "hoy": null, "nota": "hoy lo pinta radius-flotante, 20 px" }
-  ]
+  "deuda": []
 }

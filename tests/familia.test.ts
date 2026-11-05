@@ -45,7 +45,7 @@ const contrato = JSON.parse(leer("docs/familia/contrato.json")) as Contrato;
 const deuda = (JSON.parse(leer("docs/familia/deuda.json")) as { deuda: LineaDeuda[] }).deuda;
 
 // Este número SOLO BAJA. Al pagar un valor: se borra su línea de deuda.json y se baja esto. Subirlo es la señal que se busca en un PR.
-const TOPE_DEUDA = 5;
+const TOPE_DEUDA = 0;
 // La foto del 2026-11-05. No se le agregan claves: una deuda nueva no entra sin decidirlo a la vista de quien revise.
 const DEUDA_DIA_UNO = new Set([
   "radio:boton", "radio:campo", "radio:tarjeta", "radio:cajon", "radio:hoja",

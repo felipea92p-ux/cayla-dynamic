@@ -1,0 +1,559 @@
+/* Las piezas con vidrio: botones, campos, tarjetas, tablas, insignias, avisos, filtros, pestañas, vacíos, listas y hojas. Copiadas de vidrio/campos-y-botones.css,
+   pantalla.css, pantalla-en-vidrio.css, notas-avisos-combos.css y hoja.css de Retail, armadas solo con sus recetas (recetas.generado.css).
+
+   QUÉ PROMETE
+     Con el interruptor encendido, TODA pantalla toma las piezas de Retail de una vez, también lo escrito a mano: Retail hizo lo mismo con `.pantalla-en-vidrio`.
+     Por eso esta hoja mira las clases que ya existen (`bg-papel`, `rounded-control`, `bg-hueso`) y no pide tocar 82 archivos. Solo cambia el material:
+     qué hace cada botón y qué dice cada pantalla no se mueve de aquí.
+
+   QUÉ ASUME
+     Fuera de capa: lo que vive fuera de capa le gana a las utilidades de Tailwind sin `!important`. La otra cara es que un `hover:bg-…` escrito en la pieza
+     pierde contra una regla de aquí, y por eso cada pieza repite su `:hover`.
+
+   LO QUE NO SE TOCA
+     Solo en pantalla (`@media screen`): el papel que se imprime no lleva vidrio. Y en pantalla tampoco lo que simula ese papel: `.hoja` (contrato, boleta, memo)
+     se excluye en cada regla, porque lo que se revisa en pantalla tiene que ser lo que va a salir.
+
+   DECIDÍ: sin `backdrop-filter` en las tarjetas y las tablas.
+   DESCARTÉ: copiarlo de `--serena-filtro` como Retail, porque aquí las ventanas viven DENTRO de las pantallas (`Modal` no va en un portal, y hay 50 usos): un
+     desenfoque en la tarjeta la vuelve el contenedor de todo lo `fixed` de adentro y la ventana quedaría encerrada en ella. Detrás de una tarjeta solo está la
+     aurora, que ya viene desenfocada: quitarlo no cambia lo que se ve.
+   SE ROMPE SI: alguien le pone un `transform` o un `filter` a una tarjeta que contiene una ventana. */
+@media screen {
+  /* ---------- La serif de títulos y cifras: 600 (P6 del contrato). El papel se queda como está. ---------- */
+  [data-vidrio="panel"] .font-serif:not(.hoja, .hoja *) {
+    font-weight: 600;
+  }
+
+  /* ---------- Las líneas: el hilo de las tablas ----------
+     Primero, para que las piezas de abajo le ganen. Un botón o un campo conservan el borde que dice que se tocan. */
+  [data-vidrio="panel"] .border-sand:not(a, button, input, select, textarea, [role="button"], .hoja, .hoja *),
+  [data-vidrio="panel"] .divide-sand:not(.hoja, .hoja *) > * {
+    border-color: var(--hilo-fila);
+  }
+
+  /* ---------- El botón: la píldora ----------
+     El principal es vidrio ahumado de tinta, el secundario la gota, el sutil apenas un filo, y lo peligroso la gota con letra roja. Un botón que es una tarjeta
+     entera (una fila que se toca, con su texto a la izquierda) no se vuelve píldora: en algo tan alto la esquina de 999 px se ve como un estadio. */
+  [data-vidrio="panel"] :is(button, a, [role="button"]).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, .hoja *) {
+    border-radius: var(--radius-boton);
+  }
+  [data-vidrio="panel"] :is(button, a).rounded-control.py-2:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, .hoja *) {
+    min-height: 2.5rem;
+  }
+  [data-vidrio="panel"] :is(button, a).bg-tinta:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) {
+    background: var(--ahumado-fondo);
+    border-color: var(--ahumado-borde);
+    box-shadow: var(--ahumado-luz);
+    transition: background 200ms var(--ease-cayla), border-color 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.hoja *) {
+    background: var(--gota-fondo);
+    box-shadow: var(--gota-luz);
+    transition: background 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] :is(button, a).rounded-control.border-sand:not(.bg-papel, .bg-tinta, .hoja *) {
+    background: transparent;
+    border-color: var(--placa-borde);
+    transition: background 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+  }
+  /* Lo que estaba relleno de papel (el botón de un ícono, un atajo): la gota, con el filo de lo que se toca. */
+  [data-vidrio="panel"] :is(button, a).rounded-control.bg-papel:not(.hoja *) {
+    border-color: var(--plegar-borde);
+    background: var(--gota-fondo-encima);
+    box-shadow: var(--gota-luz);
+    transition: background 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] :is(button, a).rounded-control[class*="border-rojo"]:not(.hoja *) {
+    background: var(--gota-peligro-fondo);
+    border-color: var(--color-borde-control);
+    color: var(--color-rojo-profundo);
+    box-shadow: var(--gota-luz);
+    transition: background 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+  }
+  /* La acción principal de una confirmación es negra aunque anule o borre: en un pie no puede haber dos negros, y lo que se lee primero es lo que confirma.
+     Se reconoce por su lugar: el último botón de su fila, dentro de una ventana. Un «Eliminar» en medio de una ficha sigue siendo la gota roja. */
+  [data-vidrio="panel"] [role="dialog"] button.rounded-control[class*="border-rojo"]:last-child:not(.hoja *) {
+    background: var(--ahumado-fondo);
+    border-color: var(--ahumado-borde);
+    color: var(--color-crema);
+    box-shadow: var(--ahumado-luz);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] :is(button, a).bg-tinta:is(.rounded-control, .rounded-pildora, .rounded-full):not(:disabled, .hoja *):hover,
+    [data-vidrio="panel"] [role="dialog"] button.rounded-control[class*="border-rojo"]:last-child:not(:disabled, .hoja *):hover {
+      background: var(--ahumado-hover);
+      border-color: color-mix(in srgb, var(--color-rojo-profundo) 70%, transparent);
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(:disabled, .hoja *):hover,
+    [data-vidrio="panel"] :is(button, a).rounded-control.bg-papel:not(:disabled, .hoja *):hover {
+      background: var(--gota-fondo-encima);
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control.border-sand:not(.bg-papel, .bg-tinta, :disabled, .hoja *):hover {
+      background: var(--gota-fondo);
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control[class*="border-rojo"]:not(:disabled, .hoja *):hover {
+      background: var(--gota-peligro-encima);
+    }
+  }
+
+  /* ---------- El campo: un pozo tallado en el vidrio ----------
+     Espera tu dato. Al escribir sube como la gota sin volverse sólido. El borde sigue siendo el de control (3:1); con un error, el rojo de siempre. */
+  [data-vidrio="panel"] :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select, textarea):is(.bg-hueso, .border-borde-control):not(.hoja *) {
+    border-radius: var(--radius-campo);
+    background-color: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+    transition: background-color 300ms var(--ease-cayla), box-shadow 300ms var(--ease-cayla), border-color 220ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select, textarea):is(.bg-hueso, .border-borde-control):not(.border-rojo, .hoja *) {
+    border-color: var(--color-borde-control);
+  }
+  [data-vidrio="panel"] :is(input, select, textarea):is(.bg-hueso, .border-borde-control):not(.hoja *):focus {
+    background-color: var(--pozo-encendido-fondo);
+    box-shadow: var(--pozo-encendido-sombra);
+  }
+  /* El opcional de un desplegable: el sistema pinta la lista y hace falta que sea opaca, si no el texto queda sobre la nada. */
+  [data-vidrio="panel"] select option {
+    background: var(--color-papel);
+    color: var(--color-tinta);
+  }
+  /* Un campo con su lupa adentro: la caja es el pozo y el <input> de adentro no pinta nada. */
+  [data-vidrio="panel"] label.bg-hueso:not(.hoja *),
+  [data-vidrio="panel"] div.bg-hueso:has(> input):not(.hoja *) {
+    border-color: var(--color-borde-control);
+    border-radius: var(--radius-campo);
+    background-color: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+  }
+  [data-vidrio="panel"] :is(label, div).bg-hueso:has(> input:focus):not(.hoja *) {
+    background-color: var(--pozo-encendido-fondo);
+    box-shadow: var(--pozo-encendido-sombra);
+  }
+
+  /* La casilla: vacía es un pozo; marcada se llena de vidrio ahumado con su ✓. El tamaño es el que ya tenía: 44 px de toque los pone quien la usa. */
+  [data-vidrio="panel"] input[type="checkbox"]:not(.hoja *) {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
+    border: 1px solid var(--color-borde-control);
+    border-radius: 6px;
+    background: var(--pozo-fondo) center / 12px 12px no-repeat;
+    box-shadow: inset 0 1.5px 3px color-mix(in srgb, var(--color-sombra) 18%, transparent);
+    cursor: pointer;
+    transition: background-color 200ms var(--ease-cayla), border-color 200ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] input[type="checkbox"]:checked:not(.hoja *) {
+    border-color: var(--ahumado-borde);
+    background: var(--color-tinta) center / 12px 12px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f0e8' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-vidrio) 32%, transparent);
+  }
+  :root[data-vidrio="panel"][data-tema="oscuro"] input[type="checkbox"]:checked:not(.hoja *) {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c1a17' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  }
+  [data-vidrio="panel"] input[type="checkbox"]:disabled:not(.hoja *) {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  [data-vidrio="panel"] input[type="radio"]:not(.hoja *) {
+    accent-color: var(--color-tinta);
+  }
+
+  /* ---------- La tarjeta: la placa Serena ----------
+     Una placa de vidrio que se separa del fondo con su filo, su luz y su sombra larga (S5 del contrato). Lo que flota o se pega se queda opaco: tapa lo que pasa por
+     debajo. Lo que va adentro de otra tarjeta es la placa más liviana, para que no se apilen dos sombras. */
+  [data-vidrio="panel"] :is(div, section, article, header, aside, form, ul, details).bg-papel:not(.sticky, .fixed, .absolute, [data-color-dato], [role="dialog"], [role="menu"], .hoja, .hoja *) {
+    border-color: var(--serena-borde);
+    background: var(--serena-fondo);
+    box-shadow: var(--serena-sombra);
+  }
+  [data-vidrio="panel"] :is(.rounded-superficie, .rounded-2xl, .rounded-xl).bg-papel:not(.sticky, .fixed, .absolute, [role="dialog"], [role="menu"], .hoja, .hoja *) {
+    border-radius: var(--radius-tarjeta);
+  }
+  [data-vidrio="panel"] .bg-papel :is(div, section, article, ul, li).bg-papel:not(.sticky, .fixed, .absolute, [data-color-dato], [role="dialog"], [role="menu"], .hoja, .hoja *),
+  [data-vidrio="panel"] .bg-papel :is(div, section, article, ul, li):is(.bg-crema, .bg-hueso):not(.sticky, .fixed, .absolute, .rounded-full, [data-color-dato], [role="dialog"], [role="menu"], :has(> input), .hoja, .hoja *),
+  [data-vidrio="panel"] :is(div, section, ul, li)[class*="bg-sand/"]:not(.sticky, .fixed, .absolute, .rounded-full, [role="dialog"], .hoja, .hoja *) {
+    border-color: var(--placa-borde);
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+  /* Lo que era hueso suelto en la pantalla (la pista de una línea de tiempo, un ícono sobre su fondo): el pozo. Una fila de una tabla no: la sombra se le vería por fila. */
+  [data-vidrio="panel"] :is(div, section, span, li).bg-hueso:not(.sticky, .fixed, .absolute, .bg-papel *, [data-color-dato], :has(> input), [class*="rounded-pildora"], .hoja, .hoja *) {
+    background: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+  }
+  [data-vidrio="panel"] :is(tr, td).bg-hueso:not(.hoja *) {
+    background-color: color-mix(in srgb, var(--color-tinta) 3%, transparent);
+  }
+  /* La tarjeta que se toca (una cifra que filtra o lleva a otra pantalla): se alza 2 px al pasar. La puesta se hunde, como un campo que ya tiene tu dato. */
+  [data-vidrio="panel"] :is(button, a).rounded-superficie.bg-papel:not(.hoja *) {
+    border-color: var(--serena-borde);
+    border-radius: var(--radius-tarjeta);
+    background: var(--serena-fondo);
+    box-shadow: var(--serena-sombra);
+    transition: transform 250ms var(--ease-cayla), background 200ms var(--ease-cayla), box-shadow 250ms var(--ease-cayla);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] :is(button, a).rounded-superficie.bg-papel:not(.hoja *):hover {
+      transform: translateY(-2px);
+      background: var(--serena-fondo-encima);
+      box-shadow: var(--serena-sombra-encima);
+    }
+  }
+  [data-vidrio="panel"] :is(button, a, div).rounded-superficie.border-taupe.bg-hueso:not(.hoja *) {
+    border-color: var(--hundido-borde);
+    border-radius: var(--radius-tarjeta);
+    background: var(--hundido-fondo);
+    box-shadow: var(--hundido-sombra);
+  }
+  /* El número de una cifra: 28 px, como en Retail (D2). */
+  [data-vidrio="panel"] .font-serif.text-2xl.tabular-nums:not(.hoja *) {
+    font-size: 28px;
+  }
+
+  /* ---------- La tabla: la placa, sin banda de arena y con un hilo entre filas ---------- */
+  [data-vidrio="panel"] thead[class*="bg-papel"]:not([class*="max-h-"] *, .hoja *),
+  [data-vidrio="panel"] thead[class*="bg-sand/"]:not(.hoja *),
+  [data-vidrio="panel"] thead tr[class*="bg-sand/"]:not(.hoja *) {
+    background: none;
+  }
+  [data-vidrio="panel"] thead th:not(.hoja *) {
+    border-bottom: 1px solid var(--hilo-cabeza);
+  }
+  [data-vidrio="panel"] tbody tr:is(.border-t, .border-b, .border-y):not(.hoja *) {
+    border-color: var(--hilo-fila);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] tbody tr[class*="hover:bg-"]:not(.hoja *):hover {
+      background-color: color-mix(in srgb, var(--color-vidrio) 45%, transparent);
+    }
+    :root[data-vidrio="panel"][data-tema="oscuro"] tbody tr[class*="hover:bg-"]:not(.hoja *):hover {
+      background-color: color-mix(in srgb, var(--color-tinta) 6%, transparent);
+    }
+  }
+
+  /* ---------- La insignia de estado: una lente teñida de su tono ----------
+     Más clara arriba, con su luz y un filo del tono. Se sigue leyendo de un vistazo en una tabla, pero ya no es una mancha plana. La letra y el punto no cambian. */
+  [data-vidrio="panel"] .rounded-pildora:is([class*="bg-ambar/"], [class*="bg-verde/"], [class*="bg-rojo/"], [class*="bg-pizarra/"], [class*="bg-azul/"], .bg-sand):not(.hoja *) {
+    --tono-chip: var(--color-taupe);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--tono-chip) 10%, color-mix(in srgb, var(--color-vidrio) 75%, transparent)), color-mix(in srgb, var(--tono-chip) 16%, color-mix(in srgb, var(--color-vidrio) 40%, transparent)));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-vidrio) 85%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tono-chip) 26%, transparent);
+  }
+  [data-vidrio="panel"] .rounded-pildora[class*="bg-ambar/"]:not(.hoja *) {
+    --tono-chip: var(--color-ambar);
+  }
+  [data-vidrio="panel"] .rounded-pildora[class*="bg-verde/"]:not(.hoja *) {
+    --tono-chip: var(--color-verde);
+  }
+  [data-vidrio="panel"] .rounded-pildora[class*="bg-rojo/"]:not(.hoja *) {
+    --tono-chip: var(--color-rojo);
+  }
+  [data-vidrio="panel"] .rounded-pildora:is([class*="bg-pizarra/"], [class*="bg-azul/"]):not(.hoja *) {
+    --tono-chip: var(--color-pizarra);
+  }
+  :root[data-vidrio="panel"][data-tema="oscuro"] .rounded-pildora:is([class*="bg-ambar/"], [class*="bg-verde/"], [class*="bg-rojo/"], [class*="bg-pizarra/"], [class*="bg-azul/"], .bg-sand):not(.hoja *) {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--tono-chip) 22%, transparent), color-mix(in srgb, var(--tono-chip) 12%, transparent));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-tinta) 12%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tono-chip) 34%, transparent);
+  }
+  /* El número que pide algo: ámbar, como en el menú. El rojo es escaso (S1) y aquí no dice un error. */
+  [data-vidrio="panel"] :is(.rounded-pildora, .rounded-full).bg-rojo.text-crema:not(.hoja *) {
+    background: var(--color-ambar);
+    color: var(--color-crema);
+  }
+
+  /* ---------- El aviso: una placa teñida de lo que dice, con un filo de su color ----------
+     Mira las dos clases juntas (`border-ambar/40 bg-ambar/[0.07]`), que es como está escrito el aviso a mano y en `BannerAviso`. */
+  [data-vidrio="panel"] :is([class*="border-ambar/"][class*="bg-ambar/"], [class*="border-rojo/"][class*="bg-rojo/"], [class*="border-verde/"][class*="bg-verde/"], [class*="border-pizarra/"][class*="bg-pizarra/"]):not(button, a, .rounded-pildora, .hoja, .hoja *) {
+    --c: var(--color-taupe);
+    border-color: color-mix(in srgb, var(--c) 30%, transparent);
+    border-radius: 18px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--c) 7%, transparent), color-mix(in srgb, var(--c) 3%, transparent)), var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+  [data-vidrio="panel"] [class*="border-ambar/"][class*="bg-ambar/"]:not(button, a, .rounded-pildora, .hoja, .hoja *) {
+    --c: var(--color-ambar);
+  }
+  [data-vidrio="panel"] [class*="border-rojo/"][class*="bg-rojo/"]:not(button, a, .rounded-pildora, .hoja, .hoja *) {
+    --c: var(--color-rojo);
+  }
+  [data-vidrio="panel"] [class*="border-verde/"][class*="bg-verde/"]:not(button, a, .rounded-pildora, .hoja, .hoja *) {
+    --c: var(--color-verde);
+  }
+  [data-vidrio="panel"] [class*="border-pizarra/"][class*="bg-pizarra/"]:not(button, a, .rounded-pildora, .hoja, .hoja *) {
+    --c: var(--color-pizarra);
+  }
+
+  /* El aviso de `BannerAviso` lleva además su lente con el ícono, como `AvisoLinea` de Retail. El ícono es una máscara: se tiñe con `--c` y no agrega nada al HTML. */
+  [data-vidrio="panel"] .vidrio-aviso {
+    position: relative;
+    padding-left: 3.25rem;
+    min-height: 3.25rem;
+  }
+  [data-vidrio="panel"] .vidrio-aviso::before,
+  [data-vidrio="panel"] .vidrio-aviso::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+  }
+  [data-vidrio="panel"] .vidrio-aviso::before {
+    left: 0.75rem;
+    top: 0.625rem;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--c) 16%, transparent), color-mix(in srgb, var(--c) 6%, transparent)), var(--lente-fondo);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-vidrio) 90%, transparent), 0 0 0 1px color-mix(in srgb, var(--c) 24%, transparent);
+  }
+  [data-vidrio="panel"] .vidrio-aviso::after {
+    left: calc(0.75rem + 7px);
+    top: calc(0.625rem + 7px);
+    width: 16px;
+    height: 16px;
+    background: var(--c);
+    -webkit-mask: center / contain no-repeat var(--vidrio-aviso-icono);
+    mask: center / contain no-repeat var(--vidrio-aviso-icono);
+  }
+  [data-vidrio="panel"] .vidrio-aviso {
+    --vidrio-aviso-icono: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'/%3E%3C/svg%3E");
+  }
+  [data-vidrio="panel"] .vidrio-aviso[data-tono="positivo"] {
+    --vidrio-aviso-icono: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  }
+  [data-vidrio="panel"] .vidrio-aviso:is([data-tono="informativo"], [data-tono="neutral"]) {
+    --vidrio-aviso-icono: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 8h.01'/%3E%3C/svg%3E");
+  }
+  [data-vidrio="panel"] .vidrio-aviso[data-tono="neutral"] {
+    --c: var(--color-taupe);
+    border-color: var(--placa-borde);
+    border-radius: 18px;
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+
+  /* ---------- Las píldoras que filtran: gotas sueltas; la puesta, ahumada y con su ✓ ---------- */
+  [data-vidrio="panel"] button[aria-pressed]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) {
+    border-color: var(--color-borde-control);
+    border-radius: var(--radius-boton);
+    color: color-mix(in srgb, var(--color-tinta) 82%, transparent);
+    background: var(--gota-fondo-encima);
+    box-shadow: var(--gota-luz);
+    transition: background 200ms var(--ease-cayla), border-color 200ms, color 200ms, transform 250ms var(--ease-cayla);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] button[aria-pressed="false"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *):hover {
+      transform: translateY(-1px);
+      color: var(--color-tinta);
+      background: var(--gota-marca);
+    }
+  }
+  [data-vidrio="panel"] button[aria-pressed="true"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--color-crema);
+    border-color: var(--ahumado-denso-borde);
+    background: var(--ahumado-denso-fondo);
+    box-shadow: var(--ahumado-denso-luz);
+  }
+  [data-vidrio="panel"] button[aria-pressed="true"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *)::before {
+    content: "";
+    flex: none;
+    width: 13px;
+    height: 13px;
+    background: currentColor;
+    -webkit-mask: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+    mask: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  }
+  :root[data-vidrio="panel"][data-tema="oscuro"] button[aria-pressed="false"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) {
+    border-color: color-mix(in srgb, var(--color-tinta) 30%, transparent);
+    background: color-mix(in srgb, var(--color-tinta) 9%, transparent);
+    box-shadow: none;
+  }
+
+  /* ---------- Las pestañas: la fila es un pozo y la elegida una gota clara ----------
+     Dos formas de escribirlas: la pieza `Pestanas` y las que traen `role="tablist"`. La gota que fluye de una a otra llega con el bloque de movimiento. */
+  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"]):not(.hoja *) {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: 0;
+    gap: 2px;
+    padding: 4px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+  }
+  [data-vidrio="panel"] :is(.vidrio-pestanas > button, [role="tablist"] > [role="tab"]):not(.hoja *) {
+    margin: 0;
+    min-height: 36px;
+    padding: 0 15px;
+    border: 0;
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--color-tinta) 72%, transparent);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color 200ms var(--ease-cayla), background 200ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] :is(.vidrio-pestanas > button[aria-current="page"], [role="tablist"] > [role="tab"][aria-selected="true"]):not(.hoja *) {
+    color: var(--color-tinta);
+    background: var(--gota-marca);
+    box-shadow: var(--gota-luz);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] :is(.vidrio-pestanas > button:not([aria-current="page"]), [role="tablist"] > [role="tab"]:not([aria-selected="true"])):not(.hoja *):hover {
+      color: var(--color-tinta);
+    }
+  }
+
+  /* ---------- El vacío: lo que falta es un hueco que espera llenarse ----------
+     Sin caja: un ícono en su hueco y la frase. La acción que lo resuelve es lo único que sobresale, y su botón ya es gota. */
+  [data-vidrio="panel"] .vidrio-vacio:not(.hoja *) {
+    gap: 0.875rem;
+    padding: 2.5rem 1.5rem 2.75rem;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+  [data-vidrio="panel"] .vidrio-vacio-ic {
+    display: grid;
+    width: 56px;
+    height: 56px;
+    place-items: center;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--color-borde-control) 45%, transparent);
+    background: color-mix(in srgb, var(--color-tinta) 6%, transparent);
+    box-shadow: inset 0 3px 8px color-mix(in srgb, var(--color-sombra) 18%, transparent), 0 1px 0 color-mix(in srgb, var(--color-vidrio) 80%, transparent);
+    color: var(--color-taupe);
+  }
+
+  /* ---------- La lista que flota (el menú «⋯»): la placa de vidrio; la opción donde estás, la gota ---------- */
+  [data-vidrio="panel"] [role="menu"].bg-papel {
+    border: 1px solid var(--placa-borde);
+    border-radius: 20px;
+    padding: 6px;
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: var(--vidrio-flota-filtro);
+    backdrop-filter: var(--vidrio-flota-filtro);
+    box-shadow: var(--vidrio-flota-sombra);
+  }
+  [data-vidrio="panel"] [role="menu"].bg-papel [role="menuitem"] {
+    border-radius: 14px;
+    transition: background 180ms var(--ease-cayla), box-shadow 180ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] [role="menu"].bg-papel [role="menuitem"]:not([aria-disabled="true"], :disabled):is(:hover, :focus) {
+    background: var(--gota-marca), var(--color-papel);
+    box-shadow: var(--gota-luz);
+  }
+
+  /* ---------- La hoja y el cajón ----------
+     Vidrio con su borde de luz y su sombra larga. Lo desenfoca el velo y no la hoja: un `backdrop-filter` en la hoja la volvería el contenedor de lo `fixed` de adentro,
+     y la hoja además hace scroll. En el teléfono la hoja sube desde abajo; la que se cierra con el dedo llega con el bloque de movimiento. */
+  [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"]:not(.hoja *) {
+    background: var(--vidrio-velo);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    backdrop-filter: blur(12px) saturate(1.4);
+  }
+  [data-vidrio="panel"] [role="dialog"].bg-papel,
+  [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"] > .bg-papel {
+    isolation: isolate;
+    border: 1px solid var(--vidrio-hoja-borde);
+    background: var(--vidrio-hoja-fondo);
+    box-shadow: var(--vidrio-hoja-sombra);
+  }
+  [data-vidrio="panel"] [role="dialog"] > h2.font-serif,
+  [data-vidrio="panel"] [role="dialog"] > div > h2.font-serif {
+    font-size: 27px;
+    line-height: 1.1;
+  }
+  @media (min-width: 40rem) {
+    [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"] > [role="dialog"].bg-papel.overflow-y-auto {
+      border-radius: var(--radius-hoja);
+      padding: 1.75rem;
+    }
+  }
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .fixed.inset-0.items-center[class*="bg-black/"]:not(.hoja *) {
+      align-items: flex-end;
+      padding: 0;
+    }
+    [data-vidrio="panel"] .fixed.inset-0.items-center[class*="bg-black/"] > .bg-papel {
+      width: 100%;
+      max-width: none;
+      max-height: 92dvh;
+      border-radius: 26px 26px 0 0;
+      padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    }
+    [data-vidrio="panel"] [role="dialog"].rounded-t-flotante {
+      border-radius: 26px 26px 0 0;
+    }
+  }
+  /* El cajón flota a 12 px de los bordes. Sus líneas son luz del vidrio, no tinta. */
+  [data-vidrio="panel"] [role="dialog"].inset-y-0.right-0.bg-papel {
+    overflow: hidden;
+  }
+  [data-vidrio="panel"] [role="dialog"].inset-y-0.right-0.bg-papel :is(.border-b, .border-t) {
+    border-color: var(--placa-borde);
+  }
+  @media (min-width: 40rem) {
+    [data-vidrio="panel"] [role="dialog"].inset-y-0.right-0.bg-papel {
+      top: 12px;
+      right: 12px;
+      bottom: 12px;
+      width: calc(100% - 24px);
+      border-radius: var(--radius-cajon);
+    }
+  }
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] [role="dialog"].inset-y-0.right-0.bg-papel {
+      top: 5dvh;
+      border-radius: 26px 26px 0 0;
+    }
+  }
+  /* Lo que era sólido dentro de una hoja: la placa, en un solo lugar y no pantalla por pantalla. Se queda opaco lo que flota o se pega, y los controles, que tienen su receta. */
+  [data-vidrio="panel"] [role="dialog"] :is(div, section, article, ul, li):is(.bg-hueso, .bg-papel, .bg-crema):not(.sticky, .fixed, .absolute, .rounded-full, :has(> input), [data-color-dato], .hoja, .hoja *) {
+    border-color: var(--placa-borde);
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+  /* Lo pegado dentro de una hoja (un pie con sus botones): el vidrio del pie, para que lo que pasa por debajo no se lea a través. */
+  [data-vidrio="panel"] [role="dialog"] .sticky:is(.bg-papel, .bg-crema) {
+    background: var(--vidrio-pie-fondo);
+  }
+
+  /* ---------- Quien pidió menos transparencia o más contraste en su aparato ----------
+     Las recetas ya pasan a sólido solas (recetas.generado.css); esto es lo que Retail le agrega a las piezas: sin nada desenfocado y, con más contraste, la letra
+     secundaria en tinta y un borde que se ve en lo que se toca. Lo decide el sistema operativo. */
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    [data-vidrio="panel"] *,
+    [data-vidrio="panel"] *::before,
+    [data-vidrio="panel"] *::after {
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+  }
+  @media (prefers-contrast: more) {
+    [data-vidrio="panel"] [class*="text-tinta/"] {
+      color: var(--color-tinta);
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.hoja *),
+    [data-vidrio="panel"] button[aria-pressed]:not(.hoja *),
+    [data-vidrio="panel"] :is(input, select, textarea):is(.bg-hueso, .border-borde-control):not(.hoja *) {
+      border: 1.5px solid var(--color-tinta);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-vidrio="panel"] :is(button, a).rounded-superficie.bg-papel:not(.hoja *):hover,
+    [data-vidrio="panel"] button[aria-pressed="false"]:not(.hoja *):hover {
+      transform: none;
+    }
+  }
+}

@@ -162,7 +162,7 @@
       box-shadow: var(--marco-riel-sombra);
       visibility: hidden;
       transform: translate3d(-100%, 0, 0);
-      transition: transform 260ms var(--ease-salida), visibility 0s linear 260ms;
+      transition: transform 260ms var(--vidrio-ease-salida), visibility 0s linear 260ms;
     }
     [data-vidrio="panel"] .marco-riel[data-cajon="abierto"] {
       visibility: visible;
@@ -198,7 +198,7 @@
       background: var(--cajon-movil-velo);
       -webkit-backdrop-filter: var(--cajon-movil-velo-filtro);
       backdrop-filter: var(--cajon-movil-velo-filtro);
-      transition: opacity 260ms var(--ease-salida);
+      transition: opacity 260ms var(--vidrio-ease-salida);
     }
     [data-vidrio="panel"] .velo-cajon[data-abierto="true"] {
       opacity: 1;
@@ -289,7 +289,7 @@
   [data-vidrio="panel"] .lateral-hijos {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 300ms var(--ease-salida);
+    transition: grid-template-rows 300ms var(--vidrio-ease-salida);
   }
   [data-vidrio="panel"] .lateral-hijos[data-abierto="true"] {
     grid-template-rows: 1fr;
@@ -311,7 +311,7 @@
     opacity: 0;
     transform: translate3d(0, -8px, 0);
     filter: blur(3px);
-    transition: opacity 140ms var(--ease-salida), transform 140ms var(--ease-salida), filter 140ms var(--ease-salida);
+    transition: opacity 140ms var(--vidrio-ease-salida), transform 140ms var(--vidrio-ease-salida), filter 140ms var(--vidrio-ease-salida);
   }
   [data-vidrio="panel"] .lateral-hijos[data-abierto="true"] > div > .lateral-hijo {
     opacity: 1;
@@ -328,7 +328,7 @@
     [data-vidrio="panel"] .lateral-hijo {
       transform: translate3d(0, -6px, 0);
       filter: none;
-      transition: opacity 120ms var(--ease-salida), transform 120ms var(--ease-salida);
+      transition: opacity 120ms var(--vidrio-ease-salida), transform 120ms var(--vidrio-ease-salida);
     }
     [data-vidrio="panel"] .lateral-hijos[data-abierto="true"] > div > .lateral-hijo {
       transition: opacity 220ms var(--ease-cayla), transform 260ms var(--ease-cayla);

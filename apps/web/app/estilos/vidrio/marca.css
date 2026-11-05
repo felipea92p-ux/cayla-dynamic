@@ -18,9 +18,19 @@
     --color-vidrio: #ffffff;
     --color-sombra: #1a1a18;
     --ease-cayla: cubic-bezier(0.32, 0.72, 0.24, 1);
-    --ease-salida: cubic-bezier(0.4, 0, 1, 1);
+    --vidrio-ease-salida: cubic-bezier(0.4, 0, 1, 1);
     --brillo-superior: rgb(255 255 255 / 0.95);
     --color-ambar-profundo: #734f15;
+    --color-taupe-profundo: #805c4c;
+    --radius-boton: 999px;
+    --radius-campo: 14px;
+    --radius-tarjeta: 22px;
+    --radius-cajon: 28px;
+    --radius-hoja: 32px;
+    /* Los tres de hoy pasan a los de la familia: así lo escrito a mano con `rounded-superficie` no se queda atrás. Un botón con `rounded-control` lo vuelve píldora piezas.css. */
+    --radius-control: var(--radius-campo);
+    --radius-superficie: var(--radius-tarjeta);
+    --radius-flotante: var(--radius-hoja);
   }
 
   :root[data-vidrio="panel"][data-tema="oscuro"] {
@@ -40,9 +50,26 @@
     --color-vidrio: #33302a;
     --color-sombra: #000000;
     --ease-cayla: cubic-bezier(0.32, 0.72, 0.24, 1);
-    --ease-salida: cubic-bezier(0.4, 0, 1, 1);
+    --vidrio-ease-salida: cubic-bezier(0.4, 0, 1, 1);
     --brillo-superior: color-mix(in srgb, var(--color-tinta) 10%, transparent);
     --color-ambar-profundo: #ecc676;
+    --color-taupe-profundo: #c4a898;
+    --radius-boton: 999px;
+    --radius-campo: 14px;
+    --radius-tarjeta: 22px;
+    --radius-cajon: 28px;
+    --radius-hoja: 32px;
+    /* Los tres de hoy pasan a los de la familia: así lo escrito a mano con `rounded-superficie` no se queda atrás. Un botón con `rounded-control` lo vuelve píldora piezas.css. */
+    --radius-control: var(--radius-campo);
+    --radius-superficie: var(--radius-tarjeta);
+    --radius-flotante: var(--radius-hoja);
+  }
+
+  /* Un documento que se revisa en pantalla no cambia de esquinas: lo que se ve tiene que ser lo que va a salir en papel. */
+  [data-vidrio="panel"] .hoja {
+    --radius-control: 8px;
+    --radius-superficie: 16px;
+    --radius-flotante: 20px;
   }
 
   /* El foco de teclado en tinta (P3 del contrato): el rojo es escaso, y el foco aparece en cada Tab. */
