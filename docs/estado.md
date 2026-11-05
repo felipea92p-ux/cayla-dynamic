@@ -6,6 +6,25 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-05 — Rediseño como Retail: Etapa 0 aprobada para subir, en cuatro PR · la firma, publicada ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680))
+
+**De dónde sale.** Felipe decidió que Dynamic se vea y se mueva como Retail. Tablero: [`vidrio/README.md`](vidrio/README.md). Regla suya: nada del diseño se
+sube sin que lo haya visto en local (ver «El vidrio» en `CLAUDE.md`).
+
+**Publicada: la firma.** En oscuro daba 1.00:1 y no se veía, en memo, contrato, bono, movilidad, liquidaciones, política salarial y documentación. Lleva el
+recuadro de la boleta (15.36:1); en claro e impreso no cambia. Comprobado en pantalla con datos inventados en memo, contrato y bono; las otras cuatro, solo por
+su prueba. No se abrió un documento firmado real en producción.
+
+**La Etapa 0, sin SQL y sin nada a la vista:** el interruptor (apagado en producción), los medidores, `docs/familia/` con el contrato v4 y el vigilante (solo
+avisa), `scripts/local/` (Dynamic sin Docker, con login real y datos inventados) y el tablero. Felipe la vio corriendo en su computadora y aprobó subirla.
+
+**Sigue.** (1) Etapa 1, con las decisiones de menú y cabecera anotadas en el tablero: se construye en local y se le muestra antes de subir. (2) El lado de Retail
+del contrato: mientras no lo pegue, el vigilante avisa «Retail sigue en v3». (3) Antes de retirar `/admin/apariencia`: fijar el terminal en claro y limpiar la
+copia local del tema en cada Mac mini; Felipe puede ver el valor con `select valor from configuracion where clave = 'apariencia_tema';`. (4) Faltan por medir 7 de
+las 14 pantallas registradas en los medidores y la cuenta de DO.
+
+---
+
 ## 2026-11-05 — Política salarial en el celular · sin SQL · rama `claude/responsive-politica-salarial-9dd1bd`
 
 **De dónde sale.** Felipe (2026-11-05): varios módulos de Política salarial «se ven fatal en el teléfono»; pidió analizarlos y recorrerlos desde un teléfono real.
@@ -15,6 +34,8 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 **Medido.** En el navegador a 375, 320 y 1280 px, con un simulador. El defecto de la columna se reprodujo en un iPhone real; **el arreglo todavía no se ha visto en un teléfono ni en un PDF real**.
 
 **Sigue.** El recorrido de 55 paradas y las tablas y pestañas que siguen abiertas: [`auditoria-pantalla-politica-salarial-movil-2026-11-05.md`](auditoria-pantalla-politica-salarial-movil-2026-11-05.md). Las hojas impresas antes del arreglo conservan la fecha equivocada.
+
+---
 
 ## 2026-11-05 — Quien se da de baja ya no entra · migración **0597 APLICADA (2026-11-05)** · prueba 487 · fusionada en [#677](https://github.com/felipea92p-ux/cayla-dynamic/pull/677)
 
