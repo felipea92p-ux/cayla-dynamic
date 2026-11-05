@@ -24,6 +24,7 @@ copia local del tema en cada Mac mini; Felipe puede ver el valor con `select val
 las 14 pantallas registradas en los medidores y la cuenta de DO.
 
 ---
+
 ## 2026-11-05 — Política salarial en el celular · sin SQL · rama `claude/responsive-politica-salarial-9dd1bd`
 
 **De dónde sale.** Felipe (2026-11-05): varios módulos de Política salarial «se ven fatal en el teléfono»; pidió analizarlos y recorrerlos desde un teléfono real.
@@ -33,6 +34,8 @@ las 14 pantallas registradas en los medidores y la cuenta de DO.
 **Medido.** En el navegador a 375, 320 y 1280 px, con un simulador. El defecto de la columna se reprodujo en un iPhone real; **el arreglo todavía no se ha visto en un teléfono ni en un PDF real**.
 
 **Sigue.** El recorrido de 55 paradas y las tablas y pestañas que siguen abiertas: [`auditoria-pantalla-politica-salarial-movil-2026-11-05.md`](auditoria-pantalla-politica-salarial-movil-2026-11-05.md). Las hojas impresas antes del arreglo conservan la fecha equivocada.
+
+---
 
 ## 2026-11-05 — Quien se da de baja ya no entra · migración **0597 APLICADA (2026-11-05)** · prueba 487 · fusionada en [#677](https://github.com/felipea92p-ux/cayla-dynamic/pull/677)
 
