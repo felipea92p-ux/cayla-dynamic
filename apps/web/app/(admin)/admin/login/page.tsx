@@ -10,7 +10,7 @@ import { useRafagaDeClics } from "@/lib/use-rafaga-de-clics";
 import { ROLES_CON_PANEL, claveSirve } from "@cayla-dynamic/shared";
 import { clavePorCambiar, marcarMiClavePorCambiar } from "@/lib/admin/mi-clave";
 import { esFallaDeRed } from "@/lib/admin/mensaje-error";
-import { esCuentaDeServicio, MENSAJE_CUENTA_DE_SERVICIO } from "@/lib/cuenta-de-servicio";
+import { esCuentaDadaDeBaja, esCuentaDeServicio, MENSAJE_CUENTA_DADA_DE_BAJA, MENSAJE_CUENTA_DE_SERVICIO } from "@/lib/cuenta-de-servicio";
 import { Campo } from "@/components/ui/campo";
 import { CampoClave } from "@/components/ui/campo-clave";
 import { Boton } from "@/components/ui/boton";
@@ -42,7 +42,11 @@ export default function AdminLoginPage() {
       // está mal cuando el problema es la conexión la manda a escribirla de
       // nuevo, a pedir un enlace de recuperación que tampoco va a llegar, y
       // recién ahí a llamar con un diagnóstico equivocado.
-      if (error.status === 400) {
+      if (esCuentaDadaDeBaja(error)) {
+        // También es un 400: va antes, o le diría «tu clave está mal» a quien la
+        // tiene bien y la mandaría a pedir un enlace que tampoco la deja entrar.
+        setError(MENSAJE_CUENTA_DADA_DE_BAJA);
+      } else if (error.status === 400) {
         setError("Correo o contraseña incorrectos.");
       } else if (error.status === 429) {
         setError("Demasiados intentos seguidos. Espera unos minutos antes de volver a intentar.");

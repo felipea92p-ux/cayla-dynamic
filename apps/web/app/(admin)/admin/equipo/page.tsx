@@ -1972,7 +1972,7 @@ export default function EquipoPage() {
           )}
         </label>
         <p className="text-xs text-taupe">
-          Esto cierra sus tramos de salario y de horario ese día, y deja de aparecer en el terminal.
+          Esto cierra sus tramos de salario y de horario ese día, deja de aparecer en el terminal y su usuario deja de poder entrar al sistema.
           No se borra nada: su historial sostiene los reportes de los periodos que ya pasaron. De esta
           fecha salen su gratificación, su CTS y sus vacaciones truncas, así que tiene que ser el día
           real —ni el de hoy por comodidad, ni el de su carta.

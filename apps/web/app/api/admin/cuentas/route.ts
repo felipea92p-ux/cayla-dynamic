@@ -283,6 +283,21 @@ export async function POST(req: Request) {
       });
     }
 
+    // De aquí para abajo, cada acción obra sobre una persona. A quien se dio de
+    // baja no se le da acceso por ninguna: una clave nueva, una invitación o un
+    // correo nuevo no le servirían de nada (la 0597 le cortó la cuenta) y la
+    // pantalla diría «listo». La pantalla ya no la lista; esto es para quien
+    // llama a la ruta directo, o tenía la lista abierta de antes de la baja.
+    if (personaId) {
+      const { data: objetivo } = await admin.from("personas").select("estado, nombres").eq("id", personaId).maybeSingle();
+      if (objetivo && objetivo.estado !== "activo") {
+        return NextResponse.json(
+          { error: `${objetivo.nombres} está dada de baja y no tiene acceso. Para que vuelva a entrar, primero hay que reactivarla en Equipo.` },
+          { status: 409 },
+        );
+      }
+    }
+
     if (accion === "invitar") {
       // El botón manual de quien todavía no tiene cuenta. Normalmente la
       // invitación ya salió sola (ver `invitarAutomaticamente`); este botón es
