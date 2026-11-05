@@ -210,7 +210,7 @@ function BloqueFirma({ imagen, nombre, pie }: {
     <div className="text-center">
       <div className="flex h-24 items-end justify-center">
         {imagen && (
-          <img src={imagen} alt="" aria-hidden className="block h-24 w-auto max-w-full" />
+          <img src={imagen} alt="" aria-hidden className="firma-tinta block h-24 w-auto max-w-full" />
         )}
       </div>
       <div className="mb-1 border-t border-tinta pt-2 text-xs">{nombre}</div>

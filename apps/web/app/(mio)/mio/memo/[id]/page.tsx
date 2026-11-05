@@ -225,7 +225,7 @@ function MiMemoContenido() {
                 {miFirma ? (
                   <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={miFirma} alt="Tu firma guardada" className="h-10 w-auto max-w-[140px]" />
+                    <img src={miFirma} alt="Tu firma guardada" className="firma-tinta h-10 w-auto max-w-[140px]" />
                     <span>Esta es la firma que se usaría.</span>
                   </>
                 ) : (

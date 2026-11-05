@@ -447,7 +447,7 @@ export function MemoDocumento({
           <div>
             <div className="flex h-28 items-end justify-center">
               {firmaUrl && (
-                <img src={firmaUrl} alt="" aria-hidden className="block h-28 w-auto max-w-full" />
+                <img src={firmaUrl} alt="" aria-hidden className="firma-tinta block h-28 w-auto max-w-full" />
               )}
             </div>
             <div className="border-t pt-1">{firmante ?? "Pendiente de firma"}</div>
@@ -464,7 +464,7 @@ export function MemoDocumento({
             {recepcion ? (
               <div className="flex h-28 items-end justify-center">
                 {recepcion.firma && (
-                  <img src={recepcion.firma} alt="" aria-hidden className="block h-28 w-auto max-w-full" />
+                  <img src={recepcion.firma} alt="" aria-hidden className="firma-tinta block h-28 w-auto max-w-full" />
                 )}
               </div>
             ) : (
