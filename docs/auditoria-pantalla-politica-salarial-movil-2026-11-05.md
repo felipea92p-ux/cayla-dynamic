@@ -29,9 +29,35 @@ Xcode, pero ningún sistema iOS instalado.
 
 ## 2 · Lo que ya se sabe
 
-Orden: primero lo que deja a alguien sin hacer algo o lo lleva a entender otra
-cosa. «Medido» salió del navegador a 375 px salvo que se indique otro ancho;
-«leído» salió solo del código y falta verlo funcionar.
+### Corregido en la rama (sin publicar)
+
+| # | Antes | Ahora, medido |
+|---|---|---|
+| H1 | Columna de 141 px (86 a 320). La página se salía 115 px (171 a 320). 52.6 pantallas con todo abierto. | Columna de 343 px (288 a 320). La página no se sale. 21.7 pantallas (31.7 a 320). |
+| H2 | Campo de x=235 a x=491. | Campo y botón de x=33 a x=342 (a x=287 en 320). |
+| H3 | «Al 04 de noviembre de 2026». | «Al 05 de noviembre de 2026». Normas usa la misma función, con prueba. |
+| H4 | Dos cajas sin nombre. | «Tu categoría: Cayla» y «Siguiente: Support» en cada caja; en escritorio, encabezan la columna. |
+| H5 | El enlace salía a todo el equipo y llevaba a un error. | Solo lo ve quien puede abrir la hoja. |
+| H12 | La sección se detenía a 24 px, debajo de la barra de 64. | Se detiene a 80 px. El índice de escritorio tenía el mismo defecto y también pasó de 24 a 80. |
+| H13 | Cinco selectores de 14 px. | 16 px en el celular y 14 desde `sm`. |
+
+Comprobado también en escritorio (1280 px): índice a la izquierda, constancia en
+una sola fila y sin desborde. Pruebas: 3 220 en verde, con las nuevas de
+`fechaLargaLima`, y typecheck en verde.
+
+**Un hallazgo más al corregir H1:** el PDF tenía el mismo defecto. Una hoja A4 mide
+unos 688 px, menos que `lg`, así que el selector salía al lado del documento. Con
+las reglas de impresión activadas en pantalla, la columna pasa de 504 a 688 px y el
+selector desaparece. Es una simulación: el papel real se mira en P30.
+
+**Sin comprobar:** nada de esto se ha visto en un teléfono real ni en un PDF real.
+
+### Lo que sigue abierto
+
+Las tablas de abajo conservan los siete corregidos como referencia de qué se midió
+antes del arreglo. Orden: primero lo que deja a alguien sin hacer algo o lo lleva a
+entender otra cosa. «Medido» salió del navegador a 375 px salvo que se indique otro
+ancho; «leído» salió solo del código y falta verlo funcionar.
 
 ### Bloquea
 
@@ -288,7 +314,8 @@ Se repite solo en Documento vigente, Constancias y Categorías.
 
 ## 5 · Registro
 
-**Estado:** sin empezar. Falta decidir si el lote de raíz va antes del recorrido.
+**Estado:** sin empezar. El lote de raíz ya está en la rama; se recorre sobre su
+vista previa.
 
 | Tramo | Paradas | Hechas | Fuera de lo previsto |
 |---|---|---|---|
