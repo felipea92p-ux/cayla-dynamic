@@ -6,6 +6,22 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-05 — Rediseño como Retail: Etapa 0 en commits locales, sin subir · la firma, publicada ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680))
+
+**De dónde sale.** Felipe decidió que Dynamic se vea y se mueva como Retail. Tablero: [`vidrio/README.md`](vidrio/README.md). Regla suya: nada del diseño se
+sube sin que lo haya visto en local (ver «El vidrio» en `CLAUDE.md`).
+
+**Publicada: la firma.** En oscuro daba 1.00:1 y no se veía, en memo, contrato, bono, movilidad, liquidaciones, política salarial y documentación. Lleva el
+recuadro de la boleta (15.36:1); en claro e impreso no cambia. Comprobado en pantalla con datos inventados en memo, contrato y bono; las otras cuatro, solo por
+su prueba. No se abrió un documento firmado real en producción.
+
+**En la rama local `claude/diseno-etapa-0-e8a981`, esperando el OK de Felipe:** `scripts/local/` (Dynamic sin Docker, con login real y datos inventados), el
+interruptor, los medidores, `docs/familia/` con el contrato v4 y el vigilante, y el tablero. Sin SQL.
+
+**Sigue.** (1) Que Felipe lo vea en local y dé el OK para subir. (2) Sus respuestas sobre menú y cabecera, antes de la Etapa 1. (3) El lado de Retail del contrato.
+(4) Antes de retirar `/admin/apariencia`: fijar el terminal en claro y limpiar la copia local del tema en cada Mac mini, o se quedan con el último que les llegó.
+
+---
 ## 2026-11-05 — Política salarial en el celular · sin SQL · rama `claude/responsive-politica-salarial-9dd1bd`
 
 **De dónde sale.** Felipe (2026-11-05): varios módulos de Política salarial «se ven fatal en el teléfono»; pidió analizarlos y recorrerlos desde un teléfono real.

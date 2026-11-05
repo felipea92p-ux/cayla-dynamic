@@ -745,10 +745,16 @@ y se abre el PR. Un PR abierto para «dejarlo listo» ya es subirlo. Un arreglo 
 así fue la firma en oscuro (#680).
 
 **Y lo aprobado entra apagado.** `main` recibe unos 49 commits al día y una rama larga no sirve, así que lo que Felipe aprueba entra a `main` por PR
-chicos, detrás del interruptor. En producción está apagado hasta el estreno, que es uno solo. El terminal tiene su propio interruptor. **Todo CSS
-nuevo cuelga de `[data-vidrio]`:** una regla suelta se cuela a producción y al terminal, como ya pasó (ver el comentario en `globals.css`), y una
-prueba falla si eso ocurre. Mientras dure, siguen valiendo los trece tokens, la regla de `receta-suelta` y lo escrito aquí sobre colores; se
-reescriben el día del estreno, no antes.
+chicos, detrás del interruptor. En producción está apagado hasta el estreno, que es uno solo. El terminal tiene su propio interruptor
+(`NEXT_PUBLIC_VIDRIO` y `NEXT_PUBLIC_VIDRIO_TERMINAL`; solo un `1` exacto enciende, ver `apps/web/lib/vidrio.ts`). **Todo CSS nuevo cuelga de
+`[data-vidrio="panel"]` o `[data-vidrio="terminal"]`:** una regla suelta se cuela a producción y al terminal, como ya pasó (ver el comentario en
+`globals.css`), y `tests/vidrio-css.test.ts` falla si eso ocurre. Un `[data-vidrio]` sin valor alcanza a las dos superficies: úsalo solo a propósito.
+**Y lo que viene de vidrio no se imprime:** esas reglas también aplican al papel, así que van en `@media screen` o excluyen `.hoja`, porque un contrato
+no puede salir con vidrio. La foto de `tests/vidrio-foto-piezas.test.ts` falla si una pieza cambia sus clases sin colgarlas del atributo. Mientras dure,
+siguen valiendo los trece tokens, la regla de `receta-suelta` y lo escrito aquí sobre colores; se reescriben el día del estreno, no antes.
+
+**El día del estreno, crear la variable en Vercel y construir van juntos, con las fusiones frenadas.** Una variable creada se publica con la siguiente
+fusión de cualquier sesión: sin ese cuidado, el estreno ocurre sin que nadie lo elija.
 
 **Se revisa con datos inventados, nunca con una copia de producción:** tiene DNI, sueldos y firmas.
 
