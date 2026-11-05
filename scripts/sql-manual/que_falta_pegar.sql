@@ -377,7 +377,7 @@ with repo(numero, nombre, nunca) as (values
     (516, 'la_persona_deja_constancia_de_haber_leido', false),
     (517, 'la_persona_ve_como_va_con_sus_tardanzas', false),
     (518, 'a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez', false),
-    (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', false),
+    (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', true),
     (520, 'el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia', false),
     (521, 'el_bono_del_practicante_vuelve_a_la_boleta', false),
     (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false),
@@ -450,7 +450,8 @@ with repo(numero, nombre, nunca) as (values
     (590, 'la_meta_de_cobertura_va_por_rangos_y_por_temporada', false),
     (591, 'prefiero_trabajar_en_la_disponibilidad', false),
     (592, 'cambiar_el_turno_con_una_companera', false),
-    (594, 'quien_ingresa_despues_no_marca_ni_devenga_antes_de_su_fecha', false)
+    (594, 'quien_ingresa_despues_no_marca_ni_devenga_antes_de_su_fecha', false),
+    (595, 'la_fecha_de_ingreso_por_defecto_es_la_de_lima', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
