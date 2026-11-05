@@ -75,7 +75,7 @@ Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar ca
 
 | Pieza | Estado |
 |---|---|
-| Colores, modo oscuro, fondo y botón de tema | Pendiente |
+| Colores, modo oscuro, fondo y botón de tema | En local, esperando que Felipe lo mire |
 | Menú de la izquierda: abierto, plegado y cajón del celular | Pendiente |
 | Cabecera: buscador, tema, avisos y título de cada pantalla | Pendiente |
 | Piezas: botones, campos, listas, hojas, tablas, tarjetas, insignias, avisos, filtros, pestañas y estados vacíos | Pendiente |
