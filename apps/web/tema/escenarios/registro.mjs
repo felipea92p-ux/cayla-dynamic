@@ -41,6 +41,16 @@ export const ESCENARIOS = [
     preparar: clicEnBoton("Abrir menú"),
     abre: '[role="dialog"]',
   },
+  {
+    id: "lo-mio.guia",
+    ruta: "/mio",
+    nombre: "El recorrido guiado de Lo mío abierto",
+    async preparar(pagina) {
+      await pagina.getByText("Ver guía de esta pantalla", { exact: true }).first().click();
+      await esperar(pagina, 800);
+    },
+    abre: ".driver-popover",
+  },
   // El caso que DEBE fallar. Un freno se prueba con algo que debe bloquear: esto pinta, solo en el navegador de la corrida, un texto ilegible, una
   // mancha blanca y un velo que aclara, junto a tres cosas claras a propósito que NO deben contar. Si `--escenario prueba.debe-fallar` sale en
   // verde, el medidor está roto. Lo que espera, exacto, está en `tema/autoprueba.mjs`.

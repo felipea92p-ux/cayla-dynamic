@@ -74,6 +74,12 @@ export async function abrirContexto(navegador, cuenta, { baseUrl, apiUrl, tema, 
       try {
         if (sesion) localStorage.setItem(almacen, JSON.stringify(sesion));
         localStorage.setItem("cayla-tema", tema);
+        // El recorrido de primera vez se abre solo y le pone un velo a la pantalla. Aquí cuenta como ya visto, sin lista de recorridos: uno nuevo
+        // no vuelve a ensuciar la medición. El recorrido en sí se mide con su escenario (`lo-mio.guia`), que lo abre a pedido.
+        const leer = Storage.prototype.getItem;
+        Storage.prototype.getItem = function (clave) {
+          return String(clave).startsWith("cayla-recorrido-") ? "1" : leer.call(this, clave);
+        };
       } catch {
         /* about:blank o ventana privada: esa página no lee nada de esto */
       }
