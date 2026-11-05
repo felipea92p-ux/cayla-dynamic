@@ -6,6 +6,31 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-05 — Quien se da de baja ya no entra · migración **0597 SIN PEGAR** · prueba 487 · rama `claude/revoke-access-removed-members-0f85b3`
+
+**De dónde sale.** Felipe (2026-11-05): «cada que se da de baja a un miembro de equipo (sea contrato, RRHH, etc) ya no debe poder acceder
+a su login». La 0374 solo había quitado el poder sobre datos ajenos: la cuenta seguía entrando.
+
+**0597.** Trigger `after update of estado, auth_user_id` sobre `personas`: inactiva → `banned_until` a 100 años y borra sesiones y refresh
+tokens; de vuelta a activa → quita el ban (misma clave). Cubre toda puerta (`fn_cesar_persona`, `fn_prueba_cerrar`, SQL Editor) en la misma
+transacción del cese. Fuera, a propósito: cuentas de servicio (0490) y cuentas de terminal. Al final aplica el corte a quienes ya estaban de
+baja. No reescribe ninguna función (no lleva md5). **`infinity` no sirve**: GoTrue responde 500 en cada login (medido).
+
+**En pantalla.** `GuardaDeAcceso` (era `GuardaCuentaDeServicio`) cierra la sesión abierta al abrir la app y al volver a la pestaña; los dos
+ingresos dicen «Esta cuenta ya no tiene acceso»; `/api/admin/cuentas` rechaza con 409 obrar sobre alguien de baja; Equipo lo avisa al dar de baja.
+
+**Medido.** Pila privada desde cero con GoTrue real: cese por RPC → login 400 `user_banned`, refresh 400, `/user` 403, ajenos vacíos; reactivar
+→ entra con su clave. Navegador: pantalla y mensaje de ingreso. pgTAP completo 393 archivos / 5 948 aserciones en verde; 10 de 10 mutaciones cazadas.
+
+**Lo que NO corta.**
+- El JWT ya emitido vale hasta que venza (1 h por defecto): en ese rato solo alcanza SUS datos.
+- Un contrato que vence sin que nadie registre la baja: `fecha_fin_contrato` es un plan, no un cese (0143/0144). Corta al registrarla.
+- «Olvidé mi clave» sigue mandando el correo; el enlace dice «ya no es válido o expiró».
+
+**Sigue.** Ya no ven «Lo mío»: sus boletas y documentos se los entrega DO.
+
+---
+
 ## 2026-11-03 — El borrador de la semana · migración **0593 SIN PEGAR** · prueba 483 · rama `claude/turnos-borrador-semana` ([#668](https://github.com/felipea92p-ux/cayla-dynamic/pull/668))
 
 **De dónde sale.** Felipe (2026-11-03): tener a la vista «el horario sugerido (lo que predice el sistema), el que muestra el
