@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-05 — Quien se da de baja ya no entra · migración **0597 SIN PEGAR** · prueba 487 · rama `claude/revoke-access-removed-members-0f85b3`
+## 2026-11-05 — Quien se da de baja ya no entra · migración **0597 APLICADA (2026-11-05)** · prueba 487 · fusionada en [#677](https://github.com/felipea92p-ux/cayla-dynamic/pull/677)
 
 **De dónde sale.** Felipe (2026-11-05): «cada que se da de baja a un miembro de equipo (sea contrato, RRHH, etc) ya no debe poder acceder
 a su login». La 0374 solo había quitado el poder sobre datos ajenos: la cuenta seguía entrando.
@@ -27,7 +27,16 @@ ingresos dicen «Esta cuenta ya no tiene acceso»; `/api/admin/cuentas` rechaza 
 - Un contrato que vence sin que nadie registre la baja: `fecha_fin_contrato` es un plan, no un cese (0143/0144). Corta al registrarla.
 - «Olvidé mi clave» sigue mandando el correo; el enlace dice «ya no es válido o expiró».
 
-**Sigue.** Ya no ven «Lo mío»: sus boletas y documentos se los entrega DO.
+**Cómo llegó a producción.** Por excepción, la aplicó una sesión de Claude con el conector de Supabase, a pedido expreso de Felipe para esta
+migración («Aplícala tú»); no cambia la regla de que el SQL lo pega Felipe. Texto idéntico al de GitHub. md5 de llegada, iguales al repositorio:
+`fn_cortar_acceso_de_cuenta` `b0dd668b…` (526) · `fn_personas_acceso_sigue_al_estado` `cd01a25f…` (610). Comprobación: trigger 1 · de baja con
+acceso 0 · activos sin acceso 0. Quedaron cortadas las 3 cuentas que ya estaban de baja; los 35 activos con cuenta, intactos.
+
+**El #677 se fusionó (10:53 Lima) ANTES de aplicar la 0597**, sin el comentario `cayla:fusion-sesion`: no lo fusionó esta sesión. La cuenta es la
+de Felipe. El código funciona sin la migración: la guarda ya cerraba la sesión abierta, y solo faltaba cortar el login.
+
+**Sigue.** (1) Ya no ven «Lo mío»: sus boletas y documentos se los entrega DO. (2) Falta ver el rechazo en producción con un intento real: en
+local está medido, pero nadie ha probado a entrar allá con una cuenta cortada.
 
 ---
 
