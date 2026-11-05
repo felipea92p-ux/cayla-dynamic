@@ -111,6 +111,22 @@ export function nombreDelMesLima(fecha: string = hoyLima()): string {
     .toLocaleLowerCase("es-PE");
 }
 
+/**
+ * Una fecha de Lima escrita en largo: `2026-11-05` → «05 de noviembre de 2026».
+ *
+ * Mismo cuidado que `nombreDelMesLima`: la cadena ya es una fecha de Lima, así
+ * que volver a aplicarle la zona la corre un día hacia atrás. Vive aquí porque
+ * las hojas de constancias lo escribían cada una por su cuenta, y la de Política
+ * salarial cayó en esa trampa: desde el 2026-08-18 imprimía la fecha de corte un
+ * día antes, en el papel que prueba que el documento se entregó.
+ */
+export function fechaLargaLima(fecha: string = hoyLima()): string {
+  const [y, m, d] = fecha.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", {
+    day: "2-digit", month: "long", year: "numeric", timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+
 /** Lo mismo, con la inicial en mayúscula, para abrir un título o una frase. */
 export function nombreDelMesLimaTitulo(fecha: string = hoyLima()): string {
   const n = nombreDelMesLima(fecha);

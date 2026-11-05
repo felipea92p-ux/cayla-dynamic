@@ -7,10 +7,11 @@ import { Cargando } from "@/components/cargando";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
+import { CampoSelect } from "@/components/ui/campo";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { EMPRESA, ROLES_DO, TZ_LIMA, avisoNombresDelDni, hoyLima, usaNombreDelDni } from "@cayla-dynamic/shared";
+import { EMPRESA, ROLES_DO, TZ_LIMA, avisoNombresDelDni, fechaLargaLima, usaNombreDelDni } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { SubnavPoliticaSalarial } from "../_subnav";
 
@@ -109,13 +110,6 @@ function fechaCorta(iso: string | null): string {
   return new Intl.DateTimeFormat("es-PE", {
     day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC",
   }).format(new Date(Date.UTC(y, m - 1, d)));
-}
-
-function fechaLarga(iso: string): string {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("es-PE", {
-    day: "2-digit", month: "long", year: "numeric", timeZone: TZ_LIMA,
-  }).format(d);
 }
 
 function motivoPendiente(f: Fila): string | null {
@@ -316,7 +310,7 @@ function ConstanciasPoliticaSalarialContenido() {
         {versionesDisponibles.length > 1 && (
           <div className="mb-4 flex items-center gap-2 text-sm">
             <label htmlFor="version-constancias" className="text-taupe">Versión:</label>
-            <select
+            <CampoSelect
               id="version-constancias"
               value={version ?? ""}
               onChange={(e) => {
@@ -324,12 +318,11 @@ function ConstanciasPoliticaSalarialContenido() {
                 const esUltima = v === versionesDisponibles[0];
                 router.push(esUltima ? "/admin/politica-salarial/constancias" : `/admin/politica-salarial/constancias?version=${v}`);
               }}
-              className="rounded-control border border-sand bg-hueso px-2 py-1 text-tinta"
             >
               {versionesDisponibles.map((v, i) => (
                 <option key={v} value={v}>v{v}{i === 0 ? " (vigente)" : ""}</option>
               ))}
-            </select>
+            </CampoSelect>
             {!esVigente && <span className="text-xs text-taupe">Estás viendo una versión histórica.</span>}
           </div>
         )}
@@ -388,7 +381,7 @@ function ConstanciasPoliticaSalarialContenido() {
 
       <section className="mb-5 rounded-superficie border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
         <p>
-          Al <strong>{fechaLarga(hoyLima())}</strong>, de <strong>{total}</strong>{" "}
+          Al <strong>{fechaLargaLima()}</strong>, de <strong>{total}</strong>{" "}
           {total === 1 ? "integrante comprendida" : "integrantes comprendidas"} —personal activo y en
           planilla—, <strong>{constan.length}</strong> {constan.length === 1 ? "dejó" : "dejaron"}{" "}
           constancia de haber sido informada de esta versión

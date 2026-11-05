@@ -115,6 +115,27 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-05-politica-salarial-en-el-celular",
+    fecha: "2026-11-05",
+    titulo: "La Política salarial ya se lee bien en el celular",
+    queMejoro:
+      "En el celular, el documento se veía como una tira angosta y el campo para dejar constancia se salía de la " +
+      "pantalla. Ahora el texto usa todo el ancho y el campo se ve completo.\n\n" +
+      "Al comparar dos categorías, cada caja dice de cuál es. Y al saltar a una sección, su título ya no queda tapado " +
+      "por la barra de arriba.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-05-la-hoja-de-constancias-dice-la-fecha-correcta",
+    fecha: "2026-11-05",
+    titulo: "La hoja de constancias de la Política salarial ya dice la fecha correcta",
+    queMejoro:
+      "La hoja decía «Al…» con la fecha de un día antes de cuando se abría o se imprimía. Ahora dice la de hoy.\n\n" +
+      "Las hojas de esa pantalla que ya imprimiste siguen con la fecha de un día antes. Si alguna se entregó como " +
+      "prueba, conviene imprimirla de nuevo.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-05-las-firmas-se-ven-en-modo-oscuro",
     fecha: "2026-11-05",
     titulo: "Las firmas ya se ven en modo oscuro",
