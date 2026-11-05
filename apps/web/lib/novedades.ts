@@ -136,6 +136,16 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-11-05-las-firmas-se-ven-en-modo-oscuro",
+    fecha: "2026-11-05",
+    titulo: "Las firmas ya se ven en modo oscuro",
+    queMejoro:
+      "En modo oscuro, la firma de contratos, memos, constancias y demás documentos casi no se veía: tinta oscura sobre fondo oscuro. " +
+      "Ahora va sobre un recuadro claro, como ya pasaba en la boleta.\n\n" +
+      "En modo claro y en lo que se imprime, todo sigue igual.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-05-la-baja-cierra-el-acceso",
     fecha: "2026-11-05",
     titulo: "Dar de baja a alguien ahora también cierra su acceso",
