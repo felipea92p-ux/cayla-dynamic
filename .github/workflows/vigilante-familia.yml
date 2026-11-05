@@ -1,0 +1,146 @@
+name: Vigilante de la familia
+
+# Mira cada hora si Retail cambió algo de diseño que le toca a Dynamic (Felipe, 2026-11-05: Retail manda en diseño). La lógica y sus pruebas viven en
+# scripts/familia/; este archivo solo la llama. Qué mira, qué hace y por qué: docs/familia/README.md.
+#
+# Los dos interruptores son variables del repositorio (Settings → Secrets and variables → Actions → Variables):
+#   FAMILIA_VIGILANTE = apagado   apaga el vigilante entero; la corrida termina sin leer nada
+#   FAMILIA_PUBLICAR  = si        enciende la publicación (sin tilde; cualquier otro valor la deja apagada)
+#
+# LO QUE CUESTA. Una corrida normal: un checkout y unas pocas lecturas, sin pnpm install (~20 s). Cayla-dynamic y cayla-retail son públicos: los minutos
+# de los runners estándar no cuentan contra ningún plan. Si Dynamic volviera a privado serían ~720 minutos facturados al mes, porque cada corrida se
+# redondea a un minuto: el 36 % de un plan de 2.000, el plan que se agotó el 2026-08-26.
+on:
+  schedule:
+    # El minuto 17 y no el 0: GitHub atrasa o descarta lo programado a la hora en punto, cuando todo el mundo corre a la vez.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      seco:
+        description: "Solo mirar: lee Retail y lo dice en el registro, sin escribir nada"
+        type: boolean
+        default: false
+
+# Dos corridas no pueden escribir el mismo aviso a la vez. Una hora de separación lo vuelve raro, pero una corrida con pruebas tarda varios minutos y
+# alguien puede dispararla a mano mientras tanto.
+concurrency:
+  group: vigilante-familia
+  cancel-in-progress: false
+
+# Nada por defecto: cada trabajo pide solo lo suyo.
+permissions: {}
+
+jobs:
+  vigilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      publicar: ${{ steps.avisar.outputs.publicar }}
+      commit: ${{ steps.avisar.outputs.commit }}
+      aviso: ${{ steps.avisar.outputs.aviso }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # El Node que ya trae el runner alcanza: el script no tiene dependencias. Si Retail no responde sale con 0, sin ruido.
+      - name: Mirar Retail
+        id: mirar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAMILIA_VIGILANTE: ${{ vars.FAMILIA_VIGILANTE }}
+          FAMILIA_PUBLICAR: ${{ vars.FAMILIA_PUBLICAR }}
+          SECO: ${{ inputs.seco }}
+        run: node scripts/familia/vigilante.mjs mirar
+
+      # De aquí en adelante, solo si algo cambió y hay que probarlo: es lo que hace que una corrida normal dure segundos.
+      - name: Preparar pnpm
+        if: steps.mirar.outputs.probar == 'si'
+        uses: pnpm/action-setup@v4
+
+      - name: Preparar Node
+        if: steps.mirar.outputs.probar == 'si'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # `continue-on-error`: un rojo aquí es información para el aviso, no una corrida fallida. El aviso dice si dieron verde o no.
+      - name: Instalar dependencias
+        id: instalar
+        if: steps.mirar.outputs.probar == 'si'
+        continue-on-error: true
+        run: pnpm install --frozen-lockfile
+
+      - name: Correr las pruebas sobre el cambio preparado
+        id: pruebas
+        if: steps.instalar.outcome == 'success'
+        continue-on-error: true
+        run: |
+          pnpm typecheck
+          pnpm test
+
+      - name: Dejar el aviso
+        id: avisar
+        if: always() && steps.mirar.outputs.probar == 'si'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAMILIA_PUBLICAR: ${{ vars.FAMILIA_PUBLICAR }}
+          PRUEBAS: ${{ steps.pruebas.outcome }}
+        run: node scripts/familia/vigilante.mjs avisar
+
+  # ESCRITO Y APAGADO. Mientras FAMILIA_PUBLICAR no sea `si`, este trabajo no arranca ni recibe permiso de escribir.
+  #
+  # Fusionar es publicar: `main` se publica sola. Encender la variable es dar por adelantado el permiso que hoy se pide PR por PR, y `--auto` hoy se arma
+  # solo cuando Felipe lo pide para ESE PR (CLAUDE.md). La variable la enciende Felipe, nadie más.
+  #
+  # LO QUE HACE FALTA EL DÍA QUE SE ENCIENDA, porque hoy esto NO funcionaría (ver docs/familia/README.md):
+  #   1. El repositorio tiene `can_approve_pull_request_reviews: false`: GITHUB_TOKEN no puede abrir un PR. Se cambia en Settings → Actions → General.
+  #   2. Un PR abierto con GITHUB_TOKEN no dispara otras Actions, y el ruleset exige db-tests y ui-tests. Por eso `gh workflow run tests.yml`: los
+  #      workflow_dispatch sí se disparan con GITHUB_TOKEN y reportan sobre el commit de la rama. Sin probar: solo se puede comprobar con esto en `main`.
+  publicar:
+    needs: vigilar
+    if: needs.vigilar.outputs.publicar == 'si' && vars.FAMILIA_PUBLICAR == 'si'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      COMMIT: ${{ needs.vigilar.outputs.commit }}
+      AVISO: ${{ needs.vigilar.outputs.aviso }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Repetir el mismo cambio que ya pasó las pruebas
+        run: node scripts/familia/vigilante.mjs tomar viajan --commit "$COMMIT"
+
+      - name: Comprobar otra vez que no toca nada fuera de la lista
+        run: node scripts/familia/vigilante.mjs revisar-tocados
+
+      - name: Abrir el PR y armar la fusión
+        run: |
+          rama="familia/retail-${COMMIT:0:7}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$rama"
+          git add -A
+          git commit -m "La familia: se toma lo que cambió en Retail (${COMMIT:0:7})"
+          git push origin "$rama"
+          gh pr create --base main --head "$rama" \
+            --title "La familia: se toma lo que cambió en Retail (${COMMIT:0:7})" \
+            --body "Lo preparó el vigilante de la familia: solo archivos de docs/familia/compartidos.json, pruebas en verde y fuera del horario de tienda. Aviso: #$AVISO."
+          gh pr comment "$rama" --body "<!-- cayla:fusion-sesion -->
+          **Sesión:** vigilante de la familia, corrida $GITHUB_RUN_ID
+          **Pidió:** Felipe, al encender FAMILIA_PUBLICAR en las variables del repositorio
+          **Pruebas:** typecheck y vitest en verde en la corrida; db-tests y ui-tests corren sobre esta rama y la fusión los espera
+          **SQL:** no hay"
+          gh workflow run tests.yml --ref "$rama"
+          gh pr merge "$rama" --auto --merge
+          gh issue comment "$AVISO" --body "Se abrió el PR de la rama \`$rama\`. La fusión queda armada: sale sola si db-tests y ui-tests dan verde."
