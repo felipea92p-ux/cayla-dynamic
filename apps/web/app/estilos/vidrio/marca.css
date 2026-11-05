@@ -21,7 +21,6 @@
     --vidrio-ease-salida: cubic-bezier(0.4, 0, 1, 1);
     --brillo-superior: rgb(255 255 255 / 0.95);
     --color-ambar-profundo: #734f15;
-    --color-taupe-profundo: #805c4c;
     --radius-boton: 999px;
     --radius-campo: 14px;
     --radius-tarjeta: 22px;
@@ -53,7 +52,6 @@
     --vidrio-ease-salida: cubic-bezier(0.4, 0, 1, 1);
     --brillo-superior: color-mix(in srgb, var(--color-tinta) 10%, transparent);
     --color-ambar-profundo: #ecc676;
-    --color-taupe-profundo: #c4a898;
     --radius-boton: 999px;
     --radius-campo: 14px;
     --radius-tarjeta: 22px;

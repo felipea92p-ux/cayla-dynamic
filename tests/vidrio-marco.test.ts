@@ -178,7 +178,7 @@ describe.each(["claro", "oscuro"] as const)("se lee sobre el vidrio: %s", (tema)
 const lente = (tono: string, tema: "claro" | "oscuro") =>
   tema === "claro"
     ? `linear-gradient(180deg, color-mix(in srgb, var(--color-vidrio) 73%, var(--color-${tono}) 7%), color-mix(in srgb, var(--color-vidrio) 42%, var(--color-${tono}) 8%))`
-    : `linear-gradient(180deg, color-mix(in srgb, var(--color-${tono}) 22%, transparent), color-mix(in srgb, var(--color-${tono}) 12%, transparent))`;
+    : `linear-gradient(180deg, color-mix(in srgb, var(--color-${tono}) 16%, transparent), color-mix(in srgb, var(--color-${tono}) 9%, transparent))`;
 const avisoDe = (tono: string) =>
   `linear-gradient(180deg, color-mix(in srgb, var(--color-${tono}) 7%, transparent), color-mix(in srgb, var(--color-${tono}) 3%, transparent)), var(--placa-fondo)`;
 
@@ -202,7 +202,7 @@ describe.each(["claro", "oscuro"] as const)("las piezas se leen: %s", (tema) => 
     ["la hoja: la letra", "var(--color-tinta)", "var(--vidrio-hoja-fondo)", PAGINA],
     ["la hoja: lo secundario", "var(--color-taupe)", "var(--vidrio-hoja-fondo)", PAGINA],
     ["el menú «⋯»", "var(--color-tinta)", "var(--vidrio-flota-fondo)", PAGINA],
-    ["la insignia ámbar", "var(--color-ambar)", lente("ambar", tema), TARJETA],
+    ["la insignia ámbar", "var(--color-ambar-profundo)", lente("ambar", tema), TARJETA],
     ["la insignia verde", "var(--color-verde)", lente("verde", tema), TARJETA],
     ["la insignia roja", "var(--color-rojo-profundo)", lente("rojo", tema), TARJETA],
     ["la insignia pizarra", "var(--color-pizarra)", lente("pizarra", tema), TARJETA],
@@ -210,7 +210,7 @@ describe.each(["claro", "oscuro"] as const)("las piezas se leen: %s", (tema) => 
     ["el aviso ámbar: la letra", "var(--color-tinta)", avisoDe("ambar"), TARJETA],
     ["el aviso rojo: la letra", "var(--color-tinta)", avisoDe("rojo"), TARJETA],
     ["el aviso rojo: su título", "var(--color-rojo-profundo)", avisoDe("rojo"), TARJETA],
-    ["el aviso ámbar: su título", "var(--color-ambar)", avisoDe("ambar"), TARJETA],
+    ["el aviso ámbar: su título", "var(--color-ambar-profundo)", avisoDe("ambar"), TARJETA],
     ["el vacío", "var(--color-taupe)", null, ["var(--color-crema)"]],
   ];
   it.each(PIEZAS)("%s ≥ 4.5:1", (_n, letra, fondo, detras) => {

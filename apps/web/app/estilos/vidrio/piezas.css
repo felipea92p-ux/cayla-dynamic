@@ -32,6 +32,37 @@
     min-width: 0;
   }
 
+  /* ---------- Lo que se lee a medias ----------
+     El rojo de marca es para marcar, no para leer: la letra roja va en rojo profundo, como en Retail. Sobre una ficha teñida daba 4.21:1 (las iniciales de Correcciones).
+     Lo mismo con la letra aguada (`text-taupe/60`): el tinte bajaba a 2:1 sobre el vidrio, y lo que no se lee no aporta. */
+  [data-vidrio="panel"] .text-rojo:not(.hoja *) {
+    color: var(--color-rojo-profundo);
+  }
+  [data-vidrio="panel"] [class*="text-rojo/"]:not(.hoja *) {
+    color: var(--color-rojo-profundo);
+  }
+  [data-vidrio="panel"] [class*="text-taupe/"]:not(.hoja *) {
+    color: var(--color-taupe);
+  }
+  /* La letra secundaria en claro: el café de marca da 5.2:1 sobre crema, pero sobre la nube más teñida de la aurora bajaba a 4.07:1, medido con los píxeles de 40 pantallas.
+     Un punto más de tinta y no otro color: se ve igual y pasa. No se toca el token: `taupe` también pinta líneas y fondos, y es del contrato. */
+  :root[data-vidrio="panel"]:not([data-tema="oscuro"]) :is(.text-taupe, [class*="text-taupe/"]):not(.hoja *) {
+    color: color-mix(in srgb, var(--color-taupe) 88%, var(--color-tinta));
+  }
+  /* El ámbar para leer es el profundo, como en Retail. El otro es para marcar. */
+  [data-vidrio="panel"] .text-ambar:not(.hoja *) {
+    color: var(--color-ambar-profundo);
+  }
+  /* Lo que va dentro de un botón o una insignia neutra: sobre su gota, el café oscuro no alcanzaba (4.34:1). */
+  [data-vidrio="panel"] :is(button, a).rounded-control.text-taupe:not(.hoja *),
+  [data-vidrio="panel"] .bg-sand.text-taupe:not(.hoja *) {
+    color: color-mix(in srgb, var(--color-tinta) 78%, transparent);
+  }
+  /* El conteo dentro de un filtro: al 70 % bajaba a 4.01:1. */
+  [data-vidrio="panel"] button[aria-pressed] [class*="opacity-"]:not(.hoja *) {
+    opacity: 0.85;
+  }
+
   /* ---------- Las líneas: el hilo de las tablas ----------
      Primero, para que las piezas de abajo le ganen. Un botón o un campo conservan el borde que dice que se tocan. */
   [data-vidrio="panel"] .border-sand:not(a, button, input, select, textarea, [role="button"], .hoja, .hoja *),
@@ -54,7 +85,7 @@
     box-shadow: var(--ahumado-luz);
     transition: background 200ms var(--ease-cayla), border-color 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
   }
-  [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.hoja *) {
+  [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.bg-tinta, .hoja *) {
     background: var(--gota-fondo);
     box-shadow: var(--gota-luz);
     transition: background 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
@@ -92,7 +123,7 @@
       background: var(--ahumado-hover);
       border-color: color-mix(in srgb, var(--color-rojo-profundo) 70%, transparent);
     }
-    [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(:disabled, .hoja *):hover,
+    [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.bg-tinta, :disabled, .hoja *):hover,
     [data-vidrio="panel"] :is(button, a).rounded-control.bg-papel:not(:disabled, .hoja *):hover {
       background: var(--gota-fondo-encima);
     }
@@ -277,7 +308,8 @@
     --tono-chip: var(--color-pizarra);
   }
   :root[data-vidrio="panel"][data-tema="oscuro"] .rounded-pildora:is([class*="bg-ambar/"], [class*="bg-verde/"], [class*="bg-rojo/"], [class*="bg-pizarra/"], [class*="bg-azul/"], .bg-sand):not(.hoja *) {
-    background: linear-gradient(180deg, color-mix(in srgb, var(--tono-chip) 22%, transparent), color-mix(in srgb, var(--tono-chip) 12%, transparent));
+    /* 16 y 9 y no los 22 y 12 de Retail: con esos, la letra pizarra quedaba en 4.43:1 sobre una tarjeta. */
+    background: linear-gradient(180deg, color-mix(in srgb, var(--tono-chip) 16%, transparent), color-mix(in srgb, var(--tono-chip) 9%, transparent));
     box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-tinta) 12%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tono-chip) 34%, transparent);
   }
   /* El número que pide algo: ámbar, como en el menú. El rojo es escaso (S1) y aquí no dice un error. */
