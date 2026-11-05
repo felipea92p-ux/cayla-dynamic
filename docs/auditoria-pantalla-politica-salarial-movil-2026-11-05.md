@@ -343,7 +343,12 @@ vista previa.
 | 7 · Categorías | 4 | 0 | — |
 | 8 · Condiciones | 4 | 0 | — |
 
-**Teléfono usado:** por anotar.
+**Teléfono usado:** iPhone en tema claro; faltan el modelo, el sistema y el navegador
+(P00).
+
+**Control en producción:** hecho. El defecto de H1 se reproduce en el teléfono real,
+así que la medición en el navegador sirve de guía. La captura no muestra la dirección:
+se da por producción porque ahí se pidió abrirla y la columna sigue angosta.
 
 ### Lo que se encontró
 
@@ -351,4 +356,4 @@ Solo entra lo que no fue `ok`. Sin nombres, DNI ni sueldos.
 
 | Parada | Severidad | Qué se vio | Hallazgo | Estado |
 |---|---|---|---|---|
-| | | | | |
+| Control | Bloquea | El título del documento sale casi palabra por palabra, el RUC se corta y la página se corre de lado hasta dejar fuera el botón del menú. El selector se ve más ancho que en Chromium, así que la columna parece más angosta que los 141 px medidos (estimado por la captura). | H1 | Corregido en la rama; falta verlo en la vista previa |
