@@ -19,7 +19,7 @@ repositorio. La mitad de Retail está en su `docs/familia/README.md`.
 | | Versión 3 | Versión 4 (lo que pinta Retail, medido el 2026-11-05) |
 |---|---|---|
 | Control | 8 px | Botón **999 px**, campo **14 px** |
-| Superficie | 16 px | Tarjeta **22 px** (Retail pinta 20, 22 y 24: ver P10) |
+| Superficie | 16 px | Tarjeta **22 px**, una sola en los dos sistemas (P10; Retail hoy pinta 20, 22 y 24) |
 | Flotante | 20 px | Cajón **28 px**, hoja **32 px** (26 px en el celular, los dos) |
 | Luz | no existía | `vidrio`: claro `#ffffff`, oscuro `#33302a` |
 | Sombra | no existía | `sombra`: claro `#1a1a18`, oscuro `#000000` |
