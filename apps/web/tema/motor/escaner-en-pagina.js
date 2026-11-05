@@ -145,8 +145,16 @@
       const rango = document.createRange();
       rango.selectNodeContents(n);
       const caja2 = rango.getBoundingClientRect();
+      // Una letra sin color propio la pinta un degradado recortado a su forma (`background-clip: text`, el «transforma.» del login). Medirla como
+      // tinta transparente da un 1:1 falso, y un falso positivo enseña a no creerle al medidor: se cuenta como lo que no se puede medir aquí.
+      const relleno = cs.webkitTextFillColor || cs.color;
+      if (leer(relleno)[3] === 0) {
+        analizados++;
+        sobreDegradado++;
+        continue;
+      }
       const { fondo, hayImagen } = fondoEfectivo(el, [caja2.left + caja2.width / 2, caja2.top + caja2.height / 2]);
-      let tinta = leer(cs.color);
+      let tinta = leer(relleno);
       tinta = sobre([tinta[0], tinta[1], tinta[2], tinta[3] * op], fondo);
       const ratio = contraste(tinta, fondo);
       analizados++;

@@ -30,8 +30,9 @@ Lo de `.hoja`, `.contrato` y `.firma-tinta` no cuenta como hallazgo, pero **se a
 
 ### Lo que este escáner NO ve
 
-- **Degradados e imágenes.** Solo suma colores planos. El reporte cuenta cuántos textos midió así, en la columna «Sobre degradado», porque su número no vale. Esos los mide
-  `tests/vidrio-contraste.test.ts` con `contraste-calculado.ts`, sobre el CSS: 4.5:1 para la letra y 3:1 para el borde de un control, en los dos temas.
+- **Degradados e imágenes.** Solo suma colores planos. El reporte cuenta cuántos textos no pudo medir de verdad, en la columna «Sobre degradado», incluida una letra recortada
+  de un degradado (`background-clip: text`, el «transforma.» del login). Esos los mide `tests/vidrio-contraste.test.ts` con `contraste-calculado.ts`, sobre el CSS: 4.5:1 para
+  la letra y 3:1 para el borde de un control, en los dos temas.
 - **Marcadores de posición (`::placeholder`) e íconos** (SVG, máscaras): solo mide nodos de texto.
 - **`backdrop-filter`.** El vidrio desenfoca lo de atrás; aquí se compone como si fuera transparente.
 

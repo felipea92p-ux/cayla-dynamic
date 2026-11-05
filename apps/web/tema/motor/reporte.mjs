@@ -79,7 +79,7 @@ export function escribirReporte(dirSalida, visitas, meta) {
     "",
     `Contraste: ${totales.soloOscuro} solo en oscuro · ${totales.soloClaro} solo en claro · ${totales.enLosDos} en los dos. Manchas: ${totales.manchas} (${totales.exentas} claras a propósito no cuentan). Velos: ${totales.velos}.`,
     "",
-    "«Sobre degradado» cuenta los textos que este escáner midió sin ver su fondo real: solo suma colores planos. Esos los mide `tests/vidrio-contraste.test.ts`.",
+    "«Sobre degradado» cuenta los textos que este escáner no puede medir de verdad, porque solo suma colores planos: su número no vale. Esos los mide `tests/vidrio-contraste.test.ts`.",
     "",
     "| Cuenta | Pantalla | | Textos | Solo oscuro | Solo claro | En los dos | Manchas | Velos | Sobre degradado |",
     "|---|---|---|---|---|---|---|---|---|---|",

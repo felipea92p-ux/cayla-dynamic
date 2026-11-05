@@ -33,6 +33,7 @@ const PAGINA_DE_CONTRASTE = `<!doctype html>
   <span aria-hidden="true" style="color:#444">·</span>
   <kbd aria-hidden="true" style="color:#777">/</kbd>
   <div style="background:linear-gradient(#fff,#000)"><span style="color:var(--color-tinta)">Sobre degradado</span></div>
+  <em style="background:linear-gradient(#fff,#eee);-webkit-background-clip:text;background-clip:text;color:transparent">Pintada por un degradado</em>
   <div id="mancha" style="background:#fff;${SUPERFICIE}"></div>
   <div class="hoja"><div style="background:#fff;${SUPERFICIE}"></div></div>
   <div class="contrato"><div style="background:#fff;${SUPERFICIE}"></div></div>
@@ -79,7 +80,7 @@ try {
   // «/» es una tecla: su color pasaría como gráfico (3:1) pero sigue siendo texto, así que tiene que aparecer. El «›» del mismo color no.
   revisar("el contraste encuentra justo el texto ilegible, la tecla y el gráfico por debajo de 3:1", r.contrastes.map((h) => h.texto).sort(), ["No se lee", "·", "/"].sort());
   revisar("el gráfico se mide contra 3 y lo demás contra 4.5", r.contrastes.map((h) => h.umbral).sort(), [3, 4.5, 4.5]);
-  revisar("cuenta el texto sobre un degradado, que no puede medir", r.sobreDegradado, 1);
+  revisar("cuenta lo que no puede medir: un texto sobre un degradado y una letra recortada de uno, sin darla por ilegible", r.sobreDegradado, 2);
   revisar("una sola mancha: el blanco suelto, no el token ni la crema fija ni lo chico", r.manchas.length, 1);
   revisar("lo claro de .hoja, .contrato y .firma-tinta no cuenta, pero se anota", r.manchasExentas.length, 3);
   revisar("un solo velo: el que aclara, no el que oscurece", r.velos.length, 1);
