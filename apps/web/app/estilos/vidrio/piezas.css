@@ -44,10 +44,10 @@
   [data-vidrio="panel"] [class*="text-taupe/"]:not(.hoja *) {
     color: var(--color-taupe);
   }
-  /* La letra secundaria en claro: el café de marca da 5.2:1 sobre crema, pero sobre la nube más teñida de la aurora bajaba a 4.07:1, medido con los píxeles de 40 pantallas.
-     Un punto más de tinta y no otro color: se ve igual y pasa. No se toca el token: `taupe` también pinta líneas y fondos, y es del contrato. */
-  :root[data-vidrio="panel"]:not([data-tema="oscuro"]) :is(.text-taupe, [class*="text-taupe/"]):not(.hoja *) {
-    color: color-mix(in srgb, var(--color-taupe) 88%, var(--color-tinta));
+  /* La letra secundaria: el café de marca da 5.2:1 sobre crema, pero sobre la nube más teñida de la aurora bajaba a 3.82:1, medido con los píxeles de 40 pantallas. Un punto
+     más de tinta y no otro color: se ve igual y pasa. No se toca el token: `taupe` también pinta líneas y fondos, y es del contrato. */
+  [data-vidrio="panel"] :is(.text-taupe, [class*="text-taupe/"]):not([role="tab"], .vidrio-pestanas > button, .hoja *) {
+    color: var(--vidrio-letra-secundaria);
   }
   /* El ámbar para leer es el profundo, como en Retail. El otro es para marcar. */
   [data-vidrio="panel"] .text-ambar:not(.hoja *) {
@@ -56,6 +56,10 @@
   /* Lo que va dentro de un botón o una insignia neutra: sobre su gota, el café oscuro no alcanzaba (4.34:1). */
   [data-vidrio="panel"] :is(button, a).rounded-control.text-taupe:not(.hoja *),
   [data-vidrio="panel"] .bg-sand.text-taupe:not(.hoja *) {
+    color: color-mix(in srgb, var(--color-tinta) 78%, transparent);
+  }
+  /* Una etiqueta chica sobre un fondo a medias (el «sin meta» de Turnos). */
+  [data-vidrio="panel"] span[class*="bg-papel/"]:not(.hoja *) {
     color: color-mix(in srgb, var(--color-tinta) 78%, transparent);
   }
   /* El conteo dentro de un filtro: al 70 % bajaba a 4.01:1. */
