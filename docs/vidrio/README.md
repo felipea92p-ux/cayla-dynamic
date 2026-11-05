@@ -42,6 +42,20 @@ No se ve nada en producción, salvo la firma.
 
 Al terminar la Etapa 0 se le muestra Dynamic corriendo en local y se le pide el OK para subirla.
 
+**Comprobado con el interruptor encendido y apagado:** 24 capturas de Dashboard, Bandeja, Equipo, Lo mío, ingreso y terminal, en claro y oscuro, a 1440 y 375 px. Salieron 23 idénticas píxel por píxel y una distinta en 1 píxel, el mismo ruido que da la misma pantalla entre dos fotos sin cambiar nada.
+
+**La línea base de los medidores (2026-11-05, con datos inventados):**
+
+| Medidor | Alcance | Resultado |
+|---|---|---|
+| Contraste a 1440 px | 31 vistas, 6 cuentas | 19 hallazgos, solo en oscuro |
+| Contraste a 375 px | 13 vistas, 3 cuentas | 12 hallazgos, solo en oscuro |
+| Responsive | 7 pantallas, 49 casos en los 6 anchos | Todo pasa; ninguna página se mueve de lado |
+
+Los hallazgos son un solo defecto: el rojo del oscuro de hoy (`#d4634a`) da 4.28:1 sobre papel y 3.95:1 en el buscador abierto. Los colores de Retail deberían corregirlo; se vuelve a medir en la Etapa 1. **Faltan por medir** 7 de las 14 pantallas registradas y la cuenta de DO.
+
+**Una trampa para la Etapa 1:** `tema:auditar` solo suma colores planos, así que un texto sobre vidrio saldría «bien» con un número que no vale. La columna «Sobre degradado» de su reporte tiene que contar como «sin medir», y esos casos se miden con `tests/vidrio-contraste.test.ts`.
+
 ## Etapa 1: lo general
 
 Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar cada pantalla ya se verá en buena parte como Retail.
@@ -79,7 +93,7 @@ Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** c
 
 1. **Inventario.** Todas las pantallas, hojas, pestañas y estados (vacío, error y carga), y qué roles ve cada uno.
 2. **Aplicar.** Poner las piezas de Retail y quitar lo escrito a mano. Solo cambia cómo se ve: ningún botón cambia lo que hace, y no se toca planilla, horas ni cálculos.
-3. **Medir el responsive y el contraste.** En claro y oscuro, a 375, 768, 1024, 1280, 1440 y 1920 px: `tema:auditar` y `responsive:check`.
+3. **Medir el responsive y el contraste.** En claro y oscuro, a 375, 768, 1024, 1280, 1440 y 1920 px: `tema:auditar` y `responsive:check`. Cómo se corren: `apps/web/tema/README.md` y `apps/web/responsive/README.md`.
 4. **Recorrer como la gente.** Con la cuenta de menor rango y con la de mayor rango, porque suelen fallar cosas distintas.
 5. **Mostrárselo a Felipe.** Capturas de antes y después en el chat, y en vivo en su computadora. Si algo no calza con ninguna pieza de Retail, se le pregunta con imagen, con la pieza más cercana al lado. No se inventa.
 6. **Cerrar.** Se hacen sus ajustes, se marca aquí y, **solo con su aprobación**, se sube apagado. Antes de eso, nada de `git push` ni de PR.
