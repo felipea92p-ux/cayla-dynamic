@@ -509,7 +509,8 @@ export default function PoliticaSalarialPage() {
             <span>Versión <strong className="text-tinta">{vigente.version}</strong> · publicada el {vigente.publicada_at ? fechaLarga(vigente.publicada_at) : "—"}</span>
             <Insignia variante={desactualizada ? "advertencia" : "positivo"}>{desactualizada ? "Desactualizada" : "Vigente"}</Insignia>
             <span>Constancias: <strong className="text-tinta">{vigente.total_acuses ?? 0}</strong> / {vigente.total_personas ?? 0}</span>
-            <Link href="/admin/politica-salarial/constancias" className="underline underline-offset-2 hover:text-tinta">ver constancias</Link>
+            {/* Solo para quien puede abrirla: `fn_acuses_politica_salarial` rechaza a cualquier otro rol, y el enlace llevaba a ese error. */}
+            {esDO && <Link href="/admin/politica-salarial/constancias" className="underline underline-offset-2 hover:text-tinta">ver constancias</Link>}
           </div>
         )}
 
