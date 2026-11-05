@@ -147,6 +147,20 @@ SE ROMPE SI: la vista previa pide iniciar sesión en Vercel en el teléfono, o s
 Abrir Documento vigente en el teléfono y confirmar que se ve la tira angosta de
 H1. Sirve para validar que la medición emulada coincide con el teléfono real.
 
+### Dónde se recorre
+
+Vista previa de la rama, generada el 2026-11-05:
+<https://cayla-dynamic-5rritdbx4-cayla.vercel.app/admin/politica-salarial>
+
+- **Pide dos inicios de sesión la primera vez.** Primero Vercel: la dirección
+  responde con una redirección a `vercel.com/sso-api`. Después Dynamic, porque la
+  sesión no se comparte con producción.
+- **A qué base apunta sigue sin confirmar.** La protección impide leer sus archivos
+  desde aquí, y `vercel curl` no se usó porque promete saltarse la protección
+  automáticamente, sin decir qué cambia en el proyecto. Se contesta en P01 y, hasta
+  entonces, se trata como producción.
+- **Si la rama cambia, la dirección cambia.** La sesión da la nueva.
+
 ### Cómo funciona
 
 - **Guía la sesión.** Da una parada a la vez: adónde ir, qué hacer y qué mirar.
@@ -211,7 +225,7 @@ descubre. Las marcadas con ☎ solo se pueden contestar en un teléfono real.
 | # | Qué hacer | Qué mirar |
 |---|---|---|
 | P00 | Decir modelo, sistema y navegador. | De ahí sale el ancho real de la pantalla. |
-| P01 | Entrar con la sesión de siempre. | Rol de la cuenta y tema (claro u oscuro). |
+| P01 | Entrar a la vista previa con la cuenta de siempre. | Rol de la cuenta y tema (claro u oscuro). ¿La versión y las constancias son las reales? Eso dice a qué base apunta. |
 
 ### Tramo 1 · El camino de la integrante (5 min, con una integrante real)
 
