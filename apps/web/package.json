@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "tema:auditar": "node tema/cli.mjs",
+    "tema:colores": "node tema/colores-sueltos.mjs",
+    "responsive:check": "node responsive/cli.mjs",
+    "medidores:autoprueba": "node tema/autoprueba.mjs"
   },
   "dependencies": {
     "@cayla-dynamic/database": "workspace:*",
@@ -32,6 +36,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "playwright": "^1.63.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
