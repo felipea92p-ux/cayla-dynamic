@@ -73,14 +73,16 @@ Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar ca
 
 **Antes de retirar `/admin/apariencia`:** fijar el terminal en claro y limpiar la copia local del tema en cada Mac mini, o se quedan con el último que les llegó.
 
-**Las recetas de vidrio se tomaron de Retail en el #1645, no de su `main` de hoy.** El #1650 de Retail agregó a `recetas.css` un bloque para quien pide menos transparencia o más contraste, y ese bloque trae una regla sobre `*`: `envolver-recetas.mjs` se niega a traerla, como debe, porque colgarla mal llegaría al terminal. El vigilante va a avisar. Hay que decidir cómo se trae: ver [`docs/familia/README.md`](../familia/README.md).
+**Las recetas de vidrio vienen de `main` de Retail, con su bloque para quien pide menos transparencia o más contraste (#1650).** Sus variables viajan; sus reglas, una lista exacta, las escribe `estilos/vidrio/piezas.css` solo para el panel, porque apuntan a clases de Retail. Si Retail cambia esa lista, la copia se detiene y el vigilante avisa.
+
+**`tema:auditar` no alcanza con vidrio:** casi todo el texto va sobre un degradado, y ahí solo suma colores planos. Se mide también con los píxeles de cada pantalla: se saca una captura sin letras y se compara cada texto contra lo que de verdad tiene detrás.
 
 | Pieza | Estado |
 |---|---|
 | Colores, modo oscuro, fondo y botón de tema | Felipe lo miró y dijo «sigue». Sigue en local |
-| Menú de la izquierda: abierto, plegado y cajón del celular | En local, esperando que Felipe lo mire |
-| Cabecera: buscador, tema, avisos y título de cada pantalla | En local, esperando que Felipe lo mire |
-| Piezas: botones, campos, listas, hojas, tablas, tarjetas, insignias, avisos, filtros, pestañas y estados vacíos | Pendiente |
+| Menú de la izquierda: abierto, plegado y cajón del celular | Felipe lo miró y dijo «sigue». Sigue en local |
+| Cabecera: buscador, tema, avisos y título de cada pantalla | Felipe lo miró y dijo «sigue». Sigue en local |
+| Piezas: botones, campos, listas, hojas, tablas, tarjetas, insignias, avisos, filtros, pestañas y estados vacíos | En local, esperando que Felipe lo mire |
 | Lo que se mueve: movimiento, loader, «atrás» que cierra la hoja y botones a la vista en hojas largas | Pendiente |
 
 ## Etapa 2: módulo por módulo
