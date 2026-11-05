@@ -51,7 +51,7 @@ Hay al menos una por módulo de la obra (`entrada`, `inicio`, `asistencia`, `doc
 ## Escenarios
 
 Una pantalla con escenarios vive en su propio archivo y se importa en el registro. El ejemplo es `pantallas/inicio.dashboard.mjs`: abre el buscador en todos los anchos y el menú
-solo donde es un cajón.
+solo donde es un cajón. Un escenario que solo existe en un ancho lo declara con `viewports`: si corriera en los otros, repetiría el estado inicial y sumaría verdes que no midieron nada.
 
 ```js
 escenarios: [
@@ -59,8 +59,8 @@ escenarios: [
   {
     id: "menu",
     nombre: "El menú del celular abierto",
-    async preparar(pagina, { viewport }) {
-      if (viewport.w >= 768) return;
+    viewports: ["375x812"],
+    async preparar(pagina) {
       await pagina.getByRole("button", { name: "Abrir menú", exact: true }).click();
     },
   },
@@ -77,6 +77,12 @@ Si un escenario necesita un estado, lo arma con clics en su `preparar`; no depen
 - **Scroll horizontal legítimo:** lo que vive dentro de un contenedor con `overflow-x: auto|scroll` que de verdad desborda se salta: se llega desplazando ESE contenedor. El contenedor
   mismo sí se compara.
 - **Límite propio:** `limite: "<selector>"` compara contra ese elemento en vez del viewport, y `ambito: "<selector>"` acota qué subárbol se recorre. Sirve para mirar solo un modal.
+
+## Lo que NO ve
+
+Que pase quiere decir una sola cosa: ningún elemento clave se sale de la pantalla por los lados. **No** quiere decir que se vea bien. No ve un texto cortado dentro de una caja
+con `overflow: hidden` o con puntos suspensivos, ni dos cosas encimadas, ni lo que se sale por abajo, ni una tabla cuya columna importante solo aparece desplazando. Para eso, las
+capturas (`--capturas-todas`) y mirar.
 
 ## Exclusiones
 

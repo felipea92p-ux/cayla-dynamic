@@ -8,6 +8,7 @@
  * @property {string} id
  * @property {string} nombre
  * @property {(pagina: import('playwright').Page, ctx: { viewport: {id:string,w:number,h:number}, pantalla: Pantalla, escenario: Escenario }) => Promise<void>} [preparar]
+ * @property {undefined | string[] | { excluir: string[] }} [viewports]   si solo existe en algunos anchos; si no, los de la pantalla
  * @property {string[]} [elementosClave]   selectores extra a inspeccionar, solo en este escenario
  * @property {string[]} [exclusiones]      selectores a ignorar, solo en este escenario
  * @property {string} [ambito]             selector que acota QUÉ subárbol se inspecciona

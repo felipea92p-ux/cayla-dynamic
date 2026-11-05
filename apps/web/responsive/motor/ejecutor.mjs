@@ -38,7 +38,7 @@ export async function ejecutarVerificacion(pantallas, opciones) {
       if (!cuenta) throw new Error(`La pantalla ${pantalla.id} pide la cuenta «${pantalla.cuenta}», que no existe.`);
       const escenarios = pantalla.escenarios?.length ? pantalla.escenarios : ESCENARIO_POR_DEFECTO;
       for (const escenario of escenarios) {
-        for (const viewport of resolverViewports(pantalla.viewports)) {
+        for (const viewport of resolverViewports(escenario.viewports ?? pantalla.viewports)) {
           const contexto = await contextoDe(cuenta, viewport);
           process.stdout.write(`  ${pantalla.id} · ${escenario.id} · ${viewport.id}\n`);
           resultados.push(await correrUnCaso({ contexto, baseURL, pantalla, cuenta, escenario, viewport, tolerancia, capturasTodas, dirCapturas }));
