@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { EB_Garamond, DM_Sans } from "next/font/google";
 import { ToastProvider } from "@/components/toast";
+import { VidrioEnRuta } from "@/components/vidrio-en-ruta";
+import { guionVidrioAntesDePintar } from "@/lib/vidrio";
 import "./globals.css";
 
 // Serif del alma del sistema (títulos, datos con carácter).
@@ -59,6 +61,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const guionVidrio = guionVidrioAntesDePintar();
   return (
     <html
       lang="es"
@@ -66,7 +69,8 @@ export default function RootLayout({
       // El script de abajo pone `data-tema` en este mismo elemento antes de
       // que React hidrate — a propósito, es lo que evita el parpadeo. React no
       // tiene forma de saber eso de antemano y sin este aviso lo reporta como
-      // un error de hidratación, aunque el HTML esté bien.
+      // un error de hidratación, aunque el HTML esté bien. Lo mismo con
+      // `data-vidrio` (lib/vidrio.ts).
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col font-sans">
@@ -93,6 +97,9 @@ export default function RootLayout({
               "try{var t=localStorage.getItem('cayla-tema');if(t!=='claro'&&t!=='oscuro'&&t!=='sistema')t=localStorage.getItem('cayla-tema-global');if(t==='claro'||t==='oscuro')document.documentElement.setAttribute('data-tema',t);}catch(e){}",
           }}
         />
+        {/* El interruptor del diseño nuevo (lib/vidrio.ts). Apagado no existe: ni guion ni componente. */}
+        {guionVidrio && <script dangerouslySetInnerHTML={{ __html: guionVidrio }} />}
+        {guionVidrio && <VidrioEnRuta />}
         {/* Safari de iPhone no dispara `:active` en toques salvo que el documento
             tenga un listener de touch propio — sin esto, los botones y enlaces que
             "prenden" al presionar con el dedo solo lo hacían con mouse. */}
