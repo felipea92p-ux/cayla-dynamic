@@ -48,6 +48,8 @@ import { CajonAdmin } from "@/components/nav/cajon-admin";
 import type { Contadores } from "@/components/nav/panel-navegacion";
 import { GRUPOS, RUTAS_SIN_MARCO, type Item } from "./nav-items";
 import { GuardaDeAcceso } from "@/lib/cuenta-de-servicio";
+import { MarcoPanelVidrio } from "@/components/vidrio/marco-panel";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
 import { Keyboard, LogOut, Menu, Search } from "lucide-react";
 
@@ -307,6 +309,36 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
       titulo: `${misAvisos} cosa(s) tuyas: lo que te falta hacer y lo que te respondieron`,
     },
   };
+
+  // Con el vidrio, el mismo cálculo de arriba con otro dibujo: el menú de módulos, la cabecera de Retail y la placa al pie. Apagado no se monta
+  // nada de esto y lo de abajo sigue igual. Se queda lo que no es del dibujo: saltar al contenido, el aviso de constancias, el buscador, los
+  // atajos («?» sigue abriéndolos, aunque su botón ya no está) y el colibrí.
+  if (interruptoresVidrio().panel) {
+    return (
+      <MarcoPanelVidrio
+        persona={persona}
+        grupos={grupos}
+        pathname={pathname}
+        contadores={contadores}
+        onSalir={cerrarSesion}
+        onBuscar={() => setBuscadorAbierto(true)}
+      >
+        <a
+          href="#contenido"
+          className="sr-only rounded-control bg-tinta px-4 py-2 text-sm text-crema focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70]"
+        >
+          Saltar al contenido
+        </a>
+        <AcusesPendientes />
+        <div id="contenido" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
+          {children}
+        </div>
+        <BuscadorGlobal grupos={grupos} abierto={buscadorAbierto} onCerrar={() => setBuscadorAbierto(false)} />
+        <AtajosTeclado grupos={grupos} abierto={ayudaAbierta} setAbierto={setAyudaAbierta} />
+        <ColibriViajero />
+      </MarcoPanelVidrio>
+    );
+  }
 
   return (
     <div className="flex w-full flex-1">

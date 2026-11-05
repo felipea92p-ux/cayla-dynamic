@@ -18,6 +18,9 @@
     --color-vidrio: #ffffff;
     --color-sombra: #1a1a18;
     --ease-cayla: cubic-bezier(0.32, 0.72, 0.24, 1);
+    --ease-salida: cubic-bezier(0.4, 0, 1, 1);
+    --brillo-superior: rgb(255 255 255 / 0.95);
+    --color-ambar-profundo: #734f15;
   }
 
   :root[data-vidrio="panel"][data-tema="oscuro"] {
@@ -37,6 +40,9 @@
     --color-vidrio: #33302a;
     --color-sombra: #000000;
     --ease-cayla: cubic-bezier(0.32, 0.72, 0.24, 1);
+    --ease-salida: cubic-bezier(0.4, 0, 1, 1);
+    --brillo-superior: color-mix(in srgb, var(--color-tinta) 10%, transparent);
+    --color-ambar-profundo: #ecc676;
   }
 
   /* El foco de teclado en tinta (P3 del contrato): el rojo es escaso, y el foco aparece en cada Tab. */

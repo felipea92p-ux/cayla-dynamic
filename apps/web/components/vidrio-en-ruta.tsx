@@ -3,6 +3,7 @@
 import { useLayoutEffect } from "react";
 import { usePathname } from "next/navigation";
 import { aplicarVidrio, valorVidrio } from "@/lib/vidrio";
+import { aplicarLateral } from "@/lib/vidrio-lateral";
 import { aplicarTemaGuardado } from "@/lib/vidrio-tema";
 
 // La mitad del interruptor que el guion en línea no puede hacer: ese guion corre una sola vez, al cargar el documento,
@@ -17,7 +18,10 @@ export function VidrioEnRuta() {
   useLayoutEffect(() => {
     const valor = valorVidrio(ruta);
     aplicarVidrio(document.documentElement, valor);
-    if (valor === "panel") aplicarTemaGuardado();
+    if (valor === "panel") {
+      aplicarTemaGuardado();
+      aplicarLateral();
+    }
   }, [ruta]);
   return null;
 }

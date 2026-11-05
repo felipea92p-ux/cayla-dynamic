@@ -1,5 +1,5 @@
-/* El marco con vidrio: el fondo y el botón del tema. Copiado de apps/web/app/estilos/vidrio/marco.css y estilos/tema.css de
-   Retail, colgado del atributo. Va creciendo con el menú y la cabecera. */
+/* El marco con vidrio: el fondo, el botón del tema, el menú, la cabecera y el título. Copiado de apps/web/app/estilos/vidrio/marco.css,
+   estilos/tema.css y estilos/ayuda-cabecera.css de Retail, colgado del atributo. */
 @media screen {
   /* ---------- El fondo: la aurora ----------
      Tres nubes muy tenues y quietas detrás de todo: el vidrio necesita algo detrás. Entran una vez con un fundido y no se mueven
@@ -71,9 +71,944 @@
       transition: none;
     }
   }
+
+  /* =====================================================================
+     El menú y la cabecera. Copiados de apps/web/app/estilos/vidrio/marco.css de Retail, colgados del atributo. Tres cambios a propósito:
+       · El cajón cambia a los 768 px y no a los 640: es donde las pantallas de Dynamic ya pierden el menú (todo su `md:`).
+       · El plegado lo dice `data-lateral` en <html>, escrito antes de pintar, y no una clase de React (lib/vidrio-lateral.ts).
+       · Plegada, la placa conserva la puerta de salir: aquí el menú se pliega solo bajo 1280 px, y Lo mío usa el mismo menú.
+     Fuera de capa: lo que vive fuera de capa le gana a las utilidades de Tailwind sin `!important`.
+     ===================================================================== */
+  :root[data-vidrio="panel"] {
+    --spacing-lateral: calc(17rem + env(safe-area-inset-left, 0px));
+    --cab-alto: 64px;
+  }
+
+  /* ---------- El riel ----------
+     En la computadora, una columna lisa pegada al borde; en el teléfono, un cajón de vidrio. El vidrio del cajón va en un `::before`: un
+     `backdrop-filter` en el <aside> lo volvería el contenedor de todo lo `fixed` de adentro y lo recortaría a su ancho. */
+  [data-vidrio="panel"] .marco-riel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-top: env(safe-area-inset-top);
+  }
+  [data-vidrio="panel"] .marco-riel nav {
+    padding-inline: 12px;
+  }
+  [data-vidrio="panel"] .marco-logo {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    overflow: hidden;
+    white-space: nowrap;
+    padding: 28px 16px 24px 16px;
+    transition: padding 300ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-logo-dibujo {
+    height: 32px;
+    transform-origin: left;
+    transition: transform 500ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-logo-sistema {
+    /* Alineado con la palabra, no con el colibrí: 671 de los 580 de alto del dibujo, medidos del archivo oficial. */
+    margin-left: calc(671 / 580 * 32px);
+    margin-top: -2px;
+    color: var(--color-taupe);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    transition: opacity 200ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-logo-palabra {
+    transition: opacity 200ms var(--ease-cayla);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] .marco-logo:hover .marco-logo-dibujo {
+      transform: scale(1.05);
+    }
+  }
+
+  @media (min-width: 48rem) {
+    [data-vidrio="panel"] .marco-riel {
+      position: sticky;
+      top: 0;
+      z-index: 31;
+      flex-shrink: 0;
+      width: var(--spacing-lateral);
+      height: 100vh;
+      height: 100dvh;
+      background: var(--riel-fondo);
+      border-right: 1px solid var(--riel-borde);
+      transition: width 300ms var(--ease-cayla);
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] {
+      --spacing-lateral: calc(5.25rem + env(safe-area-inset-left, 0px));
+    }
+  }
+
+  @media (max-width: 47.99rem) {
+    [data-vidrio="panel"] .marco-riel {
+      position: fixed;
+      inset-block: 0;
+      left: 0;
+      z-index: 50;
+      width: min(300px, 86%);
+      border-radius: 0 28px 28px 0;
+      box-shadow: var(--marco-riel-sombra);
+      visibility: hidden;
+      transform: translate3d(-100%, 0, 0);
+      transition: transform 260ms var(--ease-salida), visibility 0s linear 260ms;
+    }
+    [data-vidrio="panel"] .marco-riel[data-cajon="abierto"] {
+      visibility: visible;
+      transform: none;
+      transition: transform 420ms var(--ease-cayla), visibility 0s;
+    }
+    [data-vidrio="panel"] .marco-riel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background: var(--cajon-movil-fondo);
+      -webkit-backdrop-filter: var(--cajon-movil-filtro);
+      backdrop-filter: var(--cajon-movil-filtro);
+      border-right: 1px solid var(--marco-vidrio-borde);
+    }
+    /* El asa: dice que el cajón se lleva con el dedo. No recibe toques: el dedo lo escucha el cajón entero. */
+    [data-vidrio="panel"] .marco-riel::after {
+      content: "";
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      width: 4px;
+      height: 44px;
+      margin-top: -22px;
+      border-radius: 4px;
+      background: var(--cajon-movil-asa);
+      pointer-events: none;
+    }
+    [data-vidrio="panel"] .velo-cajon {
+      opacity: 0;
+      background: var(--cajon-movil-velo);
+      -webkit-backdrop-filter: var(--cajon-movil-velo-filtro);
+      backdrop-filter: var(--cajon-movil-velo-filtro);
+      transition: opacity 260ms var(--ease-salida);
+    }
+    [data-vidrio="panel"] .velo-cajon[data-abierto="true"] {
+      opacity: 1;
+      transition: opacity 280ms var(--ease-cayla);
+    }
+    [data-vidrio="panel"] .marco-riel[data-cajon="abierto"] [data-pieza-cajon] {
+      animation: vidrio-pieza-cajon 460ms var(--ease-cayla) backwards;
+      animation-delay: calc(var(--k, 0) * 45ms + 90ms);
+    }
+    [data-vidrio="panel"] .marco-riel[data-cajon="abierto"] .marco-gota {
+      animation: vidrio-pieza-cajon 460ms var(--ease-cayla) backwards;
+      animation-delay: calc(var(--k, 0) * 45ms + 90ms);
+    }
+    [data-vidrio="panel"] .marco-riel nav {
+      scrollbar-width: none;
+    }
+    [data-vidrio="panel"] .marco-riel nav::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  /* ---------- Las filas ----------
+     Tres medidas por nivel, un corrimiento de 8 px en la fila elegida para que la marca roja no toque su ícono, y nada más. En el teléfono, 44 px
+     en los dos niveles: es el mínimo de un objetivo para el dedo, la regla que este menú ya tenía. */
+  [data-vidrio="panel"] .marco-fila {
+    position: relative;
+    z-index: 1;
+    height: 40px;
+    padding-left: var(--fila-x);
+    padding-right: 12px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    --fila-x: 12px;
+    transition: color 200ms var(--ease-cayla), background-color 250ms var(--ease-cayla), padding-left 380ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-fila[data-prof="1"] {
+    height: 36px;
+    font-size: 13px;
+    --fila-x: 20px;
+  }
+  @media (max-width: 47.99rem) {
+    [data-vidrio="panel"] .marco-fila,
+    [data-vidrio="panel"] .marco-fila[data-prof="1"] {
+      height: 44px;
+    }
+  }
+  [data-vidrio="panel"] .marco-fila[data-fila-activa] {
+    padding-left: calc(var(--fila-x) + 8px);
+  }
+  [data-vidrio="panel"] .marco-corto {
+    display: none;
+  }
+
+  /* La ficha: una sola para todo el menú, para que pueda viajar de la fila que dejas a la que tocas. */
+  [data-vidrio="panel"] .marco-gota {
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    border-radius: 14px;
+    pointer-events: none;
+    opacity: 0;
+    background: var(--menu-activa-fondo);
+    box-shadow: var(--menu-activa-sombra);
+    transition: top 380ms var(--ease-cayla), height 380ms var(--ease-cayla), left 380ms var(--ease-cayla), width 380ms var(--ease-cayla), opacity 250ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-gota[data-lista] {
+    opacity: 1;
+  }
+  [data-vidrio="panel"] .marco-gota[data-quieta] {
+    transition: opacity 250ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-gota::after {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 50%;
+    width: 3px;
+    height: 14px;
+    margin-top: -7px;
+    border-radius: 3px;
+    background: var(--color-rojo);
+  }
+
+  /* La bandeja: las pantallas de un módulo abierto, sobre una placa apenas hundida, sin líneas ni ramas. */
+  [data-vidrio="panel"] .lateral-hijos {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 300ms var(--ease-salida);
+  }
+  [data-vidrio="panel"] .lateral-hijos[data-abierto="true"] {
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 460ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .lateral-hijos > div {
+    min-height: 0;
+    overflow: hidden;
+    border-radius: 16px;
+    transition: margin 300ms var(--ease-cayla), padding 300ms var(--ease-cayla), background-color 300ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .lateral-hijos[data-abierto="true"] > div {
+    margin: 2px 0 6px;
+    padding: 4px 0;
+    background-color: var(--bandeja-fondo);
+    box-shadow: var(--bandeja-sombra);
+  }
+  [data-vidrio="panel"] .lateral-hijo {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0);
+    filter: blur(3px);
+    transition: opacity 140ms var(--ease-salida), transform 140ms var(--ease-salida), filter 140ms var(--ease-salida);
+  }
+  [data-vidrio="panel"] .lateral-hijos[data-abierto="true"] > div > .lateral-hijo {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: opacity 340ms var(--ease-cayla), transform 420ms var(--ease-cayla), filter 340ms var(--ease-cayla);
+    transition-delay: calc(80ms + var(--i, 0) * 38ms);
+  }
+  /* En el teléfono, más corto y sin desenfoque: animar `blur` en cada fila mientras crece el alto cuesta un repintado por cuadro. */
+  @media (max-width: 47.99rem) {
+    [data-vidrio="panel"] .lateral-hijos[data-abierto="true"] {
+      transition: grid-template-rows 300ms var(--ease-cayla);
+    }
+    [data-vidrio="panel"] .lateral-hijo {
+      transform: translate3d(0, -6px, 0);
+      filter: none;
+      transition: opacity 120ms var(--ease-salida), transform 120ms var(--ease-salida);
+    }
+    [data-vidrio="panel"] .lateral-hijos[data-abierto="true"] > div > .lateral-hijo {
+      transition: opacity 220ms var(--ease-cayla), transform 260ms var(--ease-cayla);
+      transition-delay: calc(40ms + var(--i, 0) * 22ms);
+    }
+  }
+  /* El ícono del módulo que se abre asiente una vez, solo al tocarlo. */
+  [data-vidrio="panel"] .marco-fila[data-asiente] .marco-icono {
+    animation: vidrio-asiente 500ms var(--ease-cayla);
+  }
+
+  /* El ícono de donde estás, relleno como en la barra de un iPhone. La flecha del módulo no se llena. */
+  [data-vidrio="panel"] .marco-fila svg:not(.marco-chevron) path {
+    transition: fill 200ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-fila[data-fila-activa] svg:not(.marco-chevron) path {
+    fill: color-mix(in srgb, currentColor 34%, transparent);
+  }
+
+  /* ---------- El número ---------- */
+  [data-vidrio="panel"] .globito {
+    display: inline-grid;
+    flex-shrink: 0;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-ambar) 15%, transparent);
+    color: var(--color-ambar-profundo);
+    font-family: var(--font-sans);
+    font-size: 10.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  /* ---------- Plegado: 84 px, cada fila un cuadrado con el ícono y su nombre corto debajo ----------
+     Solo de 768 px para arriba: en el cajón del teléfono el menú va siempre abierto, aunque la preferencia diga plegado. Las reglas viven aquí y
+     no en una clase de React para que el primer pintado ya salga bien. */
+  @media (min-width: 48rem) {
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-logo {
+      padding-left: 18px;
+      padding-right: 0;
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-logo-palabra,
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-logo-sistema {
+      opacity: 0;
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-riel nav {
+      padding-inline: 10px;
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-fila[data-prof="0"] {
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      height: 54px;
+      padding: 0;
+      border-radius: 14px;
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-fila .marco-etiqueta,
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-fila .marco-chevron {
+      display: none;
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-corto {
+      display: block;
+      max-width: 100%;
+      padding: 0 2px;
+      overflow: hidden;
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 1.15;
+      letter-spacing: 0.01em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-fila[data-fila-activa] .marco-corto {
+      font-weight: 700;
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-gota::after {
+      left: -8px;
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] .lateral-hijos {
+      display: none;
+    }
+    /* El número, lleno y sobre la esquina del ícono: junto al nombre ya no hay sitio. */
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-fila .globito {
+      position: absolute;
+      left: calc(50% + 3px);
+      top: 4px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      font-size: 10px;
+      background: var(--color-ambar);
+      color: var(--color-crema);
+      box-shadow: 0 0 0 2px var(--riel-fondo);
+    }
+  }
+
+  /* ---------- El botón de plegar: una gota sobre el borde del riel, a la altura del logo ---------- */
+  [data-vidrio="panel"] .marco-plegar {
+    position: fixed;
+    z-index: 32;
+    top: calc(env(safe-area-inset-top, 0px) + 30px);
+    left: calc(var(--spacing-lateral) - 14px);
+    display: none;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    color: color-mix(in srgb, var(--color-tinta) 66%, transparent);
+    border: 1px solid var(--plegar-borde);
+    background: var(--plegar-fondo);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--plegar-sombra);
+    transition: left 300ms var(--ease-cayla), color 200ms var(--ease-cayla), scale 250ms var(--ease-cayla);
+  }
+  @media (min-width: 48rem) {
+    [data-vidrio="panel"] .marco-plegar {
+      display: grid;
+    }
+  }
+  [data-vidrio="panel"] .marco-plegar svg {
+    width: 14px;
+    height: 14px;
+    transition: rotate 300ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-plegar[aria-expanded="false"] svg {
+    rotate: 180deg;
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] .marco-plegar:hover {
+      color: var(--color-tinta);
+      scale: 1.1;
+    }
+  }
+
+  /* ---------- La cabecera: una sola barra de vidrio ----------
+     Va en un `::before` por la misma razón que el del riel. Es un contenedor: el buscador se encoge con SU ancho, no con el de la pantalla. */
+  [data-vidrio="panel"] .marco-cabecera {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    height: calc(var(--cab-alto) + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    container: cabecera / inline-size;
+  }
+  [data-vidrio="panel"] .marco-cabecera-fila {
+    position: relative;
+    z-index: 0;
+    display: flex;
+    height: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 16px 0 24px;
+  }
+  [data-vidrio="panel"] .marco-cabecera-fila::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: var(--vidrio-flota-filtro);
+    backdrop-filter: var(--vidrio-flota-filtro);
+    border-bottom: 1px solid var(--marco-vidrio-borde);
+    box-shadow: var(--vidrio-flota-sombra);
+  }
+  [data-vidrio="panel"] .marco-isla {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: var(--cab-alto);
+  }
+  [data-vidrio="panel"] .marco-isla-izq {
+    flex: 0 1 340px;
+    min-width: 40px;
+  }
+  [data-vidrio="panel"] .marco-isla-der {
+    flex: none;
+    margin-left: auto;
+  }
+  [data-vidrio="panel"] .marco-isla-der > a,
+  [data-vidrio="panel"] .marco-isla-der > button {
+    border-radius: 9999px;
+  }
+  @media (max-width: 47.99rem) {
+    [data-vidrio="panel"] .marco-cabecera-fila {
+      gap: 8px;
+      padding: 0 8px 0 12px;
+    }
+    [data-vidrio="panel"] .marco-isla {
+      gap: 4px;
+    }
+    [data-vidrio="panel"] .marco-isla-izq {
+      flex: none;
+    }
+  }
+
+  /* El botón del menú en el teléfono: lleno. Retail lo deja sin relleno; aquí se probó con gente en septiembre y un ícono suelto no se encontraba. */
+  [data-vidrio="panel"] .marco-boton-menu {
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 10px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--color-tinta);
+    color: var(--color-crema);
+    font-size: 13px;
+    font-weight: 500;
+    transition: background-color 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-boton-menu:active {
+    scale: 0.97;
+  }
+  /* Se dice aquí y no con `md:hidden`: lo que vive fuera de capa le gana a las utilidades, y a 1440 px el botón seguía a la vista. */
+  @media (max-width: 47.99rem) {
+    [data-vidrio="panel"] .marco-boton-menu {
+      display: inline-flex;
+    }
+  }
+
+  /* El buscador: sin relleno (la barra ya es su fondo), con su contorno; se enciende al pasar el mouse. */
+  [data-vidrio="panel"] .marco-buscador {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 40px;
+    border-color: var(--color-borde-control);
+    background: transparent;
+    transition: box-shadow 200ms var(--ease-cayla), background-color 200ms var(--ease-cayla);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] .marco-buscador:hover {
+      background: var(--pozo-encendido-fondo);
+      box-shadow: var(--pozo-encendido-sombra);
+    }
+  }
+  [data-vidrio="panel"] .marco-buscador-tecla {
+    flex: none;
+  }
+  @container cabecera (max-width: 640px) {
+    [data-vidrio="panel"] .marco-buscador-tecla {
+      display: none;
+    }
+  }
+  @container cabecera (max-width: 520px) {
+    [data-vidrio="panel"] .marco-isla-izq {
+      flex: 0 0 auto;
+    }
+    [data-vidrio="panel"] .marco-buscador {
+      flex: 0 0 40px;
+      width: 40px;
+      padding: 0;
+      justify-content: center;
+      gap: 0;
+    }
+    [data-vidrio="panel"] .marco-buscador-texto {
+      display: none;
+    }
+  }
+
+  /* La sede de quien tiene una sola: una etiqueta, no un selector. */
+  [data-vidrio="panel"] .marco-sede {
+    padding-inline: 6px;
+    color: color-mix(in srgb, var(--color-tinta) 66%, transparent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  /* En la barra del teléfono de Lo mío no cabe junto al nombre de la sección: la sede sigue en la placa del menú. */
+  @media (max-width: 47.99rem) {
+    [data-vidrio="panel"] .marco-cabecera[data-con-titulo] .marco-sede {
+      display: none;
+    }
+  }
+  @media (max-width: 47.99rem) {
+    [data-vidrio="panel"] .marco-titulo-celular {
+      min-width: 0;
+      flex: 1 1 auto;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      font-family: var(--font-serif);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.15;
+      text-align: center;
+      color: var(--color-tinta);
+    }
+  }
+
+  /* ---------- La hoja de un módulo con el menú plegado ---------- */
+  [data-vidrio="panel"] .marco-cajon-grupo {
+    border-radius: 20px;
+    border: 1px solid var(--marco-vidrio-borde);
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: var(--vidrio-flota-filtro);
+    backdrop-filter: var(--vidrio-flota-filtro);
+    box-shadow: var(--vidrio-flota-sombra);
+    animation: vidrio-flota-entra 240ms var(--ease-cayla) both;
+  }
+  [data-vidrio="panel"] .marco-cajon-titulo {
+    color: color-mix(in srgb, var(--color-tinta) 65%, transparent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+  [data-vidrio="panel"] .marco-cajon-fila {
+    border-radius: 12px;
+  }
+  [data-vidrio="panel"] .marco-cajon-fila[aria-current="page"] {
+    padding-left: 20px;
+    background: var(--menu-activa-fondo);
+    box-shadow: var(--menu-activa-sombra);
+  }
+  [data-vidrio="panel"] .marco-cajon-fila[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 50%;
+    width: 3px;
+    height: 14px;
+    margin-top: -7px;
+    border-radius: 3px;
+    background: var(--color-rojo);
+  }
+
+  /* ---------- La placa de la persona, al pie del menú ---------- */
+  [data-vidrio="panel"] .marco-yo {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 12px 14px;
+    padding: 8px;
+    border-radius: 20px;
+    border: 1px solid var(--placa-borde);
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+    transition: margin 300ms var(--ease-cayla), padding 300ms var(--ease-cayla), background 250ms var(--ease-cayla), transform 250ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-yo-quien {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 10px;
+    border-radius: 14px;
+  }
+  [data-vidrio="panel"] .marco-yo-lente {
+    display: grid;
+    flex: none;
+    place-items: center;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(--lente-fondo);
+    box-shadow: var(--lente-luz);
+    transition: transform 300ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-yo-iniciales {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--lente-avatar-fondo);
+    box-shadow: var(--lente-avatar-luz);
+    color: var(--color-tinta);
+    font-family: var(--font-serif);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  [data-vidrio="panel"] .marco-yo-texto {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    line-height: 1.25;
+  }
+  [data-vidrio="panel"] .marco-yo-nombre {
+    overflow: hidden;
+    color: var(--color-tinta);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-vidrio="panel"] .marco-yo-rol {
+    overflow: hidden;
+    color: color-mix(in srgb, var(--color-tinta) 66%, transparent);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-vidrio="panel"] .marco-yo-salir {
+    display: grid;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 999px;
+    border: 1px solid var(--placa-borde);
+    background: var(--gota-fondo);
+    box-shadow: var(--gota-luz);
+    color: color-mix(in srgb, var(--color-tinta) 70%, transparent);
+    transition: color 200ms, background 200ms, transform 250ms var(--ease-cayla);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] .marco-yo:has(.marco-yo-quien:hover) {
+      background: var(--gota-fondo-encima);
+      transform: translateY(-1px);
+    }
+    [data-vidrio="panel"] .marco-yo-quien:hover .marco-yo-lente {
+      transform: scale(1.05);
+    }
+    [data-vidrio="panel"] .marco-yo-salir:hover {
+      color: var(--color-rojo-profundo);
+      background: var(--gota-fondo-encima);
+      transform: scale(1.06);
+    }
+  }
+  /* Plegada: la foto y, debajo, la puerta. Sin placa. */
+  @media (min-width: 48rem) {
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-yo {
+      flex-direction: column;
+      justify-content: center;
+      margin: 8px 10px 14px;
+      padding: 8px 0;
+      border-color: transparent;
+      background: none;
+      box-shadow: none;
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-yo-texto {
+      display: none;
+    }
+    :root[data-vidrio="panel"][data-lateral="plegado"] .marco-yo-quien {
+      flex: none;
+    }
+  }
+
+  /* ---------- El título de cada pantalla ---------- */
+  [data-vidrio="panel"] .vidrio-sobretitulo {
+    margin-bottom: 12px;
+    color: var(--color-taupe);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  [data-vidrio="panel"] .vidrio-titulo {
+    font-family: var(--font-serif);
+    font-size: 36px;
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.005em;
+  }
+  @media (min-width: 40rem) {
+    [data-vidrio="panel"] .vidrio-titulo {
+      font-size: 46px;
+      line-height: 1;
+    }
+  }
+  [data-vidrio="panel"] .vidrio-titulo-ayuda {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 14px;
+    vertical-align: top;
+    letter-spacing: 0;
+  }
+
+  /* El «?» y su globo: se lee en un vidrio que no mueve la página ni oscurece nada. Lo de tocar es más grande que lo que se ve. */
+  [data-vidrio="panel"] .ayuda-cab-q {
+    position: relative;
+    top: 7px;
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-left: 3px;
+    padding: 0;
+    vertical-align: top;
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+    color: color-mix(in srgb, var(--color-tinta) 72%, transparent);
+    background: color-mix(in srgb, var(--color-vidrio) 55%, transparent);
+    box-shadow:
+      inset 0 1px 0 var(--brillo-superior),
+      0 0 0 1px color-mix(in srgb, var(--color-tinta) 14%, transparent),
+      0 2px 5px -2px color-mix(in srgb, var(--color-sombra) 14%, transparent);
+    -webkit-backdrop-filter: blur(10px) saturate(1.2);
+    backdrop-filter: blur(10px) saturate(1.2);
+    font: 600 13.5px/1 var(--font-serif);
+    letter-spacing: 0;
+    transition: color 240ms var(--ease-cayla), background-color 240ms var(--ease-cayla), box-shadow 240ms var(--ease-cayla), transform 160ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .ayuda-cab-q::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: 999px;
+  }
+  [data-vidrio="panel"] .ayuda-cab-q > span {
+    display: block;
+    transform: translateY(0.5px);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] .ayuda-cab-q:hover {
+      color: var(--color-tinta);
+      transform: translateY(-1px);
+    }
+  }
+  [data-vidrio="panel"] .ayuda-cab-q:active {
+    transform: scale(0.9);
+  }
+  [data-vidrio="panel"] .ayuda-cab-q[aria-expanded="true"] {
+    color: var(--color-tinta);
+    background: color-mix(in srgb, var(--color-vidrio) 80%, transparent);
+  }
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .ayuda-cab-q {
+      top: 5px;
+    }
+  }
+  @media (pointer: coarse) {
+    [data-vidrio="panel"] .ayuda-cab-q::before {
+      inset: -12px;
+    }
+  }
+  [data-vidrio="panel"] .ayuda-cab-globo {
+    --pico-x: 22px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 39;
+    box-sizing: border-box;
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
+    padding: 16px 20px 18px;
+    border-radius: 18px;
+    color: var(--color-tinta);
+    text-align: left;
+    white-space: normal;
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: blur(22px) saturate(1.35);
+    backdrop-filter: blur(22px) saturate(1.35);
+    box-shadow:
+      inset 0 1px 0 var(--brillo-superior),
+      0 0 0 1px color-mix(in srgb, var(--color-tinta) 10%, transparent),
+      0 24px 48px -20px color-mix(in srgb, var(--color-sombra) 30%, transparent);
+    font: 400 16px/1.6 var(--font-sans);
+    transform-origin: var(--pico-x) -8px;
+    animation: vidrio-ayuda-entra 340ms var(--ease-cayla) both;
+  }
+  [data-vidrio="panel"] .ayuda-cab-globo[data-lado="arriba"] {
+    transform-origin: var(--pico-x) calc(100% + 8px);
+  }
+  [data-vidrio="panel"] .ayuda-cab-pico {
+    position: fixed;
+    z-index: 39;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px 0 0 0;
+    transform: rotate(45deg);
+    pointer-events: none;
+    clip-path: polygon(-2px -2px, calc(100% + 2px) -2px, -2px calc(100% + 2px));
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: blur(22px);
+    backdrop-filter: blur(22px);
+    box-shadow:
+      inset 1px 1px 0 var(--brillo-superior),
+      -1px -1px 0 color-mix(in srgb, var(--color-tinta) 10%, transparent);
+    animation: vidrio-ayuda-aparece 340ms var(--ease-cayla) both;
+  }
+  [data-vidrio="panel"] .ayuda-cab-pico[data-lado="arriba"] {
+    transform: rotate(225deg);
+  }
+  [data-vidrio="panel"] .ayuda-cab-nombre {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    color: var(--color-taupe);
+    font: 600 10.5px/1.4 var(--font-sans);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  [data-vidrio="panel"] .ayuda-cab-nombre::before {
+    content: "";
+    display: block;
+    flex-shrink: 0;
+    width: 24px;
+    height: 1px;
+    background: var(--color-taupe);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-vidrio="panel"] .marco-riel,
+    [data-vidrio="panel"] .marco-riel[data-cajon="abierto"],
+    [data-vidrio="panel"] .velo-cajon,
+    [data-vidrio="panel"] .velo-cajon[data-abierto="true"],
+    [data-vidrio="panel"] .marco-gota,
+    [data-vidrio="panel"] .marco-plegar,
+    [data-vidrio="panel"] .marco-plegar svg,
+    [data-vidrio="panel"] .marco-fila,
+    [data-vidrio="panel"] .lateral-hijos,
+    [data-vidrio="panel"] .lateral-hijos[data-abierto="true"],
+    [data-vidrio="panel"] .lateral-hijos > div {
+      transition: none;
+    }
+    [data-vidrio="panel"] .lateral-hijo,
+    [data-vidrio="panel"] .lateral-hijos[data-abierto="true"] > div > .lateral-hijo {
+      transition: none;
+      transform: none;
+      filter: none;
+    }
+    [data-vidrio="panel"] .marco-riel[data-cajon="abierto"] [data-pieza-cajon],
+    [data-vidrio="panel"] .marco-riel[data-cajon="abierto"] .marco-gota,
+    [data-vidrio="panel"] .marco-fila[data-asiente] .marco-icono,
+    [data-vidrio="panel"] .marco-cajon-grupo,
+    [data-vidrio="panel"] .ayuda-cab-globo,
+    [data-vidrio="panel"] .ayuda-cab-pico {
+      animation: none;
+    }
+    [data-vidrio="panel"] .marco-fila svg path {
+      transition: none;
+    }
+  }
 }
 
 @keyframes vidrio-aurora-entra {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes vidrio-pieza-cajon {
+  from {
+    opacity: 0;
+    transform: translate3d(-14px, 0, 0);
+  }
+}
+
+@keyframes vidrio-asiente {
+  40% {
+    scale: 0.86;
+  }
+}
+
+@keyframes vidrio-flota-entra {
+  from {
+    opacity: 0;
+    transform: translate3d(-6px, 0, 0);
+  }
+}
+
+@keyframes vidrio-ayuda-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+    filter: blur(4px);
+  }
+}
+
+@keyframes vidrio-ayuda-aparece {
   from {
     opacity: 0;
   }

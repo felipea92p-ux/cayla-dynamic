@@ -19,6 +19,8 @@
 // se ve idéntico para el caso de una sola línea de texto (Tailwind ya pone
 // todos los márgenes en cero) y además admite varias.
 import type { ReactNode } from "react";
+import { CabeceraPaginaVidrio } from "@/components/vidrio/cabecera-pagina";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 export function CabeceraPagina({
   sobretitulo,
@@ -44,6 +46,9 @@ export function CabeceraPagina({
   ayuda?: ReactNode;
   accion?: ReactNode;
 }) {
+  if (interruptoresVidrio().panel) {
+    return <CabeceraPaginaVidrio sobretitulo={sobretitulo} titulo={titulo} descripcion={descripcion} ayuda={ayuda} accion={accion} />;
+  }
   return (
     // `mb-5` en celular (2026-10-06): 32 px de aire bajo el título eran 32 px
     // menos de pantalla útil en un teléfono, en las 18 pantallas que la usan.

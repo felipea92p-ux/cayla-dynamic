@@ -241,3 +241,13 @@ export const ORIGEN_MARCA_LABELS: Record<string, string> = {
   auto_cierre: "Auto-cierre",
   import_historico: "Historial importado",
 };
+
+/**
+ * El rol en pantalla. Solo los que abren el panel: quien no aparece aquí es «Integrante» para el sistema, sin importar cómo se llame su cargo.
+ * «supervisor_sede» es un nombre histórico de la base; en pantalla siempre es líder de equipo.
+ */
+export const ROL_LABELS: Record<string, string> = {
+  admin: "Admin",
+  lider_do: "Líder DO",
+  supervisor_sede: "Líder de equipo",
+};

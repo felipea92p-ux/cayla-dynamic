@@ -30,7 +30,8 @@ import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { NovedadesWidget } from "@/components/novedades-widget";
 import { SelectorTema } from "@/components/selector-tema";
-import { MenuDetalle } from "@/components/nav/menu-detalle";
+import { MarcoDeLoMio } from "@/components/nav/marco-de-lo-mio";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { GRUPOS_MIO, TABS, type Tab } from "@/lib/mio-secciones";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
@@ -53,6 +54,8 @@ import {
   EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, formatoMinutos,
   ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, VINCULO_DERECHOHABIENTE_LABELS,
   TIPO_VINCULO_LABEL,
+  ROL_LABELS,
+  ROLES_DO,
 } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
@@ -1748,12 +1751,8 @@ export default function MioPage() {
   }
 
   return (
-    // El marco de esta pantalla, con la misma forma que el del panel
-    // (`(admin)/layout.tsx`): el menú pegado al borde izquierdo y el contenido
-    // ocupando el resto. En teléfono se apila, y ahí el menú es la barra
-    // pegajosa de arriba que abre el cajón.
-    <div className="flex min-h-screen flex-col bg-crema text-tinta md:flex-row">
-      <MenuDetalle
+    // El marco de esta pantalla: `MarcoDeLoMio` dibuja el de hoy o, con el vidrio, el mismo del panel.
+    <MarcoDeLoMio
         grupos={grupos}
         // Su propia memoria de grupos cerrados, no la del panel: los dos
         // menús tienen un «Pago» y una «Asistencia» con cosas distintas.
@@ -1790,7 +1789,14 @@ export default function MioPage() {
         // panel sí reparte por rol.
         onSalir={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}
         sesion={yo?.nombre}
-      />
+        placa={yo ? {
+          nombre: yo.nombre,
+          detalle: [ROL_LABELS[yo.rol ?? ""] ?? "Integrante", yo.sede].filter(Boolean).join(" · "),
+          fotoUrl: urlPublicaFotoPerfil(supabase, yo.fotoUrl),
+        } : null}
+        sede={yo && !ROLES_DO.includes(yo.rol ?? "") ? yo.sede : null}
+        alTocarPlaca={() => elegirSeccion("resumen")}
+      >
 
     {/* `w-full` no es adorno. En teléfono el marco es `flex-col`, y un hijo
         con `mx-auto` en una columna flex deja de estirarse al ancho del
@@ -1870,7 +1876,7 @@ export default function MioPage() {
                 `accion` de MenuDetalle), y dos veces el mismo botón en la
                 misma pantalla es uno de más. Mismo rojo que allá, para que sea
                 el mismo botón se mire donde se mire. */}
-            {yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
+            {!interruptoresVidrio().panel && yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
               <Link href="/admin/dashboard"
                 className="hidden items-center justify-center whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-sm font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97] md:inline-flex">
                 Volver al panel
@@ -1920,7 +1926,7 @@ export default function MioPage() {
               </Link>
             )}
             {/* El tema, solo de 768px para arriba: en teléfono está en la barra. */}
-            <SelectorTema className="hidden md:inline-flex" />
+            {interruptoresVidrio().panel ? null : <SelectorTema className="hidden md:inline-flex" />}
           </div>
         </div>
       </header>
@@ -3097,7 +3103,7 @@ export default function MioPage() {
         ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
       </p>
     </main>
-    </div>
+    </MarcoDeLoMio>
   );
 }
 

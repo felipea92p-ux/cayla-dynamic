@@ -17,7 +17,7 @@ import { filtrarCuentas, sedesDe } from "@/lib/admin/filtrar-cuentas";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { guardarMiClave } from "@/lib/admin/mi-clave";
-import { fechaLima, REQUISITOS_CLAVE, problemasDeClave, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { fechaLima, REQUISITOS_CLAVE, ROL_LABELS, problemasDeClave, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
@@ -88,12 +88,6 @@ function ListaNoCargada({ que, motivo, noSignifica, reintentar }: { que: string;
     </div>
   );
 }
-
-const ROL_LABEL: Record<string, string> = {
-  admin: "Admin",
-  lider_do: "Líder DO",
-  supervisor_sede: "Líder de equipo",
-};
 
 export default function CuentasPage() {
   const router = useRouter();
@@ -450,7 +444,7 @@ export default function CuentasPage() {
                 visibles.map((c) => (
                   <tr key={c.id} className="border-t border-sand align-top">
                     <td className="px-4 py-3">{c.nombre}</td>
-                    <td className="px-4 py-3 text-taupe">{ROL_LABEL[c.rol] ?? c.rol}</td>
+                    <td className="px-4 py-3 text-taupe">{ROL_LABELS[c.rol] ?? c.rol}</td>
                     <td className="px-4 py-3 text-taupe">{c.sede}</td>
                     <td className="px-4 py-3">
                       {c.tieneCuenta ? (
@@ -633,7 +627,7 @@ export default function CuentasPage() {
             {pendientes.map((p) => (
               <div key={p.id} className="flex items-center gap-3 rounded-control border border-sand bg-sand/25 px-3 py-2">
                 <span className="text-sm text-tinta">
-                  {p.nombre} <span className="text-taupe">· {p.sede} · {ROL_LABEL[p.rol] ?? p.rol}</span>
+                  {p.nombre} <span className="text-taupe">· {p.sede} · {ROL_LABELS[p.rol] ?? p.rol}</span>
                   {p.email ? (
                     <span className="block text-xs text-taupe">
                       {p.email} · {p.manualAt

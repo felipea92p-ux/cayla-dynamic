@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./login-vuelo.css"; /* el panel de marca del login en pantalla ancha */
 /* El vidrio: todo cuelga de [data-vidrio], así que apagado no alcanza a nadie (tests/vidrio-css.test.ts). */
+@import "./estilos/vidrio/recetas.generado.css";
 @import "./estilos/vidrio/marca.css";
 @import "./estilos/vidrio/marco.css";
 
