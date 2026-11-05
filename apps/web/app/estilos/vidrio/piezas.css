@@ -58,6 +58,11 @@
   [data-vidrio="panel"] .bg-sand.text-taupe:not(.hoja *) {
     color: color-mix(in srgb, var(--color-tinta) 78%, transparent);
   }
+  /* La vista previa de una firma es un trozo de papel: blanca en los dos temas, así que su letra y su línea tampoco cambian con el tema. */
+  [data-vidrio="panel"] .bg-white :is(.text-taupe, [class*="border-tinta/"]) {
+    color: color-mix(in srgb, var(--color-tinta-fija) 72%, transparent);
+    border-color: color-mix(in srgb, var(--color-tinta-fija) 40%, transparent);
+  }
   /* Una etiqueta chica sobre un fondo a medias (el «sin meta» de Turnos). */
   [data-vidrio="panel"] span[class*="bg-papel/"]:not(.hoja *) {
     color: color-mix(in srgb, var(--color-tinta) 78%, transparent);
