@@ -99,18 +99,26 @@
 
   /* ---------- El campo: un pozo tallado en el vidrio ----------
      Espera tu dato. Al escribir sube como la gota sin volverse sólido. El borde sigue siendo el de control (3:1); con un error, el rojo de siempre. */
-  [data-vidrio="panel"] :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select, textarea):is(.bg-hueso, .border-borde-control):not(.hoja *) {
+  [data-vidrio="panel"] :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select, textarea):is(.bg-hueso, .bg-crema, .border-borde-control):not(.hoja *) {
     border-radius: var(--radius-campo);
     background-color: var(--pozo-fondo);
     box-shadow: var(--pozo-sombra);
     transition: background-color 300ms var(--ease-cayla), box-shadow 300ms var(--ease-cayla), border-color 220ms var(--ease-cayla);
   }
-  [data-vidrio="panel"] :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select, textarea):is(.bg-hueso, .border-borde-control):not(.border-rojo, .hoja *) {
+  [data-vidrio="panel"] :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select, textarea):is(.bg-hueso, .bg-crema, .border-borde-control):not(.border-rojo, .hoja *) {
     border-color: var(--color-borde-control);
   }
-  [data-vidrio="panel"] :is(input, select, textarea):is(.bg-hueso, .border-borde-control):not(.hoja *):focus {
+  [data-vidrio="panel"] :is(input, select, textarea):is(.bg-hueso, .bg-crema, .border-borde-control):not(.hoja *):focus {
     background-color: var(--pozo-encendido-fondo);
     box-shadow: var(--pozo-encendido-sombra);
+  }
+  /* El buscador de una lista: el mismo pozo, en píldora. */
+  [data-vidrio="panel"] input:is([type="search"], [placeholder^="Buscar"]):not(.hoja *) {
+    border-radius: var(--radius-boton);
+  }
+  [data-vidrio="panel"] :is(input, textarea):not(.hoja *)::placeholder {
+    color: color-mix(in srgb, var(--color-tinta) 64%, transparent);
+    opacity: 1;
   }
   /* El opcional de un desplegable: el sistema pinta la lista y hace falta que sea opaca, si no el texto queda sobre la nada. */
   [data-vidrio="panel"] select option {
@@ -166,7 +174,7 @@
   /* ---------- La tarjeta: la placa Serena ----------
      Una placa de vidrio que se separa del fondo con su filo, su luz y su sombra larga (S5 del contrato). Lo que flota o se pega se queda opaco: tapa lo que pasa por
      debajo. Lo que va adentro de otra tarjeta es la placa más liviana, para que no se apilen dos sombras. */
-  [data-vidrio="panel"] :is(div, section, article, header, aside, form, ul, details).bg-papel:not(.sticky, .fixed, .absolute, [data-color-dato], [role="dialog"], [role="menu"], .hoja, .hoja *) {
+  [data-vidrio="panel"] :is(div, section, article, header, aside, form, ul, li, details).bg-papel:not(.sticky, .fixed, .absolute, [data-color-dato], [role="dialog"], [role="menu"], .hoja, .hoja *) {
     border-color: var(--serena-borde);
     background: var(--serena-fondo);
     box-shadow: var(--serena-sombra);

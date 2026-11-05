@@ -170,9 +170,11 @@ describe("el contrato de la familia está bien armado", () => {
     }
   });
 
+  // Sin deuda el contrato todavía puede decir que Dynamic debe: la deuda se mide con el vidrio encendido, y en producción sigue apagado. Esa lista se borra
+  // el día del estreno, junto con Retail, porque el archivo es el mismo en los dos repositorios. Al revés no: deuda sin decirlo en el contrato, nunca.
   it("mientras haya deuda, el contrato dice qué falta aplicar en Dynamic, y Retail no debe nada", () => {
     const deDynamic = contrato.aplicacion_pendiente.filter((a) => a.miembro === "dynamic");
-    expect(deDynamic.length > 0).toBe(deuda.length > 0);
+    if (deuda.length > 0) expect(deDynamic.length).toBeGreaterThan(0);
     expect(contrato.aplicacion_pendiente.filter((a) => a.miembro === "retail")).toEqual([]);
     for (const a of contrato.aplicacion_pendiente) expect(a.que.length, a.tema).toBeGreaterThan(20);
   });
