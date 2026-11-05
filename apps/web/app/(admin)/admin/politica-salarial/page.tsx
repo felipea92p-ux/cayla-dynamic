@@ -10,7 +10,7 @@ import { Cargando } from "@/components/cargando";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
-import { Campo } from "@/components/ui/campo";
+import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
@@ -239,13 +239,13 @@ function MatrizCategorias({ cats, esDO }: { cats: CategoriaCuadro[]; esDO: boole
       <TarjetaInfo>
         <Rotulo como="div" className="mb-3">Comparar dos categorías</Rotulo>
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          <select value={izq} onChange={(e) => setIzq(e.target.value)} className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta">
+          <CampoSelect aria-label="Primera categoría" value={izq} onChange={(e) => setIzq(e.target.value)}>
             {cats.map((c) => <option key={c.rango} value={c.rango}>{NOMBRE_RANGO[c.rango] ?? c.rango}</option>)}
-          </select>
+          </CampoSelect>
           <span className="font-serif italic text-taupe">vs</span>
-          <select value={der} onChange={(e) => setDer(e.target.value)} className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta">
+          <CampoSelect aria-label="Segunda categoría" value={der} onChange={(e) => setDer(e.target.value)}>
             {cats.map((c) => <option key={c.rango} value={c.rango}>{NOMBRE_RANGO[c.rango] ?? c.rango}</option>)}
-          </select>
+          </CampoSelect>
         </div>
         <ComparacionDeCriterios
           factores={factores}

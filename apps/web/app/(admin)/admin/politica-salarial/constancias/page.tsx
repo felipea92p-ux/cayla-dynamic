@@ -7,6 +7,7 @@ import { Cargando } from "@/components/cargando";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
+import { CampoSelect } from "@/components/ui/campo";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
@@ -309,7 +310,7 @@ function ConstanciasPoliticaSalarialContenido() {
         {versionesDisponibles.length > 1 && (
           <div className="mb-4 flex items-center gap-2 text-sm">
             <label htmlFor="version-constancias" className="text-taupe">Versión:</label>
-            <select
+            <CampoSelect
               id="version-constancias"
               value={version ?? ""}
               onChange={(e) => {
@@ -317,12 +318,11 @@ function ConstanciasPoliticaSalarialContenido() {
                 const esUltima = v === versionesDisponibles[0];
                 router.push(esUltima ? "/admin/politica-salarial/constancias" : `/admin/politica-salarial/constancias?version=${v}`);
               }}
-              className="rounded-control border border-sand bg-hueso px-2 py-1 text-tinta"
             >
               {versionesDisponibles.map((v, i) => (
                 <option key={v} value={v}>v{v}{i === 0 ? " (vigente)" : ""}</option>
               ))}
-            </select>
+            </CampoSelect>
             {!esVigente && <span className="text-xs text-taupe">Estás viendo una versión histórica.</span>}
           </div>
         )}
