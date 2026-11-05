@@ -213,7 +213,7 @@ export function MarcoVidrio({
               >
                 <Search size={16} strokeWidth={1.8} aria-hidden className="shrink-0" />
                 <span className="marco-buscador-texto truncate">Buscar…</span>
-                <kbd className="marco-buscador-tecla ml-auto font-sans text-[11px] text-tinta/60">{tecla}</kbd>
+                <kbd className="marco-buscador-tecla ml-auto font-sans text-[11px] text-tinta/70">{tecla}</kbd>
               </button>
             </div>
 
