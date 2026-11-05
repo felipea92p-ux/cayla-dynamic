@@ -4,7 +4,11 @@ Felipe decidió el 2026-11-05 que Dynamic se vea y se mueva como Retail. Este ar
 módulo por módulo, y el estreno es uno solo. Referencias: [el plan](https://claude.ai/artifact/5CaaTL9SDeggDvPKu792Ce),
 [las maquetas](https://claude.ai/artifact/PAmUFtGYwP2kedJ3FDhecE) y [la revisión técnica](https://claude.ai/artifact/Wyum7sSgUEb1tjfcRariqu).
 
-**Cómo entra sin frenar el día a día:** el código se guarda en `main` en cambios chicos, **apagado**. En tu computadora está encendido; en
+**La regla de Felipe: nada se sube sin que él lo haya visto en local.** Sus palabras: «una vez que se empiece con el diseño, necesito que todo sea
+en local para ir viendo antes de realizar cualquier subida». Se construye en local con commits locales, Felipe lo mira corriendo en su computadora,
+se ajusta, y solo con su aprobación se hace `git push` y se abre el PR. También vale para lo que no se ve, como medidores, contrato y vigilante.
+
+**Cómo entra sin frenar el día a día:** lo aprobado se guarda en `main` en cambios chicos, **apagado**. En su computadora está encendido; en
 producción, apagado. El día del estreno se enciende un interruptor y todos lo ven a la vez. El terminal tiene el suyo. Una rama larga no
 sirve: Dynamic recibe unos 49 commits al día. Ver «El vidrio» en [`CLAUDE.md`](../../CLAUDE.md).
 
@@ -29,12 +33,14 @@ No se ve nada en producción, salvo la firma.
 
 | Pieza | Estado |
 |---|---|
-| La firma visible en oscuro ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680)) | Esperando el OK de Felipe |
-| Dynamic en local con login real (`scripts/local/`) | Hecho |
-| El interruptor | En revisión |
-| Los medidores de contraste y responsive | En revisión |
-| El contrato v4 y el vigilante (`docs/familia/`) | En revisión |
+| La firma visible en oscuro ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680)) | Aprobada por Felipe, no es parte del rediseño |
+| Dynamic en local con login real (`scripts/local/`) | En local, esperando su OK |
+| El interruptor | En local, esperando su OK |
+| Los medidores de contraste y responsive | En local, esperando su OK |
+| El contrato v4 y el vigilante (`docs/familia/`) | En local, esperando su OK |
 | Lado Retail del contrato | Pendiente, en la sesión de Retail |
+
+Al terminar la Etapa 0 se le muestra Dynamic corriendo en local y se le pide el OK para subirla.
 
 ## Etapa 1: lo general
 
@@ -76,7 +82,7 @@ Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** c
 3. **Medir el responsive y el contraste.** En claro y oscuro, a 375, 768, 1024, 1280, 1440 y 1920 px: `tema:auditar` y `responsive:check`.
 4. **Recorrer como la gente.** Con la cuenta de menor rango y con la de mayor rango, porque suelen fallar cosas distintas.
 5. **Mostrárselo a Felipe.** Capturas de antes y después en el chat, y en vivo en su computadora. Si algo no calza con ninguna pieza de Retail, se le pregunta con imagen, con la pieza más cercana al lado. No se inventa.
-6. **Cerrar.** Se hacen sus ajustes, se marca aquí y se guarda apagado.
+6. **Cerrar.** Se hacen sus ajustes, se marca aquí y, **solo con su aprobación**, se sube apagado. Antes de eso, nada de `git push` ni de PR.
 
 ## Cuándo un módulo «se ve bien»
 

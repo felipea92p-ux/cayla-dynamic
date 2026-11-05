@@ -732,6 +732,40 @@ art. 19 e) y f).
 
 ---
 
+## El vidrio: Dynamic se ve y se mueve como Retail
+
+**Decidido por Felipe el 2026-11-05.** El tablero, con los módulos y sus seis pasos, es [`docs/vidrio/README.md`](docs/vidrio/README.md). Lo que
+ahí dice «decidido» no se reabre.
+
+**Nada del diseño se sube sin que Felipe lo haya visto en local.** Sus palabras: «una vez que se empiece con el diseño, necesito que todo sea en
+local para ir viendo antes de realizar cualquier subida». Vale para interruptor, colores, CSS, piezas, menú y cabecera, y también para lo que no
+se ve, como medidores, contrato y vigilante. Por módulo: se construye en local con commits locales, Felipe lo mira corriendo en su computadora
+(`node scripts/local/web.mjs`, ver [`scripts/local/LEEME.md`](scripts/local/LEEME.md)), se ajusta, y **solo con su aprobación** se hace `git push`
+y se abre el PR. Un PR abierto para «dejarlo listo» ya es subirlo. Un arreglo de un defecto que no es parte del rediseño va por su camino normal:
+así fue la firma en oscuro (#680).
+
+**Y lo aprobado entra apagado.** `main` recibe unos 49 commits al día y una rama larga no sirve, así que lo que Felipe aprueba entra a `main` por PR
+chicos, detrás del interruptor. En producción está apagado hasta el estreno, que es uno solo. El terminal tiene su propio interruptor. **Todo CSS
+nuevo cuelga de `[data-vidrio]`:** una regla suelta se cuela a producción y al terminal, como ya pasó (ver el comentario en `globals.css`), y una
+prueba falla si eso ocurre. Mientras dure, siguen valiendo los trece tokens, la regla de `receta-suelta` y lo escrito aquí sobre colores; se
+reescriben el día del estreno, no antes.
+
+**Se revisa con datos inventados, nunca con una copia de producción:** tiene DNI, sueldos y firmas.
+
+## La regla de los dos sistemas
+
+**Retail manda en el diseño.** Colores, recetas de vidrio y piezas se cambian en Retail. Dynamic no las edita por su cuenta; lo que nazca en Dynamic
+se propone primero en Retail. La lista de lo que viaja, el contrato y su prueba están en [`docs/familia/`](docs/familia/).
+
+- **Quien cambia, avisa.** Al tocar el diseño de Retail, la sesión le dice a Felipe «esto también llega a Dynamic».
+- **Un vigilante revisa cada hora** si los archivos compartidos cambiaron, prepara lo mismo en Dynamic y corre sus pruebas. Hasta el estreno
+  **solo avisa**. Después publica solo con tres condiciones: tocó únicamente archivos compartidos, todas las pruebas en verde (contraste incluido) y
+  fuera del horario de tienda. Si no se cumple alguna, no publica y avisa. Tiene un interruptor para apagarlo.
+- **Lo que no se puede copiar solo:** Retail y Dynamic arman sus piezas con código distinto. Un cambio de aspecto viaja; un cambio de cómo funciona
+  una pieza abre una tarea para Dynamic y se le avisa a Felipe.
+
+---
+
 ## Novedades del sistema
 
 **Un cambio que el equipo va a notar lleva su novedad en el MISMO pull
@@ -787,6 +821,8 @@ siguiente es medir cuántos cambios notables hubo sin entrada antes de decidir.
 | Ruta | Qué es |
 |---|---|
 | `estado.md` | **Dónde estamos hoy.** Se sobrescribe, no se acumula. |
+| `vidrio/README.md` | **El tablero del rediseño.** Módulos, los seis pasos y lo decidido. |
+| `familia/` | El contrato de diseño con Retail, los archivos compartidos y la regla del vigilante. |
 | `easter-eggs.md` | **Los secretos del sistema** y cómo activarlos: el código Konami, «colibrí» en el buscador, los clics del login, los toques de fecha y el colibrí sin internet. Si agregas uno, se anota ahí en el mismo PR. |
 | `cerrar-el-mes-sin-pagar-dos-veces.md` | El día 28, al cerrar la planilla: qué avisa el sistema cuando alguien cesó a mitad de mes y ya cobró su liquidación, y qué apretar. |
 | `prueba-restauracion-backup.md` | Cómo comprobar, con `scripts/probar-restauracion-backup.sh`, que el respaldo de producción se puede restaurar de verdad — no solo que existe. |
