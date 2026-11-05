@@ -114,7 +114,7 @@
     // El tema que la persona eligió en el panel (la misma clave que app/layout.tsx), antes de pintar.
     try {
       var t = localStorage.getItem("cayla-tema");
-      if (t !== "claro" && t !== "oscuro") t = localStorage.getItem("cayla-tema-global");
+      if (t !== "claro" && t !== "oscuro" && t !== "sistema") t = localStorage.getItem("cayla-tema-global");
       if (t === "claro" || t === "oscuro") document.documentElement.setAttribute("data-tema", t);
     } catch (e) {}
   </script>

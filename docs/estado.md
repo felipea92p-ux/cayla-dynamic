@@ -37,6 +37,52 @@ propia que agrega ese parámetro a `fn_turnos_borrador_publicar`. (2) Fase 3: ar
 
 ---
 
+## 2026-11-03 — Horarios para las colaboradoras: las cuatro entregas, en producción · migraciones 0584 · 0587 · 0589 · 0592 · **LAS CUATRO PEGADAS (2026-11-03)** · fusionadas en [#638](https://github.com/felipea92p-ux/cayla-dynamic/pull/638) · [#654](https://github.com/felipea92p-ux/cayla-dynamic/pull/654) · [#656](https://github.com/felipea92p-ux/cayla-dynamic/pull/656) · [#660](https://github.com/felipea92p-ux/cayla-dynamic/pull/660) · [#662](https://github.com/felipea92p-ux/cayla-dynamic/pull/662) · [#667](https://github.com/felipea92p-ux/cayla-dynamic/pull/667)
+
+**El módulo que pidió Felipe (2026-11-02), en cuatro entregas, cada una con su PR y su novedad.** Todo vive en «Lo mío · Mis turnos /
+Mi disponibilidad» para ella y en «Disponibilidad del equipo» y «Cambios de horario» para la líder de equipo y DO.
+
+| Entrega | Qué hace | SQL | PR |
+|---|---|---|---|
+| 1 · «Tu semana» | Los 7 días con horario, horas, refrigerio, descanso y piso/almacén; el total contra su jornada o su horario | no hay | #638 |
+| 2 · «Mi disponibilidad» | Ella dice qué días u horas no puede (o prefiere no), su líder aprueba o conversa; DO fija la jornada | 0584 | #654 |
+| — · Historial | «Cambios de horario» (panel) y «Cambios a tu horario» (Mis turnos): horario, turno, puesto, jornada, disponibilidad | no hay | #656 |
+| 3 · «Este día no me calza» | Pide cambiar un día publicado (motivo + qué le calza); su líder responde, a las 48 h lo ve DO; la respuesta llega a su Bandeja | 0587 | #660 |
+| — · La líder registra | La líder registra la disponibilidad de una integrante de su sede, aprobada, con el motivo del registro | 0589 | #662 |
+| 4 · «Cambiar con una compañera» | Intercambio del turno de un día con una compañera de su sede (mismo largo); la compañera acepta, la líder aprueba | 0592 | #667 |
+
+**0587 — «Este día no me calza» (prueba 477, 26 casos, 8 de 8 mutaciones cazadas).** Tabla `turno_pedidos` (RLS ella / líder de su sede /
+DO; sin escritura directa; un abierto por persona y día) y `fn_turno_pedido_crear / _retirar / _responder` (quién responde =
+`fn_puede_resolver_disponibilidad`, nunca ella). Las 48 h para pasar a DO se calculan al leer (`fn_turno_pedido_con_do`), sin cron.
+**Responder no cambia el turno:** si le calza, la líder lo cambia en Turnos. Reescribió `fn_bandeja_marcar_visto` para aceptar
+`pedido_turno`: md5 de partida en producción `4c580745…` (893), de llegada `444daa53487f048a5244c18e613299d4 · 1001`, confirmado por Felipe.
+**El #660 se fusionó (16:11 Lima) ANTES de pegar la 0587**: mientras tanto la Bandeja de todas decía «No se pudo leer: tus pedidos de
+cambiar un turno». Se pegó minutos después y desapareció sola.
+
+**0592 — «Cambiar con una compañera» (prueba 482, 30 casos, 11 de 12 mutaciones cazadas; la otra es equivalente).** Decidió Felipe: solo el
+mismo día, la compañera acepta, la líder aprueba. Tabla `turno_cambios` con la FOTO de los dos turnos al proponer; si alguno cambió en el
+medio, aplicar se niega y no mueve nada. Solo entre compañeras de la misma sede con turnos **del mismo largo**: ninguna cambia sus horas
+del día ni de la semana, así que **no mueve plata** (un cambio entre días distintos —descanso semanal, ciclo de 7 días, sobretiempo— no se
+construyó: pide su propia auditoría). Escribe `turnos` directo (no por `fn_set_turno`, porque cuando la líder lo propone desde un pedido
+quien acepta es la compañera), con el candado del periodo pagado, dos filas en `correcciones_auditoria` firmadas por quien aprobó
+(«Turno del DD/MM/YYYY cambiado con una compañera…») y `fn_recalcular_jornada`. Desde «Este día no me calza» la líder puede proponerlo:
+basta con que la compañera acepte y el pedido queda resuelto como `cambio_companera`. **El piso o almacén de ese día NO se intercambia**
+(la pantalla le avisa a la líder). Solo funciones nuevas: sin md5. Pegada antes de fusionar (registro `592 · cambiar_el_turno_con_una_companera`);
+el #667 se fusionó a las 18:44 Lima, 20 s después de que `db-tests` diera verde, y **no lo fusionó esta sesión**: queda sin saberse si
+fue Felipe, otra sesión o un auto-merge.
+
+**Pendiente:**
+- **DO tiene que cargar la jornada de cada persona** (Disponibilidad del equipo · «Fijarla»). Mientras esté vacía, el aviso de horas no
+  sale y «Tu semana» compara contra el horario base.
+- **El borrador de la semana (sesión de Turnos, 0593, #668) puede deshacer un cambio entre compañeras al publicarse.** Decidió Felipe
+  (2026-11-03): freno al publicar — si un día cambió en `turnos` después de crear el borrador, se confirma día por día («mantener lo
+  publicado» por defecto). Lo construye la sesión de Turnos.
+- DO ve los pedidos y los cambios de la sede que tiene elegida; no hay un contador en el menú para lo que pasó a DO en otras sedes.
+- La norma «Disponibilidad horaria: qué se aprueba y qué se conversa» está redactada para Normas; publicarla es de Felipe.
+- El historial todavía no muestra «propuesta publicada / descartada» del borrador: espera la tabla de Turnos.
+
+---
+
 ## 2026-11-03 — La líder registra la disponibilidad de su equipo · migración **0589 PEGADA (2026-11-03)** · prueba 479 · fusionada en [#662](https://github.com/felipea92p-ux/cayla-dynamic/pull/662)
 
 **Orden que no se respetó, y cómo quedó.** El #662 se fusionó (y se publicó) ANTES de pegar la 0589: la pantalla llama a
@@ -222,7 +268,7 @@ verificó en producción que no existiera nada con esos nombres (`0 · null · f
 `correcciones_auditoria` (horario base, turno, puesto, jornada) y `disponibilidades`.
 
 **Falta:** que DO cargue la jornada de cada persona (Panel · Disponibilidad). Mientras esté vacía, el aviso de horas no sale y
-«Tu semana» compara contra el horario base. Siguen las entregas 3 («Este día no me calza») y 4 («Cambiar con una compañera»).
+«Tu semana» compara contra el horario base. Las entregas 3 y 4 ya están: ver la entrada «las cuatro entregas, en producción», arriba.
 
 ## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (PEGADA 2026-11-03 · fusionada en #647)
 
