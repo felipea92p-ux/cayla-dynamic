@@ -37,6 +37,8 @@
 //     `main` publicándose sola puede ser la fusión de otra sesión, sin que nadie haya elegido ese momento.
 // ============================================================================
 
+import { CLAVE_TEMA, COLOR_BARRA } from "./vidrio-tema";
+
 export type Superficie = "panel" | "terminal";
 
 export interface InterruptoresVidrio {
@@ -80,5 +82,8 @@ export function guionVidrioAntesDePintar(interruptores: InterruptoresVidrio = in
   const inicio = JSON.stringify(INICIO_TERMINAL);
   const enTerminal = JSON.stringify(interruptores.terminal ? "terminal" : null);
   const enPanel = JSON.stringify(interruptores.panel ? "panel" : null);
-  return `(function(){var r=location.pathname,v=r===${inicio}||r.indexOf(${inicio}+"/")===0?${enTerminal}:${enPanel};if(v)document.documentElement.setAttribute(${JSON.stringify(ATRIBUTO_VIDRIO)},v);})();`;
+  // En el panel, además, el tema: arranca en claro y solo cambia con su botón (lib/vidrio-tema.ts). Va aquí y no en un segundo guion
+  // porque depende de la superficie, y le gana al guion viejo de app/layout.tsx porque corre después.
+  const temaDelPanel = `if(v==="panel"){var d=document.documentElement,t="claro";try{if(localStorage.getItem(${JSON.stringify(CLAVE_TEMA)})==="oscuro")t="oscuro"}catch(e){}d.setAttribute("data-tema",t);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="oscuro"?${JSON.stringify(COLOR_BARRA.oscuro)}:${JSON.stringify(COLOR_BARRA.claro)})}`;
+  return `(function(){var r=location.pathname,v=r===${inicio}||r.indexOf(${inicio}+"/")===0?${enTerminal}:${enPanel};if(v)document.documentElement.setAttribute(${JSON.stringify(ATRIBUTO_VIDRIO)},v);${temaDelPanel}})();`;
 }

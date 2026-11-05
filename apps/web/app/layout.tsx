@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { EB_Garamond, DM_Sans } from "next/font/google";
 import { ToastProvider } from "@/components/toast";
 import { VidrioEnRuta } from "@/components/vidrio-en-ruta";
-import { guionVidrioAntesDePintar } from "@/lib/vidrio";
+import { guionVidrioAntesDePintar, interruptoresVidrio } from "@/lib/vidrio";
+import { COLOR_BARRA } from "@/lib/vidrio-tema";
 import "./globals.css";
 
 // Serif del alma del sistema (títulos, datos con carácter).
@@ -49,11 +50,14 @@ export const metadata: Metadata = {
 // Los dos colores cubren el caso SISTEMA; quien elige el tema a mano desde el
 // selector no cambia esta franja hasta la próxima carga — es cosmético, no
 // vale la pena una segunda vía solo para eso.
+// Con el vidrio encendido el tema ya no sigue al sistema, así que hay un solo color: el guion de lib/vidrio.ts lo cambia al del tema.
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f0e8" },
-    { media: "(prefers-color-scheme: dark)", color: "#1c1a16" },
-  ],
+  themeColor: interruptoresVidrio().panel
+    ? COLOR_BARRA.claro
+    : [
+        { media: "(prefers-color-scheme: light)", color: "#f5f0e8" },
+        { media: "(prefers-color-scheme: dark)", color: "#1c1a16" },
+      ],
 };
 
 export default function RootLayout({

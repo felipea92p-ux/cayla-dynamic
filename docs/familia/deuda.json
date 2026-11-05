@@ -5,23 +5,6 @@
     { "clave": "radio:campo", "hoy": null, "nota": "hoy lo pinta radius-control, 8 px" },
     { "clave": "radio:tarjeta", "hoy": null, "nota": "hoy lo pinta radius-superficie, 16 px" },
     { "clave": "radio:cajon", "hoy": null, "nota": "hoy lo pinta radius-flotante, 20 px" },
-    { "clave": "radio:hoja", "hoy": null, "nota": "hoy lo pinta radius-flotante, 20 px" },
-    { "clave": "claro:borde-control", "hoy": "#805c4c", "nota": "hoy es un alias de taupe; tests/contraste-controles.test.ts exige ese alias y hay que reescribirlo al pagar" },
-    { "clave": "claro:vidrio", "hoy": null },
-    { "clave": "claro:sombra", "hoy": null },
-    { "clave": "oscuro:crema", "hoy": "#1c1a16" },
-    { "clave": "oscuro:papel", "hoy": "#26221d" },
-    { "clave": "oscuro:hueso", "hoy": "#15110d", "nota": "hoy más oscuro que la página; pasa a más claro: revisar lo que dependa de eso" },
-    { "clave": "oscuro:sand", "hoy": "#332e27" },
-    { "clave": "oscuro:tinta", "hoy": "#ede7db" },
-    { "clave": "oscuro:taupe", "hoy": "#ab9080" },
-    { "clave": "oscuro:borde-control", "hoy": "#ab9080", "nota": "alias de taupe, igual que en claro" },
-    { "clave": "oscuro:rojo", "hoy": "#d4634a", "nota": "tests/contraste-controles.test.ts afirma que este rojo NO alcanza sobre papel; con el de la familia sí alcanza y esa prueba hay que reescribirla al pagar" },
-    { "clave": "oscuro:rojo-profundo", "hoy": "#e8836b" },
-    { "clave": "oscuro:verde", "hoy": "#8fae80" },
-    { "clave": "oscuro:ambar", "hoy": "#c99a4a" },
-    { "clave": "oscuro:pizarra", "hoy": "#9db0c2" },
-    { "clave": "oscuro:vidrio", "hoy": null },
-    { "clave": "oscuro:sombra", "hoy": null }
+    { "clave": "radio:hoja", "hoy": null, "nota": "hoy lo pinta radius-flotante, 20 px" }
   ]
 }
