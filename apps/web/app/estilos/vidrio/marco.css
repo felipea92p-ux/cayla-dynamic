@@ -729,12 +729,11 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* En dos líneas si hace falta: «Líder de equipo · Tienda TRU» no cabe en una, y cortado en «Tiend…» ya no dice la sede. */
   [data-vidrio="panel"] .marco-yo-rol {
-    overflow: hidden;
     color: color-mix(in srgb, var(--color-tinta) 66%, transparent);
     font-size: 12px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.25;
   }
   [data-vidrio="panel"] .marco-yo-salir {
     display: grid;

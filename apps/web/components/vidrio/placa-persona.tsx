@@ -52,11 +52,11 @@ export function PlacaPersona({
   return (
     <div data-pieza-cajon style={{ "--k": 14 } as React.CSSProperties} className="marco-yo">
       {href ? (
-        <Link href={href} title="Lo mío" aria-label={persona ? `Lo mío de ${persona.nombre}` : "Lo mío"} className="marco-yo-quien group text-left">
+        <Link href={href} title={persona?.nombre} aria-label={persona ? `Lo mío de ${persona.nombre}` : "Lo mío"} className="marco-yo-quien group text-left">
           {quien}
         </Link>
       ) : (
-        <button type="button" onClick={alTocar} title="Lo mío" aria-label={persona ? `Lo mío de ${persona.nombre}` : "Lo mío"} className="marco-yo-quien group text-left">
+        <button type="button" onClick={alTocar} title={persona?.nombre} aria-label={persona ? `Lo mío de ${persona.nombre}` : "Lo mío"} className="marco-yo-quien group text-left">
           {quien}
         </button>
       )}

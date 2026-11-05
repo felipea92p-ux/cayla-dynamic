@@ -73,11 +73,13 @@ Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar ca
 
 **Antes de retirar `/admin/apariencia`:** fijar el terminal en claro y limpiar la copia local del tema en cada Mac mini, o se quedan con el último que les llegó.
 
+**Las recetas de vidrio se tomaron de Retail en el #1645, no de su `main` de hoy.** El #1650 de Retail agregó a `recetas.css` un bloque para quien pide menos transparencia o más contraste, y ese bloque trae una regla sobre `*`: `envolver-recetas.mjs` se niega a traerla, como debe, porque colgarla mal llegaría al terminal. El vigilante va a avisar. Hay que decidir cómo se trae: ver [`docs/familia/README.md`](../familia/README.md).
+
 | Pieza | Estado |
 |---|---|
-| Colores, modo oscuro, fondo y botón de tema | En local, esperando que Felipe lo mire |
-| Menú de la izquierda: abierto, plegado y cajón del celular | Pendiente |
-| Cabecera: buscador, tema, avisos y título de cada pantalla | Pendiente |
+| Colores, modo oscuro, fondo y botón de tema | Felipe lo miró y dijo «sigue». Sigue en local |
+| Menú de la izquierda: abierto, plegado y cajón del celular | En local, esperando que Felipe lo mire |
+| Cabecera: buscador, tema, avisos y título de cada pantalla | En local, esperando que Felipe lo mire |
 | Piezas: botones, campos, listas, hojas, tablas, tarjetas, insignias, avisos, filtros, pestañas y estados vacíos | Pendiente |
 | Lo que se mueve: movimiento, loader, «atrás» que cierra la hoja y botones a la vista en hojas largas | Pendiente |
 
