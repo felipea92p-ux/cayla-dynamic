@@ -33,14 +33,14 @@ No se ve nada en producción, salvo la firma.
 
 | Pieza | Estado |
 |---|---|
-| La firma visible en oscuro ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680)) | Aprobada por Felipe, no es parte del rediseño |
-| Dynamic en local con login real (`scripts/local/`) | En local, esperando su OK |
-| El interruptor | En local, esperando su OK |
-| Los medidores de contraste y responsive | En local, esperando su OK |
-| El contrato v4 y el vigilante (`docs/familia/`) | En local, esperando su OK |
+| La firma visible en oscuro ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680)) | Publicada; no es parte del rediseño |
+| Dynamic en local con login real (`scripts/local/`) | Aprobado por Felipe para subir |
+| El interruptor | Aprobado por Felipe para subir, apagado en producción |
+| Los medidores de contraste y responsive | Aprobado por Felipe para subir |
+| El contrato v4 y el vigilante (`docs/familia/`) | Aprobado por Felipe para subir; el vigilante solo avisa |
 | Lado Retail del contrato | Pendiente, en la sesión de Retail |
 
-Al terminar la Etapa 0 se le muestra Dynamic corriendo en local y se le pide el OK para subirla.
+Felipe lo aprobó el 2026-11-05: cuatro PR separados, cada uno se fusiona con sus pruebas en verde.
 
 **Comprobado con el interruptor encendido y apagado:** 24 capturas de Dashboard, Bandeja, Equipo, Lo mío, ingreso y terminal, en claro y oscuro, a 1440 y 375 px. Salieron 23 idénticas píxel por píxel y una distinta en 1 píxel, el mismo ruido que da la misma pantalla entre dos fotos sin cambiar nada.
 
@@ -59,6 +59,19 @@ Los hallazgos son un solo defecto: el rojo del oscuro de hoy (`#d4634a`) da 4.28
 ## Etapa 1: lo general
 
 Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar cada pantalla ya se verá en buena parte como Retail.
+
+**Lo que Felipe decidió el 2026-11-05 mirando [las láminas](https://claude.ai/artifact/8ahbY3zPky2HeY5dzemkon):**
+
+| Pregunta | Decisión |
+|---|---|
+| Menú | Módulos que se abren, como Retail, con Info, Dashboard y Bandeja sueltos arriba. Con un módulo cerrado, sus números suben a su fila. |
+| Selector de sede en la cabecera | No por ahora. Líder de equipo e integrante ven su sede como etiqueta; DO y administración, nada. Los filtros siguen dentro de cada pantalla. |
+| Saludo y hora | Se van de la cabecera. La hora sube a la línea de arriba del título. |
+| «Cerrar sesión» y el nombre | Bajan al pie del menú, en una placa con foto, nombre, rol y sede. Tocarla lleva a Lo mío. |
+| Lo mío | Entra en la Etapa 1: misma cabecera y misma placa, con su propio menú. |
+| Esquina de las tarjetas | Una sola, de 22 px, en Dynamic y en Retail. |
+
+**Antes de retirar `/admin/apariencia`:** fijar el terminal en claro y limpiar la copia local del tema en cada Mac mini, o se quedan con el último que les llegó.
 
 | Pieza | Estado |
 |---|---|

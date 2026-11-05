@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-05 — Rediseño como Retail: Etapa 0 en commits locales, sin subir · la firma, publicada ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680))
+## 2026-11-05 — Rediseño como Retail: Etapa 0 aprobada para subir, en cuatro PR · la firma, publicada ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680))
 
 **De dónde sale.** Felipe decidió que Dynamic se vea y se mueva como Retail. Tablero: [`vidrio/README.md`](vidrio/README.md). Regla suya: nada del diseño se
 sube sin que lo haya visto en local (ver «El vidrio» en `CLAUDE.md`).
@@ -15,11 +15,13 @@ sube sin que lo haya visto en local (ver «El vidrio» en `CLAUDE.md`).
 recuadro de la boleta (15.36:1); en claro e impreso no cambia. Comprobado en pantalla con datos inventados en memo, contrato y bono; las otras cuatro, solo por
 su prueba. No se abrió un documento firmado real en producción.
 
-**En la rama local `claude/diseno-etapa-0-e8a981`, esperando el OK de Felipe:** `scripts/local/` (Dynamic sin Docker, con login real y datos inventados), el
-interruptor, los medidores, `docs/familia/` con el contrato v4 y el vigilante, y el tablero. Sin SQL.
+**La Etapa 0, sin SQL y sin nada a la vista:** el interruptor (apagado en producción), los medidores, `docs/familia/` con el contrato v4 y el vigilante (solo
+avisa), `scripts/local/` (Dynamic sin Docker, con login real y datos inventados) y el tablero. Felipe la vio corriendo en su computadora y aprobó subirla.
 
-**Sigue.** (1) Que Felipe lo vea en local y dé el OK para subir. (2) Sus respuestas sobre menú y cabecera, antes de la Etapa 1. (3) El lado de Retail del contrato.
-(4) Antes de retirar `/admin/apariencia`: fijar el terminal en claro y limpiar la copia local del tema en cada Mac mini, o se quedan con el último que les llegó.
+**Sigue.** (1) Etapa 1, con las decisiones de menú y cabecera anotadas en el tablero: se construye en local y se le muestra antes de subir. (2) El lado de Retail
+del contrato: mientras no lo pegue, el vigilante avisa «Retail sigue en v3». (3) Antes de retirar `/admin/apariencia`: fijar el terminal en claro y limpiar la
+copia local del tema en cada Mac mini; Felipe puede ver el valor con `select valor from configuracion where clave = 'apariencia_tema';`. (4) Faltan por medir 7 de
+las 14 pantallas registradas en los medidores y la cuenta de DO.
 
 ---
 ## 2026-11-05 — Política salarial en el celular · sin SQL · rama `claude/responsive-politica-salarial-9dd1bd`
