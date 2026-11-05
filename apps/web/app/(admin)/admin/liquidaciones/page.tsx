@@ -58,7 +58,7 @@ import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 //      «3 con diferencias» no bajaba nunca y acababa leyéndose como ruido.
 //
 // QUÉ MUESTRA Y QUÉ NO. Todas las cesadas con liquidación por resolver, sin
-// filtrar por vínculo. `fn_liquidaciones_pendientes` no descarta los totales
+// filtrar por vínculo. `fn_liquidaciones_lista` no descarta los totales
 // en cero: una locadora o alguien de un día de prueba aparece igual, porque el
 // plazo de 48 horas corre para todas — pero quedan fuera de lo urgente (ver
 // «Sin nada que cobrar» al pie de Pendientes), a propósito: no compiten
@@ -93,8 +93,6 @@ interface Pendiente {
   vencido: boolean;
   total: number;
   pagada: boolean;
-  descuadra: boolean;
-  descuadra_real: boolean;
 }
 
 interface AvisoVinculo {
@@ -273,7 +271,7 @@ export default function LiquidacionesPage() {
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
     const [lista, av, per, sedesRes] = await Promise.all([
-      supabase.rpc("fn_liquidaciones_pendientes"),
+      supabase.rpc("fn_liquidaciones_lista"),
       supabase.rpc("fn_avisos_vinculo"),
       supabase.rpc("fn_periodos"),
       supabase.from("sedes").select("id, codigo, nombre").order("codigo"),
@@ -625,14 +623,14 @@ export default function LiquidacionesPage() {
   function exportarCsv() {
     const filas = tab === "pendientes" ? visibleEnPlazo : tab === "vencidas" ? visibleVencidas : visiblePagadas;
     const columnas = tab === "pagadas"
-      ? ["Persona", "Sede", "Cesó", "Vence el", "Total", "Pagada", "Cálculo cambió"]
+      ? ["Persona", "Sede", "Cesó", "Vence el", "Total", "Pagada"]
       : ["Persona", "Sede", "Cesó", "Vence el", "Días", "Total"];
     const contenido = generarCsv(
       filas.map((p) => (
         tab === "pagadas"
           ? {
               Persona: p.persona, Sede: p.sede, "Cesó": p.fecha_cese, "Vence el": p.vence_el,
-              Total: p.total, Pagada: "sí", "Cálculo cambió": p.descuadra_real ? "sí" : "no",
+              Total: p.total, Pagada: "sí",
             }
           : {
               Persona: p.persona, Sede: p.sede, "Cesó": p.fecha_cese, "Vence el": p.vence_el,
