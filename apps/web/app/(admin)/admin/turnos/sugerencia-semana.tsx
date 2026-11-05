@@ -28,6 +28,9 @@ export function PropuestaDeLaSemana({
   porAprobar,
   onPublicar,
   onDescartar,
+  onGuardarBorrador,
+  guardando = false,
+  hayBorrador = false,
 }: {
   propuesta: Propuesta;
   nombres: Map<string, string>;
@@ -42,6 +45,11 @@ export function PropuestaDeLaSemana({
   porAprobar: number | null;
   onPublicar: () => void;
   onDescartar: () => void;
+  /** Guardarla como borrador de la semana (0593), sin publicar; undefined si la 0593 no está. */
+  onGuardarBorrador?: () => void;
+  guardando?: boolean;
+  /** Ya hay un borrador de esta semana: guardar lo reemplaza. */
+  hayBorrador?: boolean;
 }) {
   const filas = Object.entries(propuesta.resumen).sort((a, b) => (nombres.get(a[0]) ?? "").localeCompare(nombres.get(b[0]) ?? "", "es"));
   const horasCortas = Object.values(propuesta.cobertura).flat().filter((c) => c.enPiso < c.pedia).length;
@@ -49,7 +57,7 @@ export function PropuestaDeLaSemana({
     <TarjetaInfo className="space-y-3" titulo={`Propuesta para la semana ${semana}`}>
       <p className="text-sm text-taupe">
         Todavía <strong className="text-tinta">no está guardada</strong>: la grilla de abajo muestra la propuesta. Revísala y
-        publícala; publicar guarda los turnos de esa semana de una sola vez. Respeta la disponibilidad aprobada, las ausencias y
+        publícala, o guárdala como borrador para volver a ella; publicar guarda los turnos de esa semana de una sola vez. Respeta la disponibilidad aprobada, las ausencias y
         los horarios fijos, y nadie pasa de su jornada.
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -83,6 +91,12 @@ export function PropuestaDeLaSemana({
         <Boton variante="primario" disabled={publicando || cambios === 0} onClick={onPublicar}>
           {publicando ? "Publicando…" : cambios === 0 ? "No hay cambios que publicar" : `Publicar la semana (${cambios} ${cambios === 1 ? "día" : "días"})`}
         </Boton>
+        {onGuardarBorrador && (
+          <Boton variante="secundario" disabled={publicando || guardando} onClick={onGuardarBorrador}
+            title={hayBorrador ? "Reemplaza el borrador guardado de esta semana" : "Guárdala sin publicar: la ves, la comparas y la publicas después"}>
+            {guardando ? "Guardando…" : hayBorrador ? "Reemplazar el borrador" : "Guardar como borrador"}
+          </Boton>
+        )}
         <Boton variante="secundario" disabled={publicando} onClick={onDescartar}>Descartar</Boton>
         <Link href="/admin/disponibilidad" className="text-sm text-taupe underline-offset-2 hover:underline">Ver la disponibilidad del equipo</Link>
       </div>

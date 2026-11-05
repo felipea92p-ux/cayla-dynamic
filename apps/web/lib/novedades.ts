@@ -138,6 +138,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-11-03-borrador-de-la-semana",
+    fecha: "2026-11-03",
+    titulo: "En Turnos, la semana se puede guardar como borrador antes de publicarla",
+    queMejoro:
+      "Después de «Sugerir la semana», «Guardar como borrador» la deja guardada sin publicar: el equipo sigue viendo sus " +
+      "turnos de siempre. El borrador compara, persona por persona, lo que hoy tiene con lo que se propone: horas, días " +
+      "que cambian y si cumple su jornada, y avisa si alguien pasa de 48 h o tiene un día de menos de 4 h.\n\n" +
+      "Para quien factura por recibo por honorarios no se arma horario: en el borrador se anota cuándo se la necesita, y " +
+      "esa nota no se publica. En Horas, mirando una semana ya terminada, se ve si lo marcado llegó a la jornada de cada persona.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-03-cambiar-con-una-companera",
     fecha: "2026-11-03",
     titulo: "Ya puedes cambiarte el turno de un día con una compañera",

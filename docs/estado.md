@@ -6,6 +6,37 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-03 — El borrador de la semana · migración **0593 SIN PEGAR** · prueba 483 · rama `claude/turnos-borrador-semana` ([#668](https://github.com/felipea92p-ux/cayla-dynamic/pull/668))
+
+**De dónde sale.** Felipe (2026-11-03): tener a la vista «el horario sugerido (lo que predice el sistema), el que muestra el
+sistema y un borrador», comparar el actual con el recomendado o el modificado, y el «cumple 45 h / 30 h» medido contra lo
+planificado y contra lo marcado. Para RxH: «sin horario, pero solo hacer un borrador para saber cuándo se la necesita, como una
+nota; lo puede ver la líder, DO y superiores». Es la fase 2b; la 2a fueron las metas por rangos (0590).
+
+**0593** (era la 0592: ese número lo tomó «Cambiar con una compañera», fusionada y pegada mientras esta se escribía). `turnos_borradores` (uno VIVO por sede y lunes: índice único parcial; los publicados y descartados se quedan como
+historia) con `turnos_borrador_dias` (turno o descanso por persona y fecha) y `turnos_borrador_notas` (una por persona). RLS: solo
+admin, DO y la líder de esa sede; nadie escribe directo. Puertas: `fn_turnos_borrador_guardar` (reemplaza el borrador entero;
+rechaza días que ya llegaron y turnos para RxH o no trabajador), `fn_turnos_borrador_descartar` y `fn_turnos_borrador_publicar`,
+que exige que cada fila sea un día del borrador y publica con `fn_publicar_semana` (0586) en la misma transacción. No reescribe
+ninguna función (no lleva md5) ni altera tablas en uso.
+
+**En pantalla.** Turnos: «Guardar como borrador» junto a «Publicar la semana»; la tarjeta del borrador con la comparativa
+Ahora / Sugerido / Borrador por persona (horas, días que cambian, «cumple su jornada» con 15 min de margen y avisos de más de
+48 h y de días de menos de 4 h), las notas de RxH, «Ver el borrador en la grilla», «Publicar el borrador» y «Descartar». Un día que
+el borrador no trae se completa con lo que la persona ya tiene: nunca se publica como descanso. Horas: en una semana de lunes a
+domingo ya terminada, «cumple su jornada» o un neutro «marcó X h de 45» (no dice «faltan»: ahí no se descuentan feriados ni
+ausencias). Lógica en `lib/admin/borrador-semana.ts` con su prueba.
+
+**Freno contra borradores viejos.** Publicar se niega si un día que va a pisar tiene un turno cambiado DESPUÉS de guardar el borrador
+(un cambio con una compañera aprobado, 0592, o uno hecho a mano; se mide con `turnos.created_at`, que cada cambio reescribe) y dice
+cuál. Hoy la salida es descartar y volver a armar, o cambiar ese día a mano.
+
+**Sigue:** (1) Felipe decidió (2026-11-03, «la recomendada») que en vez de negarse en bloque se muestren esos días y se elija día por
+día «mantener lo publicado» (por defecto) o «pisarlo con el borrador», con la base exigiendo la confirmación: va en una migración
+propia que agrega ese parámetro a `fn_turnos_borrador_publicar`. (2) Fase 3: arrastrar en la Integrada y en Día, editando el borrador.
+
+---
+
 ## 2026-11-03 — Horarios para las colaboradoras: las cuatro entregas, en producción · migraciones 0584 · 0587 · 0589 · 0592 · **LAS CUATRO PEGADAS (2026-11-03)** · fusionadas en [#638](https://github.com/felipea92p-ux/cayla-dynamic/pull/638) · [#654](https://github.com/felipea92p-ux/cayla-dynamic/pull/654) · [#656](https://github.com/felipea92p-ux/cayla-dynamic/pull/656) · [#660](https://github.com/felipea92p-ux/cayla-dynamic/pull/660) · [#662](https://github.com/felipea92p-ux/cayla-dynamic/pull/662) · [#667](https://github.com/felipea92p-ux/cayla-dynamic/pull/667)
 
 **El módulo que pidió Felipe (2026-11-02), en cuatro entregas, cada una con su PR y su novedad.** Todo vive en «Lo mío · Mis turnos /
