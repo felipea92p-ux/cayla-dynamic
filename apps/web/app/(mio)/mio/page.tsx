@@ -73,6 +73,7 @@ import { direccionDeSeccion, seccionAlLlegar, seccionDeLaDireccion } from "@/lib
 import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
 import { usePuertaDeModulo } from "@/lib/use-puerta-de-modulo";
 import { PuertaDeModuloVista } from "@/components/mio/puerta-de-modulo";
+import { esCuentaDadaDeBaja, MENSAJE_CUENTA_DADA_DE_BAJA } from "@/lib/cuenta-de-servicio";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -975,7 +976,7 @@ export default function MioPage() {
     setErrorLogin(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password: clave });
     setEntrando(false);
-    if (error) { setErrorLogin("Correo o contraseña incorrectos."); return; }
+    if (error) { setErrorLogin(esCuentaDadaDeBaja(error) ? MENSAJE_CUENTA_DADA_DE_BAJA : "Correo o contraseña incorrectos."); return; }
     setSesion(true);
   }
 

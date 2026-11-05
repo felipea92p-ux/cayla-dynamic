@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-05-la-baja-cierra-el-acceso",
+    fecha: "2026-11-05",
+    titulo: "Dar de baja a alguien ahora también cierra su acceso",
+    queMejoro:
+      "Al dar de baja a una persona en Equipo —o al cerrar su preselección—, su usuario deja de poder entrar al sistema y " +
+      "se le cierran las sesiones abiertas, sin tener que cambiarle la clave. Antes seguía pudiendo entrar.\n\n" +
+      "Quienes ya estaban de baja quedaron igual. Si reactivas a alguien, vuelve a entrar con su misma clave.\n\n" +
+      "Como ya no ven «Lo mío», sus boletas y documentos se los entrega Desarrollo Organizacional.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-04-ingreso-con-fecha-futura",
     fecha: "2026-11-04",
     titulo: "Ya puedes registrar que alguien ingresa en una fecha futura",
