@@ -4,7 +4,21 @@
     {
       "name": "web-dev",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["pnpm", "--filter", "@cayla-dynamic/web", "dev"],
+      "runtimeArgs": [
+        "pnpm",
+        "--filter",
+        "@cayla-dynamic/web",
+        "dev"
+      ],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "dynamic-local",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/local/web.mjs"
+      ],
       "port": 3000,
       "autoPort": true
     }

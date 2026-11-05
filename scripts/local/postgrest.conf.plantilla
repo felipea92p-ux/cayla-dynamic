@@ -1,0 +1,11 @@
+# Imita el [api] de supabase/config.toml.
+db-uri = "postgres://authenticator@127.0.0.1:PG_PUERTO/postgres"
+db-schemas = "public"
+db-extra-search-path = "public,extensions"
+db-anon-role = "anon"
+db-max-rows = 1000
+db-aggregates-enabled = true
+jwt-secret = "JWT_SECRETO"
+server-host = "127.0.0.1"
+server-port = REST_PUERTO
+log-level = "warn"
