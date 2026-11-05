@@ -25,6 +25,12 @@
     font-weight: 600;
   }
 
+  /* ---------- El papel en pantalla ----------
+     Un contrato o una boleta no llevan fondo propio, y la aurora se veía a través de ellos. Lo que se revisa tiene que ser lo que va a salir. */
+  [data-vidrio="panel"] .hoja:not([class*="bg-"]) {
+    background-color: var(--color-crema);
+  }
+
   /* ---------- Lo que empuja la página de lado ----------
      Un `grid` sin columnas dadas crece hasta lo que pide su hijo más ancho, aunque ese hijo tenga su propio desplazamiento: así, Equipo y Contratos se salen hoy de la
      pantalla a 768 px, con o sin vidrio. Con esto la tabla se desplaza dentro de su caja, que es lo que ya querían. */
