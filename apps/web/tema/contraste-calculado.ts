@@ -108,15 +108,15 @@ export function color(valor: string, vars: Vars): Rgba {
   if (v === "white") return [255, 255, 255, 1];
   if (v === "black") return [0, 0, 0, 1];
   if (v.startsWith("#")) return deHex(v);
-  const unaVar = v.match(/^var\((--[a-z0-9-]+)(?:\s*,\s*(.*))?\)$/s);
+  const unaVar = v.match(/^var\((--[a-z0-9-]+)(?:\s*,\s*([\s\S]*))?\)$/);
   if (unaVar) {
     const resuelto = vars[unaVar[1]] ?? unaVar[2];
     if (resuelto === undefined) throw new Error(`no existe ${unaVar[1]}`);
     return color(resuelto, vars);
   }
-  const rgb = v.match(/^rgba?\((.*)\)$/s);
+  const rgb = v.match(/^rgba?\(([\s\S]*)\)$/);
   if (rgb) return deRgb(v, rgb[1]);
-  const mezcla = v.match(/^color-mix\(in\s+(srgb|oklab|oklch)\s*,\s*(.*)\)$/s);
+  const mezcla = v.match(/^color-mix\(in\s+(srgb|oklab|oklch)\s*,\s*([\s\S]*)\)$/);
   if (mezcla) return deMezcla(v, mezcla[1], mezcla[2], vars);
   throw new Error(`no entiendo el color «${v}»`);
 }
@@ -142,7 +142,7 @@ export function muestras(capa: string, vars: Vars): Rgba[] {
     if (adentro.length > 1) throw new Error(`${unaVar[1]} trae varias capas: pásala con \`pintados\`, no como una sola`);
     return muestras(vars[unaVar[1]], vars);
   }
-  const degradado = v.match(/^(?:repeating-)?(?:linear|radial|conic)-gradient\((.*)\)$/s);
+  const degradado = v.match(/^(?:repeating-)?(?:linear|radial|conic)-gradient\(([\s\S]*)\)$/);
   if (!degradado) return [color(v, vars)];
   const paradas = partes(degradado[1])
     .filter((p, i) => !(i === 0 && ES_PRELUDIO.test(p)))
