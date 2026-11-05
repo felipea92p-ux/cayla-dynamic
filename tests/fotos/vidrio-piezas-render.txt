@@ -1,0 +1,1047 @@
+# Foto de las piezas de components/ui, apagado. Se genera: npx vitest run tests/vidrio-foto-piezas.test.ts -u
+# Si la prueba falló: lee el comentario de arriba de esa prueba antes de actualizarla.
+
+## Boton variante=primario tamano=sm
+button active:scale-[0.98] bg-tinta disabled:opacity-50 font-medium px-3 py-1 rounded-control text-crema text-xs
+## Boton variante=primario tamano=md
+button active:scale-[0.98] bg-tinta disabled:opacity-50 font-medium px-4 py-2 rounded-control text-crema text-sm
+## Boton variante=primario tamano=lg
+button active:scale-[0.98] bg-tinta disabled:opacity-50 font-medium px-5 py-2 rounded-control text-crema text-sm
+## Boton variante=secundario tamano=sm
+button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-3 py-1 rounded-control text-xs transition-colors
+## Boton variante=secundario tamano=md
+button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-4 py-2 rounded-control text-sm transition-colors
+## Boton variante=secundario tamano=lg
+button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-5 py-2 rounded-control text-sm transition-colors
+## Boton variante=peligro tamano=sm
+button active:scale-[0.98] border border-rojo/30 disabled:opacity-50 duration-150 font-medium hover:bg-rojo/10 px-3 py-1 rounded-control text-rojo text-xs transition-colors
+## Boton variante=peligro tamano=md
+button active:scale-[0.98] border border-rojo/30 disabled:opacity-50 duration-150 font-medium hover:bg-rojo/10 px-4 py-2 rounded-control text-rojo text-sm transition-colors
+## Boton variante=peligro tamano=lg
+button active:scale-[0.98] border border-rojo/30 disabled:opacity-50 duration-150 font-medium hover:bg-rojo/10 px-5 py-2 rounded-control text-rojo text-sm transition-colors
+## Boton variante=sutil tamano=sm
+button active:scale-[0.98] border border-sand disabled:opacity-50 duration-150 font-medium hover:bg-sand/30 hover:text-tinta px-3 py-1 rounded-control text-taupe text-xs transition-colors
+## Boton variante=sutil tamano=md
+button active:scale-[0.98] border border-sand disabled:opacity-50 duration-150 font-medium hover:bg-sand/30 hover:text-tinta px-4 py-2 rounded-control text-sm text-taupe transition-colors
+## Boton variante=sutil tamano=lg
+button active:scale-[0.98] border border-sand disabled:opacity-50 duration-150 font-medium hover:bg-sand/30 hover:text-tinta px-5 py-2 rounded-control text-sm text-taupe transition-colors
+## Boton variante=enlace tamano=sm
+button disabled:opacity-50 duration-150 font-medium hover:text-taupe transition-colors underline underline-offset-2
+## Boton variante=enlace tamano=md
+button disabled:opacity-50 duration-150 font-medium hover:text-taupe transition-colors underline underline-offset-2
+## Boton variante=enlace tamano=lg
+button disabled:opacity-50 duration-150 font-medium hover:text-taupe transition-colors underline underline-offset-2
+## Boton cargando=true
+button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-4 py-2 rounded-control text-sm transition-colors
+  span aletea align-[-2px] colibri inline-block mr-1.5 size-3.5
+## Boton disabled=true
+button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-4 py-2 rounded-control text-sm transition-colors
+## BotonIcono tamano=sm activo=undefined contador=undefined
+button [&amp;_svg]:size-4 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-7 text-taupe transition-colors
+  svg size-4
+## BotonIcono tamano=sm activo=undefined contador=3
+button [&amp;_svg]:size-4 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-7 text-taupe transition-colors
+  svg size-4
+  span -right-1.5 -top-1.5 absolute bg-rojo font-semibold leading-4 min-w-4 px-1 rounded-full text-[10px] text-center text-crema
+## BotonIcono tamano=sm activo=false contador=undefined
+button [&amp;_svg]:size-4 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-7 text-taupe transition-colors
+  svg size-4
+## BotonIcono tamano=sm activo=false contador=3
+button [&amp;_svg]:size-4 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-7 text-taupe transition-colors
+  svg size-4
+  span -right-1.5 -top-1.5 absolute bg-rojo font-semibold leading-4 min-w-4 px-1 rounded-full text-[10px] text-center text-crema
+## BotonIcono tamano=sm activo=true contador=undefined
+button [&amp;_svg]:size-4 bg-tinta border border-tinta duration-150 focus-visible:outline-offset-2 inline-flex items-center justify-center relative rounded-control shrink-0 size-7 text-crema transition-colors
+  svg size-4
+## BotonIcono tamano=sm activo=true contador=3
+button [&amp;_svg]:size-4 bg-tinta border border-tinta duration-150 focus-visible:outline-offset-2 inline-flex items-center justify-center relative rounded-control shrink-0 size-7 text-crema transition-colors
+  svg size-4
+  span -right-1.5 -top-1.5 absolute bg-rojo font-semibold leading-4 min-w-4 px-1 rounded-full text-[10px] text-center text-crema
+## BotonIcono tamano=md activo=undefined contador=undefined
+button [&amp;_svg]:size-4 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-8 text-taupe transition-colors
+  svg size-4
+## BotonIcono tamano=md activo=undefined contador=3
+button [&amp;_svg]:size-4 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-8 text-taupe transition-colors
+  svg size-4
+  span -right-1.5 -top-1.5 absolute bg-rojo font-semibold leading-4 min-w-4 px-1 rounded-full text-[10px] text-center text-crema
+## BotonIcono tamano=md activo=false contador=undefined
+button [&amp;_svg]:size-4 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-8 text-taupe transition-colors
+  svg size-4
+## BotonIcono tamano=md activo=false contador=3
+button [&amp;_svg]:size-4 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-8 text-taupe transition-colors
+  svg size-4
+  span -right-1.5 -top-1.5 absolute bg-rojo font-semibold leading-4 min-w-4 px-1 rounded-full text-[10px] text-center text-crema
+## BotonIcono tamano=md activo=true contador=undefined
+button [&amp;_svg]:size-4 bg-tinta border border-tinta duration-150 focus-visible:outline-offset-2 inline-flex items-center justify-center relative rounded-control shrink-0 size-8 text-crema transition-colors
+  svg size-4
+## BotonIcono tamano=md activo=true contador=3
+button [&amp;_svg]:size-4 bg-tinta border border-tinta duration-150 focus-visible:outline-offset-2 inline-flex items-center justify-center relative rounded-control shrink-0 size-8 text-crema transition-colors
+  svg size-4
+  span -right-1.5 -top-1.5 absolute bg-rojo font-semibold leading-4 min-w-4 px-1 rounded-full text-[10px] text-center text-crema
+## BotonAyuda
+button -my-2 duration-150 hover:bg-sand/60 hover:text-tinta inline-flex items-center justify-center rounded-pildora shrink-0 size-8 text-taupe transition-colors
+  svg size-[18px]
+## AyudaPantalla
+button -my-2 duration-150 hover:bg-sand/60 hover:text-tinta inline-flex items-center justify-center rounded-pildora shrink-0 size-8 text-taupe transition-colors
+  svg size-[18px]
+## Campo tamano=md etiqueta=undefined error=undefined
+label flex flex-col gap-1
+  input bg-hueso border border-borde-control duration-150 focus-visible:outline-offset-0 placeholder:text-taupe/60 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors
+## Campo tamano=md etiqueta=undefined error=x
+label flex flex-col gap-1
+  input bg-hueso border border-rojo duration-150 focus-visible:outline-offset-0 placeholder:text-taupe/60 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors
+  span text-rojo-profundo text-xs
+## Campo tamano=md etiqueta=x error=undefined
+label flex flex-col gap-1
+  span text-sm text-taupe
+  input bg-hueso border border-borde-control duration-150 focus-visible:outline-offset-0 placeholder:text-taupe/60 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors
+## Campo tamano=md etiqueta=x error=x
+label flex flex-col gap-1
+  span text-sm text-taupe
+  input bg-hueso border border-rojo duration-150 focus-visible:outline-offset-0 placeholder:text-taupe/60 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors
+  span text-rojo-profundo text-xs
+## Campo tamano=sm etiqueta=undefined error=undefined
+label flex flex-col gap-1
+  input bg-hueso border border-borde-control duration-150 focus-visible:outline-offset-0 placeholder:text-taupe/60 px-3 py-1.5 rounded-control sm:text-xs text-base text-tinta transition-colors
+## Campo tamano=sm etiqueta=undefined error=x
+label flex flex-col gap-1
+  input bg-hueso border border-rojo duration-150 focus-visible:outline-offset-0 placeholder:text-taupe/60 px-3 py-1.5 rounded-control sm:text-xs text-base text-tinta transition-colors
+  span text-rojo-profundo text-xs
+## Campo tamano=sm etiqueta=x error=undefined
+label flex flex-col gap-1
+  span text-sm text-taupe
+  input bg-hueso border border-borde-control duration-150 focus-visible:outline-offset-0 placeholder:text-taupe/60 px-3 py-1.5 rounded-control sm:text-xs text-base text-tinta transition-colors
+## Campo tamano=sm etiqueta=x error=x
+label flex flex-col gap-1
+  span text-sm text-taupe
+  input bg-hueso border border-rojo duration-150 focus-visible:outline-offset-0 placeholder:text-taupe/60 px-3 py-1.5 rounded-control sm:text-xs text-base text-tinta transition-colors
+  span text-rojo-profundo text-xs
+## CampoCasilla etiqueta=undefined error=undefined
+label flex gap-2 items-center
+  input accent-tinta disabled:opacity-50 size-4
+## CampoCasilla etiqueta=undefined error=x
+label flex gap-2 items-center
+  input accent-tinta disabled:opacity-50 outline outline-1 outline-rojo size-4
+  span text-rojo-profundo text-xs
+## CampoCasilla etiqueta=x error=undefined
+label flex gap-2 items-center
+  input accent-tinta disabled:opacity-50 size-4
+  span text-sm text-tinta
+## CampoCasilla etiqueta=x error=x
+label flex gap-2 items-center
+  input accent-tinta disabled:opacity-50 outline outline-1 outline-rojo size-4
+  span text-sm text-tinta
+  span text-rojo-profundo text-xs
+## CampoSelect tamano=md etiqueta=undefined error=undefined
+label flex flex-col gap-1
+  div relative
+    select appearance-none bg-hueso border border-borde-control duration-150 focus-visible:outline-offset-0 pr-8 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+      option
+    span -translate-y-1/2 [-webkit-mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain] [mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [mask-repeat:no-repeat] [mask-size:contain] absolute bg-taupe pointer-events-none right-[0.6rem] size-[10px] top-1/2
+## CampoSelect tamano=md etiqueta=undefined error=x
+label flex flex-col gap-1
+  div relative
+    select appearance-none bg-hueso border border-rojo duration-150 focus-visible:outline-offset-0 pr-8 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+      option
+    span -translate-y-1/2 [-webkit-mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain] [mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [mask-repeat:no-repeat] [mask-size:contain] absolute bg-taupe pointer-events-none right-[0.6rem] size-[10px] top-1/2
+  span text-rojo-profundo text-xs
+## CampoSelect tamano=md etiqueta=x error=undefined
+label flex flex-col gap-1
+  span text-sm text-taupe
+  div relative
+    select appearance-none bg-hueso border border-borde-control duration-150 focus-visible:outline-offset-0 pr-8 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+      option
+    span -translate-y-1/2 [-webkit-mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain] [mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [mask-repeat:no-repeat] [mask-size:contain] absolute bg-taupe pointer-events-none right-[0.6rem] size-[10px] top-1/2
+## CampoSelect tamano=md etiqueta=x error=x
+label flex flex-col gap-1
+  span text-sm text-taupe
+  div relative
+    select appearance-none bg-hueso border border-rojo duration-150 focus-visible:outline-offset-0 pr-8 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+      option
+    span -translate-y-1/2 [-webkit-mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain] [mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [mask-repeat:no-repeat] [mask-size:contain] absolute bg-taupe pointer-events-none right-[0.6rem] size-[10px] top-1/2
+  span text-rojo-profundo text-xs
+## CampoSelect tamano=sm etiqueta=undefined error=undefined
+label flex flex-col gap-1
+  div relative
+    select appearance-none bg-hueso border border-borde-control duration-150 focus-visible:outline-offset-0 pr-8 px-3 py-1.5 rounded-control sm:text-xs text-base text-tinta transition-colors w-full
+      option
+    span -translate-y-1/2 [-webkit-mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain] [mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [mask-repeat:no-repeat] [mask-size:contain] absolute bg-taupe pointer-events-none right-[0.6rem] size-[10px] top-1/2
+## CampoSelect tamano=sm etiqueta=undefined error=x
+label flex flex-col gap-1
+  div relative
+    select appearance-none bg-hueso border border-rojo duration-150 focus-visible:outline-offset-0 pr-8 px-3 py-1.5 rounded-control sm:text-xs text-base text-tinta transition-colors w-full
+      option
+    span -translate-y-1/2 [-webkit-mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain] [mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [mask-repeat:no-repeat] [mask-size:contain] absolute bg-taupe pointer-events-none right-[0.6rem] size-[10px] top-1/2
+  span text-rojo-profundo text-xs
+## CampoSelect tamano=sm etiqueta=x error=undefined
+label flex flex-col gap-1
+  span text-sm text-taupe
+  div relative
+    select appearance-none bg-hueso border border-borde-control duration-150 focus-visible:outline-offset-0 pr-8 px-3 py-1.5 rounded-control sm:text-xs text-base text-tinta transition-colors w-full
+      option
+    span -translate-y-1/2 [-webkit-mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain] [mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [mask-repeat:no-repeat] [mask-size:contain] absolute bg-taupe pointer-events-none right-[0.6rem] size-[10px] top-1/2
+## CampoSelect tamano=sm etiqueta=x error=x
+label flex flex-col gap-1
+  span text-sm text-taupe
+  div relative
+    select appearance-none bg-hueso border border-rojo duration-150 focus-visible:outline-offset-0 pr-8 px-3 py-1.5 rounded-control sm:text-xs text-base text-tinta transition-colors w-full
+      option
+    span -translate-y-1/2 [-webkit-mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain] [mask-image:url(&#x27;data:image/svg+xml;utf8,&lt;svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22&gt;&lt;path%20d=%22M5.5%207.5l4.5%204.5%204.5-4.5%22%20stroke=%22black%22%20stroke-width=%221.5%22%20fill=%22none%22/&gt;&lt;/svg&gt;&#x27;)] [mask-repeat:no-repeat] [mask-size:contain] absolute bg-taupe pointer-events-none right-[0.6rem] size-[10px] top-1/2
+  span text-rojo-profundo text-xs
+## CampoClave etiqueta=undefined error=undefined
+label flex flex-col gap-1
+  div relative
+    input bg-hueso border border-sand duration-150 placeholder:text-taupe/60 pr-9 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+    button absolute flex hover:text-tinta inset-y-0 items-center px-3 right-0 text-taupe
+      svg size-4
+## CampoClave etiqueta=undefined error=x
+label flex flex-col gap-1
+  div relative
+    input bg-hueso border border-rojo border-sand duration-150 placeholder:text-taupe/60 pr-9 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+    button absolute flex hover:text-tinta inset-y-0 items-center px-3 right-0 text-taupe
+      svg size-4
+  span text-rojo text-xs
+## CampoClave etiqueta=x error=undefined
+label flex flex-col gap-1
+  span text-sm text-taupe
+  div relative
+    input bg-hueso border border-sand duration-150 placeholder:text-taupe/60 pr-9 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+    button absolute flex hover:text-tinta inset-y-0 items-center px-3 right-0 text-taupe
+      svg size-4
+## CampoClave etiqueta=x error=x
+label flex flex-col gap-1
+  span text-sm text-taupe
+  div relative
+    input bg-hueso border border-rojo border-sand duration-150 placeholder:text-taupe/60 pr-9 px-3 py-2 rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+    button absolute flex hover:text-tinta inset-y-0 items-center px-3 right-0 text-taupe
+      svg size-4
+  span text-rojo text-xs
+## AreaTexto etiqueta=undefined error=undefined
+textarea bg-hueso border border-borde-control duration-150 focus-visible:outline-offset-0 overflow-hidden placeholder:text-taupe/60 px-3 py-2 resize-none rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+## AreaTexto etiqueta=undefined error=x
+label flex flex-col gap-1
+  textarea bg-hueso border border-rojo duration-150 focus-visible:outline-offset-0 overflow-hidden placeholder:text-taupe/60 px-3 py-2 resize-none rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+  span text-rojo-profundo text-xs
+## AreaTexto etiqueta=x error=undefined
+label flex flex-col gap-1
+  span text-sm text-taupe
+  textarea bg-hueso border border-borde-control duration-150 focus-visible:outline-offset-0 overflow-hidden placeholder:text-taupe/60 px-3 py-2 resize-none rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+## AreaTexto etiqueta=x error=x
+label flex flex-col gap-1
+  span text-sm text-taupe
+  textarea bg-hueso border border-rojo duration-150 focus-visible:outline-offset-0 overflow-hidden placeholder:text-taupe/60 px-3 py-2 resize-none rounded-control sm:text-sm text-base text-tinta transition-colors w-full
+  span text-rojo-profundo text-xs
+## BuscadorPersona value= error=undefined disabled=false
+div space-y-2
+  span text-sm text-taupe
+  div flex flex-wrap gap-1.5
+    button bg-tinta border border-tinta duration-150 font-medium px-3 py-1 rounded-control shrink-0 text-crema text-xs transition-colors whitespace-nowrap
+    button bg-papel border border-sand duration-150 font-medium hover:border-taupe px-3 py-1 rounded-control shrink-0 text-tinta text-xs transition-colors whitespace-nowrap
+    button bg-papel border border-sand duration-150 font-medium hover:border-taupe px-3 py-1 rounded-control shrink-0 text-tinta text-xs transition-colors whitespace-nowrap
+  label block relative
+    span sr-only
+    svg -translate-y-1/2 absolute left-2.5 pointer-events-none text-taupe top-1/2
+    input bg-hueso border border-sand disabled:opacity-60 focus-visible:outline-offset-0 pl-8 placeholder:text-taupe/60 pr-3 py-2 rounded-control sm:text-sm text-base text-tinta w-full
+## BuscadorPersona value= error=undefined disabled=true
+div space-y-2
+  span text-sm text-taupe
+  div flex flex-wrap gap-1.5
+    button bg-tinta border border-tinta duration-150 font-medium px-3 py-1 rounded-control shrink-0 text-crema text-xs transition-colors whitespace-nowrap
+    button bg-papel border border-sand duration-150 font-medium hover:border-taupe px-3 py-1 rounded-control shrink-0 text-tinta text-xs transition-colors whitespace-nowrap
+    button bg-papel border border-sand duration-150 font-medium hover:border-taupe px-3 py-1 rounded-control shrink-0 text-tinta text-xs transition-colors whitespace-nowrap
+  label block relative
+    span sr-only
+    svg -translate-y-1/2 absolute left-2.5 pointer-events-none text-taupe top-1/2
+    input bg-hueso border border-sand disabled:opacity-60 focus-visible:outline-offset-0 pl-8 placeholder:text-taupe/60 pr-3 py-2 rounded-control sm:text-sm text-base text-tinta w-full
+## BuscadorPersona value= error=x disabled=false
+div space-y-2
+  span text-sm text-taupe
+  div flex flex-wrap gap-1.5
+    button bg-tinta border border-tinta duration-150 font-medium px-3 py-1 rounded-control shrink-0 text-crema text-xs transition-colors whitespace-nowrap
+    button bg-papel border border-sand duration-150 font-medium hover:border-taupe px-3 py-1 rounded-control shrink-0 text-tinta text-xs transition-colors whitespace-nowrap
+    button bg-papel border border-sand duration-150 font-medium hover:border-taupe px-3 py-1 rounded-control shrink-0 text-tinta text-xs transition-colors whitespace-nowrap
+  label block relative
+    span sr-only
+    svg -translate-y-1/2 absolute left-2.5 pointer-events-none text-taupe top-1/2
+    input bg-hueso border border-rojo border-sand disabled:opacity-60 focus-visible:outline-offset-0 pl-8 placeholder:text-taupe/60 pr-3 py-2 rounded-control sm:text-sm text-base text-tinta w-full
+  span block text-rojo text-xs
+## BuscadorPersona value= error=x disabled=true
+div space-y-2
+  span text-sm text-taupe
+  div flex flex-wrap gap-1.5
+    button bg-tinta border border-tinta duration-150 font-medium px-3 py-1 rounded-control shrink-0 text-crema text-xs transition-colors whitespace-nowrap
+    button bg-papel border border-sand duration-150 font-medium hover:border-taupe px-3 py-1 rounded-control shrink-0 text-tinta text-xs transition-colors whitespace-nowrap
+    button bg-papel border border-sand duration-150 font-medium hover:border-taupe px-3 py-1 rounded-control shrink-0 text-tinta text-xs transition-colors whitespace-nowrap
+  label block relative
+    span sr-only
+    svg -translate-y-1/2 absolute left-2.5 pointer-events-none text-taupe top-1/2
+    input bg-hueso border border-rojo border-sand disabled:opacity-60 focus-visible:outline-offset-0 pl-8 placeholder:text-taupe/60 pr-3 py-2 rounded-control sm:text-sm text-base text-tinta w-full
+  span block text-rojo text-xs
+## BuscadorPersona value=1 error=undefined disabled=false
+div space-y-1
+  span text-sm text-taupe
+  div bg-hueso border border-sand flex gap-3 items-center justify-between px-3 py-2 rounded-control
+    span min-w-0
+      span block font-medium text-sm text-tinta truncate
+      span block text-taupe text-xs truncate
+    button disabled:opacity-50 duration-150 font-medium hover:text-taupe shrink-0 text-taupe text-xs transition-colors underline underline-offset-2
+## BuscadorPersona value=1 error=undefined disabled=true
+div space-y-1
+  span text-sm text-taupe
+  div bg-hueso border border-sand flex gap-3 items-center justify-between px-3 py-2 rounded-control
+    span min-w-0
+      span block font-medium text-sm text-tinta truncate
+      span block text-taupe text-xs truncate
+## BuscadorPersona value=1 error=x disabled=false
+div space-y-1
+  span text-sm text-taupe
+  div bg-hueso border border-sand flex gap-3 items-center justify-between px-3 py-2 rounded-control
+    span min-w-0
+      span block font-medium text-sm text-tinta truncate
+      span block text-taupe text-xs truncate
+    button disabled:opacity-50 duration-150 font-medium hover:text-taupe shrink-0 text-taupe text-xs transition-colors underline underline-offset-2
+## BuscadorPersona value=1 error=x disabled=true
+div space-y-1
+  span text-sm text-taupe
+  div bg-hueso border border-sand flex gap-3 items-center justify-between px-3 py-2 rounded-control
+    span min-w-0
+      span block font-medium text-sm text-tinta truncate
+      span block text-taupe text-xs truncate
+## TarjetaInfo titulo=undefined accion=undefined
+div bg-papel border border-sand p-4 rounded-superficie sm:p-5
+## TarjetaInfo titulo=undefined accion=x
+div bg-papel border border-sand p-4 rounded-superficie sm:p-5
+## TarjetaInfo titulo=x accion=undefined
+div bg-papel border border-sand p-4 rounded-superficie sm:p-5
+  div flex gap-2 items-baseline justify-between mb-2
+    h2 font-serif text-lg
+## TarjetaInfo titulo=x accion=x
+div bg-papel border border-sand p-4 rounded-superficie sm:p-5
+  div flex gap-2 items-baseline justify-between mb-2
+    h2 font-serif text-lg
+## TarjetaInfo como=section
+section bg-papel border border-sand p-4 rounded-superficie sm:p-5
+## TarjetaInfo como=li
+li bg-papel border border-sand p-4 rounded-superficie sm:p-5
+## TarjetaInfo como=article
+article bg-papel border border-sand p-4 rounded-superficie sm:p-5
+## TarjetaInfo como=aside
+aside bg-papel border border-sand p-4 rounded-superficie sm:p-5
+## TarjetaInfo como=header
+header bg-papel border border-sand p-4 rounded-superficie sm:p-5
+## EstadoVacio accion=undefined
+div bg-papel border border-sand flex flex-col gap-3 items-center px-4 py-6 rounded-superficie text-center text-sm text-taupe
+  p
+## EstadoVacio accion=x
+div bg-papel border border-sand flex flex-col gap-3 items-center px-4 py-6 rounded-superficie text-center text-sm text-taupe
+  p
+## BannerAviso variante=neutral enLinea=false titulo=undefined
+div bg-sand/20 border border-sand p-5 rounded-superficie text-sm
+## BannerAviso variante=neutral enLinea=false titulo=x
+div bg-sand/20 border border-sand p-5 rounded-superficie text-sm
+  h2 font-serif mb-1 text-lg text-tinta
+## BannerAviso variante=neutral enLinea=true titulo=undefined
+div bg-sand/20 border border-sand px-4 py-3 rounded-control text-sm
+## BannerAviso variante=neutral enLinea=true titulo=x
+div bg-sand/20 border border-sand px-4 py-3 rounded-control text-sm
+  b font-medium text-tinta
+## BannerAviso variante=alerta enLinea=false titulo=undefined
+div bg-rojo/[0.06] border border-rojo/30 p-5 rounded-superficie text-sm
+## BannerAviso variante=alerta enLinea=false titulo=x
+div bg-rojo/[0.06] border border-rojo/30 p-5 rounded-superficie text-sm
+  h2 font-serif mb-1 text-lg text-rojo-profundo
+## BannerAviso variante=alerta enLinea=true titulo=undefined
+div bg-rojo/[0.06] border border-rojo/30 px-4 py-3 rounded-control text-sm
+## BannerAviso variante=alerta enLinea=true titulo=x
+div bg-rojo/[0.06] border border-rojo/30 px-4 py-3 rounded-control text-sm
+  b font-medium text-rojo-profundo
+## BannerAviso variante=advertencia enLinea=false titulo=undefined
+div bg-ambar/[0.07] border border-ambar/40 p-5 rounded-superficie text-sm
+## BannerAviso variante=advertencia enLinea=false titulo=x
+div bg-ambar/[0.07] border border-ambar/40 p-5 rounded-superficie text-sm
+  h2 font-serif mb-1 text-ambar text-lg
+## BannerAviso variante=advertencia enLinea=true titulo=undefined
+div bg-ambar/[0.07] border border-ambar/40 px-4 py-3 rounded-control text-sm
+## BannerAviso variante=advertencia enLinea=true titulo=x
+div bg-ambar/[0.07] border border-ambar/40 px-4 py-3 rounded-control text-sm
+  b font-medium text-ambar
+## BannerAviso variante=positivo enLinea=false titulo=undefined
+div bg-verde/[0.06] border border-verde/30 p-5 rounded-superficie text-sm
+## BannerAviso variante=positivo enLinea=false titulo=x
+div bg-verde/[0.06] border border-verde/30 p-5 rounded-superficie text-sm
+  h2 font-serif mb-1 text-lg text-verde
+## BannerAviso variante=positivo enLinea=true titulo=undefined
+div bg-verde/[0.06] border border-verde/30 px-4 py-3 rounded-control text-sm
+## BannerAviso variante=positivo enLinea=true titulo=x
+div bg-verde/[0.06] border border-verde/30 px-4 py-3 rounded-control text-sm
+  b font-medium text-verde
+## BannerAviso variante=informativo enLinea=false titulo=undefined
+div bg-pizarra/[0.06] border border-pizarra/30 p-5 rounded-superficie text-sm
+## BannerAviso variante=informativo enLinea=false titulo=x
+div bg-pizarra/[0.06] border border-pizarra/30 p-5 rounded-superficie text-sm
+  h2 font-serif mb-1 text-lg text-pizarra
+## BannerAviso variante=informativo enLinea=true titulo=undefined
+div bg-pizarra/[0.06] border border-pizarra/30 px-4 py-3 rounded-control text-sm
+## BannerAviso variante=informativo enLinea=true titulo=x
+div bg-pizarra/[0.06] border border-pizarra/30 px-4 py-3 rounded-control text-sm
+  b font-medium text-pizarra
+## CabeceraPagina sobretitulo=undefined descripcion=undefined ayuda=undefined accion=undefined
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+## CabeceraPagina sobretitulo=undefined descripcion=undefined ayuda=undefined accion=x
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+  div max-w-full shrink-0
+## CabeceraPagina sobretitulo=undefined descripcion=undefined ayuda=x accion=undefined
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+      span
+      span align-middle inline-block ml-1
+## CabeceraPagina sobretitulo=undefined descripcion=undefined ayuda=x accion=x
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+      span
+      span align-middle inline-block ml-1
+  div max-w-full shrink-0
+## CabeceraPagina sobretitulo=undefined descripcion=x ayuda=undefined accion=undefined
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+## CabeceraPagina sobretitulo=undefined descripcion=x ayuda=undefined accion=x
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+  div max-w-full shrink-0
+## CabeceraPagina sobretitulo=undefined descripcion=x ayuda=x accion=undefined
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+      span
+      span align-middle inline-block ml-1
+## CabeceraPagina sobretitulo=undefined descripcion=x ayuda=x accion=x
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+      span
+      span align-middle inline-block ml-1
+  div max-w-full shrink-0
+## CabeceraPagina sobretitulo=x descripcion=undefined ayuda=undefined accion=undefined
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    p etiqueta flex gap-3.5 items-center mb-1.5 text-taupe
+      span bg-taupe h-px shrink-0 w-9
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+## CabeceraPagina sobretitulo=x descripcion=undefined ayuda=undefined accion=x
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    p etiqueta flex gap-3.5 items-center mb-1.5 text-taupe
+      span bg-taupe h-px shrink-0 w-9
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+  div max-w-full shrink-0
+## CabeceraPagina sobretitulo=x descripcion=undefined ayuda=x accion=undefined
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    p etiqueta flex gap-3.5 items-center mb-1.5 text-taupe
+      span bg-taupe h-px shrink-0 w-9
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+      span
+      span align-middle inline-block ml-1
+## CabeceraPagina sobretitulo=x descripcion=undefined ayuda=x accion=x
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    p etiqueta flex gap-3.5 items-center mb-1.5 text-taupe
+      span bg-taupe h-px shrink-0 w-9
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+      span
+      span align-middle inline-block ml-1
+  div max-w-full shrink-0
+## CabeceraPagina sobretitulo=x descripcion=x ayuda=undefined accion=undefined
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    p etiqueta flex gap-3.5 items-center mb-1.5 text-taupe
+      span bg-taupe h-px shrink-0 w-9
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+## CabeceraPagina sobretitulo=x descripcion=x ayuda=undefined accion=x
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    p etiqueta flex gap-3.5 items-center mb-1.5 text-taupe
+      span bg-taupe h-px shrink-0 w-9
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+  div max-w-full shrink-0
+## CabeceraPagina sobretitulo=x descripcion=x ayuda=x accion=undefined
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    p etiqueta flex gap-3.5 items-center mb-1.5 text-taupe
+      span bg-taupe h-px shrink-0 w-9
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+      span
+      span align-middle inline-block ml-1
+## CabeceraPagina sobretitulo=x descripcion=x ayuda=x accion=x
+div flex flex-wrap gap-4 items-start justify-between mb-5 sm:mb-8
+  div
+    p etiqueta flex gap-3.5 items-center mb-1.5 text-taupe
+      span bg-taupe h-px shrink-0 w-9
+    h1 font-medium font-serif leading-tight text-[1.75rem] text-tinta tracking-[-0.01em]
+    div max-w-2xl mt-1 text-sm text-taupe
+      span
+      span align-middle inline-block ml-1
+  div max-w-full shrink-0
+## Cifra tamano=md activa=false tono=undefined detalle=undefined
+div bg-papel border border-sand duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=false tono=undefined detalle=x
+div bg-papel border border-sand duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+  span block text-taupe text-xs
+## Cifra tamano=md activa=false tono=alerta detalle=undefined
+div bg-papel border border-sand duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-rojo rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=false tono=alerta detalle=x
+div bg-papel border border-sand duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-rojo rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+  span block text-taupe text-xs
+## Cifra tamano=md activa=false tono=advertencia detalle=undefined
+div bg-papel border border-sand duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-ambar rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=false tono=advertencia detalle=x
+div bg-papel border border-sand duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-ambar rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+  span block text-taupe text-xs
+## Cifra tamano=md activa=false tono=positivo detalle=undefined
+div bg-papel border border-sand duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-verde rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=false tono=positivo detalle=x
+div bg-papel border border-sand duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-verde rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+  span block text-taupe text-xs
+## Cifra tamano=md activa=false tono=informativo detalle=undefined
+div bg-papel border border-sand duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-pizarra rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=false tono=informativo detalle=x
+div bg-papel border border-sand duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-pizarra rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+  span block text-taupe text-xs
+## Cifra tamano=md activa=true tono=undefined detalle=undefined
+div bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=true tono=undefined detalle=x
+div bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+  span block text-taupe text-xs
+## Cifra tamano=md activa=true tono=alerta detalle=undefined
+div bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-rojo rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=true tono=alerta detalle=x
+div bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-rojo rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+  span block text-taupe text-xs
+## Cifra tamano=md activa=true tono=advertencia detalle=undefined
+div bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-ambar rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=true tono=advertencia detalle=x
+div bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-ambar rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+  span block text-taupe text-xs
+## Cifra tamano=md activa=true tono=positivo detalle=undefined
+div bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-verde rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=true tono=positivo detalle=x
+div bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-verde rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+  span block text-taupe text-xs
+## Cifra tamano=md activa=true tono=informativo detalle=undefined
+div bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-pizarra rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=true tono=informativo detalle=x
+div bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+    span bg-pizarra rounded-pildora shrink-0 size-2
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+  span block text-taupe text-xs
+## Cifra tamano=sm activa=false tono=undefined detalle=undefined
+div bg-papel border border-sand duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=false tono=undefined detalle=x
+div bg-papel border border-sand duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+    span block leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=false tono=alerta detalle=undefined
+div bg-papel border border-sand duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-rojo rounded-pildora shrink-0 size-2
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=false tono=alerta detalle=x
+div bg-papel border border-sand duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-rojo rounded-pildora shrink-0 size-2
+    span block leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=false tono=advertencia detalle=undefined
+div bg-papel border border-sand duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-ambar rounded-pildora shrink-0 size-2
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=false tono=advertencia detalle=x
+div bg-papel border border-sand duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-ambar rounded-pildora shrink-0 size-2
+    span block leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=false tono=positivo detalle=undefined
+div bg-papel border border-sand duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-verde rounded-pildora shrink-0 size-2
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=false tono=positivo detalle=x
+div bg-papel border border-sand duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-verde rounded-pildora shrink-0 size-2
+    span block leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=false tono=informativo detalle=undefined
+div bg-papel border border-sand duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-pizarra rounded-pildora shrink-0 size-2
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=false tono=informativo detalle=x
+div bg-papel border border-sand duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-pizarra rounded-pildora shrink-0 size-2
+    span block leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true tono=undefined detalle=undefined
+div bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true tono=undefined detalle=x
+div bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+    span block leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true tono=alerta detalle=undefined
+div bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-rojo rounded-pildora shrink-0 size-2
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true tono=alerta detalle=x
+div bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-rojo rounded-pildora shrink-0 size-2
+    span block leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true tono=advertencia detalle=undefined
+div bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-ambar rounded-pildora shrink-0 size-2
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true tono=advertencia detalle=x
+div bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-ambar rounded-pildora shrink-0 size-2
+    span block leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true tono=positivo detalle=undefined
+div bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-verde rounded-pildora shrink-0 size-2
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true tono=positivo detalle=x
+div bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-verde rounded-pildora shrink-0 size-2
+    span block leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true tono=informativo detalle=undefined
+div bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-pizarra rounded-pildora shrink-0 size-2
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true tono=informativo detalle=x
+div bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+      span bg-pizarra rounded-pildora shrink-0 size-2
+    span block leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=md activa=false
+button bg-papel border border-sand duration-150 flex flex-col hover:bg-hueso p-3 rounded-superficie text-left transition-colors w-full
+  span flex gap-1.5 items-center text-taupe text-xs
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md activa=true
+button bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors w-full
+  span flex gap-1.5 items-center text-taupe text-xs
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=sm activa=false
+button bg-papel border border-sand duration-150 flex gap-3 hover:bg-hueso items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors w-full
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra tamano=sm activa=true
+button bg-hueso border border-taupe duration-150 flex gap-3 items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors w-full
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Cifra activa=false
+button bg-papel border border-sand duration-150 flex flex-col hover:bg-hueso p-3 rounded-superficie text-left transition-colors w-full
+  span flex gap-1.5 items-center text-taupe text-xs
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra activa=true
+button bg-hueso border border-taupe duration-150 flex flex-col p-3 rounded-superficie text-left transition-colors w-full
+  span flex gap-1.5 items-center text-taupe text-xs
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=md
+a bg-papel border border-sand duration-150 flex flex-col hover:bg-hueso p-3 rounded-superficie text-left transition-colors
+  span flex gap-1.5 items-center text-taupe text-xs
+  span block font-serif mt-auto pt-1 tabular-nums text-2xl text-tinta
+## Cifra tamano=sm
+a bg-papel border border-sand duration-150 flex gap-3 hover:bg-hueso items-center justify-between px-3 py-2 rounded-superficie text-left transition-colors
+  span min-w-0
+    span flex gap-1.5 items-center leading-snug text-taupe text-xs
+  span font-serif shrink-0 tabular-nums text-tinta text-xl
+## Tabla alturaMaxima=undefined
+div bg-papel border border-sand overflow-x-auto rounded-superficie
+  table text-sm w-full
+## Tabla alturaMaxima=70vh
+div bg-papel border border-sand overflow-x-auto overflow-y-auto rounded-superficie {max-height:70vh}
+  table text-sm w-full
+## TablaEncabezado
+thead bg-papel sticky text-left text-taupe top-0 z-10
+  tr bg-sand/70
+## Th
+th font-normal px-4 py-2
+## Fila
+tr border-sand border-t duration-150 hover:bg-crema/60 transition-colors
+## Insignia variante=neutral tamano=md
+span bg-sand gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-tinta text-xs whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia variante=neutral tamano=sm
+span bg-sand gap-1.5 inline-flex items-center leading-4 px-1.5 rounded-pildora text-[10px] text-tinta whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia variante=alerta tamano=md
+span bg-rojo/10 gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-rojo-profundo text-xs whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia variante=alerta tamano=sm
+span bg-rojo/10 gap-1.5 inline-flex items-center leading-4 px-1.5 rounded-pildora text-[10px] text-rojo-profundo whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia variante=advertencia tamano=md
+span bg-ambar/15 gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-ambar text-xs whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia variante=advertencia tamano=sm
+span bg-ambar/15 gap-1.5 inline-flex items-center leading-4 px-1.5 rounded-pildora text-[10px] text-ambar whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia variante=positivo tamano=md
+span bg-verde/15 gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-verde text-xs whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia variante=positivo tamano=sm
+span bg-verde/15 gap-1.5 inline-flex items-center leading-4 px-1.5 rounded-pildora text-[10px] text-verde whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia variante=informativo tamano=md
+span bg-pizarra/15 gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-pizarra text-xs whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia variante=informativo tamano=sm
+span bg-pizarra/15 gap-1.5 inline-flex items-center leading-4 px-1.5 rounded-pildora text-[10px] text-pizarra whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia variante=contador tamano=md
+span bg-rojo font-medium gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-crema text-xs whitespace-nowrap
+## Insignia variante=contador tamano=sm
+span bg-rojo font-medium gap-1.5 inline-flex items-center leading-4 px-1.5 rounded-pildora text-[10px] text-crema whitespace-nowrap
+## Insignia atenuada=true
+span bg-sand gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-taupe text-xs whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia punto=false variante=neutral
+span bg-sand gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-tinta text-xs whitespace-nowrap
+## Insignia punto=false variante=contador
+span bg-rojo font-medium gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-crema text-xs whitespace-nowrap
+## Insignia punto=true variante=neutral
+span bg-sand gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-tinta text-xs whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Insignia punto=true variante=contador
+span bg-rojo font-medium gap-1.5 inline-flex items-center px-2 py-0.5 rounded-pildora text-crema text-xs whitespace-nowrap
+  span bg-current rounded-full size-1.5
+## Punto tono=alerta
+span bg-rojo rounded-pildora shrink-0 size-2
+## Punto tono=advertencia
+span bg-ambar rounded-pildora shrink-0 size-2
+## Punto tono=positivo
+span bg-verde rounded-pildora shrink-0 size-2
+## Punto tono=informativo
+span bg-pizarra rounded-pildora shrink-0 size-2
+## Rotulo como=p
+p font-medium text-taupe text-xs
+## Rotulo como=div
+div font-medium text-taupe text-xs
+## Rotulo como=span
+span font-medium text-taupe text-xs
+## Rotulo como=h3
+h3 font-medium text-taupe text-xs
+## RotuloEstado tono=undefined
+div etiqueta flex gap-1.5 items-center text-taupe
+## RotuloEstado tono=alerta
+div etiqueta flex gap-1.5 items-center text-taupe
+  span bg-rojo rounded-pildora shrink-0 size-2
+## RotuloEstado tono=advertencia
+div etiqueta flex gap-1.5 items-center text-taupe
+  span bg-ambar rounded-pildora shrink-0 size-2
+## RotuloEstado tono=positivo
+div etiqueta flex gap-1.5 items-center text-taupe
+  span bg-verde rounded-pildora shrink-0 size-2
+## RotuloEstado tono=informativo
+div etiqueta flex gap-1.5 items-center text-taupe
+  span bg-pizarra rounded-pildora shrink-0 size-2
+## ItemObjetivo cumplido=false indicaciones=undefined
+li flex gap-2 items-start
+  svg mt-0.5 shrink-0 text-taupe/50
+  div
+    span
+## ItemObjetivo cumplido=false indicaciones=x
+li flex gap-2 items-start
+  svg mt-0.5 shrink-0 text-taupe/50
+  div
+    span
+    p mt-0.5 text-taupe text-xs whitespace-pre-wrap
+## ItemObjetivo cumplido=true indicaciones=undefined
+li flex gap-2 items-start
+  svg mt-0.5 shrink-0 text-verde
+  div
+    span line-through text-taupe
+## ItemObjetivo cumplido=true indicaciones=x
+li flex gap-2 items-start
+  svg mt-0.5 shrink-0 text-verde
+  div
+    span line-through text-taupe
+    p mt-0.5 text-taupe text-xs whitespace-pre-wrap
+## Filtro activo=false tamano=md
+button bg-papel border border-sand duration-150 font-medium hover:border-taupe px-3 py-1.5 rounded-control shrink-0 text-sm text-tinta transition-colors whitespace-nowrap
+## Filtro activo=false tamano=sm
+button bg-papel border border-sand duration-150 font-medium hover:border-taupe px-3 py-1 rounded-control shrink-0 text-tinta text-xs transition-colors whitespace-nowrap
+## Filtro activo=true tamano=md
+button bg-tinta border border-tinta duration-150 font-medium px-3 py-1.5 rounded-control shrink-0 text-crema text-sm transition-colors whitespace-nowrap
+## Filtro activo=true tamano=sm
+button bg-tinta border border-tinta duration-150 font-medium px-3 py-1 rounded-control shrink-0 text-crema text-xs transition-colors whitespace-nowrap
+## ParaAtender compacta=false activa=null extra=undefined
+div flex flex-wrap gap-2 items-center mb-4
+  span font-medium text-taupe text-xs tracking-wide uppercase
+  button bg-pizarra/10 border border-pizarra/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-pizarra text-xs transition-shadow
+  button bg-rojo/10 border border-rojo/30 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-rojo-profundo text-xs transition-shadow
+  button bg-ambar/15 border border-ambar/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-ambar text-xs transition-shadow
+  button bg-papel border border-sand duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-tinta text-xs transition-shadow
+## ParaAtender compacta=false activa=null extra=x
+div flex flex-wrap gap-2 items-center mb-4
+  span font-medium text-taupe text-xs tracking-wide uppercase
+  button bg-pizarra/10 border border-pizarra/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-pizarra text-xs transition-shadow
+  button bg-rojo/10 border border-rojo/30 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-rojo-profundo text-xs transition-shadow
+  button bg-ambar/15 border border-ambar/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-ambar text-xs transition-shadow
+  button bg-papel border border-sand duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-tinta text-xs transition-shadow
+## ParaAtender compacta=false activa=rojo extra=undefined
+div flex flex-wrap gap-2 items-center mb-4
+  span font-medium text-taupe text-xs tracking-wide uppercase
+  button bg-pizarra/10 border border-pizarra/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-pizarra text-xs transition-shadow
+  button bg-rojo/10 border border-rojo/30 duration-150 font-medium px-3 py-1 ring-2 ring-tinta rounded-full tabular-nums text-rojo-profundo text-xs transition-shadow
+  button bg-ambar/15 border border-ambar/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-ambar text-xs transition-shadow
+  button bg-papel border border-sand duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-tinta text-xs transition-shadow
+## ParaAtender compacta=false activa=rojo extra=x
+div flex flex-wrap gap-2 items-center mb-4
+  span font-medium text-taupe text-xs tracking-wide uppercase
+  button bg-pizarra/10 border border-pizarra/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-pizarra text-xs transition-shadow
+  button bg-rojo/10 border border-rojo/30 duration-150 font-medium px-3 py-1 ring-2 ring-tinta rounded-full tabular-nums text-rojo-profundo text-xs transition-shadow
+  button bg-ambar/15 border border-ambar/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-ambar text-xs transition-shadow
+  button bg-papel border border-sand duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-tinta text-xs transition-shadow
+## ParaAtender compacta=true activa=null extra=undefined
+div flex flex-wrap gap-2 items-center
+  button bg-pizarra/10 border border-pizarra/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-pizarra text-xs transition-shadow
+  button bg-rojo/10 border border-rojo/30 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-rojo-profundo text-xs transition-shadow
+  button bg-ambar/15 border border-ambar/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-ambar text-xs transition-shadow
+  button bg-papel border border-sand duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-tinta text-xs transition-shadow
+## ParaAtender compacta=true activa=null extra=x
+div flex flex-wrap gap-2 items-center
+  button bg-pizarra/10 border border-pizarra/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-pizarra text-xs transition-shadow
+  button bg-rojo/10 border border-rojo/30 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-rojo-profundo text-xs transition-shadow
+  button bg-ambar/15 border border-ambar/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-ambar text-xs transition-shadow
+  button bg-papel border border-sand duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-tinta text-xs transition-shadow
+## ParaAtender compacta=true activa=rojo extra=undefined
+div flex flex-wrap gap-2 items-center
+  button bg-pizarra/10 border border-pizarra/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-pizarra text-xs transition-shadow
+  button bg-rojo/10 border border-rojo/30 duration-150 font-medium px-3 py-1 ring-2 ring-tinta rounded-full tabular-nums text-rojo-profundo text-xs transition-shadow
+  button bg-ambar/15 border border-ambar/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-ambar text-xs transition-shadow
+  button bg-papel border border-sand duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-tinta text-xs transition-shadow
+## ParaAtender compacta=true activa=rojo extra=x
+div flex flex-wrap gap-2 items-center
+  button bg-pizarra/10 border border-pizarra/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-pizarra text-xs transition-shadow
+  button bg-rojo/10 border border-rojo/30 duration-150 font-medium px-3 py-1 ring-2 ring-tinta rounded-full tabular-nums text-rojo-profundo text-xs transition-shadow
+  button bg-ambar/15 border border-ambar/40 duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-ambar text-xs transition-shadow
+  button bg-papel border border-sand duration-150 font-medium px-3 py-1 rounded-full tabular-nums text-tinta text-xs transition-shadow
+## ParaAtender vacía compacta=false
+div flex flex-wrap gap-2 items-center mb-4
+  span font-medium text-taupe text-xs tracking-wide uppercase
+  span text-sm text-verde
+## ParaAtender vacía compacta=true
+div flex flex-wrap gap-2 items-center
+  span text-sm text-verde
+## Pestanas enBarra=false
+nav -mx-4 [scrollbar-width:none] border-b border-sand flex gap-1 mb-5 overflow-x-auto px-4 sm:mx-0 sm:px-0
+  button -mb-px border-b-2 border-tinta duration-150 flex font-medium gap-1.5 items-center px-3 py-2 shrink-0 text-sm text-tinta transition-colors
+    span bg-rojo leading-4 px-1.5 rounded-full text-[11px] text-crema
+  button -mb-px border-b-2 border-transparent duration-150 flex gap-1.5 hover:text-tinta items-center px-3 py-2 shrink-0 text-sm text-taupe transition-colors
+## Pestanas enBarra=true
+nav [scrollbar-width:none] flex gap-1 overflow-x-auto
+  button -mb-px border-b-2 border-tinta duration-150 flex font-medium gap-1.5 items-center px-3 py-2 shrink-0 text-sm text-tinta transition-colors
+    span bg-rojo leading-4 px-1.5 rounded-full text-[11px] text-crema
+  button -mb-px border-b-2 border-transparent duration-150 flex gap-1.5 hover:text-tinta items-center px-3 py-2 shrink-0 text-sm text-taupe transition-colors
+## Modal ancho=sm titulo=undefined
+div bg-black/40 fixed flex inset-0 items-center justify-center p-4 z-40
+  div bg-papel border border-taupe/35 max-h-[90vh] max-w-sm outline-none overflow-y-auto p-6 rounded-flotante w-full
+## Modal ancho=sm titulo=x
+div bg-black/40 fixed flex inset-0 items-center justify-center p-4 z-40
+  div bg-papel border border-taupe/35 max-h-[90vh] max-w-sm outline-none overflow-y-auto p-6 rounded-flotante w-full
+    h2 font-medium font-serif mb-4 text-lg text-tinta
+## Modal ancho=md titulo=undefined
+div bg-black/40 fixed flex inset-0 items-center justify-center p-4 z-40
+  div bg-papel border border-taupe/35 max-h-[90vh] max-w-md outline-none overflow-y-auto p-6 rounded-flotante w-full
+## Modal ancho=md titulo=x
+div bg-black/40 fixed flex inset-0 items-center justify-center p-4 z-40
+  div bg-papel border border-taupe/35 max-h-[90vh] max-w-md outline-none overflow-y-auto p-6 rounded-flotante w-full
+    h2 font-medium font-serif mb-4 text-lg text-tinta
+## Modal ancho=lg titulo=undefined
+div bg-black/40 fixed flex inset-0 items-center justify-center p-4 z-40
+  div bg-papel border border-taupe/35 max-h-[90vh] max-w-lg outline-none overflow-y-auto p-6 rounded-flotante w-full
+## Modal ancho=lg titulo=x
+div bg-black/40 fixed flex inset-0 items-center justify-center p-4 z-40
+  div bg-papel border border-taupe/35 max-h-[90vh] max-w-lg outline-none overflow-y-auto p-6 rounded-flotante w-full
+    h2 font-medium font-serif mb-4 text-lg text-tinta
+## Modal ancho=xl titulo=undefined
+div bg-black/40 fixed flex inset-0 items-center justify-center p-4 z-40
+  div bg-papel border border-taupe/35 max-h-[90vh] max-w-3xl outline-none overflow-y-auto p-6 rounded-flotante w-full
+## Modal ancho=xl titulo=x
+div bg-black/40 fixed flex inset-0 items-center justify-center p-4 z-40
+  div bg-papel border border-taupe/35 max-h-[90vh] max-w-3xl outline-none overflow-y-auto p-6 rounded-flotante w-full
+    h2 font-medium font-serif mb-4 text-lg text-tinta
+## Modal cerrado
+(no dibuja nada)
+## Drawer ancho=normal titulo=undefined
+div bg-black/40 fixed inset-0 velo-entra z-40
+  div absolute bg-papel border-l border-taupe/35 cajon-derecha-entra flex flex-col inset-y-0 max-w-[460px] outline-none right-0 w-full
+    div flex-1 overflow-y-auto p-6
+## Drawer ancho=normal titulo=x
+div bg-black/40 fixed inset-0 velo-entra z-40
+  div absolute bg-papel border-l border-taupe/35 cajon-derecha-entra flex flex-col inset-y-0 max-w-[460px] outline-none right-0 w-full
+    div border-b border-sand px-6 py-4 shrink-0
+      h2 font-medium font-serif text-lg text-tinta
+    div flex-1 overflow-y-auto p-6
+## Drawer ancho=amplio titulo=undefined
+div bg-black/40 fixed inset-0 velo-entra z-40
+  div absolute bg-papel border-l border-taupe/35 cajon-derecha-entra flex flex-col inset-y-0 max-w-[640px] outline-none right-0 w-full
+    div flex-1 overflow-y-auto p-6
+## Drawer ancho=amplio titulo=x
+div bg-black/40 fixed inset-0 velo-entra z-40
+  div absolute bg-papel border-l border-taupe/35 cajon-derecha-entra flex flex-col inset-y-0 max-w-[640px] outline-none right-0 w-full
+    div border-b border-sand px-6 py-4 shrink-0
+      h2 font-medium font-serif text-lg text-tinta
+    div flex-1 overflow-y-auto p-6
+## Drawer ancho=extra titulo=undefined
+div bg-black/40 fixed inset-0 velo-entra z-40
+  div absolute bg-papel border-l border-taupe/35 cajon-derecha-entra flex flex-col inset-y-0 max-w-[960px] outline-none right-0 w-full
+    div flex-1 overflow-y-auto p-6
+## Drawer ancho=extra titulo=x
+div bg-black/40 fixed inset-0 velo-entra z-40
+  div absolute bg-papel border-l border-taupe/35 cajon-derecha-entra flex flex-col inset-y-0 max-w-[960px] outline-none right-0 w-full
+    div border-b border-sand px-6 py-4 shrink-0
+      h2 font-medium font-serif text-lg text-tinta
+    div flex-1 overflow-y-auto p-6
+## HojaInferior
+div bg-black/40 fixed inset-0 sm:hidden velo-entra z-40
+  div absolute bg-papel border-t border-taupe/35 bottom-0 flex flex-col hoja-entra inset-x-0 max-h-[85vh] outline-none rounded-t-flotante
+    div flex gap-3 items-baseline justify-between pb-2 pt-4 px-5 shrink-0
+      h2 font-medium font-serif text-tinta text-xl
+    div flex-1 overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-2 px-5
+## Menu alinear=derecha
+div inline-block relative text-left
+  div
+    button
+## Menu alinear=izquierda
+div inline-block relative text-left
+  div
+    button
+## MenuItem variante=normal disabled=false
+button block duration-150 focus:bg-sand/50 focus:outline-none hover:bg-sand/50 px-3 py-2 text-left text-sm text-tinta transition-colors w-full
+## MenuItem variante=normal disabled=true
+button block cursor-not-allowed duration-150 focus:bg-sand/50 focus:outline-none opacity-50 px-3 py-2 text-left text-sm text-tinta transition-colors w-full
+## MenuItem variante=peligro disabled=false
+button block duration-150 focus:bg-sand/50 focus:outline-none hover:bg-sand/50 px-3 py-2 text-left text-rojo text-sm transition-colors w-full
+## MenuItem variante=peligro disabled=true
+button block cursor-not-allowed duration-150 focus:bg-sand/50 focus:outline-none opacity-50 px-3 py-2 text-left text-rojo text-sm transition-colors w-full
+## MenuItem variante=normal
+a block duration-150 focus:bg-sand/50 focus:outline-none hover:bg-sand/50 px-3 py-2 text-left text-sm text-tinta transition-colors w-full
+## MenuItem variante=peligro
+a block duration-150 focus:bg-sand/50 focus:outline-none hover:bg-sand/50 px-3 py-2 text-left text-rojo text-sm transition-colors w-full
+## ImprimibleAparte
+(no dibuja nada)
