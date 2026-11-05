@@ -145,6 +145,40 @@ function SeccionColapsable({
   );
 }
 
+// ── Dos categorías lado a lado, criterio por criterio ──────────────────────
+// La usan el comparador y «Ver diferencias». En el celular las dos cajas van una sobre otra, así que cada
+// una dice de qué categoría es: sin eso, quien mira puede tomar el nivel de la siguiente por el suyo. Desde
+// `sm` hay columnas, y el nombre pasa a encabezarlas una sola vez.
+function ComparacionDeCriterios({
+  factores, izquierda, derecha, fondo,
+}: {
+  factores: string[];
+  izquierda: { rotulo: string; categoria: CategoriaCuadro | undefined };
+  derecha: { rotulo: string; categoria: CategoriaCuadro | undefined };
+  fondo: "bg-hueso" | "bg-papel";
+}) {
+  const lados = [izquierda, derecha];
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="hidden gap-2 sm:grid sm:grid-cols-[1fr_1.3fr_1.3fr]">
+        <span />
+        {lados.map((lado, i) => <Rotulo key={i} como="div" className="px-3">{lado.rotulo}</Rotulo>)}
+      </div>
+      {factores.map((nombreFactor) => (
+        <div key={nombreFactor} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-[1fr_1.3fr_1.3fr]">
+          <div className="pt-2 font-medium text-taupe">{nombreFactor}</div>
+          {lados.map((lado, i) => (
+            <div key={i} className={cx("rounded-control px-3 py-2 leading-snug text-tinta", fondo)}>
+              <Rotulo className="mb-0.5 sm:hidden">{lado.rotulo}</Rotulo>
+              {lado.categoria?.factores.find((f) => f.factor === nombreFactor)?.nivel ?? "—"}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Matriz de categorías: cards + tabla completa + comparador ──────────────
 function MatrizCategorias({ cats, esDO }: { cats: CategoriaCuadro[]; esDO: boolean }) {
   const [izq, setIzq] = useState(cats[1]?.rango ?? cats[0]?.rango ?? "");
@@ -211,19 +245,12 @@ function MatrizCategorias({ cats, esDO }: { cats: CategoriaCuadro[]; esDO: boole
             {cats.map((c) => <option key={c.rango} value={c.rango}>{NOMBRE_RANGO[c.rango] ?? c.rango}</option>)}
           </select>
         </div>
-        <div className="flex flex-col gap-2">
-          {factores.map((nombreFactor) => (
-            <div key={nombreFactor} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-[1fr_1.3fr_1.3fr]">
-              <div className="pt-2 font-medium text-taupe">{nombreFactor}</div>
-              <div className="rounded-control bg-hueso px-3 py-2 leading-snug text-tinta">
-                {catIzq?.factores.find((f) => f.factor === nombreFactor)?.nivel ?? "—"}
-              </div>
-              <div className="rounded-control bg-hueso px-3 py-2 leading-snug text-tinta">
-                {catDer?.factores.find((f) => f.factor === nombreFactor)?.nivel ?? "—"}
-              </div>
-            </div>
-          ))}
-        </div>
+        <ComparacionDeCriterios
+          factores={factores}
+          izquierda={{ rotulo: NOMBRE_RANGO[izq] ?? izq, categoria: catIzq }}
+          derecha={{ rotulo: NOMBRE_RANGO[der] ?? der, categoria: catDer }}
+          fondo="bg-hueso"
+        />
       </TarjetaInfo>
     </div>
   );
@@ -318,16 +345,13 @@ function PortalColaborador({ cats, miRango }: { cats: CategoriaCuadro[]; miRango
         )}
       </div>
       {verDiferencias && siguiente && (
-        <div className="mt-4 flex flex-col gap-2 border-t border-sand pt-4">
-          {actual.factores.map((f) => (
-            <div key={f.factor} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-[1fr_1.3fr_1.3fr]">
-              <div className="pt-2 font-medium text-taupe">{f.factor}</div>
-              <div className="rounded-control bg-papel px-3 py-2 leading-snug text-tinta">{f.nivel}</div>
-              <div className="rounded-control bg-papel px-3 py-2 leading-snug text-tinta">
-                {siguiente.factores.find((sf) => sf.factor === f.factor)?.nivel ?? "—"}
-              </div>
-            </div>
-          ))}
+        <div className="mt-4 border-t border-sand pt-4">
+          <ComparacionDeCriterios
+            factores={actual.factores.map((f) => f.factor)}
+            izquierda={{ rotulo: `Tu categoría: ${NOMBRE_RANGO[actual.rango] ?? actual.rango}`, categoria: actual }}
+            derecha={{ rotulo: `Siguiente: ${NOMBRE_RANGO[siguiente.rango] ?? siguiente.rango}`, categoria: siguiente }}
+            fondo="bg-papel"
+          />
         </div>
       )}
       <p className="mt-4 text-xs text-taupe">
