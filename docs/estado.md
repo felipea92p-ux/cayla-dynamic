@@ -71,6 +71,21 @@ local está medido, pero nadie ha probado a entrar allá con una cuenta cortada.
 
 ---
 
+## 2026-11-03 — Cambiar el turno con una compañera · migración **0592 SIN PEGAR** · prueba 482 · fusionada en [#667](https://github.com/felipea92p-ux/cayla-dynamic/pull/667)
+
+**Qué es.** Dos compañeras de la misma sede se cambian el turno de UN día (mismo largo): ella propone, la compañera acepta, su líder aprueba y
+recién ahí se intercambian los dos turnos de una vez. Tabla nueva `turno_cambios` y diez funciones nuevas; no reescribe ninguna existente (no hay
+md5 de partida). Detalle y decisiones en el encabezado de la migración.
+
+**Se pega EN TRES PARTES, una por una** (tabla; RLS y políticas; funciones y registro), no entera: crea una tabla con claves foráneas a
+`personas` y `turno_pedidos` y además políticas, la combinación que dio el `40P01 deadlock detected` de la 0591. Las partes 2 y 3 se niegan si
+falta la anterior, y las dos primeras llevan `lock_timeout` de 3 s. Auditada en un Postgres 16 real (con `check_function_bodies` apagado, porque la
+lógica depende de tablas del esquema completo, que cubre `db-tests`): guardias, las tres partes, idempotencia, el archivo entero en una
+transacción y el tope de espera con un escritor de `personas` abierto (con menos de 3 s espera y termina; con más falla limpio con 55P03, sin dejar
+nada a medias). **El código ya está publicado:** hasta pegarla, la pantalla de cambiar turno no tiene con qué hablar.
+
+---
+
 ## 2026-11-03 — El borrador de la semana · migración **0593 SIN PEGAR** · prueba 483 · rama `claude/turnos-borrador-semana` ([#668](https://github.com/felipea92p-ux/cayla-dynamic/pull/668))
 
 **De dónde sale.** Felipe (2026-11-03): tener a la vista «el horario sugerido (lo que predice el sistema), el que muestra el
