@@ -10,7 +10,7 @@ import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { EMPRESA, ROLES_DO, TZ_LIMA, avisoNombresDelDni, hoyLima, usaNombreDelDni } from "@cayla-dynamic/shared";
+import { EMPRESA, ROLES_DO, TZ_LIMA, avisoNombresDelDni, fechaLargaLima, usaNombreDelDni } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { SubnavPoliticaSalarial } from "../_subnav";
 
@@ -109,13 +109,6 @@ function fechaCorta(iso: string | null): string {
   return new Intl.DateTimeFormat("es-PE", {
     day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC",
   }).format(new Date(Date.UTC(y, m - 1, d)));
-}
-
-function fechaLarga(iso: string): string {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("es-PE", {
-    day: "2-digit", month: "long", year: "numeric", timeZone: TZ_LIMA,
-  }).format(d);
 }
 
 function motivoPendiente(f: Fila): string | null {
@@ -388,7 +381,7 @@ function ConstanciasPoliticaSalarialContenido() {
 
       <section className="mb-5 rounded-superficie border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
         <p>
-          Al <strong>{fechaLarga(hoyLima())}</strong>, de <strong>{total}</strong>{" "}
+          Al <strong>{fechaLargaLima()}</strong>, de <strong>{total}</strong>{" "}
           {total === 1 ? "integrante comprendida" : "integrantes comprendidas"} —personal activo y en
           planilla—, <strong>{constan.length}</strong> {constan.length === 1 ? "dejó" : "dejaron"}{" "}
           constancia de haber sido informada de esta versión

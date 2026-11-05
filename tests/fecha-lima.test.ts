@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
   TZ_LIMA, fechaLima, rangoDelDiaLima, rangoDelMesLima, horaLima, horaLimaLegible, horaDecimalLima,
-  nombreDelMesLima, nombreDelMesLimaTitulo, mesesRecientesLima,
+  nombreDelMesLima, nombreDelMesLimaTitulo, mesesRecientesLima, fechaLargaLima, hoyLima,
 } from "@cayla-dynamic/shared";
 
 describe("el borde de medianoche, que es donde se pierde un día de pago", () => {
@@ -122,5 +122,18 @@ describe("la hora de la barra superior se lee en Lima, no en la zona de quien la
   });
   it("01:10 UTC ya es la noche anterior en Lima: 8:10 p. m.", () => {
     expect(horaLimaLegible("2026-10-25T01:10:00Z").replace(/\s/g, " ")).toMatch(/^8:10 p\. ?m\.$/);
+  });
+});
+
+describe("la fecha en largo de un papel no se corre un día", () => {
+  it("el día que dice es el día que se le pidió", () => {
+    expect(fechaLargaLima("2026-11-05")).toBe("05 de noviembre de 2026");
+  });
+  it("el primero de mes no cae en el mes anterior, ni el primero de año en el año anterior", () => {
+    expect(fechaLargaLima("2026-12-01")).toBe("01 de diciembre de 2026");
+    expect(fechaLargaLima("2027-01-01")).toBe("01 de enero de 2027");
+  });
+  it("sin argumento, es hoy en Lima", () => {
+    expect(fechaLargaLima()).toBe(fechaLargaLima(hoyLima()));
   });
 });
