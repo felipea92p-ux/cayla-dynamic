@@ -6,6 +6,71 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-05 — Rediseño como Retail: Etapa 0 aprobada para subir, en cuatro PR · la firma, publicada ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680))
+
+**De dónde sale.** Felipe decidió que Dynamic se vea y se mueva como Retail. Tablero: [`vidrio/README.md`](vidrio/README.md). Regla suya: nada del diseño se
+sube sin que lo haya visto en local (ver «El vidrio» en `CLAUDE.md`).
+
+**Publicada: la firma.** En oscuro daba 1.00:1 y no se veía, en memo, contrato, bono, movilidad, liquidaciones, política salarial y documentación. Lleva el
+recuadro de la boleta (15.36:1); en claro e impreso no cambia. Comprobado en pantalla con datos inventados en memo, contrato y bono; las otras cuatro, solo por
+su prueba. No se abrió un documento firmado real en producción.
+
+**La Etapa 0, sin SQL y sin nada a la vista:** el interruptor (apagado en producción), los medidores, `docs/familia/` con el contrato v4 y el vigilante (solo
+avisa), `scripts/local/` (Dynamic sin Docker, con login real y datos inventados) y el tablero. Felipe la vio corriendo en su computadora y aprobó subirla.
+
+**Sigue.** (1) Etapa 1, con las decisiones de menú y cabecera anotadas en el tablero: se construye en local y se le muestra antes de subir. (2) El lado de Retail
+del contrato: mientras no lo pegue, el vigilante avisa «Retail sigue en v3». (3) Antes de retirar `/admin/apariencia`: fijar el terminal en claro y limpiar la
+copia local del tema en cada Mac mini; Felipe puede ver el valor con `select valor from configuracion where clave = 'apariencia_tema';`. (4) Faltan por medir 7 de
+las 14 pantallas registradas en los medidores y la cuenta de DO.
+
+---
+
+## 2026-11-05 — Política salarial en el celular · sin SQL · rama `claude/responsive-politica-salarial-9dd1bd`
+
+**De dónde sale.** Felipe (2026-11-05): varios módulos de Política salarial «se ven fatal en el teléfono»; pidió analizarlos y recorrerlos desde un teléfono real.
+
+**Corregido.** En Documento vigente, el selector de secciones le quitaba la columna al documento (141 de 375 px) y dejaba fuera de la pantalla el campo de la constancia. También: rótulos en las comparaciones de categorías, «ver constancias» solo para quien puede abrirla, el salto a una sección ya no queda bajo la barra y los selectores pasan a 16 px en el celular. La hoja de constancias decía la fecha de corte con un día de atraso desde el 2026-08-18 (`fechaLargaLima`, con prueba).
+
+**Medido.** En el navegador a 375, 320 y 1280 px, con un simulador. El defecto de la columna se reprodujo en un iPhone real; **el arreglo todavía no se ha visto en un teléfono ni en un PDF real**.
+
+**Sigue.** El recorrido de 55 paradas y las tablas y pestañas que siguen abiertas: [`auditoria-pantalla-politica-salarial-movil-2026-11-05.md`](auditoria-pantalla-politica-salarial-movil-2026-11-05.md). Las hojas impresas antes del arreglo conservan la fecha equivocada.
+
+---
+
+## 2026-11-05 — Quien se da de baja ya no entra · migración **0597 APLICADA (2026-11-05)** · prueba 487 · fusionada en [#677](https://github.com/felipea92p-ux/cayla-dynamic/pull/677)
+
+**De dónde sale.** Felipe (2026-11-05): «cada que se da de baja a un miembro de equipo (sea contrato, RRHH, etc) ya no debe poder acceder
+a su login». La 0374 solo había quitado el poder sobre datos ajenos: la cuenta seguía entrando.
+
+**0597.** Trigger `after update of estado, auth_user_id` sobre `personas`: inactiva → `banned_until` a 100 años y borra sesiones y refresh
+tokens; de vuelta a activa → quita el ban (misma clave). Cubre toda puerta (`fn_cesar_persona`, `fn_prueba_cerrar`, SQL Editor) en la misma
+transacción del cese. Fuera, a propósito: cuentas de servicio (0490) y cuentas de terminal. Al final aplica el corte a quienes ya estaban de
+baja. No reescribe ninguna función (no lleva md5). **`infinity` no sirve**: GoTrue responde 500 en cada login (medido).
+
+**En pantalla.** `GuardaDeAcceso` (era `GuardaCuentaDeServicio`) cierra la sesión abierta al abrir la app y al volver a la pestaña; los dos
+ingresos dicen «Esta cuenta ya no tiene acceso»; `/api/admin/cuentas` rechaza con 409 obrar sobre alguien de baja; Equipo lo avisa al dar de baja.
+
+**Medido.** Pila privada desde cero con GoTrue real: cese por RPC → login 400 `user_banned`, refresh 400, `/user` 403, ajenos vacíos; reactivar
+→ entra con su clave. Navegador: pantalla y mensaje de ingreso. pgTAP completo 393 archivos / 5 948 aserciones en verde; 10 de 10 mutaciones cazadas.
+
+**Lo que NO corta.**
+- El JWT ya emitido vale hasta que venza (1 h por defecto): en ese rato solo alcanza SUS datos.
+- Un contrato que vence sin que nadie registre la baja: `fecha_fin_contrato` es un plan, no un cese (0143/0144). Corta al registrarla.
+- «Olvidé mi clave» sigue mandando el correo; el enlace dice «ya no es válido o expiró».
+
+**Cómo llegó a producción.** Por excepción, la aplicó una sesión de Claude con el conector de Supabase, a pedido expreso de Felipe para esta
+migración («Aplícala tú»); no cambia la regla de que el SQL lo pega Felipe. Texto idéntico al de GitHub. md5 de llegada, iguales al repositorio:
+`fn_cortar_acceso_de_cuenta` `b0dd668b…` (526) · `fn_personas_acceso_sigue_al_estado` `cd01a25f…` (610). Comprobación: trigger 1 · de baja con
+acceso 0 · activos sin acceso 0. Quedaron cortadas las 3 cuentas que ya estaban de baja; los 35 activos con cuenta, intactos.
+
+**El #677 se fusionó (10:53 Lima) ANTES de aplicar la 0597**, sin el comentario `cayla:fusion-sesion`: no lo fusionó esta sesión. La cuenta es la
+de Felipe. El código funciona sin la migración: la guarda ya cerraba la sesión abierta, y solo faltaba cortar el login.
+
+**Sigue.** (1) Ya no ven «Lo mío»: sus boletas y documentos se los entrega DO. (2) Falta ver el rechazo en producción con un intento real: en
+local está medido, pero nadie ha probado a entrar allá con una cuenta cortada.
+
+---
+
 ## 2026-11-03 — Cambiar el turno con una compañera · migración **0592 SIN PEGAR** · prueba 482 · fusionada en [#667](https://github.com/felipea92p-ux/cayla-dynamic/pull/667)
 
 **Qué es.** Dos compañeras de la misma sede se cambian el turno de UN día (mismo largo): ella propone, la compañera acepta, su líder aprueba y
@@ -18,6 +83,83 @@ falta la anterior, y las dos primeras llevan `lock_timeout` de 3 s. Auditada en 
 lógica depende de tablas del esquema completo, que cubre `db-tests`): guardias, las tres partes, idempotencia, el archivo entero en una
 transacción y el tope de espera con un escritor de `personas` abierto (con menos de 3 s espera y termina; con más falla limpio con 55P03, sin dejar
 nada a medias). **El código ya está publicado:** hasta pegarla, la pantalla de cambiar turno no tiene con qué hablar.
+
+---
+
+## 2026-11-03 — El borrador de la semana · migración **0593 SIN PEGAR** · prueba 483 · rama `claude/turnos-borrador-semana` ([#668](https://github.com/felipea92p-ux/cayla-dynamic/pull/668))
+
+**De dónde sale.** Felipe (2026-11-03): tener a la vista «el horario sugerido (lo que predice el sistema), el que muestra el
+sistema y un borrador», comparar el actual con el recomendado o el modificado, y el «cumple 45 h / 30 h» medido contra lo
+planificado y contra lo marcado. Para RxH: «sin horario, pero solo hacer un borrador para saber cuándo se la necesita, como una
+nota; lo puede ver la líder, DO y superiores». Es la fase 2b; la 2a fueron las metas por rangos (0590).
+
+**0593** (era la 0592: ese número lo tomó «Cambiar con una compañera», fusionada y pegada mientras esta se escribía). `turnos_borradores` (uno VIVO por sede y lunes: índice único parcial; los publicados y descartados se quedan como
+historia) con `turnos_borrador_dias` (turno o descanso por persona y fecha) y `turnos_borrador_notas` (una por persona). RLS: solo
+admin, DO y la líder de esa sede; nadie escribe directo. Puertas: `fn_turnos_borrador_guardar` (reemplaza el borrador entero;
+rechaza días que ya llegaron y turnos para RxH o no trabajador), `fn_turnos_borrador_descartar` y `fn_turnos_borrador_publicar`,
+que exige que cada fila sea un día del borrador y publica con `fn_publicar_semana` (0586) en la misma transacción. No reescribe
+ninguna función (no lleva md5) ni altera tablas en uso.
+
+**En pantalla.** Turnos: «Guardar como borrador» junto a «Publicar la semana»; la tarjeta del borrador con la comparativa
+Ahora / Sugerido / Borrador por persona (horas, días que cambian, «cumple su jornada» con 15 min de margen y avisos de más de
+48 h y de días de menos de 4 h), las notas de RxH, «Ver el borrador en la grilla», «Publicar el borrador» y «Descartar». Un día que
+el borrador no trae se completa con lo que la persona ya tiene: nunca se publica como descanso. Horas: en una semana de lunes a
+domingo ya terminada, «cumple su jornada» o un neutro «marcó X h de 45» (no dice «faltan»: ahí no se descuentan feriados ni
+ausencias). Lógica en `lib/admin/borrador-semana.ts` con su prueba.
+
+**Freno contra borradores viejos.** Publicar se niega si un día que va a pisar tiene un turno cambiado DESPUÉS de guardar el borrador
+(un cambio con una compañera aprobado, 0592, o uno hecho a mano; se mide con `turnos.created_at`, que cada cambio reescribe) y dice
+cuál. Hoy la salida es descartar y volver a armar, o cambiar ese día a mano.
+
+**Sigue:** (1) Felipe decidió (2026-11-03, «la recomendada») que en vez de negarse en bloque se muestren esos días y se elija día por
+día «mantener lo publicado» (por defecto) o «pisarlo con el borrador», con la base exigiendo la confirmación: va en una migración
+propia que agrega ese parámetro a `fn_turnos_borrador_publicar`. (2) Fase 3: arrastrar en la Integrada y en Día, editando el borrador.
+
+---
+
+## 2026-11-03 — Horarios para las colaboradoras: las cuatro entregas, en producción · migraciones 0584 · 0587 · 0589 · 0592 · **LAS CUATRO PEGADAS (2026-11-03)** · fusionadas en [#638](https://github.com/felipea92p-ux/cayla-dynamic/pull/638) · [#654](https://github.com/felipea92p-ux/cayla-dynamic/pull/654) · [#656](https://github.com/felipea92p-ux/cayla-dynamic/pull/656) · [#660](https://github.com/felipea92p-ux/cayla-dynamic/pull/660) · [#662](https://github.com/felipea92p-ux/cayla-dynamic/pull/662) · [#667](https://github.com/felipea92p-ux/cayla-dynamic/pull/667)
+
+**El módulo que pidió Felipe (2026-11-02), en cuatro entregas, cada una con su PR y su novedad.** Todo vive en «Lo mío · Mis turnos /
+Mi disponibilidad» para ella y en «Disponibilidad del equipo» y «Cambios de horario» para la líder de equipo y DO.
+
+| Entrega | Qué hace | SQL | PR |
+|---|---|---|---|
+| 1 · «Tu semana» | Los 7 días con horario, horas, refrigerio, descanso y piso/almacén; el total contra su jornada o su horario | no hay | #638 |
+| 2 · «Mi disponibilidad» | Ella dice qué días u horas no puede (o prefiere no), su líder aprueba o conversa; DO fija la jornada | 0584 | #654 |
+| — · Historial | «Cambios de horario» (panel) y «Cambios a tu horario» (Mis turnos): horario, turno, puesto, jornada, disponibilidad | no hay | #656 |
+| 3 · «Este día no me calza» | Pide cambiar un día publicado (motivo + qué le calza); su líder responde, a las 48 h lo ve DO; la respuesta llega a su Bandeja | 0587 | #660 |
+| — · La líder registra | La líder registra la disponibilidad de una integrante de su sede, aprobada, con el motivo del registro | 0589 | #662 |
+| 4 · «Cambiar con una compañera» | Intercambio del turno de un día con una compañera de su sede (mismo largo); la compañera acepta, la líder aprueba | 0592 | #667 |
+
+**0587 — «Este día no me calza» (prueba 477, 26 casos, 8 de 8 mutaciones cazadas).** Tabla `turno_pedidos` (RLS ella / líder de su sede /
+DO; sin escritura directa; un abierto por persona y día) y `fn_turno_pedido_crear / _retirar / _responder` (quién responde =
+`fn_puede_resolver_disponibilidad`, nunca ella). Las 48 h para pasar a DO se calculan al leer (`fn_turno_pedido_con_do`), sin cron.
+**Responder no cambia el turno:** si le calza, la líder lo cambia en Turnos. Reescribió `fn_bandeja_marcar_visto` para aceptar
+`pedido_turno`: md5 de partida en producción `4c580745…` (893), de llegada `444daa53487f048a5244c18e613299d4 · 1001`, confirmado por Felipe.
+**El #660 se fusionó (16:11 Lima) ANTES de pegar la 0587**: mientras tanto la Bandeja de todas decía «No se pudo leer: tus pedidos de
+cambiar un turno». Se pegó minutos después y desapareció sola.
+
+**0592 — «Cambiar con una compañera» (prueba 482, 30 casos, 11 de 12 mutaciones cazadas; la otra es equivalente).** Decidió Felipe: solo el
+mismo día, la compañera acepta, la líder aprueba. Tabla `turno_cambios` con la FOTO de los dos turnos al proponer; si alguno cambió en el
+medio, aplicar se niega y no mueve nada. Solo entre compañeras de la misma sede con turnos **del mismo largo**: ninguna cambia sus horas
+del día ni de la semana, así que **no mueve plata** (un cambio entre días distintos —descanso semanal, ciclo de 7 días, sobretiempo— no se
+construyó: pide su propia auditoría). Escribe `turnos` directo (no por `fn_set_turno`, porque cuando la líder lo propone desde un pedido
+quien acepta es la compañera), con el candado del periodo pagado, dos filas en `correcciones_auditoria` firmadas por quien aprobó
+(«Turno del DD/MM/YYYY cambiado con una compañera…») y `fn_recalcular_jornada`. Desde «Este día no me calza» la líder puede proponerlo:
+basta con que la compañera acepte y el pedido queda resuelto como `cambio_companera`. **El piso o almacén de ese día NO se intercambia**
+(la pantalla le avisa a la líder). Solo funciones nuevas: sin md5. Pegada antes de fusionar (registro `592 · cambiar_el_turno_con_una_companera`);
+el #667 se fusionó a las 18:44 Lima, 20 s después de que `db-tests` diera verde, y **no lo fusionó esta sesión**: queda sin saberse si
+fue Felipe, otra sesión o un auto-merge.
+
+**Pendiente:**
+- **DO tiene que cargar la jornada de cada persona** (Disponibilidad del equipo · «Fijarla»). Mientras esté vacía, el aviso de horas no
+  sale y «Tu semana» compara contra el horario base.
+- **El borrador de la semana (sesión de Turnos, 0593, #668) puede deshacer un cambio entre compañeras al publicarse.** Decidió Felipe
+  (2026-11-03): freno al publicar — si un día cambió en `turnos` después de crear el borrador, se confirma día por día («mantener lo
+  publicado» por defecto). Lo construye la sesión de Turnos.
+- DO ve los pedidos y los cambios de la sede que tiene elegida; no hay un contador en el menú para lo que pasó a DO en otras sedes.
+- La norma «Disponibilidad horaria: qué se aprueba y qué se conversa» está redactada para Normas; publicarla es de Felipe.
+- El historial todavía no muestra «propuesta publicada / descartada» del borrador: espera la tabla de Turnos.
 
 ---
 
@@ -206,7 +348,7 @@ verificó en producción que no existiera nada con esos nombres (`0 · null · f
 `correcciones_auditoria` (horario base, turno, puesto, jornada) y `disponibilidades`.
 
 **Falta:** que DO cargue la jornada de cada persona (Panel · Disponibilidad). Mientras esté vacía, el aviso de horas no sale y
-«Tu semana» compara contra el horario base. Siguen las entregas 3 («Este día no me calza») y 4 («Cambiar con una compañera»).
+«Tu semana» compara contra el horario base. Las entregas 3 y 4 ya están: ver la entrada «las cuatro entregas, en producción», arriba.
 
 ## 2026-11-03 — Lo comunicado no cambia y el descargo se lee antes de decidir · migración 0582 (PEGADA 2026-11-03 · fusionada en #647)
 
@@ -325,9 +467,10 @@ con el #650, fusionado por Felipe. Se descartó guardar `'piso'` en lugar de `'t
 ese día: el terminal de la Oficina TRU (`OTRU`, tipo `central`) **no** ofrece el almacén ni a las chicas de tienda, y es lo
 pedido: ellas marcan en la Mac mini de su tienda. Hoy lo ofrecen TRU y AQP; la `003 · Tienda LIM` es `tienda` pero está inactiva.
 
-**Falta medir:** que una Mac mini de tienda se recargue sola con el despliegue SIGUIENTE al #650 (la primera vez hubo que
-recargarlas a mano). Si no lo hace, es la sospecha de *skew protection* anotada en «Aviso de versión nueva»: `/api/version`
-contestaría la versión fijada y la recarga no saltaría nunca, sin ningún error a la vista.
+**Medido (2026-11-03): el terminal se recarga solo.** Tras recargar a mano una vez después del #650, la Mac mini de tienda
+cargó sola el despliegue del #659 (ícono de piso/almacén), sin que nadie la tocara (Felipe: «sí, se actualizó sola»). Así que
+`/api/version` contesta la versión nueva también a una pestaña vieja: la sospecha de *skew protection* no se cumple en el
+terminal.
 
 ## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA** · **0576 SIN PEGAR (por hora con tope semanal)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
 
@@ -1162,7 +1305,8 @@ esperar ≤3 min; si no baja la barra, es esto y el arreglo es pedirle a Vercel 
 
 **El terminal va aparte, con su propio criterio** (desde el 2026-11-03, PR #650): no avisa, se recarga solo, pero únicamente en la
 lista de nombres, sin envío en curso y tras un minuto sin que nadie lo toque (`lib/terminal/recarga-version.ts`). Usa la misma
-`/api/version`, así que la sospecha de *skew protection* de arriba le aplica igual.
+`/api/version`, y ahí se midió el 2026-11-03 que una pestaña vieja SÍ ve la versión nueva (se recargó sola con el #659): la
+sospecha de *skew protection* de arriba no se cumplió, al menos en el terminal.
 
 **Publicar.** No hay migración. Fusionar el PR ES publicar (`main` se publica sola): pedir OK a Felipe.
 

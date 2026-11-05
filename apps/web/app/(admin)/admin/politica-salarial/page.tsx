@@ -10,7 +10,7 @@ import { Cargando } from "@/components/cargando";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
-import { Campo } from "@/components/ui/campo";
+import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
@@ -89,9 +89,10 @@ function IndiceSticky({
 }: { titulos: string[]; activo: string | null; onIr: (t: string) => void }) {
   return (
     <>
-      {/* Desktop: columna fija que se desplaza con la página. */}
+      {/* Desktop: columna fija que se desplaza con la página. `top-20` son los 64 px de la barra superior,
+          que se queda pegada arriba, más 16 de aire: con menos, tapa las primeras entradas del índice. */}
       <nav className="hidden w-56 shrink-0 lg:block">
-        <div className="sticky top-6 flex flex-col gap-0.5 border-l border-sand pl-4">
+        <div className="sticky top-20 flex flex-col gap-0.5 border-l border-sand pl-4">
           {titulos.map((t) => (
             <button
               key={t}
@@ -106,8 +107,9 @@ function IndiceSticky({
           ))}
         </div>
       </nav>
-      {/* Mobile/tablet: selector desplegable. */}
-      <div className="mb-4 lg:hidden">
+      {/* Mobile/tablet: selector desplegable. `print:hidden`: una hoja de papel mide menos que `lg`,
+          así que sin esto el selector también salía en el PDF. */}
+      <div className="mb-4 lg:hidden print:hidden">
         <select
           value=""
           onChange={(e) => { if (e.target.value) onIr(e.target.value); }}
@@ -124,11 +126,12 @@ function IndiceSticky({
 // ── Una sección colapsable con ancla ────────────────────────────────────────
 // El ancla es su propio `id` (seccionSlug), no una ref en un Map: alcanza con
 // document.getElementById para desplazarse, sin mantener una referencia aparte.
+// `scroll-mt-20`: el salto se detiene debajo de la barra superior (64 px), no detrás de ella.
 function SeccionColapsable({
   titulo, abierta, onToggle, children,
 }: { titulo: string; abierta: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
-    <div id={seccionSlug(titulo)} className="mb-3 scroll-mt-6 rounded-superficie border border-sand bg-papel print:rounded-none print:border-0 print:mb-6">
+    <div id={seccionSlug(titulo)} className="mb-3 scroll-mt-20 rounded-superficie border border-sand bg-papel print:rounded-none print:border-0 print:mb-6">
       <button
         onClick={onToggle}
         className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left print:hidden"
@@ -140,6 +143,40 @@ function SeccionColapsable({
         <h3 className="mb-3 hidden font-serif text-lg font-medium text-tinta print:block print:break-after-avoid">{titulo}</h3>
         {children}
       </div>
+    </div>
+  );
+}
+
+// ── Dos categorías lado a lado, criterio por criterio ──────────────────────
+// La usan el comparador y «Ver diferencias». En el celular las dos cajas van una sobre otra, así que cada
+// una dice de qué categoría es: sin eso, quien mira puede tomar el nivel de la siguiente por el suyo. Desde
+// `sm` hay columnas, y el nombre pasa a encabezarlas una sola vez.
+function ComparacionDeCriterios({
+  factores, izquierda, derecha, fondo,
+}: {
+  factores: string[];
+  izquierda: { rotulo: string; categoria: CategoriaCuadro | undefined };
+  derecha: { rotulo: string; categoria: CategoriaCuadro | undefined };
+  fondo: "bg-hueso" | "bg-papel";
+}) {
+  const lados = [izquierda, derecha];
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="hidden gap-2 sm:grid sm:grid-cols-[1fr_1.3fr_1.3fr]">
+        <span />
+        {lados.map((lado, i) => <Rotulo key={i} como="div" className="px-3">{lado.rotulo}</Rotulo>)}
+      </div>
+      {factores.map((nombreFactor) => (
+        <div key={nombreFactor} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-[1fr_1.3fr_1.3fr]">
+          <div className="pt-2 font-medium text-taupe">{nombreFactor}</div>
+          {lados.map((lado, i) => (
+            <div key={i} className={cx("rounded-control px-3 py-2 leading-snug text-tinta", fondo)}>
+              <Rotulo className="mb-0.5 sm:hidden">{lado.rotulo}</Rotulo>
+              {lado.categoria?.factores.find((f) => f.factor === nombreFactor)?.nivel ?? "—"}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -202,27 +239,20 @@ function MatrizCategorias({ cats, esDO }: { cats: CategoriaCuadro[]; esDO: boole
       <TarjetaInfo>
         <Rotulo como="div" className="mb-3">Comparar dos categorías</Rotulo>
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          <select value={izq} onChange={(e) => setIzq(e.target.value)} className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta">
+          <CampoSelect aria-label="Primera categoría" value={izq} onChange={(e) => setIzq(e.target.value)}>
             {cats.map((c) => <option key={c.rango} value={c.rango}>{NOMBRE_RANGO[c.rango] ?? c.rango}</option>)}
-          </select>
+          </CampoSelect>
           <span className="font-serif italic text-taupe">vs</span>
-          <select value={der} onChange={(e) => setDer(e.target.value)} className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta">
+          <CampoSelect aria-label="Segunda categoría" value={der} onChange={(e) => setDer(e.target.value)}>
             {cats.map((c) => <option key={c.rango} value={c.rango}>{NOMBRE_RANGO[c.rango] ?? c.rango}</option>)}
-          </select>
+          </CampoSelect>
         </div>
-        <div className="flex flex-col gap-2">
-          {factores.map((nombreFactor) => (
-            <div key={nombreFactor} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-[1fr_1.3fr_1.3fr]">
-              <div className="pt-2 font-medium text-taupe">{nombreFactor}</div>
-              <div className="rounded-control bg-hueso px-3 py-2 leading-snug text-tinta">
-                {catIzq?.factores.find((f) => f.factor === nombreFactor)?.nivel ?? "—"}
-              </div>
-              <div className="rounded-control bg-hueso px-3 py-2 leading-snug text-tinta">
-                {catDer?.factores.find((f) => f.factor === nombreFactor)?.nivel ?? "—"}
-              </div>
-            </div>
-          ))}
-        </div>
+        <ComparacionDeCriterios
+          factores={factores}
+          izquierda={{ rotulo: NOMBRE_RANGO[izq] ?? izq, categoria: catIzq }}
+          derecha={{ rotulo: NOMBRE_RANGO[der] ?? der, categoria: catDer }}
+          fondo="bg-hueso"
+        />
       </TarjetaInfo>
     </div>
   );
@@ -317,16 +347,13 @@ function PortalColaborador({ cats, miRango }: { cats: CategoriaCuadro[]; miRango
         )}
       </div>
       {verDiferencias && siguiente && (
-        <div className="mt-4 flex flex-col gap-2 border-t border-sand pt-4">
-          {actual.factores.map((f) => (
-            <div key={f.factor} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-[1fr_1.3fr_1.3fr]">
-              <div className="pt-2 font-medium text-taupe">{f.factor}</div>
-              <div className="rounded-control bg-papel px-3 py-2 leading-snug text-tinta">{f.nivel}</div>
-              <div className="rounded-control bg-papel px-3 py-2 leading-snug text-tinta">
-                {siguiente.factores.find((sf) => sf.factor === f.factor)?.nivel ?? "—"}
-              </div>
-            </div>
-          ))}
+        <div className="mt-4 border-t border-sand pt-4">
+          <ComparacionDeCriterios
+            factores={actual.factores.map((f) => f.factor)}
+            izquierda={{ rotulo: `Tu categoría: ${NOMBRE_RANGO[actual.rango] ?? actual.rango}`, categoria: actual }}
+            derecha={{ rotulo: `Siguiente: ${NOMBRE_RANGO[siguiente.rango] ?? siguiente.rango}`, categoria: siguiente }}
+            fondo="bg-papel"
+          />
         </div>
       )}
       <p className="mt-4 text-xs text-taupe">
@@ -484,7 +511,8 @@ export default function PoliticaSalarialPage() {
             <span>Versión <strong className="text-tinta">{vigente.version}</strong> · publicada el {vigente.publicada_at ? fechaLarga(vigente.publicada_at) : "—"}</span>
             <Insignia variante={desactualizada ? "advertencia" : "positivo"}>{desactualizada ? "Desactualizada" : "Vigente"}</Insignia>
             <span>Constancias: <strong className="text-tinta">{vigente.total_acuses ?? 0}</strong> / {vigente.total_personas ?? 0}</span>
-            <Link href="/admin/politica-salarial/constancias" className="underline underline-offset-2 hover:text-tinta">ver constancias</Link>
+            {/* Solo para quien puede abrirla: `fn_acuses_politica_salarial` rechaza a cualquier otro rol, y el enlace llevaba a ese error. */}
+            {esDO && <Link href="/admin/politica-salarial/constancias" className="underline underline-offset-2 hover:text-tinta">ver constancias</Link>}
           </div>
         )}
 
@@ -531,7 +559,10 @@ export default function PoliticaSalarialPage() {
       </div>
 
       {doc && (
-        <div className="flex gap-8">
+        // Dos columnas solo desde `lg`, donde el índice es una columna de verdad. Con `flex` en todos los
+        // anchos (hasta el 2026-11-05), en el celular el selector ocupaba una columna al lado del documento
+        // y le dejaba 141 de 375 px.
+        <div className="lg:flex lg:gap-8">
           <IndiceSticky
             titulos={doc.secciones.map((s) => s.titulo).filter((t) => t !== "La escala")}
             activo={seccionActiva}
@@ -595,7 +626,7 @@ export default function PoliticaSalarialPage() {
             <footer className="mt-10 border-t border-sand pt-6 print:break-inside-avoid">
               {firmaUrl !== null && puedeEstamparFirmaDeEmpresa(persona?.rol) && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
+                <img src={firmaUrl} alt="" className="firma-tinta mb-1 h-16 object-contain" />
               )}
               <p className="text-sm font-medium text-tinta">{doc.empresa.firmante}</p>
               <p className="text-sm text-taupe">{doc.empresa.cargo} — {doc.empresa.nombre}</p>
@@ -612,8 +643,12 @@ export default function PoliticaSalarialPage() {
                     <p className="mb-3 text-sm text-tinta">
                       Escribe tu nombre para dejar constancia de que recibiste y leíste este documento. Dejar constancia no significa estar de acuerdo con su contenido: si tienes una discrepancia, puedes plantearla a la Gerencia y recibirás respuesta por escrito.
                     </p>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Campo type="text" value={nombreAcuse} onChange={(e) => setNombreAcuseEditado(e.target.value)} placeholder="Tu nombre completo" className="min-w-64 flex-1" />
+                    {/* En el celular, campo y botón ocupan todo el ancho. El ancho se pone en un contenedor porque
+                        `Campo` le pasa `className` al input, no a su etiqueta. */}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="min-w-0 sm:w-64">
+                        <Campo type="text" value={nombreAcuse} onChange={(e) => setNombreAcuseEditado(e.target.value)} placeholder="Tu nombre completo" />
+                      </div>
                       <Boton variante="primario" onClick={() => void acusar()} disabled={guardando || nombreAcuse.trim() === ""} cargando={guardando}>Dejar constancia</Boton>
                     </div>
                   </>

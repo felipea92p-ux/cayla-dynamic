@@ -169,6 +169,8 @@
     --color-pizarra: #9db0c2;
     --color-azul: #9bbbe8;
     --color-ceniza: #aaa59b;
+    --firma-fondo: var(--color-crema-fija);
+    --firma-aire: 0.25rem 0.5rem;
     /* Sin esto, el calendario de <input type="date">, la lista de <select>,
        las scrollbars y el resaltado de autocompletado los sigue pintando el
        navegador en su paleta clara aunque la app esté en oscuro — invisibles
@@ -191,6 +193,8 @@
   --color-pizarra: #9db0c2;
   --color-azul: #9bbbe8;
   --color-ceniza: #aaa59b;
+  --firma-fondo: var(--color-crema-fija);
+  --firma-aire: 0.25rem 0.5rem;
   color-scheme: dark;
 }
 
@@ -706,6 +710,25 @@
   transform: translateX(-50%);
   max-height: 3rem;
 }
+/* ── Una firma es tinta oscura sobre fondo transparente ──────────
+   Se guarda con #1a1a18 sobre transparente (`recortarYTransparentar` en
+   FirmaEditor), así que sobre el modo oscuro daba 1.00:1 y no se veía: medido
+   el 2026-11-05 en el memo, el contrato y el bono. La boleta ya la protegía con
+   un recuadro de `--color-crema-fija`; esto es el mismo recuadro para todo lo
+   demás que se firma.
+   Va por dos variables que solo existen en los bloques de modo oscuro, y no
+   por un fondo fijo, para que en claro y al imprimir la firma quede exactamente
+   como siempre, directo sobre el papel. `--firma-fondo` se vuelve a apagar en el
+   bloque de @media print.
+   Toda imagen de una firma lleva `firma-tinta`: lo vigila
+   tests/firma-visible-en-oscuro.test.ts. La del contrato no puede llevarla
+   porque el contrato se guarda como HTML, y por eso va también por su selector. */
+.firma-tinta,
+.contrato .linea img {
+  background: var(--firma-fondo, transparent);
+  padding: var(--firma-aire, 0);
+  border-radius: 0.375rem;
+}
 .contrato .pie-hoja {
   text-align: center;
   font-size: 0.75em;
@@ -778,6 +801,8 @@
     --color-pizarra: #4c5d6e;
     --color-azul: #2f5f9e;
     --color-ceniza: #635f58;
+    --firma-fondo: transparent;
+    --firma-aire: 0;
     color-scheme: light;
   }
 

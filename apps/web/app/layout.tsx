@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { EB_Garamond, DM_Sans } from "next/font/google";
 import { ToastProvider } from "@/components/toast";
+import { VidrioEnRuta } from "@/components/vidrio-en-ruta";
+import { guionVidrioAntesDePintar } from "@/lib/vidrio";
 import "./globals.css";
 
 // Serif del alma del sistema (títulos, datos con carácter).
@@ -59,6 +61,20 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // El interruptor del diseño nuevo (lib/vidrio.ts). Apagado, esto es `children` a secas y no un `{x && <y />}` junto a
+  // los otros guiones: esa forma deja un hueco en los hijos de <body>, y un hueco cambia el HTML de TODAS las páginas (se
+  // midió comparando dos `next build`: el payload y los ids de `useId`). Va antes de la pantalla, así que corre antes de
+  // que haya algo que pintar.
+  const guionVidrio = guionVidrioAntesDePintar();
+  const contenido = guionVidrio ? (
+    <>
+      <script dangerouslySetInnerHTML={{ __html: guionVidrio }} />
+      <VidrioEnRuta />
+      {children}
+    </>
+  ) : (
+    children
+  );
   return (
     <html
       lang="es"
@@ -66,7 +82,8 @@ export default function RootLayout({
       // El script de abajo pone `data-tema` en este mismo elemento antes de
       // que React hidrate — a propósito, es lo que evita el parpadeo. React no
       // tiene forma de saber eso de antemano y sin este aviso lo reporta como
-      // un error de hidratación, aunque el HTML esté bien.
+      // un error de hidratación, aunque el HTML esté bien. Lo mismo con
+      // `data-vidrio` (lib/vidrio.ts).
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col font-sans">
@@ -81,7 +98,8 @@ export default function RootLayout({
 
             `cayla-tema-global` es la CACHÉ de la configuración de
             /admin/apariencia (ver lib/use-tema.ts) — no es una preferencia
-            personal, por eso se lee solo cuando no hay una elegida a mano.
+            personal, por eso se lee solo cuando no hay una elegida a mano (incluido
+            «sistema», que también es una elección y no cae al global).
             Sin esta línea, quien no tocó nunca el selector vería el tema
             global recién después de que `useTema` termine de preguntarle a
             la base — un parpadeo real en cada carga del terminal, que no
@@ -89,7 +107,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var t=localStorage.getItem('cayla-tema');if(t!=='claro'&&t!=='oscuro')t=localStorage.getItem('cayla-tema-global');if(t==='claro'||t==='oscuro')document.documentElement.setAttribute('data-tema',t);}catch(e){}",
+              "try{var t=localStorage.getItem('cayla-tema');if(t!=='claro'&&t!=='oscuro'&&t!=='sistema')t=localStorage.getItem('cayla-tema-global');if(t==='claro'||t==='oscuro')document.documentElement.setAttribute('data-tema',t);}catch(e){}",
           }}
         />
         {/* Safari de iPhone no dispara `:active` en toques salvo que el documento
@@ -102,7 +120,7 @@ export default function RootLayout({
         />
         {/* Envuelve TODO —admin, terminal, lo mío— para que `useToast()` esté
             disponible desde cualquier pantalla, sin volver a montarlo por ruta. */}
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>{contenido}</ToastProvider>
       </body>
     </html>
   );

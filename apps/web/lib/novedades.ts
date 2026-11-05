@@ -115,6 +115,83 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-05-politica-salarial-en-el-celular",
+    fecha: "2026-11-05",
+    titulo: "La Política salarial ya se lee bien en el celular",
+    queMejoro:
+      "En el celular, el documento se veía como una tira angosta y el campo para dejar constancia se salía de la " +
+      "pantalla. Ahora el texto usa todo el ancho y el campo se ve completo.\n\n" +
+      "Al comparar dos categorías, cada caja dice de cuál es. Y al saltar a una sección, su título ya no queda tapado " +
+      "por la barra de arriba.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-05-la-hoja-de-constancias-dice-la-fecha-correcta",
+    fecha: "2026-11-05",
+    titulo: "La hoja de constancias de la Política salarial ya dice la fecha correcta",
+    queMejoro:
+      "La hoja decía «Al…» con la fecha de un día antes de cuando se abría o se imprimía. Ahora dice la de hoy.\n\n" +
+      "Las hojas de esa pantalla que ya imprimiste siguen con la fecha de un día antes. Si alguna se entregó como " +
+      "prueba, conviene imprimirla de nuevo.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-11-05-las-firmas-se-ven-en-modo-oscuro",
+    fecha: "2026-11-05",
+    titulo: "Las firmas ya se ven en modo oscuro",
+    queMejoro:
+      "En modo oscuro, la firma de contratos, memos, constancias y demás documentos casi no se veía: tinta oscura sobre fondo oscuro. " +
+      "Ahora va sobre un recuadro claro, como ya pasaba en la boleta.\n\n" +
+      "En modo claro y en lo que se imprime, todo sigue igual.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-05-la-baja-cierra-el-acceso",
+    fecha: "2026-11-05",
+    titulo: "Dar de baja a alguien ahora también cierra su acceso",
+    queMejoro:
+      "Al dar de baja a una persona en Equipo —o al cerrar su preselección—, su usuario deja de poder entrar al sistema y " +
+      "se le cierran las sesiones abiertas, sin tener que cambiarle la clave. Antes seguía pudiendo entrar.\n\n" +
+      "Quienes ya estaban de baja quedaron igual. Si reactivas a alguien, vuelve a entrar con su misma clave.\n\n" +
+      "Como ya no ven «Lo mío», sus boletas y documentos se los entrega Desarrollo Organizacional.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-11-04-ingreso-con-fecha-futura",
+    fecha: "2026-11-04",
+    titulo: "Ya puedes registrar que alguien ingresa en una fecha futura",
+    queMejoro:
+      "En Equipo, al editar a una persona, la «Fecha de ingreso» ahora acepta una fecha posterior a hoy —por ejemplo, " +
+      "alguien que empieza mañana—. Antes decía «no puede ser futura» y no dejaba guardarla.\n\n" +
+      "Mientras esa fecha no llega, la persona no aparece en el terminal de marcaje y no puede registrar marcas. Desde " +
+      "su día de ingreso todo sigue como siempre. Si ya tiene horas marcadas antes de la fecha que pones, el sistema no " +
+      "te deja moverla a una fecha futura.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-11-04-aviso-de-constancias-sin-estorbar",
+    fecha: "2026-11-04",
+    titulo: "El aviso de constancias pendientes ya no se te cruza al ir a leerlas",
+    queMejoro:
+      "Antes, al pulsar «Leer y dejar constancia» el aviso volvía a aparecer encima del documento que querías leer, " +
+      "y cuando había varias constancias pendientes se salía de la pantalla sin poder bajar. Ahora el aviso cabe en la " +
+      "pantalla y tiene su propio scroll, y no te sigue a la pantalla donde dejas la constancia.\n\n" +
+      "Si pulsas «Ahora no», no vuelve a salir en esa visita; al recargar la página sí, hasta que dejes la constancia.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-03-borrador-de-la-semana",
+    fecha: "2026-11-03",
+    titulo: "En Turnos, la semana se puede guardar como borrador antes de publicarla",
+    queMejoro:
+      "Después de «Sugerir la semana», «Guardar como borrador» la deja guardada sin publicar: el equipo sigue viendo sus " +
+      "turnos de siempre. El borrador compara, persona por persona, lo que hoy tiene con lo que se propone: horas, días " +
+      "que cambian y si cumple su jornada, y avisa si alguien pasa de 48 h o tiene un día de menos de 4 h.\n\n" +
+      "Para quien factura por recibo por honorarios no se arma horario: en el borrador se anota cuándo se la necesita, y " +
+      "esa nota no se publica. En Horas, mirando una semana ya terminada, se ve si lo marcado llegó a la jornada de cada persona.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-03-cambiar-con-una-companera",
     fecha: "2026-11-03",
     titulo: "Ya puedes cambiarte el turno de un día con una compañera",

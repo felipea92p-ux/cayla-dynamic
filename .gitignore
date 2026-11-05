@@ -1,5 +1,7 @@
 node_modules
 .next
+# Next 16 lo genera solo en cada `next dev`; no es parte del proyecto.
+apps/web/AGENTS.md
 .turbo
 dist
 .env

@@ -1,0 +1,142 @@
+{
+  "version": 4,
+  "actualizado": "2026-11-05",
+  "nota": "El contrato de la familia CAYLA. Este archivo es IDÉNTICO en CAYLA Retail (ERP) y en CAYLA Dynamic (asistencia y planilla): cada repositorio lo guarda en docs/familia/contrato.json y prueba su propio código contra él. Desde la versión 4 Retail manda en diseño: un valor de la capa «marca» cambia primero en Retail, y el vigilante de Dynamic (docs/familia/README.md de Dynamic) lo ve dentro de la hora.",
+  "quien_manda": {
+    "diseno": "retail",
+    "desde": "2026-11-05",
+    "decidio": "Felipe",
+    "que_significa": "Lo que cambie de aspecto en Retail llega a Dynamic; Dynamic no propone valores de marca por su cuenta. No cubre lo que no es diseño: qué hace cada pantalla, ni el vocabulario (P4 sigue abierto)."
+  },
+  "miembros": {
+    "retail": "CAYLA Retail · el ERP de tiendas y taller",
+    "dynamic": "CAYLA Dynamic · asistencia y planilla de las personas"
+  },
+  "capas": {
+    "marca": "Igual en todas las aplicaciones. Lo que una persona mira para reconocer que es CAYLA. Se cambia en todas a la vez; la prueba falla si una se queda atrás.",
+    "sistema": "Reglas de oficio que valen en todas salvo una diferencia aprobada con su motivo escrito. Se vigilan leyendo, no con una prueba.",
+    "producto": "Puede diferir: lo decide cada aplicación según para qué se usa y con qué dispositivo."
+  },
+  "marca": {
+    "colores_claro": {
+      "crema": "#f5f0e8",
+      "papel": "#fbf8f2",
+      "hueso": "#eae1d2",
+      "sand": "#e8e0d0",
+      "tinta": "#1a1a18",
+      "taupe": "#805c4c",
+      "borde-control": "#96786a",
+      "rojo": "#b8412d",
+      "rojo-profundo": "#8b2a1f",
+      "verde": "#48603f",
+      "ambar": "#74501a",
+      "pizarra": "#4c5d6e",
+      "tinta-fija": "#1a1a18",
+      "crema-fija": "#f5f0e8",
+      "vidrio": "#ffffff",
+      "sombra": "#1a1a18"
+    },
+    "colores_oscuro": {
+      "crema": "#1c1a17",
+      "papel": "#26241f",
+      "hueso": "#33302a",
+      "sand": "#403b34",
+      "tinta": "#f5f0e8",
+      "taupe": "#c4a898",
+      "borde-control": "#8d7a6e",
+      "rojo": "#e8806a",
+      "rojo-profundo": "#f29a86",
+      "verde": "#9ccb8d",
+      "ambar": "#e4b968",
+      "pizarra": "#a2b8cd",
+      "vidrio": "#33302a",
+      "sombra": "#000000"
+    },
+    "tipografia": {
+      "sans": "DM Sans",
+      "serif": "EB Garamond",
+      "origen": "Google Fonts; ninguna aplicación lleva archivos de letra propios"
+    },
+    "radios": [
+      { "funcion": "boton", "px": 999, "retail": "radius-boton", "dynamic": "radius-boton", "pieza_retail": ".btn-cayla en vidrio/campos-y-botones.css" },
+      { "funcion": "campo", "px": 14, "retail": "radius-campo", "dynamic": "radius-campo", "pieza_retail": ".caja-cayla y .caja-campo-input en vidrio/campos-y-botones.css" },
+      { "funcion": "tarjeta", "px": 22, "retail": "radius-tarjeta", "dynamic": "radius-tarjeta", "pieza_retail": ".tabla-cayla en vidrio/pantalla.css y .card-cayla en vidrio/pantalla-en-vidrio.css", "variantes_retail": { "20": ".tarjeta-cifra y .card-cayla dentro de una hoja", "24": ".resumen-sede" }, "pendiente": "P10" },
+      { "funcion": "cajon", "px": 28, "movil_px": 26, "retail": "radius-cajon", "dynamic": "radius-cajon", "pieza_retail": ".cajon-serena en vidrio/hoja.css" },
+      { "funcion": "hoja", "px": 32, "movil_px": 26, "retail": "radius-hoja", "dynamic": "radius-hoja", "pieza_retail": ".hoja-serena en vidrio/hoja.css (--vidrio-hoja-radio)" },
+      { "funcion": "pildora", "px": 999, "retail": null, "dynamic": "radius-pildora" }
+    ],
+    "tema": { "atributo": "data-tema", "claro": "claro", "oscuro": "oscuro" },
+    "isotipo": "El colibrí de una línea del manual de marca v3.0, en un solo color plano; nunca se redibuja ni se aproxima."
+  },
+  "radios_anteriores": {
+    "nota": "Los radios de la versión 3 (2026-10-26). Sirven para migrar: control se partió en botón y campo; superficie pasó a tarjeta; flotante se partió en cajón y hoja. Retail los conserva como tokens para lo que aún no es vidrio; Dynamic los sigue pintando hasta su Etapa 1 (ver aplicacion_pendiente).",
+    "control": 8,
+    "superficie": 16,
+    "flotante": 20
+  },
+  "oscuro_anterior": {
+    "nota": "Los dos oscuros que había antes de decidir P1 (2026-10-26). Sirven para migrar: la familia usa marca.colores_oscuro. Retail ya está migrado; Dynamic todavía tiene el suyo (ver aplicacion_pendiente).",
+    "retail": {
+      "crema": "#1a1a18",
+      "papel": "#242422",
+      "hueso": "#31302d",
+      "sand": "#3d3c38",
+      "tinta": "#f5f0e8",
+      "taupe": "#c4a898",
+      "rojo": "#e8806a",
+      "rojo-profundo": "#f29a86",
+      "verde": "#9ccb8d",
+      "ambar": "#e4b968",
+      "pizarra": "#a2b8cd"
+    },
+    "dynamic": {
+      "crema": "#1c1a16",
+      "papel": "#26221d",
+      "hueso": "#15110d",
+      "sand": "#332e27",
+      "tinta": "#ede7db",
+      "taupe": "#ab9080",
+      "rojo": "#d4634a",
+      "rojo-profundo": "#e8836b",
+      "verde": "#8fae80",
+      "ambar": "#c99a4a",
+      "pizarra": "#9db0c2"
+    }
+  },
+  "sistema": [
+    { "id": "S1", "regla": "Tres colores de identidad (crema, tinta, rojo) y el resto de apoyo; el rojo es escaso (Retail: máximo 2 por pantalla). Blanco puro y negro absoluto nunca como superficie sólida ni como texto: solo existen como luz y sombra, por los tokens `vidrio` y `sombra` y casi siempre mezclados con transparente; jamás como un hex suelto." },
+    { "id": "S2", "regla": "Cinco estados con el mismo vocabulario: neutral (sand), alerta (rojo), advertencia (ámbar), positivo (verde), informativo (pizarra). En Retail el Chip los llama neutro, rojo, ámbar, verde y pizarra." },
+    { "id": "S3", "regla": "El color nunca va solo: cada estado lleva su palabra y, en una insignia, su punto." },
+    { "id": "S4", "regla": "Texto con contraste de al menos 4.5:1 en los dos temas, medido como se pinta de verdad (un tinte al 15 % no es el token plano)." },
+    { "id": "S5", "regla": "Una tarjeta o una tabla es una placa de vidrio: se separa del fondo con su filo, su luz y su sombra larga, todo de las recetas (`--serena-*`), nunca con una sombra escrita a mano. Lo que flota (menús, avisos, listas, hojas, cajones) lleva su propia receta. La línea sand queda para los separadores y lo decorativo, y para el papel que se imprime, que no lleva vidrio ni sombra." },
+    { "id": "S6", "regla": "Íconos de lucide y ningún emoji en la pantalla; la indicación al usuario va en tuteo." },
+    { "id": "S7", "regla": "Una sola forma por pieza: si una pantalla necesita una tarjeta, una cifra o un filtro, usa el componente; si «casi sirve», se corrige el componente, no se copia la receta." },
+    { "id": "S8", "regla": "Los campos de texto miden 16 px en el celular para que Safari de iOS no agrande la página al enfocar." },
+    { "id": "S9", "regla": "Un keyframe de entrada de algo que puede contener un position: fixed (una hoja, un cajón, una tarjeta con un menú) termina en transform: none: un transform residual convierte al elemento en el contenedor de ese fixed. Los keyframes decorativos de una pieza hoja (un sello, un hilo) pueden terminar en otro valor." }
+  ],
+  "producto": [
+    { "id": "D1", "tema": "Dispositivo y diseño", "retail": "Escritorio primero con mouse y teclado (el celular a 375 px es obligatorio solo en Vender, Cambios y Devoluciones).", "dynamic": "Celular primero: el marcaje y «Lo mío» se usan con el pulgar.", "motivo": "Lo usa gente distinta en aparatos distintos.", "estado": "propuesto" },
+    { "id": "D2", "tema": "Escala de títulos y cifras", "retail": "Título de pantalla 46 px en peso 600; cifra de una tarjeta 28 px en 600.", "dynamic": "Título de pantalla 28 px en peso 500; cifra 24 px en 400.", "motivo": "El ERP es una pantalla de escritorio con mucho aire; Dynamic cabe en un teléfono. El peso de la serif sí es una decisión pendiente (P6).", "estado": "decidido", "decision": "Dynamic toma lo de Retail: 46 px en computadora y 36 px en el teléfono, en peso 600 (Felipe, 2026-11-05). Deja de ser una diferencia." },
+    { "id": "D3", "tema": "Movimiento", "retail": "ease-cayla (0.32, 0.72, 0.24, 1): transiciones de 150 a ~450 ms y gráficos que se arman en hasta ~1 s, con varias animaciones propias por decisión de Felipe.", "dynamic": "Una sola curva (0.22, 1, 0.36, 1) de 260 ms; nada supera 320 ms salvo el aleteo del colibrí; solo posición y opacidad.", "motivo": "Retail eligió mirando animaciones ricas pieza por pieza (ADR-0136 y sus actualizaciones); Dynamic las mantiene mínimas.", "estado": "decidido", "decision": "Dynamic toma el movimiento del sistema de Retail: hoja, botones, filas y campos (Felipe, 2026-11-05). Las animaciones propias de cada pantalla de Retail no aplican." },
+    { "id": "D4", "tema": "Con qué tema arranca", "retail": "Siempre en claro; solo cambia cuando alguien pulsa el botón (ADR-0336).", "dynamic": "Sin atributo, sigue prefers-color-scheme del aparato.", "motivo": "Retail: tablets compartidas por tienda y nadie debe encontrar el ERP distinto el día del despliegue.", "estado": "decidido", "decision": "Dynamic arranca en claro y cambia con su botón, como Retail (Felipe, 2026-11-05). Deja de ser una diferencia." },
+    { "id": "D5", "tema": "Color de dato propio", "retail": "metodo-*, sede-*, grafico-* (relleno de gráficos y medios de pago).", "dynamic": "azul y ceniza, solo para el estado de cada integrante en el terminal de marcaje.", "motivo": "Cada aplicación tiene datos que la otra no tiene.", "estado": "propuesto" }
+  ],
+  "aplicacion_pendiente": [
+    { "miembro": "dynamic", "tema": "borde-control", "tokens": ["borde-control"], "que": "Cambiar su alias borde-control de taupe a los valores propios de marca.colores_claro y marca.colores_oscuro (P2 = C): claro #96786a, oscuro #8d7a6e. Lo usan Campo, CampoSelect, AreaTexto y Boton secundario; la casilla y el interruptor apagado también lo llevan en Retail.", "desde": "2026-10-26" },
+    { "miembro": "dynamic", "tema": "oscuro", "que": "Pasar su tema oscuro a marca.colores_oscuro (P1 = C): crema, papel, hueso y sand nuevos, y el texto, el rojo, el verde, el ámbar y la pizarra de la tabla.", "desde": "2026-10-26" },
+    { "miembro": "dynamic", "tema": "vidrio", "tokens": ["vidrio", "sombra"], "que": "Sumar los dos colores de marca que las recetas consumen. Sin ellos, las 204 variables de vidrio/recetas.css quedan en nada, sin ningún error. Lo que falta, valor por valor, está en docs/familia/deuda.json de Dynamic.", "desde": "2026-11-05" },
+    { "miembro": "dynamic", "tema": "radios", "tokens": ["radius-boton", "radius-campo", "radius-tarjeta", "radius-cajon", "radius-hoja"], "que": "Pasar de sus tres radios (control 8, superficie 16, flotante 20) a los de Retail. Va con el vidrio, en su Etapa 1; hoy los pinta radius-control, radius-superficie y radius-flotante.", "desde": "2026-11-05" }
+  ],
+  "pendientes": [
+    {"id": "P1", "tema": "Tema oscuro", "retail": "Gris neutro (crema #1a1a18); los campos (hueso) son MÁS CLAROS que la página: elevado = más claro.", "dynamic": "Café cálido (crema #1c1a16); los campos (hueso #15110d) son MÁS NEGROS que la página: hundido = más oscuro.", "por_que_importa": "Quien usa las dos aplicaciones en la misma jornada ve el mismo negro y la misma forma de leer un campo.", "como_decidir": "Una lámina con los dos oscuros lado a lado, elegida mirando.", "estado": "decidido", "decision": "C · gris cálido (Felipe, 2026-10-26): las claridades del oscuro de Retail con el matiz del café de Dynamic. Ver marca.colores_oscuro."},
+    { "id": "P2", "tema": "Borde de un control", "retail": "Borde sand sobre papel (1.24:1), caja de campo hueso sobre papel (1.22:1) y casilla (2.18:1).", "dynamic": "borde-control = taupe (5.6:1 sobre papel); lo usan Campo, CampoSelect, AreaTexto y Boton secundario.", "por_que_importa": "WCAG 1.4.11 pide 3:1 para identificar un control; sand da 1.2:1.", "como_decidir": "Mirar el antes y el después en Retail (Campo, Boton secundario y Casilla) y elegir.", "estado": "decidido", "decision": "C · un tono propio (Felipe, 2026-10-26): marca.colores_*.borde-control, la mezcla de taupe y papel más clara que pasa 3:1 sobre página, tarjeta y campo (claro #96786a, oscuro #8d7a6e). Lo llevan lo que se toca o se escribe (campo, combo, área de texto, botón secundario, casilla e interruptor apagado); sand sigue siendo la línea decorativa (tarjeta, tabla, píldora con texto). Desde la versión 4 la tarjeta y la tabla son placa de vidrio (S5): sand deja de ser su borde." },
+    { "id": "P3", "tema": "Anillo de foco de teclado", "retail": "Tinta, 2 px con 2 px de separación (ADR-0351: el rojo es escaso y el foco aparece en cada Tab).", "dynamic": "Rojo, 2 px con 2 px de separación.", "por_que_importa": "El foco es lo que más se ve al navegar con teclado; hoy cambia de color al pasar de una aplicación a otra.", "como_decidir": "Decide Felipe; tinta pasa 15:1 sobre crema, rojo 4.8:1.", "estado": "decidido", "decision": "Tinta, como Retail (Felipe, 2026-11-05, «que sea como Retail»)." },
+    { "id": "P4", "tema": "Vocabulario", "retail": "«cliente» (en el club, «miembro»); «encargado de sede»; nunca «clienta» ni «socia».", "dynamic": "«clienta», y nunca «encargada»: «líder de equipo».", "por_que_importa": "El CLAUDE.md global todavía dice «clienta»: un agente que trabaja en Dynamic escribe lo que Retail prohíbe.", "como_decidir": "Una sola lista, escrita en los dos repositorios y en el CLAUDE.md global.", "estado": "abierto" },
+    { "id": "P5", "tema": "El número de una cifra", "retail": "TarjetaCifra deja pintar el número con un tono.", "dynamic": "El número es siempre tinta; el significado va en un punto de color y en la etiqueta.", "por_que_importa": "El color solo no comunica a quien no distingue verde de rojo, y gasta rojo.", "como_decidir": "Mirar dónde Retail pinta hoy un número y si la palabra ya lo dice.", "estado": "decidido", "decision": "Como Retail: el número puede llevar color (Felipe, 2026-11-05)." },
+    { "id": "P6", "tema": "Peso de la serif", "retail": "600 en títulos y cifras (desde la paleta oficial, 2026-09-22).", "dynamic": "500 en títulos y 400 en cifras.", "por_que_importa": "Es la misma letra con otro cuerpo: se nota al poner las dos pantallas lado a lado.", "como_decidir": "Una lámina con los dos pesos.", "estado": "decidido", "decision": "600 en títulos y cifras, como Retail (Felipe, 2026-11-05)." },
+    { "id": "P7", "tema": "Estado vacío", "retail": "Ícono de lo que falta (un recibo, una prenda).", "dynamic": "El colibrí quieto en taupe al 50 %.", "por_que_importa": "El isotipo es la marca; Retail decidió que no es un hueco para rellenar (ADR-0333).", "como_decidir": "Decide Felipe.", "estado": "decidido", "decision": "Ícono de lo que falta, como Retail (Felipe, 2026-11-05)." },
+    { "id": "P8", "tema": "Signos de exclamación y mayúsculas", "retail": "Hay «¡» en el recibo térmico («¡Gracias por tu compra!») y en las guías interactivas.", "dynamic": "Sin signos de exclamación; frases completas con punto final y mayúscula solo al inicio (sin Title Case).", "por_que_importa": "La voz es de la marca: un cliente y un integrante leen la misma CAYLA.", "como_decidir": "Decidir si el recibo (lo ve el cliente) y las guías (las ve el integrante) tienen la misma regla que la pantalla.", "estado": "abierto" },
+    { "id": "P9", "tema": "Tokens de capas", "retail": "z-50 para hojas y z-[60] para menús, sueltos en el código.", "dynamic": "z-sticky 10, z-overlay 40, z-toast 60 como tokens.", "por_que_importa": "Un aviso que queda bajo una hoja solo se ve en una pantalla concreta.", "como_decidir": "Adoptar los tres nombres en Retail cuando se toque una hoja.", "estado": "abierto" },
+    { "id": "P10", "tema": "Radio de una tarjeta", "retail": "Tres: 20 px (tarjeta de cifra, tarjeta dentro de una hoja), 22 px (tabla, bloque de pantalla) y 24 px (resumen de sede). Medido el 2026-11-05 en vidrio/*.css: 13, 14 y 9 piezas.", "dynamic": "Uno: radius-superficie, 16 px, en tarjetas y tablas.", "por_que_importa": "Dynamic va a tener un token por pieza; si copia tres sin que nadie los haya elegido, hereda una diferencia que puede ser jerarquía o puede ser casualidad.", "como_decidir": "Una lámina con las tres tarjetas lado a lado, elegida mirando. Mientras tanto el contrato guarda 22, la más repetida.", "estado": "decidido", "decision": "Una sola, 22 px, en Dynamic y en Retail (Felipe, 2026-11-05). Retail retoca las piezas que hoy usan 20 y 24 px." }
+  ]
+}

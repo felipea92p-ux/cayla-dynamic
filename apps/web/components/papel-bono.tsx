@@ -147,14 +147,14 @@ export function PapelBono({ practicante = false, monto, fecha, estadoPago, nombr
       <div className="grid grid-cols-2 gap-10 pt-6">
         <div className="text-center">
           <div className="flex h-24 items-end justify-center">
-            {firmaPersona && <img src={firmaPersona} alt="" aria-hidden className="block h-24 w-auto max-w-full" />}
+            {firmaPersona && <img src={firmaPersona} alt="" aria-hidden className="firma-tinta block h-24 w-auto max-w-full" />}
           </div>
           <div className="mb-1 border-t border-tinta pt-2 text-xs">{nombreOficial ?? " "}</div>
           <p className="text-xs text-taupe">Recibí conforme</p>
         </div>
         <div className="text-center">
           <div className="flex h-24 items-end justify-center">
-            {firmaEmpresa && <img src={firmaEmpresa} alt="" aria-hidden className="block h-24 w-auto max-w-full" />}
+            {firmaEmpresa && <img src={firmaEmpresa} alt="" aria-hidden className="firma-tinta block h-24 w-auto max-w-full" />}
           </div>
           <div className="mb-1 border-t border-tinta pt-2 text-xs">{firmanteNombre ?? "—"}</div>
           <p className="text-xs text-taupe">{firmanteCargo ?? "—"} · {EMPRESA.nombre}</p>

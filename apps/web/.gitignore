@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Los medidores: lo que dejan sus corridas se regenera, y una sesión es un secreto local.
+/tema/.salida/
+/tema/.sesion/
+/responsive/.salida/
+/responsive/.sesion/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

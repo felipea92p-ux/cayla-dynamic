@@ -1,0 +1,10 @@
+/* El diseño nuevo («el vidrio») vive en esta carpeta. Todavía no hay ninguna regla, y nadie importa este archivo:
+   encendido y apagado se ven idénticos. Existe solo para que la carpeta exista.
+
+   La regla de la casa, que vigila tests/vidrio-css.test.ts: TODO lo de esta carpeta cuelga del atributo que pone
+   lib/vidrio.ts en <html>. Sin el atributo, nada de aquí puede alcanzar a nadie.
+     [data-vidrio="panel"] .x     el panel y Lo mío
+     [data-vidrio="terminal"] .x  el terminal
+     [data-vidrio] .x             las dos superficies, solo sabiendo que llega a las dos
+   Las animaciones se llaman vidrio-loquesea: un @keyframes es global y pisaría a otro del mismo nombre, con o sin
+   atributo. */

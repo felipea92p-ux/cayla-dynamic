@@ -81,6 +81,7 @@ import { Drawer } from "@/components/ui/drawer";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { cumpleJornada } from "@/lib/admin/borrador-semana";
 import { X, Search, SlidersHorizontal, ChevronDown, Download, Table2, LayoutGrid } from "lucide-react";
 
 // Por encima de esto la cuadrícula deja de ayudar y empieza a colgar el
@@ -147,6 +148,9 @@ function rango(preset: "semana" | "mes" | "mesPasado" | "anio"): { desde: string
   const ultimo = new Date(Date.UTC(yp, mp, 0)).getUTCDate();
   return { desde: `${yp}-${String(mp).padStart(2, "0")}-01`, hasta: `${yp}-${String(mp).padStart(2, "0")}-${ultimo}` };
 }
+/** «45 h» o «37,5 h». */
+const fmtJornada = (h: number | null) => (h === null ? "—" : `${String(Math.round(h * 10) / 10).replace(".", ",")} h`);
+
 function fmtHoras(h: number): string {
   const hh = Math.floor(h);
   const mm = Math.round((h - hh) * 60);
@@ -263,6 +267,8 @@ interface Fila {
   // ¿Hay contra qué medirla? Sin horario ni turnos, sus horas no se comparan
   // con nada — y mezclarlas en un total «de X h que tocaban» lo vuelve falso.
   tieneHorario: boolean;
+  // La jornada semanal que fijó DO (0584); null si no la fijó.
+  jornada: number | null;
 }
 
 const porRevisar = (f: Fila) => f.incompletas + f.pendientes;
@@ -431,8 +437,11 @@ function medidoContra(d: Dia): { texto: string; sospechoso: boolean } {
 // comparar, y no se pierden ni los filtros ni el periodo.
 // «Atención»: lo que de esta persona hay que mirar, en pastillas con su palabra (nunca un número suelto). Reemplaza a las
 // columnas Tardanzas / Faltas / Revisar / Ausencias / Objetivos: se lee por exclusión, y «al día» dice que no hay nada.
-function PastillasAtencion({ f, hayObjetivos, mesEnCurso }: { f: Fila; hayObjetivos: boolean; mesEnCurso: boolean }) {
+function PastillasAtencion({ f, hayObjetivos, mesEnCurso, semanaCerrada = false }: { f: Fila; hayObjetivos: boolean; mesEnCurso: boolean; semanaCerrada?: boolean }) {
   const rev = porRevisar(f);
+  // Lo marcado contra su jornada (Felipe, 2026-11-03), solo mirando una semana de lunes a domingo que ya terminó. Si no
+  // llega, NO se dice «faltan»: aquí no se descuentan feriados ni ausencias, y acusar a quien no debía es el peor error.
+  const cumple = semanaCerrada && f.tieneHorario && f.jornada !== null ? cumpleJornada(f.horasReales, f.jornada) : null;
   const hayAlgo = f.tardanzas > 0 || f.faltas > 0 || rev > 0 || f.ausenciasDias > 0;
   return (
     <span className="flex flex-wrap items-center gap-1.5">
@@ -454,6 +463,12 @@ function PastillasAtencion({ f, hayObjetivos, mesEnCurso }: { f: Fila; hayObjeti
       {hayObjetivos && f.objTotal > 0 && (
         <Insignia variante={objPct(f) < 0.3 && !mesEnCurso ? "alerta" : "neutral"} tamano="sm">objetivos {f.objCumplidos}/{f.objTotal}</Insignia>
       )}
+      {cumple?.pasa48 && <Insignia variante="alerta" tamano="sm">pasó de 48 h</Insignia>}
+      {cumple && !cumple.pasa48 && (cumple.estado === "cumple"
+        ? <Insignia variante="positivo" tamano="sm">cumple su jornada ({fmtJornada(cumple.jornada)})</Insignia>
+        : <span title="Lo marcado en la semana contra la jornada que fijó DO. No descuenta feriados ni ausencias: míralo antes de concluir nada.">
+            <Insignia variante="neutral" tamano="sm">marcó {fmtJornada(cumple.horas)} de {fmtJornada(cumple.jornada)}</Insignia>
+          </span>)}
       {!hayAlgo && f.tieneHorario && <Insignia variante="positivo" tamano="sm">al día</Insignia>}
     </span>
   );
@@ -787,6 +802,8 @@ function DesempenoContenido() {
   // Los objetivos de un mes que no terminó no se pintan en rojo: un 0/3 el
   // 26 de septiembre dice cuánto va, no que no se cumplió.
   const mesObjetivosEnCurso = hasta.slice(0, 7) >= hoyLima().slice(0, 7);
+  // Una semana de lunes a domingo que ya terminó: la única en que lo marcado se compara con la jornada.
+  const semanaCerrada = lunesDeLaSemana(desde) === desde && hasta === addDiasISO(desde, 6) && hasta < hoyLima();
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -807,7 +824,7 @@ function DesempenoContenido() {
       { data: ausenciasResumenData, error: errAusencias },
     ] = await Promise.all([
       supabase.from("personas")
-        .select("id, nombres, apellidos, estado, funcion, fecha_ingreso, sedes:sede_base_id(codigo)")
+        .select("id, nombres, apellidos, estado, funcion, fecha_ingreso, jornada_semanal_horas, sedes:sede_base_id(codigo)")
         .eq("cuenta_de_servicio", false).order("nombres"),
       // Por lotes: PostgREST corta en 1000 filas y devuelve 200 OK sin avisar.
       // El order por fecha+persona no es cosmético: sin un orden estable, dos
@@ -923,6 +940,7 @@ function DesempenoContenido() {
         faltas: 0, faltasJustificadas: 0, incompletas: 0, pendientes: 0,
         objCumplidos: objPor.get(pid)?.cumplidos ?? 0, objTotal: objPor.get(pid)?.total ?? 0,
         objetivos: objPor.get(pid)?.items ?? [], tieneHorario: false,
+        jornada: (() => { const j = (p as unknown as { jornada_semanal_horas: number | null }).jornada_semanal_horas; return j === null || j === undefined ? null : Number(j); })(),
       };
 
       for (const fecha of listaFechas) {
@@ -1490,7 +1508,7 @@ function DesempenoContenido() {
                       </div>
                     </td>
                     <td className="px-3 py-2"><HorasConBarra f={f} /></td>
-                    <td className="px-3 py-2"><PastillasAtencion f={f} hayObjetivos={hayObjetivos} mesEnCurso={mesObjetivosEnCurso} /></td>
+                    <td className="px-3 py-2"><PastillasAtencion f={f} hayObjetivos={hayObjetivos} mesEnCurso={mesObjetivosEnCurso} semanaCerrada={semanaCerrada} /></td>
                     {hayCuadricula && <td className="px-3 py-2">{franja(f, "fijo")}</td>}
                   </tr>
                 ))}
@@ -1516,7 +1534,7 @@ function DesempenoContenido() {
                       </span>
                       <span className="shrink-0 text-right"><HorasConBarra f={f} /></span>
                     </span>
-                    <span className="mt-3 block"><PastillasAtencion f={f} hayObjetivos={hayObjetivos} mesEnCurso={mesObjetivosEnCurso} /></span>
+                    <span className="mt-3 block"><PastillasAtencion f={f} hayObjetivos={hayObjetivos} mesEnCurso={mesObjetivosEnCurso} semanaCerrada={semanaCerrada} /></span>
                   </button>
                   {hayCuadricula && franja(f, "flex")}
                 </TarjetaInfo>

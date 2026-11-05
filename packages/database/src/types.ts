@@ -7403,6 +7403,131 @@ export type Database = {
           },
         ]
       }
+      turnos_borrador_dias: {
+        Row: {
+          borrador_id: string
+          entrada: string | null
+          fecha: string
+          persona_id: string
+          salida: string | null
+        }
+        Insert: {
+          borrador_id: string
+          entrada?: string | null
+          fecha: string
+          persona_id: string
+          salida?: string | null
+        }
+        Update: {
+          borrador_id?: string
+          entrada?: string | null
+          fecha?: string
+          persona_id?: string
+          salida?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "turnos_borrador_dias_borrador_id_fkey"
+            columns: ["borrador_id"]
+            isOneToOne: false
+            referencedRelation: "turnos_borradores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "turnos_borrador_dias_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      turnos_borrador_notas: {
+        Row: {
+          borrador_id: string
+          nota: string
+          persona_id: string
+        }
+        Insert: {
+          borrador_id: string
+          nota: string
+          persona_id: string
+        }
+        Update: {
+          borrador_id?: string
+          nota?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "turnos_borrador_notas_borrador_id_fkey"
+            columns: ["borrador_id"]
+            isOneToOne: false
+            referencedRelation: "turnos_borradores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "turnos_borrador_notas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      turnos_borradores: {
+        Row: {
+          actualizado_at: string
+          actualizado_por: string | null
+          creado_at: string
+          creado_por: string | null
+          descartado_at: string | null
+          descartado_por: string | null
+          id: string
+          lunes: string
+          origen: string
+          publicado_at: string | null
+          publicado_por: string | null
+          sede_id: string
+        }
+        Insert: {
+          actualizado_at?: string
+          actualizado_por?: string | null
+          creado_at?: string
+          creado_por?: string | null
+          descartado_at?: string | null
+          descartado_por?: string | null
+          id?: string
+          lunes: string
+          origen?: string
+          publicado_at?: string | null
+          publicado_por?: string | null
+          sede_id: string
+        }
+        Update: {
+          actualizado_at?: string
+          actualizado_por?: string | null
+          creado_at?: string
+          creado_por?: string | null
+          descartado_at?: string | null
+          descartado_por?: string | null
+          id?: string
+          lunes?: string
+          origen?: string
+          publicado_at?: string | null
+          publicado_por?: string | null
+          sede_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "turnos_borradores_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       justificaciones_asistencia: {
@@ -9677,6 +9802,21 @@ export type Database = {
         Args: { p_periodo_id: string | null }
         Returns: Json
       }
+      fn_liquidaciones_lista: {
+        Args: never
+        Returns: {
+          dias_restantes: number
+          fecha_cese: string
+          fecha_ingreso: string
+          pagada: boolean
+          persona: string
+          persona_id: string
+          sede: string
+          total: number
+          vence_el: string
+          vencido: boolean
+        }[]
+      }
       fn_liquidaciones_pendientes: {
         Args: never
         Returns: {
@@ -11762,6 +11902,18 @@ export type Database = {
         Returns: string
       }
       fn_vacaciones_por_atender: { Args: never; Returns: number }
+      fn_turnos_borrador_descartar: {
+        Args: { p_lunes: string; p_sede_id: string }
+        Returns: boolean
+      }
+      fn_turnos_borrador_guardar: {
+        Args: { p_dias: Json; p_lunes: string; p_notas?: Json; p_origen?: string; p_sede_id: string }
+        Returns: string
+      }
+      fn_turnos_borrador_publicar: {
+        Args: { p_lunes: string; p_motivo?: string | null; p_sede_id: string; p_turnos: Json }
+        Returns: number
+      }
       fn_vacaciones_por_vencer: {
         Args: { p_as_of?: string | null; p_dias?: number | null }
         Returns: {

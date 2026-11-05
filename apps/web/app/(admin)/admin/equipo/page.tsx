@@ -1519,6 +1519,13 @@ export default function EquipoPage() {
             onChange={(e) => setForm({ ...form, fechaIngreso: e.target.value })}
             className="rounded-lg border px-3 py-2"
           />
+          {/* Una fecha futura es válida (alguien que empieza pronto). Se dice qué pasa mientras tanto,
+              porque el terminal y el pago se rigen por esta fecha y no por cuándo se cargó la ficha. */}
+          {form.fechaIngreso > hoyLima() && (
+            <span className="text-xs text-taupe">
+              Todavía no ingresa: no aparece en el terminal ni puede marcar hasta ese día, y no se le cuenta nada antes.
+            </span>
+          )}
           {(() => {
             const primera = editandoId ? ingresos.get(editandoId)?.primera_entrada : null;
             if (!primera || primera === form.fechaIngreso) return null;
@@ -1965,7 +1972,7 @@ export default function EquipoPage() {
           )}
         </label>
         <p className="text-xs text-taupe">
-          Esto cierra sus tramos de salario y de horario ese día, y deja de aparecer en el terminal.
+          Esto cierra sus tramos de salario y de horario ese día, deja de aparecer en el terminal y su usuario deja de poder entrar al sistema.
           No se borra nada: su historial sostiene los reportes de los periodos que ya pasaron. De esta
           fecha salen su gratificación, su CTS y sus vacaciones truncas, así que tiene que ser el día
           real —ni el de hoy por comodidad, ni el de su carta.

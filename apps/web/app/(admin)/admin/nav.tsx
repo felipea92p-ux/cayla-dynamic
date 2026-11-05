@@ -47,7 +47,7 @@ import { SidebarAdmin } from "@/components/nav/sidebar-admin";
 import { CajonAdmin } from "@/components/nav/cajon-admin";
 import type { Contadores } from "@/components/nav/panel-navegacion";
 import { GRUPOS, RUTAS_SIN_MARCO, type Item } from "./nav-items";
-import { GuardaCuentaDeServicio } from "@/lib/cuenta-de-servicio";
+import { GuardaDeAcceso } from "@/lib/cuenta-de-servicio";
 import { ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
 import { Keyboard, LogOut, Menu, Search } from "lucide-react";
 
@@ -62,11 +62,11 @@ import { Keyboard, LogOut, Menu, Search } from "lucide-react";
 export function MarcoAdmin({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   if (RUTAS_SIN_MARCO.includes(pathname)) return <>{children}</>;
-  // Una estación de retail con sesión abierta no pasa del marco (0490).
+  // Una estación de retail con sesión abierta no pasa del marco (0490), ni quien ya se dio de baja (0597).
   return (
-    <GuardaCuentaDeServicio>
+    <GuardaDeAcceso>
       <MarcoConChrome pathname={pathname}>{children}</MarcoConChrome>
-    </GuardaCuentaDeServicio>
+    </GuardaDeAcceso>
   );
 }
 

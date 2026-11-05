@@ -825,11 +825,14 @@ const MOTIVO_DIA: Record<string, string> = {
 function textoDisciplina(d: ItemDisciplina, hoy: string): { titulo: string; accion: string; urgencia: Urgencia; href: string } {
   const nivel = (NIVEL_DISCIPLINARIO_LABELS as Record<string, string>)[d.nivel] ?? d.nivel;
   const entregar = "/admin/disciplina#entregados";
+  // `#doc-ID` abre el expediente de ESE documento (la pantalla lo resuelve al cargar);
+  // sin ancla, el enlace aterrizaba en la lista y había que buscarlo a mano.
+  const abrir = `/admin/disciplina#doc-${d.id}`;
   switch (d.paso) {
-    case "comunicar": return { titulo: `${nivel}: falta comunicar los cargos`, accion: "Comunicar cargos", urgencia: urgenciaEspera(d.creado_at, hoy), href: "/admin/disciplina" };
-    case "esperando": return { titulo: `${nivel}: esperando el descargo`, accion: "Ver expediente", urgencia: d.descargo_vence_at ? urgenciaDescargo(d.descargo_vence_at, hoy) : urgenciaEspera(d.creado_at, hoy), href: "/admin/disciplina" };
-    case "valorar": return { titulo: `${nivel}: descargo por valorar`, accion: "Valorar descargo", urgencia: urgenciaEspera(d.descargo_vence_at ?? d.creado_at, hoy), href: "/admin/disciplina" };
-    case "firmar": return { titulo: `${nivel} lista para firmar`, accion: "Firmar", urgencia: urgenciaEspera(d.creado_at, hoy), href: "/admin/disciplina" };
+    case "comunicar": return { titulo: `${nivel}: falta comunicar los cargos`, accion: "Comunicar cargos", urgencia: urgenciaEspera(d.creado_at, hoy), href: abrir };
+    case "esperando": return { titulo: `${nivel}: esperando el descargo`, accion: "Ver expediente", urgencia: d.descargo_vence_at ? urgenciaDescargo(d.descargo_vence_at, hoy) : urgenciaEspera(d.creado_at, hoy), href: abrir };
+    case "valorar": return { titulo: `${nivel}: descargo por valorar`, accion: "Valorar descargo", urgencia: urgenciaEspera(d.descargo_vence_at ?? d.creado_at, hoy), href: abrir };
+    case "firmar": return { titulo: `${nivel} lista para firmar`, accion: "Firmar", urgencia: urgenciaEspera(d.creado_at, hoy), href: abrir };
     case "entregar": return { titulo: `${nivel} firmada, sin entregar`, accion: "Registrar entrega", urgencia: urgenciaEspera(d.firmado_at ?? d.creado_at, hoy), href: entregar };
     case "cargo": return { titulo: `${nivel} entregada, sin cargo firmado`, accion: "Subir cargo", urgencia: urgenciaEspera(d.entregado_at ?? d.creado_at, hoy), href: entregar };
     case "resolver": return { titulo: `${nivel}: falta resolver`, accion: "Resolver", urgencia: urgenciaEspera(d.entregado_at ?? d.creado_at, hoy), href: entregar };

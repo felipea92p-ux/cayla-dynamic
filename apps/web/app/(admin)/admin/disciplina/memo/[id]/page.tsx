@@ -304,7 +304,7 @@ export default function MemoPage() {
                       {nombre} confirmó su firma digital el {fechaLarga(doc.firma_sancionado_confirmada_at)}.
                     </p>
                     {doc.firma_sancionado && (
-                      <img src={doc.firma_sancionado} alt={`Firma digital de ${nombre}`} className="block h-16 w-auto max-w-full" />
+                      <img src={doc.firma_sancionado} alt={`Firma digital de ${nombre}`} className="firma-tinta block h-16 w-auto max-w-full" />
                     )}
                   </>
                 ) : (

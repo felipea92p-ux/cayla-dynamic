@@ -10,7 +10,7 @@ import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { EMPRESA, TZ_LIMA, avisoNombresDelDni, hoyLima, usaNombreDelDni } from "@cayla-dynamic/shared";
+import { EMPRESA, TZ_LIMA, avisoNombresDelDni, fechaLargaLima, usaNombreDelDni } from "@cayla-dynamic/shared";
 
 // La hoja de constancias de un documento: quién lo recibió, cuándo y por qué vía.
 //
@@ -105,13 +105,6 @@ function fechaCorta(iso: string | null): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat("es-PE", {
     day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC",
-  }).format(new Date(Date.UTC(y, m - 1, d)));
-}
-
-function fechaLarga(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Intl.DateTimeFormat("es-PE", {
-    day: "2-digit", month: "long", year: "numeric", timeZone: "UTC",
   }).format(new Date(Date.UTC(y, m - 1, d)));
 }
 
@@ -321,7 +314,7 @@ export default function ConstanciasDocumentoPage() {
         <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
           <div><dt className="inline text-taupe">Documento: </dt><dd className="inline">{doc.titulo}</dd></div>
           <div><dt className="inline text-taupe">Versión: </dt><dd className="inline">{version}</dd></div>
-          <div><dt className="inline text-taupe">Vigente desde: </dt><dd className="inline">{fechaLarga(doc.vigente_desde)}</dd></div>
+          <div><dt className="inline text-taupe">Vigente desde: </dt><dd className="inline">{fechaLargaLima(doc.vigente_desde)}</dd></div>
           <div><dt className="inline text-taupe">Publicado el: </dt><dd className="inline">{selloLima(doc.publicado_at)}</dd></div>
         </dl>
         {legal && <p className="mt-2 border-t border-sand pt-2 text-taupe">{legal}</p>}
@@ -332,7 +325,7 @@ export default function ConstanciasDocumentoPage() {
           que se acredita es el estado en un día concreto. */}
       <section className="mb-5 rounded-superficie border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
         <p>
-          Al <strong>{fechaLarga(hoyLima())}</strong>, de <strong>{total}</strong>{" "}
+          Al <strong>{fechaLargaLima()}</strong>, de <strong>{total}</strong>{" "}
           {total === 1 ? "integrante comprendida" : "integrantes comprendidas"} —personal activo con
           contrato de trabajo o convenio de prácticas—, <strong>{constan.length}</strong> {constan.length === 1 ? "dejó" : "dejaron"}{" "}
           constancia de haber recibido este documento

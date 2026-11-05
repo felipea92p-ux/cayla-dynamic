@@ -11,6 +11,7 @@ import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
+import { CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
@@ -275,13 +276,13 @@ export default function VersionesPoliticaSalarialPage() {
       {versiones.length >= 2 && (
         <TarjetaInfo como="section" titulo="Qué cambió entre dos versiones">
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <select value={compIzq ?? ""} onChange={(e) => setCompIzq(Number(e.target.value))} className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta">
+            <CampoSelect aria-label="Primera versión" value={compIzq ?? ""} onChange={(e) => setCompIzq(Number(e.target.value))}>
               {versiones.map((v) => <option key={v.version} value={v.version}>v{v.version}</option>)}
-            </select>
+            </CampoSelect>
             <span className="font-serif italic text-taupe">vs</span>
-            <select value={compDer ?? ""} onChange={(e) => setCompDer(Number(e.target.value))} className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta">
+            <CampoSelect aria-label="Segunda versión" value={compDer ?? ""} onChange={(e) => setCompDer(Number(e.target.value))}>
               {versiones.map((v) => <option key={v.version} value={v.version}>v{v.version}</option>)}
-            </select>
+            </CampoSelect>
             <Boton variante="secundario" tamano="sm" onClick={() => void comparar()} cargando={comparando}>Comparar</Boton>
           </div>
           {cambios !== null && (
