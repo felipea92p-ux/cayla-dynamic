@@ -438,11 +438,14 @@ function FilaContrato({ v }: {
       title={v.titulo}
       className="flex cursor-pointer flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3 transition-colors duration-150 hover:bg-crema/60"
     >
+      {/* En celular el nombre y el detalle se parten en vez de cortarse: ahí no hay `title` que mostrar al pasar el
+          mouse, y lo que se perdía era el final de la vigencia, justo la fecha que se viene a mirar. Y las acciones
+          también se parten: la tarjeta es `overflow-hidden`, así que una que no cupiera quedaría sin forma de pulsarse. */}
       <div className="min-w-0">
-        <p className="truncate font-medium text-tinta">{v.persona}</p>
-        <p className="truncate text-xs text-taupe">{detalle}</p>
+        <p className="font-medium text-tinta sm:truncate">{v.persona}</p>
+        <p className="text-xs text-taupe sm:truncate">{detalle}</p>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">
         {v.vence !== "—" && (
           <span className={v.venceAlerta ? "text-xs font-medium text-rojo-profundo" : "text-xs text-taupe"}>{v.vence}</span>
         )}
@@ -3484,7 +3487,10 @@ export default function ContratosPage() {
                     <ul className="divide-y divide-sand">{filasVista.map((v) => <FilaContrato key={v.key} v={v} />)}</ul>
                   </TarjetaInfo>
                 ) : (
-                  <div className="grid gap-5">
+                  <div className="grid grid-cols-1 gap-5">
+                    {/* `grid-cols-1`, no `grid` a secas: sin columna explícita, la pista crece hasta la línea más larga
+                        de una fila, y la página entera se movía de lado a 375 y a 768 px. Con el mínimo en 0, la fila
+                        se ajusta a la pantalla. Ver en `FilaContrato` lo que eso le pide a la fila. */}
                     {ORDEN_BANDAS.filter((b) => filasVista.some((v) => v.banda === b)).map((b) => {
                       const dentro = filasVista.filter((v) => v.banda === b);
                       const racimo = b === "pronto" ? racimoDeVencimientos(dentro.map((v) => v.fechaFin)) : null;

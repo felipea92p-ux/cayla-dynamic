@@ -453,7 +453,8 @@ with repo(numero, nombre, nunca) as (values
     (593, 'el_borrador_de_la_semana', false),
     (594, 'quien_ingresa_despues_no_marca_ni_devenga_antes_de_su_fecha', false),
     (595, 'la_fecha_de_ingreso_por_defecto_es_la_de_lima', false),
-    (597, 'quien_se_da_de_baja_ya_no_entra', false)
+    (597, 'quien_se_da_de_baja_ya_no_entra', false),
+    (598, 'liquidaciones_lista_sin_el_calculo_de_diferencias', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

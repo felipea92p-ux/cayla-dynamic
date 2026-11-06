@@ -71,6 +71,21 @@ local está medido, pero nadie ha probado a entrar allá con una cuenta cortada.
 
 ---
 
+## 2026-11-03 — Cambiar el turno con una compañera · migración **0592 SIN PEGAR** · prueba 482 · fusionada en [#667](https://github.com/felipea92p-ux/cayla-dynamic/pull/667)
+
+**Qué es.** Dos compañeras de la misma sede se cambian el turno de UN día (mismo largo): ella propone, la compañera acepta, su líder aprueba y
+recién ahí se intercambian los dos turnos de una vez. Tabla nueva `turno_cambios` y diez funciones nuevas; no reescribe ninguna existente (no hay
+md5 de partida). Detalle y decisiones en el encabezado de la migración.
+
+**Se pega EN TRES PARTES, una por una** (tabla; RLS y políticas; funciones y registro), no entera: crea una tabla con claves foráneas a
+`personas` y `turno_pedidos` y además políticas, la combinación que dio el `40P01 deadlock detected` de la 0591. Las partes 2 y 3 se niegan si
+falta la anterior, y las dos primeras llevan `lock_timeout` de 3 s. Auditada en un Postgres 16 real (con `check_function_bodies` apagado, porque la
+lógica depende de tablas del esquema completo, que cubre `db-tests`): guardias, las tres partes, idempotencia, el archivo entero en una
+transacción y el tope de espera con un escritor de `personas` abierto (con menos de 3 s espera y termina; con más falla limpio con 55P03, sin dejar
+nada a medias). **El código ya está publicado:** hasta pegarla, la pantalla de cambiar turno no tiene con qué hablar.
+
+---
+
 ## 2026-11-03 — El borrador de la semana · migración **0593 SIN PEGAR** · prueba 483 · rama `claude/turnos-borrador-semana` ([#668](https://github.com/felipea92p-ux/cayla-dynamic/pull/668))
 
 **De dónde sale.** Felipe (2026-11-03): tener a la vista «el horario sugerido (lo que predice el sistema), el que muestra el
@@ -452,9 +467,10 @@ con el #650, fusionado por Felipe. Se descartó guardar `'piso'` en lugar de `'t
 ese día: el terminal de la Oficina TRU (`OTRU`, tipo `central`) **no** ofrece el almacén ni a las chicas de tienda, y es lo
 pedido: ellas marcan en la Mac mini de su tienda. Hoy lo ofrecen TRU y AQP; la `003 · Tienda LIM` es `tienda` pero está inactiva.
 
-**Falta medir:** que una Mac mini de tienda se recargue sola con el despliegue SIGUIENTE al #650 (la primera vez hubo que
-recargarlas a mano). Si no lo hace, es la sospecha de *skew protection* anotada en «Aviso de versión nueva»: `/api/version`
-contestaría la versión fijada y la recarga no saltaría nunca, sin ningún error a la vista.
+**Medido (2026-11-03): el terminal se recarga solo.** Tras recargar a mano una vez después del #650, la Mac mini de tienda
+cargó sola el despliegue del #659 (ícono de piso/almacén), sin que nadie la tocara (Felipe: «sí, se actualizó sola»). Así que
+`/api/version` contesta la versión nueva también a una pestaña vieja: la sospecha de *skew protection* no se cumple en el
+terminal.
 
 ## 2026-10-31 — El practicante se paga sobre 30 h, y los parámetros de pago dicen quién los cambia y desde cuándo · migraciones 0571 (fusionada en [#626](https://github.com/felipea92p-ux/cayla-dynamic/pull/626)) · **0573 PEGADA** · **0575 PEGADA** · **0576 SIN PEGAR (por hora con tope semanal)** · 0574 SIN PEGAR · PRs [#629](https://github.com/felipea92p-ux/cayla-dynamic/pull/629) y [#630](https://github.com/felipea92p-ux/cayla-dynamic/pull/630) · rama `claude/amazing-albattani-kjo4f3`
 
@@ -1289,7 +1305,8 @@ esperar ≤3 min; si no baja la barra, es esto y el arreglo es pedirle a Vercel 
 
 **El terminal va aparte, con su propio criterio** (desde el 2026-11-03, PR #650): no avisa, se recarga solo, pero únicamente en la
 lista de nombres, sin envío en curso y tras un minuto sin que nadie lo toque (`lib/terminal/recarga-version.ts`). Usa la misma
-`/api/version`, así que la sospecha de *skew protection* de arriba le aplica igual.
+`/api/version`, y ahí se midió el 2026-11-03 que una pestaña vieja SÍ ve la versión nueva (se recargó sola con el #659): la
+sospecha de *skew protection* de arriba no se cumplió, al menos en el terminal.
 
 **Publicar.** No hay migración. Fusionar el PR ES publicar (`main` se publica sola): pedir OK a Felipe.
 

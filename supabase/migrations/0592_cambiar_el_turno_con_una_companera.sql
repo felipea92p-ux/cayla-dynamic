@@ -60,6 +60,31 @@
 --   resuelto el pedido del que salió, con la resolución que la 0587 dejó
 --   reservada: 'cambio_companera'.
 --
+-- CÓMO SE PEGA — EN TRES PARTES, UNA POR UNA (la lección de la 0591, 2026-11-03)
+--   El SQL Editor corre todo lo pegado en UNA transacción, y esta migración junta
+--   dos cosas que no se llevan: crear `turno_cambios` con claves foráneas a
+--   `personas` y `turno_pedidos` (que bloquean esas tablas, en uso, hasta el
+--   final) y crear políticas (que en Supabase toman bloqueos exclusivos sobre las
+--   tablas de `auth` y `storage`). Con el Asesor de seguridad del panel mirando,
+--   ese cruce es la receta del «40P01 deadlock detected»; la 0591 lo dio en
+--   producción el 2026-11-03 y no se aplicó nada. Por eso:
+--     PARTE 1 · la tabla y sus índices        (toca `personas` y `turno_pedidos` solo para las claves)
+--     PARTE 2 · RLS, políticas y permisos      (las políticas, solas)
+--     PARTE 3 · las funciones, el registro y la comprobación
+--   Cada parte se pega SOLA, en ese orden, y las dos primeras empiezan con
+--   `set local lock_timeout = '3s'`: si no consiguen el bloqueo fallan con 55P03
+--   en vez de quedarse en cola frenando a todos los que vienen detrás; se
+--   repegan. Las partes 2 y 3 se niegan a correr si falta la anterior. Todas son
+--   idempotentes. Entera, en un solo bloque, sigue siendo válida en una base sin
+--   tráfico (`supabase db reset`, las pruebas).
+--
+-- ANTES DE PEGAR (solo lee; no hay md5 de partida porque ninguna función existía)
+--     select to_regclass('public.turno_cambios') is not null as ya_existe_la_tabla,
+--            (select count(*) from pg_proc where proname like 'fn_turno_cambio%') as funciones,
+--            (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 592) as registro;
+--   Esperado: false, 0 y null. Si no: ya está pegada (o a medias); repegar es seguro,
+--   pero mira primero qué devolvió.
+--
 -- CÓMO SE REVIERTE
 --   drop function if exists fn_turno_cambios_mios();
 --   drop function if exists fn_turno_cambio_candidatas(date, uuid);
@@ -76,6 +101,10 @@
 -- CÓMO SE COMPRUEBA
 --   La consulta del final: todo en true y «592 · cambiar_el_turno_con_una_companera».
 -- ============================================================================
+
+-- ═══ PARTE 1 · La tabla y sus índices ═══════════════════════════════════════
+
+set local lock_timeout = '3s';
 
 -- ── 1 · La tabla ─────────────────────────────────────────────────────────────
 
@@ -115,6 +144,19 @@ create unique index if not exists idx_turno_cambio_vivo_solicitante
 create unique index if not exists idx_turno_cambio_vivo_companera
   on turno_cambios (companera_id, fecha) where estado in ('propuesto', 'aceptado');
 
+-- ═══ PARTE 2 · RLS, políticas y permisos (las políticas, solas) ══════════════
+-- Se pega DESPUÉS de la parte 1 y sola.
+
+set local lock_timeout = '3s';
+
+do $$
+begin
+  if to_regclass('public.turno_cambios') is null then
+    raise exception 'Falta la PARTE 1 (la tabla): pégala primero y sola, y después esta.';
+  end if;
+end;
+$$;
+
 alter table turno_cambios enable row level security;
 
 drop policy if exists turno_cambios_select_admin_lider on turno_cambios;
@@ -134,6 +176,18 @@ create policy turno_cambios_select_propia on turno_cambios
 
 revoke all on turno_cambios from anon, authenticated, public;
 grant select on turno_cambios to authenticated;
+
+-- ═══ PARTE 3 · Las funciones, el registro y la comprobación ═════════════════
+-- Se pega DESPUÉS de las partes 1 y 2 y sola.
+
+do $$
+begin
+  if to_regclass('public.turno_cambios') is null
+     or not exists (select 1 from pg_policies where tablename = 'turno_cambios' and policyname = 'turno_cambios_select_propia') then
+    raise exception 'Faltan la PARTE 1 o la PARTE 2 (la tabla y sus políticas): pégalas primero, cada una sola, y después esta.';
+  end if;
+end;
+$$;
 
 -- La regla de candidatas sin el control de quién llama: la usan las puertas,
 -- que ya controlaron. Interna: sin grant.
