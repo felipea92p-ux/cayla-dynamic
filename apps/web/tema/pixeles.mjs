@@ -95,8 +95,9 @@ function textosDeLaPagina() {
     if (oculto) continue;
     out.push({
       t: t.slice(0, 32),
-      x: r.left + scrollX,
-      y: r.top + scrollY,
+      // Una hoja se mide con la foto de lo que se ve: en una foto de página entera el navegador cambia el alto de la ventana, y una hoja medida en vh se corre de donde se anotó.
+      x: r.left + (window.__solo ? 0 : scrollX),
+      y: r.top + (window.__solo ? 0 : scrollY),
       w: r.width,
       h: r.height,
       col: aRgba(c.color),
@@ -146,7 +147,8 @@ for (const tema of a.temas) {
     const textos = await p.evaluate(textosDeLaPagina);
     await p.addStyleTag({ content: "*,*::before,*::after{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;caret-color:transparent!important} svg,img{visibility:hidden!important} ::placeholder{color:transparent!important}" });
     await p.waitForTimeout(120);
-    const { data, info } = await sharp(await p.screenshot({ fullPage: true })).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const soloHoja = await p.evaluate(() => Boolean(window.__solo));
+    const { data, info } = await sharp(await p.screenshot({ fullPage: !soloHoja })).removeAlpha().raw().toBuffer({ resolveWithObject: true });
     const px = (x, y) => {
       const X = Math.min(info.width - 1, Math.max(0, Math.round(x))), Y = Math.min(info.height - 1, Math.max(0, Math.round(y)));
       const i = (Y * info.width + X) * 3;

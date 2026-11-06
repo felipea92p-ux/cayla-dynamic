@@ -76,7 +76,7 @@ Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar ca
 
 **Las recetas de vidrio vienen de `main` de Retail, con su bloque para quien pide menos transparencia o más contraste (#1650).** Sus variables viajan; sus reglas, una lista exacta, las escribe `estilos/vidrio/piezas.css` solo para el panel, porque apuntan a clases de Retail. Si Retail cambia esa lista, la copia se detiene y el vigilante avisa.
 
-**`tema:auditar` no alcanza con vidrio:** casi todo el texto va sobre un degradado, y ahí solo suma colores planos. Se mide también con los píxeles de cada pantalla: se saca una captura sin letras y se compara cada texto contra lo que de verdad tiene detrás.
+**`tema:auditar` no alcanza con vidrio:** casi todo el texto va sobre un degradado, y ahí solo suma colores planos. Se mide también con los píxeles de cada pantalla: se saca una captura sin letras y se compara cada texto contra lo que de verdad tiene detrás. Es `tema/pixeles.mjs`; las fotos de antes y ahora salen de `tema/fotos.mjs`.
 
 | Pieza | Estado |
 |---|---|
@@ -96,7 +96,7 @@ trabajo propio de cada módulo. Documentos va antes que Personas y Pago porque l
 | # | Módulo | Pantallas | A mano | Lo que Retail no tiene: se muestra con imagen | 1 Inventario | 2 Aplicar | 3 Medir | 4 Recorrer | 5 Mostrar | 6 Cerrar |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 1 | **Inicio:** Dashboard y Bandeja | 2 | 7 | Gráficos de jornada y tendencias | 2026-11-05 | 2026-11-05 | 2026-11-05 | 2026-11-05 | 2026-11-05 | |
-| 2 | **Asistencia:** Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias | 9 | 4 | Grilla de turnos, calendario y línea del día | | | | | | |
+| 2 | **Asistencia:** Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias | 9 | 4 | Grilla de turnos, calendario y línea del día | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
 | 3 | **Documentos:** boleta, contrato, memo y bono | Dentro de otras | Exentos | Papel en su bandeja y su impresión | | | | | | |
 | 4 | **Personas:** Equipo, ficha, Datos personales, Contratos, Documentación, Seguros, Objetivos, Casos y Disciplina | 12 | 23 | Ficha de la persona y editor de firma | | | | | | |
 | 5 | **Pago:** Planilla, Boletas, Provisiones, Costos, Liquidaciones, Educación y Feriados | 8 | 38 | Tablas muy anchas de Planilla | | | | | | |
