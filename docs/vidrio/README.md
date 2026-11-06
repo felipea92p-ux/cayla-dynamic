@@ -24,6 +24,7 @@ sirve: Dynamic recibe unos 49 commits al día. Ver «El vidrio» en [`CLAUDE.md`
 | Boleta, contrato y memo | Papel en su bandeja, en claro y en oscuro. |
 | Terminal | Último módulo, con su botón de tema y fuera del loader. Ningún botón cambia lo que hace ni cómo se marca. |
 | Movimiento, espera, listas y desenfoque | Como Retail, también en el teléfono. Lo que Retail no tiene se muestra con imagen antes de decidirlo. |
+| Barra del teléfono | Como Retail: menú sin relleno y lupa suelta a la derecha. Lo mío conserva la palabra «Menú»: en septiembre, con gente real, el ícono suelto no se encontraba. |
 | Guía de foco | Después del aspecto. |
 | Cambios futuros | Retail manda. Ver «La regla de los dos sistemas» en `CLAUDE.md`. |
 

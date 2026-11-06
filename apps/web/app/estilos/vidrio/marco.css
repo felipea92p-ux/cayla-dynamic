@@ -534,24 +534,51 @@
     }
   }
 
-  /* El botón del menú en el teléfono: lleno. Retail lo deja sin relleno; aquí se probó con gente en septiembre y un ícono suelto no se encontraba. */
+  /* El botón del menú en el teléfono: sin relleno, como Retail (Felipe, 2026-11-05, mirando los dos). En septiembre, con gente real, un ícono suelto no se encontraba en Lo mío: ahí se queda su palabra «Menú». */
   [data-vidrio="panel"] .marco-boton-menu {
+    position: relative;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    min-width: 40px;
-    height: 40px;
-    padding: 0 10px;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 8px;
     flex-shrink: 0;
     border-radius: 9999px;
-    background: var(--color-tinta);
-    color: var(--color-crema);
+    color: var(--color-tinta);
     font-size: 13px;
     font-weight: 500;
     transition: background-color 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
   }
-  [data-vidrio="panel"] .marco-boton-menu:active {
+  [data-vidrio="panel"] .marco-boton-menu:active,
+  [data-vidrio="panel"] .marco-lupa:active {
     scale: 0.97;
+  }
+  /* La lupa del teléfono. Miden 36 px y el dedo acierta en 44: el área se agranda sin que se vea. */
+  [data-vidrio="panel"] .marco-lupa {
+    position: relative;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    color: color-mix(in srgb, var(--color-tinta) 65%, transparent);
+    transition: background-color 200ms var(--ease-cayla), color 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .marco-boton-menu::after,
+  [data-vidrio="panel"] .marco-lupa::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] .marco-boton-menu:hover {
+      background: color-mix(in srgb, var(--color-tinta) 6%, transparent);
+    }
+    [data-vidrio="panel"] .marco-lupa:hover {
+      background: color-mix(in srgb, var(--color-tinta) 6%, transparent);
+      color: var(--color-rojo);
+    }
   }
   /* Se dice aquí y no con `md:hidden`: lo que vive fuera de capa le gana a las utilidades, y a 1440 px el botón seguía a la vista. */
   @media (max-width: 47.99rem) {
@@ -595,6 +622,32 @@
       gap: 0;
     }
     [data-vidrio="panel"] .marco-buscador-texto {
+      display: none;
+    }
+  }
+
+  /* Bajo 640 px, como Retail: la lupa suelta al final en vez del buscador, menos aire entre las piezas, y el menú alineado con el contenido. El colibrí solo si cabe. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .marco-lupa {
+      display: grid;
+    }
+    [data-vidrio="panel"] .marco-buscador {
+      display: none;
+    }
+    [data-vidrio="panel"] .marco-colibri {
+      display: flex;
+      align-items: center;
+      margin-right: 6px;
+    }
+    [data-vidrio="panel"] .marco-cabecera-fila {
+      padding: 0 8px;
+    }
+    [data-vidrio="panel"] .marco-isla {
+      gap: 2px;
+    }
+  }
+  @container cabecera (max-width: 400px) {
+    [data-vidrio="panel"] .marco-colibri {
       display: none;
     }
   }

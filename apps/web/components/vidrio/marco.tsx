@@ -26,7 +26,6 @@ import { useEsCelular, useLateralPlegado } from "@/lib/use-vidrio-lateral";
 import { alternarLateral } from "@/lib/vidrio-lateral";
 import type { FilaMenu, HojaMenu } from "@/lib/vidrio-menu";
 import { BotonTema } from "@/components/vidrio/boton-tema";
-import { GotaDePestanas } from "@/components/vidrio/gota-de-pestanas";
 import { LogoCayla } from "@/components/vidrio/logo-cayla";
 import { MenuFilas } from "@/components/vidrio/menu";
 import { OndaBotones } from "@/components/vidrio/onda-botones";
@@ -142,7 +141,6 @@ export function MarcoVidrio({
   return (
     <div className="marco-raiz flex min-h-screen w-full min-w-0 flex-1">
       <OndaBotones />
-      <GotaDePestanas />
       {/* Siempre montado, para que también se apague al cerrar; cerrado no recibe toques. */}
       <div
         ref={velo}
@@ -234,6 +232,12 @@ export function MarcoVidrio({
                 <span className="marco-buscador-texto truncate">Buscar…</span>
                 <kbd className="marco-buscador-tecla ml-auto font-sans text-[11px] text-tinta/70">{tecla}</kbd>
               </button>
+              {/* En un teléfono ancho, el colibrí junto al menú, como en Retail. Lo mío tiene ahí su título. */}
+              {tituloCelular ? null : (
+                <Link href={hrefInicio} aria-label="CAYLA Dynamic, ir al inicio" className="marco-colibri hidden">
+                  <LogoCayla soloColibri className="h-[26px]" />
+                </Link>
+              )}
             </div>
 
             {/* Dónde estás. `aria-live`: el cajón se cierra encima del cambio y quien no ve la pantalla no oiría nada. */}
@@ -245,6 +249,12 @@ export function MarcoVidrio({
               {sede ? <span className="marco-sede">{sede}</span> : null}
               {accion}
               <BotonTema />
+              {/* En el teléfono el buscador es una lupa suelta al final, como en Retail. Los dos botones hacen lo mismo y solo uno se ve a la vez. */}
+              {buscarEnCelular ? (
+                <button type="button" onClick={onBuscar} aria-label={etiquetaBuscador} className="marco-lupa hidden">
+                  <Search size={16} strokeWidth={1.8} aria-hidden />
+                </button>
+              ) : null}
             </div>
           </div>
         </header>
