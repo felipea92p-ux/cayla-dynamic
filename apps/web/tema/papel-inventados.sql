@@ -7,8 +7,8 @@
 
 set session_replication_role = replica; -- los frenos de la base (firmas, estados, inmutables) no aplican a unas filas que se borran en un minuto
 
-insert into politica_salarial (version, documento, huella_cuadro, notas, publicada_por)
-select 1, 'Política salarial inventada para el entorno local.', 'inventada', 'Inventada', id from personas where nombres = 'Alma' and apellidos = 'Reyes Soto'
+insert into politica_salarial (version, documento, huella_cuadro, notas, publicada_por, publicada_at)
+select 1, 'Política salarial inventada para el entorno local.', 'inventada', 'Inventada', id, timestamptz '2026-11-03 09:00-05' from personas where nombres = 'Alma' and apellidos = 'Reyes Soto'
 on conflict do nothing;
 
 insert into politica_salarial_acuses (persona_id, version, nombre_declarado, acusado_at)
@@ -48,10 +48,21 @@ select '00000000-0000-4000-8000-0000000000a4', timestamptz '2026-11-04 10:00-05'
   from expediente_disciplinario where correlativo = 'MEM-2026-0001'
 on conflict do nothing;
 
+insert into boletas_partes (id, version_id, tipo, orden, storage_path, mime, bytes)
+select '00000000-0000-4000-8000-0000000000a5', '00000000-0000-4000-8000-0000000000a4', 'imagen', 1,
+       '00000000-0000-4000-8000-0000000000a3/00000000-0000-4000-8000-0000000000a4/00000000-0000-4000-8000-0000000000a5.jpg', 'image/jpeg', 1000
+on conflict do nothing;
+
+-- Alguien que cesó ayer, con su liquidación por cobrar. Quien ya está de baja en los datos inventados tiene el total en cero, y esa no llega a la lista.
+update personas set estado = 'inactivo', fecha_cese = current_date - 1 where nombres = 'Marta' and apellidos = 'Silva León';
+
 set session_replication_role = origin;
 
 -- ---------- BORRAR ----------
 -- set session_replication_role = replica;
+-- update personas set estado = 'activo', fecha_cese = null where nombres = 'Marta' and apellidos = 'Silva León';
+-- delete from recepciones_cargos where expediente_id = '00000000-0000-4000-8000-0000000000a2';
+-- delete from boletas_partes where id = '00000000-0000-4000-8000-0000000000a5';
 -- delete from boletas_acuses where version_id = '00000000-0000-4000-8000-0000000000a4';
 -- delete from boletas_versiones where id = '00000000-0000-4000-8000-0000000000a4';
 -- delete from boletas where id = '00000000-0000-4000-8000-0000000000a3';

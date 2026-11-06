@@ -190,7 +190,7 @@
     }
 
     /* ---------- El papel llega a su bandeja ---------- */
-    [data-vidrio="panel"] .hoja {
+    [data-vidrio="panel"] :is(.hoja:not(main), .vidrio-papel) {
       animation: vidrio-papel 360ms var(--ease-cayla) backwards;
     }
 

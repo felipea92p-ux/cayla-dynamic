@@ -49,10 +49,7 @@ function quitarInventados() {
 
 const NORMA = "00000000-0000-4000-8000-0000000000a1";
 const CARGOS = "00000000-0000-4000-8000-0000000000a2";
-/** Quien cesó hace semanas está en «Vencidas». */
 async function abrirLaLiquidacion(p) {
-  await p.getByRole("tab", { name: /Vencidas/i }).or(p.getByRole("button", { name: /Vencidas/i })).first().click({ timeout: 6000 });
-  await p.waitForTimeout(500);
   await p.getByRole("button", { name: /^Revisar/ }).first().click({ timeout: 6000 });
   await p.waitForTimeout(2000);
 }

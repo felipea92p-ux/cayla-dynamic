@@ -29,7 +29,7 @@
      Un documento no se oscurece: lo que se revisa tiene que ser lo que va a salir. Lleva los mismos trece colores del bloque de impresión de globals.css (lo comprueba
      tests/vidrio-papel.test.ts) y descansa en un pozo, como en la bandeja de la impresora: la receta de Retail (.papel-fijo, y «A · En su bandeja» en liquidacion.css). La bandeja es una
      sombra sin desenfoque y no un contenedor: así no hay que tocar las pantallas, y no ocupa lugar ni llega a lo que se imprime. */
-  [data-vidrio="panel"] .hoja {
+  [data-vidrio="panel"] :is(.hoja:not(main), .vidrio-papel) {
     color-scheme: light;
     color: var(--color-tinta);
     --color-crema: #f5f0e8;
@@ -51,6 +51,14 @@
     border-color: var(--color-sand);
     background-color: var(--color-papel);
     box-shadow: var(--papel-en-bandeja-sombra), 0 0 0 12px var(--pozo-fondo);
+  }
+  /* Los que no traen relleno propio: sin esto, el texto queda pegado al borde del papel. */
+  [data-vidrio="panel"] :is(.vidrio-papel, .vidrio-papel-aire) {
+    padding: clamp(16px, 3vw, 28px);
+  }
+  /* El visor de un contrato o una liquidación: el papel corre dentro de una ventana que recorta lo que sobresale. El margen le da lugar a la bandeja. */
+  [data-vidrio="panel"] .hoja.overflow-y-auto {
+    margin: 12px;
   }
 
   /* ---------- Lo que empuja la página de lado ----------

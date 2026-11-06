@@ -1,5 +1,6 @@
 "use client";
 
+import { PapelEnPantalla } from "@/components/vidrio/papel-en-pantalla";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -300,6 +301,7 @@ export default function ConstanciasDocumentoPage() {
         </BannerAviso>
       )}
 
+      <PapelEnPantalla>
       <header className="mb-5 border-b border-sand pb-4">
         <p className="font-serif text-[11px] uppercase tracking-[0.2em] text-taupe">
           {EMPRESA.nombre} · RUC N.° {EMPRESA.ruc}
@@ -419,6 +421,7 @@ export default function ConstanciasDocumentoPage() {
           Desarrollo Organizacional · {EMPRESA.nombre}
         </div>
       </section>
+      </PapelEnPantalla>
     </main>
   );
 }

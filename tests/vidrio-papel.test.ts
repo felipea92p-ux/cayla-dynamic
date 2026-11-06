@@ -12,7 +12,7 @@ const tokens = (css: string) => Object.fromEntries([...css.matchAll(/(--color-[a
 describe("el papel en su bandeja", () => {
   const impresion = /@media print \{.*?:root\[data-tema="oscuro"\] \{(.*?)\n  \}/s.exec(leer("app/globals.css"))![1];
   const piezas = leer("app/estilos/vidrio/piezas.css");
-  const papel = /\[data-vidrio="panel"\] \.hoja \{\n    color-scheme: light;(.*?)\n  \}/s.exec(piezas)![1];
+  const papel = /\[data-vidrio="panel"\] :is\(\.hoja:not\(main\), \.vidrio-papel\) \{\n    color-scheme: light;(.*?)\n  \}/s.exec(piezas)![1];
 
   it("lleva los mismos colores que al imprimir", () => {
     expect(Object.keys(tokens(impresion))).toHaveLength(13);
@@ -25,10 +25,10 @@ describe("el papel en su bandeja", () => {
   });
 
   it("el papel y su bandeja solo existen en pantalla", () => {
-    const antes = piezas.slice(0, piezas.indexOf('[data-vidrio="panel"] .hoja {\n    color-scheme'));
+    const antes = piezas.slice(0, piezas.indexOf('.vidrio-papel) {\n    color-scheme'));
     const abiertos = (antes.match(/@media screen/g) ?? []).length;
     expect(abiertos).toBeGreaterThan(0);
     const movimiento = leer("app/estilos/vidrio/movimiento.css");
-    expect(movimiento.indexOf("@media screen")).toBeLessThan(movimiento.indexOf('[data-vidrio="panel"] .hoja {'));
+    expect(movimiento.indexOf("@media screen")).toBeLessThan(movimiento.indexOf('.vidrio-papel) {'));
   });
 });
