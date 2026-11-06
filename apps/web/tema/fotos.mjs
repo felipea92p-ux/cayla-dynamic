@@ -77,7 +77,7 @@ async function tocar(p, accion) {
       await p.getByRole("button", { name: paso.slice(6) }).first().click({ timeout: 5000 });
       await p.waitForTimeout(1400);
     } else if (paso.startsWith("texto:")) {
-      await p.getByText(paso.slice(6), { exact: false }).first().click({ timeout: 5000 });
+      await p.getByText(paso.slice(6), { exact: false }).locator("visible=true").first().click({ timeout: 5000 });
       await p.waitForTimeout(1200);
     } else if (paso.startsWith("campo:")) {
       const [ayuda, texto] = paso.slice(6).split("=");
