@@ -851,9 +851,9 @@ export default function LiquidacionesPage() {
             Mismo recuadro que ya usan Contratos, la boleta, Política salarial
             y Documentación: se revisa antes de imprimir, no se manda a
             ciegas. `print:static print:block print:bg-transparent` en el
-            fondo y `print:max-h-none ... print:border-0` en la tarjeta son
-            los que hacen que, al imprimir de verdad, quede la hoja sola y no
-            el recuadro ni el velo oscuro alrededor. */}
+            fondo y `print:bg-transparent print:max-h-none ... print:border-0`
+            en la tarjeta son los que hacen que, al imprimir de verdad, quede
+            la hoja sola y no el recuadro ni el velo oscuro alrededor. */}
         {modalAbierto && (
           <div
             className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
@@ -867,7 +867,7 @@ export default function LiquidacionesPage() {
                 : modalAbierto === "certificado" ? "Certificado de trabajo"
                 : "Constancia de cese"
               }
-              className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
+              className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:bg-transparent print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">

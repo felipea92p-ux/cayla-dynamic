@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-06-los-papeles-del-panel-salen-sobre-blanco",
+    fecha: "2026-11-06",
+    titulo: "Los papeles del panel ya salen sobre blanco",
+    queMejoro:
+      "Al imprimir o guardar como PDF desde el panel, la hoja salía con fondo crema: el certificado de trabajo, la " +
+      "constancia de cese, la liquidación, los contratos, la boleta y los demás papeles. Ahora salen sobre blanco, " +
+      "y gastan menos tinta.\n\n" +
+      "El texto y el número de páginas siguen igual. En la pantalla no cambia nada.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-05-politica-salarial-en-el-celular",
     fecha: "2026-11-05",
     titulo: "La Política salarial ya se lee bien en el celular",
