@@ -80,6 +80,8 @@ Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar ca
 
 **El papel se compara, no se mira:** `node tema/papel.mjs` toma cada documento como lo vería la impresora y `--comparar` lo mide píxel a píxel contra otra construcción, con su número de páginas. Dos cuidados que costó aprender: los dos lados con los mismos datos (`--con-inventados` a los dos o a ninguno), y «hojas 0» quiere decir que no se llegó a ningún papel. También dice qué texto se sale del papel: `responsive` no lo ve, porque la página no se mueve de lado y el texto solo queda cortado.
 
+**La base local es de todos los worktrees:** mientras otra sesión mide con `--con-inventados`, sus personas cesadas aparecen en las fotos de esta. Dos fotos de la misma pantalla dejan de coincidir y parece que el interruptor apagado cambió algo. Antes de comparar, se cuentan las personas activas al empezar y al terminar.
+
 | Pieza | Estado |
 |---|---|
 | Colores, modo oscuro, fondo y botón de tema | Felipe lo miró y dijo «sigue». Sigue en local |
@@ -100,7 +102,7 @@ trabajo propio de cada módulo. Documentos va antes que Personas y Pago porque l
 | 1 | **Inicio:** Dashboard y Bandeja | 2 | 7 | Gráficos de jornada y tendencias | 2026-11-05 | 2026-11-05 | 2026-11-05 | 2026-11-05 | 2026-11-05 | |
 | 2 | **Asistencia:** Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias | 9 | 4 | Grilla de turnos, calendario y línea del día | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
 | 3 | **Documentos:** boleta, contrato, memo y bono | Dentro de otras | Exentos | Papel en su bandeja y su impresión | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
-| 4 | **Personas:** Equipo, ficha, Datos personales, Contratos, Documentación, Seguros, Objetivos, Casos y Disciplina | 12 | 23 | Ficha de la persona y editor de firma | | | | | | |
+| 4 | **Personas:** Equipo, ficha, Datos personales, Contratos, Documentación, Seguros, Objetivos, Casos y Disciplina | 12 | 23 | Ficha de la persona y editor de firma | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
 | 5 | **Pago:** Planilla, Boletas, Provisiones, Costos, Liquidaciones, Educación y Feriados | 8 | 38 | Tablas muy anchas de Planilla | | | | | | |
 | 6 | **Publicaciones:** Política salarial, Normas y Anuncios | 9 | 3 | Lectura de documentos y acuses | | | | | | |
 | 7 | **Reportes:** Hoja de sede y Exportar | 2 | 3 | Hoja de sede impresa | | | | | | |
