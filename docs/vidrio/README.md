@@ -93,7 +93,7 @@ trabajo propio de cada módulo. Documentos va antes que Personas y Pago porque l
 
 | # | Módulo | Pantallas | A mano | Lo que Retail no tiene: se muestra con imagen | 1 Inventario | 2 Aplicar | 3 Medir | 4 Recorrer | 5 Mostrar | 6 Cerrar |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | **Inicio:** Dashboard y Bandeja | 2 | 7 | Gráficos de jornada y tendencias | | | | | | |
+| 1 | **Inicio:** Dashboard y Bandeja | 2 | 7 | Gráficos de jornada y tendencias | 2026-11-05 | 2026-11-05 | 2026-11-05 | 2026-11-05 | 2026-11-05 | |
 | 2 | **Asistencia:** Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias | 9 | 4 | Grilla de turnos, calendario y línea del día | | | | | | |
 | 3 | **Documentos:** boleta, contrato, memo y bono | Dentro de otras | Exentos | Papel en su bandeja y su impresión | | | | | | |
 | 4 | **Personas:** Equipo, ficha, Datos personales, Contratos, Documentación, Seguros, Objetivos, Casos y Disciplina | 12 | 23 | Ficha de la persona y editor de firma | | | | | | |
