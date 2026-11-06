@@ -18,6 +18,7 @@ export function CabeceraPaginaVidrio({
   dato,
   ayuda,
   accion,
+  impreso,
 }: {
   sobretitulo?: ReactNode;
   titulo: string;
@@ -25,6 +26,11 @@ export function CabeceraPaginaVidrio({
   dato?: ReactNode;
   ayuda?: ReactNode;
   accion?: ReactNode;
+  /**
+   * Lo que sale en el papel: la cabecera de siempre. El estilo del vidrio solo vive en pantalla, y al imprimir este título salía en letra suelta y sin su frase (medido en Movilidad y en
+   * el bono). Sin ayuda ni acción: son botones, y una segunda copia le quitaría la referencia a quien espera devolverles el foco.
+   */
+  impreso?: ReactNode;
 }) {
   // Un solo «?»: la frase se lee dentro de la ventana de ayuda. Retail también los juntó (EncabezadoPagina). Quien trae su propia ventana (Disciplina) no puede recibir la frase:
   // ahí siguen los dos signos hasta su módulo.
@@ -32,7 +38,8 @@ export function CabeceraPaginaVidrio({
   // El signo va pegado a la última palabra: en un título largo, en el teléfono, caía solo al renglón de abajo.
   const corte = titulo.lastIndexOf(" ") + 1;
   return (
-    <div className="vidrio-cabecera mb-5 flex flex-wrap items-center justify-between gap-x-10 gap-y-4 sm:mb-8">
+    <>
+    <div className="vidrio-cabecera mb-5 flex flex-wrap items-center justify-between gap-x-10 gap-y-4 sm:mb-8 print:hidden">
       <div className="min-w-0">
         {sobretitulo ? (
           <p className="vidrio-sobretitulo flex min-w-0 items-center gap-3">
@@ -55,5 +62,7 @@ export function CabeceraPaginaVidrio({
       </div>
       {accion ? <div className="max-w-full shrink-0">{accion}</div> : null}
     </div>
+    {impreso ? <div className="hidden print:block">{impreso}</div> : null}
+    </>
   );
 }
