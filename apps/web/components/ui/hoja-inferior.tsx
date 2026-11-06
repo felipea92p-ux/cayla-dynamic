@@ -21,18 +21,13 @@
 import { useId, useRef, type ReactNode } from "react";
 import { useSalidaAnimada } from "@/lib/use-salida-animada";
 import { useFocoAtrapado } from "@/lib/use-foco-atrapado";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { HojaInferiorVidrio } from "@/components/vidrio/hojas";
 
 // Tiene que calzar con la duración de `.hoja-sale` en globals.css.
 const DURACION_SALIDA_MS = 200;
 
-export function HojaInferior({
-  abierto,
-  onCerrar,
-  titulo,
-  accion,
-  volverElFocoA,
-  children,
-}: {
+type PropsHojaInferior = {
   abierto: boolean;
   onCerrar: () => void;
   titulo: string;
@@ -41,7 +36,13 @@ export function HojaInferior({
   /** A quién devolverle el foco al cerrar: el botón que abrió la hoja. */
   volverElFocoA: React.RefObject<HTMLElement | null>;
   children: ReactNode;
-}) {
+};
+
+export function HojaInferior(props: PropsHojaInferior) {
+  return interruptoresVidrio().panel ? <HojaInferiorVidrio {...props} /> : <HojaInferiorClasica {...props} />;
+}
+
+function HojaInferiorClasica({ abierto, onCerrar, titulo, accion, volverElFocoA, children }: PropsHojaInferior) {
   const ref = useRef<HTMLDivElement>(null);
   const tituloId = useId();
   const { montado, saliendo } = useSalidaAnimada(abierto, DURACION_SALIDA_MS);

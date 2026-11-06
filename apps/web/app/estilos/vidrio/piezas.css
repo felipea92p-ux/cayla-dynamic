@@ -98,31 +98,31 @@
     background: var(--ahumado-fondo);
     border-color: var(--ahumado-borde);
     box-shadow: var(--ahumado-luz);
-    transition: background 200ms var(--ease-cayla), border-color 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+    transition: var(--vidrio-boton-transicion);
   }
   [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.bg-tinta, .hoja *) {
     background: var(--gota-fondo);
     box-shadow: var(--gota-luz);
-    transition: background 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+    transition: var(--vidrio-boton-transicion);
   }
   [data-vidrio="panel"] :is(button, a).rounded-control.border-sand:not(.bg-papel, .bg-tinta, .hoja *) {
     background: transparent;
     border-color: var(--placa-borde);
-    transition: background 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+    transition: var(--vidrio-boton-transicion);
   }
   /* Lo que estaba relleno de papel (el botón de un ícono, un atajo): la gota, con el filo de lo que se toca. */
   [data-vidrio="panel"] :is(button, a).rounded-control.bg-papel:not(.hoja *) {
     border-color: var(--plegar-borde);
     background: var(--gota-fondo-encima);
     box-shadow: var(--gota-luz);
-    transition: background 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+    transition: var(--vidrio-boton-transicion);
   }
   [data-vidrio="panel"] :is(button, a).rounded-control[class*="border-rojo"]:not(.hoja *) {
     background: var(--gota-peligro-fondo);
     border-color: var(--color-borde-control);
     color: var(--color-rojo-profundo);
     box-shadow: var(--gota-luz);
-    transition: background 200ms var(--ease-cayla), scale 160ms var(--ease-cayla);
+    transition: var(--vidrio-boton-transicion);
   }
   /* La acción principal de una confirmación es negra aunque anule o borre: en un pie no puede haber dos negros, y lo que se lee primero es lo que confirma.
      Se reconoce por su lugar: el último botón de su fila, dentro de una ventana. Un «Eliminar» en medio de una ficha sigue siendo la gota roja. */
@@ -447,7 +447,7 @@
   }
 
   /* ---------- Las pestañas: la fila es un pozo y la elegida una gota clara ----------
-     Dos formas de escribirlas: la pieza `Pestanas` y las que traen `role="tablist"`. La gota que fluye de una a otra llega con el bloque de movimiento. */
+     Dos formas de escribirlas: la pieza `Pestanas` y las que traen `role="tablist"`. La gota que fluye de una a otra está en movimiento.css. */
   [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"]):not(.hoja *) {
     display: inline-flex;
     width: fit-content;
@@ -530,7 +530,7 @@
 
   /* ---------- La hoja y el cajón ----------
      Vidrio con su borde de luz y su sombra larga. Lo desenfoca el velo y no la hoja: un `backdrop-filter` en la hoja la volvería el contenedor de lo `fixed` de adentro,
-     y la hoja además hace scroll. En el teléfono la hoja sube desde abajo; la que se cierra con el dedo llega con el bloque de movimiento. */
+     y la hoja además hace scroll. En el teléfono la hoja sube desde abajo; cómo entra, se va y se baja con el dedo está en movimiento.css. */
   [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"]:not(.hoja *) {
     background: var(--vidrio-velo);
     -webkit-backdrop-filter: blur(12px) saturate(1.4);

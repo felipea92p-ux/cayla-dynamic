@@ -1,0 +1,546 @@
+/* LO QUE SE MUEVE. Etapa 1, bloque 5: cómo entra y se va una hoja, cómo responde un botón, cómo llega una fila, cómo fluye la gota de una pestaña y cómo espera el sistema. Los
+   tiempos y las curvas son los de Retail (app/globals.css, «REGLA DE MOVIMIENTO», ADR-0136): sin rebote y sin bucle, salvo lo que dice que está trabajando.
+
+   Las reglas cuelgan de [data-vidrio="panel"], solo en pantalla: nada de esto llega al papel ni al terminal. Y todo lo que se mueve va bajo `no-preference`: con «reducir
+   movimiento» las cosas simplemente están donde tienen que estar, y `lib/use-hoja-viva.ts` tampoco anima la salida.
+
+   `backwards` y no `both` en toda entrada: al terminar no queda ningún `transform` puesto, y un `transform` que se queda vuelve a ese elemento el contenedor de todo lo `fixed`
+   de adentro. */
+
+@media screen {
+  @media (prefers-reduced-motion: no-preference) {
+    /* ---------- La hoja: entra ----------
+       El velo se esmerila; la hoja sube y crece, y lo de adentro llega en cascada. En la computadora se ancla arriba: si su contenido crece, no baila. */
+    [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"]:not(.hoja *) {
+      animation: vidrio-velo-entra var(--t-hoja) var(--ease-cayla) backwards;
+    }
+    [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"]:not([data-hoja-vidrio]) > .bg-papel {
+      animation: vidrio-hoja-entra var(--t-hoja) var(--ease-cayla) backwards;
+    }
+    [data-vidrio="panel"] [data-hoja-vidrio] > [role="dialog"] {
+      animation: vidrio-hoja-entra var(--t-hoja) var(--ease-cayla) backwards;
+    }
+    [data-vidrio="panel"] [data-hoja-vidrio] > [role="dialog"].inset-y-0 {
+      animation: vidrio-cajon-entra 420ms var(--ease-cayla) backwards;
+    }
+    [data-vidrio="panel"] [data-hoja-vidrio] [role="dialog"] > :not([data-asa-hoja], .overflow-y-auto, form, [data-pie-hoja]),
+    [data-vidrio="panel"] [data-hoja-vidrio] [role="dialog"] > :is(.overflow-y-auto, form) > :not([data-pie-hoja]) {
+      animation: vidrio-cascada 320ms var(--ease-cayla) backwards;
+      animation-delay: calc(var(--k, 0) * 18ms + 40ms);
+    }
+    /* Nada de lo de adentro vuelve a entrar en una foto. */
+    [data-vidrio="panel"] [data-se-va] *:not([role="dialog"]) {
+      animation: none !important;
+    }
+    /* ---------- La hoja: se va ----------
+       Lo que se va es una copia sin vida (`data-se-va`, use-hoja-viva.ts). */
+    [data-vidrio="panel"] [data-se-va] {
+      animation: vidrio-velo-sale 220ms var(--ease-cayla) forwards !important;
+      pointer-events: none;
+    }
+    [data-vidrio="panel"] [data-se-va] > [role="dialog"] {
+      animation: vidrio-hoja-sale 220ms var(--vidrio-ease-salida) forwards !important;
+    }
+    [data-vidrio="panel"] [data-se-va] > [role="dialog"].inset-y-0 {
+      animation: vidrio-cajon-sale 220ms var(--vidrio-ease-salida) forwards !important;
+    }
+    @media (max-width: 39.99rem) {
+      [data-vidrio="panel"] [data-hoja-vidrio] > [role="dialog"],
+      [data-vidrio="panel"] [data-hoja-vidrio] > [role="dialog"].inset-y-0 {
+        animation: vidrio-hoja-movil-entra 460ms var(--ease-cayla) backwards;
+      }
+      [data-vidrio="panel"] [data-se-va] {
+        animation-duration: 300ms !important;
+      }
+      [data-vidrio="panel"] [data-se-va] > [role="dialog"],
+      [data-vidrio="panel"] [data-se-va] > [role="dialog"].inset-y-0 {
+        animation: vidrio-hoja-movil-sale 300ms var(--vidrio-ease-salida) forwards !important;
+      }
+    }
+
+    /* ---------- El botón ----------
+       Al pasar: sube 2 px y lo cruza una luz, una vez, y su ícono responde. Al presionar: se encoge y baja, y una onda nace donde se tocó. */
+    [data-vidrio="panel"] :is(button, a).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, [aria-pressed], :has(> .absolute), .hoja *)::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 36%;
+      pointer-events: none;
+      background: linear-gradient(100deg, transparent, color-mix(in srgb, currentColor 26%, transparent), transparent);
+      transform: translate3d(-120%, 0, 0) skewX(-12deg);
+      opacity: 0;
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, [aria-pressed], :has(> .absolute), .hoja *)::before {
+      content: "";
+      position: absolute;
+      left: var(--onda-x, 50%);
+      top: var(--onda-y, 50%);
+      width: var(--onda-d, 0px);
+      height: var(--onda-d, 0px);
+      translate: -50% -50%;
+      border-radius: 999px;
+      pointer-events: none;
+      background: color-mix(in srgb, currentColor 24%, transparent);
+      opacity: 0;
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, [aria-pressed], :has(> .absolute), .hoja *)[data-onda]::before {
+      animation: vidrio-onda var(--t-hoja) var(--ease-cayla);
+    }
+    @media (hover: hover) {
+      [data-vidrio="panel"] :is(button, a).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, [aria-pressed], :has(> .absolute), :disabled, [aria-disabled="true"], .hoja *):hover {
+        translate: 0 -2px;
+      }
+      [data-vidrio="panel"] :is(button, a).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, [aria-pressed], :has(> .absolute), :disabled, [aria-disabled="true"], .hoja *):hover::after {
+        animation: vidrio-brillo var(--t-momento) var(--ease-cayla);
+      }
+      [data-vidrio="panel"] :is(button, a).rounded-control:not(:disabled, .hoja *):hover :is(svg.lucide-plus) {
+        rotate: 90deg;
+      }
+      [data-vidrio="panel"] :is(button, a).rounded-control:not(:disabled, .hoja *):hover :is(svg.lucide-arrow-right, svg.lucide-chevron-right) {
+        translate: 4px 0;
+      }
+      [data-vidrio="panel"] :is(button, a).rounded-control:not(:disabled, .hoja *):hover svg.lucide-arrow-up-right {
+        translate: 2px -2px;
+      }
+      [data-vidrio="panel"] :is(button, a).rounded-control:not(:disabled, .hoja *):hover svg.lucide-download {
+        translate: 0 2px;
+      }
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, [aria-pressed], :has(> .absolute), :disabled, [aria-disabled="true"], .hoja *):active {
+      translate: 0 0;
+      scale: 0.97;
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control :is(svg.lucide-plus, svg.lucide-arrow-right, svg.lucide-chevron-right, svg.lucide-arrow-up-right, svg.lucide-download) {
+      transition: rotate 300ms var(--ease-cayla), translate 300ms var(--ease-cayla);
+    }
+
+    /* ---------- La fila ----------
+       Al llegar (cargar, filtrar) suben 8 px, 28 ms entre cada una. Las que ya estaban no se repiten: React conserva sus nodos. Solo las primeras 24: en una tabla de 500 filas
+       animarlas todas son 500 capas para lo que queda bajo el pliegue. */
+    [data-vidrio="panel"] table:not(.hoja *) > tbody > tr:nth-child(-n + 24) {
+      animation: vidrio-fila 420ms var(--ease-cayla) backwards;
+      animation-delay: calc(var(--k, 11) * 28ms);
+    }
+    [data-vidrio="panel"] [data-hoja-vidrio] table > tbody > tr:nth-child(-n + 24) {
+      animation-delay: calc(var(--k, 11) * 18ms + 120ms);
+    }
+    /* Una fila que lleva a su detalle: al pasar, el hilo rojo crece desde el centro en el borde izquierdo y la «›» asoma a la derecha. En la celda y no en el <tr>: un `::after` en
+       una fila de tabla crea una celda fantasma. */
+    [data-vidrio="panel"] table:not(.hoja *) > tbody > tr.cursor-pointer > td:first-child {
+      background-image: linear-gradient(var(--color-rojo), var(--color-rojo));
+      background-repeat: no-repeat;
+      background-position: 0 50%;
+      background-size: 2px 0;
+      transition: background-size 220ms var(--ease-cayla);
+    }
+    [data-vidrio="panel"] table:not(.hoja *) > tbody > tr.cursor-pointer > td:last-child {
+      position: relative;
+    }
+    [data-vidrio="panel"] table:not(.hoja *) > tbody > tr.cursor-pointer:not(:has(.lucide-chevron-right)) > td:last-child::after {
+      content: "›";
+      position: absolute;
+      top: 50%;
+      right: 0.375rem;
+      translate: -4px -50%;
+      color: var(--color-tinta);
+      font-size: 1rem;
+      line-height: 1;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms var(--ease-cayla), translate 200ms var(--ease-cayla);
+    }
+    @media (hover: hover) {
+      [data-vidrio="panel"] table:not(.hoja *) > tbody > tr.cursor-pointer:hover > td:first-child {
+        background-size: 2px calc(100% - 1.25rem);
+      }
+      [data-vidrio="panel"] table:not(.hoja *) > tbody > tr.cursor-pointer:hover > td:last-child::after {
+        opacity: 1;
+        translate: 0 -50%;
+      }
+    }
+
+    /* ---------- El campo ----------
+       Con el cursor adentro, su borde de abajo dibuja el hilo rojo desde el centro. Una imagen de fondo: un <input> no tiene `::after`. */
+    [data-vidrio="panel"] :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), textarea):is(.bg-hueso, .bg-crema, .border-borde-control):not(.hoja *),
+    [data-vidrio="panel"] :is(label, div).bg-hueso:has(> input):not(.hoja *) {
+      background-image: linear-gradient(var(--color-rojo), var(--color-rojo));
+      background-repeat: no-repeat;
+      background-position: 50% 100%;
+      background-size: 0 2px;
+      transition: background-color 300ms var(--ease-cayla), box-shadow 300ms var(--ease-cayla), border-color 220ms var(--ease-cayla), background-size var(--t-momento) var(--ease-cayla);
+    }
+    [data-vidrio="panel"] :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), textarea):is(.bg-hueso, .bg-crema, .border-borde-control):not(.hoja *):focus,
+    [data-vidrio="panel"] :is(label, div).bg-hueso:has(> input:focus):not(.hoja *) {
+      background-size: calc(100% - 1.25rem) 2px;
+    }
+
+    /* ---------- El título de la pantalla ----------
+       La línea de arriba se dibuja y el título sube, una vez, al llegar. */
+    [data-vidrio="panel"] .vidrio-cabecera .vidrio-sobretitulo > span:first-child {
+      transform-origin: left center;
+      animation: vidrio-traza var(--t-momento) var(--ease-cayla) backwards;
+    }
+    [data-vidrio="panel"] .vidrio-cabecera .vidrio-titulo {
+      animation: vidrio-fila 420ms var(--ease-cayla) backwards;
+    }
+
+    /* ---------- El menú desplegable y el aviso de la esquina ---------- */
+    [data-vidrio="panel"] [role="menu"]:not(.hoja *) {
+      transform-origin: top center;
+      animation: vidrio-menu var(--t-cambio) var(--ease-cayla) backwards;
+    }
+    [data-vidrio="panel"] [aria-live="polite"].fixed.bottom-4 > [role] {
+      animation: vidrio-aviso var(--t-momento) var(--ease-cayla) backwards;
+    }
+
+    /* ---------- La gota de las pestañas ----------
+       Fluye en dos tramos: se estira hasta cubrir la de antes y la nueva, y se recoge en la nueva. Cuándo pasa al segundo lo decide `components/vidrio/gota-de-pestanas.tsx`. */
+    [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"])[data-gota][data-fluye="estira"]::before {
+      transition: transform 220ms var(--ease-cayla), width 220ms var(--ease-cayla);
+    }
+    [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"])[data-gota][data-fluye="recoge"]::before {
+      transition: transform 300ms var(--ease-cayla), width 300ms var(--ease-cayla);
+    }
+
+    /* ---------- La espera ---------- */
+    [data-vidrio="panel"] .vidrio-espera-anillo circle {
+      transform-origin: center;
+      animation: vidrio-gira 1.1s linear infinite;
+    }
+    [data-vidrio="panel"] .vidrio-espera-hilo::after {
+      animation: vidrio-hilo 1.4s var(--ease-cayla) infinite;
+    }
+    [data-vidrio="panel"] .vidrio-espera-marca {
+      animation: vidrio-lente 420ms var(--ease-cayla) backwards;
+    }
+  }
+
+  /* ---------- Lo que no se mueve pero el movimiento necesita ---------- */
+  /* La cascada: en qué turno llega cada pieza. */
+  [data-vidrio="panel"] [data-hoja-vidrio] :is([role="dialog"], [role="dialog"] > .overflow-y-auto, [role="dialog"] > form) > :nth-child(2) { --k: 1; }
+  [data-vidrio="panel"] [data-hoja-vidrio] :is([role="dialog"], [role="dialog"] > .overflow-y-auto, [role="dialog"] > form) > :nth-child(3) { --k: 2; }
+  [data-vidrio="panel"] [data-hoja-vidrio] :is([role="dialog"], [role="dialog"] > .overflow-y-auto, [role="dialog"] > form) > :nth-child(4) { --k: 3; }
+  [data-vidrio="panel"] [data-hoja-vidrio] :is([role="dialog"], [role="dialog"] > .overflow-y-auto, [role="dialog"] > form) > :nth-child(5) { --k: 4; }
+  [data-vidrio="panel"] [data-hoja-vidrio] :is([role="dialog"], [role="dialog"] > .overflow-y-auto, [role="dialog"] > form) > :nth-child(6) { --k: 5; }
+  [data-vidrio="panel"] [data-hoja-vidrio] :is([role="dialog"], [role="dialog"] > .overflow-y-auto, [role="dialog"] > form) > :nth-child(7) { --k: 6; }
+  [data-vidrio="panel"] [data-hoja-vidrio] :is([role="dialog"], [role="dialog"] > .overflow-y-auto, [role="dialog"] > form) > :nth-child(n + 8) { --k: 7; }
+  /* En qué turno llega cada fila: una a una hasta la 12. */
+  [data-vidrio="panel"] table > tbody > tr:nth-child(1) { --k: 0; }
+  [data-vidrio="panel"] table > tbody > tr:nth-child(2) { --k: 1; }
+  [data-vidrio="panel"] table > tbody > tr:nth-child(3) { --k: 2; }
+  [data-vidrio="panel"] table > tbody > tr:nth-child(4) { --k: 3; }
+  [data-vidrio="panel"] table > tbody > tr:nth-child(5) { --k: 4; }
+  [data-vidrio="panel"] table > tbody > tr:nth-child(6) { --k: 5; }
+  [data-vidrio="panel"] table > tbody > tr:nth-child(7) { --k: 6; }
+  [data-vidrio="panel"] table > tbody > tr:nth-child(8) { --k: 7; }
+  [data-vidrio="panel"] table > tbody > tr:nth-child(9) { --k: 8; }
+  [data-vidrio="panel"] table > tbody > tr:nth-child(10) { --k: 9; }
+  [data-vidrio="panel"] table > tbody > tr:nth-child(11) { --k: 10; }
+
+  /* La hoja en la computadora se ancla arriba y no al centro: si su contenido crece, no baila. */
+  @media (min-width: 40rem) {
+    [data-vidrio="panel"] [data-hoja-vidrio].items-center {
+      align-items: flex-start;
+      padding-top: 8vh;
+    }
+    [data-vidrio="panel"] [data-hoja-vidrio].items-center > [role="dialog"] {
+      max-height: calc(100dvh - 8vh - 1rem);
+    }
+  }
+
+  /* El asa: dice que la hoja se baja con el dedo. Se queda a la vista al correr. Solo en el teléfono. */
+  [data-vidrio="panel"] .vidrio-asa {
+    display: none;
+  }
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] [role="dialog"] > .vidrio-asa {
+      display: flex;
+      flex-shrink: 0;
+      justify-content: center;
+      padding-top: 0.5rem;
+      height: 1.25rem;
+    }
+    [data-vidrio="panel"] [role="dialog"].overflow-y-auto > .vidrio-asa {
+      position: sticky;
+      top: -1.5rem;
+      z-index: 3;
+      margin: -1.5rem -1.5rem 0;
+    }
+    [data-vidrio="panel"] .vidrio-asa::before {
+      content: "";
+      width: 2.25rem;
+      height: 5px;
+      border-radius: 5px;
+      background: color-mix(in srgb, var(--color-tinta) 20%, transparent);
+      transition: width 160ms var(--ease-cayla), background 160ms var(--ease-cayla);
+    }
+    [data-vidrio="panel"] [data-arrastrando] > .vidrio-asa::before {
+      width: 2.75rem;
+      background: color-mix(in srgb, var(--color-tinta) 38%, transparent);
+    }
+  }
+
+  /* El pie: los botones de una hoja larga se quedan a la vista. Solo si la hoja corre: si no, no hay nada que tape y sería una franja de más. */
+  [data-vidrio="panel"] [data-pie-hoja][data-hoja-corre] {
+    position: sticky;
+    bottom: calc(-1 * var(--pie-abajo, 0px));
+    z-index: 2;
+    margin-inline: calc(-1 * var(--pie-izq, 0px)) calc(-1 * var(--pie-der, 0px));
+    margin-bottom: calc(-1 * var(--pie-abajo, 0px));
+    padding-inline: var(--pie-izq, 0px) var(--pie-der, 0px);
+    padding-top: 0.875rem;
+    padding-bottom: var(--pie-abajo, 0px);
+    background: var(--vidrio-pie-fondo);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+  }
+  /* En el teléfono se reparten el ancho: el pulgar los alcanza y ninguno queda chico. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] [data-pie-hoja].flex > :is(button, a[href]) {
+      flex: 1 1 0;
+      justify-content: center;
+      text-align: center;
+    }
+  }
+
+  /* La hoja con el teclado arriba: llena lo visible y reserva lo que el teclado tapa. Ver useHojaSobreElTeclado en use-hoja-viva.ts. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] [data-teclado] > [role="dialog"] {
+      max-height: 100%;
+    }
+    [data-vidrio="panel"] [data-teclado] > [role="dialog"].overflow-y-auto {
+      padding-bottom: calc(var(--teclado, 0px) + 1.5rem);
+      scroll-padding-bottom: calc(var(--teclado, 0px) + var(--alto-pie, 0px) + 1rem);
+    }
+    [data-vidrio="panel"] [data-teclado] [data-pie-hoja]::after {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      top: 100%;
+      height: var(--teclado, 0px);
+      background: var(--vidrio-pie-fondo);
+      pointer-events: none;
+    }
+  }
+
+  /* Un botón que se mueve y deja ver su luz y su onda adentro. */
+  [data-vidrio="panel"] :is(button, a).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, [aria-pressed], :has(> .absolute), .hoja *) {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* La gota de las pestañas: una sola pieza que viaja. Sin ella (antes de medir, o sin JavaScript) la elegida se pinta sola, como en piezas.css. */
+  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"])[data-gota]:not(.hoja *) {
+    position: relative;
+    isolation: isolate;
+  }
+  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"])[data-gota]:not(.hoja *)::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    top: 4px;
+    bottom: 4px;
+    left: 0;
+    width: var(--gota-w, 0px);
+    transform: translate3d(var(--gota-x, 0px), 0, 0);
+    border-radius: 999px;
+    background: var(--gota-marca);
+    box-shadow: var(--gota-luz);
+    pointer-events: none;
+  }
+  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"])[data-gota] > :is(button[aria-current="page"], [role="tab"][aria-selected="true"]):not(.hoja *) {
+    background: none;
+    box-shadow: none;
+  }
+
+  /* El aviso de la esquina: la lente de su tono, como en Retail. Un error se reconoce de reojo, antes de leerlo. */
+  [data-vidrio="panel"] [aria-live="polite"].fixed.bottom-4 > [role] {
+    --c: var(--color-verde);
+    border-radius: 20px;
+    border-color: color-mix(in srgb, var(--c) var(--lente-tono-filo), transparent);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--c) var(--lente-tono-tinte-arriba), var(--lente-tono-base-arriba)),
+      color-mix(in srgb, var(--c) var(--lente-tono-tinte-abajo), var(--lente-tono-base-abajo))
+    );
+    -webkit-backdrop-filter: var(--vidrio-hoja-filtro);
+    backdrop-filter: var(--vidrio-hoja-filtro);
+    box-shadow: var(--lente-tono-sombra);
+  }
+  [data-vidrio="panel"] [aria-live="polite"].fixed.bottom-4 > [role="alert"] {
+    --c: var(--color-rojo);
+  }
+
+  /* La espera: una lente con el colibrí y su arco, y una ranura corta bajo las palabras. Lo que el terminal también usa queda como estaba: sin este atributo, la lente no existe. */
+  [data-vidrio="panel"] .vidrio-espera-marca {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 96px;
+    height: 96px;
+    border-radius: 999px;
+    border: 1px solid var(--lente-grande-borde);
+    background: var(--lente-grande-fondo);
+    -webkit-backdrop-filter: var(--lente-grande-filtro);
+    backdrop-filter: var(--lente-grande-filtro);
+    box-shadow: var(--lente-grande-sombra);
+  }
+  [data-vidrio="panel"] .vidrio-espera-marca[data-compacta] {
+    width: 64px;
+    height: 64px;
+  }
+  [data-vidrio="panel"] .vidrio-espera-marca .colibri {
+    width: 2.25rem;
+    color: var(--color-rojo);
+  }
+  [data-vidrio="panel"] .vidrio-espera-marca[data-compacta] .colibri {
+    width: 1.5rem;
+  }
+  [data-vidrio="panel"] .vidrio-espera-anillo {
+    display: block;
+    position: absolute;
+    inset: -6px;
+    width: calc(100% + 12px);
+    height: calc(100% + 12px);
+    color: var(--color-rojo);
+  }
+  [data-vidrio="panel"] .vidrio-espera-hilo {
+    display: block;
+    position: relative;
+    width: 120px;
+    height: 2px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--tubo-fondo);
+  }
+  [data-vidrio="panel"] .vidrio-espera-hilo::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    border-radius: 2px;
+    background: var(--color-rojo);
+  }
+}
+
+/* Una hoja abierta no sale al papel: cuelga de <body>, fuera de los `print:hidden` de su pantalla. Lo que se imprime desde una hoja va por `ImprimibleAparte`. */
+@media print {
+  [data-vidrio="panel"] [data-hoja-vidrio],
+  [data-vidrio="panel"] [data-se-va] {
+    display: none !important;
+  }
+}
+
+@keyframes vidrio-velo-entra {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes vidrio-velo-sale {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes vidrio-hoja-entra {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(0.965);
+  }
+}
+@keyframes vidrio-hoja-sale {
+  to {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.98);
+  }
+}
+@keyframes vidrio-hoja-movil-entra {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+}
+@keyframes vidrio-hoja-movil-sale {
+  to {
+    transform: translate3d(0, 100%, 0);
+  }
+}
+@keyframes vidrio-cajon-entra {
+  from {
+    transform: translate3d(calc(100% + 12px), 0, 0);
+  }
+}
+@keyframes vidrio-cajon-sale {
+  to {
+    transform: translate3d(calc(100% + 12px), 0, 0);
+  }
+}
+@keyframes vidrio-cascada {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+}
+@keyframes vidrio-fila {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}
+@keyframes vidrio-traza {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+}
+@keyframes vidrio-menu {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0) scale(0.98);
+  }
+}
+@keyframes vidrio-aviso {
+  from {
+    opacity: 0;
+    transform: translate3d(16px, 0, 0) scale(0.97);
+  }
+}
+@keyframes vidrio-onda {
+  from {
+    opacity: 1;
+    scale: 0;
+  }
+  to {
+    opacity: 0;
+    scale: 1;
+  }
+}
+@keyframes vidrio-brillo {
+  from {
+    opacity: 1;
+    transform: translate3d(-120%, 0, 0) skewX(-12deg);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(320%, 0, 0) skewX(-12deg);
+  }
+}
+@keyframes vidrio-gira {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes vidrio-hilo {
+  from {
+    transform: translate3d(-100%, 0, 0);
+  }
+  to {
+    transform: translate3d(300%, 0, 0);
+  }
+}
+@keyframes vidrio-lente {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}

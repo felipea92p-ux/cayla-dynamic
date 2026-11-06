@@ -1,17 +1,15 @@
 "use client";
 
 // El cajón del menú en el teléfono se cierra también deslizándolo hacia la izquierda, como el de cualquier app. El menú sigue al dedo,
-// el velo se aclara en la misma proporción y, al soltar, se va (pasado un tercio, o de un tirón) o vuelve a su lugar. Un dedo que va de
-// arriba abajo sigue desplazando el menú. La forma y los números son los de Retail (components/useLateralConElDedo.ts, lib/hoja-gesto.ts);
-// lo de alejar la pantalla de atrás llega con el bloque de movimiento.
+// el velo se aclara y lo de atrás vuelve en la misma proporción y, al soltar, se va (pasado un tercio, o de un tirón) o vuelve a su lugar. Un dedo que va de
+// arriba abajo sigue desplazando el menú. La forma y los números son los de Retail (components/useLateralConElDedo.ts, lib/hoja-gesto.ts).
 
 import { useEffect, useRef, type RefObject } from "react";
+import { FRACCION_PARA_PASAR, MOVIMIENTO_MINIMO, goma } from "@/lib/hoja-gesto";
 import { CONSULTA_CELULAR } from "@/lib/vidrio-lateral";
 
 /** Lo que no se arrastra aunque el dedo vaya de lado. */
 const NO_ARRASTRA = 'input, textarea, select, [contenteditable="true"], [role="slider"]';
-const MOVIMIENTO_MINIMO = 6;
-const FRACCION_PARA_CERRAR = 1 / 3;
 const TIRON = 0.45; // px por ms
 
 type Muestra = { t: number; x: number };
@@ -25,13 +23,12 @@ export function decidirLado(dx: number, dy: number): "lado" | "otro" | null {
 /** Al soltar: se cierra quien recorrió un tercio del ancho o fue un tirón hacia la izquierda. */
 export function cierraElCajon(dx: number, vx: number, ancho: number): boolean {
   if (dx >= 0) return false;
-  return -dx > ancho * FRACCION_PARA_CERRAR || vx < -TIRON;
+  return -dx > ancho * FRACCION_PARA_PASAR || vx < -TIRON;
 }
 
 /** A la izquierda, uno a uno; a la derecha ya está abierto: resiste y se frena en 16 px. */
 export function posicionDelCajon(dx: number): number {
-  if (dx <= 0) return dx;
-  return (1 - 1 / (dx / (16 * 3.6) + 1)) * 16;
+  return dx <= 0 ? dx : goma(dx, 16);
 }
 
 function velocidad(muestras: readonly Muestra[]): number {
@@ -47,10 +44,14 @@ export function useCerrarConElDedo(
   velo: RefObject<HTMLElement | null>,
   abierto: boolean,
   cerrar: () => void,
+  /** Cada vez que el menú se mueve: cuánto de él se fue (0 abierto, 1 cerrado) y en cuántos ms llega. Lo usa lo de atrás. */
+  alMoverse?: (progreso: number, ms: number) => void,
 ): void {
   const alCerrar = useRef(cerrar);
+  const moverse = useRef(alMoverse);
   useEffect(() => {
     alCerrar.current = cerrar;
+    moverse.current = alMoverse;
   });
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export function useCerrarConElDedo(
         v.style.transition = "none";
         v.style.opacity = String(1 - Math.min(1, Math.max(0, -x / el.offsetWidth)));
       }
+      moverse.current?.(Math.min(1, Math.max(0, -x / el.offsetWidth)), 0);
     };
     const soltarEstilos = () => {
       el.style.transition = "";
@@ -111,6 +113,7 @@ export function useCerrarConElDedo(
       const vx = e.type === "touchcancel" ? 0 : velocidad(g.muestras);
       soltarEstilos();
       if (e.type !== "touchcancel" && cierraElCajon(dx, vx, el.offsetWidth)) alCerrar.current();
+      else moverse.current?.(0, 300);
     };
 
     el.addEventListener("touchstart", alTocar, { passive: true });

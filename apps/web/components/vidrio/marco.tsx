@@ -18,14 +18,18 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { Menu, Search, X } from "lucide-react";
+import { alejarFondo, devolverFondo, moverFondo } from "@/lib/fondo-de-la-hoja";
+import { useAtrasCierraLaHoja } from "@/lib/use-atras-cierra-la-hoja";
 import { useFocoAtrapado } from "@/lib/use-foco-atrapado";
 import { useCerrarConElDedo } from "@/lib/use-cerrar-con-el-dedo";
 import { useEsCelular, useLateralPlegado } from "@/lib/use-vidrio-lateral";
 import { alternarLateral } from "@/lib/vidrio-lateral";
 import type { FilaMenu, HojaMenu } from "@/lib/vidrio-menu";
 import { BotonTema } from "@/components/vidrio/boton-tema";
+import { GotaDePestanas } from "@/components/vidrio/gota-de-pestanas";
 import { LogoCayla } from "@/components/vidrio/logo-cayla";
 import { MenuFilas } from "@/components/vidrio/menu";
+import { OndaBotones } from "@/components/vidrio/onda-botones";
 import { PlacaPersona, type PersonaDeLaPlaca } from "@/components/vidrio/placa-persona";
 
 // La tecla que se muestra es la de la máquina que se tiene delante. Retail y el Dynamic de hoy muestran una sola para todos.
@@ -95,8 +99,21 @@ export function MarcoVidrio({
   const hamburguesa = useRef<HTMLButtonElement>(null);
   const cerrarCajon = () => setCajon(false);
 
+  // Lo de atrás se corre de costado mientras el menú está abierto, y vuelve con él (también al ritmo del dedo). Mismos tiempos que `.marco-riel` en marco.css.
+  const fondo = useRef<symbol | null>(null);
+  useEffect(() => {
+    if (!cajon || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const llave = alejarFondo(420, "lado");
+    fondo.current = llave;
+    return () => {
+      devolverFondo(llave, 260, "var(--vidrio-ease-salida)");
+      fondo.current = null;
+    };
+  }, [cajon]);
+
   useFocoAtrapado({ abierto: cajon, onCerrar: cerrarCajon, caja: aside, volverElFocoA: hamburguesa });
-  useCerrarConElDedo(aside, velo, cajon, cerrarCajon);
+  useCerrarConElDedo(aside, velo, cajon, cerrarCajon, (progreso, ms) => moverFondo(fondo.current, progreso, ms));
+  useAtrasCierraLaHoja(cajon, cerrarCajon);
 
   // Con el cajón abierto, la pantalla de atrás no se desplaza.
   useEffect(() => {
@@ -124,6 +141,8 @@ export function MarcoVidrio({
 
   return (
     <div className="flex min-h-screen w-full min-w-0 flex-1">
+      <OndaBotones />
+      <GotaDePestanas />
       {/* Siempre montado, para que también se apague al cerrar; cerrado no recibe toques. */}
       <div
         ref={velo}
@@ -190,7 +209,7 @@ export function MarcoVidrio({
       </button>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="marco-cabecera print:hidden" data-con-titulo={tituloCelular ? "" : undefined}>
+        <header className="marco-cabecera print:hidden" data-fondo-hoja="borde" data-con-titulo={tituloCelular ? "" : undefined}>
           <div className="marco-cabecera-fila">
             <div className="marco-isla marco-isla-izq">
               <button
@@ -230,7 +249,10 @@ export function MarcoVidrio({
           </div>
         </header>
 
-        {children}
+        {/* Lo de atrás de una hoja en el teléfono: se aleja como una tarjeta. No agrega nada a la página: la misma columna que tenía el contenido. */}
+        <div data-fondo-hoja className="flex min-w-0 flex-1 flex-col">
+          {children}
+        </div>
       </div>
     </div>
   );

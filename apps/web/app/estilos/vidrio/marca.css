@@ -19,6 +19,11 @@
     --color-sombra: #1a1a18;
     --ease-cayla: cubic-bezier(0.32, 0.72, 0.24, 1);
     --vidrio-ease-salida: cubic-bezier(0.4, 0, 1, 1);
+    --t-resp: 100ms;
+    --t-cambio: 160ms;
+    --t-hoja: 260ms;
+    --t-momento: 480ms;
+    --vidrio-boton-transicion: background 200ms var(--ease-cayla), border-color 200ms var(--ease-cayla), scale var(--t-resp) var(--ease-cayla), translate var(--t-cambio) var(--ease-cayla);
     /* La letra secundaria sobre la aurora: un punto más de tinta que el café de marca. Medido con píxeles: sobre la nube más teñida el café daba 3.82:1. */
     --vidrio-letra-secundaria: color-mix(in srgb, var(--color-taupe) 85%, var(--color-tinta));
     --brillo-superior: rgb(255 255 255 / 0.95);
@@ -52,6 +57,11 @@
     --color-sombra: #000000;
     --ease-cayla: cubic-bezier(0.32, 0.72, 0.24, 1);
     --vidrio-ease-salida: cubic-bezier(0.4, 0, 1, 1);
+    --t-resp: 100ms;
+    --t-cambio: 160ms;
+    --t-hoja: 260ms;
+    --t-momento: 480ms;
+    --vidrio-boton-transicion: background 200ms var(--ease-cayla), border-color 200ms var(--ease-cayla), scale var(--t-resp) var(--ease-cayla), translate var(--t-cambio) var(--ease-cayla);
     --vidrio-letra-secundaria: var(--color-taupe);
     --brillo-superior: color-mix(in srgb, var(--color-tinta) 10%, transparent);
     --color-ambar-profundo: #ecc676;
