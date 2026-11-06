@@ -216,7 +216,11 @@ async function tomar(a) {
             const t = textos.currentNode;
             const e = t.parentElement;
             if (!t.textContent.trim() || !e || !e.closest(".hoja, .vidrio-papel")) continue;
-            if (e.closest("[class*='overflow-x-auto'], [class*='overflow-auto'], .sr-only, [hidden]") || getComputedStyle(e).visibility === "hidden") continue;
+            if (e.closest(".sr-only, [hidden]") || getComputedStyle(e).visibility === "hidden") continue;
+            // Lo que corre de lado dentro de su caja no está cortado: se alcanza con el dedo.
+            let corre = false;
+            for (let x = e; x && !corre; x = x.parentElement) corre = ["auto", "scroll"].includes(getComputedStyle(x).overflowX) && x.scrollWidth > x.clientWidth;
+            if (corre) continue;
             const r = document.createRange();
             r.selectNodeContents(t);
             const c = r.getBoundingClientRect();

@@ -66,7 +66,12 @@
     [data-vidrio="panel"] main.hoja {
       width: 100%;
       min-width: 0;
-      padding-inline: 0;
+      padding-inline: 16px;
+    }
+    /* Las dos firmas del certificado miden 224 px cada una: una al lado de la otra no caben, y la de la empresa quedaba cortada. */
+    [data-vidrio="panel"] .hoja .flex.justify-between:has(.w-56) {
+      flex-wrap: wrap;
+      row-gap: 24px;
     }
     [data-vidrio="panel"] .vidrio-papel > :is(section, div):has(> table) {
       overflow-x: auto;
