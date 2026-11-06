@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { PapelEnPantalla } from "@/components/vidrio/papel-en-pantalla";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
@@ -360,6 +361,7 @@ function ConstanciasPoliticaSalarialContenido() {
         </BannerAviso>
       )}
 
+      <PapelEnPantalla>
       <header className="mb-5 border-b border-sand pb-4">
         <p className="font-serif text-[11px] uppercase tracking-[0.2em] text-taupe">
           {EMPRESA.nombre} · RUC N.° {EMPRESA.ruc}
@@ -498,6 +500,7 @@ function ConstanciasPoliticaSalarialContenido() {
           Desarrollo Organizacional · {EMPRESA.nombre}
         </div>
       </section>
+      </PapelEnPantalla>
     </main>
   );
 }

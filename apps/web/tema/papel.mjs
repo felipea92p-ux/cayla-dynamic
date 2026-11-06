@@ -2,9 +2,12 @@
 //
 //   node tema/papel.mjs --salida /ruta --base-url http://localhost:3100       toma todos los documentos de esa construcción
 //   node tema/papel.mjs --comparar /ruta/antes /ruta/ahora                    los compara: mismas páginas y mismos píxeles, o dice dónde no
+//   node tema/papel.mjs --salida /ruta --con-inventados --solo a,b            los que el entorno local no trae de fábrica: entran por un rato (papel-inventados.sql) y al terminar se borran
 //
-// Un documento que depende de un dato (un memo, unos cargos) se busca en su lista: si el entorno local no lo tiene, se dice, no se da por bueno.
+// Un documento que depende de un dato (un memo, unos cargos) se busca en su lista: si el entorno local no lo tiene, se dice, no se da por bueno. Y si dice «hojas 0», ahí no se
+// llegó a ningún papel: la toma no prueba nada de ese documento.
 
+import { spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -24,6 +27,40 @@ const enlaceDe = (lista, prefijo) => async (p, base) => {
 
 let idMemo = null;
 
+/** La base local, la de scripts/local: lo único contra lo que corre esto. */
+function psqlLocal(sql) {
+  const r = spawnSync("psql", ["-q", "-At", "-v", "ON_ERROR_STOP=1"], {
+    input: sql,
+    encoding: "utf8",
+    env: { ...process.env, PGHOST: "127.0.0.1", PGPORT: process.env.TEMA_PG_PUERTO || "55890", PGUSER: "postgres", PGDATABASE: "postgres" },
+  });
+  if (r.status !== 0) throw new Error(r.stderr);
+  return r.stdout.trim();
+}
+
+const ARCHIVO_INVENTADOS = new URL("./papel-inventados.sql", import.meta.url);
+function ponerInventados() {
+  psqlLocal(readFileSync(ARCHIVO_INVENTADOS, "utf8").split("-- ---------- BORRAR ----------")[0]);
+}
+function quitarInventados() {
+  const parte = readFileSync(ARCHIVO_INVENTADOS, "utf8").split("-- ---------- BORRAR ----------")[1];
+  psqlLocal(parte.replace(/^-- /gm, ""));
+}
+
+const NORMA = "00000000-0000-4000-8000-0000000000a1";
+const CARGOS = "00000000-0000-4000-8000-0000000000a2";
+/** Quien cesó hace semanas está en «Vencidas». */
+async function abrirLaLiquidacion(p) {
+  await p.getByRole("tab", { name: /Vencidas/i }).or(p.getByRole("button", { name: /Vencidas/i })).first().click({ timeout: 6000 });
+  await p.waitForTimeout(500);
+  await p.getByRole("button", { name: /^Revisar/ }).first().click({ timeout: 6000 });
+  await p.waitForTimeout(2000);
+}
+const clic = (nombre) => async (p) => {
+  await p.getByRole("button", { name: nombre }).first().click({ timeout: 6000 });
+  await p.waitForTimeout(1000);
+};
+
 export const DOCUMENTOS = [
   { nombre: "boleta-mia", cuenta: "integrante", ruta: "/mio/boleta" },
   { nombre: "contrato-mio", cuenta: "integrante", ruta: "/mio/contrato" },
@@ -38,13 +75,63 @@ export const DOCUMENTOS = [
       return href;
     },
   },
-  { nombre: "boleta-planilla", cuenta: "do", ruta: "/admin/planilla/boleta" },
+  {
+    nombre: "boleta-planilla",
+    cuenta: "do",
+    buscar: async () => {
+      return `/admin/planilla/boleta?periodo=${psqlLocal("select id from periodos_planilla order by fecha_ini desc limit 1")}&persona=${psqlLocal("select id from personas where nombres = 'Ana' and apellidos = 'Torres Ruiz'")}`;
+    },
+  },
   { nombre: "hoja-de-sede", cuenta: "do", ruta: "/admin/reporte-sede" },
   { nombre: "politica", cuenta: "do", ruta: "/admin/politica-salarial" },
   { nombre: "memo-disciplina", cuenta: "do", buscar: async () => (idMemo ? `/admin/disciplina/memo/${idMemo}` : null) },
   { nombre: "contrato-visor", cuenta: "do", ruta: "/admin/contratos", tocar: async (p) => { await p.getByRole("button", { name: "Más acciones" }).first().click({ timeout: 5000 }).catch(() => p.locator("button:has-text('⋯'), button:has-text('•••')").first().click({ timeout: 4000 })); await p.waitForTimeout(300); await p.getByRole("menuitem", { name: /imprimir/i }).first().click({ timeout: 4000 }); await p.waitForTimeout(1500); } },
-  { nombre: "documentacion", cuenta: "do", ruta: "/admin/documentacion", tocar: async (p) => { await p.evaluate(() => { window.print = () => {}; }); await p.getByRole("button", { name: /Imprimir pendientes/ }).first().click({ timeout: 5000 }); await p.waitForTimeout(1500); } },
+  { nombre: "documentacion", cuenta: "do", ruta: "/admin/documentacion", tocar: async (p) => {
+      // El lote se vacía en cuanto el diálogo de impresión vuelve. Sin ese diálogo, un error aquí corta esa limpieza y deja a la vista lo que se iba a imprimir.
+      await p.evaluate(() => { window.print = () => { throw new Error("la toma del papel"); }; });
+      await p.getByRole("button", { name: /Imprimir pendientes/ }).first().click({ timeout: 5000 });
+      await p.waitForTimeout(1500);
+    } },
+  {
+    nombre: "liquidacion",
+    cuenta: "do",
+    ruta: "/admin/liquidaciones",
+    tocar: async (p) => {
+      await abrirLaLiquidacion(p);
+      await clic("Imprimir hoja para firmar")(p);
+    },
+  },
+  {
+    nombre: "certificado-de-trabajo",
+    cuenta: "do",
+    ruta: "/admin/liquidaciones",
+    tocar: async (p) => {
+      await abrirLaLiquidacion(p);
+      await clic("Certificado de trabajo")(p);
+    },
+  },
+  {
+    nombre: "constancia-de-cese",
+    cuenta: "do",
+    ruta: "/admin/liquidaciones",
+    tocar: async (p) => {
+      await abrirLaLiquidacion(p);
+      await clic("Constancia de cese")(p);
+    },
+  },
   { nombre: "constancias-politica", cuenta: "do", ruta: "/admin/politica-salarial/constancias" },
+  { nombre: "constancias-norma", cuenta: "do", ruta: `/admin/normas/${NORMA}/constancias` },
+  { nombre: "cargos-disciplina", cuenta: "do", ruta: `/admin/disciplina/cargos/${CARGOS}` },
+  { nombre: "cargos-mios", cuenta: "integrante", ruta: `/mio/cargos/${CARGOS}` },
+  {
+    nombre: "constancia-boleta",
+    cuenta: "do",
+    buscar: async () => `/admin/planilla/boletas?periodo=${psqlLocal("select id from periodos_planilla order by fecha_ini desc limit 1")}`,
+    tocar: async (p) => {
+      await p.getByRole("button", { name: "Ver boleta firmada" }).first().click({ timeout: 6000 });
+      await p.waitForTimeout(1200);
+    },
+  },
 ];
 
 function leerArgumentos(argv) {
@@ -56,6 +143,8 @@ function leerArgumentos(argv) {
     else if (x === "--comparar") a.comparar = [argv[++i], argv[++i]];
     else if (x === "--pantalla") a.pantalla = true;
     else if (x === "--temas") a.temas = argv[++i].split(",");
+    else if (x === "--solo") a.solo = argv[++i].split(",");
+    else if (x === "--con-inventados") a.inventados = true;
     else throw new Error(`No sé qué es «${x}».`);
   }
   return a;
@@ -68,8 +157,15 @@ async function tomar(a) {
   await exigirDynamic(a.base);
   const navegador = await abrirNavegador();
   const fuera = new Set();
-  const paginas = {};
+  const donde = path.join(a.salida, "paginas.json");
+  let paginas = {};
+  try {
+    paginas = JSON.parse(readFileSync(donde, "utf8"));
+  } catch {
+    // Primera toma en esta carpeta.
+  }
   for (const doc of DOCUMENTOS) {
+    if (a.solo && !a.solo.includes(doc.nombre)) continue;
     for (const tema of a.temas) {
       const ctx = await abrirContexto(navegador, porClave(doc.cuenta), { baseUrl: a.base, apiUrl: API_POR_DEFECTO, tema, viewport: { width: 1200, height: 1000 }, fuera });
       const p = await ctx.newPage();
@@ -98,7 +194,7 @@ async function tomar(a) {
     }
   }
   await navegador.close();
-  writeFileSync(path.join(a.salida, "paginas.json"), JSON.stringify(paginas, null, 1));
+  writeFileSync(donde, JSON.stringify(paginas, null, 1));
   const problema = problemaDeRed(fuera);
   if (problema) throw new Error(problema);
 }
@@ -151,4 +247,11 @@ async function comparar([x, y]) {
 
 const a = leerArgumentos(process.argv.slice(2));
 if (a.comparar) await comparar(a.comparar);
-else await tomar(a);
+else if (a.inventados) {
+  try {
+    ponerInventados();
+    await tomar(a);
+  } finally {
+    if (!process.env.TEMA_DEJAR_INVENTADOS) quitarInventados();
+  }
+} else await tomar(a);
