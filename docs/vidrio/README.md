@@ -84,7 +84,7 @@ Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar ca
 | Menú de la izquierda: abierto, plegado y cajón del celular | Felipe lo miró y dijo «sigue». Sigue en local |
 | Cabecera: buscador, tema, avisos y título de cada pantalla | Felipe lo miró y dijo «sigue». Sigue en local |
 | Piezas: botones, campos, listas, hojas, tablas, tarjetas, insignias, avisos, filtros, pestañas y estados vacíos | Felipe lo miró y dijo «sigue». Sigue en local |
-| Lo que se mueve: movimiento, loader, «atrás» que cierra la hoja y botones a la vista en hojas largas | En local, esperando que Felipe lo mire |
+| Lo que se mueve: movimiento, loader, «atrás» que cierra la hoja y botones a la vista en hojas largas | Felipe lo aprobó el 2026-11-05. Sigue en local |
 
 ## Etapa 2: módulo por módulo
 
