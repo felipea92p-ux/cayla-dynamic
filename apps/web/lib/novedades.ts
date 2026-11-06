@@ -126,6 +126,17 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-11-06-la-liquidacion-se-lee-completa-en-el-celular",
+    fecha: "2026-11-06",
+    titulo: "La liquidación ya se lee completa en el celular",
+    queMejoro:
+      "En el celular, al revisar una liquidación, los montos y el total quedaban fuera de la pantalla, y nada avisaba " +
+      "que había que deslizar de lado. Ahora cada persona es una tarjeta y el detalle se ve completo, con el total " +
+      "cerca del botón para marcarla como pagada.\n\n" +
+      "La nota y la apreciación también se ven enteras. En computadora no cambia nada, y los papeles salen igual.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-06-la-boleta-ya-no-se-corta-en-el-celular",
     fecha: "2026-11-06",
     titulo: "La boleta ya se lee completa en el celular",
