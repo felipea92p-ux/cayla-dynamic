@@ -305,7 +305,7 @@
     backdrop-filter: blur(14px) saturate(1.3);
   }
   /* Un botón solo no lleva franja: flota sobre lo que pasa por detrás, como la acción principal de Retail en el teléfono. */
-  [data-vidrio="panel"] [data-pie-solo][data-hoja-corre] {
+  [data-vidrio="panel"][data-vidrio] button[data-pie-solo][data-pie-solo][data-hoja-corre] {
     position: sticky;
     bottom: calc(0.75rem - var(--pie-abajo, 0px));
     z-index: 2;

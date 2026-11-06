@@ -66,6 +66,9 @@ function textosDeLaPagina() {
     const e = n.parentElement;
     if (!e || e.closest(".hoja, script, style, noscript, .sr-only, [aria-hidden='true'] svg")) continue;
     if (window.__solo && !e.closest(window.__solo)) continue;
+    // Lo que queda dentro de un <details> cerrado no se ve, aunque el navegador le siga dando una caja.
+    const plegado = e.closest("details:not([open])");
+    if (plegado && !e.closest("summary")) continue;
     const c = getComputedStyle(e);
     if (c.visibility !== "visible" || c.display === "none") continue;
     const rg = document.createRange();
@@ -129,7 +132,8 @@ for (const tema of a.temas) {
       await p.getByRole("button", { name: accion.slice(4), exact: true }).first().click({ timeout: 6000 }).catch(() => console.log("NO PUDE", entrada));
       await p.waitForTimeout(1700);
     } else if (accion) {
-      await p.getByRole("button", { name: accion, exact: true }).first().click({ timeout: 6000 }).catch(() => console.log("NO PUDE", entrada));
+      const exacto = p.getByRole("button", { name: accion, exact: true });
+      await ((await exacto.count()) ? exacto : p.getByRole("button", { name: accion })).first().click({ timeout: 6000 }).catch(() => console.log("NO PUDE", entrada));
       await p.waitForTimeout(500);
       await p.evaluate(() => {
         window.__solo = "[role=dialog]";

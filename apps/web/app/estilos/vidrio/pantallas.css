@@ -75,6 +75,11 @@
     }
   }
 
+  /* Una parte atenuada dentro de una letra que ya es secundaria («mañana / tarde» en Turnos): sumadas, bajaban a 3.31:1. */
+  [data-vidrio="panel"] .text-taupe .opacity-70:not(.hoja *) {
+    opacity: 1;
+  }
+
   /* «Cómo se lee» (Turnos): se pliega en el teléfono. */
   [data-vidrio="panel"] .vidrio-como-se-lee > summary {
     display: inline-flex;
