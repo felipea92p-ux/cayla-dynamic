@@ -62,6 +62,19 @@
     [data-vidrio="panel"] .hoja.p-8 {
       padding: 20px;
     }
+    /* Las constancias: la pantalla entera lleva la clase del papel. Sin el min-width, la tabla ensanchaba todo y el texto quedaba cortado por el borde del teléfono. */
+    [data-vidrio="panel"] main.hoja {
+      width: 100%;
+      min-width: 0;
+      padding-inline: 0;
+    }
+    [data-vidrio="panel"] .vidrio-papel > :is(section, div):has(> table) {
+      overflow-x: auto;
+    }
+    [data-vidrio="panel"] .vidrio-papel > table {
+      display: block;
+      overflow-x: auto;
+    }
     [data-vidrio="panel"] .vidrio-cabeza-papel {
       flex-wrap: wrap;
       row-gap: 12px;

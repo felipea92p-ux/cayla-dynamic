@@ -206,6 +206,29 @@ async function tomar(a) {
       await p.addStyleTag({ content: "nextjs-portal{display:none!important}" }).catch(() => {});
       if (doc.tocar) await doc.tocar(p).catch((e) => console.log(doc.nombre, "no pude abrirlo:", String(e).split("\n")[0].slice(0, 80)));
       const hojas = await p.evaluate(() => document.querySelectorAll(".hoja").length);
+      // Lo que se sale de la pantalla o del papel. La página no se mueve de lado (el marco lo recorta), así que `responsive` no lo ve: el texto simplemente queda cortado.
+      if (a.pantalla) {
+        const salidos = await p.evaluate(() => {
+          const borde = window.innerWidth;
+          const fuera = [];
+          const textos = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          while (textos.nextNode()) {
+            const t = textos.currentNode;
+            const e = t.parentElement;
+            if (!t.textContent.trim() || !e || !e.closest(".hoja, .vidrio-papel")) continue;
+            if (e.closest("[class*='overflow-x-auto'], [class*='overflow-auto'], .sr-only, [hidden]") || getComputedStyle(e).visibility === "hidden") continue;
+            const r = document.createRange();
+            r.selectNodeContents(t);
+            const c = r.getBoundingClientRect();
+            if (c.width === 0) continue;
+            const papel = e.closest(".vidrio-papel, .hoja:not(main)") ?? e.closest(".hoja");
+            const tope = Math.min(borde, papel.getBoundingClientRect().right);
+            if (c.right > tope + 1) fuera.push(`${Math.round(c.right - tope)}px «${t.textContent.trim().slice(0, 28)}»`);
+          }
+          return fuera;
+        });
+        if (salidos.length) console.log(doc.nombre, tema, "SE SALE:", salidos.length, salidos.slice(0, 3).join(" · "));
+      }
       if (a.pantalla) await p.screenshot({ path: path.join(a.salida, `${doc.nombre}-${tema}-pantalla.png`), fullPage: true });
       await p.emulateMedia({ media: "print", reducedMotion: "reduce" });
       await p.waitForTimeout(250);

@@ -115,4 +115,16 @@
     vertical-align: 1px;
     margin-left: 6px;
   }
+
+  /* ---------- Un título con sus botones al lado ----------
+     En el teléfono el botón se apretaba a tres renglones (la constancia del bono). Baja a su propia línea. */
+  @media (max-width: 639px) {
+    [data-vidrio="panel"] .flex.items-center.justify-between:has(> h2):has(> .flex > button) {
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
+    [data-vidrio="panel"] .flex.items-center.justify-between:has(> h2) > .flex > button {
+      white-space: nowrap;
+    }
+  }
 }
