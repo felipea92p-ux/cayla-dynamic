@@ -27,6 +27,7 @@ import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { FirmaEditor } from "./FirmaEditor";
 import { ModalRegistrarFalta } from "@/components/disciplina/registrar-falta";
 import { puedeRegistrarleConducta } from "@/lib/admin/conducta";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 const META_DIA = 7.5; // horas objetivo por día (45h/semana)
 
@@ -809,11 +810,17 @@ export default function PerfilPersonaPage() {
         ) : persona && (
           <>
             {/* Cabecera fija del colaborador */}
+            {interruptoresVidrio().panel ? (
+              <p className="vidrio-sobretitulo mb-3 flex min-w-0 items-center gap-3 print:hidden">
+                <span aria-hidden className="h-px w-8 shrink-0 bg-taupe" />
+                <span className="min-w-0">{sobretituloDeHoy("Personas")}</span>
+              </p>
+            ) : null}
             <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-rojo/10 font-serif text-2xl text-rojo">{iniciales.toUpperCase()}</div>
+                <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full font-serif text-2xl ${interruptoresVidrio().panel ? "vidrio-cara" : "bg-rojo/10 text-rojo"}`}>{iniciales.toUpperCase()}</div>
                 <div className="min-w-0">
-                  <h1 className="font-serif text-2xl leading-tight">{ficha?.nombre_dni || nombre}</h1>
+                  <h1 className={interruptoresVidrio().panel ? "vidrio-ficha-nombre font-serif text-2xl leading-tight" : "font-serif text-2xl leading-tight"}>{ficha?.nombre_dni || nombre}</h1>
                   <p className="text-sm text-taupe">
                     {persona.funcion} · Sede {errSede ? <span className="text-rojo">no se pudo cargar</span> : sede || "—"}
                     {persona.estado !== "activo" && <Insignia atenuada punto={false} className="ml-2">{persona.estado}</Insignia>}
@@ -1092,7 +1099,7 @@ export default function PerfilPersonaPage() {
                           </li>
                         ))}
                       </ul>
-                      <p className="mt-3 text-xs text-taupe">Cambia el mes desde la pestaña Asistencia (el rango «Hasta» decide el mes que se lee acá).</p>
+                      <p className="mt-3 text-xs text-taupe">{interruptoresVidrio().panel ? "El mes se cambia en Asistencia, con «Hasta»." : "Cambia el mes desde la pestaña Asistencia (el rango «Hasta» decide el mes que se lee acá)."}</p>
                     </TarjetaInfo>
                   ) : (
                     <p className="text-sm text-taupe">
@@ -1110,7 +1117,7 @@ export default function PerfilPersonaPage() {
                   {bloqueCompensacion()}
                 </TarjetaInfo>
                 <p className="mt-3 text-sm text-taupe">
-                  El historial completo de tramos —con quién lo asignó y por qué— está en la pestaña <Boton variante="enlace" onClick={() => irATab("historial")}>Historial</Boton>.
+                  {interruptoresVidrio().panel ? "El historial completo está en " : "El historial completo de tramos —con quién lo asignó y por qué— está en la pestaña "}<Boton variante="enlace" onClick={() => irATab("historial")}>Historial</Boton>.
                 </p>
               </div>
             )}
@@ -1123,8 +1130,9 @@ export default function PerfilPersonaPage() {
 
                 <TarjetaInfo como="section" titulo="Otros documentos">
                   <p className="text-sm text-taupe">
-                    Declaración de movilidad, política firmada y cargo del bono de cumpleaños se archivan y
-                    revisan desde el tablero de Documentación, junto al resto del equipo.
+                    {interruptoresVidrio().panel
+                      ? "Movilidad, política y bono de cumpleaños se revisan en Documentación."
+                      : "Declaración de movilidad, política firmada y cargo del bono de cumpleaños se archivan y revisan desde el tablero de Documentación, junto al resto del equipo."}
                   </p>
                   <Link href="/admin/documentacion" className="mt-2 inline-block text-sm text-tinta hover:underline">Ir a Documentación →</Link>
                 </TarjetaInfo>

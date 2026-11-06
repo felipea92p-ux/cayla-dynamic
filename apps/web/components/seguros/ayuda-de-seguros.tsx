@@ -16,6 +16,7 @@
 import { useState } from "react";
 import { Boton } from "@/components/ui/boton";
 import { BotonAyuda } from "@/components/ui/ayuda-pantalla";
+import { useFraseDeLaCabecera } from "@/components/vidrio/frase-de-la-cabecera";
 import { Modal } from "@/components/ui/modal";
 import { DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA } from "@/lib/admin/seguros";
 
@@ -33,12 +34,14 @@ const FILTROS: readonly { nombre: string; texto: string }[] = [
 
 export function AyudaDeSeguros() {
   const [abierta, setAbierta] = useState(false);
+  const frase = useFraseDeLaCabecera();
   return (
     <>
       <BotonAyuda etiqueta="Cómo funciona Seguros" onClick={() => setAbierta(true)} />
 
       <Modal abierto={abierta} onCerrar={() => setAbierta(false)} titulo="Cómo funciona Seguros" ancho="lg">
         <div className="space-y-5 text-sm">
+          {frase && <p className="text-tinta">{frase}</p>}
           <section>
             <h3 className="mb-1 font-serif text-base text-tinta">En qué seguro está cada quien</h3>
             <p className="text-taupe">
@@ -117,3 +120,6 @@ export function AyudaDeSeguros() {
     </>
   );
 }
+
+// Con vidrio, junto al título queda un solo «?»: esta ventana.
+AyudaDeSeguros.leeLaFrase = true;

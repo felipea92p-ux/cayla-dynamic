@@ -17,6 +17,7 @@ import { Pestanas } from "@/components/ui/pestanas";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { bandaDe, ORDEN_BANDAS, racimoDeVencimientos, TEXTO_BANDA, type Banda } from "@/lib/admin/contratos-bandas";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Modal } from "@/components/ui/modal";
 import { BotonIcono } from "@/components/ui/boton-icono";
@@ -2591,7 +2592,7 @@ export default function ContratosPage() {
                 </nav>
               )}
 
-              <div className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4">
+              <div className={`min-w-0 space-y-3 ${interruptoresVidrio().panel ? "rounded-superficie" : "rounded-lg"} border border-sand bg-papel p-4`}>
                 {/* PASO — PERSONA Y DOCUMENTO */}
                 {pasoActual === "persona" && (
                   <>

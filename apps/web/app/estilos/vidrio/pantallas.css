@@ -127,4 +127,108 @@
       white-space: nowrap;
     }
   }
+
+  /* ---------- Personas ---------- */
+
+  /* La cara de la ficha: en su lente, como el avatar de Retail (colaboradores.css). El tinte rojo se leía como una alerta. */
+  [data-vidrio="panel"] .vidrio-cara {
+    color: var(--color-tinta);
+    background: var(--lente-avatar-fondo);
+    box-shadow: var(--lente-avatar-luz), 0 4px 10px -6px color-mix(in srgb, var(--color-sombra) 40%, transparent);
+  }
+  /* El nombre de la ficha: la letra del título de pantalla, un paso más chica, porque un nombre largo a 46 px se comía la pantalla. */
+  [data-vidrio="panel"] .vidrio-ficha-nombre {
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.005em;
+  }
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-ficha-nombre {
+      font-size: 22px;
+    }
+    [data-vidrio="panel"] .vidrio-cara {
+      width: 48px;
+      height: 48px;
+      font-size: 18px;
+    }
+  }
+
+  /* Una fila de persona en una columna angosta (Datos personales): el nombre arriba y su sede con pendientes debajo. Lado a lado, el nombre se cortaba en «Alma Reyes…». */
+  [data-vidrio="panel"] .vidrio-fila-persona {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 0;
+  }
+  [data-vidrio="panel"] .vidrio-fila-persona > :first-child {
+    grid-row: span 2;
+  }
+  [data-vidrio="panel"] .vidrio-fila-persona > :nth-child(2) {
+    white-space: normal;
+  }
+  [data-vidrio="panel"] .vidrio-fila-persona > :nth-child(3) {
+    grid-column: 2;
+  }
+
+  /* Una fila que abre su detalle (Seguros): en el teléfono la insignia baja a su renglón. Al lado del nombre, dejaba «Carmen Veg…». */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-fila-que-baja {
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+    [data-vidrio="panel"] .vidrio-fila-que-baja > :first-child {
+      flex: 1 1 100%;
+    }
+    [data-vidrio="panel"] .vidrio-fila-que-baja > :first-child .truncate {
+      white-space: normal;
+    }
+    [data-vidrio="panel"] .vidrio-fila-que-baja > :last-child {
+      flex: 1 1 100%;
+      flex-wrap: wrap;
+    }
+    [data-vidrio="panel"] .vidrio-fila-que-baja > :last-child > svg:last-child {
+      margin-left: auto;
+    }
+  }
+
+  /* Un botón dentro de una tabla no se parte en dos renglones (Documentación: «Subir / firmada»). La tabla ya corre de lado si no cabe. */
+  [data-vidrio="panel"] td :is(button, a).rounded-control:not(.hoja *) {
+    white-space: nowrap;
+  }
+
+  /* Una tabla corta que en el teléfono pasa a fichas (Casos, Objetivos), como ya hacen Equipo y Disciplina. Con todas sus columnas, «Próximo plazo» quedaba de una
+     palabra por renglón, y el nombre más largo ocupaba ocho. El primer dato va en su renglón; lo que no se entiende solo lleva su rótulo (`data-rotulo`). */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-tabla-fichas table,
+    [data-vidrio="panel"] .vidrio-tabla-fichas tbody {
+      display: block;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas thead {
+      display: none;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas tbody > tr {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 4px 14px;
+      padding: 12px 16px;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas tbody > tr:first-child {
+      border-top: 0;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas td:not(.hidden) {
+      display: block;
+      padding: 0;
+      text-align: left;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas td:first-child,
+    [data-vidrio="panel"] .vidrio-tabla-fichas td[data-ancha] {
+      flex: 1 1 100%;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas td[data-rotulo]::before {
+      content: attr(data-rotulo) " ";
+      color: var(--color-taupe);
+    }
+  }
 }

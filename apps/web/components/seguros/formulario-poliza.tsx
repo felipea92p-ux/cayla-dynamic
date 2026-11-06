@@ -58,6 +58,7 @@ import {
 import { formatSoles } from "@/lib/rangos";
 import { sinTildes } from "@/lib/sin-tildes";
 import { AvisoDeError } from "./aviso-de-error";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 /** A quién se le puede registrar una póliza: una persona activa y su seguro principal de hoy. */
 export interface OpcionPersona {
@@ -400,8 +401,9 @@ function Cuerpo({
         <div className="rounded-lg border border-sand bg-hueso px-3 py-3 sm:col-span-2">
           <p className="mb-2 text-sm text-tinta">Lo que el papel no dice</p>
           <p className="mb-3 text-xs text-taupe">
-            El plan y el beneficio máximo no siempre figuran en las condiciones particulares: los confirma el corredor. Déjalos
-            vacíos hasta entonces; la pantalla los marca «sin confirmar».
+            {interruptoresVidrio().panel
+              ? "Si no figuran en la póliza, déjalos vacíos: los confirma el corredor."
+              : "El plan y el beneficio máximo no siempre figuran en las condiciones particulares: los confirma el corredor. Déjalos vacíos hasta entonces; la pantalla los marca «sin confirmar»."}
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Campo etiqueta="Plan (opcional)" value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value })} placeholder="ej. Plan 1" />
@@ -434,7 +436,7 @@ function Cuerpo({
       </div>
       {!corrigiendo && (
         <p className="mt-4 text-sm text-taupe">
-          El PDF de la póliza y el convenio de pago se adjuntan en el paso siguiente, apenas la registres.
+          {interruptoresVidrio().panel ? "El PDF y el convenio se adjuntan en el paso siguiente." : "El PDF de la póliza y el convenio de pago se adjuntan en el paso siguiente, apenas la registres."}
         </p>
       )}
       <div className="mt-5 flex justify-end gap-2">

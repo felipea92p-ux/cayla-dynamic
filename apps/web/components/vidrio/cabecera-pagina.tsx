@@ -32,9 +32,10 @@ export function CabeceraPaginaVidrio({
    */
   impreso?: ReactNode;
 }) {
-  // Un solo «?»: la frase se lee dentro de la ventana de ayuda. Retail también los juntó (EncabezadoPagina). Quien trae su propia ventana (Disciplina) no puede recibir la frase:
-  // ahí siguen los dos signos hasta su módulo.
-  const unSoloSigno = isValidElement(ayuda) && ayuda.type === AyudaPantalla;
+  // Un solo «?»: la frase se lee dentro de la ventana de ayuda. Retail también los juntó (EncabezadoPagina). Quien trae su propia ventana (Seguros,
+  // Disciplina) lo declara con `leeLaFrase`, y se encarga de mostrarla arriba de esa ventana.
+  const unSoloSigno =
+    isValidElement(ayuda) && (ayuda.type === AyudaPantalla || (ayuda.type as { leeLaFrase?: boolean }).leeLaFrase === true);
   // El signo va pegado a la última palabra: en un título largo, en el teléfono, caía solo al renglón de abajo.
   const corte = titulo.lastIndexOf(" ") + 1;
   return (

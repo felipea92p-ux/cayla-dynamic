@@ -56,6 +56,9 @@ export function BotonAyuda({ onClick, etiqueta, className }: { onClick: () => vo
   );
 }
 
+// Disciplina lo pasa directo a la cabecera: con vidrio, este botón es el único «?», y su ventana lee la frase de la pantalla.
+BotonAyuda.leeLaFrase = true;
+
 export function AyudaPantalla({
   titulo,
   intro,
