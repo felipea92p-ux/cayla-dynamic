@@ -2,6 +2,7 @@
 //
 //   node tema/papel.mjs --salida /ruta --base-url http://localhost:3100       toma todos los documentos de esa construcción
 //   node tema/papel.mjs --comparar /ruta/antes /ruta/ahora                    los compara: mismas páginas y mismos píxeles, o dice dónde no
+//   node tema/papel.mjs --comparar /ruta/antes /ruta/ahora --sufijo pantalla  lo mismo, con lo que se ve en pantalla (tomado con --pantalla)
 //   node tema/papel.mjs --salida /ruta --con-inventados --solo a,b            los que el entorno local no trae de fábrica: entran por un rato (papel-inventados.sql) y al terminar se borran
 //
 // Un documento que depende de un dato (un memo, unos cargos) se busca en su lista: si el entorno local no lo tiene, se dice, no se da por bueno. Y si dice «hojas 0», ahí no se
@@ -161,6 +162,7 @@ function leerArgumentos(argv) {
     if (x === "--salida") a.salida = argv[++i];
     else if (x === "--base-url") a.base = argv[++i];
     else if (x === "--comparar") a.comparar = [argv[++i], argv[++i]];
+    else if (x === "--sufijo") a.sufijo = argv[++i];
     else if (x === "--pantalla") a.pantalla = true;
     else if (x === "--temas") a.temas = argv[++i].split(",");
     else if (x === "--solo") a.solo = argv[++i].split(",");
@@ -220,17 +222,17 @@ async function tomar(a) {
   if (problema) throw new Error(problema);
 }
 
-async function comparar([x, y]) {
+async function comparar([x, y], sufijo = "impreso") {
   let malos = 0, iguales = 0;
   const px = JSON.parse(readFileSync(path.join(x, "paginas.json"), "utf8"));
   const py = JSON.parse(readFileSync(path.join(y, "paginas.json"), "utf8"));
   for (const k of Object.keys(px)) {
-    if (px[k] !== py[k]) {
+    if (k in py && px[k] !== py[k]) {
       malos++;
       console.log(`${k}: páginas ${px[k]} y ${py[k]}`);
     }
   }
-  for (const f of readdirSync(x).filter((n) => n.endsWith("-impreso.png")).sort()) {
+  for (const f of readdirSync(x).filter((n) => n.endsWith(`-${sufijo}.png`)).sort()) {
     const a = await sharp(path.join(x, f)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     let b;
     try {
@@ -267,7 +269,7 @@ async function comparar([x, y]) {
 }
 
 const a = leerArgumentos(process.argv.slice(2));
-if (a.comparar) await comparar(a.comparar);
+if (a.comparar) await comparar(a.comparar, a.sufijo);
 else if (a.inventados) {
   try {
     ponerInventados();
