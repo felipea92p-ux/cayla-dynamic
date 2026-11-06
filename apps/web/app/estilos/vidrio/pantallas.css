@@ -131,7 +131,7 @@
   /* ---------- Personas ---------- */
 
   /* La cara de la ficha: en su lente, como el avatar de Retail (colaboradores.css). El tinte rojo se leía como una alerta. */
-  [data-vidrio="panel"] .vidrio-cara {
+  [data-vidrio="panel"] .vidrio-cara.vidrio-cara.vidrio-cara {
     color: var(--color-tinta);
     background: var(--lente-avatar-fondo);
     box-shadow: var(--lente-avatar-luz), 0 4px 10px -6px color-mix(in srgb, var(--color-sombra) 40%, transparent);
@@ -147,7 +147,7 @@
     [data-vidrio="panel"] .vidrio-ficha-nombre {
       font-size: 22px;
     }
-    [data-vidrio="panel"] .vidrio-cara {
+    [data-vidrio="panel"] .vidrio-cara.vidrio-cara.vidrio-cara {
       width: 48px;
       height: 48px;
       font-size: 18px;
