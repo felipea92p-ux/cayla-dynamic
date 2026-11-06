@@ -818,7 +818,7 @@ export default function PerfilPersonaPage() {
             ) : null}
             <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full font-serif text-2xl ${interruptoresVidrio().panel ? "vidrio-cara" : "bg-rojo/10 text-rojo"}`}>{iniciales.toUpperCase()}</div>
+                <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-rojo/10 font-serif text-2xl text-rojo${interruptoresVidrio().panel ? " vidrio-cara" : ""}`}>{iniciales.toUpperCase()}</div>
                 <div className="min-w-0">
                   <h1 className={interruptoresVidrio().panel ? "vidrio-ficha-nombre font-serif text-2xl leading-tight" : "font-serif text-2xl leading-tight"}>{ficha?.nombre_dni || nombre}</h1>
                   <p className="text-sm text-taupe">
