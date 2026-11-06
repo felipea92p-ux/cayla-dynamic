@@ -80,13 +80,6 @@
       display: block;
       overflow-x: auto;
     }
-    [data-vidrio="panel"] .vidrio-cabeza-papel {
-      flex-wrap: wrap;
-      row-gap: 12px;
-    }
-    [data-vidrio="panel"] .vidrio-cabeza-papel > .text-right {
-      text-align: left;
-    }
   }
   /* Un dato atenuado en el papel se imprime igual que hoy; en la pantalla tiene que leerse. */
   [data-vidrio="panel"] .hoja :is(.text-taupe\/40, .text-taupe\/60) {

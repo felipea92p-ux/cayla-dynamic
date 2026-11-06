@@ -115,6 +115,28 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-06-la-liquidacion-se-lee-completa-en-el-celular",
+    fecha: "2026-11-06",
+    titulo: "La liquidación ya se lee completa en el celular",
+    queMejoro:
+      "En el celular, al revisar una liquidación, los montos y el total quedaban fuera de la pantalla, y nada avisaba " +
+      "que había que deslizar de lado. Ahora cada persona es una tarjeta y el detalle se ve completo, con el total " +
+      "cerca del botón para marcarla como pagada.\n\n" +
+      "La nota y la apreciación también se ven enteras. En computadora no cambia nada, y los papeles salen igual.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-11-06-la-boleta-ya-no-se-corta-en-el-celular",
+    fecha: "2026-11-06",
+    titulo: "La boleta ya se lee completa en el celular",
+    queMejoro:
+      "En el celular, la parte de arriba de la boleta se salía del papel: el nombre del documento, el mes y las " +
+      "fechas quedaban cortados por la derecha. Ahora bajan a su propia línea y se leen completos.\n\n" +
+      "Lo mismo con las firmas de la liquidación y del certificado de trabajo, que en el celular van una debajo de " +
+      "la otra. Lo que se imprime y los PDF salen igual que siempre.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-05-politica-salarial-en-el-celular",
     fecha: "2026-11-05",
     titulo: "La Política salarial ya se lee bien en el celular",

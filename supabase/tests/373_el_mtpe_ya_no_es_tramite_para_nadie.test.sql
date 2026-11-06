@@ -30,10 +30,15 @@ values ('00000000-0000-0000-0000-000000372aa0', 'Jefa', 'Lab372',
         '00000000-0000-0000-0000-000000372aff', '2025-01-02');
 set session_replication_role = origin;
 
+-- LAS FECHAS DE LOS SUJETOS 1 Y 2 CUELGAN DE HOY, a propósito. Hasta el 2026-11-06
+-- eran fijas, y ese día esta prueba se cayó sola: el contrato terminaba el
+-- 2027-01-05, entró en el aviso de «por vencer» y dejó de estar «ok». Nadie había
+-- tocado nada, y como `db-tests` es obligatoria, frenó a todos los PR.
+--
 -- Sujeto 1: plazo fijo ('nuevo').
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso)
 values ('00000000-0000-0000-0000-000000372001', 'Rosa', 'PlazoFijo372',
-        '00000000-0000-0000-0000-000000372000', 'h', '2026-01-05');
+        '00000000-0000-0000-0000-000000372000', 'h', fn_hoy_lima() - 30);
 
 -- Sujeto 2: practicante con convenio. Fechas después de "hoy" a propósito —
 -- `gobierna` usa la más temprana entre `fecha_fin_contrato` y el tope legal
@@ -41,7 +46,7 @@ values ('00000000-0000-0000-0000-000000372001', 'Rosa', 'PlazoFijo372',
 -- no lo que esta prueba quiere medir.
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso, tipo_vinculo)
 values ('00000000-0000-0000-0000-000000372002', 'Mimi', 'Practicante372',
-        '00000000-0000-0000-0000-000000372000', 'h', '2026-09-01', 'practicante');
+        '00000000-0000-0000-0000-000000372000', 'h', fn_hoy_lima() - 30, 'practicante');
 
 do $sesion$ begin
   perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000372aff', true);
@@ -55,10 +60,10 @@ begin
     p_persona_id := '00000000-0000-0000-0000-000000372001', p_tipo := 'nuevo',
     p_cargo := 'Asesora', p_sede_id := '00000000-0000-0000-0000-000000372000',
     p_remuneracion_mensual := 1130,
-    p_fecha_inicio := '2026-01-05', p_fecha_fin := '2027-01-05',
+    p_fecha_inicio := fn_hoy_lima() - 30, p_fecha_fin := fn_hoy_lima() + 335,
     p_documento_html := '<p>plazo fijo 372</p>');
   perform fn_contrato_registrar(p_id := v_id,
-    p_storage_path := 'contratos/' || v_id::text || '.pdf', p_fecha_firma := '2026-01-06');
+    p_storage_path := 'contratos/' || v_id::text || '.pdf', p_fecha_firma := fn_hoy_lima() - 29);
   perform fn_contrato_marcar_tramite(v_id, 'copia');
 end $nuevo$;
 
@@ -79,10 +84,10 @@ begin
     p_persona_id := '00000000-0000-0000-0000-000000372002', p_tipo := 'convenio_practicas',
     p_cargo := 'Practicante de Marketing', p_sede_id := '00000000-0000-0000-0000-000000372000',
     p_remuneracion_mensual := 700,
-    p_fecha_inicio := '2026-09-01', p_fecha_fin := '2027-03-01',
+    p_fecha_inicio := fn_hoy_lima() - 30, p_fecha_fin := fn_hoy_lima() + 150,
     p_documento_html := '<p>convenio 372</p>');
   perform fn_contrato_registrar(p_id := v_id,
-    p_storage_path := 'contratos/' || v_id::text || '.pdf', p_fecha_firma := '2026-09-02');
+    p_storage_path := 'contratos/' || v_id::text || '.pdf', p_fecha_firma := fn_hoy_lima() - 29);
   perform fn_contrato_marcar_tramite(v_id, 'copia');
 end $convenio$;
 

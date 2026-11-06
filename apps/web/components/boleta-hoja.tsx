@@ -1,4 +1,3 @@
-import { interruptoresVidrio } from "@/lib/vidrio";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { Marca } from "@/components/marca";
 import { Insignia } from "@/components/ui/insignia";
@@ -361,7 +360,12 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, nombre
 
   return (
       <div className="hoja rounded-lg border border-sand p-4 sm:p-8 print:rounded-none print:border-0 print:p-0">
-        <div className={`mb-6 flex items-start justify-between border-b border-sand pb-4 print:mb-4 print:pb-3${interruptoresVidrio().panel ? " vidrio-cabeza-papel" : ""}`}>
+        {/* EN EL TELÉFONO ESTA FILA BAJA A DOS LÍNEAS. No cabe: a 375 px el nombre del
+            documento, el mes y «Provisional…» se salían del papel, y en el panel
+            ensanchaban la página entera. `not-print:` no es adorno: el papel no mide
+            siempre más de 640 px (una hoja A5 mide 559), y un `max-sm:` a secas le
+            cambiaría la cabecera a un documento que tiene que salir siempre igual. */}
+        <div className="mb-6 flex items-start justify-between border-b border-sand pb-4 not-print:max-sm:flex-col not-print:max-sm:gap-3 print:mb-4 print:pb-3">
           {/* ── QUIÉN EMITE ESTE PAPEL (auditoría del 2026-08-19) ──────────────
               La cabecera imprimía el lockup de producto «Dynamic / CAYLA» y
               nada más: ni razón social ni RUC. Un documento de pago que no
@@ -376,7 +380,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, nombre
               {EMPRESA.nombre} · RUC {EMPRESA.ruc}
             </p>
           </div>
-          <div className="text-right">
+          <div className="text-right not-print:max-sm:text-left">
             <p className="etiqueta text-taupe">{nombreDelDocumentoDePago(f.en_planilla, f.tipo_vinculo)}</p>
             <p className="font-serif text-lg">
               {MESES_LARGO[proy.mes_etiqueta - 1]} {proy.anio_etiqueta}

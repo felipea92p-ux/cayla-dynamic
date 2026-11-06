@@ -33,6 +33,8 @@ import { ParaAtender } from "@/components/ui/para-atender";
 import { Pestanas } from "@/components/ui/pestanas";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { cx } from "@/components/ui/cx";
 
 // Liquidación por cese. La ley da 48 HORAS desde el cese para pagar (art. 4 del
 // D.S. 001-97-TR), así que esta pantalla existe para que ese plazo no dependa de
@@ -1119,6 +1121,27 @@ function LineasDeDiferencia({ filas, className }: { filas: FilaDiferenciaConstan
   );
 }
 
+// Lo mismo en la tabla y en la tarjeta del celular: el plazo de 48 horas es lo que obliga
+// en esta pantalla, y no puede decir una cosa en un lado y otra en el otro.
+function PlazoDeLaFila({ f, modo }: { f: Pendiente; modo: "pendiente" | "vencida" | "pagada" }) {
+  if (modo === "pagada") {
+    return <span className="text-xs text-taupe">plazo vencía el {fechaCorta(f.vence_el)}</span>;
+  }
+  if (modo === "vencida") {
+    return (
+      <span className="text-xs font-medium text-rojo">
+        {-f.dias_restantes} día{-f.dias_restantes === 1 ? "" : "s"} de atraso
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs text-taupe">
+      {f.dias_restantes === 0 ? "vence hoy" : `quedan ${f.dias_restantes} día${f.dias_restantes === 1 ? "" : "s"}`}
+      {" · "}{fechaCorta(f.vence_el)}
+    </span>
+  );
+}
+
 function SeccionTabla({
   vacio, filas, modo, abierta, onAbrir, detalle, diferencias, diferenciasError, nota, setNota, ocupado,
   onPagar, onAnular, miFirma, registro, papelesCese, apreciacion, setApreciacion, onImprimir,
@@ -1146,69 +1169,97 @@ function SeccionTabla({
     );
   }
 
+  const botonRevisar = (f: Pendiente, extra?: string) => (
+    <button className={cx("text-sm font-medium text-rojo underline", extra)} onClick={() => onAbrir(f.persona_id)}>
+      {abierta === f.persona_id ? "Cerrar" : modo === "pagada" ? "Revisar" : "Revisar →"}
+    </button>
+  );
+
+  const desgloseDe = (f: Pendiente) => detalle && (
+    <Desglose
+      d={detalle} diferencias={diferencias} diferenciasError={diferenciasError} pagada={f.pagada}
+      nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma} registro={registro}
+      // `detalle.total` — no `f.total` — porque es el número que la
+      // persona acaba de leer en el Desglose de abajo, recién
+      // calculado. `f.total` es el que trajo la lista al montar la
+      // pantalla, y para "volver a marcar pagada" es literalmente el
+      // monto histórico congelado.
+      onPagar={() => onPagar(f.persona_id, f.persona, n(detalle.total), f.pagada, f.fecha_cese, f.vence_el)}
+      onAnular={() => onAnular(f.persona_id, f.persona)}
+      papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
+      onImprimir={onImprimir}
+    />
+  );
+
   return (
-    <Tabla>
-      <TablaEncabezado>
-        <Th>Persona</Th>
-        <Th>Sede</Th>
-        <Th>Cesó</Th>
-        <Th>{modo === "pagada" ? "Plazo" : "Vence"}</Th>
-        <Th className="text-right">Monto</Th>
-        <Th className="text-right">Acción</Th>
-      </TablaEncabezado>
-      <tbody>
+    <>
+      {/* Computadora: tabla. Debajo de `sm` se esconde a favor de tarjetas, igual que en Equipo: una tabla de seis
+          columnas no cabe en un teléfono, corre de lado, y el detalle abierto dentro de ella corría con ella. Quien
+          iba a marcar una liquidación como pagada veía el botón sin ver el monto, y nada avisaba que había más. */}
+      <div className="hidden sm:block">
+        <Tabla>
+          <TablaEncabezado>
+            <Th>Persona</Th>
+            <Th>Sede</Th>
+            <Th>Cesó</Th>
+            <Th>{modo === "pagada" ? "Plazo" : "Vence"}</Th>
+            <Th className="text-right">Monto</Th>
+            <Th className="text-right">Acción</Th>
+          </TablaEncabezado>
+          <tbody>
+            {filas.map((f) => (
+              <Fragment key={f.persona_id}>
+                <Fila>
+                  <td className="px-4 py-2.5">
+                    <strong>{f.persona}</strong>
+                  </td>
+                  <td className="px-4 py-2.5 text-taupe">{f.sede}</td>
+                  <td className="px-4 py-2.5 text-taupe">{fechaCorta(f.fecha_cese)}</td>
+                  <td className="px-4 py-2.5"><PlazoDeLaFila f={f} modo={modo} /></td>
+                  <td className="px-4 py-2.5 text-right font-medium tabular-nums">{formatSoles(f.total)}</td>
+                  <td className="px-4 py-2.5 text-right">{botonRevisar(f)}</td>
+                </Fila>
+                {abierta === f.persona_id && detalle && (
+                  <tr key={`${f.persona_id}-desglose`}>
+                    <td colSpan={6} className="bg-crema/50 px-4 py-3">{desgloseDe(f)}</td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </Tabla>
+      </div>
+
+      {/* Celular: una tarjeta por persona, y el detalle debajo de la suya, fuera de toda tabla. Va al lado de la
+          tarjeta y no adentro: el detalle ya es su propia caja, y anidarlo le quitaría otros 34 px de ancho. */}
+      <div className="space-y-2 sm:hidden">
         {filas.map((f) => (
           <Fragment key={f.persona_id}>
-            <Fila>
-              <td className="px-4 py-2.5">
-                <strong>{f.persona}</strong>
-              </td>
-              <td className="px-4 py-2.5 text-taupe">{f.sede}</td>
-              <td className="px-4 py-2.5 text-taupe">{fechaCorta(f.fecha_cese)}</td>
-              <td className="px-4 py-2.5">
-                {modo === "pagada" ? (
-                  <span className="text-xs text-taupe">plazo vencía el {fechaCorta(f.vence_el)}</span>
-                ) : modo === "vencida" ? (
-                  <span className="text-xs font-medium text-rojo">
-                    {-f.dias_restantes} día{-f.dias_restantes === 1 ? "" : "s"} de atraso
-                  </span>
-                ) : (
-                  <span className="text-xs text-taupe">
-                    {f.dias_restantes === 0 ? "vence hoy" : `quedan ${f.dias_restantes} día${f.dias_restantes === 1 ? "" : "s"}`}
-                    {" · "}{fechaCorta(f.vence_el)}
-                  </span>
-                )}
-              </td>
-              <td className="px-4 py-2.5 text-right font-medium tabular-nums">{formatSoles(f.total)}</td>
-              <td className="px-4 py-2.5 text-right">
-                <button className="text-sm font-medium text-rojo underline" onClick={() => onAbrir(f.persona_id)}>
-                  {abierta === f.persona_id ? "Cerrar" : modo === "pagada" ? "Revisar" : "Revisar →"}
-                </button>
-              </td>
-            </Fila>
-            {abierta === f.persona_id && detalle && (
-              <tr key={`${f.persona_id}-desglose`}>
-                <td colSpan={6} className="bg-crema/50 px-4 py-3">
-                  <Desglose
-                    d={detalle} diferencias={diferencias} diferenciasError={diferenciasError} pagada={f.pagada}
-                    nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma} registro={registro}
-                    // `detalle.total` — no `f.total` — porque es el número que la
-                    // persona acaba de leer en el Desglose de abajo, recién
-                    // calculado. `f.total` es el que trajo la lista al montar la
-                    // pantalla, y para "volver a marcar pagada" es literalmente el
-                    // monto histórico congelado.
-                    onPagar={() => onPagar(f.persona_id, f.persona, n(detalle.total), f.pagada, f.fecha_cese, f.vence_el)}
-                    onAnular={() => onAnular(f.persona_id, f.persona)}
-                    papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
-                    onImprimir={onImprimir}
-                  />
-                </td>
-              </tr>
-            )}
+            <TarjetaInfo>
+              <strong>{f.persona}</strong>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                <span><span className="text-xs text-taupe">Sede · </span>{f.sede}</span>
+                <span><span className="text-xs text-taupe">Cesó · </span>{fechaCorta(f.fecha_cese)}</span>
+              </div>
+              {/* Sin rótulo en Pagadas: la tabla dice «Plazo» arriba y «plazo vencía…» abajo, y en una sola línea se tartamudea. */}
+              <div className="mt-1">
+                {modo !== "pagada" && <span className="text-xs text-taupe">Vence · </span>}
+                <PlazoDeLaFila f={f} modo={modo} />
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <span className="text-sm">
+                  <span className="text-xs text-taupe">Monto · </span>
+                  <span className="font-medium tabular-nums">{formatSoles(f.total)}</span>
+                </span>
+                {/* El relleno agranda lo que se puede tocar con el dedo y el margen negativo evita que la tarjeta crezca. */}
+                {botonRevisar(f, "-my-2 shrink-0 py-2")}
+              </div>
+            </TarjetaInfo>
+            {abierta === f.persona_id && detalle && desgloseDe(f)}
           </Fragment>
         ))}
-      </tbody>
-    </Tabla>
+      </div>
+    </>
   );
 }
 
@@ -1448,13 +1499,15 @@ function Desglose({
             radio y color, no tamaño de letra — pelear el "text-base sm:text-sm"
             propio de Campo desde acá no tiene ganador garantizado. El tamaño
             de Campo ya es el correcto (evita el zoom de Safari al enfocar). */}
-        <Campo
-          etiqueta="Nota"
-          value={nota}
-          onChange={(e) => setNota(e.target.value)}
-          placeholder="ej. transferencia BCP"
-          className="w-48"
-        />
+        <div className="w-full sm:w-auto">
+          <Campo
+            etiqueta="Nota"
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            placeholder="ej. transferencia BCP"
+            className="w-full sm:w-48"
+          />
+        </div>
         <Boton variante="primario" tamano="sm" onClick={onPagar} disabled={ocupado} cargando={ocupado}>
           {pagada ? "Volver a marcarla como pagada" : "Marcar como pagada"}
         </Boton>
@@ -1475,13 +1528,18 @@ function Desglose({
           <Boton variante="secundario" tamano="sm" onClick={() => onImprimir("constancia")} disabled={!papelesCese}>
             Constancia de cese
           </Boton>
-          <Campo
-            etiqueta="Apreciación (opcional)"
-            value={apreciacion}
-            onChange={(e) => setApreciacion(e.target.value)}
-            placeholder="de conducta o rendimiento — va en el certificado"
-            className="min-w-[22rem] flex-1"
-          />
+          {/* El mínimo de 22rem es más ancho que un teléfono: es lo que empujaba el campo fuera de la pantalla. Y la
+              pista va más chica ahí porque «va en el certificado» es lo que hay que leer antes de escribir; el
+              campo sigue en 16 px, que es lo que evita el zoom de Safari. */}
+          <div className="w-full sm:w-auto">
+            <Campo
+              etiqueta="Apreciación (opcional)"
+              value={apreciacion}
+              onChange={(e) => setApreciacion(e.target.value)}
+              placeholder="de conducta o rendimiento — va en el certificado"
+              className="w-full max-sm:placeholder:text-xs sm:w-auto sm:min-w-[22rem] sm:flex-1"
+            />
+          </div>
         </div>
       </div>
 
@@ -1545,7 +1603,10 @@ function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
         beneficios sociales por el periodo indicado.
       </p>
 
-      <div className="mt-12 flex justify-between text-xs">
+      {/* Dos firmas de w-56 no caben una al lado de la otra en un teléfono. `not-print:`
+          porque el papel no siempre mide más de 640 px, y tiene que salir igual siempre:
+          ver el mismo comentario en components/boleta-hoja.tsx. */}
+      <div className="mt-12 flex justify-between text-xs not-print:max-sm:flex-col not-print:max-sm:gap-6">
         <div>
           <div className="w-56 border-t border-tinta pt-1">Firma de la integrante</div>
           <div className="mt-1">{s(d.persona)}</div>
@@ -1605,10 +1666,11 @@ function FirmaEmpresa({ firmante, firma }: { firmante: FirmanteEmpresa | null; f
 //
 // `conFirmaEmpresa` alinea la línea de firma con la de CAYLA cuando esta lleva
 // imagen de firma arriba (`h-14`); sin imagen, las dos líneas ya quedan a la
-// misma altura y no hace falta reservar nada.
+// misma altura y no hace falta reservar nada. En el teléfono las dos firmas van
+// una debajo de la otra: no hay nada con qué alinear y ese espacio sobra.
 function RecibiConforme({ p, conFirmaEmpresa }: { p: PapelesCese; conFirmaEmpresa: boolean }) {
   return (
-    <div className={`text-xs ${conFirmaEmpresa ? "pt-14" : ""}`}>
+    <div className={`text-xs ${conFirmaEmpresa ? "pt-14 not-print:max-sm:pt-0" : ""}`}>
       <div className="w-56 border-t border-tinta pt-1">Recibí conforme</div>
       <div>{p.nombre_completo}</div>
       {p.documento && <div>DNI N.° {p.documento}</div>}
@@ -1657,7 +1719,8 @@ function HojaCertificado({
         Trujillo, {fechaLarga(hoy)}.
       </p>
 
-      <div className="mt-12 flex items-start justify-between gap-6">
+      {/* Igual que el pie de la liquidación: en un teléfono una debajo de la otra, y el papel no cambia. */}
+      <div className="mt-12 flex items-start justify-between gap-6 not-print:max-sm:flex-col">
         <RecibiConforme p={p} conFirmaEmpresa={!!firma} />
         <FirmaEmpresa firmante={firmante} firma={firma} />
       </div>
