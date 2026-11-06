@@ -89,6 +89,11 @@ function buscarPie(cuerpo: Element): HTMLElement | null {
   for (let nivel = 0; el && nivel < 6; nivel++) {
     if (el.matches("table, .hoja, .sticky, [data-asa-hoja]")) return null;
     if (esFilaDeBotones(el)) break;
+    // Una nota corta bajo los botones («Al guardar queda en Borradores»): los botones siguen siendo el pie.
+    if (el.matches("p") && el.previousElementSibling && esFilaDeBotones(el.previousElementSibling)) {
+      el = el.previousElementSibling;
+      break;
+    }
     if (!el.matches("div, form, section")) return null;
     el = el.lastElementChild;
   }
@@ -110,6 +115,7 @@ function esFilaDeBotones(el: Element): boolean {
 function quitarPie(pie: HTMLElement) {
   pie.removeAttribute("data-pie-hoja");
   pie.removeAttribute("data-hoja-corre");
+  pie.removeAttribute("data-pie-con-nota");
   for (const v of ["--pie-izq", "--pie-der", "--pie-abajo"]) pie.style.removeProperty(v);
 }
 
@@ -138,6 +144,7 @@ function usePieALaVista(hoja: React.RefObject<HTMLElement | null>) {
         pie.style.setProperty("--pie-izq", `${Math.max(0, (p.left - c.left) / escala - cuerpo.clientLeft)}px`);
         pie.style.setProperty("--pie-der", `${Math.max(0, (c.right - p.right) / escala - (cuerpo.offsetWidth - cuerpo.clientWidth - cuerpo.clientLeft))}px`);
         pie.style.setProperty("--pie-abajo", getComputedStyle(cuerpo).paddingBottom);
+        pie.toggleAttribute("data-pie-con-nota", pie.nextElementSibling !== null);
         pie.setAttribute("data-pie-hoja", "");
       }
       pie.toggleAttribute("data-hoja-corre", cuerpo.scrollHeight > cuerpo.clientHeight + 1);

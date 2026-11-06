@@ -7,7 +7,7 @@
 // DESCARTÉ: dejarlas donde las escribe cada pantalla, porque en el teléfono lo de atrás se aleja con un `transform`, y un `transform` en un ancestro vuelve
 //   relativo a él todo lo `fixed`: la hoja se encogería junto con la pantalla. Lo mismo pasa con una hoja dentro de una tarjeta de vidrio.
 // SE ROMPE SI: una hoja queda dentro de un <form> de su pantalla y confía en él para enviarse: un portal saca sus campos del formulario. Medido el 2026-11-05 en las 113
-//   hojas: ninguna. O un menú con `contains(e.target)` envuelve la hoja: el clic adentro lo cerraría. Hoy ninguno la envuelve.
+//   hojas: ninguna. O un <Menu> envuelve la hoja: su `contains(e.target)` tomaría el clic de adentro por un clic afuera y lo cerraría. Medido el mismo día: ninguno.
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
