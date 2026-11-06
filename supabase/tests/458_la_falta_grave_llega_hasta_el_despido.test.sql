@@ -201,12 +201,15 @@ update expediente_disciplinario
  where persona_id = '00000000-0000-0000-0000-0000000008a3' and nivel = 'imputacion';
 set session_replication_role = origin;
 
+-- La fecha de cese de esta prueba va contada desde hoy: la carta rechaza un cese
+-- anterior a hoy, y una fecha escrita a mano la hizo caer el 2026-11-06.
+
 -- ── 12 · Sin resolver por escrito no hay carta (57.6) ──────────────────────
 select throws_like(
   $$ select fn_expediente_crear_despido(
        (select id from expediente_disciplinario
          where persona_id = '00000000-0000-0000-0000-0000000008a3' and nivel = 'imputacion'),
-       date '2026-11-05',
+       current_date + 30,
        'Se resuelve el despido pese al descargo presentado por la colaboradora.') $$,
   '%Primero se resuelve%',
   'la carta de despido no se escribe antes de resolver el procedimiento');
@@ -222,7 +225,7 @@ select throws_like(
   $$ select fn_expediente_crear_despido(
        (select id from expediente_disciplinario
          where persona_id = '00000000-0000-0000-0000-0000000008a3' and nivel = 'imputacion'),
-       date '2026-11-05',
+       current_date + 30,
        'Se resuelve el despido pese al descargo presentado por la colaboradora.') $$,
   '%archivo no se reabre%',
   'un procedimiento archivado no produce una carta de despido');
@@ -253,7 +256,7 @@ select throws_like(
 select fn_expediente_crear_despido(
   (select id from expediente_disciplinario
     where persona_id = '00000000-0000-0000-0000-0000000008a3' and nivel = 'imputacion'),
-  date '2026-11-05',
+  current_date + 30,
   'Se resuelve el despido pese al descargo presentado por la colaboradora.');
 
 select is(
@@ -262,7 +265,7 @@ select is(
      from expediente_disciplinario d
      join expediente_disciplinario i on i.id = d.doc_previo_id
     where d.persona_id = '00000000-0000-0000-0000-0000000008a3' and d.nivel = 'despido'),
-  '53.3a / LAB-IMP-458 / 2026-11-05',
+  '53.3a / LAB-IMP-458 / ' || to_char(current_date + 30, 'YYYY-MM-DD'),
   'la carta de despido hereda la causa y queda atada a su imputación');
 
 
