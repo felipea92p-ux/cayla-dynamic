@@ -60,6 +60,7 @@ function fijosDentro(raices: HTMLElement[]): HTMLElement[] {
 function soltarTodo() {
   clearTimeout(reloj);
   for (const el of capas) {
+    el.removeAttribute("data-fuera-de-pantalla");
     for (const p of ["transition", "transform", "transform-origin", "will-change", "clip-path", "border-top-left-radius", "border-top-right-radius"]) el.style.removeProperty(p);
   }
   for (const el of escondidos) {
@@ -84,6 +85,8 @@ export function alejarFondo(ms: number, de: Forma = "abajo"): symbol | null {
   for (const el of capas) {
     const r = el.getBoundingClientRect();
     el.style.willChange = "transform";
+    // Mientras está alejado, lo de atrás está fuera de juego: es lo que dice este atributo a `responsive:check`, que si no lo tomaría por algo que se sale del borde.
+    el.setAttribute("data-fuera-de-pantalla", "");
     if (de === "lado") {
       if (el.dataset.fondoHoja === "borde") {
         // La cabecera se aleja alrededor de su propio centro izquierdo: se queda arriba.

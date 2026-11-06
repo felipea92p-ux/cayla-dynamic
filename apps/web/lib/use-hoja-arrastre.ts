@@ -58,19 +58,19 @@ export function useHojaArrastre(opciones: Opciones) {
       hoja.style.setProperty("transition", transicion ? `transform ${transicion}` : "none", "important");
       hoja.style.setProperty("transform", `translate3d(0, ${y}px, 0)`, "important");
       const p = progresoDeCierre(y, alto);
+      // El velo es el `::before` del contenedor (piezas.css): se aclara él solo, sin apagar a la hoja que va adentro.
       const velo = op.current.velo.current;
       if (velo) {
-        velo.style.setProperty("transition", transicion ? `opacity ${transicion}` : "none", "important");
-        velo.style.setProperty("opacity", String(1 - p), "important");
+        velo.style.setProperty("--velo-t", `${ms}ms`);
+        velo.style.setProperty("--velo-o", String(1 - p));
       }
       op.current.alMoverse?.(p, ms);
     };
     const soltarEstilos = () => {
-      for (const el of [hoja, op.current.velo.current]) {
-        el?.style.removeProperty("transition");
-        el?.style.removeProperty("transform");
-        el?.style.removeProperty("opacity");
-      }
+      hoja.style.removeProperty("transition");
+      hoja.style.removeProperty("transform");
+      op.current.velo.current?.style.removeProperty("--velo-t");
+      op.current.velo.current?.style.removeProperty("--velo-o");
       yAhora = 0;
     };
 

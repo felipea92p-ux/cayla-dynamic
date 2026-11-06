@@ -531,10 +531,23 @@
   /* ---------- La hoja y el cajón ----------
      Vidrio con su borde de luz y su sombra larga. Lo desenfoca el velo y no la hoja: un `backdrop-filter` en la hoja la volvería el contenedor de lo `fixed` de adentro,
      y la hoja además hace scroll. En el teléfono la hoja sube desde abajo; cómo entra, se va y se baja con el dedo está en movimiento.css. */
-  [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"]:not(.hoja *) {
+  [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"]:not([data-hoja-vidrio], .hoja *),
+  [data-vidrio="panel"] [data-hoja-vidrio]::before {
     background: var(--vidrio-velo);
     -webkit-backdrop-filter: blur(12px) saturate(1.4);
     backdrop-filter: blur(12px) saturate(1.4);
+  }
+  /* El velo de las hojas es una capa propia y no el fondo del contenedor: se aclara mientras la hoja baja con el dedo, y la hoja, que va adentro, no se apaga con él. */
+  [data-vidrio="panel"] [data-hoja-vidrio] {
+    background: none;
+  }
+  [data-vidrio="panel"] [data-hoja-vidrio]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    opacity: var(--velo-o, 1);
+    transition: opacity var(--velo-t, 0ms) var(--ease-cayla);
   }
   [data-vidrio="panel"] [role="dialog"].bg-papel,
   [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"] > .bg-papel {

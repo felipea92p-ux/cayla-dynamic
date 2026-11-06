@@ -11,7 +11,8 @@
   @media (prefers-reduced-motion: no-preference) {
     /* ---------- La hoja: entra ----------
        El velo se esmerila; la hoja sube y crece, y lo de adentro llega en cascada. En la computadora se ancla arriba: si su contenido crece, no baila. */
-    [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"]:not(.hoja *) {
+    [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"]:not([data-hoja-vidrio], .hoja *),
+    [data-vidrio="panel"] [data-hoja-vidrio]::before {
       animation: vidrio-velo-entra var(--t-hoja) var(--ease-cayla) backwards;
     }
     [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"]:not([data-hoja-vidrio]) > .bg-papel {
@@ -35,8 +36,10 @@
     /* ---------- La hoja: se va ----------
        Lo que se va es una copia sin vida (`data-se-va`, use-hoja-viva.ts). */
     [data-vidrio="panel"] [data-se-va] {
-      animation: vidrio-velo-sale 220ms var(--ease-cayla) forwards !important;
       pointer-events: none;
+    }
+    [data-vidrio="panel"] [data-se-va]::before {
+      animation: vidrio-velo-sale 220ms var(--ease-cayla) forwards;
     }
     [data-vidrio="panel"] [data-se-va] > [role="dialog"] {
       animation: vidrio-hoja-sale 220ms var(--vidrio-ease-salida) forwards !important;
@@ -49,8 +52,8 @@
       [data-vidrio="panel"] [data-hoja-vidrio] > [role="dialog"].inset-y-0 {
         animation: vidrio-hoja-movil-entra 460ms var(--ease-cayla) backwards;
       }
-      [data-vidrio="panel"] [data-se-va] {
-        animation-duration: 300ms !important;
+      [data-vidrio="panel"] [data-se-va]::before {
+        animation-duration: 300ms;
       }
       [data-vidrio="panel"] [data-se-va] > [role="dialog"],
       [data-vidrio="panel"] [data-se-va] > [role="dialog"].inset-y-0 {
@@ -248,6 +251,11 @@
     [data-vidrio="panel"] [data-hoja-vidrio].items-center > [role="dialog"] {
       max-height: calc(100dvh - 8vh - 1rem);
     }
+  }
+
+  /* Lo de atrás se corre 34 px con el menú abierto: lo que se pasa del borde no le da a la página de qué desplazarse de lado. `clip` y no `hidden`: no crea una caja que corre, y lo pegado (la cabecera) sigue pegado. */
+  [data-vidrio="panel"] .marco-raiz {
+    overflow-x: clip;
   }
 
   /* El asa: dice que la hoja se baja con el dedo. Se queda a la vista al correr. Solo en el teléfono. */

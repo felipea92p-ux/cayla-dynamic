@@ -170,7 +170,7 @@ function usePieALaVista(hoja: React.RefObject<HTMLElement | null>) {
  * escribe. Así que el velo empieza en el borde de arriba de lo visible y la hoja reserva, con relleno, lo que tapa el teclado (reglas en movimiento.css).
  * Viene de Retail (useHojaSobreElTeclado): no se pega al borde de abajo de lo visible porque hay navegadores de Android que reportan ese alto corto.
  */
-function useHojaSobreElTeclado(velo: React.RefObject<HTMLElement | null>) {
+function useHojaSobreElTeclado(elVelo: () => HTMLElement | null) {
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -184,7 +184,7 @@ function useHojaSobreElTeclado(velo: React.RefObject<HTMLElement | null>) {
       tocado = null;
     };
     const ajustar = () => {
-      const el = velo.current;
+      const el = elVelo();
       if (!el) return;
       const teclado = window.innerHeight - vv.height;
       if (vv.scale > 1.01 || teclado < MIN_TECLADO) {
@@ -206,7 +206,7 @@ function useHojaSobreElTeclado(velo: React.RefObject<HTMLElement | null>) {
     };
     // Un campo que recibe el foco con el teclado arriba queda a la vista por encima del pie.
     const alEnfocar = (e: FocusEvent) => {
-      const el = velo.current;
+      const el = elVelo();
       const campo = e.target;
       if (!conTeclado || !el || !(campo instanceof HTMLElement) || !el.contains(campo) || campo.closest("[data-pie-hoja]")) return;
       requestAnimationFrame(() => campo.scrollIntoView({ block: "nearest" }));
@@ -223,7 +223,7 @@ function useHojaSobreElTeclado(velo: React.RefObject<HTMLElement | null>) {
       window.removeEventListener("resize", ajustar);
       soltar();
     };
-  }, [velo]);
+  }, [elVelo]);
 }
 
 export function useHojaViva({ onCerrar, bloqueado = false }: { onCerrar: () => void; bloqueado?: boolean }) {
@@ -286,7 +286,7 @@ export function useHojaViva({ onCerrar, bloqueado = false }: { onCerrar: () => v
   }, [enCelular]);
 
   usePieALaVista(hoja);
-  useHojaSobreElTeclado(velo);
+  useHojaSobreElTeclado(useCallback(() => velo.current, []));
 
   return { velo, hoja, ponerHoja };
 }

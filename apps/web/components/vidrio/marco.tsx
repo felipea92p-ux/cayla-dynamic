@@ -140,7 +140,7 @@ export function MarcoVidrio({
   const tecla = useTeclaDelBuscador();
 
   return (
-    <div className="flex min-h-screen w-full min-w-0 flex-1">
+    <div className="marco-raiz flex min-h-screen w-full min-w-0 flex-1">
       <OndaBotones />
       <GotaDePestanas />
       {/* Siempre montado, para que también se apague al cerrar; cerrado no recibe toques. */}
