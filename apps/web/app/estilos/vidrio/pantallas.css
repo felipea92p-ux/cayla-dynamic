@@ -258,4 +258,8 @@
   :root[data-vidrio="panel"][data-tema="oscuro"] td a.text-rojo:not(.hoja *) {
     color: color-mix(in srgb, var(--color-rojo) 80%, var(--color-tinta));
   }
+  /* Y no se parte en dos renglones: «Sin salida» a 768 px dejaba su «›» solo abajo. */
+  [data-vidrio="panel"] td a.text-rojo:not(.hoja *) {
+    white-space: nowrap;
+  }
 }

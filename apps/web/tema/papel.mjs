@@ -83,8 +83,8 @@ export const DOCUMENTOS = [
   { nombre: "hoja-de-sede", cuenta: "do", ruta: "/admin/reporte-sede" },
   { nombre: "politica", cuenta: "do", ruta: "/admin/politica-salarial" },
   { nombre: "memo-disciplina", cuenta: "do", buscar: async () => (idMemo ? `/admin/disciplina/memo/${idMemo}` : null) },
-  // Se entra desde Equipo: el id de la persona cambia cada vez que se crea la base.
-  { nombre: "ficha-persona", cuenta: "do", ruta: "/admin/equipo", tocar: async (p) => { await p.getByRole("link", { name: "Ana Torres Ruiz" }).first().click({ timeout: 5000 }); await p.waitForURL("**/admin/personas/**", { timeout: 10000 }); await p.waitForTimeout(1500); } },
+  // El id se le pregunta a la base: cambia cada vez que se crea. La ficha es lo que sale con «Descargar PDF».
+  { nombre: "ficha-persona", cuenta: "do", ruta: "/admin/equipo", tocar: async (p) => { await p.goto(`${new URL(p.url()).origin}/admin/personas/${psqlLocal("select id from personas where nombres = 'Ana'")}`, { waitUntil: "networkidle", timeout: 60000 }).catch(() => {}); await p.waitForTimeout(1500); } },
   { nombre: "contrato-visor", cuenta: "do", ruta: "/admin/contratos", tocar: async (p) => { await p.getByRole("button", { name: "Más acciones" }).first().click({ timeout: 5000 }).catch(() => p.locator("button:has-text('⋯'), button:has-text('•••')").first().click({ timeout: 4000 })); await p.waitForTimeout(300); await p.getByRole("menuitem", { name: /imprimir/i }).first().click({ timeout: 4000 }); await p.waitForTimeout(1500); } },
   { nombre: "documentacion", cuenta: "do", ruta: "/admin/documentacion", tocar: async (p) => {
       // El lote se vacía en cuanto el diálogo de impresión vuelve. Sin ese diálogo, un error aquí corta esa limpieza y deja a la vista lo que se iba a imprimir.
