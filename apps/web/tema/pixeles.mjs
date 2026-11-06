@@ -132,7 +132,9 @@ for (const tema of a.temas) {
     if (accion?.startsWith("tab:")) {
       // Una pestaña de verdad primero: en la ficha, «Asistencia» es también un módulo del menú.
       const pestana = p.getByRole("tab", { name: accion.slice(4) }).first();
-      const objetivo = (await pestana.count()) ? pestana : p.getByRole("button", { name: accion.slice(4), exact: true }).first();
+      const exacto = p.getByRole("button", { name: accion.slice(4), exact: true }).first();
+      // La pieza `Pestanas` lleva su número en el nombre: «Cargos de cumpleaños 6».
+      const objetivo = (await pestana.count()) ? pestana : (await exacto.count()) ? exacto : p.getByRole("button", { name: accion.slice(4) }).first();
       await objetivo.click({ timeout: 6000 }).catch(() => console.log("NO PUDE", entrada));
       await p.waitForTimeout(1700);
     } else if (accion) {

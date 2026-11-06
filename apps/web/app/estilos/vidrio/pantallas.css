@@ -231,4 +231,14 @@
       color: var(--color-taupe);
     }
   }
+
+  /* Una insignia informativa dentro de una hoja, en oscuro (Tipos de seguro): la letra pizarra sobre el vidrio que deja pasar lo de atrás daba 4.34:1. */
+  :root[data-vidrio="panel"][data-tema="oscuro"] [role="dialog"] .rounded-pildora[class*="bg-pizarra/"]:not(.hoja *) {
+    color: color-mix(in srgb, var(--color-pizarra) 80%, var(--color-tinta));
+  }
+
+  /* El rótulo del buscador de personas: un poco más de aire sobre los filtros. Pegado, la sombra de la píldora oscura le llegaba a la letra. */
+  [data-vidrio="panel"] .space-y-2 > span.text-taupe:first-child + [role="group"] {
+    margin-top: 12px;
+  }
 }
