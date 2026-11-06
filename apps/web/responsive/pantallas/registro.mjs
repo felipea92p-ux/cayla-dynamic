@@ -43,6 +43,7 @@ const PANTALLAS = [
   { id: "incidencias", nombre: "Incidencias", ruta: "/admin/incidencias", cuenta: "admin" },
   { id: "contratos", nombre: "Contratos", ruta: "/admin/contratos", cuenta: "do" },
   { id: "equipo", nombre: "Equipo", ruta: "/admin/equipo", cuenta: "admin" },
+  { id: "datos-personales", nombre: "Datos personales", ruta: "/admin/datos-personales", cuenta: "do" },
   { id: "planilla", nombre: "Planilla", ruta: "/admin/planilla", cuenta: "do" },
   { id: "normas", nombre: "Normas", ruta: "/admin/normas", cuenta: "integrante" },
   { id: "reporte-sede", nombre: "Hoja de sede", ruta: "/admin/reporte-sede", cuenta: "lider" },
