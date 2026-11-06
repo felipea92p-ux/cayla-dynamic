@@ -122,8 +122,9 @@ export const DOCUMENTOS = [
     ruta: "/admin/documentacion",
     tocar: async (p) => {
       await clic("+ Generar documento")(p);
-      await p.getByRole("dialog").getByRole("button").filter({ hasNotText: /Cancelar|Cerrar/ }).last().click({ timeout: 6000 });
-      await p.waitForTimeout(1200);
+      await p.getByRole("dialog").getByRole("combobox").first().selectOption("politica", { timeout: 6000 });
+      await p.waitForTimeout(400);
+      await clic("Revisar y continuar")(p);
     },
   },
   { nombre: "constancias-politica", cuenta: "do", ruta: "/admin/politica-salarial/constancias" },

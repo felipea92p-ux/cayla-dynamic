@@ -1,3 +1,4 @@
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { Marca } from "@/components/marca";
 import { Insignia } from "@/components/ui/insignia";
@@ -360,7 +361,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, nombre
 
   return (
       <div className="hoja rounded-lg border border-sand p-4 sm:p-8 print:rounded-none print:border-0 print:p-0">
-        <div className="mb-6 flex items-start justify-between border-b border-sand pb-4 print:mb-4 print:pb-3">
+        <div className={`mb-6 flex items-start justify-between border-b border-sand pb-4 print:mb-4 print:pb-3${interruptoresVidrio().panel ? " vidrio-cabeza-papel" : ""}`}>
           {/* ── QUIÉN EMITE ESTE PAPEL (auditoría del 2026-08-19) ──────────────
               La cabecera imprimía el lockup de producto «Dynamic / CAYLA» y
               nada más: ni razón social ni RUC. Un documento de pago que no
