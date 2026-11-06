@@ -5,6 +5,8 @@ import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { HojaInferior } from "@/components/ui/hoja-inferior";
 import { OPCIONES_FILTRO_ESTADO } from "@/lib/admin/asistencia-hoy";
+import { Filtro } from "@/components/ui/filtro";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 // Los filtros del Dashboard en celular. Hasta el 2026-10-06 eran la misma caja
 // de escritorio apilada —Buscar, Sede, Estado y «Solo alertas», 310 px de alto—
@@ -39,6 +41,7 @@ interface Props {
 }
 
 function Chip({ activo, onClick, children }: { activo: boolean; onClick: () => void; children: React.ReactNode }) {
+  if (interruptoresVidrio().panel) return <Filtro activo={activo} onClick={onClick} className="min-h-11">{children}</Filtro>;
   return (
     <button
       type="button"

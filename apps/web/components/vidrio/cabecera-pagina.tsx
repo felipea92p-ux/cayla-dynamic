@@ -6,7 +6,9 @@
 //   decidir, y tenerlo que abrir para verlo sería peor que el párrafo que se quería evitar. Una `descripcion` de texto se toma por frase; quien
 //   trae un dato o un aviso escrito como texto lo envuelve, y quien junta los dos los separa con la prop `vidrio`. Lo decide `CabeceraPagina`.
 
-import type { ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { AyudaConFrase } from "@/components/vidrio/frase-de-la-cabecera";
 import { AyudaCabecera } from "@/components/vidrio/ayuda-cabecera";
 
 export function CabeceraPaginaVidrio({
@@ -24,6 +26,9 @@ export function CabeceraPaginaVidrio({
   ayuda?: ReactNode;
   accion?: ReactNode;
 }) {
+  // Un solo «?»: la frase se lee dentro de la ventana de ayuda. Retail también los juntó (EncabezadoPagina). Quien trae su propia ventana (Disciplina) no puede recibir la frase:
+  // ahí siguen los dos signos hasta su módulo.
+  const unSoloSigno = isValidElement(ayuda) && ayuda.type === AyudaPantalla;
   return (
     <div className="vidrio-cabecera mb-5 flex flex-wrap items-center justify-between gap-x-10 gap-y-4 sm:mb-8">
       <div className="min-w-0">
@@ -36,8 +41,10 @@ export function CabeceraPaginaVidrio({
         {/* receta-propia: esta ES la cabecera de pantalla; CabeceraPagina la elige con el interruptor encendido */}
         <h1 className="vidrio-titulo text-tinta">
           {titulo}
-          {frase ? <AyudaCabecera nombre={titulo}>{frase}</AyudaCabecera> : null}
-          {ayuda ? <span className="vidrio-titulo-ayuda">{ayuda}</span> : null}
+          {frase && !unSoloSigno ? <AyudaCabecera nombre={titulo}>{frase}</AyudaCabecera> : null}
+          {ayuda ? (
+            <span className="vidrio-titulo-ayuda">{unSoloSigno ? <AyudaConFrase frase={frase ?? null}>{ayuda}</AyudaConFrase> : ayuda}</span>
+          ) : null}
         </h1>
         {dato ? <div className="mt-2 max-w-2xl text-sm text-taupe">{dato}</div> : null}
       </div>

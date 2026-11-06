@@ -147,7 +147,7 @@
       border-color: color-mix(in srgb, var(--color-rojo-profundo) 70%, transparent);
     }
     [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.bg-tinta, :disabled, .hoja *):hover,
-    [data-vidrio="panel"] :is(button, a).rounded-control.bg-papel:not(:disabled, .hoja *):hover {
+    [data-vidrio="panel"] :is(button, a).rounded-control.bg-papel:not(:disabled, [aria-pressed="true"], .hoja *):hover {
       background: var(--gota-fondo-encima);
     }
     [data-vidrio="panel"] :is(button, a).rounded-control.border-sand:not(.bg-papel, .bg-tinta, :disabled, .hoja *):hover {

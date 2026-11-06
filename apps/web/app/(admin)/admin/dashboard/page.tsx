@@ -33,7 +33,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
   calcularCoberturaSede, causaMetaImposible, coincideConFiltroDeEstado, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegaronTarde, llegoTarde, loQueFalta,
-  minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoDesglose, textoEquipoDelDia,
+  minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoDesglose, textoEquipoDelDia, textoEquipoDelDiaCorto,
   diaDeLaSemanaEnPlural, metaDelDiaTexto, metaOperativasSinMedir, OPCIONES_FILTRO_ESTADO, sustantivoMetaOp, textoFueraDeHorario, textoLiderEnLasDosMetas, textoMetaPorRevisar, textoMetaSinTurnos, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
@@ -44,12 +44,20 @@ import {
   KPIS_EXTRA, PANELES_NO_OCULTABLES, alternarAlertas, alternarColapsado, alternarKpiExtra, alternarOculto,
   moverPanel, normalizarPreferencias, PREFERENCIAS_INICIALES, type KpiExtra, type PanelId,
 } from "@/lib/admin/tablero-preferencias";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { PanelColapsable } from "./panel-colapsable";
 import { PanelAtencionBanner, PanelAtencionLateral } from "./panel-atencion";
 import { FiltrosCelular } from "./filtros-celular";
 import { usePendientesBandeja } from "./use-pendientes-bandeja";
 import { useCasosResumen } from "./use-casos-resumen";
 import { useRefrescoLento } from "./use-refresco-lento";
+
+// Con el vidrio: pocas palabras, y «3 en pausa» no se parte en dos renglones. Apagado, todo sigue diciendo lo de hoy.
+const CON_VIDRIO = interruptoresVidrio().panel;
+const FRESCURA_EN_VIVO = CON_VIDRIO ? "en vivo" : "en vivo · cada 30 s";
+const TEXTO_EQUIPO = CON_VIDRIO ? textoEquipoDelDiaCorto : textoEquipoDelDia;
+const CLASE_EN_PAUSA = CON_VIDRIO ? "whitespace-nowrap text-ambar" : "text-ambar";
 
 const REFRESCO_MS = 30_000;
 // Los catálogos casi fijos (sedes, áreas, tipos de ausencia) no cambian cada 30 s: se
@@ -1045,10 +1053,56 @@ export default function DashboardPage() {
     });
   }
 
+  const ayudaEnVivo = (
+    <AyudaPantalla
+              titulo="Qué tan «en vivo» es esta pantalla"
+              intro="Los números de asistencia se leen de las marcas del terminal."
+              secciones={[
+                { titulo: "Cada 30 segundos", texto: <>Esta pantalla se refresca sola; la última vez fue a las {actualizado}. Si un refresco falla, el aviso deja de decir «en vivo» y muestra de qué hora son los datos.</> },
+                { titulo: "Cada 5 minutos", texto: "Disciplina, memos y contratos: cambian una vez al día, no cada medio minuto, así que van en un refresco aparte." },
+                { titulo: "La fecha", texto: "Siempre se muestra, porque «hoy» sin fecha no dice de qué día son los números cuando alguien guarda una captura." },
+              ]}
+            />
+  );
+  // Aviso discreto, no un banner: alguien de vacaciones podría verse como «sin marcar» mientras esta consulta no responda.
+  const avisoAusencias = ausenciasNoRespondieron && (
+                <div className="mt-1 text-ambar" title="Alguien de vacaciones podría verse como 'Sin marcar' mientras esto no se pueda comprobar.">
+                  ⚠ No se pudieron comprobar las ausencias de hoy
+                </div>
+              );
+
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-4 pt-6 sm:p-6">
         <CabeceraPagina
+          // Con el vidrio la fecha y la hora suben a la línea de arriba, como en toda pantalla, y aquí queda solo si es en vivo o no.
+          sobretitulo={CON_VIDRIO ? sobretituloDeHoy("Dashboard") : undefined}
+          ayuda={CON_VIDRIO ? ayudaEnVivo : undefined}
+          vidrio={CON_VIDRIO ? {
+            dato: (
+              <>
+                <div className="flex items-center gap-2">
+                  {cargando && filas.length === 0 ? (
+                    "Cargando…"
+                  ) : error ? (
+                    <>
+                      <span className="inline-flex h-2 w-2 rounded-full bg-ambar" aria-hidden />
+                      sin actualizar{actualizado ? ` — estos datos son de las ${actualizado}` : ""}
+                    </>
+                  ) : (
+                    <>
+                      <span className="relative flex h-2 w-2" aria-hidden>
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-verde/60" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-verde" />
+                      </span>
+                      en vivo
+                    </>
+                  )}
+                </div>
+                {avisoAusencias}
+              </>
+            ),
+          } : undefined}
           titulo="Asistencia de hoy"
           descripcion={
             <>
@@ -1074,26 +1128,14 @@ export default function DashboardPage() {
                         refresca cada 30s» siguen en el menú ⋯ y en el escritorio; la fecha se queda
                         siempre, por la razón de arriba. */}
                     <span>{fechaConDia(hoy)} · en vivo · {actualizado.replace(/^(\d{1,2}:\d{2}):\d{2}/, "$1")}</span>
-                    <AyudaPantalla
-              titulo="Qué tan «en vivo» es esta pantalla"
-              intro="Los números de asistencia se leen de las marcas del terminal."
-              secciones={[
-                { titulo: "Cada 30 segundos", texto: <>Esta pantalla se refresca sola; la última vez fue a las {actualizado}. Si un refresco falla, el aviso deja de decir «en vivo» y muestra de qué hora son los datos.</> },
-                { titulo: "Cada 5 minutos", texto: "Disciplina, memos y contratos: cambian una vez al día, no cada medio minuto, así que van en un refresco aparte." },
-                { titulo: "La fecha", texto: "Siempre se muestra, porque «hoy» sin fecha no dice de qué día son los números cuando alguien guarda una captura." },
-              ]}
-            />
+                    {ayudaEnVivo}
                   </>
                 )}
               </div>
               {/* Aviso discreto, no un banner: alguien de vacaciones podría verse como
                   "sin marcar" mientras esta consulta no responda. Menos grave que
                   Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
-              {ausenciasNoRespondieron && (
-                <div className="mt-1 text-ambar" title="Alguien de vacaciones podría verse como 'Sin marcar' mientras esto no se pueda comprobar.">
-                  ⚠ No se pudieron comprobar las ausencias de hoy
-                </div>
-              )}
+              {avisoAusencias}
             </>
           }
           accion={
@@ -1251,7 +1293,7 @@ export default function DashboardPage() {
                 )}
 
             {panelVisible("resumen") && (
-              <PanelColapsable {...panelProps("resumen", "Resumen del día", "en vivo · cada 30 s")}>
+              <PanelColapsable {...panelProps("resumen", "Resumen del día", FRESCURA_EN_VIVO)}>
             {/* RESUMEN GLOBAL. Número grande y con peso: EB Garamond en su peso
                 normal tiene el trazo tan fino que un "2" en rojo se leía como
                 gris claro a un metro de la pantalla. Rojo y no rojo-profundo:
@@ -1462,7 +1504,7 @@ export default function DashboardPage() {
             )}
 
             {panelVisible("sedes") && (
-              <PanelColapsable {...panelProps("sedes", "Sedes", "en vivo · cada 30 s")}>
+              <PanelColapsable {...panelProps("sedes", "Sedes", FRESCURA_EN_VIVO)}>
             {/* !alertaSinEntrada && horarioEsperadoNoRespondio, a nivel global:
                 si turnos/horarios fallaron, ninguna sede puede calcular su alerta
                 de "sin marcajes" ni su denominador de programados hoy. */}
@@ -1479,7 +1521,7 @@ export default function DashboardPage() {
             )}
 
             {sedesMostradas.length > 0 && (
-            <div className="overflow-hidden rounded-superficie border border-sand bg-papel">
+            <TarjetaInfo className="overflow-hidden !p-0 sm:!p-0">
             {sedesMostradas.map(({ sedeId, codigo, etiqueta }) => {
               const deSedeCompleta = filas.filter((f) => f.sedeId === sedeId);
               const deSedeMostrada = deSedeCompleta.filter(filaCoincideFiltros);
@@ -1619,13 +1661,13 @@ export default function DashboardPage() {
                       </span>
                       {resumenCob && (
                         <span className="mt-2 block">
-                          <span className="text-sm">{resumenCob.texto}{cob.enPausa.length > 0 && <span className="text-ambar"> · {cob.enPausa.length} en pausa</span>}</span>
+                          <span className="text-sm">{resumenCob.texto}{cob.enPausa.length > 0 && <span className={CLASE_EN_PAUSA}> · {cob.enPausa.length} en pausa</span>}</span>
                           {resumenCob.pct !== null && (
                             <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-sand"><span className={`block h-full ${colorBarra}`} style={{ width: `${resumenCob.pct}%` }} /></span>
                           )}
                         </span>
                       )}
-                      <span className="mt-1.5 block text-xs text-taupe">{textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length, cob.feriadoSinConfirmar)}</span>
+                      <span className="mt-1.5 block text-xs text-taupe">{TEXTO_EQUIPO(cob.programadosHoy, deSedeCompleta.length, cob.feriadoSinConfirmar)}</span>
                     </span>
 
                     {/* ESCRITORIO: las cuatro columnas de siempre. `contents` hace que sus hijos
@@ -1637,11 +1679,11 @@ export default function DashboardPage() {
                           taupe legible, el mismo de todo lo secundario de esta pantalla. */}
                       <span className={cob.noAbreHoy ? "font-medium text-taupe" : "font-semibold"}>{etiqueta.titulo}</span>{" "}
                       <span className="text-xs text-taupe">({codigo})</span>
-                      <span className="block text-xs text-taupe">{textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length, cob.feriadoSinConfirmar)}</span>
+                      <span className="block text-xs text-taupe">{TEXTO_EQUIPO(cob.programadosHoy, deSedeCompleta.length, cob.feriadoSinConfirmar)}</span>
                     </span>
                     {resumenCob ? (
                       <span>
-                        <span className="text-sm">{resumenCob.texto}{cob.enPausa.length > 0 && <span className="text-ambar"> · {cob.enPausa.length} en pausa</span>}</span>
+                        <span className="text-sm">{resumenCob.texto}{cob.enPausa.length > 0 && <span className={CLASE_EN_PAUSA}> · {cob.enPausa.length} en pausa</span>}</span>
                         {resumenCob.pct !== null && (
                           <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-sand"><span className={`block h-full ${colorBarra}`} style={{ width: `${resumenCob.pct}%` }} /></span>
                         )}
@@ -1883,7 +1925,7 @@ export default function DashboardPage() {
                 </section>
               );
             })}
-            </div>
+            </TarjetaInfo>
             )}
               </PanelColapsable>
             )}
@@ -1894,7 +1936,7 @@ export default function DashboardPage() {
                 hacerlo. Ninguna de las dos reemplaza el trámite físico. */}
             {respuestasMemo.length > 0 && panelVisible("memos") && (
               <PanelColapsable {...panelProps("memos", "Respuestas a memos", "se actualiza cada 5 min")}>
-              <div className="rounded-superficie border border-sand bg-papel p-5 pl-6">
+              <TarjetaInfo className="!p-5 !pl-6">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs text-taupe">Últimos {DIAS_RESPUESTAS_MEMO} días</span>
                   <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
@@ -1911,7 +1953,7 @@ export default function DashboardPage() {
                     <span className="text-xs text-taupe">{fechaCorta((r.firmado_at ?? r.rechazado_at)!.slice(0, 10))}</span>
                   </Link>
                 ))}
-              </div>
+              </TarjetaInfo>
               </PanelColapsable>
             )}
 

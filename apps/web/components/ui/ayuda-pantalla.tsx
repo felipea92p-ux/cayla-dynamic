@@ -18,6 +18,7 @@ import { Info } from "lucide-react";
 import { Boton } from "./boton";
 import { cx } from "./cx";
 import { Modal } from "./modal";
+import { SignoDeAyuda, useFraseDeLaCabecera } from "@/components/vidrio/frase-de-la-cabecera";
 
 export type SeccionAyuda = {
   titulo: string;
@@ -36,6 +37,8 @@ export type SeccionAyuda = {
  * título—, pero el área de toque es de 32 px.
  */
 export function BotonAyuda({ onClick, etiqueta, className }: { onClick: () => void; etiqueta: string; className?: string }) {
+  // Junto al título con vidrio, este botón ES el «?» de la pantalla. `undefined` es «no estoy ahí».
+  if (useFraseDeLaCabecera() !== undefined) return <SignoDeAyuda onClick={onClick} etiqueta={etiqueta} />;
   return (
     <button
       type="button"
@@ -68,11 +71,13 @@ export function AyudaPantalla({
   children?: ReactNode;
 }) {
   const [abierta, setAbierta] = useState(false);
+  const frase = useFraseDeLaCabecera();
   return (
     <>
       <BotonAyuda etiqueta={titulo} onClick={() => setAbierta(true)} />
       <Modal abierto={abierta} onCerrar={() => setAbierta(false)} titulo={titulo} ancho="lg">
         <div className="grid gap-4 text-sm">
+          {frase && <p className="text-tinta">{frase}</p>}
           {intro && <p className="text-taupe">{intro}</p>}
           {secciones && secciones.length > 0 && (
             <dl className="grid gap-3">

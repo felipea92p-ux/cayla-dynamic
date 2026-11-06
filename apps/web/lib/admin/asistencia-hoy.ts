@@ -739,6 +739,14 @@ export function textoEquipoDelDia(programadas: number, equipo: number, feriadoSi
   return `${arranque(programadas === 1 ? "le" : "les")} a ${programadas} de las ${equipo} personas del equipo${cierre}`;
 }
 
+/** Lo mismo en pocas palabras, para la fila de cada sede con el vidrio. No decide nada distinto: salen de los mismos dos números y el mismo feriado. */
+export function textoEquipoDelDiaCorto(programadas: number, equipo: number, feriadoSinConfirmar = false): string {
+  if (equipo <= 0) return "Sin personas en el equipo.";
+  if (programadas <= 0) return "Hoy no le toca a nadie.";
+  const le = programadas === 1 ? "le" : "les";
+  return feriadoSinConfirmar ? `Por horario ${le} toca a ${programadas} de ${equipo} · feriado sin turnos` : `Hoy ${le} toca a ${programadas} de ${equipo}`;
+}
+
 /**
  * «Según el horario de hoy: 6 ya salieron · 3 aún no llegan · 1 no llegó y ya le
  * tocaba». Es lo que sigue a «Nadie está trabajando en este momento»: un 0 en

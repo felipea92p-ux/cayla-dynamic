@@ -1,0 +1,54 @@
+/* LO QUE UNA PANTALLA PIDE Y NINGUNA PIEZA DA. Etapa 2, módulo por módulo. Si algo de aquí lo empieza a usar una tercera pantalla, sube a piezas.css.
+   Como todo el vidrio: cuelga de [data-vidrio="panel"] y solo en pantalla. Las clases `vidrio-*` las pone la pantalla únicamente con el interruptor encendido. */
+
+@media screen {
+  /* La cabecera: una acción chica (el «⋯») se queda junto al título, y una grande baja a su renglón cuando no caben. Sin esto, un título con su línea de arriba larga mandaba el «⋯» abajo. */
+  [data-vidrio="panel"] .vidrio-cabecera > .min-w-0 {
+    flex: 1 1 14rem;
+  }
+
+  /* El riel: en el teléfono, una fila de filtros corre de lado en vez de comerse una pantalla. Llega hasta los bordes para que se note que sigue. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-riel {
+      flex-wrap: nowrap;
+      margin-inline: -1rem;
+      padding: 4px 1rem;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+    }
+    [data-vidrio="panel"] .vidrio-riel > * {
+      flex: none;
+    }
+
+    /* La fila de un grupo que se abre (Jornada): el nombre en su renglón y sus cuentas debajo, en vez de apretar «6 personas» entre las dos. */
+    [data-vidrio="panel"] .vidrio-fila-grupo {
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+    [data-vidrio="panel"] .vidrio-fila-grupo > :first-child {
+      flex: 1 1 100%;
+      flex-wrap: wrap;
+    }
+    [data-vidrio="panel"] .vidrio-fila-grupo > :last-child {
+      justify-content: flex-start;
+      margin-left: 24px;
+    }
+  }
+
+  /* Los títulos de una lista que se quedan pegados (Bandeja): el vidrio del pie, para que lo que pasa por debajo no se lea a través. */
+  [data-vidrio="panel"] .vidrio-cabeza-lista {
+    border-color: var(--placa-borde);
+    border-radius: 12px;
+    background: var(--vidrio-pie-fondo);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+  }
+
+  /* El «?» junto al título de una tarjeta: el mismo signo, sin el ajuste que necesita al lado de un título de 46 px. */
+  [data-vidrio="panel"] h2 > .ayuda-cab-q {
+    top: 0;
+    vertical-align: 1px;
+    margin-left: 6px;
+  }
+}

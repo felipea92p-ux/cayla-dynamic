@@ -66,6 +66,9 @@ import { TarjetaSistema } from "@/components/bandeja/tarjeta-sistema";
 import { PanelPrueba } from "@/components/pruebas/panel-prueba";
 import { textoDeHoras } from "@/lib/admin/pruebas";
 import { resumenNormasPendientes, type ResumenNormas } from "@/lib/admin/bandeja-equipo";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { Filtro } from "@/components/ui/filtro";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 const CLAVE_SEDE_FILTRO = "bandeja_sede_filtro";
 
@@ -91,6 +94,9 @@ const ICONO_MODULO: Record<ModuloBandeja, LucideIcon> = {
 // Columnas de la fila en ancho completo. Literal, no armado: Tailwind solo ve
 // clases que aparecen enteras en el código.
 const COLUMNAS = "@3xl:grid-cols-[minmax(9rem,1.1fr)_minmax(14rem,2.4fr)_9.5rem_11rem_minmax(8rem,auto)]";
+// Con el vidrio: en el teléfono las 13 casillas corren de lado en vez de comerse una pantalla, y los títulos de la lista se quedan bajo la cabecera, que mide 64 px.
+const RIEL = interruptoresVidrio().panel ? "vidrio-riel" : undefined;
+const CABEZA_LISTA = interruptoresVidrio().panel ? "vidrio-cabeza-lista top-16" : "top-0";
 
 /** El grupo también se dice con FORMA, no solo con color: cuadro lleno, medio círculo, anillo, raya. */
 function MarcaGrupo({ grupo }: { grupo: GrupoUrgencia }) {
@@ -136,20 +142,9 @@ function TarjetaCategoria({
     : vencidos > 0 ? `${vencidos} vencido${vencidos === 1 ? "" : "s"}`
     : hoy > 0 ? `${hoy} para hoy`
     : "sin urgencia";
-  return (
-    <button
-      id={id}
-      type="button"
-      aria-pressed={activa}
-      title={alDia ? `${etiqueta}: nada pendiente` : activa ? "Ver todo" : `Ver solo ${etiqueta}`}
-      onClick={onClick}
-      className={cx(
-        "flex items-center gap-2 rounded-control border px-3 py-1.5 text-left transition-colors duration-150",
-        activa ? "border-tinta bg-papel ring-1 ring-tinta"
-          : alDia ? "border-dashed border-sand hover:border-taupe/60"
-          : "border-sand bg-papel hover:border-taupe/60",
-      )}
-    >
+  const titulo = alDia ? `${etiqueta}: nada pendiente` : activa ? "Ver todo" : `Ver solo ${etiqueta}`;
+  const adentro = (
+    <>
       <Icon className="size-4 shrink-0 text-taupe" aria-hidden />
       <span className="text-sm font-medium text-tinta">{etiqueta}</span>
       <span className={cx("text-base font-medium tabular-nums", alDia ? "text-taupe" : "text-tinta")}>{fallo ? "—" : n}</span>
@@ -161,6 +156,30 @@ function TarjetaCategoria({
       >
         {sub}
       </span>
+    </>
+  );
+  if (interruptoresVidrio().panel) {
+    return (
+      <Filtro id={id} title={titulo} activo={activa} onClick={onClick} className={cx("flex items-center gap-2 text-left", alDia && !activa && "border-dashed")}>
+        {adentro}
+      </Filtro>
+    );
+  }
+  return (
+    <button
+      id={id}
+      type="button"
+      aria-pressed={activa}
+      title={titulo}
+      onClick={onClick}
+      className={cx(
+        "flex items-center gap-2 rounded-control border px-3 py-1.5 text-left transition-colors duration-150",
+        activa ? "border-tinta bg-papel ring-1 ring-tinta"
+          : alDia ? "border-dashed border-sand hover:border-taupe/60"
+          : "border-sand bg-papel hover:border-taupe/60",
+      )}
+    >
+      {adentro}
     </button>
   );
 }
@@ -524,9 +543,15 @@ export default function BandejaPage() {
         {/* Se muestra igual a la encargada —si no, su equipo esperaría algo que
             ella no ve— pero sin botones cuando el campo es de DO (0405). */}
         {solicitudPerfil?.solo_do && !puedeVerIdentidad(rol) ? (
+          interruptoresVidrio().panel ? (
+            <BannerAviso enLinea variante="informativo">
+              Esta solicitud cambia el número de documento: la resuelve Desarrollo Organizacional. Avísales para que la revisen.
+            </BannerAviso>
+          ) : (
           <p className="rounded-control border border-pizarra/30 bg-pizarra/10 px-3 py-2 text-sm text-pizarra">
             Esta solicitud cambia el número de documento: la resuelve Desarrollo Organizacional. Avísales para que la revisen.
           </p>
+          )
         ) : (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
             <div className="flex-1">
@@ -682,7 +707,7 @@ export default function BandejaPage() {
                 {modulos.length} módulo{modulos.length === 1 ? "" : "s"} · {alDia} al día
               </span>
             </div>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className={cx("mt-2 flex flex-wrap gap-2", RIEL)}>
               <TarjetaCategoria
                 id="categoria-todo" etiqueta="Todo" Icon={Inbox}
                 n={paraTarjetas.length} vencidos={vencidosTotal}
@@ -802,7 +827,7 @@ export default function BandejaPage() {
                 </div>
               ) : (
                 <>
-                  <div className={cx("sticky top-0 z-10 hidden gap-x-4 border-b border-sand bg-crema px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-taupe @3xl:grid", COLUMNAS)}>
+                  <div className={cx(CABEZA_LISTA, "sticky z-10 hidden gap-x-4 border-b border-sand bg-crema px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-taupe @3xl:grid", COLUMNAS)}>
                     <span>Persona</span><span>Pendiente</span><span>Origen</span><span>Plazo</span><span className="text-right">Acción</span>
                   </div>
                   {GRUPOS_URGENCIA.map((g) => {

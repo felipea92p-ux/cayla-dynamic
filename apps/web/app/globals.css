@@ -6,6 +6,7 @@
 @import "./estilos/vidrio/marco.css";
 @import "./estilos/vidrio/piezas.css";
 @import "./estilos/vidrio/movimiento.css";
+@import "./estilos/vidrio/pantallas.css";
 
 @theme {
   /* ── Paleta CAYLA ─────────────────────────────────────────────
