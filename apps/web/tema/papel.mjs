@@ -116,6 +116,16 @@ export const DOCUMENTOS = [
       await clic("Constancia de cese")(p);
     },
   },
+  {
+    nombre: "documentacion-hoja",
+    cuenta: "do",
+    ruta: "/admin/documentacion",
+    tocar: async (p) => {
+      await clic("+ Generar documento")(p);
+      await p.getByRole("dialog").getByRole("button").filter({ hasNotText: /Cancelar|Cerrar/ }).last().click({ timeout: 6000 });
+      await p.waitForTimeout(1200);
+    },
+  },
   { nombre: "constancias-politica", cuenta: "do", ruta: "/admin/politica-salarial/constancias" },
   { nombre: "constancias-norma", cuenta: "do", ruta: `/admin/normas/${NORMA}/constancias` },
   { nombre: "cargos-disciplina", cuenta: "do", ruta: `/admin/disciplina/cargos/${CARGOS}` },
@@ -125,6 +135,18 @@ export const DOCUMENTOS = [
     cuenta: "do",
     buscar: async () => `/admin/planilla/boletas?periodo=${psqlLocal("select id from periodos_planilla order by fecha_ini desc limit 1")}`,
     tocar: async (p) => {
+      // El entorno local no guarda archivos: la foto de la boleta se responde aquí, para llegar a la hoja que va debajo de ella.
+      const foto = await sharp({ create: { width: 600, height: 800, channels: 3, background: "#e9e4da" } }).png().toBuffer();
+      const cabeceras = { "access-control-allow-origin": "*", "access-control-allow-headers": "*" };
+      await p.route("**/storage/v1/object/sign/**", (r) => {
+        const m = r.request().method();
+        if (m === "OPTIONS") return r.fulfill({ status: 204, headers: cabeceras });
+        if (m === "POST") {
+          const rutas = JSON.parse(r.request().postData() ?? "{}").paths ?? [];
+          return r.fulfill({ headers: cabeceras, json: rutas.map((ruta) => ({ error: null, path: ruta, signedURL: `/object/sign/boletas/${ruta}?token=inventado` })) });
+        }
+        return r.fulfill({ headers: cabeceras, contentType: "image/png", body: foto });
+      });
       await p.getByRole("button", { name: "Ver boleta firmada" }).first().click({ timeout: 6000 });
       await p.waitForTimeout(1200);
     },
@@ -141,6 +163,7 @@ function leerArgumentos(argv) {
     else if (x === "--pantalla") a.pantalla = true;
     else if (x === "--temas") a.temas = argv[++i].split(",");
     else if (x === "--solo") a.solo = argv[++i].split(",");
+    else if (x === "--ancho") a.ancho = Number(argv[++i]);
     else if (x === "--con-inventados") a.inventados = true;
     else throw new Error(`No sé qué es «${x}».`);
   }
@@ -164,7 +187,7 @@ async function tomar(a) {
   for (const doc of DOCUMENTOS) {
     if (a.solo && !a.solo.includes(doc.nombre)) continue;
     for (const tema of a.temas) {
-      const ctx = await abrirContexto(navegador, porClave(doc.cuenta), { baseUrl: a.base, apiUrl: API_POR_DEFECTO, tema, viewport: { width: 1200, height: 1000 }, fuera });
+      const ctx = await abrirContexto(navegador, porClave(doc.cuenta), { baseUrl: a.base, apiUrl: API_POR_DEFECTO, tema, viewport: { width: a.ancho ?? 1200, height: (a.ancho ?? 1200) < 700 ? 812 : 1000 }, fuera });
       const p = await ctx.newPage();
       await p.emulateMedia({ reducedMotion: "reduce" });
       await p.clock.setFixedTime(new Date("2026-11-05T15:00:00-05:00"));

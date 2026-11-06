@@ -50,6 +50,7 @@
     margin-block: 12px;
     border-color: var(--color-sand);
     background-color: var(--color-papel);
+    border-radius: 8px; /* más los 12 de la bandeja: sus 20 px, los de Retail */
     box-shadow: var(--papel-en-bandeja-sombra), 0 0 0 12px var(--pozo-fondo);
   }
   /* Los que no traen relleno propio: sin esto, el texto queda pegado al borde del papel. */
