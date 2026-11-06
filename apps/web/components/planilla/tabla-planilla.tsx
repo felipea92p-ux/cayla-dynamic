@@ -20,6 +20,7 @@
 // celular. Una tabla de once columnas a 375 px no se lee, se adivina.
 
 import { useMemo, type MouseEvent } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { ChevronRight } from "lucide-react";
 import { formatSoles, RANGO_LABEL } from "@/lib/rangos";
 import { CampoCasilla } from "@/components/ui/campo";
@@ -164,7 +165,7 @@ export function TablaPlanilla({
     <>
       {/* ── Desde md: la tabla completa ─────────────────────────────────── */}
       <div className="hidden md:block">
-        <Tabla>
+        <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-ancha vidrio-tabla-con-total" : undefined}>
           <TablaEncabezado>
             <Th>Persona</Th>
             <Th>Sede</Th>

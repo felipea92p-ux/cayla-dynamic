@@ -262,4 +262,69 @@
   [data-vidrio="panel"] td a.text-rojo:not(.hoja *) {
     white-space: nowrap;
   }
+
+  /* ---------- Pago ---------- */
+
+  /* Una tabla ancha: con menos aire entre columnas, y el nombre se queda a la vista al deslizar. El ancho mínimo evita que un nombre largo ocupe ocho renglones.
+     El fondo de lo pegado es casi opaco y sin desenfoque: serían decenas de filtros por pantalla, y lo que pasa por debajo igual no se lee. */
+  [data-vidrio="panel"] .vidrio-tabla-ancha :is(th, td) {
+    padding-inline: 10px;
+  }
+  [data-vidrio="panel"] .vidrio-tabla-ancha :is(thead, tbody) tr > :first-child,
+  [data-vidrio="panel"] .vidrio-tabla-ancha tfoot tr:first-child > :first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 10.5rem;
+    padding-left: 16px;
+    background: color-mix(in srgb, var(--color-vidrio) 94%, transparent);
+  }
+
+  /* Planilla: «Total» y «Pagado» tampoco se van. A 1440 px la tabla sobraba 346 px y justo esas dos quedaban fuera. Desde 1024 px: más angosto, lo fijo se comería la tabla. */
+  @media (min-width: 64rem) {
+    [data-vidrio="panel"] .vidrio-tabla-con-total :is(thead, tbody) tr > :nth-last-child(-n + 3),
+    [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(-n + 3) {
+      position: sticky;
+      z-index: 1;
+      background: color-mix(in srgb, var(--color-vidrio) 94%, transparent);
+    }
+    [data-vidrio="panel"] .vidrio-tabla-con-total :is(thead, tbody) tr > :nth-last-child(1),
+    [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(1) {
+      right: 0;
+      width: 32px;
+      min-width: 32px;
+      padding-inline: 4px;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-con-total :is(thead, tbody) tr > :nth-last-child(2),
+    [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(2) {
+      right: 32px;
+      width: 104px;
+      min-width: 104px;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-con-total :is(thead, tbody) tr > :nth-last-child(3),
+    [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(3) {
+      right: 136px;
+      width: 112px;
+      min-width: 112px;
+      box-shadow: inset 1px 0 0 var(--hilo-fila);
+    }
+  }
+
+  /* Un archivo por elegir no se sale de su tarjeta en el teléfono (Feriados: «Ningún archivo seleccionado»). */
+  [data-vidrio="panel"] .flex-wrap > label:has(input[type="file"]),
+  [data-vidrio="panel"] .flex-wrap > div:has(> label > input[type="file"]) {
+    min-width: 0;
+    max-width: 100%;
+  }
+  [data-vidrio="panel"] input[type="file"]:not(.hidden) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* La tarjeta oscura de Provisiones («Próximo desembolso»): el vidrio ahumado, no un bloque de tinta sólida. */
+  [data-vidrio="panel"] div.border-tinta.bg-tinta.text-crema:not(.hoja *) {
+    border-color: var(--ahumado-denso-borde);
+    background: var(--ahumado-denso-fondo);
+    box-shadow: var(--ahumado-denso-luz);
+  }
 }
