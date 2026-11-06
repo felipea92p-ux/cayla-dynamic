@@ -45,6 +45,7 @@ const PANTALLAS = [
   { id: "equipo", nombre: "Equipo", ruta: "/admin/equipo", cuenta: "admin" },
   { id: "datos-personales", nombre: "Datos personales", ruta: "/admin/datos-personales", cuenta: "do" },
   { id: "planilla", nombre: "Planilla", ruta: "/admin/planilla", cuenta: "do" },
+  { id: "liquidaciones", nombre: "Liquidaciones", ruta: "/admin/liquidaciones", cuenta: "do" },
   { id: "normas", nombre: "Normas", ruta: "/admin/normas", cuenta: "integrante" },
   { id: "reporte-sede", nombre: "Hoja de sede", ruta: "/admin/reporte-sede", cuenta: "lider" },
   { id: "sedes", nombre: "Sedes", ruta: "/admin/sedes", cuenta: "do" },
