@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-06-los-papeles-del-panel-salen-sobre-blanco",
+    fecha: "2026-11-06",
+    titulo: "Los papeles del panel ya salen sobre blanco",
+    queMejoro:
+      "Al imprimir o guardar como PDF desde el panel, la hoja salía con fondo crema: el certificado de trabajo, la " +
+      "constancia de cese, la liquidación, los contratos, la boleta y los demás papeles. Ahora salen sobre blanco, " +
+      "y gastan menos tinta.\n\n" +
+      "El texto y el número de páginas siguen igual. En la pantalla no cambia nada.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-06-la-liquidacion-se-lee-completa-en-el-celular",
     fecha: "2026-11-06",
     titulo: "La liquidación ya se lee completa en el celular",
@@ -124,6 +135,17 @@ export const NOVEDADES: readonly Novedad[] = [
       "cerca del botón para marcarla como pagada.\n\n" +
       "La nota y la apreciación también se ven enteras. En computadora no cambia nada, y los papeles salen igual.",
     audiencia: "do",
+  },
+  {
+    id: "2026-11-06-la-boleta-ya-no-se-corta-en-el-celular",
+    fecha: "2026-11-06",
+    titulo: "La boleta ya se lee completa en el celular",
+    queMejoro:
+      "En el celular, la parte de arriba de la boleta se salía del papel: el nombre del documento, el mes y las " +
+      "fechas quedaban cortados por la derecha. Ahora bajan a su propia línea y se leen completos.\n\n" +
+      "Lo mismo con las firmas de la liquidación y del certificado de trabajo, que en el celular van una debajo de " +
+      "la otra. Lo que se imprime y los PDF salen igual que siempre.",
+    audiencia: "todos",
   },
   {
     id: "2026-11-05-politica-salarial-en-el-celular",

@@ -185,9 +185,6 @@ select is(
   'la imputación queda con su literal citado y su plazo guardado');
 
 
--- La fecha de cese se cuenta desde hoy, no se escribe a mano: el freno rechaza un
--- cese anterior a hoy. Con 2026-11-05 fijo, esta prueba se puso en rojo sola el
--- 2026-11-06 y frenó todos los PR, sin que nadie hubiera tocado nada.
 -- ── La carta de despido ────────────────────────────────────────────────────
 -- Se lleva la imputación recién creada hasta ENTREGADA a mano: entregarla de
 -- verdad es trabajo de la 0569, y lo que esta prueba mide es la carta.
@@ -209,7 +206,7 @@ select throws_like(
   $$ select fn_expediente_crear_despido(
        (select id from expediente_disciplinario
          where persona_id = '00000000-0000-0000-0000-0000000008a3' and nivel = 'imputacion'),
-       fn_hoy_lima() + 30,
+       fn_hoy_lima(),
        'Se resuelve el despido pese al descargo presentado por la colaboradora.') $$,
   '%Primero se resuelve%',
   'la carta de despido no se escribe antes de resolver el procedimiento');
@@ -225,7 +222,7 @@ select throws_like(
   $$ select fn_expediente_crear_despido(
        (select id from expediente_disciplinario
          where persona_id = '00000000-0000-0000-0000-0000000008a3' and nivel = 'imputacion'),
-       fn_hoy_lima() + 30,
+       fn_hoy_lima(),
        'Se resuelve el despido pese al descargo presentado por la colaboradora.') $$,
   '%archivo no se reabre%',
   'un procedimiento archivado no produce una carta de despido');
@@ -253,10 +250,14 @@ select throws_like(
 -- Art. 57.7: «La causa expresada en la carta de imputación vincula a la carta
 -- de despido y no puede modificarse». `fn_expediente_crear_despido` no tiene
 -- parámetro de causa, así que no hay nada que pueda divergir.
+--
+-- La fecha de cese es HOY, no una fecha escrita a mano: la carta no admite una
+-- fecha anterior a hoy, y por eso el 2026-11-06 esta prueba se cayó sola con el
+-- `date '2026-11-05'` que tenía. Como `db-tests` es obligatoria, frenó a todos los PR.
 select fn_expediente_crear_despido(
   (select id from expediente_disciplinario
     where persona_id = '00000000-0000-0000-0000-0000000008a3' and nivel = 'imputacion'),
-  fn_hoy_lima() + 30,
+  fn_hoy_lima(),
   'Se resuelve el despido pese al descargo presentado por la colaboradora.');
 
 select is(
@@ -265,7 +266,7 @@ select is(
      from expediente_disciplinario d
      join expediente_disciplinario i on i.id = d.doc_previo_id
     where d.persona_id = '00000000-0000-0000-0000-0000000008a3' and d.nivel = 'despido'),
-  '53.3a / LAB-IMP-458 / ' || to_char(fn_hoy_lima() + 30, 'YYYY-MM-DD'),
+  '53.3a / LAB-IMP-458 / ' || to_char(fn_hoy_lima(), 'YYYY-MM-DD'),
   'la carta de despido hereda la causa y queda atada a su imputación');
 
 
