@@ -89,21 +89,9 @@ async function firmaPng(trazos) {
   return `data:image/png;base64,${png.toString("base64")}`;
 }
 
-async function sembrarTodo() {
-  // ── Sedes: las migraciones crean tres con sus nombres viejos. Central se sumó después.
-  psql(`
-    update sedes set nombre = 'Tienda TRU', tipo = 'tienda', ciudad = 'Trujillo' where codigo = 'TRU';
-    update sedes set nombre = 'Taller LIM', tipo = 'taller', ciudad = 'Lima' where codigo = 'LIM';
-    update sedes set nombre = 'Tienda AQP', tipo = 'tienda', ciudad = 'Arequipa' where codigo = 'AQP';
-    insert into sedes (codigo, nombre, tipo, ciudad) values ('CCO', 'Central', 'central', 'Lima');
-  `);
-
-  // ── Cuentas y personas.
-  let sql = "begin;\n";
-  PERSONAS.forEach((p, i) => {
-    const ingreso = p.ingreso !== undefined ? sumarDias(HOY, p.ingreso) : sumarDias(HOY, -420 - i * 13);
-    const dni = String(70000000 + i * 137).padStart(8, "0");
-    sql += `
+// La fila de una persona, con su cuenta si trae correo.
+function sqlPersona(p, { ingreso, dni, pension }) {
+  return `
       with cuenta as (
         insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
         select '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated', ${esc(p.correo)},
@@ -119,9 +107,52 @@ async function sembrarTodo() {
               crypt('1234', gen_salt('bf', 4)), ${esc(ingreso)},
               (select id from cuenta), ${esc(p.correo)}, ${esc(p.area ?? "calidad_servicio")}, ${p.piso ? "true" : "false"},
               ${esc(p.vinculo ?? "planilla")}, ${esc(p.modalidad ?? null)}, ${esc(p.cargo ?? null)}, ${p.direccion ? "true" : "false"}, ${p.direccion ? "true" : "false"},
-              ${p.vacia || p.vinculo === "rxh" || p.vinculo === "practicante" ? "null" : i % 3 === 0 ? "'onp'" : i % 3 === 1 ? "'prima'" : "'integra'"},
+              ${esc(pension)},
               ${p.vinculo === "rxh" || p.vacia ? "null" : "45"});
     `;
+}
+
+// Salario, horario y datos personales: lo que hace falta para calcularle un pago a alguien.
+function sqlFicha(p, id, ALMA, i) {
+  const desde = `(select fecha_ingreso from personas where id = ${esc(id)})`;
+  let sql = `
+      insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde, asignado_por)
+      values (${esc(id)}, ${esc(p.rango)}, ${p.sueldo}, ${desde}, ${esc(ALMA)});
+      insert into tarifas_hora (persona_id, vigente_desde, tarifa_hora_soles, creado_por)
+      values (${esc(id)}, ${desde}, ${(p.sueldo / 195).toFixed(2)}, ${esc(ALMA)});
+    `;
+  if (!p.sinHorario) {
+    const tienda = p.s === "TRU";
+    sql += `
+        insert into horarios_asignados (persona_id, vigente_desde, hora_entrada, hora_salida, dias_laborables, horas_semana_objetivo)
+        values (${esc(id)}, ${desde}, '10:00', ${tienda ? "'18:30'" : "'20:00'"}, '{${(tienda ? DIAS_TIENDA : DIAS_OFICINA).join(",")}}', 45);
+      `;
+  }
+  sql += `
+      insert into datos_personales (persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, grado_instruccion, emergencia_nombre, emergencia_vinculo, emergencia_telefono, genero)
+      values (${esc(id)}, ${esc(`${p.n} ${p.a}`.toUpperCase())}, ${esc(`199${i % 10}-${String((i % 12) + 1).padStart(2, "0")}-15`)},
+              'soltera', 'Calle Inventada 123', '900000000', 'Superior', 'Contacto Inventado', 'Hermana', '900000001', 'femenino');
+    `;
+  return sql;
+}
+
+async function sembrarTodo() {
+  // ── Sedes: las migraciones crean tres con sus nombres viejos. Central se sumó después.
+  psql(`
+    update sedes set nombre = 'Tienda TRU', tipo = 'tienda', ciudad = 'Trujillo' where codigo = 'TRU';
+    update sedes set nombre = 'Taller LIM', tipo = 'taller', ciudad = 'Lima' where codigo = 'LIM';
+    update sedes set nombre = 'Tienda AQP', tipo = 'tienda', ciudad = 'Arequipa' where codigo = 'AQP';
+    insert into sedes (codigo, nombre, tipo, ciudad) values ('CCO', 'Central', 'central', 'Lima');
+  `);
+
+  // ── Cuentas y personas.
+  let sql = "begin;\n";
+  PERSONAS.forEach((p, i) => {
+    sql += sqlPersona(p, {
+      ingreso: p.ingreso !== undefined ? sumarDias(HOY, p.ingreso) : sumarDias(HOY, -420 - i * 13),
+      dni: String(70000000 + i * 137).padStart(8, "0"),
+      pension: p.vacia || p.vinculo === "rxh" || p.vinculo === "practicante" ? null : ["onp", "prima", "integra"][i % 3],
+    });
   });
   sql += "commit;\n";
   psql(sql);
@@ -146,27 +177,7 @@ async function sembrarTodo() {
   // ── Salario, horario y lo que hace falta para calcular una planilla.
   let base = "begin;\n";
   PERSONAS.forEach((p, i) => {
-    if (p.vacia) return;
-    const id = yo(p.n);
-    const desde = `(select fecha_ingreso from personas where id = ${esc(id)})`;
-    base += `
-      insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde, asignado_por)
-      values (${esc(id)}, ${esc(p.rango)}, ${p.sueldo}, ${desde}, ${esc(ALMA)});
-      insert into tarifas_hora (persona_id, vigente_desde, tarifa_hora_soles, creado_por)
-      values (${esc(id)}, ${desde}, ${(p.sueldo / 195).toFixed(2)}, ${esc(ALMA)});
-    `;
-    if (!p.sinHorario) {
-      const tienda = p.s === "TRU";
-      base += `
-        insert into horarios_asignados (persona_id, vigente_desde, hora_entrada, hora_salida, dias_laborables, horas_semana_objetivo)
-        values (${esc(id)}, ${desde}, '10:00', ${tienda ? "'18:30'" : "'20:00'"}, '{${(tienda ? DIAS_TIENDA : DIAS_OFICINA).join(",")}}', 45);
-      `;
-    }
-    base += `
-      insert into datos_personales (persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, grado_instruccion, emergencia_nombre, emergencia_vinculo, emergencia_telefono, genero)
-      values (${esc(id)}, ${esc(`${p.n} ${p.a}`.toUpperCase())}, ${esc(`199${i % 10}-${String((i % 12) + 1).padStart(2, "0")}-15`)},
-              'soltera', 'Calle Inventada 123', '900000000', 'Superior', 'Contacto Inventado', 'Hermana', '900000001', 'femenino');
-    `;
+    if (!p.vacia) base += sqlFicha(p, yo(p.n), ALMA, i);
   });
   base += "commit;\n";
   psql(base);
