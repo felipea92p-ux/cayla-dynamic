@@ -26,12 +26,35 @@ Clave de todas las cuentas: `Colibri-Local-2026`.
 
 También hay personas sin cuenta: recibos por honorarios, practicante, preselección, vacaciones en curso y descanso médico. Los periodos incluyen un febrero, uno de 20 días (el mínimo que la base admite), dos pagados y el abierto. Cada vez que arranca se agregan las marcas de los días que falten, para que el Dashboard no se quede en el pasado.
 
+Y dos personas que ya cesaron, para que Liquidaciones tenga un detalle con monto:
+
+| Persona | Dónde sale | Para qué sirve |
+|---|---|---|
+| Filomena del Rosario Altamirano-Bustamante de la Cruz Zevallos | Pendientes, con monto | El nombre largo en la lista y el detalle por pagar |
+| Olga Bustos Rivas | Pagadas | El detalle de una liquidación ya congelada |
+
+Una cesada solo está en Pendientes 48 horas, así que al arrancar se mueve el cese de Filomena a hoy si ya se le acabó el plazo. Si la marcas como pagada para probar, se queda en Pagadas y `responsive:check liquidaciones` da ERROR hasta que la anules en la pantalla.
+
+Lo que cambian en otras pantallas, medido el 2026-11-06 comparando el texto de las 52 pantallas sin parámetros, con la cuenta de admin (y 7 con la de líder de TRU):
+
+| Pantalla | Cambio |
+|---|---|
+| Equipo | «Ya no están» pasa de 1 a 3 (la líder de TRU ve de 0 a 1) |
+| Liquidaciones | Una en Pendientes, una en Pagadas |
+| Planilla, periodo abierto | Filomena aparece a S/ 0.00 y sin horas. 22 → 23 personas, «Planilla» 19 → 20. El total a pagar no cambia; el EsSalud sube S/ 110.70, porque su piso no se prorratea (0116) |
+| Planilla, periodo del 1 al 20 de marzo | Olga aparece igual, con S/ 101.70 de EsSalud |
+
+Ni el Dashboard, ni la Bandeja, ni Provisiones cambian. Si el cese de Filomena se vence sin que nadie arranque, además sale en la Bandeja como vencida. Ninguna prueba depende de estos datos: las pgTAP y `vitest` traen los suyos.
+
 ## Otras órdenes
 
 ```bash
 ./scripts/local/apagar.sh                # apaga; los datos se quedan
 ./scripts/local/crear-base.sh --de-cero  # borra y rehace la base con todas las migraciones de este worktree
+node scripts/local/sembrar.mjs --solo-ceses  # agrega a las dos cesadas a una base que ya existe; no borra nada y se puede repetir
 ```
+
+`arrancar.sh` ya corre `--solo-ceses`, así que normalmente no hace falta pedirlo.
 
 **`--de-cero` borra la base que usan todos los worktrees de este clon:** no lo corras si otra sesión la está usando. La base vive en `$(git rev-parse --git-common-dir)/entorno-local`, así que no aparece en `git status` ni puede subirse por accidente.
 

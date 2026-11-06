@@ -99,6 +99,7 @@ export function guardarReporte(resultados, { dirSalida, duracionMs, seleccion })
         .flatMap((c) => [
           `**${c.error ? "ERROR" : "FAIL"} ${c.viewport}**${c.error ? ` — ${c.error}` : ""}${c.screenshot ? ` — \`${c.screenshot}\`` : ""}`,
           ...c.clipping.map((cl) => `- \`${cl.selector}\` se sale ${cl.exceso}px por la ${cl.lado} (contra ${cl.contra})`),
+          ...(c.advertencia ? [`- ${c.advertencia}`] : []),
           "",
         ]),
     ]),
