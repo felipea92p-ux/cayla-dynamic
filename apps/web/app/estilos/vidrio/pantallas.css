@@ -6,6 +6,12 @@
   [data-vidrio="panel"] .vidrio-cabecera > .min-w-0 {
     flex: 1 1 14rem;
   }
+  /* En el teléfono esos 40 px entre el título y el «⋯» mandaban el «?» solo al renglón de abajo. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-cabecera {
+      column-gap: 12px;
+    }
+  }
 
   /* El riel: en el teléfono, una fila de filtros corre de lado en vez de comerse una pantalla. Llega hasta los bordes para que se note que sigue. */
   @media (max-width: 39.99rem) {
@@ -28,7 +34,6 @@
     }
     [data-vidrio="panel"] .vidrio-fila-grupo > :first-child {
       flex: 1 1 100%;
-      flex-wrap: wrap;
     }
     [data-vidrio="panel"] .vidrio-fila-grupo > :last-child {
       justify-content: flex-start;

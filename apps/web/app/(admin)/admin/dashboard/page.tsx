@@ -58,6 +58,8 @@ const CON_VIDRIO = interruptoresVidrio().panel;
 const FRESCURA_EN_VIVO = CON_VIDRIO ? "en vivo" : "en vivo · cada 30 s";
 const TEXTO_EQUIPO = CON_VIDRIO ? textoEquipoDelDiaCorto : textoEquipoDelDia;
 const CLASE_EN_PAUSA = CON_VIDRIO ? "whitespace-nowrap text-ambar" : "text-ambar";
+// Dice menos a la izquierda, así que el espacio pasa a la columna de quién está trabajando: «3 trabajando ahora · 3 en pausa» cabe en un renglón.
+const COLUMNAS_SEDE = CON_VIDRIO ? "sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto_auto]" : "sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_auto]";
 
 const REFRESCO_MS = 30_000;
 // Los catálogos casi fijos (sedes, áreas, tipos de ausencia) no cambian cada 30 s: se
@@ -1636,7 +1638,7 @@ export default function DashboardPage() {
                     onClick={() => setSedesAbiertas((a) => ({ ...a, [sedeId]: !(a[sedeId] ?? false) }))}
                     aria-expanded={abierta}
                     aria-controls={`sede-${codigo}-detalle`}
-                    className={`relative block w-full px-4 py-3 text-left transition-colors sm:grid sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_auto] sm:items-center sm:gap-x-4 sm:gap-y-2 sm:px-5 ${cob.noAbreHoy ? "bg-hueso/40 hover:bg-hueso/70" : "hover:bg-hueso/60"}`}
+                    className={`relative block w-full px-4 py-3 text-left transition-colors sm:grid ${COLUMNAS_SEDE} sm:items-center sm:gap-x-4 sm:gap-y-2 sm:px-5 ${cob.noAbreHoy ? "bg-hueso/40 hover:bg-hueso/70" : "hover:bg-hueso/60"}`}
                   >
                     {/* CELULAR. Franja de color a la izquierda (rojo/ámbar/verde se lee antes que
                         cualquier palabra), y debajo, en este orden: nombre, el estado COMPLETO en su

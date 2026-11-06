@@ -127,7 +127,8 @@ export function LineaAsistencia({ puntos }: { puntos: PuntoSemana[] }) {
           <circle cx={x(i)} cy={y(p.pct)} r={p.parcial ? 4.5 : 3.5}
             fill={p.parcial ? "var(--color-papel)" : "var(--color-tinta)"} stroke="var(--color-tinta)" strokeWidth={p.parcial ? 1.8 : 0} />
           {(i === puntos.length - 1 || i === 0) && (
-            <text x={x(i)} y={y(p.pct) - 9} textAnchor={i === 0 ? "start" : "end"} fontSize={11} fill="var(--color-tinta)" className="tabular-nums">
+            // En el teléfono la última cifra va debajo de su punto: arriba la cruzaba la línea.
+            <text x={x(i)} y={angosto && i === puntos.length - 1 ? y(p.pct) + 16 : y(p.pct) - 9} textAnchor={i === 0 ? "start" : "end"} fontSize={11} fill="var(--color-tinta)" className="tabular-nums">
               {p.pct}%{p.parcial ? " (parcial)" : ""}
             </text>
           )}
