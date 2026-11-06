@@ -1364,7 +1364,9 @@ export default function DatosPersonalesPage() {
                       </div>
                     </div>
                   </div>
-                  <ul className="mt-4 grid gap-2 xl:grid-cols-2">
+                  {/* `grid-cols-1` para debajo de `xl`, no `grid` a secas: sin columna explícita, la pista crece hasta
+                      el nombre más largo, que no se parte, y a 768 y 1024 px la página entera se movía de lado. */}
+                  <ul className="mt-4 grid grid-cols-1 gap-2 xl:grid-cols-2">
                     {incompletas.map((x) => (
                       <li key={x.p.id} className="rounded-control border border-sand bg-crema px-3 py-2.5 transition-colors hover:border-taupe">
                         <div className="flex items-center justify-between gap-3">

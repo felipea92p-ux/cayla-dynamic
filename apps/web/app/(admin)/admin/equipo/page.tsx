@@ -2198,7 +2198,11 @@ export default function EquipoPage() {
             Ninguna persona coincide con lo que buscas.
           </EstadoVacio>
         ) : (
-          <div className="grid gap-6">
+          <div className="grid grid-cols-1 gap-6">
+            {/* `grid-cols-1`, no `grid` a secas, por lo mismo que en el formulario de esta pantalla: sin columna
+                explícita, la pista crece hasta lo que pide la tabla más ancha, aunque esa tabla tenga su propio
+                desplazamiento, y a 768 px la página entera se movía de lado. Con el mínimo en 0 se desplaza la
+                tabla dentro de su caja y la página se queda quieta. */}
             {/* POR SEDE (2026-10-19): la sede es la unidad real del negocio, así que la lista se agrupa por ella
                 y sobran la columna Sede y el filtro como único camino. Una líder ve UNA sola sede. Se rompe si
                 una sede pasa de ~15 personas: ahí habría que partirla también por área. */}
