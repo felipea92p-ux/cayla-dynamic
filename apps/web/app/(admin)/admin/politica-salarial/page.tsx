@@ -131,7 +131,7 @@ function SeccionColapsable({
   titulo, abierta, onToggle, children,
 }: { titulo: string; abierta: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
-    <div id={seccionSlug(titulo)} className="mb-3 scroll-mt-20 rounded-superficie border border-sand bg-papel print:rounded-none print:border-0 print:mb-6">
+    <div id={seccionSlug(titulo)} className="mb-3 scroll-mt-20 rounded-superficie border border-sand bg-papel print:rounded-none print:border-0 print:bg-transparent print:mb-6">
       <button
         onClick={onToggle}
         className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left print:hidden"
