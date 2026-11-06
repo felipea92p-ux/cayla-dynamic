@@ -126,6 +126,17 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-11-06-la-boleta-ya-no-se-corta-en-el-celular",
+    fecha: "2026-11-06",
+    titulo: "La boleta ya se lee completa en el celular",
+    queMejoro:
+      "En el celular, la parte de arriba de la boleta se salía del papel: el nombre del documento, el mes y las " +
+      "fechas quedaban cortados por la derecha. Ahora bajan a su propia línea y se leen completos.\n\n" +
+      "Lo mismo con las firmas de la liquidación y del certificado de trabajo, que en el celular van una debajo de " +
+      "la otra. Lo que se imprime y los PDF salen igual que siempre.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-05-politica-salarial-en-el-celular",
     fecha: "2026-11-05",
     titulo: "La Política salarial ya se lee bien en el celular",

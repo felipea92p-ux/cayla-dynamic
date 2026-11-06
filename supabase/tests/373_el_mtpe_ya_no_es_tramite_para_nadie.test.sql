@@ -30,11 +30,11 @@ values ('00000000-0000-0000-0000-000000372aa0', 'Jefa', 'Lab372',
         '00000000-0000-0000-0000-000000372aff', '2025-01-02');
 set session_replication_role = origin;
 
--- Las fechas de los dos primeros sujetos se cuentan desde hoy, no se escriben a
--- mano: el tablero marca «por vencer» a 60 días del fin. Con el fin fijo en
--- 2027-01-05, esta prueba se puso en rojo sola el 2026-11-06 y frenó todos los
--- PR, sin que nadie hubiera tocado nada.
-
+-- LAS FECHAS DE LOS SUJETOS 1 Y 2 CUELGAN DE HOY, a propósito. Hasta el 2026-11-06
+-- eran fijas, y ese día esta prueba se cayó sola: el contrato terminaba el
+-- 2027-01-05, entró en el aviso de «por vencer» y dejó de estar «ok». Nadie había
+-- tocado nada, y como `db-tests` es obligatoria, frenó a todos los PR.
+--
 -- Sujeto 1: plazo fijo ('nuevo').
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso)
 values ('00000000-0000-0000-0000-000000372001', 'Rosa', 'PlazoFijo372',
