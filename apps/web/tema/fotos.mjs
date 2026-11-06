@@ -66,8 +66,15 @@ async function hacerLamina(a) {
 
 async function tocar(p, accion) {
   for (const paso of accion.split(";")) {
-    if (paso.startsWith("tab:") || paso.startsWith("boton:")) {
-      await p.getByRole("button", { name: paso.slice(paso.indexOf(":") + 1) }).first().click({ timeout: 5000 });
+    if (paso.startsWith("tab:")) {
+      // Una pestaña de verdad primero: en la ficha, «Asistencia» es también un módulo del menú.
+      const nombre = paso.slice(4);
+      const pestana = p.getByRole("tab", { name: nombre }).first();
+      if (await pestana.count()) await pestana.click({ timeout: 5000 });
+      else await p.getByRole("button", { name: nombre }).first().click({ timeout: 5000 });
+      await p.waitForTimeout(1400);
+    } else if (paso.startsWith("boton:")) {
+      await p.getByRole("button", { name: paso.slice(6) }).first().click({ timeout: 5000 });
       await p.waitForTimeout(1400);
     } else if (paso.startsWith("texto:")) {
       await p.getByText(paso.slice(6), { exact: false }).first().click({ timeout: 5000 });

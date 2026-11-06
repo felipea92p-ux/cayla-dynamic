@@ -10,6 +10,7 @@
 // día en que se creó la base. Lo llama arrancar.sh.
 
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import sharp from "sharp";
 
 const CLAVE = "Colibri-Local-2026"; // cumple la regla de clave fuerte: sin ella, las cuentas con poder no pasan de la pantalla «Nueva clave»
@@ -305,6 +306,9 @@ async function sembrarFirmados(yo, ALMA) {
 
   // De baja: sigue en los reportes de periodos pasados y ya no puede entrar. Por la función real, no por un UPDATE.
   sembrarBaja(ALMA);
+
+  // Seguros, Objetivos y Casos con contenido, por las funciones reales.
+  psql(readFileSync(new URL("./datos-personas.sql", import.meta.url), "utf8"));
 }
 
 // Los dos periodos anteriores quedan pagados por la función real, para ver desgloses congelados y un mes cerrado.

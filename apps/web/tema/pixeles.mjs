@@ -130,7 +130,10 @@ for (const tema of a.temas) {
     await p.waitForTimeout(1300);
     await p.addStyleTag({ content: "nextjs-portal{display:none!important}" });
     if (accion?.startsWith("tab:")) {
-      await p.getByRole("button", { name: accion.slice(4), exact: true }).first().click({ timeout: 6000 }).catch(() => console.log("NO PUDE", entrada));
+      // Una pestaña de verdad primero: en la ficha, «Asistencia» es también un módulo del menú.
+      const pestana = p.getByRole("tab", { name: accion.slice(4) }).first();
+      const objetivo = (await pestana.count()) ? pestana : p.getByRole("button", { name: accion.slice(4), exact: true }).first();
+      await objetivo.click({ timeout: 6000 }).catch(() => console.log("NO PUDE", entrada));
       await p.waitForTimeout(1700);
     } else if (accion) {
       const exacto = p.getByRole("button", { name: accion, exact: true });

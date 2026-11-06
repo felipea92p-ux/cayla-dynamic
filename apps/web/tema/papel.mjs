@@ -83,6 +83,7 @@ export const DOCUMENTOS = [
   { nombre: "hoja-de-sede", cuenta: "do", ruta: "/admin/reporte-sede" },
   { nombre: "politica", cuenta: "do", ruta: "/admin/politica-salarial" },
   { nombre: "memo-disciplina", cuenta: "do", buscar: async () => (idMemo ? `/admin/disciplina/memo/${idMemo}` : null) },
+  { nombre: "ficha-persona", cuenta: "do", ruta: "/admin/personas/65050e5b-e28b-4208-9df0-596f98103a4b" },
   { nombre: "contrato-visor", cuenta: "do", ruta: "/admin/contratos", tocar: async (p) => { await p.getByRole("button", { name: "Más acciones" }).first().click({ timeout: 5000 }).catch(() => p.locator("button:has-text('⋯'), button:has-text('•••')").first().click({ timeout: 4000 })); await p.waitForTimeout(300); await p.getByRole("menuitem", { name: /imprimir/i }).first().click({ timeout: 4000 }); await p.waitForTimeout(1500); } },
   { nombre: "documentacion", cuenta: "do", ruta: "/admin/documentacion", tocar: async (p) => {
       // El lote se vacía en cuanto el diálogo de impresión vuelve. Sin ese diálogo, un error aquí corta esa limpieza y deja a la vista lo que se iba a imprimir.
