@@ -3,7 +3,7 @@
 //   node tema/fotos.mjs --salida /ruta --anchos 1440,375 --temas claro,oscuro --caso turnos=do=/admin/turnos --caso "turnos-dia=do=/admin/turnos|tab:Día"
 //   node tema/fotos.mjs --lamina salida.png --ancho-celda 480 --columnas 4 --alto-max 900 foto1.png foto2.png
 //
-// Tras «|» va qué tocar antes de la foto, separado por «;»: «tab:Nombre» o «boton:Nombre» tocan un botón, «campo:Texto de ayuda=lo escrito» escribe. Con «--viewport» la foto es lo
+// Tras «|» va qué tocar antes de la foto, separado por «;»: «tab:Nombre» o «boton:Nombre» tocan un botón, «texto:Algo» toca lo que diga eso, «campo:Texto de ayuda=lo escrito» escribe. Con «--viewport» la foto es lo
 // que se ve, no la página entera. `--base-url` apunta a otra construcción: así salen los «antes», con el interruptor apagado en otro puerto.
 
 import { mkdirSync } from "node:fs";
@@ -69,6 +69,9 @@ async function tocar(p, accion) {
     if (paso.startsWith("tab:") || paso.startsWith("boton:")) {
       await p.getByRole("button", { name: paso.slice(paso.indexOf(":") + 1) }).first().click({ timeout: 5000 });
       await p.waitForTimeout(1400);
+    } else if (paso.startsWith("texto:")) {
+      await p.getByText(paso.slice(6), { exact: false }).first().click({ timeout: 5000 });
+      await p.waitForTimeout(1200);
     } else if (paso.startsWith("campo:")) {
       const [ayuda, texto] = paso.slice(6).split("=");
       await p.getByPlaceholder(ayuda).first().fill(texto, { timeout: 5000 });

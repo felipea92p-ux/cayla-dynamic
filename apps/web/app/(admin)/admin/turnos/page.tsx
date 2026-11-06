@@ -2048,7 +2048,7 @@ export default function TurnosPage() {
                   : [];
                 return (
                   <>
-                    <div role="group" aria-label="Día de la semana" className="flex flex-wrap gap-1.5">
+                    <div role="group" aria-label="Día de la semana" className={`flex flex-wrap gap-1.5${interruptoresVidrio().panel ? " vidrio-riel" : ""}`}>
                       {dias.map((d) => {
                         const { abr, num } = etiquetaDia(d);
                         const sim = simboloDelDia(d);

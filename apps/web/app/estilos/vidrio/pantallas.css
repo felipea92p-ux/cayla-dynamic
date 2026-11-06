@@ -64,6 +64,17 @@
     }
   }
 
+  /* Desde y Hasta en una línea, con su rótulo al lado (Incidencias): en el teléfono no caben y «Hasta» se salía de la tarjeta. Cada fecha pasa a su renglón, con su rótulo. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .flex.items-center.gap-2.text-xs:has(> * input[type="date"], > input[type="date"]) {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+    [data-vidrio="panel"] .flex.items-center.gap-2.text-xs:has(> * input[type="date"], > input[type="date"]) input {
+      width: 100%;
+    }
+  }
+
   /* «Cómo se lee» (Turnos): se pliega en el teléfono. */
   [data-vidrio="panel"] .vidrio-como-se-lee > summary {
     display: inline-flex;

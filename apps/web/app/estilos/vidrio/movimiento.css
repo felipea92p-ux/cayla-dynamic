@@ -291,7 +291,7 @@
   }
 
   /* El pie: los botones de una hoja larga se quedan a la vista. Solo si la hoja corre: si no, no hay nada que tape y sería una franja de más. */
-  [data-vidrio="panel"] [data-pie-hoja][data-hoja-corre] {
+  [data-vidrio="panel"] [data-pie-hoja][data-hoja-corre]:not([data-pie-solo]) {
     position: sticky;
     bottom: calc(-1 * var(--pie-abajo, 0px));
     z-index: 2;
@@ -303,6 +303,12 @@
     background: var(--vidrio-pie-fondo);
     -webkit-backdrop-filter: blur(14px) saturate(1.3);
     backdrop-filter: blur(14px) saturate(1.3);
+  }
+  /* Un botón solo no lleva franja: flota sobre lo que pasa por detrás, como la acción principal de Retail en el teléfono. */
+  [data-vidrio="panel"] [data-pie-solo][data-hoja-corre] {
+    position: sticky;
+    bottom: calc(0.75rem - var(--pie-abajo, 0px));
+    z-index: 2;
   }
   /* Con una nota debajo, no se le monta: el margen negativo es para llegar al borde, y aquí el borde lo ocupa la nota. */
   [data-vidrio="panel"] [data-pie-hoja][data-hoja-corre][data-pie-con-nota] {
