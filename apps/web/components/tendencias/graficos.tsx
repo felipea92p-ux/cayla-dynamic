@@ -201,6 +201,7 @@ const DIAS_CAL = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 export function CalorTardanza({ filas, nombreDe }: { filas: { sede: string; celdas: CeldaCalor[] }[]; nombreDe: (codigo: string) => string }) {
   // En el teléfono la sede va por su código (el nombre sigue en el `title`): con ocho columnas en 300 px, «Tienda · Arequipa» se cortaba en «Tien…».
   const angosto = useAngosto();
+  const conVidrio = interruptoresVidrio().panel;
   const max = Math.max(1, ...filas.flatMap((f) => f.celdas.map((c) => c.pctTarde ?? 0)));
   return (
     <div className="overflow-hidden rounded-superficie border border-sand">
@@ -219,7 +220,7 @@ export function CalorTardanza({ filas, nombreDe }: { filas: { sede: string; celd
                 <td key={c.dia} className="p-0.5">
                   <span
                     className={cx("flex h-8 items-center justify-center rounded-control tabular-nums", c.pctTarde !== null ? "text-tinta" : "text-taupe")}
-                    style={c.pctTarde !== null ? { backgroundColor: `color-mix(in srgb, var(--color-taupe) ${Math.round(10 + (c.pctTarde / max) * 55)}%, transparent)` } : undefined}
+                    style={c.pctTarde !== null ? { backgroundColor: conVidrio ? `color-mix(in srgb, var(--color-taupe) calc(${Math.round(10 + (c.pctTarde / max) * 55)}% * var(--calor-k, 1)), transparent)` : `color-mix(in srgb, var(--color-taupe) ${Math.round(10 + (c.pctTarde / max) * 55)}%, transparent)` } : undefined}
                     title={c.sinTrabajo ? "Nadie de la sede llegó este día en el periodo" : c.pctTarde === null ? `Solo ${c.llegadas} llegadas: pocas para decir algo` : `${c.pctTarde}% llegó ${5} min o más después`}
                   >
                     {c.sinTrabajo ? "–" : c.pctTarde === null ? "·" : `${c.pctTarde}%`}

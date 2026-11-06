@@ -50,6 +50,11 @@
     backdrop-filter: blur(14px) saturate(1.3);
   }
 
+  /* El calor de Tendencias: en oscuro el café es claro, así que la celda más cargada dejaba su cifra en 3.54:1. Se llega a un tono más bajo: sigue leyéndose qué día pesa más. */
+  :root[data-vidrio="panel"][data-tema="oscuro"] {
+    --calor-k: 0.55;
+  }
+
   /* El «?» junto al título de una tarjeta: el mismo signo, sin el ajuste que necesita al lado de un título de 46 px. */
   [data-vidrio="panel"] h2 > .ayuda-cab-q {
     top: 0;
