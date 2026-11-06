@@ -1545,7 +1545,10 @@ function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
         beneficios sociales por el periodo indicado.
       </p>
 
-      <div className="mt-12 flex justify-between text-xs">
+      {/* Dos firmas de w-56 no caben una al lado de la otra en un teléfono. `not-print:`
+          porque el papel no siempre mide más de 640 px, y tiene que salir igual siempre:
+          ver el mismo comentario en components/boleta-hoja.tsx. */}
+      <div className="mt-12 flex justify-between text-xs not-print:max-sm:flex-col not-print:max-sm:gap-6">
         <div>
           <div className="w-56 border-t border-tinta pt-1">Firma de la integrante</div>
           <div className="mt-1">{s(d.persona)}</div>
@@ -1605,10 +1608,11 @@ function FirmaEmpresa({ firmante, firma }: { firmante: FirmanteEmpresa | null; f
 //
 // `conFirmaEmpresa` alinea la línea de firma con la de CAYLA cuando esta lleva
 // imagen de firma arriba (`h-14`); sin imagen, las dos líneas ya quedan a la
-// misma altura y no hace falta reservar nada.
+// misma altura y no hace falta reservar nada. En el teléfono las dos firmas van
+// una debajo de la otra: no hay nada con qué alinear y ese espacio sobra.
 function RecibiConforme({ p, conFirmaEmpresa }: { p: PapelesCese; conFirmaEmpresa: boolean }) {
   return (
-    <div className={`text-xs ${conFirmaEmpresa ? "pt-14" : ""}`}>
+    <div className={`text-xs ${conFirmaEmpresa ? "pt-14 not-print:max-sm:pt-0" : ""}`}>
       <div className="w-56 border-t border-tinta pt-1">Recibí conforme</div>
       <div>{p.nombre_completo}</div>
       {p.documento && <div>DNI N.° {p.documento}</div>}
@@ -1657,7 +1661,8 @@ function HojaCertificado({
         Trujillo, {fechaLarga(hoy)}.
       </p>
 
-      <div className="mt-12 flex items-start justify-between gap-6">
+      {/* Igual que el pie de la liquidación: en un teléfono una debajo de la otra, y el papel no cambia. */}
+      <div className="mt-12 flex items-start justify-between gap-6 not-print:max-sm:flex-col">
         <RecibiConforme p={p} conFirmaEmpresa={!!firma} />
         <FirmaEmpresa firmante={firmante} firma={firma} />
       </div>
