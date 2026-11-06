@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { GotaDePestanas } from "@/components/vidrio/gota-de-pestanas";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -874,6 +876,7 @@ export default function PerfilPersonaPage() {
 
             {/* Pestañas */}
             <div role="tablist" className="no-print mb-6 flex gap-1 overflow-x-auto border-b border-sand">
+              {interruptoresVidrio().panel ? <GotaDePestanas /> : null}
               <TabBtn valor="resumen" tab={tab} setTab={irATab}>Resumen</TabBtn>
               <TabBtn valor="asistencia" tab={tab} setTab={irATab}>Asistencia</TabBtn>
               <TabBtn valor="desempeno" tab={tab} setTab={irATab}>Desempeño</TabBtn>

@@ -23,6 +23,8 @@
 // `lib/admin/provisiones.ts`, con sus pruebas.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GotaDePestanas } from "@/components/vidrio/gota-de-pestanas";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { puedeVerPlanilla } from "@cayla-dynamic/shared";
@@ -302,6 +304,7 @@ export default function ProvisionesPage() {
 
             <div className="mb-4 flex flex-wrap items-end gap-3">
               <div role="tablist" aria-label="Vista" className="inline-flex rounded-control border border-sand bg-hueso p-1">
+                {interruptoresVidrio().panel ? <GotaDePestanas /> : null}
                 {(
                   [
                     ["personas", "Por persona"],

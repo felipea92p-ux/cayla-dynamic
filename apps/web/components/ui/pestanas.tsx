@@ -10,6 +10,7 @@
 import type { ReactNode } from "react";
 import { cx } from "./cx";
 import { interruptoresVidrio } from "@/lib/vidrio";
+import { GotaDePestanas } from "@/components/vidrio/gota-de-pestanas";
 
 export function Pestanas<T extends string>({
   etiqueta,
@@ -41,6 +42,7 @@ export function Pestanas<T extends string>({
         className,
       )}
     >
+      {interruptoresVidrio().panel ? <GotaDePestanas /> : null}
       {pestanas.map((p) => (
         <button
           key={p.clave}
