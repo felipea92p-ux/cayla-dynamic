@@ -57,7 +57,7 @@
   [data-vidrio="panel"] :is(.vidrio-papel, .vidrio-papel-aire) {
     padding: clamp(16px, 3vw, 28px);
   }
-  /* En el teléfono el papel respira con menos relleno, y el mes de la boleta no se corta (a 375 px se salía del papel: «noviembre 20»). Solo en pantalla: el papel impreso no cambia. */
+  /* En el teléfono el papel respira con menos relleno. Solo en pantalla: el papel impreso no cambia. La boleta y las firmas ya bajan a dos líneas por su cuenta (#688). */
   @media (max-width: 639px) {
     [data-vidrio="panel"] .hoja.p-8 {
       padding: 20px;
@@ -67,11 +67,6 @@
       width: 100%;
       min-width: 0;
       padding-inline: 16px;
-    }
-    /* Las dos firmas del certificado miden 224 px cada una: una al lado de la otra no caben, y la de la empresa quedaba cortada. */
-    [data-vidrio="panel"] .hoja .flex.justify-between:has(.w-56) {
-      flex-wrap: wrap;
-      row-gap: 24px;
     }
     [data-vidrio="panel"] .vidrio-papel > :is(section, div):has(> table) {
       overflow-x: auto;
