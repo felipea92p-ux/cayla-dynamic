@@ -83,6 +83,7 @@ import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { cumpleJornada } from "@/lib/admin/borrador-semana";
 import { X, Search, SlidersHorizontal, ChevronDown, Download, Table2, LayoutGrid } from "lucide-react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 // Por encima de esto la cuadrícula deja de ayudar y empieza a colgar el
 // navegador: 30 personas × 365 días son once mil cuadritos. Se apaga y se dice.
@@ -1300,10 +1301,10 @@ function DesempenoContenido() {
   const filaAbierta = abierta ? filas.find((x) => x.personaId === abierta) ?? null : null;
   // Cada opción de «Ordenar»: la columna y si arranca ascendente (los textos y la atención) o descendente (los números).
   const OPCIONES_ORDEN: { col: Columna; texto: string }[] = [
-    { col: "atencion", texto: "Atención (lo más grave primero)" },
+    { col: "atencion", texto: interruptoresVidrio().panel ? "Atención" : "Atención (lo más grave primero)" },
     { col: "nombre", texto: "Nombre" },
     { col: "sede", texto: "Sede" },
-    { col: "horas", texto: "Horas contra las que tocaban" },
+    { col: "horas", texto: interruptoresVidrio().panel ? "Horas" : "Horas contra las que tocaban" },
     { col: "asistencia", texto: "Días trabajados" },
     { col: "tardanzas", texto: "Tardanzas" },
     { col: "faltas", texto: "Faltas" },
@@ -1406,7 +1407,7 @@ function DesempenoContenido() {
         </div>
 
         {masFiltros && (
-          <div id="mas-filtros-desempeno" className="mb-3 grid gap-3 rounded-superficie border border-sand bg-papel p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <TarjetaInfo id="mas-filtros-desempeno" className="mb-3 grid gap-3 !p-4 sm:grid-cols-2 lg:grid-cols-4">
             <CampoSelect etiqueta="Área" value={fArea} onChange={(e) => setFArea(e.target.value)}>
               <option value="">Todas</option>
               {areasPresentes.map((a) => <option key={a} value={a}>{areaNombre(areas, a)}</option>)}
@@ -1426,7 +1427,7 @@ function DesempenoContenido() {
                 </Boton>
               )}
             </div>
-          </div>
+          </TarjetaInfo>
         )}
 
         {/* ── EL PERIODO: lo que se toca todo el día, a la vista. La más usada primero: es lo que una líder

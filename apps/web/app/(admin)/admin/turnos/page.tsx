@@ -47,6 +47,9 @@ import { leerMetasDeCobertura } from "@/lib/admin/leer-metas";
 import { MetasDeCobertura } from "./metas-de-cobertura";
 import { semillaDe, sugerirSemana, type DiaSugerencia, type PersonaSugerencia, type Propuesta, type Turno as TurnoMin } from "@/lib/admin/sugerencia-turnos";
 import { aMinutos, diaDeLaSemana, diasDeAusencia, filasParaPublicar, promedioDeCompras, restriccionesDesdeDisponibilidad } from "@/lib/admin/sugerencia-entrada";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { useEsCelular } from "@/lib/use-vidrio-lateral";
+import type { ReactNode } from "react";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -626,14 +629,14 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo, alDia, onCambio 
                     </Boton>
                   </div>
                   {confirmarBase === clave && (
-                    <div className="mt-2 rounded-lg border border-rojo/30 bg-rojo/[0.06] px-3 py-2 text-xs leading-relaxed">
+                    <CajaDeAviso variante="alerta" clase="mt-2 rounded-lg border border-rojo/30 bg-rojo/[0.06] px-3 py-2 text-xs leading-relaxed">
                       <p className="text-tinta">{consecuenciaDeUsarBase(d)}</p>
                       <p className="mt-1 text-taupe">Si el turno era lo que de verdad se le había indicado, déjalo como está.</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Boton variante="peligro" tamano="sm" cargando={procesando === clave} onClick={() => usarHorarioBase(d, clave)}>Sí, medir contra el horario base</Boton>
                         <Boton variante="secundario" tamano="sm" onClick={() => setConfirmarBase(null)}>Cancelar</Boton>
                       </div>
-                    </div>
+                    </CajaDeAviso>
                   )}
                 </li>
               );
@@ -641,6 +644,27 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo, alDia, onCambio 
           </ul>
         </div>
     </TarjetaInfo>
+  );
+}
+
+/** Un aviso dentro de la hoja de un turno: con el vidrio, la pieza `BannerAviso`. `clase` es la caja de hoy, que sigue igual con el interruptor apagado. */
+function CajaDeAviso({ variante, clase, children }: { variante: "alerta" | "advertencia"; clase: string; children: ReactNode }) {
+  if (!interruptoresVidrio().panel) return <div className={clase}>{children}</div>;
+  return <BannerAviso enLinea variante={variante} className="mt-2 text-xs leading-relaxed">{children}</BannerAviso>;
+}
+
+/**
+ * La leyenda de la semana y cómo se lee. Con el vidrio se pliega en el teléfono: ahí ocupaba media pantalla antes de la primera casilla. En la computadora arranca abierta.
+ * Apagado no agrega ni un nodo.
+ */
+function ComoSeLee({ children }: { children: ReactNode }) {
+  const celular = useEsCelular();
+  if (!interruptoresVidrio().panel) return <>{children}</>;
+  return (
+    <details open={!celular} className="vidrio-como-se-lee">
+      <summary>Cómo se lee</summary>
+      <div className="mt-2 grid gap-2">{children}</div>
+    </details>
   );
 }
 
@@ -1841,6 +1865,7 @@ export default function TurnosPage() {
                     onGuardarNotas={(notas) => void guardarBorrador(semanaBorrador, borradorVigente.origen, notas).then((ok) => { if (ok) avisar("ok", "Se guardaron las notas del borrador."); })}
                   />
                 )}
+                <ComoSeLee>
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-taupe">
                   <span className="flex items-center gap-1.5">{muestra(TONO.ok)}Alcanza</span>
                   <span className="flex items-center gap-1.5">{muestra(TONO.falta)}Falta gente en piso</span>
@@ -1867,6 +1892,7 @@ export default function TurnosPage() {
                   Arriba de cada casilla, cuántas hay en piso en el peor momento de esa hora contra la meta. «entra» y «sale» marcan a
                   quien cubre solo parte de la hora. Toca la hora para ver la línea del día, o un nombre para cambiar su turno.
                 </p>
+                </ComoSeLee>
                 <TarjetaInfo className="overflow-x-auto !p-3">
                   <div className="grid min-w-[1080px] gap-1.5" style={{ gridTemplateColumns: cols }}>
                     <div />
@@ -2486,7 +2512,7 @@ export default function TurnosPage() {
                     <Campo etiqueta="Salida" type="time" value={salida} onChange={(e) => setSalida(e.target.value)} />
                   </div>
                   {hayAviso && (
-                    <div className="mt-3 space-y-1 rounded-lg border border-ambar/40 bg-ambar/[0.06] px-3 py-2 text-xs text-ambar">
+                    <CajaDeAviso variante="advertencia" clase="mt-3 space-y-1 rounded-lg border border-ambar/40 bg-ambar/[0.06] px-3 py-2 text-xs text-ambar">
                       {avisoDescansoAntes && (
                         <p>Deja solo {descansoAntes!.toFixed(1)} h de descanso desde la salida del día anterior (mínimo recomendado: {DESCANSO_MINIMO_HORAS} h).</p>
                       )}
@@ -2496,7 +2522,7 @@ export default function TurnosPage() {
                       {avisoCiclo && (
                         <p>Esta persona ya lleva {cicloEdit!.horas.toFixed(1)}/48 h en su ciclo de 7 días vigente hoy (día {cicloEdit!.dia} de 7) — antes de guardar, revisa si le conviene más descanso.</p>
                       )}
-                    </div>
+                    </CajaDeAviso>
                   )}
                   {avisoPrueba && (
                     <BannerAviso enLinea role="alert" variante="advertencia" className="mt-3 !py-2 text-xs">

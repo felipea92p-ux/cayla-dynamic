@@ -29,6 +29,8 @@ export function CabeceraPaginaVidrio({
   // Un solo «?»: la frase se lee dentro de la ventana de ayuda. Retail también los juntó (EncabezadoPagina). Quien trae su propia ventana (Disciplina) no puede recibir la frase:
   // ahí siguen los dos signos hasta su módulo.
   const unSoloSigno = isValidElement(ayuda) && ayuda.type === AyudaPantalla;
+  // El signo va pegado a la última palabra: en un título largo, en el teléfono, caía solo al renglón de abajo.
+  const corte = titulo.lastIndexOf(" ") + 1;
   return (
     <div className="vidrio-cabecera mb-5 flex flex-wrap items-center justify-between gap-x-10 gap-y-4 sm:mb-8">
       <div className="min-w-0">
@@ -40,11 +42,14 @@ export function CabeceraPaginaVidrio({
         ) : null}
         {/* receta-propia: esta ES la cabecera de pantalla; CabeceraPagina la elige con el interruptor encendido */}
         <h1 className="vidrio-titulo text-tinta">
-          {titulo}
-          {frase && !unSoloSigno ? <AyudaCabecera nombre={titulo}>{frase}</AyudaCabecera> : null}
-          {ayuda ? (
-            <span className="vidrio-titulo-ayuda">{unSoloSigno ? <AyudaConFrase frase={frase ?? null}>{ayuda}</AyudaConFrase> : ayuda}</span>
-          ) : null}
+          {titulo.slice(0, corte)}
+          <span className="whitespace-nowrap">
+            {titulo.slice(corte)}
+            {frase && !unSoloSigno ? <AyudaCabecera nombre={titulo}>{frase}</AyudaCabecera> : null}
+            {ayuda ? (
+              <span className="vidrio-titulo-ayuda">{unSoloSigno ? <AyudaConFrase frase={frase ?? null}>{ayuda}</AyudaConFrase> : ayuda}</span>
+            ) : null}
+          </span>
         </h1>
         {dato ? <div className="mt-2 max-w-2xl text-sm text-taupe">{dato}</div> : null}
       </div>

@@ -50,6 +50,44 @@
     backdrop-filter: blur(14px) saturate(1.3);
   }
 
+  /* Una tabla ancha con su primera columna fija (Desempeño). En el teléfono, un nombre largo la dejaba ocupando toda la pantalla, y las demás pasaban por detrás sin verse. */
+  [data-vidrio="panel"] th.sticky.left-0.bg-sand:not(.hoja *) {
+    background: var(--vidrio-pie-fondo);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+  }
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] td.sticky.left-0 > .whitespace-nowrap:not(.hoja *) {
+      max-width: 44vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  /* «Cómo se lee» (Turnos): se pliega en el teléfono. */
+  [data-vidrio="panel"] .vidrio-como-se-lee > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 2rem;
+    cursor: pointer;
+    color: var(--vidrio-letra-secundaria);
+    font-size: 13px;
+    list-style: none;
+  }
+  [data-vidrio="panel"] .vidrio-como-se-lee > summary::-webkit-details-marker {
+    display: none;
+  }
+  [data-vidrio="panel"] .vidrio-como-se-lee > summary::after {
+    content: "›";
+    font-size: 15px;
+    line-height: 1;
+    transition: rotate 200ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .vidrio-como-se-lee[open] > summary::after {
+    rotate: 90deg;
+  }
+
   /* El calor de Tendencias: en oscuro el café es claro, así que la celda más cargada dejaba su cifra en 3.54:1. Se llega a un tono más bajo: sigue leyéndose qué día pesa más. */
   :root[data-vidrio="panel"][data-tema="oscuro"] {
     --calor-k: 0.55;

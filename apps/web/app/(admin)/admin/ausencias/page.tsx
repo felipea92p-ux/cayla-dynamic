@@ -59,6 +59,7 @@ import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { reducirImagen, pesoLegible } from "@/lib/reducir-imagen";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 // ── AQUÍ VIVÍAN TRES NOMBRES DE FUNCIÓN SIN TIPAR ───────────────────────────
 //
@@ -1313,11 +1314,14 @@ export default function AusenciasPage() {
           </div>
         )}
 
+        {/* Con el vidrio esta nota vive en el «?»: «Nada se borra» y «Periodo pagado» ya lo dicen. Y si alguien lo intenta, el sistema lo frena y le dice por qué. */}
+        {interruptoresVidrio().panel ? null : (
         <p className="mt-4 max-w-3xl text-xs text-taupe">
           Una ausencia no se borra: se anula con motivo y queda en el historial. Y no se puede registrar ni
           anular nada dentro de un periodo de planilla ya pagado — para eso hay que reabrirlo primero, igual
           que con todo lo demás que toca plata.
         </p>
+        )}
 
         {/* Modal: registrar. Antes era una tarjeta siempre abierta arriba de
             la tabla; desde el rediseño de 2026-09-15 vive acá, para que la

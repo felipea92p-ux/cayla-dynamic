@@ -42,6 +42,7 @@ import { ROLES_DO, etiquetaDeSede, hoyLima, puedeOperarEquipo, maximoSemanalPrac
 // una practicante.
 import { horasEntre as horasDia, esTurnoEspejoViejo, type HorarioTramo } from "@/lib/admin/jornada-esperada";
 import { opcionesRefrigerio, etiquetaRefrigerio, yaLlegaAlmorzada, diasQueYaLlegaAlmorzada } from "@/lib/admin/refrigerio";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
 // El 2026-09-14 se pidió un mínimo de 250 caracteres para forzar un motivo
@@ -1168,9 +1169,12 @@ export default function HorariosPage() {
                           </button>
                         )}
                       </p>
+                      {interruptoresVidrio().panel && !a ? null : (
                       <p className="text-xs text-taupe">
                         {a && a.dias.length ? fmtH(semana) : "—"} · Descanso {a ? textoDescanso(a.dias) : "—"}
                       </p>
+                      )}
+                      {interruptoresVidrio().panel && !h ? null : (
                       <p className="text-xs text-taupe">
                         Vigente desde {h ? fechaCorta(h.vigente_desde) : "—"}
                         {h && (
@@ -1179,6 +1183,7 @@ export default function HorariosPage() {
                           </Boton>
                         )}
                       </p>
+                      )}
                       {programado && (
                         <p className="flex items-center gap-1.5 text-xs text-taupe">
                           <Insignia variante="informativo" tamano="sm">Programado</Insignia>
