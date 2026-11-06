@@ -25,10 +25,32 @@
     font-weight: 600;
   }
 
-  /* ---------- El papel en pantalla ----------
-     Un contrato o una boleta no llevan fondo propio, y la aurora se veía a través de ellos. Lo que se revisa tiene que ser lo que va a salir. */
-  [data-vidrio="panel"] .hoja:not([class*="bg-"]) {
-    background-color: var(--color-crema);
+  /* ---------- El papel en su bandeja ----------
+     Un documento no se oscurece: lo que se revisa tiene que ser lo que va a salir. Lleva los mismos trece colores del bloque de impresión de globals.css (lo comprueba
+     tests/vidrio-papel.test.ts) y descansa en un pozo, como en la bandeja de la impresora: la receta de Retail (.papel-fijo, y «A · En su bandeja» en liquidacion.css). La bandeja es una
+     sombra sin desenfoque y no un contenedor: así no hay que tocar las pantallas, y no ocupa lugar ni llega a lo que se imprime. */
+  [data-vidrio="panel"] .hoja {
+    color-scheme: light;
+    color: var(--color-tinta);
+    --color-crema: #f5f0e8;
+    --color-papel: #fbf8f2;
+    --color-tinta: #1a1a18;
+    --color-rojo: #b8412d;
+    --color-rojo-profundo: #8b2a1f;
+    --color-sand: #e8e0d0;
+    --color-taupe: #805c4c;
+    --color-verde: #48603f;
+    --color-ambar: #74501a;
+    --color-hueso: #eae1d2;
+    --color-pizarra: #4c5d6e;
+    --color-azul: #2f5f9e;
+    --color-ceniza: #635f58;
+    --firma-fondo: transparent;
+    --firma-aire: 0;
+    margin-block: 12px;
+    border-color: var(--color-sand);
+    background-color: var(--color-papel);
+    box-shadow: var(--papel-en-bandeja-sombra), 0 0 0 12px var(--pozo-fondo);
   }
 
   /* ---------- Lo que empuja la página de lado ----------

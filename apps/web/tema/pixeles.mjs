@@ -64,7 +64,7 @@ function textosDeLaPagina() {
     const t = n.textContent.trim();
     if (!t || t === "⁠") continue;
     const e = n.parentElement;
-    if (!e || e.closest(".hoja, script, style, noscript, .sr-only, [aria-hidden='true'] svg")) continue;
+    if (!e || e.closest("script, style, noscript, .sr-only, [aria-hidden='true'] svg")) continue;
     if (window.__solo && !e.closest(window.__solo)) continue;
     // Lo que queda dentro de un <details> cerrado no se ve, aunque el navegador le siga dando una caja.
     const plegado = e.closest("details:not([open])");

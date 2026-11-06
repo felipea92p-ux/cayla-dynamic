@@ -189,6 +189,11 @@
       animation: vidrio-fila 420ms var(--ease-cayla) backwards;
     }
 
+    /* ---------- El papel llega a su bandeja ---------- */
+    [data-vidrio="panel"] .hoja {
+      animation: vidrio-papel 360ms var(--ease-cayla) backwards;
+    }
+
     /* ---------- El menú desplegable y el aviso de la esquina ---------- */
     [data-vidrio="panel"] [role="menu"]:not(.hoja *) {
       transform-origin: top center;
@@ -509,6 +514,12 @@
   from {
     opacity: 0;
     transform: translate3d(0, 4px, 0);
+  }
+}
+@keyframes vidrio-papel {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.98);
   }
 }
 @keyframes vidrio-menu {

@@ -54,16 +54,41 @@ export function CabeceraPagina({
 }) {
   if (interruptoresVidrio().panel) {
     return (
-      <CabeceraPaginaVidrio
-        sobretitulo={sobretitulo}
-        titulo={titulo}
-        frase={vidrio?.frase ?? (typeof descripcion === "string" ? descripcion : undefined)}
-        dato={vidrio ? vidrio.dato : typeof descripcion === "string" ? undefined : descripcion}
-        ayuda={ayuda}
-        accion={accion}
-      />
+      <>
+        <div className="print:hidden">
+          <CabeceraPaginaVidrio
+            sobretitulo={sobretitulo}
+            titulo={titulo}
+            frase={vidrio?.frase ?? (typeof descripcion === "string" ? descripcion : undefined)}
+            dato={vidrio ? vidrio.dato : typeof descripcion === "string" ? undefined : descripcion}
+            ayuda={ayuda}
+            accion={accion}
+          />
+        </div>
+        {/* El papel sale como siempre. El estilo del vidrio solo vive en pantalla: al imprimir, su título salía en letra suelta y sin su frase (medido en Movilidad y en el bono).
+            Sin `ayuda` ni `accion`: son botones, y una segunda copia le quitaría la referencia a quien espera devolverles el foco. */}
+        <div className="hidden print:block">
+          <CabeceraClasica sobretitulo={sobretitulo} titulo={titulo} descripcion={descripcion} />
+        </div>
+      </>
     );
   }
+  return <CabeceraClasica sobretitulo={sobretitulo} titulo={titulo} descripcion={descripcion} ayuda={ayuda} accion={accion} />;
+}
+
+function CabeceraClasica({
+  sobretitulo,
+  titulo,
+  descripcion,
+  ayuda,
+  accion,
+}: {
+  sobretitulo?: ReactNode;
+  titulo: string;
+  descripcion?: ReactNode;
+  ayuda?: ReactNode;
+  accion?: ReactNode;
+}) {
   return (
     // `mb-5` en celular (2026-10-06): 32 px de aire bajo el título eran 32 px
     // menos de pantalla útil en un teléfono, en las 18 pantallas que la usan.
