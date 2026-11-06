@@ -55,6 +55,10 @@
   [data-vidrio="panel"] :is(.text-taupe, [class*="text-taupe/"]):not([role="tab"], .vidrio-pestanas > button, .hoja *) {
     color: var(--vidrio-letra-secundaria);
   }
+  /* Dentro de una hoja, un punto más: el vidrio deja pasar lo que hay detrás, y un botón oscuro desenfocado bajo la letra la bajaba a 4.29:1 en el teléfono. */
+  [data-vidrio="panel"] [role="dialog"] :is(.text-taupe, [class*="text-taupe/"]):not([role="tab"], .vidrio-pestanas > button, .hoja *) {
+    color: color-mix(in srgb, var(--color-taupe) 72%, var(--color-tinta));
+  }
   /* El ámbar para leer es el profundo, como en Retail. El otro es para marcar. */
   [data-vidrio="panel"] .text-ambar:not(.hoja *) {
     color: var(--color-ambar-profundo);
