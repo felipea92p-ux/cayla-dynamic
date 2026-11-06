@@ -692,6 +692,8 @@
   /* Lo pegado dentro de una hoja (un pie con sus botones): el vidrio del pie, para que lo que pasa por debajo no se lea a través. */
   [data-vidrio="panel"] [role="dialog"] .sticky:is(.bg-papel, .bg-crema) {
     background: var(--vidrio-pie-fondo);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
   }
   /* Una nota en arena dentro de una hoja («Por qué salió este aviso»): la placa. Solo si tiene relleno: una barra de avance también es `bg-sand`. */
   [data-vidrio="panel"] [role="dialog"] :is(div, p).bg-sand:is([class*="p-"], [class*="px-"]):not(.sticky, .fixed, .absolute, .rounded-full, .rounded-pildora, .hoja *) {

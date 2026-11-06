@@ -241,4 +241,21 @@
   [data-vidrio="panel"] .space-y-2 > span.text-taupe:first-child + [role="group"] {
     margin-top: 12px;
   }
+
+  /* La insignia de una fila de casos puede partirse en dos renglones (Disciplina). Entera, a 768 px medía 160 en una columna de 122, y «Revisar caso» le tapaba «art. 25 h)». */
+  [data-vidrio="panel"] [role="row"] span.rounded-pildora:not(.hoja *) {
+    white-space: normal;
+  }
+
+  /* En una tablet, las celdas con menos aire: en Equipo los botones de vidrio dejaban el «•••» cortado. La tabla corre de lado solo si de verdad no cabe. */
+  @media (min-width: 48rem) and (max-width: 51.99rem) {
+    [data-vidrio="panel"] main table :is(th, td):not(.hoja *) {
+      padding-inline: 10px;
+    }
+  }
+
+  /* Un enlace rojo en una tabla, en oscuro (el «Sin salida» de la ficha): sobre el vidrio daba 4.06:1. */
+  :root[data-vidrio="panel"][data-tema="oscuro"] td a.text-rojo:not(.hoja *) {
+    color: color-mix(in srgb, var(--color-rojo) 80%, var(--color-tinta));
+  }
 }
