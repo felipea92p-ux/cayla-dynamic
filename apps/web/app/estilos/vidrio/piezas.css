@@ -68,6 +68,10 @@
   [data-vidrio="panel"] .bg-sand.text-taupe:not(.hoja *) {
     color: color-mix(in srgb, var(--color-tinta) 78%, transparent);
   }
+  /* Un botón no hereda la letra apagada de su fila o de su vacío: «Editar» en un área inactiva bajaba a 4.26:1 en oscuro. Lo inactivo es el dato; el botón sigue funcionando. */
+  [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.bg-tinta, .text-taupe, .text-rojo, .text-crema, .text-verde, .text-ambar, :disabled, .hoja *) {
+    color: var(--color-tinta);
+  }
   /* La vista previa de una firma es un trozo de papel: blanca en los dos temas, así que su letra y su línea tampoco cambian con el tema. */
   [data-vidrio="panel"] .bg-white.bg-white.bg-white :is(.text-taupe, [class*="border-tinta/"]) {
     color: color-mix(in srgb, var(--color-tinta-fija) 72%, transparent);
