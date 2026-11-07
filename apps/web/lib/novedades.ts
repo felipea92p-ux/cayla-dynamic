@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-tres-botones-preguntan-antes",
+    fecha: "2026-11-07",
+    titulo: "Anular un comunicado, resetear una contraseña y desactivar un área ahora preguntan antes",
+    queMejoro:
+      "Esos tres botones actuaban al primer clic. Un clic en la fila de al lado bastaba para anular un comunicado " +
+      "que ya no se puede volver a publicar, o para dejar a alguien sin poder entrar con su contraseña. Ahora " +
+      "preguntan antes, igual que «Desactivar» una sede.\n\n" +
+      "Al resetear una contraseña, el aviso recuerda copiar la temporal antes de salir de Cuentas: no se vuelve a mostrar.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-07-hoja-de-sede-abre-tu-sede",
     fecha: "2026-11-07",
     titulo: "La Hoja de sede abre la de tu sede",
