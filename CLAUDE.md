@@ -15,6 +15,12 @@ todas las reglas de abajo.
 > Este archivo dice **cómo se trabaja**. Para saber **dónde estamos hoy**,
 > lee [`docs/estado.md`](docs/estado.md) — es el único archivo de estado.
 
+**El criterio, pedido por Felipe el 2026-08-13:** «diseña la solución más óptima, con bastante inteligencia, con buen código, como
+los mejores arquitectos, diseñadores y programadores del mundo». Vale para toda sesión, no solo para la de ese día. Cómo se aplica
+—entender y medir antes, comparar contra Workday/Oracle/ADP/QuickBooks, hasta tres opciones con recomendación, preguntas con
+AskUserQuestion— está en la skill [`/ultra-criterio`](.claude/skills/ultra-criterio/SKILL.md). No está por encima de las reglas de
+abajo.
+
 ---
 
 ## Reglas de trabajo (no negociables)
