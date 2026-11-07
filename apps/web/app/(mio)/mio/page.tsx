@@ -821,6 +821,7 @@ export default function MioPage() {
   const [solicitudesVacas, setSolicitudesVacas] = useState<SolicitudVacacion[]>([]);
   /** Cuántos avisos le esperan en /mio/bandeja. Ver `cargarAvisosDeBandeja`. */
   const [avisosEnBandeja, setAvisosEnBandeja] = useState(0);
+  const [seguroSinVer, setSeguroSinVer] = useState(0);
   // El rango del formulario de pedir vacaciones. Arranca en mañana y en un
   // solo día — nunca en "": un campo de fecha que arranca vacío y bloquea el
   // envío es justo el error que ya costó caro acá (ver CLAUDE.md, 2026-08-26).
@@ -1331,6 +1332,7 @@ export default function MioPage() {
     if (!yo?.id) { setAvisosEnBandeja(0); return; }
     const { bandeja } = await traerBandeja(supabase, yo.id);
     setAvisosEnBandeja(bandeja.avisos);
+    setSeguroSinVer(bandeja.respuestas.filter((m) => m.origen === "seguro" && m.nuevo).length);
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1488,9 +1490,10 @@ export default function MioPage() {
         .filter((s) => s.valor !== "dni" || hayCampoDni)
         .map((s) => (s.valor === "boletas" && boletasPorFirmar > 0 ? { ...s, contador: boletasPorFirmar } : s))
         .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s))
-        .map((s) => (s.valor === "disciplina" && disciplinaPide > 0 ? { ...s, contador: disciplinaPide } : s)),
+        .map((s) => (s.valor === "disciplina" && disciplinaPide > 0 ? { ...s, contador: disciplinaPide } : s))
+        .map((s) => (s.valor === "seguro" && seguroSinVer > 0 ? { ...s, contador: seguroSinVer } : s)),
     })),
-    [hayCampoDni, boletasPorFirmar, reportesSinLeer, disciplinaPide],
+    [hayCampoDni, boletasPorFirmar, reportesSinLeer, disciplinaPide, seguroSinVer],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
@@ -2927,7 +2930,7 @@ export default function MioPage() {
           En qué seguro está cada colaborador y, si lleva póliza, la póliza y sus
           PDF. Es de todo el equipo: no se filtra por vínculo. El componente vive
           aparte, como Educación, y pide sus datos cuando se abre. */}
-      {visitadas.has("seguro") && <div hidden={tab !== "seguro"}><MiSeguro /></div>}
+      {visitadas.has("seguro") && <div hidden={tab !== "seguro"}><MiSeguro alVerlo={() => setSeguroSinVer(0)} /></div>}
 
       {/* ── BOLETAS (0482) ───────────────────────────────────────────────────
           Las boletas oficiales del contador, por periodo pagado. NO es
