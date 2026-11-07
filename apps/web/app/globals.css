@@ -820,7 +820,11 @@
 
   body {
     /* La crema en pantalla eleva; en papel es medio cartucho de tinta por hoja.
-       El fondo se va, los acentos se quedan. */
+       El fondo se va, los acentos se quedan.
+       `exact` se hereda, y `#fff` solo vale para el body: un contenedor de adentro
+       con fondo propio se imprime encima, aunque «gráficos de fondo» esté apagado.
+       Por eso el marco del panel y las vistas previas llevan `print:bg-transparent`
+       (tests/papel-sin-fondo.test.ts). */
     background: #fff;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;

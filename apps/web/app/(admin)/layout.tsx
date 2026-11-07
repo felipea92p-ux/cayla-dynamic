@@ -13,10 +13,14 @@ import { AvisoVersionNueva } from "@/components/aviso-version-nueva";
 // Este layout envuelve también el login, «olvidé mi clave» y «nueva clave»,
 // donde todavía no hay sesión a la que preguntarle nada — por eso `MarcoAdmin`
 // consulta `RUTAS_SIN_MARCO` y en esas se aparta, dejando pasar la pantalla sola.
+//
+// `print:bg-transparent`: este crema está debajo de todos los papeles que salen del
+// panel, y sin esto llega a la hoja aunque «gráficos de fondo» esté apagado. Ver
+// `tests/papel-sin-fondo.test.ts`.
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const marco = <MarcoAdmin>{children}</MarcoAdmin>;
   return (
-    <div className="flex min-h-screen flex-1 flex-col bg-crema text-tinta">
+    <div className="flex min-h-screen flex-1 flex-col bg-crema text-tinta print:bg-transparent">
       <RegistrarSinConexion />
       <AvisoVersionNueva />
       {/* Un ternario y no `{x && <Aurora />}`: un hueco entre los hijos cambiaría el HTML apagado (lib/vidrio.ts). */}

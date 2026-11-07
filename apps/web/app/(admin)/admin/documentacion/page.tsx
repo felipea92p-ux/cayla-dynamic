@@ -2718,7 +2718,7 @@ export default function DocumentacionPage() {
               role="dialog"
               aria-modal="true"
               aria-label={`Constancia del bono de cumpleaños de ${verBono.persona}`}
-              className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
+              className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:bg-transparent print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
@@ -2757,7 +2757,7 @@ export default function DocumentacionPage() {
               role="dialog"
               aria-modal="true"
               aria-label="Política de movilidad firmada"
-              className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
+              className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:bg-transparent print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
