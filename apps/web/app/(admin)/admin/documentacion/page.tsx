@@ -10,6 +10,7 @@ import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { PapelBono, TextoBono } from "@/components/papel-bono";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { AREAS_FALLBACK, cargoParaUnPapel, parseAreas, type Area } from "@/lib/areas";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
@@ -143,6 +144,8 @@ interface Persona {
   nombres: string;
   apellidos: string;
   documento: string | null;
+  /** El cargo de la ficha (0182). La declaración de ruta lo imprime con `cargoParaUnPapel`, no `funcion`, que es el código del área. */
+  cargo: string | null;
   funcion: string;
   sede_base_id: string;
   fecha_ingreso: string;
@@ -365,6 +368,11 @@ export default function DocumentacionPage() {
 
   const [tipo, setTipo] = useState<TipoDoc>("ruta");
   const [personas, setPersonas] = useState<Persona[]>([]);
+  // Las áreas, para el papel de quien no tiene cargo escrito: se piden a la base, como en el memo, y si fallan queda el respaldo del seed.
+  const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
+  useEffect(() => {
+    void supabase.rpc("fn_areas").then(({ data, error }) => setAreas(parseAreas(data, error)));
+  }, [supabase]);
   const [sedes, setSedes] = useState<Map<string, string>>(new Map());
   // sede_base_id → CÓDIGO de la sede. Va aparte de `sedes`, que guarda el nombre
   // para imprimir («Taller LIM»), porque las tarifas se buscan por código («LIM»).
@@ -439,7 +447,7 @@ export default function DocumentacionPage() {
   // rayas en blanco. Pedido de Felipe: que se vea «tal cual el documento
   // firmado», igual que el visor de contratos.
   const [verFirma, setVerFirma] = useState<{
-    persona: string; documento: string | null; funcion: string | null; sedeNombre: string;
+    persona: string; documento: string | null; cargo: string | null; sedeNombre: string;
     texto: string | null; firma: string | null; fecha: string | null; tarifa: number | null;
     // Las piezas por separado (0429) — cuando existen, se arma la MISMA lista
     // numerada que ya usa /mio/movilidad al firmar. En lo firmado antes de la
@@ -727,7 +735,7 @@ export default function DocumentacionPage() {
     setVerFirma({
       persona: f.persona,
       documento: quien?.documento ?? null,
-      funcion: quien?.funcion ?? null,
+      cargo: quien ? cargoParaUnPapel(quien, areas) : null,
       sedeNombre: quien ? (sedes.get(quien.sede_base_id) ?? f.sede) : f.sede,
       texto: doc?.ruta_declarada ?? null,
       firma: doc?.firma_persona ?? null,
@@ -951,7 +959,7 @@ export default function DocumentacionPage() {
       { data: yo }, { data: cfgFirmante }, { data: fe },
     ] = await Promise.all([
       supabase.from("personas")
-        .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, en_planilla, tipo_vinculo")
+        .select("id, nombres, apellidos, documento, cargo, funcion, sede_base_id, fecha_ingreso, en_planilla, tipo_vinculo")
         .eq("estado", "activo").eq("cuenta_de_servicio", false).order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo"),
       // La tarifa vigente hoy. Si la 0118 no está pegada esto devuelve vacío, y
@@ -1479,7 +1487,7 @@ export default function DocumentacionPage() {
             <p className="mb-4">
               Yo, <strong>{nombre}</strong>, con documento de identidad N.º{" "}
               {quien.documento ? <strong>{quien.documento}</strong> : <Linea ancho="8rem" />}, que
-              desempeño el cargo de <strong>{quien.funcion}</strong> en la sede{" "}
+              desempeño el cargo de <strong>{cargoParaUnPapel(quien, areas) ?? "—"}</strong> en la sede{" "}
               <strong>{sedes.get(quien.sede_base_id) ?? "—"}</strong> de {EMPRESA.nombre},
               declaro lo siguiente respecto de mi traslado diario entre mi domicilio y mi
               centro de labores:
@@ -1818,7 +1826,7 @@ export default function DocumentacionPage() {
                       <p className="mb-4">
                         Yo, <strong>{v.persona}</strong>, con documento de identidad N.º{" "}
                         <strong>{v.documento ?? "—"}</strong>, que desempeño el cargo de{" "}
-                        <strong>{v.funcion ?? "—"}</strong> en la sede{" "}
+                        <strong>{v.cargo ?? "—"}</strong> en la sede{" "}
                         <strong>{v.sedeNombre}</strong> de {EMPRESA.nombre}, declaro lo siguiente respecto de
                         mi traslado diario entre mi domicilio y mi centro de labores:
                       </p>
