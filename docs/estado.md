@@ -6,13 +6,13 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-07 — Tiempo real, lote 1: la base avisa y las pantallas se enteran al instante · migración **0604 PEGADA (2026-11-07)** · prueba 491 · [#703](https://github.com/felipea92p-ux/cayla-dynamic/pull/703), **sin fusionar**
+## 2026-11-07 — Tiempo real, lote 1: la base avisa y las pantallas se enteran al instante · migración **0604 PEGADA Y VERIFICADA (2026-11-07)** · prueba 491 · FUSIONADO Y PUBLICADO ([#703](https://github.com/felipea92p-ux/cayla-dynamic/pull/703), 2026-11-07)
 
 **De dónde sale.** Felipe (2026-11-07): todo Dynamic en tiempo real, con websocket, e investigar si hay otra forma segura, rápida y precisa. Se comparó contra
 seis caminos y se eligió el aviso sin datos por Broadcast desde la base, con la lectura por las funciones de siempre. Qué se descartó y por qué:
 [`adr/0006-tiempo-real.md`](adr/0006-tiempo-real.md).
 
-**Construido, en el PR #703.** La 0604 hace que 22 tablas avisen a tres temas (asistencia, horarios, personas).
+**Construido y publicado (#703).** La 0604 hace que 22 tablas avisen a tres temas (asistencia, horarios, personas).
 Se pega en una sola vez: toma los candados sin esperar. La prueba 491 trae el guardián de tablas nuevas. `useAlDia` (`apps/web/lib/tiempo-real.ts`) lo
 usan el tablero (deja de pedir cada 30 s y «en vivo» dice la verdad), Turnos y Horarios, el terminal y los contadores de Incidencias y Bandeja del menú.
 Se borró `turnos-al-dia.ts`. El entorno local trae el Realtime de verdad si Docker está prendido (`scripts/local/tiempo-real.sh`), y se puede levantar una
@@ -27,8 +27,11 @@ primera pegada se negó en su primera línea —`relation "public.turnos_borrado
 asistencia, horarios y personas.» El aviso del SQL Editor («destructive operations», «table without RLS: `tiempo_real_lote1`») es falso: es una tabla
 temporal `on commit drop`; se corre con «Run without RLS», nunca con el botón que agrega RLS.
 
-**Hasta fusionar,** la base ya avisa y nadie escucha: el código publicado sigue con sus relojes. Cuesta +0.04 ms por escritura y filas en
-`realtime.messages`, que Supabase retiene 3 días. **Fusionar es publicar** y lo pide Felipe; antes, el comentario `cayla:fusion-sesion`.
+**Verificado en producción:** registro `604 · las_pantallas_se_enteran_al_instante`, 66 triggers en 22 tablas, 1 política, 4 funciones. **Publicado el
+2026-11-07 a las 15:08 (Lima)**, a pedido de Felipe («Sí, fusiónalo»), con `db-tests` y `ui-tests` en verde antes y después en `main`. Cada escritura
+cuesta +0.04 ms y deja una fila en `realtime.messages`, que Supabase retiene 3 días. **No se midió un aviso llegando en producción con una cuenta
+real**: eso se midió en local, de punta a punta. La prueba es abrir el tablero en dos pestañas, marcar en el terminal y verlo aparecer sin recargar.
+Ese día `que_falta_pegar.sql` dio **0 faltan** (432 aplicadas, 2 que no se pegan), PLANILLA en la 0397 al día y ACENTOS sin ninguna rota.
 Opcional, decisión de Felipe: apagar «Allow public access» en la configuración de Realtime.
 
 **Sigue.** Los lotes 2 a 5 (el ADR tiene la lista; la de tablas, la 491). El lote 4 (plata) va con aviso «Hubo cambios · Actualizar», no con refresco

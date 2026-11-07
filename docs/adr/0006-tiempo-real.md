@@ -1,6 +1,6 @@
 # ADR 0006 — Las pantallas se enteran al instante: aviso por la base, lectura por las funciones
 
-**Fecha:** 2026-11-07 · **Estado:** aceptado; lote 1 de 5 con su migración (0604) pegada en producción el 2026-11-07 · **Decide:** Felipe
+**Fecha:** 2026-11-07 · **Estado:** aceptado; lote 1 de 5 publicado el 2026-11-07 (0604 pegada, #703 fusionado) · **Decide:** Felipe
 
 ## Lo que se pidió
 
@@ -59,7 +59,7 @@ un lote o excluida con su motivo.
 
 ## Lo que sigue (lotes)
 
-1. **Asistencia, horarios y personas:** tablero, Turnos, Horarios, terminal, Incidencias y Bandeja del menú. *0604 pegada; el código, en el #703.*
+1. **Asistencia, horarios y personas:** tablero, Turnos, Horarios, terminal, Incidencias y Bandeja del menú. *Publicado el 2026-11-07 (#703).*
 2. **Solicitudes:** Bandeja, Ausencias, cambios de turno, Correcciones, reportes.
 3. **Personas y documentos:** fichas, contratos, documentación, educación, seguros, catálogos.
 4. **Plata y disciplina:** planilla, liquidaciones, boletas, memos. **Con aviso «Hubo cambios · Actualizar», no
