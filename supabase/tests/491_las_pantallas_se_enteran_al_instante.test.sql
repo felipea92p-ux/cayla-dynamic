@@ -169,10 +169,11 @@ select pg_temp.con_realtime(
                       and policyname = 'tiempo_real_escuchar' and cmd = 'SELECT') $$,
   'REALTIME · existe la política de lectura tiempo_real_escuchar');
 
+-- Se envía en su propia sentencia: una consulta no ve lo que una función insertó durante ella misma (su foto
+-- de la base es de antes). Sin Realtime, enviar no hace nada.
+select fn_tiempo_real_enviar('asistencia');
 select pg_temp.con_realtime(
-  $$ with env as (select fn_tiempo_real_enviar('asistencia'))
-     select (select count(*) from env) = 1
-        and exists (select 1 from realtime.messages m
+  $$ select exists (select 1 from realtime.messages m
                      where m.topic = 'dynamic:asistencia' and m.private and m.extension = 'broadcast'
                        and m.event = 'cambio' and m.inserted_at >= now()
                        and (select array_agg(k order by k) from jsonb_object_keys(m.payload) k) = array['id', 'tema']
