@@ -337,3 +337,26 @@ describe("de dónde se traen los seguros", () => {
     expect(rpc.mock.calls.map(([nombre]) => nombre).filter((n) => String(n).startsWith("fn_seguros"))).toEqual([]);
   });
 });
+
+describe("los seguros que van además del principal, en la Bandeja", () => {
+  const vida = (o: Partial<Poliza> = {}) => poliza({
+    persona_id: "p2", persona: "Beto Planilla", poliza_id: "zv", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false,
+    numero_poliza: "143720", vigente_desde: "2026-08-01", ...o,
+  });
+  const fuentes = (equipo: FilaEquipoSeguro[], polizas: Poliza[]) => ({ ...FUENTES_VACIAS, seguros: { equipo, polizas, cambios: [] } });
+  const carla = deLaPlanilla({ persona_id: "p3", persona: "Carla Planilla", sede: "AQP" });
+  const deCarla = { persona_id: "p3", persona: "Carla Planilla", sede: "AQP", poliza_id: "zw" };
+
+  it("no dice «sin seguro» de quien solo perdió Vida Ley: sigue en EsSalud", () => {
+    const vencida = armarPendientes(fuentes([deLaPlanilla()], [vida({ vigente_hasta: "2026-10-10", cubre_hoy: false })]), { hoy: HOY })[0];
+    expect(vencida.urgencia).toMatchObject({ grupo: "vencido", plazo: "Venció hace 7 días" });
+    const pronto = armarPendientes(fuentes([deLaPlanilla()], [vida({ vigente_hasta: "2026-11-10" })]), { hoy: HOY })[0];
+    expect(pronto.urgencia.plazo).toBe("Vence en 24 días");
+  });
+
+  it("la fila colectiva no es de nadie: lleva a la póliza y una cesada no le quita la urgencia a las demás", () => {
+    const [fila] = armarPendientes(fuentes([deLaPlanilla(), carla], [vida({ vigente_hasta: "2026-11-10" }), vida({ ...deCarla, vigente_hasta: "2026-11-10" })]), { hoy: HOY });
+    expect(fila).toMatchObject({ persona: "2 personas", personaId: null, cesoEl: null, sedes: ["TRU", "AQP"] });
+    expect(fila.ir.href).toBe("/admin/seguros?buscar=143720");
+  });
+});

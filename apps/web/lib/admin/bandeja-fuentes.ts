@@ -16,7 +16,7 @@ import {
 import {
   compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
   urgenciaBono, urgenciaCaso, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
-  urgenciaCierrePrueba, urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaPrueba, urgenciaRecordVacaciones, urgenciaSeguroCambio,
+  urgenciaCierrePrueba, urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaPrueba, urgenciaRecordVacaciones, urgenciaSeguroCambio, urgenciaSeguroComplementario,
   urgenciaSeguroPapeleo, urgenciaSeguroPorVencer, urgenciaSeguroSinPoliza, urgenciaSinHorario,
   type FilaContrato, type FilaFeriado, type PeriodoDePago, type Urgencia,
 } from "./bandeja-urgencia";
@@ -742,7 +742,7 @@ export type TipoPendiente =
   | TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida"
   | "contrato" | "dia_por_revisar" | "marca_apartada" | "documento_ruta" | "documento_bono" | "bono_por_transferir"
   | "feriado" | "disciplina" | "caso" | "conducta_registrada" | "caso_traspasado" | "lectura_pendiente"
-  | "seguro_sin_poliza" | "seguro_por_vencer" | "seguro_papeleo" | "seguro_baja" | "seguro_cambio_baja" | "seguro_cambio_alta"
+  | "seguro_sin_poliza" | "seguro_por_vencer" | "seguro_poliza_vencida" | "seguro_papeleo" | "seguro_baja" | "seguro_cambio_baja" | "seguro_cambio_alta"
   | "prueba" | "prueba_cierre";
 
 /**
@@ -754,6 +754,8 @@ export interface Pendiente {
   tipo: TipoPendiente;
   itemId: string;
   personaId: string | null;
+  /** Una fila de varias sedes: el filtro de sede la encuentra en cada una (`sede` dice «Varias sedes»). */
+  sedes?: readonly string[];
   persona: string;
   sede: string;
   modulo: ModuloBandeja;
@@ -993,21 +995,23 @@ export function armarPendientes(
   const sinDetalleDePolizas = f.fallidas.includes("seguros");
   for (const s of pendientesDeSeguros(seguroPorPersona(f.seguros.equipo, f.seguros.polizas, f.seguros.cambios, hoy), hoy, { sinDetalleDePolizas })) {
     const verbo = {
-      sin_poliza: "Registrar póliza", por_vencer: "Registrar renovación", papeleo: "Completar", baja: "Ver la póliza",
+      sin_poliza: "Registrar póliza", por_vencer: "Registrar renovación", poliza_vencida: "Registrar renovación", papeleo: "Completar", baja: "Ver la póliza",
       cambio_baja: "Marcar la baja", cambio_alta: "Marcar el alta",
     }[s.tipo];
     agregar({
       clave: `seguro_${s.clave}`, tipo: `seguro_${s.tipo}`, itemId: s.cambioId ?? s.polizaId ?? s.personaId,
-      personaId: s.personaId, persona: s.persona, sede: s.sede, modulo: "seguros",
+      // Una colectiva no es de una persona: con su `personaId`, una cesada del grupo le quitaría la urgencia a todas.
+      personaId: s.buscar ? null : s.personaId, persona: s.persona, sede: s.sede, sedes: s.buscar ? s.sedes : undefined, modulo: "seguros",
       titulo: s.titulo, detalle: s.detalle,
       urgencia: s.tipo === "sin_poliza" ? urgenciaSeguroSinPoliza(s.motivoHueco, s.dias)
-        : s.tipo === "por_vencer" ? urgenciaSeguroPorVencer(s.dias ?? 0, s.hasta ?? hoy)
+        : s.tipo === "poliza_vencida" ? urgenciaSeguroComplementario(-(s.dias ?? 0), s.hasta ?? hoy)
+        : s.tipo === "por_vencer" ? (s.complementario ? urgenciaSeguroComplementario : urgenciaSeguroPorVencer)(s.dias ?? 0, s.hasta ?? hoy)
         : s.tipo === "papeleo" ? urgenciaSeguroPapeleo(s.prima, s.pasos)
         : s.tipo === "cambio_baja" ? urgenciaSeguroCambio("baja", s.dias ?? 0)
         : s.tipo === "cambio_alta" ? urgenciaSeguroCambio("alta", s.dias ?? 0)
         : { grupo: "sin_plazo", plazo: "Pedir la baja", nota: null, orden: 0 },
       resolucion: "afuera",
-      ir: { texto: verbo, href: `/admin/seguros?persona=${s.personaId}` }, contexto: null,
+      ir: { texto: verbo, href: s.buscar ? `/admin/seguros?buscar=${encodeURIComponent(s.buscar)}` : `/admin/seguros?persona=${s.personaId}` }, contexto: null,
     });
   }
   for (const l of f.liquidacionesVencidas) {

@@ -262,6 +262,19 @@ export function urgenciaSeguroSinPoliza(
   return { grupo: "vencido", plazo: "Sin póliza vigente", nota: "no se leyeron sus pólizas", orden: -10_000 };
 }
 
+/**
+ * Un seguro que va ADEMÁS del principal, por vencer o vencido (`dias` negativo). No dice «sin seguro»: quien pierde
+ * Vida Ley sigue en EsSalud, y una fila que afirme otra cosa de esa persona es falsa.
+ */
+export function urgenciaSeguroComplementario(dias: number, hasta: string): Urgencia {
+  return {
+    grupo: dias < 0 ? "vencido" : dias === 0 ? "hoy" : "proximo",
+    plazo: enDias(dias, { futuro: "Vence", pasado: "Venció" }),
+    nota: `el ${diaYMes(hasta)}`,
+    orden: dias,
+  };
+}
+
 /** Cubierta hoy, pero se queda sin seguro en `dias` y nada empalma. `hasta` es la fecha EXCLUSIVA. */
 export function urgenciaSeguroPorVencer(dias: number, hasta: string): Urgencia {
   return {
@@ -278,7 +291,7 @@ export function urgenciaSeguroPorVencer(dias: number, hasta: string): Urgencia {
  * (convenio de pago, cláusula quinta). Firma y factura no tienen fecha límite.
  */
 export function urgenciaSeguroPapeleo(
-  prima: { estado: string; dias: number | null; venceEl: string | null } | null,
+  prima: { estado: string; dias: number | null; venceEl: string | null; seSuspende?: boolean } | null,
   pasos: readonly string[],
 ): Urgencia {
   if (prima && pasos.includes("pagada")) {
@@ -288,7 +301,7 @@ export function urgenciaSeguroPapeleo(
     }
     if (prima.estado === "en_mora") {
       const mora = -d;
-      return { grupo: "vencido", plazo: `En mora hace ${mora} día${mora === 1 ? "" : "s"}`, nota: "la cobertura se suspende a los 30 días de mora", orden: d };
+      return { grupo: "vencido", plazo: `En mora hace ${mora} día${mora === 1 ? "" : "s"}`, nota: prima.seSuspende === false ? null : "la cobertura se suspende a los 30 días de mora", orden: d };
     }
     if (prima.estado === "por_vencer") {
       return { grupo: d === 0 ? "hoy" : "proximo", plazo: enDias(d, PRIMA_VENCE), nota: prima.venceEl ? `el ${diaYMes(prima.venceEl)}` : null, orden: d };
