@@ -232,6 +232,12 @@
     }
   }
 
+  /* Los datos de un documento en su hoja (Normas, «Ver documento»): en el teléfono, detrás del vidrio queda el botón oscuro «+ Nueva versión», y «Versión:» bajaba a
+     4.25:1 aun con el punto de más que ya llevan las hojas. Un punto más de tinta, solo para esa letra chica. */
+  [data-vidrio="panel"] [role="dialog"] dl.text-xs.text-taupe:not(.hoja *) {
+    color: color-mix(in srgb, var(--color-taupe) 55%, var(--color-tinta));
+  }
+
   /* Una insignia informativa dentro de una hoja, en oscuro (Tipos de seguro): la letra pizarra sobre el vidrio que deja pasar lo de atrás daba 4.34:1. */
   :root[data-vidrio="panel"][data-tema="oscuro"] [role="dialog"] .rounded-pildora[class*="bg-pizarra/"]:not(.hoja *) {
     color: color-mix(in srgb, var(--color-pizarra) 80%, var(--color-tinta));
