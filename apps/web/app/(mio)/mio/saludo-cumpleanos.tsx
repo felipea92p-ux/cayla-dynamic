@@ -1,5 +1,6 @@
 "use client";
 
+import { prefiereQuieto } from "@/lib/vidrio-movimiento";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Cake } from "lucide-react";
@@ -25,7 +26,7 @@ export function SaludoCumpleanos({ nombre, bono, hoy }: { nombre: string; bono: 
   const [quieto, setQuieto] = useState(false);
 
   useEffect(() => {
-    const reducir = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const reducir = prefiereQuieto();
     if (reducir || quieto) return;
     const t = window.setInterval(() => setI((n) => (n + 1) % SALUDOS_CUMPLEANOS.length), SALUDO_CADA_MS);
     return () => window.clearInterval(t);

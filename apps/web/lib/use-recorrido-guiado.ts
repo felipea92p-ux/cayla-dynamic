@@ -41,6 +41,7 @@
 // por primera vez. Ahora el hook devuelve `iniciar()`, que salta la marca de
 // «ya lo vio» y lo lanza a pedido; el comportamiento automático no cambió.
 
+import { prefiereQuieto } from "./vidrio-movimiento";
 import { useCallback, useEffect, useRef } from "react";
 import { driver, type DriveStep } from "driver.js";
 import "driver.js/dist/driver.css";
@@ -93,7 +94,7 @@ function lanzarRecorrido(tourId: string, pasos: readonly PasoRecorrido[]): () =>
   // (`instancia.destroy()`: salir de la pantalla, o reemplazarlo con
   // `iniciar`) no lo llama. Esa diferencia es toda la regla, y no hace falta
   // una bandera: ver `terminar` abajo.
-  const sinAnimacion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const sinAnimacion = prefiereQuieto();
 
   const pasosDriver: DriveStep[] = pasos.map((p) => ({
     element: p.selector,

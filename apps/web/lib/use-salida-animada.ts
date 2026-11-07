@@ -25,9 +25,8 @@
 // `abierto` y no `montado`, así que el foco vuelve a la hamburguesa en cuanto
 // se pide cerrar, sin esperar a que termine de irse.
 
+import { prefiereQuieto } from "./vidrio-movimiento";
 import { useEffect, useState } from "react";
-
-const CONSULTA_MENOS_MOVIMIENTO = "(prefers-reduced-motion: reduce)";
 
 export function useSalidaAnimada(
   abierto: boolean,
@@ -49,7 +48,7 @@ export function useSalidaAnimada(
 
   useEffect(() => {
     if (abierto || !montado) return;
-    const espera = window.matchMedia(CONSULTA_MENOS_MOVIMIENTO).matches ? 0 : duracionMs;
+    const espera = prefiereQuieto() ? 0 : duracionMs;
     const temporizador = window.setTimeout(() => setMontado(false), espera);
     // Si lo vuelven a abrir antes de que termine de irse, la salida se cancela y
     // el cajón sigue montado: sin esta limpieza, el temporizador viejo lo

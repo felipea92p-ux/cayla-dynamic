@@ -15,6 +15,7 @@
 //   Las pantallas de Dynamic ya están pensadas para perder el menú en ese ancho (todo su `md:`). Entre 640 y 767 caben un teléfono de lado y
 //   una tablet chica: ahí una columna de 84 px deja 556 px para una tabla.
 
+import { prefiereQuieto } from "@/lib/vidrio-movimiento";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { Menu, Search, X } from "lucide-react";
@@ -25,6 +26,7 @@ import { useCerrarConElDedo } from "@/lib/use-cerrar-con-el-dedo";
 import { useEsCelular, useLateralPlegado } from "@/lib/use-vidrio-lateral";
 import { alternarLateral } from "@/lib/vidrio-lateral";
 import type { FilaMenu, HojaMenu } from "@/lib/vidrio-menu";
+import { BotonMovimiento } from "@/components/vidrio/boton-movimiento";
 import { BotonTema } from "@/components/vidrio/boton-tema";
 import { LogoCayla } from "@/components/vidrio/logo-cayla";
 import { MenuFilas } from "@/components/vidrio/menu";
@@ -101,7 +103,7 @@ export function MarcoVidrio({
   // Lo de atrás se corre de costado mientras el menú está abierto, y vuelve con él (también al ritmo del dedo). Mismos tiempos que `.marco-riel` en marco.css.
   const fondo = useRef<symbol | null>(null);
   useEffect(() => {
-    if (!cajon || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!cajon || prefiereQuieto()) return;
     const llave = alejarFondo(420, "lado");
     fondo.current = llave;
     return () => {
@@ -249,6 +251,8 @@ export function MarcoVidrio({
               {sede ? <span className="marco-sede">{sede}</span> : null}
               {accion}
               <BotonTema />
+              {/* Animaciones: junto al modo oscuro y por la misma razón, del aparato. El panel arranca quieto (lib/vidrio-movimiento.ts). */}
+              <BotonMovimiento />
               {/* En el teléfono el buscador es una lupa suelta al final, como en Retail. Los dos botones hacen lo mismo y solo uno se ve a la vez. */}
               {buscarEnCelular ? (
                 <button type="button" onClick={onBuscar} aria-label={etiquetaBuscador} className="marco-lupa hidden">

@@ -11,6 +11,7 @@
  * La geometría y la línea de tiempo viven en `lib/login-vuelo.ts`; los estilos, en `app/estilos/login.css`.
  */
 
+import { prefiereQuieto } from "@/lib/vidrio-movimiento";
 import { useEffect, useId, useRef } from "react";
 import { useRafagaDeClics } from "@/lib/use-rafaga-de-clics";
 import { LogoCayla } from "@/components/vidrio/logo-cayla";
@@ -133,7 +134,7 @@ export function PanelVuelo({ sinVuelo = false }: { sinVuelo?: boolean } = {}) {
     const alCambiarTamano = () => terminar();
     window.addEventListener("resize", alCambiarTamano);
 
-    const quieto = sinVuelo || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const quieto = sinVuelo || prefiereQuieto();
     if (quieto || !medir()) {
       terminar();
       return () => window.removeEventListener("resize", alCambiarTamano);

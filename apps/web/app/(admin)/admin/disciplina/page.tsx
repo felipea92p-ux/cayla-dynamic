@@ -27,6 +27,7 @@
 // historial con autor son los lotes 2 y 3.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { prefiereQuieto } from "@/lib/vidrio-movimiento";
 import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -430,7 +431,7 @@ export default function DisciplinaPage() {
       setTab("revision");
       setResaltado(hash);
       requestAnimationFrame(() => {
-        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        const reduce = prefiereQuieto();
         document.getElementById(hash)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
       });
     }, 0);

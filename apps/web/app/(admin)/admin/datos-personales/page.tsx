@@ -1,5 +1,6 @@
 "use client";
 
+import { prefiereQuieto } from "@/lib/vidrio-movimiento";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -428,7 +429,7 @@ export default function DatosPersonalesPage() {
     // no en cada botón porque esta es la ÚNICA puerta de entrada — la misma
     // razón por la que `sel` nunca se toca directo.
     setEditMode(editar);
-    const suave = typeof window !== "undefined" ? !window.matchMedia("(prefers-reduced-motion: reduce)").matches : true;
+    const suave = typeof window !== "undefined" ? !prefiereQuieto() : true;
     // En móvil la ficha reemplaza a la lista (ver `vistaMobile`); en pantalla
     // grande, `forzarScroll` es para quien entra desde el bloque de arriba,
     // donde la ficha queda fuera de vista.
