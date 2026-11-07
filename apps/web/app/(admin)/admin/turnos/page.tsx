@@ -50,6 +50,7 @@ import { MetasDeCobertura } from "./metas-de-cobertura";
 import { semillaDe, sugerirSemana, type DiaSugerencia, type PersonaSugerencia, type Propuesta, type Turno as TurnoMin } from "@/lib/admin/sugerencia-turnos";
 import { aMinutos, diaDeLaSemana, diasDeAusencia, filasParaPublicar, promedioDeCompras, restriccionesDesdeDisponibilidad } from "@/lib/admin/sugerencia-entrada";
 import { interruptoresVidrio } from "@/lib/vidrio";
+import { prefiereQuieto } from "@/lib/vidrio-movimiento";
 import { useEsCelular } from "@/lib/use-vidrio-lateral";
 import type { ReactNode } from "react";
 
@@ -717,14 +718,14 @@ export default function TurnosPage() {
   // Desde la Integrada: Semana con ese día abierto, y el día a la vista.
   // Lo mismo al tocar un día en Semana (Felipe, 2026-11-07): con la tabla de la semana arriba, el día se abre debajo y,
   // sin esto, fuera de la pantalla, como si no hubiera pasado nada. El foco va al título del día, para quien usa
-  // teclado o lector de pantalla; quien pidió menos movimiento salta sin animación.
+  // teclado o lector de pantalla; con las animaciones apagadas, salta sin deslizarse.
   function verLineaDelDia(iso: string) {
     irADia(iso);
     window.requestAnimationFrame(() => {
       const dia = document.getElementById("turnos-dia-abierto");
       if (!dia) return;
-      const quieto = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      dia.scrollIntoView({ block: "start", behavior: quieto ? "auto" : "smooth" });
+      // Una sola pregunta por el movimiento (lib/vidrio-movimiento.ts): ve el botón «Animaciones» y lo que pide el aparato.
+      dia.scrollIntoView({ block: "start", behavior: prefiereQuieto() ? "auto" : "smooth" });
       dia.querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
     });
   }
