@@ -19,6 +19,8 @@
 // se ve idéntico para el caso de una sola línea de texto (Tailwind ya pone
 // todos los márgenes en cero) y además admite varias.
 import type { ReactNode } from "react";
+import { CabeceraPaginaVidrio } from "@/components/vidrio/cabecera-pagina";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 export function CabeceraPagina({
   sobretitulo,
@@ -26,6 +28,7 @@ export function CabeceraPagina({
   descripcion,
   ayuda,
   accion,
+  vidrio,
 }: {
   /**
    * La línea chica encima del título («Planilla», «Hoja de sede»). Mayúsculas con
@@ -41,6 +44,40 @@ export function CabeceraPagina({
    * El «ⓘ» que abre el detalle de cómo se usa la pantalla (`<AyudaPantalla>`), al final de la descripción. Regla (2026-10-19): la descripción cabe en UNA línea y dice para qué sirve y
    * qué se toca primero; el resto va en la ayuda.
    */
+  ayuda?: ReactNode;
+  accion?: ReactNode;
+  /**
+   * Con el vidrio, cuando `descripcion` junta un dato y una frase: el dato sigue a la vista y la frase va al «?». Apagado no se usa. El día del
+   * estreno, esto y `descripcion` pasan a ser una sola cosa.
+   */
+  vidrio?: { dato?: ReactNode; frase?: string };
+}) {
+  if (interruptoresVidrio().panel) {
+    return (
+      <CabeceraPaginaVidrio
+        sobretitulo={sobretitulo}
+        titulo={titulo}
+        frase={vidrio?.frase ?? (typeof descripcion === "string" ? descripcion : undefined)}
+        dato={vidrio ? vidrio.dato : typeof descripcion === "string" ? undefined : descripcion}
+        ayuda={ayuda}
+        accion={accion}
+        impreso={<CabeceraClasica sobretitulo={sobretitulo} titulo={titulo} descripcion={descripcion} />}
+      />
+    );
+  }
+  return <CabeceraClasica sobretitulo={sobretitulo} titulo={titulo} descripcion={descripcion} ayuda={ayuda} accion={accion} />;
+}
+
+function CabeceraClasica({
+  sobretitulo,
+  titulo,
+  descripcion,
+  ayuda,
+  accion,
+}: {
+  sobretitulo?: ReactNode;
+  titulo: string;
+  descripcion?: ReactNode;
   ayuda?: ReactNode;
   accion?: ReactNode;
 }) {

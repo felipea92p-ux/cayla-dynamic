@@ -26,6 +26,7 @@
 // ============================================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
@@ -466,9 +467,10 @@ export default function CostosPage() {
 
             <p className="-mt-4 mb-6 max-w-3xl text-xs text-taupe">
               Compara por <strong className="font-medium">persona</strong> y por{" "}
-              <strong className="font-medium">hora</strong>, no por el total: una sede con nueve personas
-              siempre va a costar más que una con cuatro, y eso no dice nada. El desglose completo (lo que se
-              transfirió y las provisiones por separado) está en el CSV.
+              <strong className="font-medium">hora</strong>, no por el total
+              {interruptoresVidrio().panel
+                ? ". El desglose completo está en el CSV."
+                : ": una sede con nueve personas siempre va a costar más que una con cuatro, y eso no dice nada. El desglose completo (lo que se transfirió y las provisiones por separado) está en el CSV."}
             </p>
 
             <SeccionTabla titulo="Por área">
@@ -554,7 +556,7 @@ export default function CostosPage() {
                     detalle: `${s.personas} personas`,
                   }))}
                 />
-                <p className="mt-3 text-xs text-taupe">Se compara por hora, no por el total: una sede con más gente siempre costará más.</p>
+                <p className="mt-3 text-xs text-taupe">{interruptoresVidrio().panel ? "Se compara por hora, no por el total." : "Se compara por hora, no por el total: una sede con más gente siempre costará más."}</p>
               </TarjetaInfo>
             )}
           </aside>
@@ -581,7 +583,7 @@ function SeccionTabla({ titulo, children }: { titulo: string; children: React.Re
   return (
     <section className="mb-6">
       <h2 className="mb-2 font-serif text-lg">{titulo}</h2>
-      <Tabla>{children}</Tabla>
+      <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-ancha" : undefined}>{children}</Tabla>
     </section>
   );
 }

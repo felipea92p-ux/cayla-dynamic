@@ -19,6 +19,8 @@
 // crudo, la pantalla lo dice (PGRST202: la función no existe todavía).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
@@ -144,6 +146,7 @@ export default function ParametrosPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
+          sobretitulo={interruptoresVidrio().panel ? sobretituloDeHoy("Configuración") : undefined}
           titulo="Parámetros"
           descripcion="Los números que mueven el sistema. Cada cambio queda escrito: quién, cuándo, de qué a qué y por qué."
         />
@@ -191,7 +194,7 @@ export default function ParametrosPage() {
               {editables.length === 0 ? (
                 <EstadoVacio>Todavía no hay parámetros que se puedan cambiar desde acá.</EstadoVacio>
               ) : (
-                <Tabla>
+                <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
                   <TablaEncabezado>
                     <Th>Parámetro</Th>
                     <Th>Hoy</Th>
@@ -215,7 +218,7 @@ export default function ParametrosPage() {
                             {/* En celular la columna «Último cambio» no cabe: baja aquí. */}
                             <div className="mt-2 text-xs text-taupe md:hidden">{ultimoCambio(f)}</div>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 align-top">
+                          <td data-rotulo="Hoy" className="whitespace-nowrap px-4 py-3 align-top">
                             <div className="font-medium">{valorConUnidad(f.valor_actual, f.unidad)}</div>
                             {f.es_defecto && <div className="text-xs text-taupe">valor de partida</div>}
                             {f.rige_por_fechas && f.vigente_desde && (
@@ -255,7 +258,7 @@ export default function ParametrosPage() {
                 <p className="text-sm text-taupe">
                   Se muestran para que se vea qué número usa el sistema y de dónde sale. No se cambian desde acá.
                 </p>
-                <Tabla>
+                <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
                   <TablaEncabezado>
                     <Th>Parámetro</Th>
                     <Th>Hoy</Th>
@@ -268,8 +271,8 @@ export default function ParametrosPage() {
                           <div className="font-medium">{f.nombre}</div>
                           <p className="mt-0.5 text-xs text-taupe">{f.descripcion}</p>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 align-top font-medium">{valorConUnidad(f.valor_actual, f.unidad)}</td>
-                        <td className="px-4 py-3 align-top text-xs text-taupe">{f.base ?? "—"}</td>
+                        <td data-rotulo="Hoy" className="whitespace-nowrap px-4 py-3 align-top font-medium">{valorConUnidad(f.valor_actual, f.unidad)}</td>
+                        <td data-rotulo="Base" className="px-4 py-3 align-top text-xs text-taupe">{f.base ?? "—"}</td>
                       </Fila>
                     ))}
                   </tbody>
@@ -284,7 +287,7 @@ export default function ParametrosPage() {
               ) : historial.length === 0 ? (
                 <EstadoVacio>Todavía nadie ha cambiado un parámetro.</EstadoVacio>
               ) : (
-                <Tabla>
+                <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
                   <TablaEncabezado>
                     <Th>Cuándo</Th>
                     <Th>Parámetro</Th>

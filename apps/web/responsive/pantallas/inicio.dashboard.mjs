@@ -24,7 +24,10 @@ const pantallaDashboard = {
       viewports: ["375x812"],
       async preparar(pagina) {
         await pagina.getByRole("button", { name: "Abrir menú", exact: true }).click();
-        await pagina.locator('[role="dialog"]').first().waitFor({ state: "visible", timeout: 6000 });
+        const cajon = pagina.locator('[role="dialog"]').first();
+        await cajon.waitFor({ state: "visible", timeout: 6000 });
+        // Se mide con el cajón ya quieto: a mitad de su entrada, cada fila parece salirse por la izquierda sin que nada esté mal.
+        await cajon.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {}))));
       },
     },
   ],

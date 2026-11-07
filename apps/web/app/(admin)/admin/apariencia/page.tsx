@@ -13,6 +13,8 @@
 // vetada, se agrega como una opción más, nunca como un color picker.
 
 import { useCallback, useEffect, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
@@ -89,6 +91,7 @@ export default function AparienciaPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
+          sobretitulo={interruptoresVidrio().panel ? sobretituloDeHoy("Configuración") : undefined}
           titulo="Apariencia"
           descripcion="El tema por defecto para todo el equipo — panel y terminales de marcaje."
         />
@@ -131,10 +134,16 @@ export default function AparienciaPage() {
             </div>
 
             <p className="mt-6 text-xs text-taupe">
+              {interruptoresVidrio().panel ? (
+                <>Esto decide qué ve quien no eligió su tema con ☀/🌙. Los terminales de marcaje siempre siguen esta configuración.</>
+              ) : (
+                <>
               Quien elija un tema a mano en su propio navegador (el selector ☀/🌙 de la barra de
               navegación) sigue viendo el suyo — esto solo decide qué ve quien no tocó nada. Los
               terminales de marcaje no tienen ese selector, así que siempre siguen esta
               configuración.
+                </>
+              )}
             </p>
           </div>
         )}

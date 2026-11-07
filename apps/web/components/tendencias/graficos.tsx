@@ -8,10 +8,20 @@
 //     en una palabra («antes», «después», «parcial») y el color apoya.
 //   · Nada se dibuja como cero si no se midió: «sin dato» es una celda vacía con su guion, no una barra baja.
 //   · Responsive por viewBox: sin scroll horizontal de página en el celular.
+//   · Con el vidrio, en el teléfono se dibuja a su tamaño (`useAngosto`): encoger un dibujo de 640 a 300 px dejaba la letra en 5 px. Y las columnas son las de Retail
+//     (finanzas/GraficoSemanas): en tinta, con el extremo del dato redondeado y ancladas a la línea base.
 
 import type { BarrasCasos, CeldaCalor, ColumnaCosto, LlegadaSede, PuntoSemana } from "@/lib/admin/tendencias";
 import { soles } from "@/lib/admin/educacion-formato";
 import { cx } from "@/components/ui/cx";
+import { useEsCelular } from "@/lib/use-vidrio-lateral";
+import { interruptoresVidrio } from "@/lib/vidrio";
+
+/** ¿Se dibuja para el teléfono? Apagado, nunca: el gráfico sigue siendo el de hoy. */
+function useAngosto(): boolean {
+  const celular = useEsCelular();
+  return interruptoresVidrio().panel && celular;
+}
 
 // ── Casos: barras horizontales ───────────────────────────────────────────────
 export function BarrasCasos({ datos }: { datos: BarrasCasos }) {
@@ -33,13 +43,17 @@ export function BarrasCasos({ datos }: { datos: BarrasCasos }) {
 
 // ── Costo de planilla: columnas ─────────────────────────────────────────────
 export function ColumnasCosto({ columnas }: { columnas: ColumnaCosto[] }) {
-  const W = 640, H = 210, PL = 8, PR = 8, PT = 26, PB = 34;
+  const angosto = useAngosto();
+  const conVidrio = interruptoresVidrio().panel;
+  // En el teléfono cada columna pide 60 px: con doce periodos el dibujo corre dentro de su tarjeta, como una tabla ancha, y su letra sigue de 11 px.
+  const anchoMinimo = columnas.length * 60;
+  const W = angosto ? Math.max(300, anchoMinimo) : 640, H = 210, PL = 8, PR = 8, PT = 26, PB = 34;
   const max = Math.max(...columnas.map((c) => c.costo ?? 0), 1);
   const ancho = (W - PL - PR) / Math.max(columnas.length, 1);
   const barra = Math.min(ancho * 0.6, 56);
   const alto = H - PT - PB;
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Costo de planilla por periodo">
+  const dibujo = (
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" style={angosto ? { minWidth: anchoMinimo } : undefined} role="img" aria-label="Costo de planilla por periodo">
       <defs>
         <pattern id="rayado-en-curso" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-taupe)" strokeWidth="2" />
@@ -52,12 +66,19 @@ export function ColumnasCosto({ columnas }: { columnas: ColumnaCosto[] }) {
         const y = PT + alto - h;
         return (
           <g key={c.clave}>
-            <rect
-              x={cx0 - barra / 2} y={y} width={barra} height={h} rx={3}
-              fill={c.enCurso ? "url(#rayado-en-curso)" : "var(--color-taupe)"}
-              stroke={c.enCurso ? "var(--color-taupe)" : "none"} strokeDasharray={c.enCurso ? "3 3" : undefined}
-              opacity={c.enCurso ? 0.7 : 1}
-            />
+            {conVidrio && !c.enCurso ? (
+              <path
+                d={`M${cx0 - barra / 2},${y + h} V${y + 4} q0,-4 4,-4 h${barra - 8} q4,0 4,4 V${y + h} Z`}
+                fill="var(--color-tinta)"
+              />
+            ) : (
+              <rect
+                x={cx0 - barra / 2} y={y} width={barra} height={h} rx={3}
+                fill={c.enCurso ? "url(#rayado-en-curso)" : "var(--color-taupe)"}
+                stroke={c.enCurso ? "var(--color-taupe)" : "none"} strokeDasharray={c.enCurso ? "3 3" : undefined}
+                opacity={c.enCurso ? 0.7 : 1}
+              />
+            )}
             <text x={cx0} y={y - 6} textAnchor="middle" fontSize={11} className="tabular-nums" fill="var(--color-tinta)">
               {c.costo !== null ? soles(Math.round(c.costo)).replace(/\.00$/, "") : "en curso"}
             </text>
@@ -72,11 +93,13 @@ export function ColumnasCosto({ columnas }: { columnas: ColumnaCosto[] }) {
       })}
     </svg>
   );
+  return angosto ? <div className="overflow-x-auto">{dibujo}</div> : dibujo;
 }
 
 // ── Asistencia sobre lo esperado: línea ─────────────────────────────────────
 export function LineaAsistencia({ puntos }: { puntos: PuntoSemana[] }) {
-  const W = 640, H = 200, PL = 36, PR = 12, PT = 18, PB = 30;
+  const angosto = useAngosto();
+  const W = angosto ? 320 : 640, H = 200, PL = 36, PR = 12, PT = 18, PB = 30;
   const conDato = puntos.filter((p) => p.pct !== null) as (PuntoSemana & { pct: number })[];
   if (conDato.length === 0) return null;
   const minV = Math.min(...conDato.map((p) => p.pct));
@@ -89,7 +112,7 @@ export function LineaAsistencia({ puntos }: { puntos: PuntoSemana[] }) {
   const completos = puntos.map((p, i) => ({ p, i })).filter(({ p }) => p.pct !== null && !p.parcial);
   const trazo = completos.map(({ p, i }, k) => `${k === 0 ? "M" : "L"}${x(i)},${y(p.pct as number)}`).join(" ");
   const ticks = [piso, Math.round((piso + 100) / 2), 100];
-  const cada = Math.max(1, Math.ceil(puntos.length / 8));
+  const cada = Math.max(1, Math.ceil(puntos.length / (angosto ? 4 : 8)));
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Asistencia sobre lo esperado, por semana">
       {ticks.map((t) => (
@@ -104,7 +127,8 @@ export function LineaAsistencia({ puntos }: { puntos: PuntoSemana[] }) {
           <circle cx={x(i)} cy={y(p.pct)} r={p.parcial ? 4.5 : 3.5}
             fill={p.parcial ? "var(--color-papel)" : "var(--color-tinta)"} stroke="var(--color-tinta)" strokeWidth={p.parcial ? 1.8 : 0} />
           {(i === puntos.length - 1 || i === 0) && (
-            <text x={x(i)} y={y(p.pct) - 9} textAnchor={i === 0 ? "start" : "end"} fontSize={11} fill="var(--color-tinta)" className="tabular-nums">
+            // En el teléfono la última cifra va debajo de su punto: arriba la cruzaba la línea.
+            <text x={x(i)} y={angosto && i === puntos.length - 1 ? y(p.pct) + 16 : y(p.pct) - 9} textAnchor={i === 0 ? "start" : "end"} fontSize={11} fill="var(--color-tinta)" className="tabular-nums">
               {p.pct}%{p.parcial ? " (parcial)" : ""}
             </text>
           )}
@@ -126,6 +150,8 @@ export function pisoDeLinea(puntos: PuntoSemana[]): number | null {
 
 // ── Hora de llegada frente al horario, por sede ─────────────────────────────
 export function LlegadaPorSede({ sedes, nombreDe }: { sedes: LlegadaSede[]; nombreDe: (codigo: string) => string }) {
+  // En el teléfono la franja se queda con todo el ancho, debajo de su sede: en tres columnas le quedaban 60 px para medir 40 minutos.
+  const angosto = useAngosto();
   const LIM = 20; // minutos a cada lado
   const pos = (m: number) => ((Math.max(-LIM, Math.min(LIM, m)) + LIM) / (2 * LIM)) * 100;
   const dicho = (m: number) => {
@@ -135,7 +161,7 @@ export function LlegadaPorSede({ sedes, nombreDe }: { sedes: LlegadaSede[]; nomb
   return (
     <div className="grid gap-3">
       {sedes.map((s) => (
-        <div key={s.sede} className="grid grid-cols-[6.5rem_1fr_7.5rem] items-center gap-3 text-sm sm:grid-cols-[12rem_1fr_9rem]">
+        <div key={s.sede} className={angosto ? "grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm" : "grid grid-cols-[6.5rem_1fr_7.5rem] items-center gap-3 text-sm sm:grid-cols-[12rem_1fr_9rem]"}>
           <span className="truncate text-tinta" title={nombreDe(s.sede)}>{nombreDe(s.sede)}</span>
           {s.mediana === null || s.p25 === null || s.p75 === null ? (
             <>
@@ -144,7 +170,7 @@ export function LlegadaPorSede({ sedes, nombreDe }: { sedes: LlegadaSede[]; nomb
             </>
           ) : (
             <>
-              <span className="relative h-5" aria-hidden>
+              <span className={cx("relative h-5", angosto && "order-3 col-span-2")} aria-hidden>
                 <span className="absolute inset-x-0 top-1/2 h-px bg-sand" />
                 <span className="absolute inset-y-0 w-px bg-taupe" style={{ left: "50%" }} />
                 <span className="absolute top-1/2 h-2.5 -translate-y-1/2 rounded-control bg-taupe/30" style={{ left: `${pos(s.p25)}%`, width: `${Math.max(pos(s.p75) - pos(s.p25), 1.5)}%` }} />
@@ -155,11 +181,17 @@ export function LlegadaPorSede({ sedes, nombreDe }: { sedes: LlegadaSede[]; nomb
           )}
         </div>
       ))}
+      {angosto ? (
+        <div className="flex justify-between text-[11px] text-taupe" aria-hidden>
+          <span>{LIM} min antes</span><span>a la hora</span><span>{LIM} min después</span>
+        </div>
+      ) : (
       <div className="grid grid-cols-[6.5rem_1fr_7.5rem] gap-3 text-[11px] text-taupe sm:grid-cols-[12rem_1fr_9rem]" aria-hidden>
         <span />
         <span className="flex justify-between"><span>{LIM} min antes</span><span>a la hora</span><span>{LIM} min después</span></span>
         <span />
       </div>
+      )}
     </div>
   );
 }
@@ -167,25 +199,28 @@ export function LlegadaPorSede({ sedes, nombreDe }: { sedes: LlegadaSede[]; nomb
 // ── Cuándo se llega tarde: sede × día de la semana ──────────────────────────
 const DIAS_CAL = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 export function CalorTardanza({ filas, nombreDe }: { filas: { sede: string; celdas: CeldaCalor[] }[]; nombreDe: (codigo: string) => string }) {
+  // En el teléfono la sede va por su código (el nombre sigue en el `title`): con ocho columnas en 300 px, «Tienda · Arequipa» se cortaba en «Tien…».
+  const angosto = useAngosto();
+  const conVidrio = interruptoresVidrio().panel;
   const max = Math.max(1, ...filas.flatMap((f) => f.celdas.map((c) => c.pctTarde ?? 0)));
   return (
     <div className="overflow-hidden rounded-superficie border border-sand">
-      <table className="w-full table-fixed text-center text-sm">
+      <table className={cx("w-full table-fixed text-center", angosto ? "text-xs" : "text-sm")}>
         <thead>
           <tr className="bg-sand/50 text-xs text-taupe">
-            <th className="w-[22%] px-2 py-1.5 text-left font-normal">Sede</th>
+            <th className={cx(angosto ? "w-[16%] px-1.5" : "w-[22%] px-2", "py-1.5 text-left font-normal")}>Sede</th>
             {DIAS_CAL.map((d) => <th key={d} className="px-1 py-1.5 font-normal">{d}</th>)}
           </tr>
         </thead>
         <tbody>
           {filas.map((f) => (
             <tr key={f.sede} className="border-t border-sand">
-              <th className="truncate px-2 py-1.5 text-left font-normal text-tinta" title={nombreDe(f.sede)}>{nombreDe(f.sede)}</th>
+              <th className={cx("truncate py-1.5 text-left font-normal text-tinta", angosto ? "px-1.5" : "px-2")} title={nombreDe(f.sede)}>{angosto ? f.sede : nombreDe(f.sede)}</th>
               {f.celdas.map((c) => (
                 <td key={c.dia} className="p-0.5">
                   <span
                     className={cx("flex h-8 items-center justify-center rounded-control tabular-nums", c.pctTarde !== null ? "text-tinta" : "text-taupe")}
-                    style={c.pctTarde !== null ? { backgroundColor: `color-mix(in srgb, var(--color-taupe) ${Math.round(10 + (c.pctTarde / max) * 55)}%, transparent)` } : undefined}
+                    style={c.pctTarde !== null ? { backgroundColor: conVidrio ? `color-mix(in srgb, var(--color-taupe) calc(${Math.round(10 + (c.pctTarde / max) * 55)}% * var(--calor-k, 1)), transparent)` : `color-mix(in srgb, var(--color-taupe) ${Math.round(10 + (c.pctTarde / max) * 55)}%, transparent)` } : undefined}
                     title={c.sinTrabajo ? "Nadie de la sede llegó este día en el periodo" : c.pctTarde === null ? `Solo ${c.llegadas} llegadas: pocas para decir algo` : `${c.pctTarde}% llegó ${5} min o más después`}
                   >
                     {c.sinTrabajo ? "–" : c.pctTarde === null ? "·" : `${c.pctTarde}%`}

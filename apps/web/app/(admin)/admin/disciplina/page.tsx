@@ -46,6 +46,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { Pestanas } from "@/components/ui/pestanas";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { BotonAyuda } from "@/components/ui/ayuda-pantalla";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -178,6 +179,9 @@ function FalloLectura({ que, consecuencia }: { que: string; consecuencia?: strin
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Con vidrio se lee arriba de «Reglas y umbrales», que es el único «?» de la pantalla.
+const FRASE_DE_DISCIPLINA = "Incidencias que alcanzan umbrales y su trazabilidad. El sistema detecta y prepara borradores; la decisión la toma una persona.";
 
 export default function DisciplinaPage() {
   const router = useRouter();
@@ -1256,7 +1260,7 @@ export default function DisciplinaPage() {
           accion={puedeTramitar
             ? <Boton variante="primario" onClick={() => setRegistrandoFalta(true)}>Registrar una falta</Boton>
             : undefined}
-          descripcion="Incidencias que alcanzan umbrales y su trazabilidad. El sistema detecta y prepara borradores; la decisión la toma una persona."
+          descripcion={FRASE_DE_DISCIPLINA}
           ayuda={<BotonAyuda etiqueta="Ver reglas y umbrales" onClick={() => setVerReglas(true)} />}
         />
 
@@ -1592,6 +1596,7 @@ export default function DisciplinaPage() {
 
         <Modal abierto={verReglas} onCerrar={() => setVerReglas(false)} titulo="Reglas y umbrales" ancho="lg">
           <div className="grid gap-4 text-sm">
+            {interruptoresVidrio().panel && <p className="text-tinta">{FRASE_DE_DISCIPLINA}</p>}
             <p className="text-taupe">Lo que el sistema mira para detectar. Detectar no es sancionar: cada documento lo revisa y firma una persona.</p>
             <dl className="grid gap-3">
               {[

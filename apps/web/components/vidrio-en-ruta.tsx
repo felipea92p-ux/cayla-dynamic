@@ -3,6 +3,8 @@
 import { useLayoutEffect } from "react";
 import { usePathname } from "next/navigation";
 import { aplicarVidrio, valorVidrio } from "@/lib/vidrio";
+import { aplicarLateral } from "@/lib/vidrio-lateral";
+import { aplicarTemaGuardado } from "@/lib/vidrio-tema";
 
 // La mitad del interruptor que el guion en línea no puede hacer: ese guion corre una sola vez, al cargar el documento,
 // y el <html> del layout raíz no se vuelve a dibujar al navegar. Entrar a /terminal desde la portada, o salir de la 404
@@ -14,7 +16,12 @@ import { aplicarVidrio, valorVidrio } from "@/lib/vidrio";
 export function VidrioEnRuta() {
   const ruta = usePathname();
   useLayoutEffect(() => {
-    aplicarVidrio(document.documentElement, valorVidrio(ruta));
+    const valor = valorVidrio(ruta);
+    aplicarVidrio(document.documentElement, valor);
+    if (valor === "panel") {
+      aplicarTemaGuardado();
+      aplicarLateral();
+    }
   }, [ruta]);
   return null;
 }

@@ -37,6 +37,7 @@ import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 interface Persona {
   id: string; nombres: string; apellidos: string; documento: string | null;
@@ -1284,7 +1285,7 @@ export default function DatosPersonalesPage() {
                   return (
                     <li key={p.id}>
                       <button onClick={() => intentarSeleccionar(p.id)}
-                        className={`flex w-full items-center gap-2 border-l-2 px-3 py-2 text-left text-sm transition-colors ${activa ? "border-tinta bg-sand font-medium text-tinta" : "border-transparent hover:bg-sand/30"}`}>
+                        className={`${interruptoresVidrio().panel ? "vidrio-fila-persona " : ""}flex w-full items-center gap-2 border-l-2 px-3 py-2 text-left text-sm transition-colors ${activa ? "border-tinta bg-sand font-medium text-tinta" : "border-transparent hover:bg-sand/30"}`}>
                         <span className={`grid size-7 shrink-0 place-items-center rounded-pildora text-[10px] font-semibold ${activa ? "bg-tinta text-crema" : "bg-sand text-taupe"}`} aria-hidden>
                           {iniciales(p.nombres, p.apellidos)}
                         </span>
@@ -1351,7 +1352,9 @@ export default function DatosPersonalesPage() {
                     <div className="min-w-0">
                       <h2 className="font-serif text-lg leading-tight">Por completar</h2>
                       <p className="mt-1 max-w-prose text-xs text-taupe">
-                        Son los datos que el contador necesita para el T-Registro. Sin ellos no se puede declarar a esa persona ni pagarle por transferencia.
+                        {interruptoresVidrio().panel
+                          ? "Sin estos datos no se la puede declarar en el T-Registro ni pagarle por transferencia."
+                          : "Son los datos que el contador necesita para el T-Registro. Sin ellos no se puede declarar a esa persona ni pagarle por transferencia."}
                       </p>
                     </div>
                     <div className="w-full max-w-xs text-xs text-taupe">

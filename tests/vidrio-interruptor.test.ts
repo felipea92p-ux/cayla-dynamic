@@ -1,3 +1,4 @@
+import { resolverPlegado } from "../apps/web/lib/vidrio-lateral";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readdirSync } from "node:fs";
 import path from "node:path";
@@ -44,17 +45,38 @@ const COMBINACIONES: InterruptoresVidrio[] = [
 ];
 
 /** Corre el guion tal como lo haría el navegador y devuelve lo que dejó en <html>. */
-function correrGuion(guion: string, ruta: string): string | null {
-  let valor: string | null = null;
+/** Corre el guion contra un documento falso y devuelve el atributo y el tema que dejó. `guardado`: lo que hay en localStorage; `null` si no hay nada, y «error» si el almacenamiento está bloqueado. */
+function correrGuionCompleto(guion: string, ruta: string, guardado: string | null = null, opciones: { lateral?: string | null; ventanaAncha?: boolean } = {}) {
+  const atributos = new Map<string, string>();
+  const meta = new Map<string, string>();
   const documento = {
-    documentElement: {
-      setAttribute: (nombre: string, v: string) => {
-        if (nombre === "data-vidrio") valor = v;
-      },
+    documentElement: { setAttribute: (nombre: string, v: string) => void atributos.set(nombre, v) },
+    querySelector: () => ({ setAttribute: (nombre: string, v: string) => void meta.set(nombre, v) }),
+  };
+  const almacenamiento = {
+    getItem: (clave: string) => {
+      if (guardado === "error") throw new Error("bloqueado");
+      return clave === "cayla-nav-colapsado" ? (opciones.lateral ?? null) : guardado;
     },
   };
-  new Function("location", "document", guion)({ pathname: ruta }, documento);
-  return valor;
+  const ventana = () => ({ matches: opciones.ventanaAncha ?? true });
+  new Function("document", "location", "localStorage", "matchMedia", guion)(documento, { pathname: ruta }, almacenamiento, ventana);
+  return { vidrio: atributos.get("data-vidrio") ?? null, tema: atributos.get("data-tema") ?? null, barra: meta.get("content") ?? null };
+}
+
+function lateralDelGuion(guion: string, ruta: string, opciones: { lateral?: string | null; ventanaAncha?: boolean }) {
+  const atributos = new Map<string, string>();
+  const documento = {
+    documentElement: { setAttribute: (nombre: string, v: string) => void atributos.set(nombre, v) },
+    querySelector: () => null,
+  };
+  const almacenamiento = { getItem: (clave: string) => (clave === "cayla-nav-colapsado" ? (opciones.lateral ?? null) : null) };
+  new Function("document", "location", "localStorage", "matchMedia", guion)(documento, { pathname: ruta }, almacenamiento, () => ({ matches: opciones.ventanaAncha ?? true }));
+  return atributos.get("data-lateral") ?? null;
+}
+
+function correrGuion(guion: string, ruta: string) {
+  return correrGuionCompleto(guion, ruta).vidrio;
 }
 
 afterEach(() => vi.unstubAllEnvs());
@@ -168,6 +190,58 @@ describe("el guion contesta igual que la función", () => {
     for (const ruta of rutas) {
       expect([ruta, correrGuion(guion, ruta)]).toEqual([ruta, valorVidrio(ruta, interruptores)]);
     }
+  });
+});
+
+describe("el tema del panel con el vidrio encendido", () => {
+  const encendido = guionVidrioAntesDePintar({ panel: true, terminal: true })!;
+
+  it("arranca en claro: nadie se encuentra el sistema distinto, aunque su aparato esté en oscuro", () => {
+    expect(correrGuionCompleto(encendido, "/admin/dashboard").tema).toBe("claro");
+    expect(correrGuionCompleto(encendido, "/mio").tema).toBe("claro");
+  });
+
+  it("lo elegido con el botón se recuerda, y la barra del teléfono lo sigue", () => {
+    expect(correrGuionCompleto(encendido, "/admin/dashboard", "oscuro")).toEqual({ vidrio: "panel", tema: "oscuro", barra: "#1c1a17" });
+    expect(correrGuionCompleto(encendido, "/admin/dashboard", "claro")).toEqual({ vidrio: "panel", tema: "claro", barra: "#f5f0e8" });
+  });
+
+  it("lo viejo o lo roto es claro, y el almacenamiento bloqueado no rompe la página", () => {
+    expect(correrGuionCompleto(encendido, "/admin/dashboard", "sistema").tema).toBe("claro");
+    expect(correrGuionCompleto(encendido, "/admin/dashboard", "morado").tema).toBe("claro");
+    expect(correrGuionCompleto(encendido, "/admin/dashboard", "error").tema).toBe("claro");
+  });
+
+  it("el terminal no se toca: su tema lo sigue decidiendo /admin/apariencia hasta su módulo", () => {
+    expect(correrGuionCompleto(encendido, "/terminal/marcar", "oscuro")).toEqual({ vidrio: "terminal", tema: null, barra: null });
+  });
+
+  it("con el panel apagado, el guion no toca el tema en ninguna parte", () => {
+    const soloTerminal = guionVidrioAntesDePintar({ panel: false, terminal: true })!;
+    expect(correrGuionCompleto(soloTerminal, "/admin/dashboard", "oscuro")).toEqual({ vidrio: null, tema: null, barra: null });
+  });
+});
+
+describe("el menú plegado, antes de pintar", () => {
+  const encendido = guionVidrioAntesDePintar({ panel: true, terminal: false })!;
+  it.each([
+    [null, true],
+    [null, false],
+    ["rail", true],
+    ["rail", false],
+    ["ancho", true],
+    ["ancho", false],
+    ["cualquiera", false],
+  ] as const)("el guion contesta igual que resolverPlegado: guardado %j, ventana ancha %j", (lateral, ventanaAncha) => {
+    expect(lateralDelGuion(encendido, "/admin/dashboard", { lateral, ventanaAncha })).toBe(resolverPlegado(lateral, ventanaAncha) ? "plegado" : null);
+  });
+  it("el terminal no lleva menú: nunca se le pone el atributo", () => {
+    const ambos = guionVidrioAntesDePintar({ panel: true, terminal: true })!;
+    expect(lateralDelGuion(ambos, "/terminal/marcar", { lateral: "rail" })).toBeNull();
+  });
+  it("sin matchMedia o sin almacenamiento no se rompe la página", () => {
+    const documento = { documentElement: { setAttribute: () => {} }, querySelector: () => null };
+    expect(() => new Function("document", "location", "localStorage", encendido)(documento, { pathname: "/admin/dashboard" }, { getItem: () => { throw new Error("bloqueado"); } })).not.toThrow();
   });
 });
 

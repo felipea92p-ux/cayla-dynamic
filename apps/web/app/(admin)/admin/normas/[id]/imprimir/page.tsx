@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { PapelEnPantalla } from "@/components/vidrio/papel-en-pantalla";
 import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
@@ -99,7 +101,7 @@ export default function ImprimirDocumentoPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-6 print:max-w-none print:p-0">
+    <main className={interruptoresVidrio().panel ? "hoja mx-auto max-w-3xl p-6 print:max-w-none print:p-0" : "mx-auto max-w-3xl p-6 print:max-w-none print:p-0"}>
       {/* La barra desaparece al imprimir: no forma parte del documento. */}
       <div className="mb-5 flex flex-wrap items-center gap-2 print:hidden">
         <Boton variante="primario" tamano="sm" onClick={() => window.print()}>
@@ -130,6 +132,7 @@ export default function ImprimirDocumentoPage() {
           misión y los valores. Y se comprueba sin tocar el texto: filtrar líneas
           de lo que se pinta haría que el acuse apuntara a un documento con partes
           que nadie vio, y eso es justo lo que le da valor a la constancia. */}
+      <PapelEnPantalla>
       <header className="mb-6 border-b border-sand pb-4">
         {!abreConTitulo(doc.documento) && (
           <>
@@ -148,6 +151,7 @@ export default function ImprimirDocumentoPage() {
       </header>
 
       <Documento texto={doc.documento} />
+      </PapelEnPantalla>
     </main>
   );
 }

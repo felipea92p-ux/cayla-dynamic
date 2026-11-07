@@ -66,6 +66,7 @@ import { adjuntarArchivoAPoliza } from "@/lib/admin/seguros-archivos";
 import { pesoLegible } from "@/lib/reducir-imagen";
 import { AvisoDeError } from "./aviso-de-error";
 import type { OpcionPersona } from "./formulario-poliza";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 /** Cuántos PDF a la vez: la empresa tiene unas treinta personas, y cada PDF se lee entero en esta computadora. */
 const MAX_ARCHIVOS = 20;
@@ -297,9 +298,9 @@ function Cuerpo({
   return (
     <>
       <p className="mb-3 text-sm text-taupe">
-        Elige el PDF de la póliza —o varios, uno por persona— y el sistema lee el número, la vigencia, la prima y a quién asegura.
-        Lo que el papel no dice (el certificado de Vida Ley no trae vigencia ni prima) queda en blanco y lo escribes tú.
-        Se lee aquí, en tu computadora: no se sube ni se guarda nada hasta que revises y registres.
+        {interruptoresVidrio().panel
+          ? "Elige uno o varios PDF, uno por persona. Lee número, vigencia, prima y a quién asegura; lo que no diga, lo escribes tú. Nada se sube ni se guarda hasta que registres."
+          : "Elige el PDF de la póliza —o varios, uno por persona— y el sistema lee el número, la vigencia, la prima y a quién asegura. Lo que el papel no dice (el certificado de Vida Ley no trae vigencia ni prima) queda en blanco y lo escribes tú. Se lee aquí, en tu computadora: no se sube ni se guarda nada hasta que revises y registres."}
       </p>
 
       {aviso && <AvisoDeError mensaje={aviso} />}

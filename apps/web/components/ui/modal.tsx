@@ -30,6 +30,8 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { useFocoAtrapado } from "@/lib/use-foco-atrapado";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { ModalVidrio } from "@/components/vidrio/hojas";
 
 // "xl" se agregó con la 0401, para el primer modal que no muestra un formulario
 // sino un DOCUMENTO: la foto de un DNI a max-w-lg se ve, pero no se LEE, y ese
@@ -43,14 +45,7 @@ const ANCHO: Record<"sm" | "md" | "lg" | "xl", string> = {
   xl: "max-w-3xl",
 };
 
-export function Modal({
-  abierto,
-  onCerrar,
-  titulo,
-  ancho = "md",
-  bloqueado = false,
-  children,
-}: {
+type PropsModal = {
   abierto: boolean;
   onCerrar: () => void;
   titulo?: string;
@@ -65,7 +60,21 @@ export function Modal({
    * para no perder una edición a medio guardar (ver CLAUDE.md). */
   bloqueado?: boolean;
   children: ReactNode;
-}) {
+};
+
+// Con el interruptor encendido la hoja es la de vidrio: cuelga de <body>, se va animada y en el teléfono responde al dedo y a «atrás». Por fuera promete lo mismo.
+export function Modal(props: PropsModal) {
+  const { abierto, onCerrar, titulo, ancho = "md", bloqueado = false, children } = props;
+  return interruptoresVidrio().panel ? (
+    <ModalVidrio abierto={abierto} onCerrar={onCerrar} titulo={titulo} anchoClase={ANCHO[ancho]} bloqueado={bloqueado}>
+      {children}
+    </ModalVidrio>
+  ) : (
+    <ModalClasico {...props} />
+  );
+}
+
+function ModalClasico({ abierto, onCerrar, titulo, ancho = "md", bloqueado = false, children }: PropsModal) {
   const ref = useRef<HTMLDivElement>(null);
   const tituloId = useId();
 

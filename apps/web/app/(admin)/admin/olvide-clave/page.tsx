@@ -6,6 +6,8 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { Campo } from "@/components/ui/campo";
 import { Boton } from "@/components/ui/boton";
+import { MarcoDeEntrada } from "@/components/login/marco-de-entrada";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 export default function OlvideClavePage() {
   const [email, setEmail] = useState("");
@@ -41,6 +43,40 @@ export default function OlvideClavePage() {
       return;
     }
     setEnviado(true);
+  }
+
+  // Con el vidrio, el marco de Entrar (opción A de Felipe, 2026-11-07). Lo que hace el formulario es el mismo `enviar` de abajo.
+  if (interruptoresVidrio().panel) {
+    return (
+      <MarcoDeEntrada
+        subtitulo="Recuperar acceso"
+        titulo="Recuperar acceso"
+        texto={enviado ? undefined : "Escribe el correo con el que entras al panel. Te enviaremos un enlace para crear una nueva clave."}
+        pie={<a href="/admin/login" className="text-taupe underline-offset-2 hover:underline">Volver a entrar</a>}
+      >
+        {enviado ? (
+          <p className="text-sm text-tinta">
+            Si <span className="font-medium">{email}</span> tiene una cuenta, te llegará un correo con un enlace
+            para crear una nueva clave. Revisa también spam/promociones.
+          </p>
+        ) : (
+          <form onSubmit={enviar} className="flex flex-col gap-3">
+            <Campo
+              etiqueta="Correo"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            {error && <p className="text-sm text-rojo">{error}</p>}
+            <Boton type="submit" variante="primario" disabled={enviando} cargando={enviando} className="login-entrar mt-2">
+              {enviando ? "Enviando…" : "Enviar enlace"}
+            </Boton>
+          </form>
+        )}
+      </MarcoDeEntrada>
+    );
   }
 
   return (

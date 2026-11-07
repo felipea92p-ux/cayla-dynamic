@@ -391,7 +391,8 @@ function MiMovilidadContenido() {
       </EnlaceVolver>
       <CabeceraPagina
         titulo="Declaración de ruta y gasto de transporte"
-        descripcion="Es el papel que sostiene que tu movilidad no paga impuestos ni descuentos (D.S. 001-97-TR, art. 19 e). Firmarla acá la reemplaza por completo: no hace falta imprimir, firmar a mano ni escanear nada."
+        // Un fragmento y no un texto: con el vidrio una frase va al «?», y esta sostiene un papel que se firma. Se queda a la vista.
+        descripcion={<>Es el papel que sostiene que tu movilidad no paga impuestos ni descuentos (D.S. 001-97-TR, art. 19 e). Firmarla acá la reemplaza por completo: no hace falta imprimir, firmar a mano ni escanear nada.</>}
       />
 
       {declaracion === null ? (

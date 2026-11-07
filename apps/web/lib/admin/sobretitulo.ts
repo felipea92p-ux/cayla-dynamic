@@ -8,11 +8,16 @@
 // El día sale de `hoyLima()` (la regla del repo: nada de escribir la zona horaria fuera de
 // fecha-lima.ts) y se formatea con `fechaConDia`, la misma que usa el Dashboard.
 
+import { createElement, type ReactNode } from "react";
 import { hoyLima } from "@cayla-dynamic/shared";
 import { fechaConDia } from "@/lib/admin/asistencia-hoy";
+import { HoraLima } from "@/components/vidrio/hora-lima";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
-export function sobretituloDeHoy(seccion: string): string {
+export function sobretituloDeHoy(seccion: string): ReactNode {
   // «lunes 19 de octubre» → «lunes, 19 de octubre»: la coma es de Retail y se lee mejor en mayúsculas.
   const dia = fechaConDia(hoyLima()).replace(" ", ", ");
-  return `${seccion} · ${dia}`;
+  const texto = `${seccion} · ${dia}`;
+  // Con el vidrio el saludo y la hora dejan la barra de arriba, y la hora sube aquí. El nodo y no un texto: la hora cambia cada minuto.
+  return interruptoresVidrio().panel ? createElement("span", null, texto, createElement(HoraLima)) : texto;
 }

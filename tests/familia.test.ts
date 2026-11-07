@@ -4,7 +4,8 @@
 // `docs/familia/contrato.json` es el mismo archivo en CAYLA Retail y en CAYLA Dynamic. Desde la versión 4 Retail manda en diseño (Felipe,
 // 2026-11-05), y Dynamic NO cumple esos valores hasta su Etapa 1: esta prueba no puede quedar en rojo, y tampoco puede mentir.
 //
-// Por eso cada valor del contrato cae en uno de dos lados, y los dos se miden contra `globals.css`:
+// Por eso cada valor del contrato cae en uno de dos lados, y los dos se miden contra lo que Dynamic pinta con el vidrio encendido
+// (`globals.css` más `estilos/vidrio/marca.css`, que es lo que estrena el interruptor):
 //   · cumple: si mañana diverge, falla.
 //   · está en `docs/familia/deuda.json`: si ya se pagó, falla hasta que se borre su línea; si lo que pinta Dynamic cambió a otro valor equivocado,
 //     falla; y una deuda que no estaba el día uno, falla.
@@ -12,7 +13,6 @@
 // El límite, para no creer de más: un archivo se puede editar, y una prueba sin memoria no ve la historia. Lo que sí hace es que meter una deuda de
 // vuelta obligue a tocar DOS líneas de ESTE archivo (TOPE_DEUDA y DEUDA_DIA_UNO), que es justo lo que se busca en la revisión de un PR.
 //
-// CUANDO EXISTA LA CAPA `data-vidrio`, `medirMarca` es la función que hay que extender: lo que cuenta es lo que se pinta con el vidrio prendido.
 // ============================================================================
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -45,7 +45,7 @@ const contrato = JSON.parse(leer("docs/familia/contrato.json")) as Contrato;
 const deuda = (JSON.parse(leer("docs/familia/deuda.json")) as { deuda: LineaDeuda[] }).deuda;
 
 // Este número SOLO BAJA. Al pagar un valor: se borra su línea de deuda.json y se baja esto. Subirlo es la señal que se busca en un PR.
-const TOPE_DEUDA = 22;
+const TOPE_DEUDA = 0;
 // La foto del 2026-11-05. No se le agregan claves: una deuda nueva no entra sin decidirlo a la vista de quien revise.
 const DEUDA_DIA_UNO = new Set([
   "radio:boton", "radio:campo", "radio:tarjeta", "radio:cajon", "radio:hoja",
@@ -100,10 +100,14 @@ function esperadoDe(c: Contrato): Record<string, string> {
 }
 
 /** Lo que Dynamic pinta hoy, por cada clave del contrato. */
-function medirMarca(cssCrudo: string, c: Contrato): Record<string, string | null> {
+function medirMarca(cssCrudo: string, c: Contrato, cssVidrio = ""): Record<string, string | null> {
   const css = sinComentarios(cssCrudo);
-  const base = variables(cuerpoDe(css, "@theme {"));
-  const oscuro = variables(cuerpoDe(css, ':root[data-tema="oscuro"] {'));
+  const vidrio = sinComentarios(cssVidrio);
+  // Lo del vidrio manda sobre lo de hoy: es lo que se ve con el interruptor encendido. Sin esos bloques, se mide globals.css solo.
+  const vidrioClaro = vidrio ? variables(cuerpoDe(vidrio, ':root[data-vidrio="panel"]:not([data-tema="oscuro"]) {')) : {};
+  const vidrioOscuro = vidrio ? variables(cuerpoDe(vidrio, ':root[data-vidrio="panel"][data-tema="oscuro"] {')) : {};
+  const base = { ...variables(cuerpoDe(css, "@theme {")), ...vidrioClaro };
+  const oscuro = { ...variables(cuerpoDe(css, ':root[data-tema="oscuro"] {')), ...vidrioOscuro };
   const salida: Record<string, string | null> = {};
   for (const n of Object.keys(c.marca.colores_claro)) salida[`claro:${n}`] = color(n, base, base);
   for (const n of Object.keys(c.marca.colores_oscuro)) salida[`oscuro:${n}`] = color(n, oscuro, base);
@@ -143,7 +147,7 @@ function compararMarca(args: {
 
 const cssCrudo = leer("apps/web/app/globals.css");
 const esperado = esperadoDe(contrato);
-const medido = medirMarca(cssCrudo, contrato);
+const medido = medirMarca(cssCrudo, contrato, leer("apps/web/app/estilos/vidrio/marca.css"));
 
 describe("el contrato de la familia está bien armado", () => {
   it("es la versión 4 o posterior, y dice quién manda", () => {
@@ -166,9 +170,11 @@ describe("el contrato de la familia está bien armado", () => {
     }
   });
 
+  // Sin deuda el contrato todavía puede decir que Dynamic debe: la deuda se mide con el vidrio encendido, y en producción sigue apagado. Esa lista se borra
+  // el día del estreno, junto con Retail, porque el archivo es el mismo en los dos repositorios. Al revés no: deuda sin decirlo en el contrato, nunca.
   it("mientras haya deuda, el contrato dice qué falta aplicar en Dynamic, y Retail no debe nada", () => {
     const deDynamic = contrato.aplicacion_pendiente.filter((a) => a.miembro === "dynamic");
-    expect(deDynamic.length > 0).toBe(deuda.length > 0);
+    if (deuda.length > 0) expect(deDynamic.length).toBeGreaterThan(0);
     expect(contrato.aplicacion_pendiente.filter((a) => a.miembro === "retail")).toEqual([]);
     for (const a of contrato.aplicacion_pendiente) expect(a.que.length, a.tema).toBeGreaterThan(20);
   });

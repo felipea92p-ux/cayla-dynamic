@@ -17,6 +17,19 @@ const OSCURO_A_MANO = `${RAIZ}[data-tema="oscuro"]`;
 // al 70 % sobre una página negra.
 const OSCURO_DEL_APARATO = `${RAIZ}:not([data-tema="claro"])`;
 
+// «El vidrio que aguanta» de Retail (#1650): para quien pidió en su aparato menos transparencia o más contraste. Trae variables, que viajan, y también
+// reglas sobre clases de Retail, que no: apuntan a su HTML. Esas se escriben en Dynamic (estilos/vidrio/piezas.css). La lista es exacta a propósito: la
+// regla que Retail cambie o agregue aquí frena la copia, porque alguien tiene que escribir su equivalente en Dynamic.
+const MACIZO = "@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)";
+const CONTRASTE = "@media (prefers-contrast: more)";
+const REGLAS_QUE_ESCRIBE_DYNAMIC = new Set([
+  "*, *::before, *::after",
+  '[class*="text-tinta/"]',
+  ":is(.caja-campo, .buscador, .fin-control, .btn-cayla.btn-secundario, .pildora-cayla, .combo-pastilla, .casilla-input)",
+]);
+// Lo único que el bloque de más contraste cambia. Son valores de marca, y Dynamic los pisa después de los suyos en piezas.css: colgados de aquí perderían contra marca.css.
+const VARIABLES_DE_CONTRASTE = new Set(["--color-taupe", "--color-taupe-profundo", "--color-borde-control"]);
+
 export const sinComentarios = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Dónde termina lo que empieza en `i` si es una cadena o un comentario; `i` si no es ninguna de las dos. */
@@ -122,6 +135,13 @@ function indentar(texto) {
   return texto.split("\n").map((l) => (l.trim() === "" ? "" : `  ${l}`)).join("\n");
 }
 
+function exigirQueLaEscribeDynamic(pieza, donde) {
+  const normalizado = (pieza.preludio ?? "").replace(/\s+/g, " ").trim();
+  if (pieza.tipo !== "bloque" || !REGLAS_QUE_ESCRIBE_DYNAMIC.has(normalizado)) {
+    throw new RecetaRechazada(`${donde}: «${normalizado.slice(0, 90)}» es una regla nueva. Hay que escribir su equivalente en estilos/vidrio/piezas.css de Dynamic antes de que viaje.`);
+  }
+}
+
 function soloUnBloque(piezas, selector, donde) {
   for (const p of piezas) {
     if (p.tipo === "comentario") continue;
@@ -134,7 +154,7 @@ function soloUnBloque(piezas, selector, donde) {
 }
 
 /**
- * Las tres formas que tiene hoy recetas.css. Cualquier otra se rechaza: un @keyframes tiene nombre global y pisaría al de Dynamic sin importar el
+ * Las cinco formas que tiene hoy recetas.css. Cualquier otra se rechaza: un @keyframes tiene nombre global y pisaría al de Dynamic sin importar el
  * atributo; un @layer cambia el orden de las capas de Tailwind; una regla de clase apunta al HTML de Retail, no al de Dynamic.
  */
 export function envolverRecetas(css, { origen = "" } = {}) {
@@ -157,6 +177,29 @@ export function envolverRecetas(css, { origen = "" } = {}) {
       const delAparato = adentro.filter((q) => q.tipo === "bloque").map((q) => `${OSCURO_DEL_APARATO} {${sinComentarios(q.cuerpo)}}`).join("\n");
       salida.push(`@media screen {\n${indentar(aMano)}\n}`);
       salida.push(`@media screen and (prefers-color-scheme: dark) {\n${indentar(delAparato)}\n}`);
+    } else if (p.preludio === MACIZO) {
+      const selector = ':root, :root[data-tema="oscuro"]';
+      const texto = [];
+      for (const q of partir(p.cuerpo)) {
+        if (q.tipo === "comentario") texto.push(q.texto);
+        else if (q.tipo === "bloque" && q.preludio === selector) {
+          exigirSoloVariables(q.cuerpo, `${p.preludio} › ${selector}`);
+          texto.push(`${RAIZ},\n${OSCURO_A_MANO},\n${OSCURO_DEL_APARATO} {${q.cuerpo}}`);
+        } else exigirQueLaEscribeDynamic(q, p.preludio);
+      }
+      salida.push(`${p.preludio} {\n${indentar(texto.join("\n"))}\n}`);
+    } else if (p.preludio === CONTRASTE) {
+      // No viaja nada: se comprueba que siga siendo lo que Dynamic ya escribió en piezas.css.
+      for (const q of partir(p.cuerpo)) {
+        if (q.tipo === "comentario") continue;
+        if (q.tipo === "bloque" && q.preludio === ':root, :root[data-tema="oscuro"]') {
+          exigirSoloVariables(q.cuerpo, p.preludio);
+          for (const d of declaraciones(q.cuerpo)) {
+            const nombre = d.split(":")[0].trim();
+            if (!VARIABLES_DE_CONTRASTE.has(nombre)) throw new RecetaRechazada(`${p.preludio}: ${nombre} es nueva. Hay que escribirla también en estilos/vidrio/piezas.css de Dynamic.`);
+          }
+        } else exigirQueLaEscribeDynamic(q, p.preludio);
+      }
     } else if (p.preludio === "@media (prefers-reduced-transparency: reduce)") {
       const selector = ':root, :root[data-tema="oscuro"]';
       const adentro = soloUnBloque(partir(p.cuerpo), selector, p.preludio);
@@ -185,9 +228,14 @@ export function dependenciasDe(css) {
  * Lo que puede salir mal sin que ningún navegador avise: una variable que no existe deja a la propiedad en nada, en silencio. Devuelve los motivos
  * para frenar (vacío si no hay ninguno). `conocidas` son las dependencias que faltan y ya están declaradas como deuda.
  */
-export function revisarContraDynamic(css, { cssDeDynamic, conocidas = [] }) {
+export function revisarContraDynamic(cssEntero, { cssDeDynamic, conocidas = [] }) {
   const motivos = [];
   const deDynamic = variablesDe(cssDeDynamic);
+  // El bloque de más contraste no viaja (ver envolverRecetas): que pise colores de marca no es un choque.
+  const css = partir(cssEntero)
+    .filter((p) => !(p.tipo === "bloque" && p.preludio === CONTRASTE))
+    .map((p) => (p.tipo === "comentario" ? p.texto : p.tipo === "bloque" ? `${p.preludio} {${p.cuerpo}}` : `${p.preludio};`))
+    .join("\n");
   for (const v of dependenciasDe(css)) {
     if (!deDynamic.has(v) && !conocidas.includes(v)) motivos.push(`la receta pide ${v}, que Dynamic no tiene`);
   }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { useParams } from "next/navigation";
 import { Info } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -166,7 +167,7 @@ export default function FichaCaso() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6 text-sm text-tinta">
         <div className="mx-auto w-full max-w-5xl">
-          <Link href="/admin/casos" className="mb-4 inline-block rounded-control border border-sand px-3 py-1 text-xs text-taupe hover:text-tinta">
+          <Link href="/admin/casos" className={interruptoresVidrio().panel ? "mb-4 inline-block text-sm text-taupe hover:text-tinta" : "mb-4 inline-block rounded-control border border-sand px-3 py-1 text-xs text-taupe hover:text-tinta"}>
             ← Casos
           </Link>
           <CabeceraPagina

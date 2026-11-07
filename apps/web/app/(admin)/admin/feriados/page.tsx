@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { useRouter } from "next/navigation";
 import { Check, X } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -537,8 +538,11 @@ export default function FeriadosPage() {
               + Agregar otro día
             </Boton>
             <p className="mt-1 text-xs text-taupe">
-              Cada feriado se compensa con <strong>un</strong> día libre. Por eso se declaran de a pares:
-              así ves qué compensa qué, en vez de que el sistema lo adivine.
+              {interruptoresVidrio().panel ? (
+                <>Cada feriado se compensa con <strong>un</strong> día libre: por eso van de a pares.</>
+              ) : (
+                <>Cada feriado se compensa con <strong>un</strong> día libre. Por eso se declaran de a pares: así ves qué compensa qué, en vez de que el sistema lo adivine.</>
+              )}
             </p>
           </div>
 
@@ -599,9 +603,11 @@ export default function FeriadosPage() {
         <div className="rounded-superficie border border-sand bg-papel p-5">
           <h2 className="mb-1 text-sm font-medium">Actas firmadas</h2>
           <p className="mb-3 text-xs text-taupe">
-            El acuerdo se registra arriba; aquí se guarda el <strong>papel firmado</strong> que lo
-            respalda. Un acta cubre a todas las personas de ese acuerdo — se sube una sola vez.
-            PDF o foto, hasta 50 MB.
+            {interruptoresVidrio().panel ? (
+              <>Aquí se guarda el <strong>papel firmado</strong>. Un acta cubre a todo ese acuerdo. PDF o foto, hasta 50 MB.</>
+            ) : (
+              <>El acuerdo se registra arriba; aquí se guarda el <strong>papel firmado</strong> que lo respalda. Un acta cubre a todas las personas de ese acuerdo — se sube una sola vez. PDF o foto, hasta 50 MB.</>
+            )}
           </p>
 
           <div className="flex flex-wrap items-end gap-3">
@@ -687,7 +693,7 @@ export default function FeriadosPage() {
             Descansos registrados {registros.length > 0 && <span className="font-normal text-taupe">· {registros.length}</span>}
           </h2>
           {registros.length === 0 ? (
-            <SinDatos texto="Todavía no hay descansos sustitutorios registrados." pista="Cuando alguien trabaja un feriado y se le da otro día libre a cambio, se anota acá para que quede constancia con su acta firmada." />
+            <SinDatos texto="Todavía no hay descansos sustitutorios registrados." pista={interruptoresVidrio().panel ? "Se anota aquí cuando alguien trabaja un feriado y recibe otro día libre, con su acta firmada." : "Cuando alguien trabaja un feriado y se le da otro día libre a cambio, se anota acá para que quede constancia con su acta firmada."} />
           ) : (
             <ul className="divide-y">
               {registros.map((r) => (

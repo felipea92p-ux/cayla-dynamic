@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient, type ClienteCayla } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -424,7 +425,7 @@ function NormasPageContenido() {
     if (error) { setMsgConstancia(mensajeDeError(error)); return; }
     setModal((m) => (m ? { ...m, mi_acuse_at: new Date().toISOString() } : m));
     await cargar();
-    avisar("ok", "Constancia registrada. No hace falta hacer nada más hasta que se publique una versión nueva.");
+    avisar("ok", interruptoresVidrio().panel ? "Constancia registrada. No hace falta nada más hasta la próxima versión." : "Constancia registrada. No hace falta hacer nada más hasta que se publique una versión nueva.");
   }
 
   // ── Publicar una versión, en dos pasos ────────────────────────────────
@@ -1118,9 +1119,15 @@ function NormasPageContenido() {
         {pasoPublicar === 1 ? (
           <div>
             <p className="mb-3 text-xs text-taupe">
+              {interruptoresVidrio().panel ? (
+                <>Sube un archivo o pega el texto. Se guarda congelado: cada acuse apunta siempre a estas palabras. El <strong>mismo</strong> texto no crea versión nueva.</>
+              ) : (
+                <>
               El texto puede venir de un archivo o pegarse aquí — se guarda igual, y congelado: un
               acuse de hoy seguirá apuntando dentro de cinco años a las palabras que se mostraron
               hoy. Publicar el <strong>mismo</strong> texto no crea versión nueva.
+                </>
+              )}
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-xs">
@@ -1364,8 +1371,8 @@ function ModalDocumentoContenido({
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-taupe sm:grid-cols-3">
+      <div className={interruptoresVidrio().panel ? "flex items-start justify-between gap-3" : "flex flex-wrap items-start justify-between gap-3"}>
+        <dl className={interruptoresVidrio().panel ? "grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-1 text-xs text-taupe sm:grid-cols-3" : "grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-taupe sm:grid-cols-3"}>
           <div>
             <dt className="inline">Tipo: </dt>
             <dd className="inline text-tinta">{NOMBRE_CATEGORIA[categoriaDe(doc.tipo, doc.requiere_acuse)]} · {doc.tipo_nombre}</dd>
@@ -1401,8 +1408,15 @@ function ModalDocumentoContenido({
         <div className="mt-4 rounded-control border border-sand bg-sand/20 p-3">
           {doc.mi_acuse_at ? (
             <p className="text-xs text-taupe">
+              {/* Apagado, la frase va entera en un solo trozo, como hoy: partida en dos, el navegador la dibuja unos píxeles corrida. */}
+              {interruptoresVidrio().panel ? (
+                <>Dejaste constancia el <strong>{selloLima(doc.mi_acuse_at)}</strong>. No hace falta nada más hasta la próxima versión.</>
+              ) : (
+                <>
               Dejaste constancia el <strong>{selloLima(doc.mi_acuse_at)}</strong>. No hace falta hacer nada más hasta
               que se publique una versión nueva.
+                </>
+              )}
             </p>
           ) : (
             <>

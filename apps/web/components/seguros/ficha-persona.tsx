@@ -31,6 +31,7 @@ import {
 import { CambiosAnteriores, CambiosPendientes, type AlMarcarPasoDeCambio } from "./cambios-de-seguro";
 import type { BaseDePoliza } from "./formulario-poliza";
 import { TarjetaPoliza } from "./tarjeta-poliza";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 const fecha = isoADiaMesAnio;
 
@@ -284,7 +285,7 @@ export function FichaPersona({
       type="button"
       aria-expanded={false}
       onClick={onAlternar}
-      className="flex w-full items-center justify-between gap-3 rounded-superficie border border-sand bg-papel px-4 py-2.5 text-left transition-colors duration-150 hover:bg-hueso"
+      className={`${interruptoresVidrio().panel ? "vidrio-fila-que-baja " : ""}flex w-full items-center justify-between gap-3 rounded-superficie border border-sand bg-papel px-4 py-2.5 text-left transition-colors duration-150 hover:bg-hueso`}
     >
       <span className="min-w-0">
         <span className="block truncate font-serif text-base text-tinta">

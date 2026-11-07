@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { formatSoles } from "@/lib/rangos";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Insignia } from "@/components/ui/insignia";
@@ -141,7 +142,7 @@ export function TablaProvisiones({
   return (
     <>
       <div className="hidden md:block">
-        <Tabla alturaMaxima="70vh" className="[font-variant-numeric:tabular-nums]">
+        <Tabla alturaMaxima="70vh" className={interruptoresVidrio().panel ? "vidrio-tabla-ancha [font-variant-numeric:tabular-nums]" : "[font-variant-numeric:tabular-nums]"}>
           <TablaEncabezado>
             <Th>Persona</Th>
             <Th>Sede</Th>

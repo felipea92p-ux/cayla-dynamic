@@ -12,6 +12,7 @@ import {
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
   BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare, Archive, ShieldCheck, FileStack, SlidersHorizontal,
+  ClipboardCheck, UsersRound, Wallet, Newspaper, ChartColumn, Landmark, Settings,
   type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS } from "@cayla-dynamic/shared";
@@ -41,7 +42,13 @@ export type Item = {
   requiere?: "casos";
 };
 
-export type Grupo = { label?: string; items: Item[] };
+export type Grupo = {
+  label?: string;
+  /** Con el vidrio, un grupo con título es un módulo que se abre: su ícono, y su nombre si no cabe bajo el ícono con el menú plegado (84 px). */
+  Icon?: LucideIcon;
+  corto?: string;
+  items: Item[];
+};
 
 // Siete grupos, no cinco (2026-09-07). Los tres movimientos y su porqué:
 //
@@ -123,7 +130,7 @@ export const GRUPOS: Grupo[] = [
     // seis, no una cuarta copia de las tres que ya tienen la suya.
     { href: "/admin/bandeja", label: "Bandeja", Icon: Inbox, roles: SEDE, contador: "bandeja" },
   ] },
-  { label: "Asistencia", items: [
+  { label: "Asistencia", Icon: ClipboardCheck, items: [
     { href: "/admin/incidencias", label: "Incidencias", Icon: TriangleAlert, roles: SEDE, contador: "revisiones" },
     { href: "/admin/correcciones", label: "Correcciones", Icon: PencilLine, roles: SEDE },
     { href: "/admin/turnos", label: "Turnos", Icon: CalendarClock, roles: SEDE },
@@ -142,7 +149,7 @@ export const GRUPOS: Grupo[] = [
     // grupo que también toca plata, pero lo que se hace acá es registrar días.
     { href: "/admin/ausencias", label: "Ausencias", Icon: TreePalm, roles: SEDE, contador: "vacaciones" },
   ] },
-  { label: "Personas", items: [
+  { label: "Personas", Icon: UsersRound, items: [
     { href: "/admin/equipo", label: "Equipo", Icon: Users, roles: SEDE },
     { href: "/admin/datos-personales", label: "Datos personales", Icon: IdCard, roles: SEDE },
     { href: "/admin/contratos", label: "Contratos", Icon: ScrollText, roles: DO },
@@ -164,7 +171,7 @@ export const GRUPOS: Grupo[] = [
     { href: "/admin/casos", label: "Casos", Icon: MessagesSquare, roles: SEDE, requiere: "casos" },
     { href: "/admin/disciplina", label: "Disciplina", Icon: Gavel, roles: SEDE },
   ] },
-  { label: "Pago", items: [
+  { label: "Pago", Icon: Wallet, items: [
     { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },
     // Las boletas OFICIALES del contador (0482), con renglón propio desde el
     // 2026-10-16. Hasta entonces la única puerta era el botón «Boletas del
@@ -186,14 +193,14 @@ export const GRUPOS: Grupo[] = [
   // Las tres pantallas que TODO el equipo tiene que poder abrir. Ninguna lleva
   // `roles`, y no es un olvido: es la obligación legal de informar y de poder
   // probar que se informó. Un menú que solo ve DO no entrega nada.
-  { label: "Publicaciones", items: [
+  { label: "Publicaciones", Icon: Newspaper, corto: "Publicac.", items: [
     { href: "/admin/politica-salarial", label: "Política salarial", Icon: Scale },
     { href: "/admin/normas", label: "Normas", Icon: BookText },
     // Sin contador propio, por la misma regla de los tres de arriba: un anuncio
     // no tiene fecha límite que cueste plata pasarla.
     { href: "/admin/anuncios", label: "Anuncios", Icon: Megaphone },
   ] },
-  { label: "Reportes", items: [
+  { label: "Reportes", Icon: ChartColumn, items: [
     { href: "/admin/reporte-sede", label: "Hoja de sede", Icon: FileText, roles: SEDE },
     // Con `roles` desde el 2026-09-04 (hallazgo 26). Iba sin filtro, así que una
     // integrante con cuenta —las hay, para acusar la política salarial— veía
@@ -208,10 +215,10 @@ export const GRUPOS: Grupo[] = [
   // Lo que la empresa presenta o recibe de una autoridad: inscripciones,
   // licencias, REMYPE. Va al fondo, junto a Configuración, por frecuencia —se
   // abre pocas veces al año—, aunque el día que se abre sea urgente.
-  { label: "Empresa", items: [
+  { label: "Empresa", Icon: Landmark, items: [
     { href: "/admin/archivo", label: "Archivo", Icon: Archive, roles: DO },
   ] },
-  { label: "Configuración", items: [
+  { label: "Configuración", Icon: Settings, corto: "Config.", items: [
     { href: "/admin/areas", label: "Áreas", Icon: LayoutGrid, roles: DO },
     { href: "/admin/sedes", label: "Sedes", Icon: Building2, roles: DO },
     // `roles: SEDE`, no `DO`. Estuvo en `DO` desde el 2026-09-04 por un

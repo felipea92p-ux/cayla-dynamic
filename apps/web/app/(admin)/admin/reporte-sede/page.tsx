@@ -1,5 +1,6 @@
 "use client";
 
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -504,7 +505,7 @@ function ReporteSedeContenido() {
         {cargando && !cargado ? (
           <Cargando texto="Armando la hoja…" />
         ) : cargado && sede && (
-          <div className="hoja">
+          <div className={interruptoresVidrio().panel ? "hoja vidrio-papel-aire" : "hoja"}>
             {/* Cabecera — solo en el PDF: en pantalla ya está la del menú, y
                 repetir las dos ahí se ve como que la pantalla no sabe cuál usar. */}
             <div className="mb-6 hidden items-start justify-between border-b border-sand pb-4 print:flex print:mb-4 print:pb-3">

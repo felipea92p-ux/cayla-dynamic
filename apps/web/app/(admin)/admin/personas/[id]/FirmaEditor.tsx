@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Dancing_Script, Caveat, Sacramento } from "next/font/google";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Boton } from "@/components/ui/boton";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 type Metodo = "imagen" | "dibujo" | "tipografica";
 type Estilo = "elegante" | "a_mano" | "clasica";
@@ -391,7 +392,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
               selector de estilo de más abajo, pero no hay un <Segmentado>
               compartido todavía — no se inventa uno nuevo fuera del alcance de
               esta migración de presentación. */}
-          <div className="mb-4 flex gap-1 rounded-lg bg-sand/50 p-1 text-sm">
+          <div className={interruptoresVidrio().panel ? "vidrio-pestanas mb-4" : "mb-4 flex gap-1 rounded-lg bg-sand/50 p-1 text-sm"}>
             {TABS.map((t) => {
               const deshabilitada = sqlDesactualizado && t.id !== "imagen";
               return (
@@ -399,8 +400,9 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                 key={t.id}
                 onClick={() => setMetodo(t.id)}
                 disabled={deshabilitada}
+                aria-current={interruptoresVidrio().panel && metodo === t.id ? "page" : undefined}
                 title={deshabilitada ? "Todavía no disponible en el servidor" : undefined}
-                className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${metodo === t.id ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
+                className={interruptoresVidrio().panel ? "disabled:cursor-not-allowed disabled:opacity-40" : `flex-1 rounded-md px-3 py-1.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${metodo === t.id ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
               >
                 {t.label}
               </button>
@@ -464,12 +466,13 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
               </div>
               {/* Pestañas-cápsula nativas, mismo criterio que las de arriba
                   (Escanear/Dibujar/Escribir): no hay <Segmentado> compartido. */}
-              <div className="flex gap-1 rounded-lg bg-sand/50 p-1 text-sm">
+              <div className={interruptoresVidrio().panel ? "vidrio-pestanas" : "flex gap-1 rounded-lg bg-sand/50 p-1 text-sm"}>
                 {(Object.keys(FUENTES) as Estilo[]).map((e) => (
                   <button
                     key={e}
                     onClick={() => setEstilo(e)}
-                    className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors ${estilo === e ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
+                    aria-current={interruptoresVidrio().panel && estilo === e ? "page" : undefined}
+                    className={interruptoresVidrio().panel ? undefined : `flex-1 rounded-md px-3 py-1.5 font-medium transition-colors ${estilo === e ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
                   >
                     {FUENTES[e].label}
                   </button>

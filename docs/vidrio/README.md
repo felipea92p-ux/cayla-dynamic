@@ -24,6 +24,7 @@ sirve: Dynamic recibe unos 49 commits al día. Ver «El vidrio» en [`CLAUDE.md`
 | Boleta, contrato y memo | Papel en su bandeja, en claro y en oscuro. |
 | Terminal | Último módulo, con su botón de tema y fuera del loader. Ningún botón cambia lo que hace ni cómo se marca. |
 | Movimiento, espera, listas y desenfoque | Como Retail, también en el teléfono. Lo que Retail no tiene se muestra con imagen antes de decidirlo. |
+| Barra del teléfono | Como Retail: menú sin relleno y lupa suelta a la derecha. Lo mío conserva la palabra «Menú»: en septiembre, con gente real, el ícono suelto no se encontraba. |
 | Guía de foco | Después del aspecto. |
 | Cambios futuros | Retail manda. Ver «La regla de los dos sistemas» en `CLAUDE.md`. |
 
@@ -73,13 +74,23 @@ Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar ca
 
 **Antes de retirar `/admin/apariencia`:** fijar el terminal en claro y limpiar la copia local del tema en cada Mac mini, o se quedan con el último que les llegó.
 
+**Las recetas de vidrio vienen de `main` de Retail, con su bloque para quien pide menos transparencia o más contraste (#1650).** Sus variables viajan; sus reglas, una lista exacta, las escribe `estilos/vidrio/piezas.css` solo para el panel, porque apuntan a clases de Retail. Si Retail cambia esa lista, la copia se detiene y el vigilante avisa.
+
+**`tema:auditar` no alcanza con vidrio:** casi todo el texto va sobre un degradado, y ahí solo suma colores planos. Se mide también con los píxeles de cada pantalla: se saca una captura sin letras y se compara cada texto contra lo que de verdad tiene detrás. Es `tema/pixeles.mjs`; las fotos de antes y ahora salen de `tema/fotos.mjs`.
+
+**El papel se compara, no se mira:** `node tema/papel.mjs` toma cada documento como lo vería la impresora y `--comparar` lo mide píxel a píxel contra otra construcción, con su número de páginas. Dos cuidados que costó aprender: los dos lados con los mismos datos (`--con-inventados` a los dos o a ninguno), y «hojas 0» quiere decir que no se llegó a ningún papel. También dice qué texto se sale del papel: `responsive` no lo ve, porque la página no se mueve de lado y el texto solo queda cortado.
+
+**La base local es de todos los worktrees:** mientras otra sesión mide con `--con-inventados`, sus personas cesadas aparecen en las fotos de esta. Dos fotos de la misma pantalla dejan de coincidir y parece que el interruptor apagado cambió algo. Antes de comparar, se cuentan las personas activas al empezar y al terminar.
+
 | Pieza | Estado |
 |---|---|
-| Colores, modo oscuro, fondo y botón de tema | Pendiente |
-| Menú de la izquierda: abierto, plegado y cajón del celular | Pendiente |
-| Cabecera: buscador, tema, avisos y título de cada pantalla | Pendiente |
-| Piezas: botones, campos, listas, hojas, tablas, tarjetas, insignias, avisos, filtros, pestañas y estados vacíos | Pendiente |
-| Lo que se mueve: movimiento, loader, «atrás» que cierra la hoja y botones a la vista en hojas largas | Pendiente |
+| Colores, modo oscuro, fondo y botón de tema | Felipe lo miró y dijo «sigue». Sigue en local |
+| Menú de la izquierda: abierto, plegado y cajón del celular | Felipe lo miró y dijo «sigue». Sigue en local |
+| Cabecera: buscador, tema, avisos y título de cada pantalla | Felipe lo miró y dijo «sigue». Sigue en local |
+| Piezas: botones, campos, listas, hojas, tablas, tarjetas, insignias, avisos, filtros, pestañas y estados vacíos | Felipe lo miró y dijo «sigue». Sigue en local |
+| Lo que se mueve: movimiento, loader, «atrás» que cierra la hoja y botones a la vista en hojas largas | Felipe lo aprobó el 2026-11-05. Sigue en local |
+
+**Dónde está:** Felipe aprobó la Etapa 1 y el 2026-11-06 decidió «Se deja en local». Vive en commits locales hasta que él diga que se sube.
 
 ## Etapa 2: módulo por módulo
 
@@ -88,16 +99,16 @@ trabajo propio de cada módulo. Documentos va antes que Personas y Pago porque l
 
 | # | Módulo | Pantallas | A mano | Lo que Retail no tiene: se muestra con imagen | 1 Inventario | 2 Aplicar | 3 Medir | 4 Recorrer | 5 Mostrar | 6 Cerrar |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | **Inicio:** Dashboard y Bandeja | 2 | 7 | Gráficos de jornada y tendencias | | | | | | |
-| 2 | **Asistencia:** Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias | 9 | 4 | Grilla de turnos, calendario y línea del día | | | | | | |
-| 3 | **Documentos:** boleta, contrato, memo y bono | Dentro de otras | Exentos | Papel en su bandeja y su impresión | | | | | | |
-| 4 | **Personas:** Equipo, ficha, Datos personales, Contratos, Documentación, Seguros, Objetivos, Casos y Disciplina | 12 | 23 | Ficha de la persona y editor de firma | | | | | | |
-| 5 | **Pago:** Planilla, Boletas, Provisiones, Costos, Liquidaciones, Educación y Feriados | 8 | 38 | Tablas muy anchas de Planilla | | | | | | |
-| 6 | **Publicaciones:** Política salarial, Normas y Anuncios | 9 | 3 | Lectura de documentos y acuses | | | | | | |
-| 7 | **Reportes:** Hoja de sede y Exportar | 2 | 3 | Hoja de sede impresa | | | | | | |
-| 8 | **Empresa y Configuración:** Archivo, Áreas, Sedes, Cuentas y Parámetros | 6 | 13 | Casi nada | | | | | | |
-| 9 | **Entrada:** login, nueva clave y olvidé mi clave | 3 | 4 | Compararlo con «El vuelo vivo» de Retail | | | | | | |
-| 10 | **Lo mío:** lo que cada integrante ve en su teléfono | 12 | 46 | Casi todo: Retail no tiene un espacio personal así | | | | | | |
+| 1 | **Inicio:** Dashboard y Bandeja | 2 | 7 | Gráficos de jornada y tendencias | 2026-11-05 | 2026-11-05 | 2026-11-05 | 2026-11-05 | 2026-11-05 | |
+| 2 | **Asistencia:** Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias | 9 | 4 | Grilla de turnos, calendario y línea del día | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
+| 3 | **Documentos:** boleta, contrato, memo y bono | Dentro de otras | Exentos | Papel en su bandeja y su impresión | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
+| 4 | **Personas:** Equipo, ficha, Datos personales, Contratos, Documentación, Seguros, Objetivos, Casos y Disciplina | 12 | 23 | Ficha de la persona y editor de firma | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
+| 5 | **Pago:** Planilla, Boletas, Provisiones, Costos, Liquidaciones, Educación y Feriados | 8 | 38 | Tablas muy anchas de Planilla | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
+| 6 | **Publicaciones:** Política salarial, Normas y Anuncios | 9 | 3 | Lectura de documentos y acuses | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
+| 7 | **Reportes:** Hoja de sede y Exportar | 2 | 3 | Hoja de sede impresa | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
+| 8 | **Empresa y Configuración:** Archivo, Áreas, Sedes, Cuentas y Parámetros | 6 | 13 | Casi nada | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
+| 9 | **Entrada:** login, nueva clave y olvidé mi clave | 3 | 4 | Compararlo con «El vuelo vivo» de Retail | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
+| 10 | **Lo mío:** lo que cada integrante ve en su teléfono | 12 | 46 | Casi todo: Retail no tiene un espacio personal así | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 11 | **Terminal de marcaje** | 3 | Exento | Casillas, reloj y marcar sin conexión | | | | | | |
 
 Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** cuando tiene las seis.
@@ -118,6 +129,9 @@ Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** c
 - En computadora usa todo el ancho. En el teléfono, nada queda tapado por el teclado ni por una barra.
 - Texto con 4.5:1 o más y borde de un control con 3:1 o más, en los dos temas. Sobre vidrio se mide con el degradado real.
 - Alguien sin formación técnica la entiende sin que le expliquen.
+- **Responsive:** se mide en cada parada a 375, 768, 1024, 1280, 1440 y 1920 px. Nada se sale, se corta ni queda apretado, sobre todo el menú, la cabecera y las tablas. Las capturas para Felipe van a 1440 y 375 px, más cualquier ancho donde algo se vea mal.
+- **Pocas palabras:** títulos, botones y etiquetas dicen la palabra exacta. Una explicación larga se recorta a una línea a la vista, y lo que de verdad necesite más va detrás del «?» de vidrio. No se tocan los textos de boletas, contratos, memos y bonos ni lo que tenga valor legal, no se quita un aviso que la persona necesita para decidir, como «No se puede deshacer», y no cambia qué hace ningún botón.
+- **Los textos recortados se muestran:** en cada parada, Felipe los ve antes y después. Si una palabra deja dudas, se le pregunta con la pantalla a la vista.
 
 ## Etapa 3: el estreno
 
@@ -134,6 +148,6 @@ La guía de foco, empezando por solicitudes y contratos, y lo que haya quedado d
 
 | Riesgo | Qué se hace |
 |---|---|
-| El desenfoque y el loader en un teléfono barato, que se eligieron igual que Retail y no se han medido | Medirlo al revisar «Lo mío», en el teléfono más barato del equipo. Si va a tirones, se le muestra a Felipe: el desenfoque se apaga con una línea. |
+| El desenfoque y el loader en un teléfono barato, que se eligieron igual que Retail | Medido el 2026-11-07 en Lo mío con el navegador seis veces más lento, como un teléfono de gama baja, y las dos versiones construidas igual: al bajar por la pantalla, 60 cuadros por segundo y ningún tirón, como hoy; «Mis días» llega en 2,5 s, igual que hoy. Ojo: el servidor de desarrollo (`web.mjs`) da 6,4 s, y no vale para medir. Falta el teléfono real más barato del equipo. Si va a tirones, se le muestra a Felipe: el desenfoque se apaga con una línea. |
 | Los datos inventados no muestran todo | Tienen casos extremos, y cada módulo se vuelve a mirar con datos reales el día del estreno. |
 | Otras sesiones crean pantallas con piezas viejas | `receta-suelta` sigue activo, y la regla está en `CLAUDE.md`. |
