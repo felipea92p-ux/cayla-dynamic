@@ -1408,8 +1408,15 @@ function ModalDocumentoContenido({
         <div className="mt-4 rounded-control border border-sand bg-sand/20 p-3">
           {doc.mi_acuse_at ? (
             <p className="text-xs text-taupe">
-              Dejaste constancia el <strong>{selloLima(doc.mi_acuse_at)}</strong>.{" "}
-              {interruptoresVidrio().panel ? "No hace falta nada más hasta la próxima versión." : "No hace falta hacer nada más hasta que se publique una versión nueva."}
+              {/* Apagado, la frase va entera en un solo trozo, como hoy: partida en dos, el navegador la dibuja unos píxeles corrida. */}
+              {interruptoresVidrio().panel ? (
+                <>Dejaste constancia el <strong>{selloLima(doc.mi_acuse_at)}</strong>. No hace falta nada más hasta la próxima versión.</>
+              ) : (
+                <>
+              Dejaste constancia el <strong>{selloLima(doc.mi_acuse_at)}</strong>. No hace falta hacer nada más hasta
+              que se publique una versión nueva.
+                </>
+              )}
             </p>
           ) : (
             <>

@@ -61,7 +61,6 @@ const PANTALLAS = [
   { id: "politica-salarial", nombre: "Política salarial", ruta: "/admin/politica-salarial", cuenta: "do" },
   { id: "politica-categorias", nombre: "Categorías", ruta: "/admin/politica-salarial/categorias", cuenta: "do" },
   { id: "politica-versiones", nombre: "Versiones y publicación", ruta: "/admin/politica-salarial/versiones", cuenta: "do" },
-  { id: "politica-version", nombre: "Una versión de la política", ruta: "/admin/politica-salarial/versiones/2", cuenta: "do" },
   { id: "politica-constancias", nombre: "Constancias de la política", ruta: "/admin/politica-salarial/constancias", cuenta: "do" },
   { id: "anuncios", nombre: "Anuncios", ruta: "/admin/anuncios", cuenta: "do" },
   { id: "reporte-sede", nombre: "Hoja de sede", ruta: "/admin/reporte-sede", cuenta: "lider" },

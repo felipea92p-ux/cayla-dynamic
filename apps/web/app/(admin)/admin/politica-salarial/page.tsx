@@ -639,8 +639,12 @@ export default function PoliticaSalarialPage() {
               <TarjetaInfo como="section" titulo="Constancia de haber recibido este documento" className="mt-8 print:hidden">
                 {vigente.mi_acuse !== null ? (
                   <p className="text-sm text-tinta">
-                    Dejaste constancia el {fechaHora(vigente.mi_acuse.acusado_at)} como <strong>{vigente.mi_acuse.nombre}</strong>.{" "}
-                    {interruptoresVidrio().panel ? "No hace falta nada más hasta la próxima versión." : "No hace falta hacer nada más hasta que se publique una versión nueva."}
+                    {/* Apagado, la frase va entera en un solo trozo, como hoy: partida en dos, el navegador la dibuja unos píxeles corrida. */}
+                    {interruptoresVidrio().panel ? (
+                      <>Dejaste constancia el {fechaHora(vigente.mi_acuse.acusado_at)} como <strong>{vigente.mi_acuse.nombre}</strong>. No hace falta nada más hasta la próxima versión.</>
+                    ) : (
+                      <>Dejaste constancia el {fechaHora(vigente.mi_acuse.acusado_at)} como <strong>{vigente.mi_acuse.nombre}</strong>. No hace falta hacer nada más hasta que se publique una versión nueva.</>
+                    )}
                   </p>
                 ) : (
                   <>
