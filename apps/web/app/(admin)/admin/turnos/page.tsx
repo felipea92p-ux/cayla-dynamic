@@ -697,9 +697,14 @@ export default function TurnosPage() {
   // quién está en cada hora · Semana = una fila por persona, como un rol de turnos, y el día que se toca se abre
   // debajo con lo que antes era la vista Día (repetición, lo marcado, la línea de cada persona, la sugerencia). Día
   // dejó de ser pestaña: el día sigue, dentro de la semana. Un «dia» guardado de antes cae en Semana.
+  //
+  // Con qué vista arranca cada quien (Felipe, 2026-11-07): la líder de equipo en Semana —arma la semana persona
+  // por persona y a ellas la Integrada les quedaba larga—; DO y administración en la Integrada. Después, cada quien
+  // vuelve a la última que eligió. La clave es nueva («v3») a propósito: en «v2» todo el que abrió Turnos desde el
+  // 2026-11-02 ya tiene guardado «integrada», y con esa clave ninguna líder vería Semana al entrar.
   type Vista = "integrada" | "semana";
-  const [vistaGuardada, setVista] = useFiltroGuardado<Vista | "dia">("turnos.vista.v2", "integrada");
-  const vista: Vista = vistaGuardada === "semana" || vistaGuardada === "dia" ? "semana" : "integrada";
+  const [vistaGuardada, setVista] = useFiltroGuardado<Vista | null>("turnos.vista.v3", null);
+  const vista: Vista = vistaGuardada ?? (esRolEncargada(rol) ? "semana" : "integrada");
   // El resumen de horas al pie de la Integrada: abierto por defecto, y cada navegador recuerda si lo plegó.
   const [resumenAbierto, setResumenAbierto] = useFiltroGuardado("turnos.resumen-abierto", true);
   // El día abierto en Semana. null = el automático: hoy, si cae en la semana que se mira; si no, ninguno.
@@ -710,10 +715,10 @@ export default function TurnosPage() {
     setDiaElegido({ iso });
     setVista("semana");
   }
-  // Desde la Integrada: el día, con la línea de cada persona ya abierta y a la vista.
+  // Desde la Integrada: Semana con ese día abierto, y el día a la vista.
   function verLineaDelDia(iso: string) {
     irADia(iso);
-    window.requestAnimationFrame(() => document.getElementById(`turnos-dia-${iso}`)?.scrollIntoView({ block: "start", behavior: "smooth" }));
+    window.requestAnimationFrame(() => document.getElementById("turnos-dia-abierto")?.scrollIntoView({ block: "start", behavior: "smooth" }));
   }
   // Desde el diagnóstico: salta a la semana Y al día del turno a revisar.
   function irARevisar(iso: string) {
@@ -2180,7 +2185,7 @@ export default function TurnosPage() {
                 </div>
                 <p className="max-w-3xl text-xs text-taupe">
                   Arriba de cada casilla, cuántas hay en piso en el peor momento de esa hora contra la meta. «entra» y «sale» marcan a
-                  quien cubre solo parte de la hora. Toca la hora para ver la línea del día, o un nombre para cambiar su turno.
+                  quien cubre solo parte de la hora. Toca la hora para abrir ese día en Semana, o un nombre para cambiar su turno.
                 </p>
                 </ComoSeLee>
                 <TarjetaInfo className="overflow-x-auto !p-3">
@@ -2190,7 +2195,7 @@ export default function TurnosPage() {
                       const { abr, num } = etiquetaDia(iso);
                       const hoy = iso === hoyLima();
                       return (
-                        <button key={iso} type="button" onClick={() => verLineaDelDia(iso)} title={`Ver la línea de cada persona el ${abr} ${num}`}
+                        <button key={iso} type="button" onClick={() => verLineaDelDia(iso)} title={`Abrir el ${abr} ${num} en Semana`}
                           className={`flex items-baseline gap-1.5 px-1 pb-1 text-left transition-colors hover:text-tinta ${hoy ? "text-tinta" : "text-taupe"}`}>
                           <span className="text-[11px] font-semibold uppercase tracking-[0.08em]">{abr}</span>
                           <span className="text-[11px] tabular-nums">{num}</span>
