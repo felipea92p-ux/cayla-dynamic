@@ -14,6 +14,8 @@
 // SE ROMPE SI: alguien espera que /admin/apariencia cambie el panel. Con el vidrio encendido ya no lo hace: sigue mandando solo
 //   sobre el terminal, hasta que el terminal tenga su módulo.
 
+import { prefiereQuieto } from "./vidrio-movimiento";
+
 export type TemaVidrio = "claro" | "oscuro";
 
 export const CLAVE_TEMA = "cayla-tema";
@@ -68,7 +70,7 @@ export function cambiarTema(tema: TemaVidrio): void {
       // vale para esta carga y no se recuerda: no es un error que mostrar
     }
   };
-  const sinMovimiento = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  const sinMovimiento = prefiereQuieto();
   type Transicion = { ready?: Promise<unknown>; finished?: Promise<unknown>; updateCallbackDone?: Promise<unknown> };
   const conTransicion = document as Document & { startViewTransition?: (cuando: () => void) => Transicion };
   if (sinMovimiento || typeof conTransicion.startViewTransition !== "function") {

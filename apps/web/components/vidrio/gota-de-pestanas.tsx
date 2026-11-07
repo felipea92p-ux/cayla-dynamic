@@ -9,6 +9,7 @@
 // SE ROMPE SI: alguien escribe una fila nueva con `role="tablist"` sin ponerle esto, o marca la elegida con otra cosa que `aria-current="page"` o `aria-selected="true"`. Se queda
 //   como en piezas.css, sin viajar: se ve bien igual.
 
+import { prefiereQuieto } from "@/lib/vidrio-movimiento";
 import { useEffect, useRef } from "react";
 
 const ELEGIDA = ":scope > [aria-current='page'], :scope > [aria-selected='true']";
@@ -47,7 +48,7 @@ export function GotaDePestanas() {
       const nw = nueva.offsetWidth;
       relojes.forEach((r) => window.clearTimeout(r));
       relojes = [];
-      if (!habia || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (!habia || prefiereQuieto()) {
         fila.removeAttribute("data-fluye");
         poner(nx, nw);
         fila.setAttribute("data-gota", "");

@@ -4,6 +4,7 @@ import { useLayoutEffect } from "react";
 import { usePathname } from "next/navigation";
 import { aplicarVidrio, valorVidrio } from "@/lib/vidrio";
 import { aplicarLateral } from "@/lib/vidrio-lateral";
+import { aplicarMovimientoGuardado, quitarMovimiento } from "@/lib/vidrio-movimiento";
 import { aplicarTemaGuardado } from "@/lib/vidrio-tema";
 
 // La mitad del interruptor que el guion en línea no puede hacer: ese guion corre una sola vez, al cargar el documento,
@@ -21,6 +22,10 @@ export function VidrioEnRuta() {
     if (valor === "panel") {
       aplicarTemaGuardado();
       aplicarLateral();
+      aplicarMovimientoGuardado();
+    } else {
+      // En el terminal no hay botón de animaciones: el atributo no se queda (lib/vidrio-movimiento.ts).
+      quitarMovimiento();
     }
   }, [ruta]);
   return null;

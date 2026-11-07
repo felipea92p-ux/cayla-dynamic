@@ -68,7 +68,7 @@ export function Boton({
       {...props}
     >
       {cargando && (
-        <span className="colibri aletea mr-1.5 inline-block size-3.5 align-[-2px]" aria-hidden />
+        <span data-senal className="colibri aletea mr-1.5 inline-block size-3.5 align-[-2px]" aria-hidden />
       )}
       {children}
     </button>

@@ -27,7 +27,7 @@ export function Cargando({ texto = "Cargando…", clase = "text-sm", compacto = 
     <div className={`flex flex-col items-center gap-4 text-taupe ${compacto ? "py-6" : "py-20"}`} role="status" aria-live="polite">
       {interruptoresVidrio().panel ? <LenteDeEspera compacta={compacto} /> : <span className="colibri aletea w-12 text-rojo/70" aria-hidden />}
       <span className={clase}>{texto}</span>
-      {interruptoresVidrio().panel ? <span aria-hidden className="vidrio-espera-hilo hidden" /> : null}
+      {interruptoresVidrio().panel ? <span aria-hidden data-senal className="vidrio-espera-hilo hidden" /> : null}
     </div>
   );
 }
@@ -39,9 +39,10 @@ export function Cargando({ texto = "Cargando…", clase = "text-sm", compacto = 
 export function LenteDeEspera({ compacta = false }: { compacta?: boolean }) {
   return (
     <span aria-hidden data-compacta={compacta ? "" : undefined} className="vidrio-espera-marca contents">
-      <span className="colibri aletea w-12 text-rojo/70" />
+      {/* `data-senal`: con las animaciones apagadas, la espera sigue moviéndose (lib/vidrio-movimiento.ts). */}
+      <span data-senal className="colibri aletea w-12 text-rojo/70" />
       <svg viewBox="0 0 64 64" fill="none" strokeWidth={2} className="vidrio-espera-anillo hidden">
-        <circle cx="32" cy="32" r="29" stroke="currentColor" strokeDasharray="46 137" strokeLinecap="round" />
+        <circle data-senal cx="32" cy="32" r="29" stroke="currentColor" strokeDasharray="46 137" strokeLinecap="round" />
       </svg>
     </span>
   );

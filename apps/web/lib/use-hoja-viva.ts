@@ -17,6 +17,7 @@
 //   que se quedarían en blanco justo mientras se van. Con la foto no hay que tocar ni una pantalla y nada puede volver a guardarse durante esos 220 ms.
 // SE ROMPE SI: una hoja lleva un <video> en reproducción: su copia saldría quieta. Hoy ninguna lo tiene.
 
+import { prefiereQuieto } from "./vidrio-movimiento";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { alejarFondo, devolverFondo, moverFondo } from "@/lib/fondo-de-la-hoja";
 import { useAtrasCierraLaHoja } from "@/lib/use-atras-cierra-la-hoja";
@@ -30,7 +31,7 @@ const MS_ENTRADA_CELULAR = 460;
 /** Menos que esto no es un teclado: la barra del navegador que se esconde mueve el alto unos 50 a 80 px. */
 const MIN_TECLADO = 120;
 
-const sinMovimiento = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sinMovimiento = () => prefiereQuieto();
 
 /** Copia la hoja tal como se ve: lo escrito y el desplazamiento no viajan con `cloneNode`. Hay que llamarla mientras sigue en la pantalla. */
 function tomarFoto(velo: HTMLElement): { copia: HTMLElement; desplazados: [HTMLElement, number][] } {

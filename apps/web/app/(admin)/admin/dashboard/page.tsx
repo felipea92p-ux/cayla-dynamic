@@ -1,5 +1,6 @@
 "use client";
 
+import { prefiereQuieto } from "@/lib/vidrio-movimiento";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -97,7 +98,7 @@ const DIAS_RESPUESTAS_MEMO = 14;
  */
 function irA(id: string, block: "start" | "center") {
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reducido = prefiereQuieto();
     document.getElementById(id)?.scrollIntoView({ behavior: reducido ? "auto" : "smooth", block });
   }));
 }
@@ -991,7 +992,7 @@ export default function DashboardPage() {
     const destino = sedes.find((x) => x.codigo === codigo);
     if (destino) setSedesAbiertas((a) => ({ ...a, [destino.sedeId]: true }));
     if (prefs.colapsados.sedes) setPrefsCrudas(alternarColapsado(prefs, "sedes"));
-    const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const suave = !prefiereQuieto();
     requestAnimationFrame(() =>
       document.getElementById(`sede-${codigo}`)?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }),
     );
