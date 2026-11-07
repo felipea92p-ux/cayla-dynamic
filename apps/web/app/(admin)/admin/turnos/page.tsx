@@ -716,9 +716,18 @@ export default function TurnosPage() {
     setVista("semana");
   }
   // Desde la Integrada: Semana con ese día abierto, y el día a la vista.
+  // Lo mismo al tocar un día en Semana (Felipe, 2026-11-07): con la tabla de la semana arriba, el día se abre debajo y,
+  // sin esto, fuera de la pantalla, como si no hubiera pasado nada. El foco va al título del día, para quien usa
+  // teclado o lector de pantalla; quien pidió menos movimiento salta sin animación.
   function verLineaDelDia(iso: string) {
     irADia(iso);
-    window.requestAnimationFrame(() => document.getElementById("turnos-dia-abierto")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+    window.requestAnimationFrame(() => {
+      const dia = document.getElementById("turnos-dia-abierto");
+      if (!dia) return;
+      const quieto = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      dia.scrollIntoView({ block: "start", behavior: quieto ? "auto" : "smooth" });
+      dia.querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
+    });
   }
   // Desde el diagnóstico: salta a la semana Y al día del turno a revisar.
   function irARevisar(iso: string) {
@@ -2401,13 +2410,13 @@ export default function TurnosPage() {
                       filas={filasDeLaSemana()}
                       resumen={resumen}
                       abierto={abierto}
-                      alTocarDia={(iso) => setDiaElegido({ iso: iso === abierto ? null : iso })}
+                      alTocarDia={(iso) => (iso === abierto ? setDiaElegido({ iso: null }) : verLineaDelDia(iso))}
                       alTocarCasilla={puedeVer ? abrir : undefined}
                     />
                     {abierto && (
                       <section id="turnos-dia-abierto" aria-label={titulo} className="scroll-mt-20 space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-sand pt-4">
-                          <h2 className="font-serif text-2xl">{titulo}</h2>
+                          <h2 tabIndex={-1} className="font-serif text-2xl focus:outline-none">{titulo}</h2>
                           <div className="flex items-center gap-1">
                             <BotonIcono etiqueta="Día anterior" icono={<ChevronLeft aria-hidden />} disabled={i <= 0} onClick={() => setDiaElegido({ iso: dias[i - 1] })} />
                             <BotonIcono etiqueta="Día siguiente" icono={<ChevronRight aria-hidden />} disabled={i >= dias.length - 1} onClick={() => setDiaElegido({ iso: dias[i + 1] })} />
