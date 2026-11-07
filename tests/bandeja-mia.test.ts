@@ -980,7 +980,7 @@ describe("armarBandeja · «Este día no me calza» (0587)", () => {
   });
 });
 
-// ── Su seguro (0600) ───────────────────────────────────────────────────────
+// ── Su seguro (0602) ───────────────────────────────────────────────────────
 // Lo que importa: que registrar y subir el PDF sean UN aviso, que un PDF que llega después avise otra vez,
 // y que nunca se le diga a nadie que está cubierta.
 describe("armarBandeja · su seguro", () => {
@@ -1012,7 +1012,7 @@ describe("armarBandeja · su seguro", () => {
     }
   });
 
-  it("sin la 0600 no dice nada", () => {
+  it("sin la 0602 no dice nada", () => {
     expect(armarBandeja(VACIO, HOY).respuestas).toEqual([]);
   });
 });

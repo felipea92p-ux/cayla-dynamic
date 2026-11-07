@@ -182,7 +182,7 @@ function componerCorreo(a: AlertaPendiente, hoy: string): { asunto: string; text
     };
   }
 
-  // Una póliza por renovar (0601). Va a DO, una vez por póliza: en una colectiva `persona` dice «17 personas».
+  // Una póliza por renovar (0603). Va a DO, una vez por póliza: en una colectiva `persona` dice «17 personas».
   // `vigente_hasta` es EXCLUSIVO: la póliza cubre hasta el mediodía de ese día.
   if (a.tipo === "seguro_por_renovar") {
     const seguro = texto(a.payload, "seguro");

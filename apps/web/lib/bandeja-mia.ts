@@ -127,7 +127,7 @@ export type OrigenBandeja =
   | "pedido-turno"
   // «Cambiar con una compañera» (0592): lo que pidió, lo que le piden y cómo terminó.
   | "cambio-companera"
-  // Su póliza o su PDF ya están en «Mi seguro» (0600). Tampoco lo pidió, y caduca igual que un turno.
+  // Su póliza o su PDF ya están en «Mi seguro» (0602). Tampoco lo pidió, y caduca igual que un turno.
   | "seguro";
 
 /**
@@ -330,7 +330,7 @@ export interface FilaEducacionSituacion {
  * para esto, igual que con un contrato sin firmar.
  */
 /**
- * Una póliza suya, de `fn_mis_polizas_avisos` (0600). Solo lo que hace falta para decir que hay algo nuevo:
+ * Una póliza suya, de `fn_mis_polizas_avisos` (0602). Solo lo que hace falta para decir que hay algo nuevo:
  * «¿Estás cubierta?» no sale de acá, porque la persona no ve la prima (ver `lib/mi-seguro.ts`).
  */
 export interface FilaPolizaAviso {
@@ -385,7 +385,7 @@ export interface FuentesBandeja {
   pedidosTurno?: PedidoTurno[];
   /** Sus cambios de turno con una compañera (0592), de `fn_turno_cambios_mios`. Opcional. */
   cambiosTurno?: MiCambio[];
-  /** Sus pólizas (0600). Opcional: sin la 0600, no se dice nada de seguros. */
+  /** Sus pólizas (0602). Opcional: sin la 0602, no se dice nada de seguros. */
   polizas?: FilaPolizaAviso[];
   /** Sus constancias de estudios (0450). Opcional: quien no estudia no trae nada. */
   educacionEntregas?: FilaEducacionEntrega[];
@@ -1042,7 +1042,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   }
 
-  // Su seguro (0600). UN mensaje por póliza: registrarla y subirle el PDF en la misma sesión es un aviso, y un PDF que
+  // Su seguro (0602). UN mensaje por póliza: registrarla y subirle el PDF en la misma sesión es un aviso, y un PDF que
   // llega días después avisa otra vez, porque cambia lo que la persona puede abrir. Una póliza anulada ya no viene.
   // Corregir un dato no avisa. Nunca dice «estás cubierta»: habla de la póliza, como `textoDelResumen`.
   for (const z of fuentes.polizas ?? []) {
@@ -1391,7 +1391,7 @@ export async function traerBandeja(
       .limit(LIMITE),
     // Sus cambios de turno con una compañera (0592). La función contesta solo por quien pregunta.
     supabase.rpc("fn_turno_cambios_mios"),
-    // Sus pólizas (0600). La función contesta solo por quien pregunta.
+    // Sus pólizas (0602). La función contesta solo por quien pregunta.
     supabase.rpc("fn_mis_polizas_avisos"),
   ]);
 
