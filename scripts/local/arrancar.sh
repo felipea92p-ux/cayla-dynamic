@@ -22,6 +22,7 @@ if ! lsof -iTCP:$PUERTA_PUERTO -sTCP:LISTEN >/dev/null 2>&1; then
   nohup node "$RAIZ/scripts/local/puerta.mjs" >"$ENTORNO/logs/puerta.log" 2>&1 &
 fi
 node "$RAIZ/scripts/local/sembrar.mjs" --solo-marcas
+node "$RAIZ/scripts/local/sembrar.mjs" --solo-ceses
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   curl -sf "http://127.0.0.1:$PUERTA_PUERTO/salud" >/dev/null && break
   sleep 0.5

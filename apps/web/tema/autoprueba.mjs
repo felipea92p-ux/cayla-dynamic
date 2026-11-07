@@ -57,6 +57,14 @@ const PAGINA_DE_RESPONSIVE = `<!doctype html>
   <div data-fuera-de-pantalla><button style="width:900px">Fuera de pantalla a propósito</button></div>
 </body></html>`;
 
+// El detalle de una liquidación: lo que va adentro de una tabla que corre de lado se salta, salvo que el escenario pida verlo sin deslizar.
+const paginaDelDetalle = (anchoTabla) => `<!doctype html>
+<html><body style="margin:0"><main>
+  <div style="overflow-x:auto"><table data-tira style="width:${anchoTabla};border-spacing:0">
+    <tr data-detalle><td style="width:80%">Total</td><td>S/ 1,000.00</td></tr>
+  </table></div>
+</main></body></html>`;
+
 let fallas = 0;
 function revisar(nombre, real, esperado) {
   const a = JSON.stringify(real);
@@ -98,6 +106,18 @@ try {
   const d = await pagina.evaluate(analizarEnPagina, { selectoresClave: SELECTORES_POR_DEFECTO, selectoresExclusion: [], ambito: null, limite: null, tolerancia: 1 });
   revisar("encuentra justo el botón que se sale", d.clipping.map((c) => c.texto), ["Se sale"]);
   revisar("mide cuánto se sale", d.clipping.map((c) => c.exceso), [525]);
+
+  console.log("Verificación de responsive, lo que tiene que verse sin deslizar:");
+  const delDetalle = (extra) => pagina.evaluate(analizarEnPagina, { selectoresClave: ["td"], selectoresExclusion: [], ambito: "[data-detalle]", limite: null, tolerancia: 1, ...extra });
+  await pagina.setContent(paginaDelDetalle("900px"));
+  revisar("sin límite, el monto dentro de la tira se salta: se llega deslizando", (await delDetalle({})).clipping.length, 0);
+  const sinDeslizar = await delDetalle({ limite: "main" });
+  revisar("con límite y ámbito, el mismo monto cuenta como fuera de vista", sinDeslizar.clipping.map((c) => c.texto), ["Total", "S/ 1,000.00"]);
+  revisar("y dice contra qué se midió", sinDeslizar.clipping[0]?.contra, "contenedor:main");
+  await pagina.setContent(paginaDelDetalle("100%"));
+  revisar("si la tabla cabe, no hay nada que señalar", (await delDetalle({ limite: "main" })).clipping.length, 0);
+  const sinAmbito = await delDetalle({ limite: "main", ambito: "[data-no-existe]" });
+  revisar("un ámbito que no aparece se dice: no es lo mismo que no encontrar nada", sinAmbito.advertencia, 'ámbito "[data-no-existe]" no encontrado en el DOM');
 } finally {
   await navegador.close();
 }

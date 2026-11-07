@@ -67,7 +67,7 @@ escenarios: [
 ],
 ```
 
-Si un escenario necesita un estado, lo arma con clics en su `preparar`; no depende de que exista una fila concreta por azar.
+Si un escenario necesita un estado, lo arma con clics en su `preparar`; no depende de que exista una fila concreta por azar. Y si el dato no está, falla diciendo qué correr: un escenario que no encuentra qué abrir y da verde es peor que no tenerlo. El ejemplo es `pantallas/pago.liquidaciones.mjs`, con las dos personas cesadas que trae `scripts/local/sembrar.mjs`.
 
 ## Cómo decide
 
@@ -76,12 +76,13 @@ Si un escenario necesita un estado, lo arma con clics en su `preparar`; no depen
 - **«La página se mueve de lado» es una señal, no un veredicto.** Se anota en el reporte cuando `scrollWidth` supera al ancho, pero no da FAIL por sí sola.
 - **Scroll horizontal legítimo:** lo que vive dentro de un contenedor con `overflow-x: auto|scroll` que de verdad desborda se salta: se llega desplazando ESE contenedor. El contenedor
   mismo sí se compara.
-- **Límite propio:** `limite: "<selector>"` compara contra ese elemento en vez del viewport, y `ambito: "<selector>"` acota qué subárbol se recorre. Sirve para mirar solo un modal.
+- **Límite propio:** `limite: "<selector>"` compara contra ese elemento en vez del viewport, y `ambito: "<selector>"` acota qué subárbol se recorre. Sirve para mirar solo un modal. Un `ambito` que no aparece no da verde: da FAIL con el aviso, porque no midió nada.
+- **Lo que tiene que verse sin deslizar:** con `limite`, el salto de arriba no aplica: lo que está dentro de una caja que corre de lado también se compara. Por eso va junto con `ambito`, para no exigírselo a toda la pantalla. Marcar algo con `data-critico` o `elementosClave` **no alcanza**: lo vuelve clave, pero se sigue saltando. Así se mide el detalle de una liquidación, y `medidores:autoprueba` comprueba que siga siendo así.
 
 ## Lo que NO ve
 
 Que pase quiere decir una sola cosa: ningún elemento clave se sale de la pantalla por los lados. **No** quiere decir que se vea bien. No ve un texto cortado dentro de una caja
-con `overflow: hidden` o con puntos suspensivos, ni dos cosas encimadas, ni lo que se sale por abajo, ni una tabla cuya columna importante solo aparece desplazando. Para eso, las
+con `overflow: hidden` o con puntos suspensivos, ni dos cosas encimadas, ni lo que se sale por abajo, ni una tabla cuya columna importante solo aparece desplazando, salvo que el escenario la mida con `limite` y `ambito`. Para eso, las
 capturas (`--capturas-todas`) y mirar.
 
 ## Exclusiones
