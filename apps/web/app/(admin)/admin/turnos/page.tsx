@@ -698,13 +698,12 @@ export default function TurnosPage() {
   // debajo con lo que antes era la vista Día (repetición, lo marcado, la línea de cada persona, la sugerencia). Día
   // dejó de ser pestaña: el día sigue, dentro de la semana. Un «dia» guardado de antes cae en Semana.
   //
-  // Con qué vista arranca cada quien (Felipe, 2026-11-07): la líder de equipo en Semana —arma la semana persona
-  // por persona y a ellas la Integrada les quedaba larga—; DO y administración en la Integrada. Después, cada quien
-  // vuelve a la última que eligió. La clave es nueva («v3») a propósito: en «v2» todo el que abrió Turnos desde el
+  // Con qué vista arranca cada quien (Felipe, 2026-11-07): quien es líder de equipo —por su rol o por la marca de
+  // líder en piso de su ficha— en Semana: arma la semana persona por persona y la Integrada le quedaba larga. El resto,
+  // en la Integrada. Después, cada quien vuelve a la última que eligió. La clave es nueva («v3») a propósito: en «v2» todo el que abrió Turnos desde el
   // 2026-11-02 ya tiene guardado «integrada», y con esa clave ninguna líder vería Semana al entrar.
   type Vista = "integrada" | "semana";
   const [vistaGuardada, setVista] = useFiltroGuardado<Vista | null>("turnos.vista.v3", null);
-  const vista: Vista = vistaGuardada ?? (esRolEncargada(rol) ? "semana" : "integrada");
   // El resumen de horas al pie de la Integrada: abierto por defecto, y cada navegador recuerda si lo plegó.
   const [resumenAbierto, setResumenAbierto] = useFiltroGuardado("turnos.resumen-abierto", true);
   // El día abierto en Semana. null = el automático: hoy, si cae en la semana que se mira; si no, ninguno.
@@ -790,6 +789,20 @@ export default function TurnosPage() {
     ? diaElegido.iso
     : (dias.includes(hoyLima()) ? hoyLima() : null);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  // La marca de líder en piso de quien mira, leída de SU ficha. No sale del equipo de la sede: ese trae solo a quien está
+  // en planilla por horas, y una admin con la marca (sueldo fijo) no figura ahí. Tampoco se lee el texto del cargo: es
+  // libre (0182), ningún cálculo lo mira, y «Líder de Desarrollo Organizacional» mandaría a DO a Semana. Si la consulta
+  // falla, arranca en la Integrada, la de siempre: no se rompe nada.
+  const [soyLiderEnPiso, setSoyLiderEnPiso] = useState(false);
+  useEffect(() => {
+    if (!yo?.id) return;
+    let vivo = true;
+    void supabase.from("personas").select("es_encargada_piso").eq("id", yo.id).maybeSingle().then(({ data }) => {
+      if (vivo) setSoyLiderEnPiso(Boolean((data as { es_encargada_piso?: boolean | null } | null)?.es_encargada_piso));
+    });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id]);
+  const vista: Vista = vistaGuardada ?? (esRolEncargada(rol) || soyLiderEnPiso ? "semana" : "integrada");
   const reqId = useRef(0); // "última carga gana": descarta respuestas fuera de orden
   const cargaConMetas = useRef(0); // id de la carga completa o en sitio que está en curso (0 = ninguna); ver `cargar`
   // Pedir una recarga sin llamar a `cargar` desde un manejador de pantalla: así lo que se dibuja no arrastra la lectura de `reqId`.
