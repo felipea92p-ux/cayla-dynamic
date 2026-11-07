@@ -388,6 +388,8 @@ export interface SeguroComplementario {
   hasta: string | null;
   /** Días que faltan para `hasta`; negativo si ya pasó. */
   dias: number | null;
+  /** Si venció y ya hay otra registrada para después: cuándo empieza. */
+  empiezaEl?: string;
 }
 
 /**
@@ -411,10 +413,14 @@ function estadoComplementario(
     return { clave, nombre, estado: dias <= DIAS_AVISO_RENOVACION ? "por_vencer" : "vigente", poliza: cubre, hasta, dias };
   }
   const proxima = [...polizas].filter((z) => z.vigente_desde > hoy).sort((a, b) => a.vigente_desde.localeCompare(b.vigente_desde))[0] ?? null;
-  if (proxima) return { clave, nombre, estado: "por_empezar", poliza: proxima, hasta: proxima.vigente_hasta, dias: null };
-  const ultima = [...polizas].sort((a, b) => b.vigente_hasta.localeCompare(a.vigente_hasta) || b.poliza_id.localeCompare(a.poliza_id))[0] ?? null;
+  const ultima = [...polizas].filter((z) => z.vigente_hasta <= hoy).sort((a, b) => b.vigente_hasta.localeCompare(a.vigente_hasta) || b.poliza_id.localeCompare(a.poliza_id))[0] ?? null;
+  // Una renovación que empieza más adelante no tapa los días sin cobertura de quien debía tenerla.
+  if (proxima && !(loPideSuVinculo && ultima)) return { clave, nombre, estado: "por_empezar", poliza: proxima, hasta: proxima.vigente_hasta, dias: null };
   if (ultima) {
-    return { clave, nombre, estado: loPideSuVinculo ? "vencida" : "terminada", poliza: ultima, hasta: ultima.vigente_hasta, dias: diasEntre(hoy, ultima.vigente_hasta) };
+    return {
+      clave, nombre, estado: loPideSuVinculo ? "vencida" : "terminada", poliza: ultima, hasta: ultima.vigente_hasta, dias: diasEntre(hoy, ultima.vigente_hasta),
+      ...(proxima ? { empiezaEl: proxima.vigente_desde } : {}),
+    };
   }
   return loPideSuVinculo ? { clave, nombre, estado: "sin_registrar", poliza: null, hasta: null, dias: null } : null;
 }
@@ -611,6 +617,7 @@ export function seguroPorPersona(
 export function sinNadaQueMostrar(p: SeguroDePersona, hoy: string): boolean {
   return p.situacion === "sin_seguro"
     && p.cambiosPendientes.length === 0
+    && p.conPapeleo.length === 0
     && !p.otras.some((z) => z.vigente_hasta > hoy);
 }
 
@@ -712,6 +719,12 @@ export interface PendienteSeguro {
   hasta: string | null;
   /** Una póliza colectiva es UN trámite: lo que se busca en Seguros para ver a todas sus personas. Null si es de una sola. */
   buscar: string | null;
+  /** De qué sedes es la colectiva: «Varias sedes» no es una sede, y el filtro de la Bandeja tiene que encontrarla en cada una. */
+  sedes: readonly string[];
+  /** A quiénes cubre una colectiva: los que el formulario de renovación trae marcados. */
+  personasIds: readonly string[];
+  /** Es de un seguro complementario: perderlo no deja a la persona «sin seguro». */
+  complementario: boolean;
 }
 
 /**
@@ -749,7 +762,7 @@ export function pendientesDeSeguros(
   const items: PendienteSeguro[] = [];
   const papeleos = new Map<string, GrupoDePoliza>();
   const renovaciones = new Map<string, GrupoDePoliza>();
-  const vacio = { polizaId: null, cambioId: null, detalle: null, motivoHueco: null, dias: null, prima: null, pasos: [] as PasoSeguro[], hasta: null, buscar: null };
+  const vacio = { polizaId: null, cambioId: null, detalle: null, motivoHueco: null, dias: null, prima: null, pasos: [] as PasoSeguro[], hasta: null, buscar: null, sedes: [] as string[], personasIds: [] as string[], complementario: false };
 
   for (const p of personas) {
     const base = { personaId: p.personaId, persona: p.persona, sede: p.sede };
@@ -817,7 +830,7 @@ export function pendientesDeSeguros(
     for (const z of p.conPapeleo) {
       const pasos = pasosPendientes(z);
       const prima = estadoPrima(z, hoy);
-      apilar(papeleos, `${identidadDePoliza(z)}|${pasos.join("+")}|${prima.estado}`, base, z);
+      apilar(papeleos, `${identidadDePoliza(z)}|${pasos.join("+")}|${prima.estado}|${z.prima_vence_el ?? ""}`, base, z);
     }
 
     if (p.activa) {
@@ -850,9 +863,10 @@ export function pendientesDeSeguros(
     const dePoliza = varias ? `La póliza ${z.numero_poliza} de ${c.nombre}` : `Su póliza de ${c.nombre}`;
     items.push({
       ...vacio, ...aQuien(g), polizaId: z.poliza_id, clave: `poliza:${clave}`, buscar: varias ? z.numero_poliza : null, hasta: c.hasta, dias: c.estado === "vencida" ? -(c.dias ?? 0) : c.dias,
+      complementario: true,
       tipo: c.estado === "vencida" ? "poliza_vencida" : "por_vencer",
       titulo: c.estado === "vencida" ? `${dePoliza} venció` : `${dePoliza} está por vencer`,
-      detalle: c.estado === "vencida" ? "Falta registrar la renovación"
+      detalle: c.estado === "vencida" ? (c.empiezaEl ? `La que ya está registrada empieza el ${diaYMes(c.empiezaEl)}` : "Falta registrar la renovación")
         : z.renueva_sola === true ? "La póliza dice que renueva sola: confirmar con la aseguradora" : "Falta registrar la renovación",
     });
   }
@@ -879,11 +893,12 @@ function apilar(
 }
 
 /** A nombre de quién sale la fila: la persona, o «17 personas» si es una colectiva. */
-function aQuien(g: GrupoDePoliza): { personaId: string; persona: string; sede: string } {
+function aQuien(g: GrupoDePoliza): { personaId: string; persona: string; sede: string; sedes: readonly string[]; personasIds: readonly string[] } {
   const [primera] = g.personas;
-  if (g.personas.length === 1) return primera;
-  const sedes = new Set(g.personas.map((p) => p.sede));
-  return { personaId: primera.personaId, persona: plural(g.personas.length, "persona", "personas"), sede: sedes.size === 1 ? primera.sede : "Varias sedes" };
+  const sedes = [...new Set(g.personas.map((p) => p.sede))];
+  const personasIds = g.personas.map((p) => p.personaId);
+  if (g.personas.length === 1) return { ...primera, sedes, personasIds };
+  return { personaId: primera.personaId, persona: plural(g.personas.length, "persona", "personas"), sede: sedes.length === 1 ? primera.sede : "Varias sedes", sedes, personasIds };
 }
 
 // ── A quién se le registra una póliza ───────────────────────────────────────

@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0600 — A cada persona le llega el aviso de que su seguro ya está en Mi seguro
+-- 0602 — A cada persona le llega el aviso de que su seguro ya está en Mi seguro
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -66,7 +66,7 @@ begin
 
   -- Repegar es seguro: la segunda vez la función ya lleva este cambio.
   if v_md5 is distinct from '444daa53487f048a5244c18e613299d4'
-     and not exists (select 1 from pg_proc where proname = 'fn_bandeja_marcar_visto' and prosrc like '%CAMBIO 0600%') then
+     and not exists (select 1 from pg_proc where proname = 'fn_bandeja_marcar_visto' and prosrc like '%CAMBIO 0602%') then
     raise exception 'fn_bandeja_marcar_visto no es la versión de partida (md5 %). Corre ./scripts/donde-vive.sh fn_bandeja_marcar_visto antes de seguir.', v_md5;
   end if;
 end
@@ -131,7 +131,7 @@ alter table bandeja_vistos add constraint bandeja_vistos_tipo_item_check check (
   'cambio_turno',
   'conducta_registrada', 'caso_traspasado',
   'pedido_turno',
-  -- ⇩ CAMBIO 0600 ⇩
+  -- ⇩ CAMBIO 0602 ⇩
   'poliza_mia'
 ));
 
@@ -156,7 +156,7 @@ begin
                           'conducta_registrada', 'caso_traspasado',
                           -- CAMBIO 0587 · «Este día no me calza»
                           'pedido_turno',
-                          -- CAMBIO 0600 · su póliza o su PDF
+                          -- CAMBIO 0602 · su póliza o su PDF
                           'poliza_mia') then
     raise exception 'Tipo de ítem de Bandeja no reconocido: %', p_tipo_item;
   end if;
@@ -164,11 +164,12 @@ begin
   insert into bandeja_vistos (persona_id, tipo_item, item_id)
   values (v_persona, p_tipo_item, p_item_id)
   on conflict (persona_id, tipo_item, item_id) do update set visto_at = now();
-end;$function$;
+end;
+$function$;
 
 -- ── 3 · Registro ─────────────────────────────────────────────────────────────
 
-insert into migraciones_aplicadas (numero, nombre) values (600, 'a_cada_persona_le_llega_el_aviso_de_su_seguro')
+insert into migraciones_aplicadas (numero, nombre) values (602, 'a_cada_persona_le_llega_el_aviso_de_su_seguro')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
@@ -179,5 +180,5 @@ select
   not has_function_privilege('anon', 'fn_mis_polizas_avisos()', 'execute')                 as sin_sesion_no,
   (select pg_get_constraintdef(oid) like '%poliza_mia%' from pg_constraint
     where conname = 'bandeja_vistos_tipo_item_check')                                      as la_bandeja_lo_acepta,
-  (select prosrc like '%CAMBIO 0600%' from pg_proc where proname = 'fn_bandeja_marcar_visto') as la_funcion_lo_acepta,
-  (select nombre from migraciones_aplicadas where numero = 600)                            as registro;
+  (select prosrc like '%CAMBIO 0602%' from pg_proc where proname = 'fn_bandeja_marcar_visto') as la_funcion_lo_acepta,
+  (select nombre from migraciones_aplicadas where numero = 602)                            as registro;

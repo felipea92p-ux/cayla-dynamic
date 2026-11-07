@@ -235,7 +235,7 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
     const vida = poliza({ persona_id: "p3", poliza_id: "zv", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false, vigente_hasta: "2027-06-01" });
     expect(sinNadaQueMostrar(una([rxh], [vida])[0], HOY)).toBe(false);
     // …una vencida no…
-    const vencida = poliza({ persona_id: "p3", poliza_id: "zx", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false, vigente_hasta: "2026-09-01" });
+    const vencida = poliza({ persona_id: "p3", poliza_id: "zx", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false, vigente_hasta: "2026-09-01", ...completa });
     expect(sinNadaQueMostrar(una([rxh], [vencida])[0], HOY)).toBe(true);
     // …y un cambio de seguro por cerrar (pasó de planilla a honorarios: falta la baja) tampoco se esconde.
     expect(sinNadaQueMostrar(una([rxh], [], [cambio({ persona_id: "p3" })])[0], HOY)).toBe(false);
@@ -927,6 +927,29 @@ describe("los seguros que van además del principal: Vida Ley", () => {
     expect(juntas[0].titulo).toContain("póliza 143720");
     const distintas = pendientesDeSeguros(una([beto, carla], [vida(pendiente), vida({ ...deCarla, firmada_el: null })]), HOY);
     expect(distintas).toHaveLength(2);
+  });
+
+  it("una renovación que empieza más adelante no tapa los días sin cobertura de quien debía tenerla", () => {
+    const [p] = una([beto], [vida({ vigente_hasta: "2026-10-01", cubre_hoy: false }), vida({ poliza_id: "zn", vigente_desde: "2026-12-01", vigente_hasta: "2027-12-01", cubre_hoy: false })]);
+    expect(p.complementarios[0]).toMatchObject({ estado: "vencida", empiezaEl: "2026-12-01" });
+    expect(pendientesDeSeguros([p], HOY)[0]).toMatchObject({ tipo: "poliza_vencida", detalle: "La que ya está registrada empieza el 1 de diciembre" });
+  });
+
+  it("dos fechas de prima distintas en la misma póliza no se funden: la peor mora no se esconde", () => {
+    const pendiente = { pagada_el: null };
+    const items = pendientesDeSeguros(una([beto, carla], [vida({ ...pendiente, prima_vence_el: "2026-10-16" }), vida({ ...deCarla, ...pendiente, prima_vence_el: "2026-09-01" })]), HOY);
+    expect(items).toHaveLength(2);
+  });
+
+  it("la colectiva sabe de qué sedes es y a quién cubre: la Bandeja filtra por ahí y el formulario las trae marcadas", () => {
+    const items = pendientesDeSeguros(una([beto, carla], [vida({ vigente_hasta: "2026-11-20" }), vida({ ...deCarla, vigente_hasta: "2026-11-20" })]), HOY);
+    expect(items[0]).toMatchObject({ sedes: ["TRU", "AQP"], personasIds: ["p2", "p3"], complementario: true });
+  });
+
+  it("un honorarios con papeleo pendiente sí se dibuja: la Bandeja lo manda aquí", () => {
+    const rxh = persona({ persona_id: "p9", tipo_vinculo: "rxh", practicante_modalidad: null, en_planilla: false, ...SIN_SEGURO });
+    const [p] = una([rxh], [vida({ persona_id: "p9", vigente_hasta: "2026-09-01", cubre_hoy: false, factura_recibida_el: null })]);
+    expect(sinNadaQueMostrar(p, HOY)).toBe(false);
   });
 
   it("de una póliza así no se afirma la suspensión de los 30 días: esa cláusula es del convenio de la de salud", () => {

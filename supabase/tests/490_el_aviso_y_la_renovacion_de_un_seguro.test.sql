@@ -1,7 +1,7 @@
 -- ⛔ NO PEGAR ESTE ARCHIVO EN EL SQL EDITOR DE SUPABASE. No es una migración.
 -- Es una PRUEBA: usa pgTAP, que solo existe en el Postgres local.
 -- ============================================================================
--- 489_el_aviso_y_la_renovacion_de_un_seguro.test.sql — la 0600 y la 0601
+-- 490_el_aviso_y_la_renovacion_de_un_seguro.test.sql — la 0602 y la 0603
 -- ============================================================================
 -- Lo que hay que proteger:
 -- (a) cada persona lee solo lo suyo, sin factura, sin archivo retirado y sin póliza anulada;
@@ -11,7 +11,7 @@
 -- (e) registrar la renovación apaga el aviso que todavía no salió, y los dos tramos son dos avisos.
 -- ============================================================================
 begin;
-select plan(19);
+select plan(25);
 
 insert into sedes (id, codigo, nombre, activa, tipo) values
   ('00000000-0000-0000-0000-000006000001', 'ZZ600', 'Sede seguros 600', true, 'tienda');
@@ -49,7 +49,7 @@ select set_config('t.ana', (select poliza_id::text from _colectiva where persona
 select set_config('t.pdf', fn_seguro_adjuntar(current_setting('t.ana')::uuid, 'poliza', '6b000000-0000-0000-0000-0000000000a1.pdf', 'poliza.pdf')::text, true);
 select fn_seguro_adjuntar(current_setting('t.ana')::uuid, 'factura', '6b000000-0000-0000-0000-0000000000a2.pdf', 'factura.pdf');
 
--- ── A · Lo que lee cada persona (0600) ──────────────────────────────────────
+-- ── A · Lo que lee cada persona (0602) ──────────────────────────────────────
 select is(
   (select pg_get_function_result(p.oid) from pg_proc p where p.proname = 'fn_mis_polizas_avisos'),
   'TABLE(poliza_id uuid, producto_nombre text, creada_at timestamp with time zone, archivo_id uuid, archivo_subido_at timestamp with time zone)',
@@ -75,7 +75,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000600b001
 select fn_seguro_registrar('00000000-0000-0000-0000-00000600a003', 'vida_ley', 'Pacífico Seguros', 'VL-600',
   fn_hoy_lima() - 60, fn_hoy_lima() + 30, 14.5, null, null, null, null, null, null);
 
--- ── B · Quién tiene que renovar (0601) ──────────────────────────────────────
+-- ── B · Quién tiene que renovar (0603) ──────────────────────────────────────
 select is(fn_generar_alertas_seguros(), 1, 'dos personas en la misma póliza dan un aviso, y la que tiene renovación ninguno');
 select is((select payload ->> 'persona' from alertas where tipo = 'seguro_por_renovar'), '2 personas', 'la colectiva no lleva nombres');
 select is((select (payload ->> 'tramo')::int from alertas where tipo = 'seguro_por_renovar'), 45, 'a 30 días es el tramo de 45');
@@ -95,8 +95,30 @@ select ok(fn_alerta_sigue_vigente('seguro_por_renovar', null,
 select fn_seguro_registrar(x, 'vida_ley', 'Pacífico Seguros', 'VL-601', fn_hoy_lima() + 10, fn_hoy_lima() + 375, 14.5, null, null, null, null, null, null)
   from unnest(array['00000000-0000-0000-0000-00000600a002', '00000000-0000-0000-0000-00000600a003']::uuid[]) x;
 select ok(not fn_alerta_sigue_vigente('seguro_por_renovar', null,
-  (select payload from alertas where tipo = 'seguro_por_renovar' and payload ->> 'tramo' = '15')), 'con la renovación registrada, el correo que faltaba ya no sale');
+  (select payload from alertas where tipo = 'seguro_por_renovar' and payload ->> 'tramo' = '15')), 'con la renovación registrada, el aviso ya no es cierto');
+-- En el camino de verdad, no en la función suelta: esta es la línea que tiene que ponerse en rojo sin el filtro de la cola.
+select is((select count(*)::int from fn_alertas_email_pendientes() where tipo = 'seguro_por_renovar'), 0, 'y la cola ya no lo entrega');
 select is(fn_generar_alertas_seguros(), 0, 'y no se genera uno nuevo');
+select is((select count(*)::int from alertas where tipo = 'seguro_por_renovar' and estado = 'pendiente'), 0, 'el cron cierra lo que quedó esperando');
+
+-- ── D · Quien cambió de seguro no renueva el que dejó ───────────────────────
+select is((select fn_seguro_sin_renovar('00000000-0000-0000-0000-00000600a005', 'salud_practicantes', fn_hoy_lima() + 100)), true, 'FOLA de quien es practicante pide renovarse');
+set session_replication_role = replica;
+update personas set tipo_vinculo = 'planilla', practicante_modalidad = null where id = '00000000-0000-0000-0000-00000600a005';
+set session_replication_role = origin;
+select is((select fn_seguro_sin_renovar('00000000-0000-0000-0000-00000600a005', 'salud_practicantes', fn_hoy_lima() + 100)), false, 'y ya no, si hoy está en planilla: la pantalla tampoco se lo pide');
+
+-- ── E · Dos aseguradoras con el mismo número son dos pólizas ────────────────
+select fn_seguro_tipo_crear('Otro seguro 603', 'Prueba', false, true, 'Alta', 'Baja');
+select set_config('t.otro', (select clave from seguros_tipos where nombre = 'Otro seguro 603'), true);
+select fn_seguro_registrar('00000000-0000-0000-0000-00000600a002', current_setting('t.otro'), 'Pacífico Seguros', 'NUM-603', fn_hoy_lima() - 5, fn_hoy_lima() + 20, 10, null, null, null, null, null, null);
+select fn_seguro_registrar('00000000-0000-0000-0000-00000600a003', current_setting('t.otro'), 'Rímac Seguros', 'NUM-603', fn_hoy_lima() - 5, fn_hoy_lima() + 20, 10, null, null, null, null, null, null);
+select is(fn_generar_alertas_seguros(), 2, 'el mismo número en dos aseguradoras son dos avisos');
+
+-- ── F · Un correo que falló se puede reencolar ──────────────────────────────
+update alertas set estado = 'fallido', intentos = 3, created_at = now() - interval '8 days'
+ where tipo = 'seguro_por_renovar' and payload ->> 'aseguradora' = 'Rímac Seguros';
+select is((fn_alertas_resolver_fallidas(true) -> 'reencolar' ->> 'total')::int, 1, 'vigente y fuera de ventana: vuelve a la cola, no se pierde el último aviso');
 
 select ok(not has_function_privilege('authenticated', 'fn_generar_alertas_seguros()', 'execute'), 'nadie la llama con su sesión: la corre el cron');
 

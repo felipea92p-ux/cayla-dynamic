@@ -66,7 +66,7 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useRolActual } from "@/lib/admin/use-rol";
 import {
   coincideSeguro, contarPorTipo, fechaDelPaso, hermanasDe, pasaElFiltro, pendientesDeSeguros, pideAlgo, plural, resumenDeSeguros, seguroPorPersona, sinNadaQueMostrar, DIAS_AVISO_RENOVACION, PASOS_SEGURO,
-  type CambioSeguro, type FilaEquipoSeguro, type FiltroSeguro, type PasoSeguro, type Poliza, type SeguroDePersona, type TipoSeguro,
+  type CambioSeguro, type FilaEquipoSeguro, type FiltroSeguro, type PasoSeguro, type PendienteSeguro, type Poliza, type SeguroDePersona, type TipoSeguro,
 } from "@/lib/admin/seguros";
 
 /**
@@ -185,7 +185,9 @@ function Seguros() {
     [personas],
   );
   // Una sede recordada que ya no existe (o una persona de otra sede a la que manda la Bandeja) no deja la pantalla vacía.
-  const sedeActiva = sedeVista !== "todas" && sedesDelEquipo.includes(sedeVista) && !soloPersona ? sedeVista : "todas";
+  // Lo mismo con el aviso de una colectiva: «17 personas» no puede abrir mostrando dos, ni «Nadie de TRU coincide».
+  const vieneDeUnAviso = soloPersona !== null || (busqueda !== "" && busqueda === parametros.get("buscar"));
+  const sedeActiva = sedeVista !== "todas" && sedesDelEquipo.includes(sedeVista) && !vieneDeUnAviso ? sedeVista : "todas";
   // Los números de los filtros son los de lo que se está mirando: con una sede elegida, los de esa sede.
   const alcance = useMemo(() => (sedeActiva === "todas" ? personas : personas.filter((p) => p.sede === sedeActiva)), [personas, sedeActiva]);
   const resumen = useMemo(() => resumenDeSeguros(alcance), [alcance]);
@@ -193,6 +195,8 @@ function Seguros() {
   // Una póliza colectiva es UN trámite: va en una tarjeta, y quien solo espera eso no se repite como una fila por persona.
   const pendientes = useMemo(() => pendientesDeSeguros(alcance, hoy), [alcance, hoy]);
   const colectivas = useMemo(() => pendientes.filter((x) => x.buscar !== null), [pendientes]);
+  // Buscando una colectiva, su tarjeta sigue a la vista: ahí está el botón que renueva a todas.
+  const colectivasBuscadas = useMemo(() => colectivas.filter((c) => c.buscar === busqueda.trim()), [colectivas, busqueda]);
   const atencion = useMemo(() => {
     const propias = new Set(pendientes.filter((x) => x.buscar === null).map((x) => x.personaId));
     return alcance.filter((p) => propias.has(p.personaId) || p.situacion === "suspendida");
@@ -347,6 +351,29 @@ function Seguros() {
     ...(resumen.sin_registrar > 0 ? [{ clave: "sin_registrar" as const, etiqueta: "Falta registrar un seguro", n: resumen.sin_registrar }] : []),
   ];
 
+  const tarjetaColectiva = (c: PendienteSeguro) => {
+    const z = polizas.find((x) => x.poliza_id === c.polizaId);
+    return (
+      <TarjetaInfo key={c.clave} className="flex flex-wrap items-center justify-between gap-3 py-3 sm:py-3">
+        <div className="min-w-0">
+          <p className="font-serif text-base text-tinta">{c.titulo}</p>
+          <p className="text-sm text-taupe">{c.persona} · {c.detalle}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {c.buscar !== busqueda.trim() && <Boton tamano="sm" onClick={() => setBusqueda(c.buscar ?? "")}>Ver a {c.persona}</Boton>}
+          {c.tipo !== "papeleo" && z && (
+            <Boton
+              variante="primario" tamano="sm"
+              onClick={() => registrar({ producto: z.producto, aseguradora: z.aseguradora, numeroPoliza: z.numero_poliza, desde: c.hasta ?? undefined, prima: z.prima_total, personas: c.personasIds })}
+            >
+              Registrar la renovación
+            </Boton>
+          )}
+        </div>
+      </TarjetaInfo>
+    );
+  };
+
   const etiquetaDeSituacion = situaciones.find((f) => f.clave === filtroVigente)?.etiqueta ?? null;
   const etiquetaDeSeguro = tipoFiltro === TODOS ? null : tipoFiltro === NINGUNO ? "Sin seguro (no aplica)" : porTipo.find((t) => t.clave === tipoFiltro)?.nombre ?? tipoFiltro;
   const nFiltros = (etiquetaDeSituacion ? 1 : 0) + (etiquetaDeSeguro ? 1 : 0);
@@ -463,6 +490,8 @@ function Seguros() {
                 <EstadoVacio>Nadie coincide con ese filtro{busqueda ? ` y con «${busqueda}»` : ""}.</EstadoVacio>
               )}
 
+              {buscando && colectivasBuscadas.length > 0 && <div className="mb-4 space-y-2">{colectivasBuscadas.map(tarjetaColectiva)}</div>}
+
               {!buscando && (
                 <section aria-labelledby="pide-atencion" className="mb-6">
                   <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4">
@@ -473,25 +502,7 @@ function Seguros() {
                     <EstadoVacio>Nadie pide atención hoy.</EstadoVacio>
                   ) : (
                     <div className="space-y-2">
-                      {colectivas.map((c) => {
-                        const z = polizas.find((x) => x.poliza_id === c.polizaId);
-                        return (
-                          <TarjetaInfo key={c.clave} className="flex flex-wrap items-center justify-between gap-3 py-3 sm:py-3">
-                            <div className="min-w-0">
-                              <p className="font-serif text-base text-tinta">{c.titulo}</p>
-                              <p className="text-sm text-taupe">{c.persona} · {c.detalle}</p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Boton tamano="sm" onClick={() => setBusqueda(c.buscar ?? "")}>Ver a {c.persona}</Boton>
-                              {c.tipo !== "papeleo" && z && (
-                                <Boton variante="primario" tamano="sm" onClick={() => registrar({ producto: z.producto, aseguradora: z.aseguradora, numeroPoliza: z.numero_poliza, desde: c.hasta ?? undefined, prima: z.prima_total })}>
-                                  Registrar la renovación
-                                </Boton>
-                              )}
-                            </div>
-                          </TarjetaInfo>
-                        );
-                      })}
+                      {colectivas.map(tarjetaColectiva)}
                       {atencion.map((p) => {
                         const clave = `atencion:${p.personaId}`;
                         return (

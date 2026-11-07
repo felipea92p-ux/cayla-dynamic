@@ -2930,7 +2930,7 @@ export default function MioPage() {
           En qué seguro está cada colaborador y, si lleva póliza, la póliza y sus
           PDF. Es de todo el equipo: no se filtra por vínculo. El componente vive
           aparte, como Educación, y pide sus datos cuando se abre. */}
-      {visitadas.has("seguro") && <div hidden={tab !== "seguro"}><MiSeguro alVerlo={() => setSeguroSinVer(0)} /></div>}
+      {visitadas.has("seguro") && <div hidden={tab !== "seguro"}><MiSeguro alVerlo={() => void cargarAvisosDeBandeja()} /></div>}
 
       {/* ── BOLETAS (0482) ───────────────────────────────────────────────────
           Las boletas oficiales del contador, por periodo pagado. NO es

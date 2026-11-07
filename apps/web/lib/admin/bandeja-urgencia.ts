@@ -262,6 +262,19 @@ export function urgenciaSeguroSinPoliza(
   return { grupo: "vencido", plazo: "Sin póliza vigente", nota: "no se leyeron sus pólizas", orden: -10_000 };
 }
 
+/**
+ * Un seguro que va ADEMÁS del principal, por vencer o vencido (`dias` negativo). No dice «sin seguro»: quien pierde
+ * Vida Ley sigue en EsSalud, y una fila que afirme otra cosa de esa persona es falsa.
+ */
+export function urgenciaSeguroComplementario(dias: number, hasta: string): Urgencia {
+  return {
+    grupo: dias < 0 ? "vencido" : dias === 0 ? "hoy" : "proximo",
+    plazo: enDias(dias, { futuro: "Vence", pasado: "Venció" }),
+    nota: `el ${diaYMes(hasta)}`,
+    orden: dias,
+  };
+}
+
 /** Cubierta hoy, pero se queda sin seguro en `dias` y nada empalma. `hasta` es la fecha EXCLUSIVA. */
 export function urgenciaSeguroPorVencer(dias: number, hasta: string): Urgencia {
   return {

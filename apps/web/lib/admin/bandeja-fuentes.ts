@@ -16,7 +16,7 @@ import {
 import {
   compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
   urgenciaBono, urgenciaCaso, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
-  urgenciaCierrePrueba, urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaPrueba, urgenciaRecordVacaciones, urgenciaSeguroCambio,
+  urgenciaCierrePrueba, urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaPrueba, urgenciaRecordVacaciones, urgenciaSeguroCambio, urgenciaSeguroComplementario,
   urgenciaSeguroPapeleo, urgenciaSeguroPorVencer, urgenciaSeguroSinPoliza, urgenciaSinHorario,
   type FilaContrato, type FilaFeriado, type PeriodoDePago, type Urgencia,
 } from "./bandeja-urgencia";
@@ -754,6 +754,8 @@ export interface Pendiente {
   tipo: TipoPendiente;
   itemId: string;
   personaId: string | null;
+  /** Una fila de varias sedes: el filtro de sede la encuentra en cada una (`sede` dice «Varias sedes»). */
+  sedes?: readonly string[];
   persona: string;
   sede: string;
   modulo: ModuloBandeja;
@@ -998,11 +1000,12 @@ export function armarPendientes(
     }[s.tipo];
     agregar({
       clave: `seguro_${s.clave}`, tipo: `seguro_${s.tipo}`, itemId: s.cambioId ?? s.polizaId ?? s.personaId,
-      personaId: s.personaId, persona: s.persona, sede: s.sede, modulo: "seguros",
+      // Una colectiva no es de una persona: con su `personaId`, una cesada del grupo le quitaría la urgencia a todas.
+      personaId: s.buscar ? null : s.personaId, persona: s.persona, sede: s.sede, sedes: s.buscar ? s.sedes : undefined, modulo: "seguros",
       titulo: s.titulo, detalle: s.detalle,
       urgencia: s.tipo === "sin_poliza" ? urgenciaSeguroSinPoliza(s.motivoHueco, s.dias)
-        : s.tipo === "por_vencer" ? urgenciaSeguroPorVencer(s.dias ?? 0, s.hasta ?? hoy)
-        : s.tipo === "poliza_vencida" ? urgenciaSeguroSinPoliza("vencida", s.dias)
+        : s.tipo === "poliza_vencida" ? urgenciaSeguroComplementario(-(s.dias ?? 0), s.hasta ?? hoy)
+        : s.tipo === "por_vencer" ? (s.complementario ? urgenciaSeguroComplementario : urgenciaSeguroPorVencer)(s.dias ?? 0, s.hasta ?? hoy)
         : s.tipo === "papeleo" ? urgenciaSeguroPapeleo(s.prima, s.pasos)
         : s.tipo === "cambio_baja" ? urgenciaSeguroCambio("baja", s.dias ?? 0)
         : s.tipo === "cambio_alta" ? urgenciaSeguroCambio("alta", s.dias ?? 0)
