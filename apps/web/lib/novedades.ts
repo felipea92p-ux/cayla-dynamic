@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-hoja-de-sede-abre-tu-sede",
+    fecha: "2026-11-07",
+    titulo: "La Hoja de sede abre la de tu sede",
+    queMejoro:
+      "Si eres líder de equipo, al abrir la Hoja de sede desde el menú aparecía otra sede, la primera de la lista. " +
+      "Te salía vacía, como si no hubiera nada pendiente. Ahora se abre la tuya, con tu equipo, y ya no está el " +
+      "selector de sedes, porque las demás te salían vacías.\n\n" +
+      "Para DO y la dirección no cambia nada: siguen eligiendo la sede.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-07-planilla-el-nombre-no-se-pierde-al-deslizar",
     fecha: "2026-11-07",
     titulo: "En Planilla, el nombre ya no se pierde al deslizar la tabla",
