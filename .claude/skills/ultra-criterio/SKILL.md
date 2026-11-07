@@ -1,6 +1,6 @@
 ---
 name: ultra-criterio
-description: Diseña y programa con el criterio de los mejores arquitectos, diseñadores y programadores del mundo (Linus Torvalds, Knuth, Dijkstra, Hoare, Brooks, Pike, Rams, Norman…), el pedido de Felipe del 2026-08-13. Úsala al diseñar una solución nueva, al analizar un módulo o cuando Felipe pida «como lo harían los mejores del mundo».
+description: Diseña y programa con el criterio de los mejores arquitectos, diseñadores y programadores del mundo (Linus Torvalds, Knuth, Dijkstra, Hoare, Brooks, Pike, Rams, Norman, Kleppmann…) y con prácticas modernas de élite, el pedido de Felipe del 2026-08-13. Úsala al diseñar una solución nueva, al analizar un módulo o cuando Felipe pida «como lo harían los mejores del mundo».
 ---
 
 > El pedido original de Felipe (2026-08-13), palabra por palabra:
@@ -82,6 +82,30 @@ aplicó es que el diseño cambió por ella.
     - *Linus Torvalds*: «hablar es barato; muéstrame el código». *Richard Feynman*: no debes engañarte a ti mismo, y eres la persona
       más fácil de engañar.
     - En CAYLA: di qué quedó verificado (con qué prueba o qué consulta) y qué no. «Debería funcionar» no es verificado.
+
+11. **Software moderno, de élite, sin caer en la moda.**
+    El software de élite de hoy no se mide por usar lo último. Se mide por lo que hace imposible equivocarse. Primero el freno:
+    - *Dan McKinley* (Etsy), «Choose Boring Technology»: cada equipo tiene pocas «fichas de innovación»; gástalas donde CAYLA gana
+      algo que se pueda medir, no en cambiar de herramienta. Una tecnología nueva tiene que pagar su costo de mantenerla durante años.
+
+    Lo que sí es de élite, y cómo está CAYLA (medido el 2026-11-06 en los `package.json`):
+
+    | Práctica | Maestro | En CAYLA hoy |
+    |---|---|---|
+    | **Estados imposibles que no se pueden escribir**: uniones discriminadas en TypeScript, `CHECK` y `NOT NULL` en Postgres | *Yaron Minsky* (Jane Street) | Parcial: la base tiene `CHECK`; usarlo también en los tipos de TS |
+    | **Parsear, no validar**: el dato que entra se convierte una vez, en el borde, en un tipo que ya es correcto | *Alexis King* | No hay librería de esquemas (ni zod ni valibot); proponerla al tocar un formulario que mueve plata |
+    | **Pruebas por propiedades**: miles de casos generados contra una invariante («ninguna planilla da negativo», «la suma de las partes es el total») | *John Hughes* (QuickCheck) | No está `fast-check`; es la candidata más fuerte para el cálculo de planilla |
+    | **Pruebas de mutación**: se rompe el código a propósito y la prueba tiene que ponerse en rojo | *Richard DeMillo* | El repo ya lo hace a mano con los frenos (receta-suelta se rompió de ocho maneras); `Stryker` lo haría sistemático |
+    | **Eventos como fuente de verdad**: se guarda lo que pasó y lo demás se deriva | *Greg Young*, *Martin Kleppmann* | Ya está: marcajes append-only y `jornadas` derivadas por trigger |
+    | **Local-first**: la app sigue andando sin internet y reconcilia después | *Martin Kleppmann* (Ink & Switch) | Ya está en el terminal, con la reconciliación de marcajes offline en `fn_registrar_marcaje` |
+    | **Métodos formales** para lo crítico: especificar la máquina de estados antes de programarla | *Leslie Lamport* (TLA+, lo usa AWS) | Candidato: la máquina de estados del marcaje en `packages/shared` |
+    | **Observabilidad**: preguntas nuevas sin desplegar código nuevo | *Charity Majors* | Sentry ya está (`@sentry/nextjs`); falta mirar los errores por sede y por pantalla |
+    | **Entrega progresiva**: lo nuevo entra apagado, detrás de un interruptor | Google SRE | Ya está: el interruptor de vidrio |
+    | **Seguridad por mínimo privilegio** en la base, no en la pantalla | *Saltzer y Schroeder* | Ya está: RLS y funciones guardián `SECURITY DEFINER` |
+    | **Plataforma al día**: Next 16, React 19, TypeScript 5, Vitest 4 | — | Ya está |
+
+    La regla: cuando propongas algo «moderno», di en qué fila de esta tabla cae, qué falla de CAYLA evita y cuánto cuesta
+    mantenerlo. Si no evita una falla concreta, es moda.
 
 Este criterio no está por encima de las reglas de `CLAUDE.md`: el SQL lo pega Felipe, el md5 se pide a producción, fusionar es
 publicar. Los mejores del mundo también respetan los frenos de la casa.
