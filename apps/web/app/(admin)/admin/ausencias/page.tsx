@@ -31,7 +31,6 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { BotonIcono } from "@/components/ui/boton-icono";
-import { useSedesPorId } from "@/lib/admin/use-sedes";
 import { BuscadorPersona, type OpcionBuscador } from "@/components/ui/buscador-persona";
 import { Ban, CalendarDays, List } from "lucide-react";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
@@ -54,7 +53,7 @@ import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
-import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { etiquetaDeSede, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { reducirImagen, pesoLegible } from "@/lib/reducir-imagen";
 import { useToast } from "@/components/toast";
@@ -138,6 +137,7 @@ type FiltroPersonaEstado = "activos" | "cesados";
 interface PersonaFacts { fechaCese: string | null; liquidada: boolean }
 
 interface Persona { id: string; nombres: string; apellidos: string; sede_base_id: string | null }
+interface Sede { id: string; codigo: string; nombre: string; activa: boolean; tipo: string | null; ciudad: string | null }
 interface Tipo {
   codigo: string; nombre: string; paga: boolean;
   requiere_documento: boolean; requiere_aprobacion: boolean;
@@ -214,8 +214,11 @@ export default function AusenciasPage() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [personas, setPersonas] = useState<Persona[]>([]);
-  // Nombre de cada sede, para las fichas del buscador. Si no llega, el buscador sigue sirviendo, solo sin fichas.
-  const sedePorId = useSedesPorId();
+  // Las sedes, leídas de la tabla. Sirven a dos cosas: el nombre en las fichas del buscador y las opciones del filtro
+  // de sede. Una sola consulta para las dos, y blanda: si no llega, el buscador sigue sin fichas y el filtro ofrece
+  // los códigos que traen las propias ausencias.
+  const [sedes, setSedes] = useState<Sede[]>([]);
+  const sedePorId = useMemo(() => new Map(sedes.map((s) => [s.id, s.nombre])), [sedes]);
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [lista, setLista] = useState<Ausencia[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
@@ -323,12 +326,51 @@ export default function AusenciasPage() {
   const [vista, setVista] = useFiltroGuardado<"lista" | "calendario">("ausencias.vista", "lista");
   const [atencion, setAtencion] = useState<"" | "vacaciones" | "essalud" | "patron">("");
   const [busca, setBusca] = useState("");
+  // Código de la sede elegida ("" = todas). No se guarda entre visitas, igual que la búsqueda y el estado: volver a
+  // la pantalla y ver solo una sede sin haberlo pedido haría creer que las demás no tienen ausencias.
+  const [sedeFiltro, setSedeFiltro] = useState("");
   const [mesCal, setMesCal] = useState(() => {
     const [anio, mes] = hoyLima().split("-").map(Number);
     return { anio, mes };
   });
 
   const tipoSel = tipos.find((t) => t.codigo === tipoCod) ?? null;
+
+  // DE QUÉ SEDE ES CADA PERSONA, por el código con el que `fn_ausencias` ya rotula cada fila (su sede base de hoy).
+  //
+  // Hace falta un mapa, y no basta con mirar `a.sede` de la fila, porque el filtro de sede también tiene que alcanzar a
+  // «Para atender»: si arriba dijera «1 pendiente de aprobar» de Arequipa mientras abajo se mira Trujillo, tocar la
+  // pastilla dejaría la tabla vacía sin explicar por qué. Y los avisos de EsSalud y del patrón de ausencias solo traen
+  // el id de la persona. Tres fuentes, todas con la misma sede base: las filas de la tabla, el aviso de vacaciones y
+  // la lista de personas activas (esta última cubre a quien tiene un aviso pero ninguna ausencia en el rango a la vista).
+  const sedeDePersona = useMemo(() => {
+    const codigoPorId = new Map(sedes.map((s) => [s.id, s.codigo]));
+    const mapa = new Map<string, string>();
+    for (const p of personas) {
+      const codigo = p.sede_base_id ? codigoPorId.get(p.sede_base_id) : undefined;
+      if (codigo) mapa.set(p.id, codigo);
+    }
+    for (const v of porVencer) if (v.sede !== "?") mapa.set(v.persona_id, v.sede);
+    for (const a of lista) mapa.set(a.persona_id, a.sede);
+    return mapa;
+  }, [sedes, personas, porVencer, lista]);
+  const enLaSede = useCallback(
+    (personaIdFila: string) => sedeFiltro === "" || sedeDePersona.get(personaIdFila) === sedeFiltro,
+    [sedeFiltro, sedeDePersona],
+  );
+
+  // Las sedes que ofrece el filtro: las activas de la tabla, más cualquiera que aparezca en las ausencias aunque ya no
+  // esté activa — la ausencia de alguien de una sede cerrada sigue siendo historial. Mismo criterio que Incidencias, y
+  // el mismo rótulo: «Tienda · Trujillo (TRU)», de `etiquetaDeSede`, nunca escrito a mano.
+  const sedesDelFiltro = useMemo(() => {
+    const porCodigo = new Map(sedes.map((s) => [s.codigo, s]));
+    const codigos = new Set(sedes.filter((s) => s.activa).map((s) => s.codigo));
+    for (const a of lista) codigos.add(a.sede);
+    return [...codigos].sort().map((codigo) => {
+      const s = porCodigo.get(codigo);
+      return { codigo, texto: s ? etiquetaDeSede(s).texto : codigo };
+    });
+  }, [sedes, lista]);
 
   // El panel consolidado: los mismos tres avisos de siempre (vencimiento
   // legal, reembolso de EsSalud, patrón de ausencias), agrupados por persona
@@ -346,8 +388,10 @@ export default function AusenciasPage() {
     for (const v of porVencer) fila(v.persona_id, v.persona, v.sede).legal = v;
     for (const s of subsidio.filter((x) => x.hay_que_avisar)) fila(s.persona_id, s.nombre, null).financiero = s;
     for (const a of alertas) fila(a.persona_id, a.nombre, null).patron.push(a);
-    return Array.from(mapa.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [porVencer, subsidio, alertas]);
+    return Array.from(mapa.values())
+      .filter((f) => enLaSede(f.persona_id))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [porVencer, subsidio, alertas, enLaSede]);
 
 
   // Quién cae en cada pastilla de «Para atender» (vacaciones por vencer, cupo de EsSalud, patrón de ausencias).
@@ -356,7 +400,10 @@ export default function AusenciasPage() {
     essalud: new Set(impactoPorPersona.filter((f) => f.financiero).map((f) => f.persona_id)),
     patron: new Set(impactoPorPersona.filter((f) => f.patron.length > 0).map((f) => f.persona_id)),
   }), [impactoPorPersona]);
-  const pendientesCount = useMemo(() => lista.filter(esPendiente).length, [lista]);
+  const pendientesCount = useMemo(
+    () => lista.filter((a) => esPendiente(a) && enLaSede(a.persona_id)).length,
+    [lista, enLaSede],
+  );
 
   // Filtra por estado y, encima, sube las pendientes de aprobar al principio
   // sea cual sea el filtro elegido — es la única fila de la tabla que pide
@@ -364,12 +411,13 @@ export default function AusenciasPage() {
   // cientos de filas ya resueltas.
   const porFiltroEstadoYRango = useMemo(() => lista.filter((a) => {
     if (busca.trim() !== "" && !sinTildes(a.nombre).includes(sinTildes(busca.trim()))) return false;
+    if (!enLaSede(a.persona_id)) return false;
     if (atencion !== "" && !personasPorAtencion[atencion].has(a.persona_id)) return false;
     if (filtroEstado === "pendientes") return esPendiente(a);
     if (filtroEstado === "vigentes") return !a.anulada && !esPendiente(a);
     if (filtroEstado === "anuladas") return a.anulada;
     return true;
-  }), [lista, filtroEstado, busca, atencion, personasPorAtencion]);
+  }), [lista, filtroEstado, busca, enLaSede, atencion, personasPorAtencion]);
 
   const esCesada = useCallback(
     (personaIdFila: string) => !!personaFacts.get(personaIdFila)?.fechaCese,
@@ -422,7 +470,7 @@ export default function AusenciasPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al, error: eAl }, { data: sub, error: eSub }, { data: pv, error: ePv }, { data: pf }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al, error: eAl }, { data: sub, error: eSub }, { data: pv, error: ePv }, { data: pf }, { data: sd }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, sede_base_id").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
@@ -430,7 +478,10 @@ export default function AusenciasPage() {
       supabase.rpc("fn_ausencias_subsidio", {}),
       supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }),
       supabase.rpc("fn_personas_funciones"),
+      supabase.from("sedes").select("id, codigo, nombre, activa, tipo, ciudad").order("codigo"),
     ]);
+    // Blanda, como las de arriba: sin sedes no se pierde ninguna ausencia (ver `sedes`).
+    setSedes((sd as Sede[] | null) ?? []);
     // Quién ya se liquidó, para distinguir cesados de activos en la pestaña
     // de abajo (0421/0422). Si esto falla, la tabla sigue mostrando a todos en
     // "Activos" — degradar a "no ocultar a nadie" es más seguro que ocultar
@@ -1085,7 +1136,21 @@ export default function AusenciasPage() {
             <Campo tamano="sm" aria-label="Buscar persona por nombre" placeholder="Buscar persona" value={busca}
               onChange={(e) => { setPagina(0); setBusca(e.target.value); }} />
           </div>
-          <div className="w-full sm:w-52">
+          {/* Solo para quien ve todas las sedes: una líder de equipo ya recibe de la base únicamente su sede
+              (`fn_ausencias`), y un desplegable de una sola opción sería un control que no hace nada.
+              Anchos medidos el 2026-11-07, no a ojo: la opción más larga («Tienda · Arequipa (AQP)») ocupa 132 px
+              más 44 de relleno, y «Pendientes de aprobar» 126 + 44. Con los dos en w-52 la fila sumaba 1 161 px
+              contra 1 136 en una pantalla de 1440, y al aparecer «Limpiar» lista/calendario saltaban de línea. */}
+          {esDO && sedesDelFiltro.length > 1 && (
+            <div className="w-full sm:w-48">
+              <CampoSelect tamano="sm" aria-label="Sede" value={sedeFiltro}
+                onChange={(e) => { setPagina(0); setSedeFiltro(e.target.value); }}>
+                <option value="">Todas las sedes</option>
+                {sedesDelFiltro.map((s) => <option key={s.codigo} value={s.codigo}>{s.texto}</option>)}
+              </CampoSelect>
+            </div>
+          )}
+          <div className="w-full sm:w-44">
             <CampoSelect tamano="sm" aria-label="Estado" value={filtroEstado}
               onChange={(e) => { setPagina(0); setFiltroEstado(e.target.value as FiltroEstado); }}>
               <option value="todas">Todos los estados</option>
@@ -1110,9 +1175,9 @@ export default function AusenciasPage() {
               </span>
             </div>
           )}
-          {(busca !== "" || filtroEstado !== "todas" || atencion !== "") && (
+          {(busca !== "" || sedeFiltro !== "" || filtroEstado !== "todas" || atencion !== "") && (
             <Boton variante="enlace" className="text-xs text-taupe"
-              onClick={() => { setBusca(""); setFiltroEstado("todas"); setAtencion(""); setPagina(0); }}>
+              onClick={() => { setBusca(""); setSedeFiltro(""); setFiltroEstado("todas"); setAtencion(""); setPagina(0); }}>
               Limpiar
             </Boton>
           )}

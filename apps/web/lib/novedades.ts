@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-ausencias-por-sede",
+    fecha: "2026-11-07",
+    titulo: "Ausencias se puede filtrar por sede",
+    queMejoro:
+      "Junto al buscador de Ausencias hay un desplegable de sede. Al elegir una, la lista, el calendario y la línea " +
+      "«Para atender» muestran solo a las personas de esa sede: si arriba dice «1 pendiente de aprobar», es de la sede " +
+      "que estás mirando.\n\n" +
+      "Las líderes de equipo no lo ven porque ya ven solo su propia sede. Al volver a la pantalla arranca otra vez en " +
+      "«Todas las sedes», y «Limpiar» también lo devuelve ahí.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-07-pantallas-al-instante",
     fecha: "2026-11-07",
     titulo: "El Dashboard, Turnos, Horarios y el terminal se actualizan solos, al instante",
