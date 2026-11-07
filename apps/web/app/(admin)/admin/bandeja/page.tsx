@@ -327,8 +327,9 @@ export default function BandejaPage() {
   const coincideTexto = (p: Pendiente) => q === "" || sinTildes(p.persona).includes(q) || sinTildes(p.titulo).includes(q);
   // Lo que cuentan las tarjetas: todos los filtros MENOS el de módulo, que es
   // justo lo que las tarjetas eligen.
+  const esDeLaSede = (p: Pendiente, sede: string) => p.sede === sede || p.sedes?.includes(sede) === true;
   const paraTarjetas = pendientes.filter((p) =>
-    coincideTexto(p) && (!sedeEfectiva || p.sede === sedeEfectiva) && (!grupoFiltro || p.urgencia.grupo === grupoFiltro));
+    coincideTexto(p) && (!sedeEfectiva || esDeLaSede(p, sedeEfectiva)) && (!grupoFiltro || p.urgencia.grupo === grupoFiltro));
   const filtrados = paraTarjetas.filter((p) => !moduloFiltro || p.modulo === moduloFiltro);
   const hayFiltros = q !== "" || !!sedeEfectiva || moduloFiltro !== null || grupoFiltro !== null;
   const porSedeSinSede = pendientes.filter((p) => coincideTexto(p) && (!moduloFiltro || p.modulo === moduloFiltro) && (!grupoFiltro || p.urgencia.grupo === grupoFiltro));
@@ -337,7 +338,7 @@ export default function BandejaPage() {
   // no esté activa (quien sigue asignada a una sede cerrada no desaparece).
   const opcionesSede = useMemo(() => {
     const codigos = new Set(sedes.filter((s) => s.activa).map((s) => s.codigo));
-    for (const p of pendientes) if (p.sede && p.sede !== "—" && p.sede !== "?") codigos.add(p.sede);
+    for (const p of pendientes) if (p.sede && p.sede !== "—" && p.sede !== "?" && !p.sedes) codigos.add(p.sede);
     if (sedeFiltro) codigos.add(sedeFiltro);
     return Array.from(codigos).sort().map((codigo) => ({
       codigo,
@@ -758,7 +759,7 @@ export default function BandejaPage() {
                     <option value="">Todas las sedes · {porSedeSinSede.length}</option>
                     {opcionesSede.map((s) => (
                       <option key={s.codigo} value={s.codigo}>
-                        {s.codigo}{s.nombre ? ` — ${s.nombre}` : ""} · {porSedeSinSede.filter((p) => p.sede === s.codigo).length}
+                        {s.codigo}{s.nombre ? ` — ${s.nombre}` : ""} · {porSedeSinSede.filter((p) => esDeLaSede(p, s.codigo)).length}
                       </option>
                     ))}
                   </CampoSelect>

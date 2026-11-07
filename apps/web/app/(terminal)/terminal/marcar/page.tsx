@@ -27,7 +27,8 @@ import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, confirmarEstadoPuntual, siguienteAccionPara } from "@/lib/terminal/estado-dia";
 import { cargarEstadisticasSugerenciaPorPersona, type EstadisticasTerminal } from "@/lib/terminal/sugerencias";
-import { refrescoPorRelojPermitido, sugerenciasVencidas, type CargaSugerencias } from "@/lib/terminal/refresco";
+import { sugerenciasVencidas, type CargaSugerencias } from "@/lib/terminal/refresco";
+import { useAlDia } from "@/lib/tiempo-real";
 import { contarPresencias, horaDecimalDeHHMM, presenciaDeLaCasilla, type ClavePresencia } from "@/lib/terminal/presencia";
 import type { PuestoDelDia } from "@/lib/admin/almacen";
 import { veredictoDeSesion } from "@/lib/terminal/sesion";
@@ -501,39 +502,29 @@ export default function MarcarPage() {
     return () => clearInterval(t);
   }, []);
 
-  // Refresca la lista de personas cuando alguien vuelve a mirar el terminal (foco)
-  // y cada minuto. Así una persona recién agregada en el panel —o que pasó de prueba
-  // a planilla— aparece sola, sin que nadie tenga que recargar la página. Era cada 2
-  // min; un minuto basta para que quien llega el primer día no espere frente a una
-  // pantalla que todavía no la tiene. Offline no hace nada
-  // (cargarRoster ya cae a la caché); mid-marcaje es inofensivo (solo actualiza la
-  // lista de fondo). No hay Realtime a propósito: el terminal lee una VISTA, y
-  // Realtime no emite cambios de vistas.
+  // LA LISTA SE PONE AL DÍA AL INSTANTE (2026-11-07, 0604). Una persona recién
+  // agregada en el panel —o que pasó de preselección a planilla—, una corrección
+  // hecha desde Correcciones o un turno cambiado aparecen solos en menos de un
+  // segundo: la base avisa al guardar y el terminal vuelve a leer. Hasta ese día
+  // era cada minuto, y decía que no podía haber Realtime porque el terminal lee
+  // una VISTA (`terminal_roster`) y Realtime no avisa cambios de vistas: el aviso
+  // de la 0604 sale de las TABLAS de debajo, así que la vista deja de importar.
   //
-  // EL RELOJ SE CALLA CON LA PESTAÑA OCULTA (2026-10-30). Ese día el terminal de
-  // AQP tenía tres pestañas ocultas preguntando cada minuto, día y noche —el 78 %
-  // de las lecturas de marcajes de todo el sistema—. Oculta no la mira nadie, y al
-  // volver a verse `visibilitychange` la refresca en el acto, antes de que alguien
-  // alcance a tocar un nombre. Las sugerencias, además, tienen su propia vigencia
-  // dentro de `cargarTodo` (lib/terminal/refresco.ts).
-  useEffect(() => {
-    const refrescar = () => { if (typeof navigator === "undefined" || navigator.onLine) void cargarTodo(); };
-    const porReloj = () => {
-      const enLinea = typeof navigator === "undefined" || navigator.onLine;
-      if (refrescoPorRelojPermitido(enLinea, typeof document === "undefined" ? undefined : document.visibilityState)) {
-        void cargarTodo();
-      }
-    };
-    const onVisibilidad = () => { if (document.visibilityState === "visible") refrescar(); };
-    document.addEventListener("visibilitychange", onVisibilidad);
-    window.addEventListener("focus", refrescar);
-    const iv = window.setInterval(porReloj, 60_000);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibilidad);
-      window.removeEventListener("focus", refrescar);
-      window.clearInterval(iv);
-    };
-  }, [cargarTodo]);
+  // Si el aviso se pierde (la Mac se durmió, el wifi parpadeó), `useAlDia` relee
+  // al reconectar, al volver a mirar la pestaña y cada 5 min. Sin red no hace
+  // nada: `cargarRoster` ya cae a la caché, y al volver la red el canal se
+  // reconecta y relee. Mid-marcaje es inofensivo (solo actualiza la lista de
+  // fondo). Las sugerencias tienen su propia vigencia de 15 min dentro de
+  // `cargarTodo` (lib/terminal/refresco.ts): un aviso no las vuelve a pedir.
+  //
+  // UNA PESTAÑA OCULTA NO LEE (2026-10-30). Ese día el terminal de AQP tenía tres
+  // pestañas ocultas preguntando cada minuto, día y noche —el 78 % de las lecturas
+  // de marcajes de todo el sistema—. `useAlDia` no lee con la pestaña oculta: lo
+  // anota y lee en el acto al volver a verse, antes de que alguien toque un nombre.
+  useAlDia(["asistencia", "horarios", "personas"], useCallback(() => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    void cargarTodo();
+  }, [cargarTodo]), { cliente: createTerminalSupabaseClient() });
 
   // LA VERSIÓN NUEVA SE CARGA SOLA, cuando nadie está usando el terminal
   // (lib/terminal/recarga-version.ts). Pregunta cada 3 minutos con la pestaña a

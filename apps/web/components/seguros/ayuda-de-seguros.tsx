@@ -24,12 +24,13 @@ import { DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA } from "@/lib/admin/seguros
 const FILTROS: readonly { nombre: string; texto: string }[] = [
   { nombre: "Sin póliza vigente", texto: "Su seguro lleva póliza y hoy no tiene ninguna que cubra. El último día de una póliza ya cuenta como sin cubrir." },
   { nombre: "Cobertura suspendida", texto: `La póliza figura vigente, pero la prima lleva más de ${DIAS_DE_GRACIA_PRIMA} días sin pagarse y la cobertura se suspendió sola: hoy no cubre.` },
-  { nombre: "Por vencer", texto: `Cubierta hoy, pero se queda sin póliza en ${DIAS_AVISO_RENOVACION} días o menos y no hay una renovación registrada que empalme.` },
+  { nombre: "Por vencer o vencidas", texto: `Cubierta hoy, pero se queda sin póliza en ${DIAS_AVISO_RENOVACION} días o menos y no hay una renovación registrada que empalme. También cuenta un seguro que va además del principal, como Vida Ley, y ese ya vencido.` },
   { nombre: "Cambios por cerrar", texto: "Alguien cambió de seguro y falta pedir la baja del anterior o dar de alta el nuevo." },
   { nombre: "Papeleo pendiente", texto: "Una póliza con la prima sin pagar, sin firmar o sin factura." },
   { nombre: "Piden la baja", texto: "Ya no está activa y su póliza sigue vigente: hay que pedirle la baja a la aseguradora." },
   { nombre: "Cubiertos", texto: "Tienen una póliza al día." },
-  { nombre: "Sin póliza que registrar", texto: "Su seguro no lleva póliza (EsSalud se paga con la planilla): no hay nada que registrar." },
+  { nombre: "Por planilla", texto: "Su seguro principal no lleva póliza (EsSalud se paga con la planilla). No dice nada de los seguros que van además." },
+  { nombre: "Falta registrar un seguro", texto: "Su vínculo lleva un seguro además del principal, como Vida Ley en planilla, y no tiene ninguna póliza registrada. Solo se muestra: todavía no entra a la Bandeja." },
 ];
 
 export function AyudaDeSeguros() {

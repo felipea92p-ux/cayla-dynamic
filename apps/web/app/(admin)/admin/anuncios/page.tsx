@@ -19,6 +19,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { Modal } from "@/components/ui/modal";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { useToast } from "@/components/toast";
@@ -69,6 +70,9 @@ export default function AnunciosPage() {
   const [cuerpo, setCuerpo] = useState("");
   const [sedeId, setSedeId] = useState("");
   const [publicando, setPublicando] = useState(false);
+  // Anular no se deshace: el comunicado deja de verlo el equipo y no hay cómo volver a publicarlo. Por eso pregunta antes, como «Desactivar sede».
+  const [confirmandoAnular, setConfirmandoAnular] = useState<Anuncio | null>(null);
+  const [anulando, setAnulando] = useState(false);
 
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
@@ -129,6 +133,14 @@ export default function AnunciosPage() {
     if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
     avisar("ok", "Anuncio anulado.");
+  }
+
+  async function confirmarAnular() {
+    if (!confirmandoAnular) return;
+    setAnulando(true);
+    await anular(confirmandoAnular.id);
+    setAnulando(false);
+    setConfirmandoAnular(null);
   }
 
   async function marcarLeido(id: string) {
@@ -227,7 +239,7 @@ export default function AnunciosPage() {
                           </Boton>
                         )}
                         {puedePublicar && (
-                          <Boton variante="peligro" tamano="sm" onClick={() => anular(a.id)}>
+                          <Boton variante="peligro" tamano="sm" onClick={() => setConfirmandoAnular(a)}>
                             Anular
                           </Boton>
                         )}
@@ -263,6 +275,30 @@ export default function AnunciosPage() {
             {!cargando && <NovedadesDelSistema rol={rol} />}
           </div>
         </div>
+        <Modal
+          abierto={confirmandoAnular !== null}
+          onCerrar={() => setConfirmandoAnular(null)}
+          bloqueado={anulando}
+          titulo="Anular comunicado"
+          ancho="sm"
+        >
+          {confirmandoAnular && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                ¿Anular «{confirmandoAnular.titulo}»? Deja de verlo {confirmandoAnular.sede_codigo ? `el equipo de ${confirmandoAnular.sede_codigo}` : "todo el equipo"}.
+                No se puede deshacer: para volver a publicarlo hay que escribirlo de nuevo.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Boton onClick={() => setConfirmandoAnular(null)} disabled={anulando}>
+                  Cancelar
+                </Boton>
+                <Boton variante="peligro" onClick={() => void confirmarAnular()} cargando={anulando}>
+                  Sí, anular
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );

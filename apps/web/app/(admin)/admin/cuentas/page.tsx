@@ -7,6 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { CargandoFila, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { Modal } from "@/components/ui/modal";
 import { Campo } from "@/components/ui/campo";
 import { CampoClave } from "@/components/ui/campo-clave";
 import { Filtro } from "@/components/ui/filtro";
@@ -126,6 +127,9 @@ export default function CuentasPage() {
   const [cambiando, setCambiando] = useState<string | null>(null);
   const [claveGenerada, setClaveGenerada] = useState<Record<string, string>>({});
   const [procesando, setProcesando] = useState<string | null>(null);
+  // Resetear cambia la clave en el acto: la que usa esa persona deja de servir, y la temporal solo vive en esta pantalla.
+  // Un clic en la fila de al lado dejaba a alguien sin poder entrar. Por eso pregunta antes.
+  const [confirmandoReseteo, setConfirmandoReseteo] = useState<Cuenta | null>(null);
   const [tanda, setTanda] = useState(false);
   // Se queda local a propósito, sin pasar al toast global: `enTanda` la reusa
   // como progreso en vivo ("Enviando 3 de 10…"), actualizándola en cada vuelta
@@ -318,6 +322,12 @@ export default function CuentasPage() {
     void listar();
   }
 
+  async function confirmarReseteo() {
+    if (!confirmandoReseteo) return;
+    await accion(confirmandoReseteo, "resetear");
+    setConfirmandoReseteo(null);
+  }
+
   async function accion(c: Cuenta, tipo: "resetear" | "crear" | "cambiar-correo") {
     setProcesando(c.id); setMsgGestion(null);
     const body: Record<string, unknown> = { accion: tipo, personaId: c.id };
@@ -468,7 +478,7 @@ export default function CuentasPage() {
                           <div className={interruptoresVidrio().panel ? "vidrio-acciones flex flex-wrap gap-2" : "flex flex-wrap gap-2"}>
                             <Boton
                               variante="secundario"
-                              onClick={() => accion(c, "resetear")}
+                              onClick={() => setConfirmandoReseteo(c)}
                               disabled={procesando === c.id}
                             >
                               {procesando === c.id ? "…" : "Resetear contraseña"}
@@ -699,6 +709,30 @@ export default function CuentasPage() {
         )}
           </div>
         )}
+        <Modal
+          abierto={confirmandoReseteo !== null}
+          onCerrar={() => setConfirmandoReseteo(null)}
+          bloqueado={confirmandoReseteo !== null && procesando === confirmandoReseteo.id}
+          titulo="Resetear contraseña"
+          ancho="sm"
+        >
+          {confirmandoReseteo && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                ¿Resetear la contraseña de {confirmandoReseteo.nombre}? La que usa ahora deja de servir en este momento.
+                La temporal aparece en su fila: cópiala y pásasela antes de salir de esta pantalla, porque no se vuelve a mostrar.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Boton onClick={() => setConfirmandoReseteo(null)} disabled={procesando === confirmandoReseteo.id}>
+                  Cancelar
+                </Boton>
+                <Boton variante="peligro" onClick={() => void confirmarReseteo()} cargando={procesando === confirmandoReseteo.id}>
+                  Sí, resetear
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );

@@ -33,6 +33,7 @@ import { SelectorTema } from "@/components/selector-tema";
 import { MarcoDeLoMio } from "@/components/nav/marco-de-lo-mio";
 import { interruptoresVidrio } from "@/lib/vidrio";
 import { GRUPOS_MIO, TABS, type Tab } from "@/lib/mio-secciones";
+import { areaNombre, parseAreas } from "@/lib/areas";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
@@ -234,7 +235,8 @@ interface MisDatos {
   tipoVinculo: string;
   conHijos: boolean;
   email: string | null;
-  funcion: string;
+  /** El NOMBRE de su área («Calidad & servicio al cliente»), no el código que guarda `personas.funcion`. */
+  area: string;
   fechaNacimiento: string | null;
   estadoCivil: string | null;
   genero: string | null;
@@ -646,7 +648,7 @@ export default function MioPage() {
    *  pantalla no tiene por qué pedir (`pin_hash` entre ellas). */
   const cargarMisDatos = useCallback(async () => {
     if (!yo?.id) { setMisDatos(null); setDerechohabientes([]); return; }
-    const [persona, ficha, familia] = await Promise.all([
+    const [persona, ficha, familia, areas] = await Promise.all([
       supabase.from("personas")
         .select("documento, tipo_vinculo, con_hijos, email, funcion")
         .eq("id", yo.id).maybeSingle(),
@@ -656,6 +658,8 @@ export default function MioPage() {
       supabase.from("derechohabientes")
         .select("id, nombres, apellidos, vinculo, documento, fecha_nacimiento, essalud, vida_ley")
         .eq("persona_id", yo.id).order("created_at", { ascending: true }),
+      // Las áreas, para mostrar el nombre y no el código: si fallan, `parseAreas` cae al respaldo del seed.
+      supabase.rpc("fn_areas"),
     ]);
     setMisDatos({
       nombreDni: (ficha.data?.nombre_dni as string | null | undefined) ?? null,
@@ -663,7 +667,7 @@ export default function MioPage() {
       tipoVinculo: persona.data?.tipo_vinculo ?? "",
       conHijos: persona.data?.con_hijos ?? false,
       email: persona.data?.email ?? null,
-      funcion: persona.data?.funcion ?? "",
+      area: persona.data?.funcion ? areaNombre(parseAreas(areas.data, areas.error), persona.data.funcion) : "",
       fechaNacimiento: ficha.data?.fecha_nacimiento ?? null,
       estadoCivil: ficha.data?.estado_civil ?? null,
       genero: ficha.data?.genero ?? null,
@@ -824,6 +828,7 @@ export default function MioPage() {
   const [solicitudesVacas, setSolicitudesVacas] = useState<SolicitudVacacion[]>([]);
   /** Cuántos avisos le esperan en /mio/bandeja. Ver `cargarAvisosDeBandeja`. */
   const [avisosEnBandeja, setAvisosEnBandeja] = useState(0);
+  const [seguroSinVer, setSeguroSinVer] = useState(0);
   // El rango del formulario de pedir vacaciones. Arranca en mañana y en un
   // solo día — nunca en "": un campo de fecha que arranca vacío y bloquea el
   // envío es justo el error que ya costó caro acá (ver CLAUDE.md, 2026-08-26).
@@ -1334,6 +1339,7 @@ export default function MioPage() {
     if (!yo?.id) { setAvisosEnBandeja(0); return; }
     const { bandeja } = await traerBandeja(supabase, yo.id);
     setAvisosEnBandeja(bandeja.avisos);
+    setSeguroSinVer(bandeja.respuestas.filter((m) => m.origen === "seguro" && m.nuevo).length);
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1491,9 +1497,10 @@ export default function MioPage() {
         .filter((s) => s.valor !== "dni" || hayCampoDni)
         .map((s) => (s.valor === "boletas" && boletasPorFirmar > 0 ? { ...s, contador: boletasPorFirmar } : s))
         .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s))
-        .map((s) => (s.valor === "disciplina" && disciplinaPide > 0 ? { ...s, contador: disciplinaPide } : s)),
+        .map((s) => (s.valor === "disciplina" && disciplinaPide > 0 ? { ...s, contador: disciplinaPide } : s))
+        .map((s) => (s.valor === "seguro" && seguroSinVer > 0 ? { ...s, contador: seguroSinVer } : s)),
     })),
-    [hayCampoDni, boletasPorFirmar, reportesSinLeer, disciplinaPide],
+    [hayCampoDni, boletasPorFirmar, reportesSinLeer, disciplinaPide, seguroSinVer],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
@@ -2687,7 +2694,7 @@ export default function MioPage() {
                 <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
                   <div><dt className="text-xs text-taupe">Cargo</dt><dd>{yo?.cargo ?? "— no registrado —"}</dd></div>
                   <div><dt className="text-xs text-taupe">Sede</dt><dd>{yo?.sede ?? "— no registrado —"}</dd></div>
-                  <div><dt className="text-xs text-taupe">Función</dt><dd>{misDatos.funcion || "— no registrado —"}</dd></div>
+                  <div><dt className="text-xs text-taupe">Área</dt><dd>{misDatos.area || "— no registrado —"}</dd></div>
                   <div>
                     <dt className="text-xs text-taupe">Tipo de vínculo</dt>
                     <dd>{etiquetaDe(misDatos.tipoVinculo, TIPO_VINCULO_LABEL)}</dd>
@@ -2935,7 +2942,7 @@ export default function MioPage() {
           En qué seguro está cada colaborador y, si lleva póliza, la póliza y sus
           PDF. Es de todo el equipo: no se filtra por vínculo. El componente vive
           aparte, como Educación, y pide sus datos cuando se abre. */}
-      {visitadas.has("seguro") && <div hidden={tab !== "seguro"}><MiSeguro /></div>}
+      {visitadas.has("seguro") && <div hidden={tab !== "seguro"}><MiSeguro alVerlo={() => void cargarAvisosDeBandeja()} /></div>}
 
       {/* ── BOLETAS (0482) ───────────────────────────────────────────────────
           Las boletas oficiales del contador, por periodo pagado. NO es

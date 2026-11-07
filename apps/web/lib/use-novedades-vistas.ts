@@ -58,5 +58,33 @@ export function useNovedadesVistas(activo: boolean) {
     }
   }, [avisar]);
 
-  return { vistas, marcar };
+  // «Entendido todas». Usa la MISMA función de la base que `marcar`, una vez por
+  // novedad: no hay una versión en lote a propósito, porque eso sería una
+  // migración pegada a mano para ahorrar unas pocas llamadas chicas (un máximo
+  // de ~50 en la ventana de 14 días, medido el 2026-11-06).
+  //
+  // Cada una se resuelve por su cuenta: si dos de diez fallan, las ocho que sí
+  // quedaron guardadas siguen ocultas y solo esas dos vuelven a aparecer. Y se
+  // avisa UNA vez, no una por cada fallo.
+  const marcarVarias = useCallback(async (ids: readonly string[]) => {
+    if (ids.length === 0) return;
+    setVistas((prev) => (prev ? new Set([...prev, ...ids]) : prev));
+    const cliente = createAdminSupabaseClient();
+    const resultados = await Promise.all(
+      ids.map(async (id) => ({ id, error: (await cliente.rpc("fn_marcar_novedad_vista", { p_novedad_id: id })).error })),
+    );
+    const fallidas = resultados.filter((r) => r.error);
+    if (fallidas.length === 0) return;
+    setVistas((prev) => {
+      if (!prev) return prev;
+      const sin = new Set(prev);
+      for (const f of fallidas) sin.delete(f.id);
+      return sin;
+    });
+    avisar("error", mensajeDeError(fallidas[0].error,
+      fallidas.length === ids.length ? "marcar las novedades como entendidas"
+        : `marcar ${fallidas.length} de ${ids.length} novedades como entendidas`));
+  }, [avisar]);
+
+  return { vistas, marcar, marcarVarias };
 }

@@ -41,7 +41,7 @@ import { ArchivosPoliza, type PolizaHermana } from "@/components/seguros/archivo
 import { AyudaDeSeguros } from "@/components/seguros/ayuda-de-seguros";
 import { CambiarSeguro } from "@/components/seguros/cambiar-seguro";
 import { FichaPersona, type AccionesFicha } from "@/components/seguros/ficha-persona";
-import { GrupoDeSede, pideAlgo } from "@/components/seguros/grupo-de-sede";
+import { GrupoDeSede } from "@/components/seguros/grupo-de-sede";
 import { FormularioPoliza, type BaseDePoliza, type OpcionPersona } from "@/components/seguros/formulario-poliza";
 import { HistorialPoliza } from "@/components/seguros/historial-poliza";
 import { LeerPdfDePoliza } from "@/components/seguros/leer-pdf-de-poliza";
@@ -65,12 +65,9 @@ import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useRolActual } from "@/lib/admin/use-rol";
 import {
-  coincideSeguro, contarPorTipo, fechaDelPaso, hermanasDe, plural, resumenDeSeguros, seguroPorPersona, sinNadaQueMostrar, DIAS_AVISO_RENOVACION, PASOS_SEGURO,
-  type CambioSeguro, type FilaEquipoSeguro, type PasoSeguro, type Poliza, type SeguroDePersona, type SituacionSeguro, type TipoSeguro,
+  coincideSeguro, contarPorTipo, fechaDelPaso, hermanasDe, pasaElFiltro, pendientesDeSeguros, pideAlgo, plural, resumenDeSeguros, seguroPorPersona, sinNadaQueMostrar, DIAS_AVISO_RENOVACION, PASOS_SEGURO,
+  type CambioSeguro, type FilaEquipoSeguro, type FiltroSeguro, type PasoSeguro, type PendienteSeguro, type Poliza, type SeguroDePersona, type TipoSeguro,
 } from "@/lib/admin/seguros";
-
-/** Qué botón de situación filtra la lista. */
-type Filtro = SituacionSeguro | "papeleo" | "cambios";
 
 /**
  * Los dos valores del filtro por seguro que no son un seguro. Llevan «*»: las claves de los
@@ -112,7 +109,8 @@ export default function SegurosPage() {
 function Seguros() {
   const router = useRouter();
   // La Bandeja manda aquí con `?persona=<id>`: la pantalla abre ya parada en esa persona.
-  const soloPersona = useSearchParams().get("persona");
+  const parametros = useSearchParams();
+  const soloPersona = parametros.get("persona");
   const rol = useRolActual();
   const puede = puedeGestionarSeguros(rol);
   const { avisar } = useToast();
@@ -125,8 +123,9 @@ function Seguros() {
   const [tipos, setTipos] = useState<TipoSeguro[]>([]);
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
-  const [busqueda, setBusqueda] = useState("");
-  const [filtro, setFiltro] = useState<Filtro | null>(null);
+  // Un aviso de una póliza colectiva llega con `?buscar=<número>`: una sola persona no la explicaría.
+  const [busqueda, setBusqueda] = useState(() => parametros.get("buscar") ?? "");
+  const [filtro, setFiltro] = useState<FiltroSeguro | null>(null);
   const [tipoFiltro, setTipoFiltro] = useState<string>(TODOS);
   // Los filtros viven detrás de un botón y la pantalla abre limpia, sin filas de botones encima de la lista.
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
@@ -162,9 +161,7 @@ function Seguros() {
   const conSeguros = useMemo(() => seguroPorPersona(equipo, polizas, cambios, hoy), [equipo, polizas, cambios, hoy]);
   // Lo que se dibuja: sin quienes no llevan un seguro de la empresa y no tienen nada vigente ni pendiente (los RxH).
   const personas = useMemo(() => conSeguros.filter((p) => !sinNadaQueMostrar(p, hoy)), [conSeguros, hoy]);
-  const resumen = useMemo(() => resumenDeSeguros(personas), [personas]);
   const personaDelAviso = useMemo(() => (soloPersona ? personas.find((p) => p.personaId === soloPersona) ?? null : null), [personas, soloPersona]);
-  const porTipo = useMemo(() => contarPorTipo(personas, tipos), [personas, tipos]);
 
   // A quién se le puede registrar una póliza: las personas activas, con su seguro principal de hoy.
   const opciones = useMemo<OpcionPersona[]>(
@@ -174,29 +171,12 @@ function Seguros() {
     [conSeguros],
   );
 
-  // Los botones «Piden la baja» y «Cobertura suspendida» solo existen mientras hay alguien: si se
-  // corrige el último caso con ese filtro puesto, el filtro se suelta solo (sin esto la lista quedaba
-  // vacía, diciendo «nadie coincide», con ningún botón marcado).
-  const filtroVigente = (filtro === "baja_pendiente" && resumen.baja_pendiente === 0) || (filtro === "suspendida" && resumen.suspendida === 0)
-    ? null : filtro;
-
-  const visibles = useMemo(() => personas.filter((p) => {
-    if (soloPersona && p.personaId !== soloPersona) return false;
-    if (!coincideSeguro(p, busqueda)) return false;
-    if (tipoFiltro === NINGUNO ? p.tipo !== null : tipoFiltro !== TODOS && p.tipo?.clave !== tipoFiltro) return false;
-    if (filtroVigente === null) return true;
-    if (filtroVigente === "papeleo") return p.conPapeleo.length > 0;
-    if (filtroVigente === "cambios") return p.cambiosPendientes.length > 0;
-    return p.situacion === filtroVigente;
-  }), [personas, busqueda, filtroVigente, tipoFiltro, soloPersona]);
-
   // ── Qué está abierto ──────────────────────────────────────────────────
   // TODO ARRANCA CERRADO: las sedes y, dentro, cada persona. Lo que se abre o cierra a mano manda; mientras nadie lo toque,
   // una sede se abre sola solo si se está buscando o filtrando algo (si no, el resultado quedaría escondido tras un clic),
   // y una persona solo si la Bandeja llegó aquí por ella.
   const [sedeAbierta, setSedeAbierta] = useState<Record<string, boolean>>({});
   const [personaAbierta, setPersonaAbierta] = useState<Record<string, boolean>>({});
-  const buscando = busqueda.trim() !== "" || filtroVigente !== null || tipoFiltro !== TODOS || soloPersona !== null;
   // «Todas las sedes» las muestra en grupos plegables; una sede sola muestra directo a sus personas, sin bajar por las demás.
   // Se recuerda la última vista: quien trabaja siempre con la misma sede no tiene que elegirla cada vez.
   const [sedeVista, setSedeVista] = useFiltroGuardado<string>("seguros.sede", "todas");
@@ -205,7 +185,38 @@ function Seguros() {
     [personas],
   );
   // Una sede recordada que ya no existe (o una persona de otra sede a la que manda la Bandeja) no deja la pantalla vacía.
-  const sedeActiva = sedeVista !== "todas" && sedesDelEquipo.includes(sedeVista) && !soloPersona ? sedeVista : "todas";
+  // Lo mismo con el aviso de una colectiva: «17 personas» no puede abrir mostrando dos, ni «Nadie de TRU coincide».
+  const vieneDeUnAviso = soloPersona !== null || (busqueda !== "" && busqueda === parametros.get("buscar"));
+  const sedeActiva = sedeVista !== "todas" && sedesDelEquipo.includes(sedeVista) && !vieneDeUnAviso ? sedeVista : "todas";
+  // Los números de los filtros son los de lo que se está mirando: con una sede elegida, los de esa sede.
+  const alcance = useMemo(() => (sedeActiva === "todas" ? personas : personas.filter((p) => p.sede === sedeActiva)), [personas, sedeActiva]);
+  const resumen = useMemo(() => resumenDeSeguros(alcance), [alcance]);
+  const porTipo = useMemo(() => contarPorTipo(alcance, tipos), [alcance, tipos]);
+  // Una póliza colectiva es UN trámite: va en una tarjeta, y quien solo espera eso no se repite como una fila por persona.
+  const pendientes = useMemo(() => pendientesDeSeguros(alcance, hoy), [alcance, hoy]);
+  const colectivas = useMemo(() => pendientes.filter((x) => x.buscar !== null), [pendientes]);
+  // Buscando una colectiva, su tarjeta sigue a la vista: ahí está el botón que renueva a todas.
+  const colectivasBuscadas = useMemo(() => colectivas.filter((c) => c.buscar === busqueda.trim()), [colectivas, busqueda]);
+  const atencion = useMemo(() => {
+    const propias = new Set(pendientes.filter((x) => x.buscar === null).map((x) => x.personaId));
+    return alcance.filter((p) => propias.has(p.personaId) || p.situacion === "suspendida");
+  }, [alcance, pendientes]);
+  const sinPendientes = useMemo(() => alcance.filter((p) => !pideAlgo(p)).length, [alcance]);
+
+  // Los botones «Piden la baja», «Cobertura suspendida» y el del seguro por registrar solo existen mientras hay alguien:
+  // si se corrige el último caso con ese filtro puesto, el filtro se suelta solo (sin esto la lista quedaba vacía,
+  // diciendo «nadie coincide», con ningún botón marcado).
+  const filtroVigente = (filtro === "baja_pendiente" && resumen.baja_pendiente === 0) || (filtro === "suspendida" && resumen.suspendida === 0)
+    || (filtro === "sin_registrar" && resumen.sin_registrar === 0) ? null : filtro;
+
+  const visibles = useMemo(() => personas.filter((p) => {
+    if (soloPersona && p.personaId !== soloPersona) return false;
+    if (!coincideSeguro(p, busqueda)) return false;
+    if (tipoFiltro === NINGUNO ? p.tipo !== null : tipoFiltro !== TODOS && p.tipo?.clave !== tipoFiltro) return false;
+    return filtroVigente === null || pasaElFiltro(p, filtroVigente);
+  }), [personas, busqueda, filtroVigente, tipoFiltro, soloPersona]);
+  const buscando = busqueda.trim() !== "" || filtroVigente !== null || tipoFiltro !== TODOS || soloPersona !== null;
+
   const grupos = useMemo(() => {
     const m = new Map<string, SeguroDePersona[]>();
     for (const p of visibles) m.set(p.sede, [...(m.get(p.sede) ?? []), p]);
@@ -328,16 +339,40 @@ function Seguros() {
 
   // Los filtros de situación, en el orden de lo más serio a lo menos. El número es el de FILAS que
   // deja ver: una persona cuenta una vez. Qué quiere decir cada uno está en la ayuda del título.
-  const situaciones: { clave: Filtro; etiqueta: string; n: number }[] = [
+  const situaciones: { clave: FiltroSeguro; etiqueta: string; n: number }[] = [
     { clave: "hueco", etiqueta: "Sin póliza vigente", n: resumen.hueco },
     ...(resumen.suspendida > 0 ? [{ clave: "suspendida" as const, etiqueta: "Cobertura suspendida", n: resumen.suspendida }] : []),
-    { clave: "por_vencer", etiqueta: `Por vencer (${DIAS_AVISO_RENOVACION} días)`, n: resumen.por_vencer },
+    { clave: "por_vencer", etiqueta: `Por vencer o vencidas (${DIAS_AVISO_RENOVACION} días)`, n: resumen.por_vencer },
     { clave: "cambios", etiqueta: "Cambios por cerrar", n: resumen.cambios },
     { clave: "papeleo", etiqueta: "Papeleo pendiente", n: resumen.papeleo },
     ...(resumen.baja_pendiente > 0 ? [{ clave: "baja_pendiente" as const, etiqueta: "Piden la baja", n: resumen.baja_pendiente }] : []),
     { clave: "al_dia", etiqueta: "Cubiertos", n: resumen.al_dia },
-    { clave: "por_planilla", etiqueta: "Sin póliza que registrar", n: resumen.por_planilla },
+    { clave: "por_planilla", etiqueta: "Por planilla", n: resumen.por_planilla },
+    ...(resumen.sin_registrar > 0 ? [{ clave: "sin_registrar" as const, etiqueta: "Falta registrar un seguro", n: resumen.sin_registrar }] : []),
   ];
+
+  const tarjetaColectiva = (c: PendienteSeguro) => {
+    const z = polizas.find((x) => x.poliza_id === c.polizaId);
+    return (
+      <TarjetaInfo key={c.clave} className="flex flex-wrap items-center justify-between gap-3 py-3 sm:py-3">
+        <div className="min-w-0">
+          <p className="font-serif text-base text-tinta">{c.titulo}</p>
+          <p className="text-sm text-taupe">{c.persona} · {c.detalle}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {c.buscar !== busqueda.trim() && <Boton tamano="sm" onClick={() => setBusqueda(c.buscar ?? "")}>Ver a {c.persona}</Boton>}
+          {c.tipo !== "papeleo" && z && (
+            <Boton
+              variante="primario" tamano="sm"
+              onClick={() => registrar({ producto: z.producto, aseguradora: z.aseguradora, numeroPoliza: z.numero_poliza, desde: c.hasta ?? undefined, prima: z.prima_total, personas: c.personasIds })}
+            >
+              Registrar la renovación
+            </Boton>
+          )}
+        </div>
+      </TarjetaInfo>
+    );
+  };
 
   const etiquetaDeSituacion = situaciones.find((f) => f.clave === filtroVigente)?.etiqueta ?? null;
   const etiquetaDeSeguro = tipoFiltro === TODOS ? null : tipoFiltro === NINGUNO ? "Sin seguro (no aplica)" : porTipo.find((t) => t.clave === tipoFiltro)?.nombre ?? tipoFiltro;
@@ -437,7 +472,7 @@ function Seguros() {
                   <div>
                     <Rotulo className="mb-2">Seguro</Rotulo>
                     <div role="group" aria-label="Filtrar por seguro" className="flex flex-wrap gap-2">
-                      <FiltroBoton activo={tipoFiltro === TODOS} onClick={() => setTipoFiltro(TODOS)}>Todos · {personas.length}</FiltroBoton>
+                      <FiltroBoton activo={tipoFiltro === TODOS} onClick={() => setTipoFiltro(TODOS)}>Todos · {alcance.length}</FiltroBoton>
                       {porTipo.map((t) => {
                         const clave = t.clave ?? NINGUNO;
                         return <FiltroBoton key={clave} activo={tipoFiltro === clave} onClick={() => setTipoFiltro(clave)}>{t.nombre} · {t.n}</FiltroBoton>;
@@ -455,6 +490,34 @@ function Seguros() {
                 <EstadoVacio>Nadie coincide con ese filtro{busqueda ? ` y con «${busqueda}»` : ""}.</EstadoVacio>
               )}
 
+              {buscando && colectivasBuscadas.length > 0 && <div className="mb-4 space-y-2">{colectivasBuscadas.map(tarjetaColectiva)}</div>}
+
+              {!buscando && (
+                <section aria-labelledby="pide-atencion" className="mb-6">
+                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4">
+                    <h2 id="pide-atencion" className="font-serif text-lg text-tinta">Pide atención</h2>
+                    <p className="text-sm text-taupe">{sinPendientes} de {plural(alcance.length, "persona", "personas")} sin nada pendiente</p>
+                  </div>
+                  {atencion.length === 0 && colectivas.length === 0 ? (
+                    <EstadoVacio>Nadie pide atención hoy.</EstadoVacio>
+                  ) : (
+                    <div className="space-y-2">
+                      {colectivas.map(tarjetaColectiva)}
+                      {atencion.map((p) => {
+                        const clave = `atencion:${p.personaId}`;
+                        return (
+                          <FichaPersona
+                            key={clave} p={p} hoy={hoy} tipos={tipos} acciones={acciones} conSede
+                            abierta={personaEstaAbierta(clave)} onAlternar={() => alternarPersona(clave)}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {!buscando && visibles.length > 0 && <h2 className="mb-2 font-serif text-lg text-tinta">Todo el equipo</h2>}
               {visibles.length > 0 && (
                 <div className="mb-2 flex justify-end gap-4 text-sm">
                   {sedeActiva === "todas"
@@ -476,7 +539,7 @@ function Seguros() {
               ) : (
               <div className="space-y-3">
                 {grupos.map(([sede, gente]) => (
-                  <GrupoDeSede key={sede} sede={sede} personas={gente} abierto={sedeEstaAbierta(sede)} onAlternar={() => alternarSede(sede)}>
+                  <GrupoDeSede key={sede} sede={sede} personas={personas.filter((p) => p.sede === sede)} abierto={sedeEstaAbierta(sede)} onAlternar={() => alternarSede(sede)}>
                     {gente.map((p) => (
                       <FichaPersona
                         key={p.personaId} p={p} hoy={hoy} tipos={tipos} acciones={acciones}

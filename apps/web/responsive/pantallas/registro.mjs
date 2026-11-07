@@ -34,7 +34,9 @@
 
 import { leerMenu, moduloDeRuta } from "../../tema/motor/rutas.mjs";
 import pantallaDashboard from "./inicio.dashboard.mjs";
+import pantallaLiquidaciones from "./pago.liquidaciones.mjs";
 import pantallaLoMio from "./lo-mio.mjs";
+import pantallaPlanilla from "./pago.planilla.mjs";
 
 /** @type {PantallaSinModulo[]} */
 const PANTALLAS = [
@@ -52,13 +54,13 @@ const PANTALLAS = [
   { id: "objetivos", nombre: "Objetivos", ruta: "/admin/objetivos", cuenta: "do" },
   { id: "casos", nombre: "Casos", ruta: "/admin/casos", cuenta: "lider" },
   { id: "disciplina", nombre: "Disciplina", ruta: "/admin/disciplina", cuenta: "do" },
-  { id: "planilla", nombre: "Planilla", ruta: "/admin/planilla", cuenta: "do" },
+  pantallaPlanilla,
   { id: "boletas", nombre: "Boletas", ruta: "/admin/planilla/boletas", cuenta: "do" },
   { id: "provisiones", nombre: "Provisiones", ruta: "/admin/provisiones", cuenta: "do" },
   { id: "costos", nombre: "Costos", ruta: "/admin/costos", cuenta: "do" },
   { id: "educacion", nombre: "Educación", ruta: "/admin/educacion", cuenta: "do" },
   { id: "feriados", nombre: "Feriados", ruta: "/admin/feriados", cuenta: "do" },
-  { id: "liquidaciones", nombre: "Liquidaciones", ruta: "/admin/liquidaciones", cuenta: "do" },
+  pantallaLiquidaciones,
   { id: "normas", nombre: "Normas", ruta: "/admin/normas", cuenta: "integrante" },
   { id: "normas-do", nombre: "Normas (DO)", ruta: "/admin/normas", cuenta: "do" },
   { id: "politica-salarial", nombre: "Política salarial", ruta: "/admin/politica-salarial", cuenta: "do" },

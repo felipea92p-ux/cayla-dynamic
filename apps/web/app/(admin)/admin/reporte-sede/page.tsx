@@ -14,13 +14,15 @@ import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, esSedeCentral, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
+import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, esSedeCentral, hoyLima, primeroDeMesLima, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { causaMetaImposible, enPausaAhora, metaOperativasSinMedir, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
 import { diaDeLaSedeDe, type DiaDeLaSede, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { coberturaDeHoyApagada, hojaIncluyeHoy, textoCoberturaApagada, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
 import { traerSiEsFeriado } from "@/lib/admin/feriado-de-hoy";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { usePersonaActual } from "@/lib/admin/use-rol";
+import { sedeDeLaHoja, type MotivoSinHoja } from "@/lib/admin/sede-de-la-hoja";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
@@ -96,6 +98,9 @@ function ReporteSedeContenido() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  // Quién mira decide qué sedes se ofrecen y cuál se abre: la líder de equipo, la suya. Ver sede-de-la-hoja.ts.
+  const yo = usePersonaActual();
+  const veTodas = yo !== null && puedeVerTodasLasSedes(yo.rol);
 
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [sedeId, setSedeId] = useState<string>("");
@@ -140,14 +145,20 @@ function ReporteSedeContenido() {
    * `cargar()` salía por su primera línea y la pantalla se quedaba en blanco:
    * ni datos ni error. `codigo` es el que venía en la dirección, o null cuando
    * el problema es que la lista está vacía.
+   *
+   * Desde el 2026-11-07 dice además POR QUÉ (`motivo`): una líder de equipo que
+   * llega con el código de otra sede no tiene un código inexistente, tiene una
+   * sede que no es la suya, y mandarla a buscar en Sedes sería falso.
    */
-  const [sedeNoElegible, setSedeNoElegible] = useState<{ codigo: string | null } | null>(null);
+  const [sedeNoElegible, setSedeNoElegible] = useState<{ motivo: MotivoSinHoja; codigo: string | null } | null>(null);
 
-  // Cargar sedes (para el selector). Pre-selecciona la del ?sede=CODIGO si viene.
+  // Cargar sedes (para el selector). Pre-selecciona la del ?sede=CODIGO si viene; si no, la de quien mira o la primera (sede-de-la-hoja.ts).
   useEffect(() => {
     void (async () => {
       const { data: sesion } = await supabase.auth.getSession();
       if (!sesion.session) { router.replace("/admin/login"); return; }
+      // Sin saber quién mira no se elige nada: elegir la primera mientras tanto era justo el defecto.
+      if (!yo) return;
       const { data, error } = await supabase.from("sedes").select("id, codigo, nombre, tipo").eq("activa", true).order("codigo");
       // Si esta falla, el desplegable queda vacío, nunca hay `sedeId`, `cargar()`
       // sale por su primera línea y la pantalla se queda en blanco SIN UNA SOLA
@@ -156,11 +167,9 @@ function ReporteSedeContenido() {
         setNoSePudo(["la lista de sedes"]);
         return;
       }
-      const lista = (data as Sede[]) ?? [];
-      setSedes(lista);
-      const cod = searchParams.get("sede")?.toUpperCase() ?? null;
-      const pre = cod ? lista.find((s) => s.codigo === cod) : lista[0];
-      if (pre) { setSedeId(pre.id); setSedeNoElegible(null); return; }
+      const eleccion = sedeDeLaHoja((data as Sede[]) ?? [], { veTodas: puedeVerTodasLasSedes(yo.rol), sedeBaseId: yo.sedeBaseId }, searchParams.get("sede"));
+      setSedes(eleccion.sedes);
+      if (eleccion.abre) { setSedeId(eleccion.abre.id); setSedeNoElegible(null); return; }
       // Y si no hay a quién preseleccionar, se dice — nunca se cae al primero
       // de la lista: la dirección pedía una sede concreta, y contestar con otra
       // sería peor que no contestar. El papel lleva el nombre de la sede.
@@ -175,9 +184,9 @@ function ReporteSedeContenido() {
       // sede…».
       setSedeId("");
       setCargado(false);
-      setSedeNoElegible({ codigo: cod });
+      setSedeNoElegible(eleccion.sinHoja);
     })();
-  }, [supabase, router, searchParams]);
+  }, [supabase, router, searchParams, yo]);
 
   const cargar = useCallback(async () => {
     if (!sedeId || !desde || !hasta || hasta < desde) return;
@@ -420,6 +429,9 @@ function ReporteSedeContenido() {
             descripcion="El estado de una sede en una página: hoy, el periodo elegido y lo que necesita atención."
             accion={
             <div className="flex flex-wrap items-end gap-3">
+            {/* Solo para quien ve todas las sedes, como en Turnos: a la líder de equipo
+                cualquier otra le saldría vacía. Su sede la dice la hoja. */}
+            {veTodas && (
             <CampoSelect
               etiqueta="Sede"
               value={sedeId}
@@ -432,6 +444,7 @@ function ReporteSedeContenido() {
               {!sedeId && <option value="" disabled>Elegir sede…</option>}
               {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </CampoSelect>
+            )}
             <Campo
               etiqueta="Desde"
               type="date"
@@ -484,16 +497,8 @@ function ReporteSedeContenido() {
                 «ese código no existe». Afirmar la primera manda a buscar en
                 Sedes una sede que quizá nunca existió. El cuerpo nombra las dos
                 causas, que es todo lo que se sabe de verdad. */}
-            <div className="font-medium text-tinta">
-              {sedeNoElegible.codigo
-                ? `No se puede armar la hoja de ${sedeNoElegible.codigo}`
-                : "No hay ninguna sede activa"}
-            </div>
-            <p className="mt-1 text-taupe">
-              {sedeNoElegible.codigo
-                ? "Esta hoja solo se arma para sedes activas, y ese código no existe o está desactivado. Elígela en el selector de esta pantalla si aparece, o revísala en Sedes."
-                : "Esta hoja se arma sobre una sede activa y ahora mismo no hay ninguna. Se activa una en Sedes."}
-            </p>
+            <div className="font-medium text-tinta">{TITULO_SIN_HOJA[sedeNoElegible.motivo](sedeNoElegible.codigo)}</div>
+            <p className="mt-1 text-taupe">{CUERPO_SIN_HOJA[sedeNoElegible.motivo]}</p>
           </div>
         )}
 
@@ -649,3 +654,17 @@ export default function ReporteSedePage() {
     </Suspense>
   );
 }
+
+// Una frase por cada motivo de sede-de-la-hoja.ts. Las de «no existe» y «ninguna activa» son las de siempre.
+const TITULO_SIN_HOJA: Record<MotivoSinHoja, (codigo: string | null) => string> = {
+  "no-existe": (codigo) => `No se puede armar la hoja de ${codigo}`,
+  "no-es-tuya": (codigo) => `No se puede armar la hoja de ${codigo}`,
+  "ninguna-activa": () => "No hay ninguna sede activa",
+  "sin-sede-propia": () => "Tu sede no tiene hoja",
+};
+const CUERPO_SIN_HOJA: Record<MotivoSinHoja, string> = {
+  "no-existe": "Esta hoja solo se arma para sedes activas, y ese código no existe o está desactivado. Elígela en el selector de esta pantalla si aparece, o revísala en Sedes.",
+  "no-es-tuya": "Desde tu cuenta se arma solo la hoja de tu sede. Ábrela desde «Hoja de sede» en el menú.",
+  "ninguna-activa": "Esta hoja se arma sobre una sede activa y ahora mismo no hay ninguna. Se activa una en Sedes.",
+  "sin-sede-propia": "Esta hoja se arma sobre tu sede, y tu ficha no tiene una sede activa. Pídele a DO que la revise.",
+};

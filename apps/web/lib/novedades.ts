@@ -115,6 +115,95 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-tu-cargo-no-un-codigo",
+    fecha: "2026-11-07",
+    titulo: "La declaración de ruta dice tu cargo, no un código",
+    queMejoro:
+      "Tu declaración de ruta y gasto de transporte decía «que desempeño el cargo de calidad_servicio»: un código interno " +
+      "del sistema, no tu cargo. Ahora dice tu cargo, el mismo de tu contrato, y si tu ficha todavía no lo tiene escrito, " +
+      "el nombre de tu área. Las que ya firmaste también se ven así.\n\n" +
+      "En «Mis datos», «Función» pasa a llamarse «Área» y muestra su nombre. En el panel, la ficha de cada persona muestra " +
+      "su cargo y su área por separado.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-07-pantallas-al-instante",
+    fecha: "2026-11-07",
+    titulo: "El Dashboard, Turnos, Horarios y el terminal se actualizan solos, al instante",
+    queMejoro:
+      "Cuando alguien marca en el terminal, cambia un turno o un horario, o se agrega a una persona, el Dashboard, Turnos, " +
+      "Horarios y la lista del terminal se ponen al día solos en menos de un segundo, sin recargar la página. Antes " +
+      "tardaban hasta un minuto, y Horarios no se ponía al día hasta recargarla.\n\n" +
+      "Si la conexión se corta, el Dashboard lo dice: donde decía «en vivo» dice «se pone al día cada 5 min» hasta que " +
+      "vuelve, y lo que pasó mientras tanto aparece solo. Si estás escribiendo en un campo, la pantalla espera a que " +
+      "termines. Y los números de Incidencias y Bandeja del menú suben en cuanto alguien pide revisar un día suyo.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-11-07-tres-botones-preguntan-antes",
+    fecha: "2026-11-07",
+    titulo: "Anular un comunicado, resetear una contraseña y desactivar un área ahora preguntan antes",
+    queMejoro:
+      "Esos tres botones actuaban al primer clic. Un clic en la fila de al lado bastaba para anular un comunicado " +
+      "que ya no se puede volver a publicar, o para dejar a alguien sin poder entrar con su contraseña. Ahora " +
+      "preguntan antes, igual que «Desactivar» una sede.\n\n" +
+      "Al resetear una contraseña, el aviso recuerda copiar la temporal antes de salir de Cuentas: no se vuelve a mostrar.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-11-07-hoja-de-sede-abre-tu-sede",
+    fecha: "2026-11-07",
+    titulo: "La Hoja de sede abre la de tu sede",
+    queMejoro:
+      "Si eres líder de equipo, al abrir la Hoja de sede desde el menú aparecía otra sede, la primera de la lista. " +
+      "Te salía vacía, como si no hubiera nada pendiente. Ahora se abre la tuya, con tu equipo, y ya no está el " +
+      "selector de sedes, porque las demás te salían vacías.\n\n" +
+      "Para DO y la dirección no cambia nada: siguen eligiendo la sede.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-11-07-planilla-el-nombre-no-se-pierde-al-deslizar",
+    fecha: "2026-11-07",
+    titulo: "En Planilla, el nombre ya no se pierde al deslizar la tabla",
+    queMejoro:
+      "En computadora la tabla de Planilla no cabe entera y hay que deslizarla de lado. Al llegar a «Total» y " +
+      "«Pagado», el nombre de la persona salía de la vista, y al marcar un pago no se veía a quién se lo estabas " +
+      "marcando. Ahora el nombre queda fijo a la izquierda y «Total» y «Pagado» a la derecha: solo se deslizan las " +
+      "columnas del medio.\n\n" +
+      "Al pie de la tabla, el monto de «Sale de la cuenta de CAYLA» ahora queda debajo de «Total», donde corresponde. " +
+      "En el celular no cambia nada.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-11-06-tu-seguro-llega-a-tu-bandeja",
+    fecha: "2026-11-06",
+    titulo: "Cuando tu póliza esté lista, te avisamos en tu Bandeja",
+    queMejoro:
+      "Si te registran una póliza o suben su PDF, ahora te llega un aviso a la Bandeja de tu Info y «Mi seguro» muestra " +
+      "un número hasta que lo abras. Antes solo lo veías si entrabas a mirar.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-06-seguros-pide-atencion",
+    fecha: "2026-11-06",
+    titulo: "Seguros abre con lo que pide atención",
+    queMejoro:
+      "La pantalla de Seguros ya no esconde a las personas detrás de cada sede: arriba está lo que hay que resolver, y una " +
+      "póliza colectiva sale una sola vez. También se ve la Vida Ley de cada persona.\n\n" +
+      "Una póliza por terminar y sin renovación llega a la Bandeja y por correo, a los 45 y a los 15 días.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-11-06-entendido-todas-las-novedades",
+    fecha: "2026-11-06",
+    titulo: "Ya puedes marcar todas las novedades como entendidas de una vez",
+    queMejoro:
+      "Cuando hay más de tres novedades pendientes en «Lo mío», aparece el botón «Entendido todas», con el número " +
+      "que va a marcar. Antes había que marcarlas una por una, y con varias juntas la tarjeta ocupaba media pantalla.\n\n" +
+      "Marca también las que no se ven en la tarjeta. Todas siguen en Anuncios para leerlas completas.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-06-los-papeles-del-panel-salen-sobre-blanco",
     fecha: "2026-11-06",
     titulo: "Los papeles del panel ya salen sobre blanco",

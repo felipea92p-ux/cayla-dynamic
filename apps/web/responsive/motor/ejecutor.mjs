@@ -78,7 +78,8 @@ async function correrUnCaso({ contexto, baseURL, pantalla, cuenta, escenario, vi
     entrada.overflowGlobal = analisis.overflowGlobal;
     entrada.clipping = analisis.clipping;
     entrada.advertencia = analisis.advertencia || null;
-    entrada.ok = analisis.clipping.length === 0;
+    // Un ámbito que no apareció no midió nada, y eso no puede contar como verde.
+    entrada.ok = analisis.clipping.length === 0 && !analisis.advertencia;
 
     if (!entrada.ok || capturasTodas) {
       const ruta = join(dirCapturas, `${pantalla.id.replace(/\./g, "-")}-${escenario.id}-${viewport.id}-${entrada.ok ? "PASS" : "FAIL"}.png`);

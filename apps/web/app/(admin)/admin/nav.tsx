@@ -25,12 +25,13 @@
 // también dice qué se pierde. Resolver algo en la Bandeja sigue refrescando al
 // instante.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
 import { usePulsoContadores } from "@/lib/admin/use-pulso-contadores";
+import { useAlDia } from "@/lib/tiempo-real";
 import { traerBandeja } from "@/lib/bandeja-mia";
 import { CUENTA_VACIA, cuentaBandejaEquipo } from "@/lib/admin/bandeja-equipo";
 import { tituloDelContadorBandeja } from "@/lib/admin/bandeja-sistema";
@@ -194,6 +195,12 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   // su tienda. La función ya devuelve solo lo que a cada rol le toca, así que
   // acá no se vuelve a decidir quién ve qué.
   const veEquipo = puedeOperarEquipo(rol);
+  // Al instante (2026-11-07, 0604): una revisión pedida desde el terminal o «Lo mío» —el contador de Incidencias— y
+  // lo que cambia la Bandeja del equipo (sin horario vigente, entre otras) salen de las tablas que la base ya avisa.
+  // Se usa el MISMO pulso que la Bandeja dispara al resolver algo, así que Incidencias y Bandeja se mueven juntos: si
+  // solo uno se pusiera al día, el menú diría dos números distintos de lo mismo. Los otros contadores (Educación,
+  // Ausencias, Info) siguen con su pulso de un minuto hasta que sus tablas avisen (lotes 2 y 3).
+  useAlDia(["asistencia", "horarios", "personas"], useCallback(() => setCambiosEnBandeja((n) => n + 1), []), { activo: veEquipo });
 
   useEffect(() => {
     if (!veEducacion) return;

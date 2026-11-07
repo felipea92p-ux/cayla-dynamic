@@ -3,11 +3,13 @@
 //
 // Promete: una cuenta por rol, las cuatro sedes y los casos que rompen pantallas: nombre larguísimo, nombre de
 // dos letras, persona sin ningún dato, de baja, en vacaciones, en descanso médico, por recibos, practicante y
-// en preselección; un periodo de febrero, uno de 20 días, y documentos firmados para mirar la firma en oscuro.
+// en preselección; un periodo de febrero, uno de 20 días, documentos firmados para mirar la firma en oscuro, y dos
+// personas cesadas con plata de por medio: una por cobrar y otra ya pagada.
 // Asume: la base recién migrada (crear-base.sh) y `psql` en el PATH. Es determinista: lo mismo cada vez.
 //
 // `--solo-marcas` agrega las marcas de los días que falten hasta hoy, para que el Dashboard no se quede en el
-// día en que se creó la base. Lo llama arrancar.sh.
+// día en que se creó la base. `--solo-ceses` agrega a las dos cesadas si faltan y mantiene a la primera dentro de su
+// plazo de 48 horas. Los dos sirven para una base que ya existe, sin borrarla, y los dos los llama arrancar.sh.
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -22,8 +24,15 @@ const HOY = fecha(ahoraLima);
 const sumarDias = (iso, n) => fecha(new Date(Date.parse(iso) + n * 86400000));
 const esc = (s) => (s === null || s === undefined ? "null" : `'${String(s).replaceAll("'", "''")}'`);
 
+// Los valores de comun.sh, para poder correr este archivo solo. Una variable ya puesta gana, y por defecto solo apunta a la base local: nunca a producción.
+const ENTORNO_PSQL = {
+  PGHOST: "127.0.0.1", PGPORT: "55890", PGUSER: "postgres", PGDATABASE: "postgres",
+  ...process.env,
+  PATH: `/opt/homebrew/opt/postgresql@17/bin:${process.env.PATH}`,
+};
+
 function psql(sql) {
-  const r = spawnSync("psql", ["-q", "-v", "ON_ERROR_STOP=1", "-At"], { input: sql, encoding: "utf8", maxBuffer: 1 << 28 });
+  const r = spawnSync("psql", ["-q", "-v", "ON_ERROR_STOP=1", "-At"], { input: sql, encoding: "utf8", maxBuffer: 1 << 28, env: ENTORNO_PSQL });
   if (r.status !== 0) {
     console.error(r.stderr);
     process.exit(1);
@@ -79,6 +88,20 @@ const PERSONAS = [
   { n: "Nadia", a: "Sin Datos", s: "TRU", correo: "sin.datos@dynamic.local", vacia: true, ingreso: 0 },
 ];
 
+// Quien ya se fue con plata de por medio. Sin ellas, Liquidaciones solo tenía a una persona en S/ 0.00, escondida en un plegable: nadie podía abrir
+// un detalle con monto, ni a mano ni con `responsive:check`, y por eso a 375 px el Total estuvo fuera de la pantalla sin que nada lo viera (#689).
+//
+// Sin marcas a propósito: lo que cobran sale de sus beneficios truncos, y por eso llevan más de un año de servicio. Igual salen en la planilla del periodo
+// de su cese, a S/ 0.00 y sin horas, y cuentan para el piso de EsSalud, que no se prorratea (0116). Lo que cambian en otras pantallas está en el LEEME.
+const CESADAS = [
+  // Por cobrar: «Pendientes» es solo de quien cesó hace 48 horas o menos, así que su cese se mueve a hoy cuando se le acaba el plazo (ver `sembrarCeses`).
+  // El nombre es largo porque esto es lo que hay que medir: una liquidación es la pantalla donde el nombre más ocupa, y la que no se puede leer mal.
+  { n: "Filomena del Rosario", a: "Altamirano-Bustamante de la Cruz Zevallos", s: "TRU", cargo: "Asesora de experiencia", rango: "cayla", sueldo: 1900, dni: "70009991", ingreso: sumarDias(HOY, -400), cese: HOY },
+  // Ya pagada. Cesó en el periodo de 20 días, que nadie paga en esta base: pagar una liquidación dentro del periodo abierto dispara el aviso de
+  // doble pago al cerrarlo (docs/cerrar-el-mes-sin-pagar-dos-veces.md), y eso le cambiaría el cierre a quien venga a probar otra cosa.
+  { n: "Olga", a: "Bustos Rivas", s: "LIM", cargo: "Costurera", rango: "cayla", sueldo: 1800, area: "taller_produccion", dni: "70009992", ingreso: "2025-02-10", cese: "2026-03-16", pagada: "2026-03-17" },
+];
+
 const terminales = ["TRU", "LIM", "AQP", "CCO"];
 
 function firmaSvg(trazos) {
@@ -90,21 +113,9 @@ async function firmaPng(trazos) {
   return `data:image/png;base64,${png.toString("base64")}`;
 }
 
-async function sembrarTodo() {
-  // ── Sedes: las migraciones crean tres con sus nombres viejos. Central se sumó después.
-  psql(`
-    update sedes set nombre = 'Tienda TRU', tipo = 'tienda', ciudad = 'Trujillo' where codigo = 'TRU';
-    update sedes set nombre = 'Taller LIM', tipo = 'taller', ciudad = 'Lima' where codigo = 'LIM';
-    update sedes set nombre = 'Tienda AQP', tipo = 'tienda', ciudad = 'Arequipa' where codigo = 'AQP';
-    insert into sedes (codigo, nombre, tipo, ciudad) values ('CCO', 'Central', 'central', 'Lima');
-  `);
-
-  // ── Cuentas y personas.
-  let sql = "begin;\n";
-  PERSONAS.forEach((p, i) => {
-    const ingreso = p.ingreso !== undefined ? sumarDias(HOY, p.ingreso) : sumarDias(HOY, -420 - i * 13);
-    const dni = String(70000000 + i * 137).padStart(8, "0");
-    sql += `
+// La fila de una persona, con su cuenta si trae correo.
+function sqlPersona(p, { ingreso, dni, pension }) {
+  return `
       with cuenta as (
         insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
         select '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated', ${esc(p.correo)},
@@ -120,9 +131,52 @@ async function sembrarTodo() {
               crypt('1234', gen_salt('bf', 4)), ${esc(ingreso)},
               (select id from cuenta), ${esc(p.correo)}, ${esc(p.area ?? "calidad_servicio")}, ${p.piso ? "true" : "false"},
               ${esc(p.vinculo ?? "planilla")}, ${esc(p.modalidad ?? null)}, ${esc(p.cargo ?? null)}, ${p.direccion ? "true" : "false"}, ${p.direccion ? "true" : "false"},
-              ${p.vacia || p.vinculo === "rxh" || p.vinculo === "practicante" ? "null" : i % 3 === 0 ? "'onp'" : i % 3 === 1 ? "'prima'" : "'integra'"},
+              ${esc(pension)},
               ${p.vinculo === "rxh" || p.vacia ? "null" : "45"});
     `;
+}
+
+// Salario, horario y datos personales: lo que hace falta para calcularle un pago a alguien.
+function sqlFicha(p, id, ALMA, i) {
+  const desde = `(select fecha_ingreso from personas where id = ${id})`;
+  let sql = `
+      insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde, asignado_por)
+      values (${id}, ${esc(p.rango)}, ${p.sueldo}, ${desde}, ${esc(ALMA)});
+      insert into tarifas_hora (persona_id, vigente_desde, tarifa_hora_soles, creado_por)
+      values (${id}, ${desde}, ${(p.sueldo / 195).toFixed(2)}, ${esc(ALMA)});
+    `;
+  if (!p.sinHorario) {
+    const tienda = p.s === "TRU";
+    sql += `
+        insert into horarios_asignados (persona_id, vigente_desde, hora_entrada, hora_salida, dias_laborables, horas_semana_objetivo)
+        values (${id}, ${desde}, '10:00', ${tienda ? "'18:30'" : "'20:00'"}, '{${(tienda ? DIAS_TIENDA : DIAS_OFICINA).join(",")}}', 45);
+      `;
+  }
+  sql += `
+      insert into datos_personales (persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, grado_instruccion, emergencia_nombre, emergencia_vinculo, emergencia_telefono, genero)
+      values (${id}, ${esc(`${p.n} ${p.a}`.toUpperCase())}, ${esc(`199${i % 10}-${String((i % 12) + 1).padStart(2, "0")}-15`)},
+              'soltera', 'Calle Inventada 123', '900000000', 'Superior', 'Contacto Inventado', 'Hermana', '900000001', 'femenino');
+    `;
+  return sql;
+}
+
+async function sembrarTodo() {
+  // ── Sedes: las migraciones crean tres con sus nombres viejos. Central se sumó después.
+  psql(`
+    update sedes set nombre = 'Tienda TRU', tipo = 'tienda', ciudad = 'Trujillo' where codigo = 'TRU';
+    update sedes set nombre = 'Taller LIM', tipo = 'taller', ciudad = 'Lima' where codigo = 'LIM';
+    update sedes set nombre = 'Tienda AQP', tipo = 'tienda', ciudad = 'Arequipa' where codigo = 'AQP';
+    insert into sedes (codigo, nombre, tipo, ciudad) values ('CCO', 'Central', 'central', 'Lima');
+  `);
+
+  // ── Cuentas y personas.
+  let sql = "begin;\n";
+  PERSONAS.forEach((p, i) => {
+    sql += sqlPersona(p, {
+      ingreso: p.ingreso !== undefined ? sumarDias(HOY, p.ingreso) : sumarDias(HOY, -420 - i * 13),
+      dni: String(70000000 + i * 137).padStart(8, "0"),
+      pension: p.vacia || p.vinculo === "rxh" || p.vinculo === "practicante" ? null : ["onp", "prima", "integra"][i % 3],
+    });
   });
   sql += "commit;\n";
   psql(sql);
@@ -147,27 +201,7 @@ async function sembrarTodo() {
   // ── Salario, horario y lo que hace falta para calcular una planilla.
   let base = "begin;\n";
   PERSONAS.forEach((p, i) => {
-    if (p.vacia) return;
-    const id = yo(p.n);
-    const desde = `(select fecha_ingreso from personas where id = ${esc(id)})`;
-    base += `
-      insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde, asignado_por)
-      values (${esc(id)}, ${esc(p.rango)}, ${p.sueldo}, ${desde}, ${esc(ALMA)});
-      insert into tarifas_hora (persona_id, vigente_desde, tarifa_hora_soles, creado_por)
-      values (${esc(id)}, ${desde}, ${(p.sueldo / 195).toFixed(2)}, ${esc(ALMA)});
-    `;
-    if (!p.sinHorario) {
-      const tienda = p.s === "TRU";
-      base += `
-        insert into horarios_asignados (persona_id, vigente_desde, hora_entrada, hora_salida, dias_laborables, horas_semana_objetivo)
-        values (${esc(id)}, ${desde}, '10:00', ${tienda ? "'18:30'" : "'20:00'"}, '{${(tienda ? DIAS_TIENDA : DIAS_OFICINA).join(",")}}', 45);
-      `;
-    }
-    base += `
-      insert into datos_personales (persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, grado_instruccion, emergencia_nombre, emergencia_vinculo, emergencia_telefono, genero)
-      values (${esc(id)}, ${esc(`${p.n} ${p.a}`.toUpperCase())}, ${esc(`199${i % 10}-${String((i % 12) + 1).padStart(2, "0")}-15`)},
-              'soltera', 'Calle Inventada 123', '900000000', 'Superior', 'Contacto Inventado', 'Hermana', '900000001', 'femenino');
-    `;
+    if (!p.vacia) base += sqlFicha(p, esc(yo(p.n)), ALMA, i);
   });
   base += "commit;\n";
   psql(base);
@@ -204,6 +238,7 @@ async function sembrarTodo() {
 
   await sembrarFirmados(yo, ALMA);
   console.log(`Periodos pagados: ${pagarPeriodosAnteriores()}`);
+  console.log(`Cesadas agregadas: ${sembrarCeses()}`);
 
   console.log(`Datos inventados listos: ${PERSONAS.length} personas, ${terminales.length} terminales.`);
   console.log(`Clave de todas las cuentas: ${CLAVE}`);
@@ -316,15 +351,59 @@ async function sembrarFirmados(yo, ALMA) {
 
 // Los dos periodos anteriores quedan pagados por la función real, para ver desgloses congelados y un mes cerrado.
 function pagarPeriodosAnteriores() {
-  const admin = psql("select auth_user_id from personas where rol = 'admin' limit 1");
   const periodos = psql(`select id from periodos_planilla where fecha_ini >= '2026-04-01' order by fecha_ini desc offset 1 limit 2`).split("\n").filter(Boolean);
-  const claims = JSON.stringify({ sub: admin, role: "authenticated" });
   for (const id of periodos) {
-    psql(`begin; select set_config('request.jwt.claims', ${esc(claims)}, true);
-      select fn_periodo_pagado(${esc(id)}, true, g) from unnest(array['planilla','prueba','rxh','practicante']) as g;
-      commit;`);
+    comoAdmin(`select fn_periodo_pagado(${esc(id)}, true, g) from unnest(array['planilla','prueba','rxh','practicante']) as g;`);
   }
   return periodos.length;
+}
+
+// Las puertas de pago y de cese exigen saber quién actúa, igual que desde el panel. Todo o nada: una transacción por llamada.
+function comoAdmin(sql) {
+  const admin = psql("select auth_user_id from personas where rol = 'admin' limit 1");
+  const claims = JSON.stringify({ sub: admin, role: "authenticated" });
+  return psql(`begin; select set_config('request.jwt.claims', ${esc(claims)}, true) \\g /dev/null
+    ${sql}
+    commit;`);
+}
+
+// Se puede correr cuantas veces se quiera, también sobre una base que ya tiene datos: agrega solo a quien falte y no borra nada. Una persona entra entera
+// o no entra, para que una corrida cortada no deje a alguien sin cesar que la siguiente daría por lista. El cese y el pago van por las funciones reales,
+// no por un UPDATE, para que sus tramos queden cerrados y su foto congelada como en producción.
+function sembrarCeses() {
+  mantenerEnPlazo(); // primero: si agregar a alguien falla, la que ya estaba no se queda sin plazo por eso
+  const ALMA = psql("select id from personas where rol = 'admin' limit 1");
+  let agregadas = 0;
+  CESADAS.forEach((c, i) => {
+    if (psql(`select 1 from personas where documento = ${esc(c.dni)}`)) return;
+    const id = `(select id from personas where documento = ${esc(c.dni)})`;
+    comoAdmin(`${sqlPersona(c, { ingreso: c.ingreso, dni: c.dni, pension: "onp" })}
+      ${sqlFicha(c, id, ALMA, i)}
+      select fn_cesar_persona(${id}, ${esc(c.cese)}, 'renuncia');
+      ${c.pagada ? `select fn_liquidacion_pagar(${id}, 'Transferencia inventada', ${esc(c.pagada)});` : ""}`);
+    agregadas++;
+  });
+  return agregadas;
+}
+
+// «Pendientes» se vacía sola: a los tres días, la cesada por cobrar pasa a «Vencidas». Lo mismo que le pasa al Dashboard con las marcas. Aquí sí va un
+// UPDATE, y como `postgres` el trigger del cese lo deja pasar: las puertas reales no mueven la fecha de alguien que ya cesó, y reactivarla cada vez
+// dejaría una fila de auditoría y un tramo nuevo por cada arranque. Si alguien la marcó como pagada para probar, se queda donde está.
+function mantenerEnPlazo() {
+  for (const c of CESADAS.filter((x) => !x.pagada)) {
+    psql(`
+      with vencida as (
+        select p.id, p.fecha_cese from personas p
+         where p.documento = ${esc(c.dni)} and p.fecha_cese + 2 < ${esc(HOY)}
+           and not exists (select 1 from liquidacion_pagada l where l.persona_id = p.id)
+      ), sueldo as (
+        update asignaciones_salario a set vigente_hasta = ${esc(HOY)} from vencida v where a.persona_id = v.id and a.vigente_hasta = v.fecha_cese
+      ), horario as (
+        update horarios_asignados h set vigente_hasta = ${esc(HOY)} from vencida v where h.persona_id = v.id and h.vigente_hasta = v.fecha_cese
+      )
+      update personas p set fecha_cese = ${esc(HOY)} from vencida v where p.id = v.id;
+    `);
+  }
 }
 
 function sembrarBaja(ALMA) {
@@ -343,10 +422,35 @@ function sembrarBaja(ALMA) {
   `);
 }
 
-if (process.argv.includes("--solo-marcas")) {
+// Una póliza de cada caso que importa en Seguros, por la función real: nadie de aquí tiene póliza por defecto. La Vida Ley es colectiva, como la de verdad.
+// Solo agrega si la base no tiene ninguna: repetirlo no duplica. Los números son inventados. Las vigencias salen de hoy, para que «por vencer» siga por vencer.
+function sembrarSeguros() {
+  if (psql("select 1 from polizas_seguro limit 1")) return 0;
+  const ids = (donde) => psql(`select string_agg(id::text, ',' order by id) from personas where estado = 'activo' and not cuenta_de_servicio and ${donde}`).split(",").filter(Boolean);
+  const dia = (n) => `(fn_hoy_lima() + ${n})`;
+  const planilla = ids("tipo_vinculo = 'planilla'");
+  const practicantes = ids("tipo_vinculo = 'practicante'");
+  const unaPoliza = (persona, numero, desde, hasta) => `select fn_seguro_registrar(${esc(persona)}, 'salud_practicantes', 'Aseguradora Inventada', ${esc(numero)}, ${dia(desde)}, ${dia(hasta)}, 179.97, ${dia(desde + 10)}, null, null, null, null, null);`;
+  const vidaLey = (personas, numero, desde, hasta) => `select * from fn_seguro_registrar_varias(array[${personas.map(esc).join(",")}]::uuid[], 'vida_ley', 'Aseguradora Inventada', ${esc(numero)}, ${dia(desde)}, ${dia(hasta)}, 14.50, ${dia(desde + 10)}, null, null, null, null, null);`;
+  const conTodo = (donde) => `update polizas_seguro set pagada_el = vigente_desde, firmada_el = vigente_desde, factura_recibida_el = vigente_desde where ${donde};`;
+  // Tres de cada cuatro de planilla en una Vida Ley que vence en 20 días; una persona, sin ninguna, para ver «Sin Vida Ley registrada».
+  const conVida = planilla.slice(0, Math.max(1, planilla.length - 1));
+  comoAdmin(`${vidaLey(conVida, "VL-0001", -90, 20)}
+    ${practicantes[0] ? unaPoliza(practicantes[0], "FOLA-0001", -30, 300) : ""}`);
+  psql(conTodo("true"));
+  return conVida.length + (practicantes[0] ? 1 : 0);
+}
+
+if (process.argv.includes("--solo-seguros")) {
+  const n = sembrarSeguros();
+  console.log(n ? `  Seguros: ${n} pólizas inventadas.` : "  Seguros: ya tenía pólizas, no se tocó.");
+} else if (process.argv.includes("--solo-marcas")) {
   const ultima = psql("select coalesce(max(fecha), (now() - interval '100 days')::date) from jornadas");
   // Solo se agrega lo que falta: si ya hay marcas de hoy, no se toca nada.
   if (ultima < HOY) console.log(`Marcas agregadas desde ${sumarDias(ultima, 1)}: ${sembrarMarcas(sumarDias(ultima, 1))}`);
+} else if (process.argv.includes("--solo-ceses")) {
+  const agregadas = sembrarCeses();
+  if (agregadas) console.log(`Cesadas agregadas: ${agregadas}`);
 } else {
   await sembrarTodo();
 }

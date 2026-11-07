@@ -26,7 +26,7 @@ import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Insignia } from "@/components/ui/insignia";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
-  etiquetaVinculo, plural, type PasoSeguro, type Poliza, type SeguroDePersona, type TipoSeguro,
+  etiquetaVinculo, plural, type PasoSeguro, type Poliza, type SeguroComplementario, type SeguroDePersona, type TipoSeguro,
 } from "@/lib/admin/seguros";
 import { CambiosAnteriores, CambiosPendientes, type AlMarcarPasoDeCambio } from "./cambios-de-seguro";
 import type { BaseDePoliza } from "./formulario-poliza";
@@ -56,11 +56,25 @@ function InsigniaSituacion({ p }: { p: SeguroDePersona }) {
     case "suspendida": return <Insignia variante="alerta">Cobertura suspendida</Insignia>;
     case "por_vencer": return <Insignia variante="advertencia">Se queda sin póliza en {plural(p.diasParaQuedarSinSeguro ?? 0, "día", "días")}</Insignia>;
     case "baja_pendiente": return <Insignia variante="advertencia">Pedir la baja</Insignia>;
-    case "por_planilla": return <Insignia variante="neutral">Sin póliza que registrar</Insignia>;
+    case "por_planilla": return <Insignia variante="neutral">Por planilla</Insignia>;
     case "sin_seguro": return <Insignia variante="neutral">Sin seguro que aplique</Insignia>;
     default: return <Insignia variante="positivo">Cubierto</Insignia>;
   }
 }
+
+/** Lo que dice de un seguro complementario, en una frase. Null si ya es historia y no hay nada que decir. */
+function textoComplementario(c: SeguroComplementario): string | null {
+  switch (c.estado) {
+    case "vigente": return `${c.nombre} hasta el ${fecha(c.hasta!)}`;
+    case "por_vencer": return `${c.nombre} vence en ${plural(c.dias ?? 0, "día", "días")}`;
+    case "vencida": return `${c.nombre} venció el ${fecha(c.hasta!)}`;
+    case "por_empezar": return `${c.nombre} desde el ${fecha(c.poliza!.vigente_desde)}`;
+    case "sin_registrar": return `Sin ${c.nombre} registrada`;
+    default: return null;
+  }
+}
+
+const textoDeComplementarios = (p: Pick<SeguroDePersona, "complementarios">) => p.complementarios.map(textoComplementario).filter(Boolean).join(" · ");
 
 /** «Seguro: FOLA · por su vínculo», o quién y por qué se lo cambió. */
 function LineaSeguro({ p }: { p: SeguroDePersona }) {
@@ -107,6 +121,7 @@ function FichaAbierta({
   acciones: AccionesFicha;
   onCerrar: () => void;
 }) {
+  const complementarios = textoDeComplementarios(p);
   const tipo = tipos.find((t) => t.clave === p.tipo?.clave);
   const hayAdemas = tipos.some((t) => t.activo && t.con_poliza && !t.principal);
   const cabecera = (
@@ -124,6 +139,7 @@ function FichaAbierta({
         <div className="min-w-0">
           <h2 className="font-serif text-base text-tinta">{cabecera}</h2>
           <p className="text-sm text-taupe"><LineaSeguro p={p} /></p>
+          {complementarios && <p className="text-sm text-taupe">{complementarios}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <InsigniaSituacion p={p} />
@@ -167,6 +183,7 @@ function FichaAbierta({
           {p.activa && <Boton tamano="sm" onClick={() => acciones.cambiarSeguro(p)}>Cambiar su seguro</Boton>}
         </div>
         {tipo && !tipo.con_poliza && tipo.descripcion && <p className="text-sm text-taupe">{tipo.descripcion}</p>}
+        {complementarios && <p className="text-sm text-taupe">{complementarios}</p>}
 
         {p.situacion === "hueco" && <MensajeHueco p={p} hoy={hoy} />}
         {p.situacion === "hueco" && p.tipo && (
@@ -194,6 +211,17 @@ function FichaAbierta({
             corrige la fecha en que termina la póliza («Corregir datos») para que deje de avisar.
           </p>
         )}
+
+        {p.activa && p.complementarios.filter((c) => c.estado === "por_vencer" || c.estado === "vencida").map((c) => (
+          <p key={c.clave} className={`rounded-lg px-3 py-2 text-sm ${c.estado === "vencida" ? "bg-rojo/10 text-rojo-profundo" : "bg-ambar/10 text-ambar"}`}>
+            {c.estado === "vencida"
+              ? `Su póliza de ${c.nombre} terminó el ${fecha(c.hasta!)} y no hay otra registrada.`
+              : `Su póliza de ${c.nombre} termina el ${fecha(c.hasta!)} y no hay una renovación registrada que empalme.`}{" "}
+            <Boton variante="enlace" onClick={() => acciones.registrar({
+              personaId: p.personaId, producto: c.clave, aseguradora: c.poliza?.aseguradora, numeroPoliza: c.poliza?.numero_poliza, desde: c.hasta ?? undefined, prima: c.poliza?.prima_total ?? null,
+            })}>Registrar la renovación</Boton>
+          </p>
+        ))}
 
         <CambiosPendientes cambios={p.cambiosPendientes} onPaso={acciones.pasoDeCambio} />
 
@@ -236,7 +264,7 @@ function pendientesDe(p: SeguroDePersona): number {
  * las pocas que sí piden algo.
  */
 export function FichaPersona({
-  p, hoy, tipos, acciones, abierta, onAlternar,
+  p, hoy, tipos, acciones, abierta, onAlternar, conSede = false,
 }: {
   p: SeguroDePersona;
   hoy: string;
@@ -244,9 +272,14 @@ export function FichaPersona({
   acciones: AccionesFicha;
   abierta: boolean;
   onAlternar: () => void;
+  /** «Pide atención» mezcla sedes: ahí la fila dice de cuál es. Dentro de una sede sería repetirlo. */
+  conSede?: boolean;
 }) {
   if (abierta) return <FichaAbierta p={p} hoy={hoy} tipos={tipos} acciones={acciones} onCerrar={onAlternar} />;
   const pendientes = pendientesDe(p);
+  const porAtender = p.activa ? p.complementarios.filter((c) => c.estado === "por_vencer" || c.estado === "vencida") : [];
+  // Lo que va en insignia no se repite en la línea de abajo.
+  const complementarios = textoDeComplementarios({ complementarios: p.complementarios.filter((c) => !porAtender.includes(c)) });
   return (
     <button
       type="button"
@@ -256,11 +289,15 @@ export function FichaPersona({
     >
       <span className="min-w-0">
         <span className="block truncate font-serif text-base text-tinta">
-          {p.persona} <span className="font-sans text-sm text-taupe">· {etiquetaVinculo(p.vinculo)}{p.modalidad && ` · ${MODALIDAD[p.modalidad] ?? p.modalidad}`}</span>
+          {p.persona} <span className="font-sans text-sm text-taupe">· {conSede && `${p.sede} · `}{etiquetaVinculo(p.vinculo)}{p.modalidad && ` · ${MODALIDAD[p.modalidad] ?? p.modalidad}`}</span>
         </span>
-        <span className="block truncate text-sm text-taupe">{p.tipo ? `Seguro: ${p.tipo.nombre}` : `Su vínculo (${etiquetaVinculo(p.vinculo)}) no lleva un seguro de la empresa.`}</span>
+        <span className="block truncate text-sm text-taupe">
+          {p.tipo ? `Seguro: ${p.tipo.nombre}` : `Su vínculo (${etiquetaVinculo(p.vinculo)}) no lleva un seguro de la empresa.`}
+          {complementarios && ` · ${complementarios}`}
+        </span>
       </span>
-      <span className="flex shrink-0 items-center gap-2">
+      <span className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:shrink-0">
+        {porAtender.map((c) => <Insignia key={c.clave} variante={c.estado === "vencida" ? "alerta" : "advertencia"} tamano="sm">{textoComplementario(c)}</Insignia>)}
         {pendientes > 0 && <Insignia variante="advertencia" tamano="sm">{plural(pendientes, "pendiente", "pendientes")}</Insignia>}
         <InsigniaSituacion p={p} />
         <ChevronDown size={16} strokeWidth={1.8} className="text-taupe" aria-hidden />

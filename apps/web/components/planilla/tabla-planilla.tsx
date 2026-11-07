@@ -24,6 +24,7 @@ import { interruptoresVidrio } from "@/lib/vidrio";
 import { ChevronRight } from "lucide-react";
 import { formatSoles, RANGO_LABEL } from "@/lib/rangos";
 import { CampoCasilla } from "@/components/ui/campo";
+import { cx } from "@/components/ui/cx";
 import { Insignia } from "@/components/ui/insignia";
 import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
 import { fechaCorta, fechaLargaLima, feriadoNoCorresponde, fmtHoras } from "@/lib/admin/planilla/formato";
@@ -37,18 +38,53 @@ import type { FilaPrueba } from "@/lib/admin/pruebas";
 // Total · Pagado · (abrir).
 const COLS = 15;
 
+// ── Lo que no se va al deslizar (2026-11-07) ────────────────────────────────
+// Con quince columnas la tabla no cabe en una computadora: a 1440 px sobraban
+// ~330 px, a 1024 px ~550. Para llegar a «Total» y «Pagado» había que deslizar,
+// y al deslizar el nombre salía por la izquierda — quien marcaba el pago de una
+// fila no veía a quién se lo estaba marcando. Ahora el nombre queda fijo a la
+// izquierda (desde md, donde aparece la tabla) y Total · Pagado · abrir a la
+// derecha (desde lg; más angosto, lo fijo se comería lo que queda por deslizar).
+//
+// Las tres de la derecha se apilan con distancias fijas al borde: «Pagado» se
+// pega a 2rem porque la columna de abrir mide justo 2rem, y «Total» a 2rem + 8rem.
+// Por eso esos dos anchos son fijos y el texto de «Pagado» se parte en renglones
+// en vez de ensanchar la columna: si creciera —al marcar a alguien aparecen la
+// fecha y quién marcó—, «Total» quedaría montado encima de «Pagado».
+const FIJA_IZQUIERDA = "sticky left-0 z-[1] min-w-[10.5rem] shadow-[inset_-1px_0_0_var(--color-sand)]";
+const FIJA_TOTAL = "lg:sticky lg:right-[10rem] lg:z-[1] lg:shadow-[inset_1px_0_0_var(--color-sand)]";
+const FIJA_PAGADO = "w-32 min-w-32 lg:sticky lg:right-8 lg:z-[1]";
+const FIJA_ABRIR = "w-8 min-w-8 px-2 lg:sticky lg:right-0 lg:z-[1]";
+
+// Lo fijo necesita fondo OPACO: con uno translúcido se lee lo que pasa por
+// debajo al deslizar. Y tiene que ser el MISMO color que el resto de su fila,
+// que sí es translúcido (sand/70 en el encabezado, crema/60 al pasar el cursor…)
+// sobre el papel de la tabla. Cada fondo de acá es esa misma mezcla ya hecha:
+// `color-mix` en srgb da exactamente lo que el navegador pinta al componer.
+const FONDO = {
+  encabezado: "bg-[color-mix(in_srgb,var(--color-sand)_70%,var(--color-papel))]",
+  fila: "bg-papel",
+  filaQueFrena: "bg-[color-mix(in_srgb,var(--color-rojo)_4%,var(--color-papel))]",
+  filaAlPasar: "transition-colors duration-150 group-hover:bg-[color-mix(in_srgb,var(--color-crema)_60%,var(--color-papel))]",
+  pie: "bg-[color-mix(in_srgb,var(--color-sand)_50%,var(--color-papel))]",
+  pieBanco: "bg-[color-mix(in_srgb,var(--color-sand)_30%,var(--color-papel))]",
+};
+
 /** La celda de «Pagado»: casilla + su estado, o solo lectura si el grupo ya se congeló. */
-function CeldaPago({ f, estado, puedeMarcar, onMarcar, onDesmarcar, onVerHistorial }: {
+function CeldaPago({ f, estado, puedeMarcar, onMarcar, onDesmarcar, onVerHistorial, columnaAngosta = false }: {
   f: Fila;
   estado: EstadoPagoPersona | undefined;
   puedeMarcar: boolean;
   onMarcar?: (f: Fila) => void;
   onDesmarcar?: (f: Fila) => void;
   onVerHistorial?: (f: Fila) => void;
+  /** En la tabla la columna tiene ancho fijo (ver FIJA_PAGADO): los renglones se parten en vez de ensancharla. */
+  columnaAngosta?: boolean;
 }) {
   const marcado = estado?.marcado ?? false;
   // El monto se congela al marcar; si después una corrección movió el Total, se avisa — nunca se calla ni se corrige solo.
   const cambio = marcado && estado && Math.abs(estado.monto - f.total) > 0.004;
+  const renglon = columnaAngosta ? "wrap-anywhere" : "whitespace-nowrap";
   if (!puedeMarcar) {
     return marcado
       ? <span className="inline-flex items-center gap-1 text-xs text-verde"><span aria-hidden>✓</span>Pagado</span>
@@ -62,12 +98,12 @@ function CeldaPago({ f, estado, puedeMarcar, onMarcar, onDesmarcar, onVerHistori
         aria-label={marcado ? `Desmarcar a ${f.nombre} como pagada` : `Marcar a ${f.nombre} como pagada`}
       />
       {marcado && estado?.marcado_at && (
-        <span className="whitespace-nowrap text-xs text-taupe">
+        <span className={cx(renglon, "text-xs text-taupe")}>
           {fechaLargaLima(estado.marcado_at)}{estado.marcado_por_nombre ? ` · ${estado.marcado_por_nombre}` : ""}
         </span>
       )}
       {cambio && (
-        <span className="whitespace-nowrap text-xs text-ambar" title="El Total cambió desde que se marcó — vuelve a revisar antes de pagar.">
+        <span className={cx(renglon, "text-xs text-ambar")} title="El Total cambió desde que se marcó — vuelve a revisar antes de pagar.">
           cambió: {formatSoles(estado.monto)} → {formatSoles(f.total)}
         </span>
       )}
@@ -167,7 +203,7 @@ export function TablaPlanilla({
       <div className="hidden md:block">
         <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-ancha vidrio-tabla-con-total" : undefined}>
           <TablaEncabezado>
-            <Th>Persona</Th>
+            <Th className={cx(FIJA_IZQUIERDA, FONDO.encabezado)}>Persona</Th>
             <Th>Sede</Th>
             <Th>Rango y salario</Th>
             <Th className="text-right">Horas</Th>
@@ -191,9 +227,9 @@ export function TablaPlanilla({
             </Th>
             <Th className="text-right">Bonos</Th>
             <Th className="text-right">Descuentos</Th>
-            <Th className="text-right">Total</Th>
-            <Th>Pagado</Th>
-            <Th><span className="sr-only">Abrir</span></Th>
+            <Th className={cx("text-right", FIJA_TOTAL, FONDO.encabezado)}>Total</Th>
+            <Th className={cx(FIJA_PAGADO, FONDO.encabezado)}>Pagado</Th>
+            <Th className={cx(FIJA_ABRIR, FONDO.encabezado)}><span className="sr-only">Abrir</span></Th>
           </TablaEncabezado>
           <tbody>
             {filas.length === 0 && (
@@ -205,12 +241,14 @@ export function TablaPlanilla({
               const hs = hallazgos?.get(claveFila(f)) ?? [];
               const cese = ceses?.get(f.persona_id) ?? null;
               const frena = hs.some((h) => h.severidad === "bloquea");
+              // El fondo opaco de las celdas fijas: el de la fila, ya compuesto sobre el papel.
+              const fondoFijo = cx(frena ? FONDO.filaQueFrena : FONDO.fila, FONDO.filaAlPasar);
               return (
                 <FilaTabla
                   key={f.persona_id}
-                  className={`align-top ${onAbrir ? "cursor-pointer" : ""} ${frena ? "bg-rojo/[0.04]" : ""}`}
+                  className={`group align-top ${onAbrir ? "cursor-pointer" : ""} ${frena ? "bg-rojo/[0.04]" : ""}`}
                 >
-                  <td className="px-4 py-2" onClick={onAbrir ? abrir(f) : undefined}>
+                  <td className={cx("px-4 py-2", FIJA_IZQUIERDA, fondoFijo)} onClick={onAbrir ? abrir(f) : undefined}>
                     {onAbrir ? (
                       <button
                         type="button"
@@ -305,10 +343,10 @@ export function TablaPlanilla({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right font-semibold tabular-nums" onClick={onAbrir ? abrir(f) : undefined}>
+                  <td className={cx("px-4 py-2 text-right font-semibold tabular-nums", FIJA_TOTAL, fondoFijo)} onClick={onAbrir ? abrir(f) : undefined}>
                     {formatSoles(f.total)}
                   </td>
-                  <td className="px-4 py-2 align-top">
+                  <td className={cx("px-4 py-2 align-top", FIJA_PAGADO, fondoFijo)}>
                     <CeldaPago
                       f={f}
                       estado={pagos?.get(f.persona_id)}
@@ -316,9 +354,10 @@ export function TablaPlanilla({
                       onMarcar={onMarcarPago}
                       onDesmarcar={onDesmarcarPago}
                       onVerHistorial={onVerHistorialPago}
+                      columnaAngosta
                     />
                   </td>
-                  <td className="py-2 pr-3 text-taupe" onClick={onAbrir ? abrir(f) : undefined}>
+                  <td className={cx("py-2 text-taupe", FIJA_ABRIR, fondoFijo)} onClick={onAbrir ? abrir(f) : undefined}>
                     {onAbrir && <ChevronRight size={16} aria-hidden />}
                   </td>
                 </FilaTabla>
@@ -328,7 +367,11 @@ export function TablaPlanilla({
           {filas.length > 0 && (
             <tfoot>
               <tr className="border-t border-sand bg-sand/50">
-                <td className="px-4 py-2 font-medium" colSpan={4}>{etiquetaPie}</td>
+                {/* La etiqueta va en la columna del nombre, no repartida en cuatro: así queda
+                    fija con él. Una celda fija de cuatro columnas taparía, al deslizar, los
+                    totales de «Pago base» y «Feriados» que pasan por debajo. */}
+                <td className={cx("px-4 py-2 font-medium", FIJA_IZQUIERDA, FONDO.pie)}>{etiquetaPie}</td>
+                <td colSpan={3} />
                 <td className="px-4 py-2 text-right font-medium tabular-nums">{formatSoles(t.pago_base)}</td>
                 <td className="px-4 py-2 text-right font-medium tabular-nums">{formatSoles(t.feriados)}</td>
                 <td className="px-4 py-2 text-right font-medium tabular-nums">{formatSoles(t.asignacion)}</td>
@@ -338,24 +381,25 @@ export function TablaPlanilla({
                 <td className="px-4 py-2" />
                 <td className="px-4 py-2 text-right font-medium tabular-nums">{t.bonos > 0 ? `+${formatSoles(t.bonos)}` : <Guion />}</td>
                 <td className="px-4 py-2 text-right font-medium tabular-nums">{t.descuentos > 0 ? `−${formatSoles(t.descuentos)}` : <Guion />}</td>
-                <td className="px-4 py-2 text-right font-bold tabular-nums">{formatSoles(t.total)}</td>
-                <td />
-                <td />
+                <td className={cx("px-4 py-2 text-right font-bold tabular-nums", FIJA_TOTAL, FONDO.pie)}>{formatSoles(t.total)}</td>
+                <td className={cx(FIJA_PAGADO, FONDO.pie)} />
+                <td className={cx(FIJA_ABRIR, FONDO.pie)} />
               </tr>
               {/* Dos preguntas distintas: arriba, cuánto le llega a la gente; acá,
-                  cuánto sale de la cuenta. Solo aparece si hay algo que agregar. */}
+                  cuánto sale de la cuenta. Solo aparece si hay algo que agregar.
+                  El monto va bajo «Total»: hasta el 2026-11-07 caía bajo «Pagado»,
+                  porque la columna de pago se sumó y esta fila siguió contando catorce. */}
               {t.sale_del_banco > t.total + 0.004 && (
                 <tr className="border-t border-sand bg-sand/30">
-                  <td className="px-4 py-2 text-taupe" colSpan={COLS - 2}>
-                    Sale de la cuenta de CAYLA
-                    <span className="block text-xs">
-                      el total + {formatSoles(t.pension)} de pensión + {formatSoles(t.essalud)} de EsSalud
-                      {t.retencion_4ta > 0 && <> + {formatSoles(t.retencion_4ta)} de retención de 4ta</>}
-                      {" "}· no incluye provisiones, que se pagan después
-                    </span>
+                  <td className={cx("px-4 py-2 text-taupe", FIJA_IZQUIERDA, FONDO.pieBanco)}>Sale de la cuenta de CAYLA</td>
+                  <td className="px-4 py-2 text-xs text-taupe" colSpan={COLS - 4}>
+                    el total + {formatSoles(t.pension)} de pensión + {formatSoles(t.essalud)} de EsSalud
+                    {t.retencion_4ta > 0 && <> + {formatSoles(t.retencion_4ta)} de retención de 4ta</>}
+                    {" "}· no incluye provisiones, que se pagan después
                   </td>
-                  <td className="px-4 py-2 text-right font-bold tabular-nums">{formatSoles(t.sale_del_banco)}</td>
-                  <td />
+                  <td className={cx("px-4 py-2 text-right font-bold tabular-nums", FIJA_TOTAL, FONDO.pieBanco)}>{formatSoles(t.sale_del_banco)}</td>
+                  <td className={cx(FIJA_PAGADO, FONDO.pieBanco)} />
+                  <td className={cx(FIJA_ABRIR, FONDO.pieBanco)} />
                 </tr>
               )}
             </tfoot>

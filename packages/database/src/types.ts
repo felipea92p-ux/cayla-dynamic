@@ -10042,6 +10042,16 @@ export type Database = {
           vigente_hasta: string
         }[]
       }
+      fn_mis_polizas_avisos: {
+        Args: never
+        Returns: {
+          archivo_id: string
+          archivo_subido_at: string
+          creada_at: string
+          poliza_id: string
+          producto_nombre: string
+        }[]
+      }
       fn_mis_solicitudes_perfil: {
         Args: never
         Returns: {

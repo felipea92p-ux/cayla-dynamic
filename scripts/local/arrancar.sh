@@ -1,12 +1,12 @@
 #!/bin/bash
 # Enciende el entorno local: base (si no existe, la crea con sus datos inventados), PostgREST y la puerta.
-# No toca Docker, ni las bases compartidas, ni producción.
+# No toca las bases compartidas ni producción. Docker solo para el tiempo real, y solo si está prendido (tiempo-real.sh).
 set -u
 source "$(dirname "$0")/comun.sh"
 [ -d "$ENTORNO/pg" ] || "$RAIZ/scripts/local/crear-base.sh" || exit 1
 
 pg_ctl -D "$ENTORNO/pg" status >/dev/null 2>&1 || pg_ctl -D "$ENTORNO/pg" -l "$ENTORNO/logs/postgres.log" -w \
-  -o "-p $PG_PUERTO -c listen_addresses=127.0.0.1 -c unix_socket_directories= -c max_connections=100 -c fsync=off -c timezone=UTC" start >/dev/null \
+  -o "$PG_OPCIONES" start >/dev/null \
   || { echo "Postgres no arrancó: mira $ENTORNO/logs/postgres.log"; exit 1; }
 
 # Si este worktree trae migraciones que la base no tiene, avisa: no las aplica por su cuenta.
@@ -22,9 +22,12 @@ if ! lsof -iTCP:$PUERTA_PUERTO -sTCP:LISTEN >/dev/null 2>&1; then
   nohup node "$RAIZ/scripts/local/puerta.mjs" >"$ENTORNO/logs/puerta.log" 2>&1 &
 fi
 node "$RAIZ/scripts/local/sembrar.mjs" --solo-marcas
+node "$RAIZ/scripts/local/sembrar.mjs" --solo-ceses
+node "$RAIZ/scripts/local/sembrar.mjs" --solo-seguros
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   curl -sf "http://127.0.0.1:$PUERTA_PUERTO/salud" >/dev/null && break
   sleep 0.5
 done
 curl -sf "http://127.0.0.1:$PUERTA_PUERTO/salud" >/dev/null || { echo "La puerta no responde: mira $ENTORNO/logs/puerta.log"; exit 1; }
+"$RAIZ/scripts/local/tiempo-real.sh"
 echo "Entorno local encendido. Cuentas: ver scripts/local/LEEME.md"

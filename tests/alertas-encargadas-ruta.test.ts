@@ -594,6 +594,21 @@ describe("ruta de alertas por correo: los correos que salen tarde no afirman de 
     expect(c.text).toContain("venció el 2026-10-20 — hace 8 días. Este aviso salió con retraso: antes de actuar, confirma en Contratos si ya se renovó.");
   });
 
+  it("póliza por renovar: una colectiva habla de la póliza, con el mediodía y el enlace a esa póliza", async () => {
+    ahora("2026-10-28T15:00:00Z");
+    const c = await enviar(fila(1, { tipo: "seguro_por_renovar", payload: { seguro: "Vida Ley", numero_poliza: "143720", aseguradora: "Pacífico Seguros", persona: "17 personas", sede: "Varias sedes", vigente_hasta: "2026-11-12", dias_restantes: 20 } }));
+    expect(c.subject).toBe("Dynamic: la póliza de Vida Ley 143720 vence en 15 días");
+    expect(c.text).toContain("vence el 2026-11-12 a las 12 del mediodía — en 15 días. Cubre a: 17 personas (Varias sedes).");
+    expect(c.text).toContain("/admin/seguros?buscar=143720");
+    expect(c.text).not.toMatch(/retraso/);
+  });
+
+  it("póliza que venció mientras el correo esperaba: lo dice y pide confirmar", async () => {
+    ahora("2026-10-28T15:00:00Z");
+    const c = await enviar(fila(1, { tipo: "seguro_por_renovar", payload: { seguro: "FOLA", numero_poliza: "24043267", aseguradora: "Pacífico", persona: "Ana", sede: "TRU", vigente_hasta: "2026-10-20", dias_restantes: 5 } }));
+    expect(c.text).toContain("confirma en Seguros si ya se renovó");
+  });
+
   it("contrato que todavía vence: NO lleva la advertencia de retraso", async () => {
     ahora("2026-10-28T15:00:00Z");
     const c = await enviar(fila(1, { tipo: "contrato_por_vencer", payload: { persona: "Ana", sede: "TRU", fecha_fin_contrato: "2026-11-05", dias_restantes: 12 } }));

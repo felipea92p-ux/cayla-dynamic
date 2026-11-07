@@ -84,6 +84,8 @@ export interface BaseDePoliza {
   numeroPoliza?: string;
   desde?: string;
   prima?: number | null;
+  /** Renovar una póliza colectiva: abre en «A varias» con estas personas marcadas. */
+  personas?: readonly string[];
 }
 
 interface Form {
@@ -212,11 +214,11 @@ function Cuerpo({
   onCerrar, supabase, tipos, personas, polizas, corrigiendo, base, onGuardado, onGuardadoVarias, onGuardando,
 }: Omit<Parameters<typeof FormularioPoliza>[0], "abierto"> & { onGuardando: (guardando: boolean) => void }) {
   const [f, setF] = useState<Form>(() => formInicial(corrigiendo, base, tipos, personas));
-  // «Varias personas» solo para una póliza NUEVA y sin una persona ya elegida: renovar, registrar otro
-  // seguro a alguien o corregir son siempre de una persona.
+  // «Varias personas» solo para una póliza NUEVA y sin una persona ya elegida: renovar a una, registrar otro
+  // seguro a alguien o corregir son de una persona. La renovación de una colectiva trae a las suyas en `personas`.
   const puedeVarias = corrigiendo === null && !base?.personaId;
-  const [modo, setModo] = useState<Modo>("una");
-  const [elegidas, setElegidas] = useState<ReadonlySet<string>>(() => new Set());
+  const [modo, setModo] = useState<Modo>(base?.personas?.length ? "varias" : "una");
+  const [elegidas, setElegidas] = useState<ReadonlySet<string>>(() => new Set(base?.personas));
   const [buscar, setBuscar] = useState("");
   // «Hasta» sigue a «Desde» mientras nadie lo toque.
   const [hastaTocado, setHastaTocado] = useState(corrigiendo !== null);

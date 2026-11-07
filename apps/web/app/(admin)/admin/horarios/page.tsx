@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { avisarCambioDeTurnos } from "@/lib/admin/turnos-al-dia";
+import { useAlDia } from "@/lib/tiempo-real";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
@@ -471,11 +471,13 @@ export default function HorariosPage() {
   const [retroPreviewDe, setRetroPreviewDe] = useState<string | null>(null);
   const [retroConfirmando, setRetroConfirmando] = useState(false);
 
-  const cargar = useCallback(async () => {
+  // `enSilencio`: otra persona cambió algo (useAlDia, abajo). Se lee sin el «Cargando…» que borra la lista, y si
+  // falla no se avisa —se queda lo último que se vio y la próxima lectura lo vuelve a intentar—.
+  const cargar = useCallback(async (enSilencio = false) => {
     const supabase = createAdminSupabaseClient();
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    setCargando(true);
+    if (!enSilencio) setCargando(true);
     const [
       { data: p, error: errP },
       { data: h, error: errH },
@@ -497,7 +499,7 @@ export default function HorariosPage() {
       supabase.from("personas").select("id, jornada_semanal_horas").eq("estado", "activo"),
     ]);
     if (errP || errH || errS) {
-      avisar("error", mensajeDeError((errP ?? errH ?? errS)!, "cargar los horarios"));
+      if (!enSilencio) avisar("error", mensajeDeError((errP ?? errH ?? errS)!, "cargar los horarios"));
       setCargando(false);
       return; // no pisa `personas`/`horarios`/`sedes` con datos parciales
     }
@@ -550,6 +552,9 @@ export default function HorariosPage() {
   }, [router, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+  // Al instante (2026-11-07, 0604): si alguien cambia un horario o una persona —en otra pestaña, otra computadora u
+  // otra sede—, la base avisa y la lista se pone al día sola. Turnos se entera igual, por su lado.
+  useAlDia(["horarios", "personas"], useCallback(() => { void cargar(true); }, [cargar]));
 
   const puedeEditar = puedeOperarEquipo(rol);
   const esSupervisor = rol === "supervisor_sede";
@@ -713,7 +718,6 @@ export default function HorariosPage() {
     });
     setGuardando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
-    avisarCambioDeTurnos(); // Turnos abierto en otra pestaña se pone al día solo
     setEditando(null);
     await cargar();
     let mensaje = "Horario guardado. Las tardanzas desde esa fecha se recalcularon.";
@@ -759,7 +763,6 @@ export default function HorariosPage() {
       }
     }
     setGuardandoMasivo(false);
-    if (fallidos.length < ids.length) avisarCambioDeTurnos();
     setMasivoAbierto(false);
     setSeleccionados(new Set());
     await cargar();
@@ -831,7 +834,6 @@ export default function HorariosPage() {
     });
     setRetroConfirmando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
-    avisarCambioDeTurnos();
     cerrarRetro();
     await cargar();
     avisar("ok", "Días ya trabajados corregidos. Las jornadas del rango se volvieron a calcular y el cambio quedó auditado.");

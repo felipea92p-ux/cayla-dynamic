@@ -14,7 +14,7 @@ if [ -d "$DATOS" ]; then echo "La base ya existe en $DATOS (usa --de-cero para r
 initdb -D "$DATOS" -U postgres --auth=trust --locale-provider=builtin --builtin-locale=C.UTF-8 -E UTF8 >"$ENTORNO/logs/initdb.log" 2>&1 \
   || { echo "initdb falló: mira $ENTORNO/logs/initdb.log"; exit 1; }
 pg_ctl -D "$DATOS" -l "$ENTORNO/logs/postgres.log" -w \
-  -o "-p $PG_PUERTO -c listen_addresses=127.0.0.1 -c unix_socket_directories= -c max_connections=100 -c fsync=off -c timezone=UTC" start >/dev/null \
+  -o "$PG_OPCIONES" start >/dev/null \
   || { echo "Postgres no arrancó: mira $ENTORNO/logs/postgres.log"; exit 1; }
 
 psql -q -v ON_ERROR_STOP=1 -f "$RAIZ/scripts/local/arranque-base.sql" >"$ENTORNO/logs/arranque.out" 2>&1 \

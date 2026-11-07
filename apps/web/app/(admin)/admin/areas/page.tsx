@@ -7,6 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Check } from "lucide-react";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { Modal } from "@/components/ui/modal";
 import { Campo, CampoCasilla } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
@@ -43,6 +44,9 @@ export default function AreasPage() {
   const [editandoCodigo, setEditandoCodigo] = useState<string | null>(null);
   const [form, setForm] = useState<FormArea>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
+  // Desactivar pregunta antes, igual que en Sedes: dos formas para la misma acción era la mitad del defecto.
+  const [confirmandoDesactivar, setConfirmandoDesactivar] = useState<Area | null>(null);
+  const [desactivando, setDesactivando] = useState(false);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -142,6 +146,14 @@ export default function AreasPage() {
         ? `“${a.nombre}” reactivada: vuelve a ofrecerse al asignar áreas.`
         : `“${a.nombre}” desactivada. Quien ya la tiene asignada la conserva; solo deja de ofrecerse para nuevas asignaciones.`,
     );
+  }
+
+  async function confirmarDesactivar() {
+    if (!confirmandoDesactivar) return;
+    setDesactivando(true);
+    await cambiarActiva(confirmandoDesactivar, false);
+    setDesactivando(false);
+    setConfirmandoDesactivar(null);
   }
 
   const formulario = (modo: "alta" | "edicion") => {
@@ -256,7 +268,7 @@ export default function AreasPage() {
                             {a.activa ? (
                               // 'calidad_servicio' no se puede desactivar (el server además lo bloquea).
                               a.codigo !== AREA_DEFAULT && (
-                                <Boton variante="peligro" tamano="sm" onClick={() => cambiarActiva(a, false)}>Desactivar</Boton>
+                                <Boton variante="peligro" tamano="sm" onClick={() => setConfirmandoDesactivar(a)}>Desactivar</Boton>
                               )
                             ) : (
                               <Boton variante="secundario" tamano="sm" onClick={() => cambiarActiva(a, true)}>Reactivar</Boton>
@@ -283,6 +295,30 @@ export default function AreasPage() {
             </p>
           </>
         )}
+        <Modal
+          abierto={confirmandoDesactivar !== null}
+          onCerrar={() => setConfirmandoDesactivar(null)}
+          bloqueado={desactivando}
+          titulo="Desactivar área"
+          ancho="sm"
+        >
+          {confirmandoDesactivar && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                ¿Desactivar el área “{confirmandoDesactivar.nombre}”? Deja de ofrecerse para nuevas asignaciones.
+                Quien ya la tiene la conserva — puedes reactivarla cuando quieras.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Boton onClick={() => setConfirmandoDesactivar(null)} disabled={desactivando}>
+                  Cancelar
+                </Boton>
+                <Boton variante="peligro" onClick={() => void confirmarDesactivar()} cargando={desactivando}>
+                  Sí, desactivar
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );

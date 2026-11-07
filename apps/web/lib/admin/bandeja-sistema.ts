@@ -194,6 +194,7 @@ const TIPO_EN_PALABRAS: Record<string, string> = {
   auto_cierre: "jornadas que se cerraron solas",
   contrato_por_vencer: "contratos por vencer",
   vacaciones_por_vencer: "vacaciones por vencer",
+  seguro_por_renovar: "pólizas por renovar",
 };
 
 /**

@@ -4,6 +4,8 @@
 //   /auth/v1/*    → entrar con correo y clave, mantener la sesión, salir, cambiar la clave y administrar cuentas.
 //                   La clave se comprueba contra auth.users con pgcrypto, igual que GoTrue. Respeta `banned_until`.
 //   /storage/v1/* → no existe aquí: las pantallas que suben fotos o PDF responden un error claro.
+//   /realtime/v1/ → el websocket de tiempo real, reenviado al Realtime de verdad (tiempo-real.sh, con Docker).
+//                   Sin Docker la conexión se corta y las pantallas se ponen al día con su respaldo de 5 min.
 //
 // Promete: login real contra la base local con las mismas respuestas que la app espera de GoTrue.
 // No hace: correos, enlaces mágicos ni OAuth. Un defecto que dependa de GoTrue no se reproduce aquí.
@@ -13,11 +15,15 @@
 //      node puerta.mjs llaves     imprime las llaves para apps/web/.env.local
 
 import http from "node:http";
+import net from "node:net";
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 
-const PUERTO = Number(process.env.PUERTA_PUERTO ?? 55892);
-const REST = { host: "127.0.0.1", port: Number(process.env.REST_PUERTO ?? 55891) };
+// Los puertos salen de comun.sh; sin él (web.mjs pide las llaves directo), de PUERTOS_LOCAL_DESDE.
+const DESDE = Number(process.env.PUERTOS_LOCAL_DESDE ?? 55890);
+const PUERTO = Number(process.env.PUERTA_PUERTO ?? DESDE + 2);
+const REST = { host: "127.0.0.1", port: Number(process.env.REST_PUERTO ?? DESDE + 1) };
+const REALTIME = { host: "127.0.0.1", port: Number(process.env.REALTIME_PUERTO ?? DESDE + 3) };
 const SECRETO = process.env.JWT_SECRET ?? "super-secret-jwt-token-with-at-least-32-characters-long";
 const URL_PUBLICA = `http://127.0.0.1:${PUERTO}`;
 const VIDA_ACCESO = 3600;
@@ -217,7 +223,7 @@ function aRest(req, res, ruta, url) {
   req.pipe(salida);
 }
 
-http.createServer(async (req, res) => {
+const servidor = http.createServer(async (req, res) => {
   cors(req, res);
   if (req.method === "OPTIONS") return responder(res, 204);
   const url = new URL(req.url ?? "/", URL_PUBLICA);
@@ -231,4 +237,24 @@ http.createServer(async (req, res) => {
     console.error(new Date().toISOString(), req.method, req.url, e?.message ?? e);
     if (!res.headersSent) error(res, 500, "unexpected_failure", String(e?.message ?? e));
   }
-}).listen(PUERTO, "127.0.0.1", () => console.log(`puerta lista en ${URL_PUBLICA}`));
+});
+
+// El websocket de tiempo real: lo que en Supabase hace Kong con /realtime/v1/ → realtime:4000/socket/.
+// Realtime saca el «tenant» del nombre del host, y el que siembra solo se llama realtime-dev.
+servidor.on("upgrade", (req, socket, cabeza) => {
+  const url = new URL(req.url ?? "/", URL_PUBLICA);
+  if (!url.pathname.startsWith("/realtime/v1/")) return socket.destroy();
+  const destino = net.connect(REALTIME.port, REALTIME.host, () => {
+    const ruta = `/socket/${url.pathname.slice("/realtime/v1/".length)}${url.search}`;
+    const cabeceras = Object.entries(req.headers)
+      .filter(([k]) => k !== "host")
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
+    destino.write([`GET ${ruta} HTTP/1.1`, "host: realtime-dev", ...cabeceras, "", ""].join("\r\n"));
+    if (cabeza?.length) destino.write(cabeza);
+    socket.pipe(destino).pipe(socket);
+  });
+  destino.on("error", () => socket.destroy());
+  socket.on("error", () => destino.destroy());
+});
+
+servidor.listen(PUERTO, "127.0.0.1", () => console.log(`puerta lista en ${URL_PUBLICA}`));

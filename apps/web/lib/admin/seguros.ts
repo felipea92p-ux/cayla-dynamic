@@ -247,14 +247,16 @@ export type EstadoPrima = "pagada" | "sin_fecha" | "al_dia" | "por_vencer" | "en
  * (negativo, como lo cuentan las demás urgencias de la Bandeja).
  */
 export function estadoPrima(
-  p: Pick<Poliza, "pagada_el" | "prima_vence_el">,
+  p: Pick<Poliza, "pagada_el" | "prima_vence_el"> & Partial<Pick<Poliza, "producto_principal">>,
   hoy: string,
 ): { estado: EstadoPrima; dias: number | null } {
   if (p.pagada_el) return { estado: "pagada", dias: null };
   if (!p.prima_vence_el) return { estado: "sin_fecha", dias: null };
   const dias = diasEntre(hoy, p.prima_vence_el);
   if (dias >= 0) return { estado: dias <= DIAS_AVISO_PRIMA ? "por_vencer" : "al_dia", dias };
-  return { estado: -dias > DIAS_DE_GRACIA_PRIMA ? "suspendida" : "en_mora", dias };
+  // La suspensión a los 30 días es una cláusula del convenio de pago de la póliza de salud. Un seguro que va
+  // además del principal tiene otras reglas (Vida Ley: 90 días, `docs/estado.md`): de esa mora no se afirma nada.
+  return { estado: -dias > DIAS_DE_GRACIA_PRIMA && p.producto_principal !== false ? "suspendida" : "en_mora", dias };
 }
 
 // ── El papeleo ──────────────────────────────────────────────────────────────
@@ -361,6 +363,113 @@ export interface SeguroDePersona {
   cambiosPendientes: CambioSeguro[];
   /** Las pólizas (de cualquier tipo) con un paso del papeleo sin hacer. */
   conPapeleo: Poliza[];
+  /** Los seguros que van ADEMÁS del principal: uno por seguro, y Vida Ley aunque no tenga póliza si su vínculo la pide. */
+  complementarios: SeguroComplementario[];
+}
+
+/**
+ * vigente ......... cubre hoy, con margen.
+ * por_vencer ...... cubre hoy, termina en `DIAS_AVISO_RENOVACION` días o menos y nada empalma.
+ * vencida ......... su vínculo la pide, tuvo una y hoy no la cubre.
+ * por_empezar ..... hay una registrada que todavía no empieza.
+ * sin_registrar ... su vínculo la pide y no hay ninguna registrada. Se MUESTRA y no alerta: el aviso
+ *                   «persona en planilla sin Vida Ley» espera al contador (0543).
+ * terminada ....... ya no le toca y su última póliza terminó: es historia, no pide nada.
+ */
+export type EstadoComplementario = "vigente" | "por_vencer" | "vencida" | "por_empezar" | "sin_registrar" | "terminada";
+
+export interface SeguroComplementario {
+  clave: string;
+  nombre: string;
+  estado: EstadoComplementario;
+  /** La póliza que habla por este seguro; null si no hay ninguna registrada. */
+  poliza: Poliza | null;
+  /** Hasta cuándo sigue (EXCLUSIVO), contando renovaciones que empalman; si venció, cuándo terminó. */
+  hasta: string | null;
+  /** Días que faltan para `hasta`; negativo si ya pasó. */
+  dias: number | null;
+  /** Si venció y ya hay otra registrada para después: cuándo empieza. */
+  empiezaEl?: string;
+}
+
+/**
+ * Los seguros que no son el principal y que el vínculo sí pide. Hoy uno: Vida Ley, decidido por Felipe solo sobre
+ * `tipo_vinculo = 'planilla'` (`docs/estado.md`, 2026-10-21), lo que deja fuera a la preselección. Va aquí y no en
+ * `seguros_tipos` porque esa columna no existe: `aplica_a_vinculos` solo manda en los principales (0528) y un
+ * check la exige vacía en los demás. El día que el contador responda y exista la alerta, la lista se muda a la tabla.
+ */
+export const COMPLEMENTARIOS_DE_VINCULO: readonly { clave: string; nombre: string; vinculos: readonly string[] }[] = [
+  { clave: "vida_ley", nombre: "Vida Ley", vinculos: ["planilla"] },
+];
+
+/** El estado de un seguro complementario de UNA persona. `polizas` son todas las suyas de ese seguro, en cualquier orden. */
+function estadoComplementario(
+  clave: string, nombre: string, polizas: readonly Poliza[], loPideSuVinculo: boolean, hoy: string,
+): SeguroComplementario | null {
+  const cubre = polizas.find((z) => z.cubre_hoy) ?? null;
+  if (cubre) {
+    const hasta = cubiertoHasta(cubre, polizas);
+    const dias = diasEntre(hoy, hasta);
+    return { clave, nombre, estado: dias <= DIAS_AVISO_RENOVACION ? "por_vencer" : "vigente", poliza: cubre, hasta, dias };
+  }
+  const proxima = [...polizas].filter((z) => z.vigente_desde > hoy).sort((a, b) => a.vigente_desde.localeCompare(b.vigente_desde))[0] ?? null;
+  const ultima = [...polizas].filter((z) => z.vigente_hasta <= hoy).sort((a, b) => b.vigente_hasta.localeCompare(a.vigente_hasta) || b.poliza_id.localeCompare(a.poliza_id))[0] ?? null;
+  // Una renovación que empieza más adelante no tapa los días sin cobertura de quien debía tenerla.
+  if (proxima && !(loPideSuVinculo && ultima)) return { clave, nombre, estado: "por_empezar", poliza: proxima, hasta: proxima.vigente_hasta, dias: null };
+  if (ultima) {
+    return {
+      clave, nombre, estado: loPideSuVinculo ? "vencida" : "terminada", poliza: ultima, hasta: ultima.vigente_hasta, dias: diasEntre(hoy, ultima.vigente_hasta),
+      ...(proxima ? { empiezaEl: proxima.vigente_desde } : {}),
+    };
+  }
+  return loPideSuVinculo ? { clave, nombre, estado: "sin_registrar", poliza: null, hasta: null, dias: null } : null;
+}
+
+/** Sus seguros complementarios: los que el vínculo pide primero, después los demás con póliza, por nombre. */
+function complementariosDe(vinculo: string, activa: boolean, otras: readonly Poliza[], hoy: string): SeguroComplementario[] {
+  const suyos = otras.filter((z) => !z.producto_principal);
+  const pedidos = COMPLEMENTARIOS_DE_VINCULO.filter((c) => activa && c.vinculos.includes(vinculo));
+  const salida = pedidos.map((c) => estadoComplementario(c.clave, c.nombre, suyos.filter((z) => z.producto === c.clave), true, hoy));
+  const demas = [...new Set(suyos.map((z) => z.producto))].filter((clave) => !pedidos.some((c) => c.clave === clave));
+  for (const clave of demas) {
+    const delSeguro = suyos.filter((z) => z.producto === clave);
+    salida.push(estadoComplementario(clave, delSeguro[0].producto_nombre, delSeguro, false, hoy));
+  }
+  return salida
+    .filter((c): c is SeguroComplementario => c !== null)
+    .sort((a, b) => Number(pedidos.every((c) => c.clave !== a.clave)) - Number(pedidos.every((c) => c.clave !== b.clave)) || a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/** ¿Este complementario le pide a DO una renovación? */
+function complementarioPorAtender(c: SeguroComplementario): boolean {
+  return c.estado === "por_vencer" || c.estado === "vencida";
+}
+
+/** Lo que pide una decisión o un trámite. Es UNA sola regla: la usan las pestañas, las sedes y «Pide atención». */
+export function pideAlgo(p: SeguroDePersona): boolean {
+  return p.situacion === "hueco" || p.situacion === "suspendida" || p.situacion === "por_vencer" || p.situacion === "baja_pendiente"
+    || p.cambiosPendientes.length > 0 || p.conPapeleo.length > 0 || (p.activa && p.complementarios.some(complementarioPorAtender));
+}
+
+/** Cuántas personas no tienen registrado un seguro que su vínculo pide: se muestra, no alerta (0543). */
+export function faltanPorRegistrar(personas: readonly SeguroDePersona[]): { nombre: string; n: number }[] {
+  const cuenta = new Map<string, number>();
+  for (const p of personas) {
+    for (const c of p.complementarios) if (c.estado === "sin_registrar") cuenta.set(c.nombre, (cuenta.get(c.nombre) ?? 0) + 1);
+  }
+  return [...cuenta].map(([nombre, n]) => ({ nombre, n }));
+}
+
+/** Por qué se puede filtrar la lista. */
+export type FiltroSeguro = SituacionSeguro | "papeleo" | "cambios" | "sin_registrar";
+
+/** La única respuesta a «¿esta persona entra en este filtro?»: los números de los botones y las filas salen de aquí. */
+export function pasaElFiltro(p: SeguroDePersona, filtro: FiltroSeguro): boolean {
+  if (filtro === "papeleo") return p.conPapeleo.length > 0;
+  if (filtro === "cambios") return p.cambiosPendientes.length > 0;
+  if (filtro === "sin_registrar") return p.complementarios.some((c) => c.estado === "sin_registrar");
+  if (filtro === "por_vencer") return p.situacion === "por_vencer" || (p.activa && p.complementarios.some(complementarioPorAtender));
+  return p.situacion === filtro;
 }
 
 /** Hasta dónde llega la cobertura de `actual`, encadenando las pólizas que empiezan antes de que termine la anterior. */
@@ -395,7 +504,8 @@ function agrupar<T>(xs: readonly T[], clave: (x: T) => string): Map<string, T[]>
 function rangoDeAtencion(p: SeguroDePersona): number {
   if (p.situacion === "hueco") return 0;
   if (p.situacion === "suspendida") return 1;
-  if (p.situacion === "por_vencer") return 2;
+  if (p.situacion === "por_vencer" || p.complementarios.some((c) => c.estado === "vencida")) return 2;
+  if (p.complementarios.some(complementarioPorAtender)) return 3;
   if (p.cambiosPendientes.length > 0) return 3;
   if (p.situacion === "baja_pendiente") return 4;
   if (p.conPapeleo.length > 0) return 5;
@@ -484,6 +594,7 @@ export function seguroPorPersona(
       cambiosPendientes: susCambios.filter((c) => c.baja_pendiente || c.alta_pendiente),
       // El papeleo de una póliza vencida de quien ya se fue no vuelve a pedir nada.
       conPapeleo: todas.filter((z) => pasosPendientes(z).length > 0 && (f.activa || z.cubre_hoy)),
+      complementarios: complementariosDe(f.tipo_vinculo, f.activa, otras, hoy),
     };
   }).filter((p): p is SeguroDePersona => p !== null);
 
@@ -506,6 +617,7 @@ export function seguroPorPersona(
 export function sinNadaQueMostrar(p: SeguroDePersona, hoy: string): boolean {
   return p.situacion === "sin_seguro"
     && p.cambiosPendientes.length === 0
+    && p.conPapeleo.length === 0
     && !p.otras.some((z) => z.vigente_hasta > hoy);
 }
 
@@ -529,6 +641,8 @@ export interface ResumenSeguros {
   cambios: number;
   /** Personas con alguna póliza con un paso del papeleo sin hacer. */
   papeleo: number;
+  /** Personas a las que les falta registrar un seguro que su vínculo pide. */
+  sin_registrar: number;
 }
 
 /**
@@ -536,11 +650,13 @@ export interface ResumenSeguros {
  * botón es el de filas que deja ver al apretarlo (que no digan 3 y la lista muestre 2).
  */
 export function resumenDeSeguros(personas: readonly SeguroDePersona[]): ResumenSeguros {
-  const r: ResumenSeguros = { hueco: 0, suspendida: 0, por_vencer: 0, baja_pendiente: 0, al_dia: 0, por_planilla: 0, sin_seguro: 0, cambios: 0, papeleo: 0 };
+  const r: ResumenSeguros = { hueco: 0, suspendida: 0, por_vencer: 0, baja_pendiente: 0, al_dia: 0, por_planilla: 0, sin_seguro: 0, cambios: 0, papeleo: 0, sin_registrar: 0 };
   for (const p of personas) {
     r[p.situacion] += 1;
-    if (p.cambiosPendientes.length > 0) r.cambios += 1;
-    if (p.conPapeleo.length > 0) r.papeleo += 1;
+    if (p.situacion !== "por_vencer" && pasaElFiltro(p, "por_vencer")) r.por_vencer += 1;
+    if (pasaElFiltro(p, "cambios")) r.cambios += 1;
+    if (pasaElFiltro(p, "papeleo")) r.papeleo += 1;
+    if (pasaElFiltro(p, "sin_registrar")) r.sin_registrar += 1;
   }
   return r;
 }
@@ -575,7 +691,7 @@ export function contarPorTipo(
 
 // ── Lo que entra a la Bandeja ───────────────────────────────────────────────
 
-export type TipoPendienteSeguro = "sin_poliza" | "por_vencer" | "papeleo" | "baja" | "cambio_baja" | "cambio_alta";
+export type TipoPendienteSeguro = "sin_poliza" | "por_vencer" | "poliza_vencida" | "papeleo" | "baja" | "cambio_baja" | "cambio_alta";
 
 /** Lo que la Bandeja necesita de cada pendiente de seguros, sin la forma que ella pinta. */
 export interface PendienteSeguro {
@@ -596,14 +712,23 @@ export interface PendienteSeguro {
   motivoHueco: MotivoHueco | null;
   dias: number | null;
   /** Para `papeleo`: en qué va la prima y qué pasos faltan. */
-  prima: { estado: EstadoPrima; dias: number | null; venceEl: string | null } | null;
+  /** `seSuspende: false`: la póliza no es del seguro principal, y la suspensión a los 30 días es cláusula de ese. */
+  prima: { estado: EstadoPrima; dias: number | null; venceEl: string | null; seSuspende: boolean } | null;
   pasos: PasoSeguro[];
   /** Para `por_vencer`: la fecha en que se queda sin seguro (la EXCLUSIVA). Para un cambio: el día en que cambió. */
   hasta: string | null;
+  /** Una póliza colectiva es UN trámite: lo que se busca en Seguros para ver a todas sus personas. Null si es de una sola. */
+  buscar: string | null;
+  /** De qué sedes es la colectiva: «Varias sedes» no es una sede, y el filtro de la Bandeja tiene que encontrarla en cada una. */
+  sedes: readonly string[];
+  /** A quiénes cubre una colectiva: los que el formulario de renovación trae marcados. */
+  personasIds: readonly string[];
+  /** Es de un seguro complementario: perderlo no deja a la persona «sin seguro». */
+  complementario: boolean;
 }
 
 /**
- * Qué piden los seguros a DO. Seis cosas:
+ * Qué piden los seguros a DO. Siete cosas:
  *   · sin_poliza: su seguro principal pide póliza y no tiene una que cubra hoy. Lo más serio.
  *   · cambio_baja / cambio_alta: alguien cambió de seguro y falta uno de los dos pasos. UN
  *     pendiente por paso: la baja la pide una persona a la aseguradora o al contador, y el
@@ -615,6 +740,9 @@ export interface PendienteSeguro {
  *   · papeleo: UNA fila por póliza con lo que falte de prima, firma y factura juntos. Tres
  *     filas por póliza llenarían la Bandeja de lo que es un solo trámite con el corredor.
  *   · baja: ya no está activa y su póliza sigue vigente.
+ *   · poliza_vencida: la de un seguro complementario que su vínculo pide. Nunca es `sin_poliza`: eso
+ *     lo reserva la base para el seguro principal.
+ * Papeleo y renovación de un seguro complementario salen UNA vez por póliza, no por persona.
  * El papeleo solo cuenta para quien está activa o tiene la póliza vigente; una persona que
  * se fue hace meses no vuelve a la Bandeja por una factura vieja.
  */
@@ -632,7 +760,9 @@ export function pendientesDeSeguros(
 ): PendienteSeguro[] {
   const sinDetalle = opciones.sinDetalleDePolizas === true;
   const items: PendienteSeguro[] = [];
-  const vacio = { polizaId: null, cambioId: null, detalle: null, motivoHueco: null, dias: null, prima: null, pasos: [] as PasoSeguro[], hasta: null };
+  const papeleos = new Map<string, GrupoDePoliza>();
+  const renovaciones = new Map<string, GrupoDePoliza>();
+  const vacio = { polizaId: null, cambioId: null, detalle: null, motivoHueco: null, dias: null, prima: null, pasos: [] as PasoSeguro[], hasta: null, buscar: null, sedes: [] as string[], personasIds: [] as string[], complementario: false };
 
   for (const p of personas) {
     const base = { personaId: p.personaId, persona: p.persona, sede: p.sede };
@@ -700,17 +830,75 @@ export function pendientesDeSeguros(
     for (const z of p.conPapeleo) {
       const pasos = pasosPendientes(z);
       const prima = estadoPrima(z, hoy);
-      items.push({
-        ...vacio, ...base, tipo: "papeleo", clave: `papeleo:${z.poliza_id}`, polizaId: z.poliza_id,
-        titulo: pasos[0] === "pagada" ? `Prima del seguro (${z.producto_nombre}) sin pagar`
-          : pasos[0] === "firmada" ? `Póliza del seguro (${z.producto_nombre}) sin firmar`
-          : `Falta la factura del seguro (${z.producto_nombre})`,
-        detalle: pasos.map((x) => PASOS_SEGURO.find((s) => s.paso === x)!.falta).join(" · "),
-        prima: { estado: prima.estado, dias: prima.dias, venceEl: z.prima_vence_el }, pasos,
-      });
+      apilar(papeleos, `${identidadDePoliza(z)}|${pasos.join("+")}|${prima.estado}|${z.prima_vence_el ?? ""}`, base, z);
+    }
+
+    if (p.activa) {
+      for (const c of p.complementarios) {
+        if (complementarioPorAtender(c) && c.poliza) apilar(renovaciones, `${c.estado}|${identidadDePoliza(c.poliza)}|${c.hasta}`, base, c.poliza, c);
+      }
     }
   }
+
+  // Una póliza colectiva es un solo trámite con la aseguradora, aunque tenga una fila por persona: una Bandeja que
+  // repite 17 veces lo mismo se aprende a ignorar, y le inflaría el número al menú.
+  for (const [clave, g] of papeleos) {
+    const z = g.poliza;
+    const pasos = pasosPendientes(z);
+    const prima = estadoPrima(z, hoy);
+    items.push({
+      ...vacio, ...aQuien(g), tipo: "papeleo", clave: g.personas.length === 1 ? `papeleo:${z.poliza_id}` : `papeleo_poliza:${clave}`, polizaId: z.poliza_id,
+      titulo: `${pasos[0] === "pagada" ? `Prima del seguro (${z.producto_nombre}) sin pagar`
+        : pasos[0] === "firmada" ? `Póliza del seguro (${z.producto_nombre}) sin firmar`
+        : `Falta la factura del seguro (${z.producto_nombre})`}${g.personas.length > 1 ? ` · póliza ${z.numero_poliza}` : ""}`,
+      detalle: pasos.map((x) => PASOS_SEGURO.find((s) => s.paso === x)!.falta).join(" · "),
+      prima: { estado: prima.estado, dias: prima.dias, venceEl: z.prima_vence_el, seSuspende: z.producto_principal !== false }, pasos,
+      buscar: g.personas.length > 1 ? z.numero_poliza : null,
+    });
+  }
+  for (const [clave, g] of renovaciones) {
+    const c = g.complementario!;
+    const z = g.poliza;
+    const varias = g.personas.length > 1;
+    const dePoliza = varias ? `La póliza ${z.numero_poliza} de ${c.nombre}` : `Su póliza de ${c.nombre}`;
+    items.push({
+      ...vacio, ...aQuien(g), polizaId: z.poliza_id, clave: `poliza:${clave}`, buscar: varias ? z.numero_poliza : null, hasta: c.hasta, dias: c.estado === "vencida" ? -(c.dias ?? 0) : c.dias,
+      complementario: true,
+      tipo: c.estado === "vencida" ? "poliza_vencida" : "por_vencer",
+      titulo: c.estado === "vencida" ? `${dePoliza} venció` : `${dePoliza} está por vencer`,
+      detalle: c.estado === "vencida" ? (c.empiezaEl ? `La que ya está registrada empieza el ${diaYMes(c.empiezaEl)}` : "Falta registrar la renovación")
+        : z.renueva_sola === true ? "La póliza dice que renueva sola: confirmar con la aseguradora" : "Falta registrar la renovación",
+    });
+  }
   return items;
+}
+
+/** Lo que hace que dos filas sean la misma póliza colectiva. Es la misma identidad de `hermanasDe`. */
+function identidadDePoliza(z: Pick<Poliza, "producto" | "aseguradora" | "numero_poliza" | "vigente_desde" | "vigente_hasta">): string {
+  const texto = (t: string) => t.trim().toLowerCase();
+  return [z.producto, texto(z.aseguradora), texto(z.numero_poliza), z.vigente_desde, z.vigente_hasta].join("|");
+}
+
+interface GrupoDePoliza {
+  poliza: Poliza;
+  complementario: SeguroComplementario | null;
+  personas: { personaId: string; persona: string; sede: string }[];
+}
+
+function apilar(
+  grupos: Map<string, GrupoDePoliza>, clave: string, persona: GrupoDePoliza["personas"][number], poliza: Poliza, complementario: SeguroComplementario | null = null,
+): void {
+  const g = grupos.get(clave);
+  if (g) g.personas.push(persona); else grupos.set(clave, { poliza, complementario, personas: [persona] });
+}
+
+/** A nombre de quién sale la fila: la persona, o «17 personas» si es una colectiva. */
+function aQuien(g: GrupoDePoliza): { personaId: string; persona: string; sede: string; sedes: readonly string[]; personasIds: readonly string[] } {
+  const [primera] = g.personas;
+  const sedes = [...new Set(g.personas.map((p) => p.sede))];
+  const personasIds = g.personas.map((p) => p.personaId);
+  if (g.personas.length === 1) return { ...primera, sedes, personasIds };
+  return { personaId: primera.personaId, persona: plural(g.personas.length, "persona", "personas"), sede: sedes.length === 1 ? primera.sede : "Varias sedes", sedes, personasIds };
 }
 
 // ── A quién se le registra una póliza ───────────────────────────────────────
