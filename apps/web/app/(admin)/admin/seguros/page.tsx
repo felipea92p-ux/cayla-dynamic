@@ -65,7 +65,7 @@ import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useRolActual } from "@/lib/admin/use-rol";
 import {
-  coincideSeguro, contarPorTipo, fechaDelPaso, hermanasDe, pasaElFiltro, pideAlgo, plural, resumenDeSeguros, seguroPorPersona, sinNadaQueMostrar, DIAS_AVISO_RENOVACION, PASOS_SEGURO,
+  coincideSeguro, contarPorTipo, fechaDelPaso, hermanasDe, pasaElFiltro, pendientesDeSeguros, pideAlgo, plural, resumenDeSeguros, seguroPorPersona, sinNadaQueMostrar, DIAS_AVISO_RENOVACION, PASOS_SEGURO,
   type CambioSeguro, type FilaEquipoSeguro, type FiltroSeguro, type PasoSeguro, type Poliza, type SeguroDePersona, type TipoSeguro,
 } from "@/lib/admin/seguros";
 
@@ -190,7 +190,14 @@ function Seguros() {
   const alcance = useMemo(() => (sedeActiva === "todas" ? personas : personas.filter((p) => p.sede === sedeActiva)), [personas, sedeActiva]);
   const resumen = useMemo(() => resumenDeSeguros(alcance), [alcance]);
   const porTipo = useMemo(() => contarPorTipo(alcance, tipos), [alcance, tipos]);
-  const atencion = useMemo(() => alcance.filter(pideAlgo), [alcance]);
+  // Una póliza colectiva es UN trámite: va en una tarjeta, y quien solo espera eso no se repite como una fila por persona.
+  const pendientes = useMemo(() => pendientesDeSeguros(alcance, hoy), [alcance, hoy]);
+  const colectivas = useMemo(() => pendientes.filter((x) => x.buscar !== null), [pendientes]);
+  const atencion = useMemo(() => {
+    const propias = new Set(pendientes.filter((x) => x.buscar === null).map((x) => x.personaId));
+    return alcance.filter((p) => propias.has(p.personaId) || p.situacion === "suspendida");
+  }, [alcance, pendientes]);
+  const sinPendientes = useMemo(() => alcance.filter((p) => !pideAlgo(p)).length, [alcance]);
 
   // Los botones «Piden la baja», «Cobertura suspendida» y el del seguro por registrar solo existen mientras hay alguien:
   // si se corrige el último caso con ese filtro puesto, el filtro se suelta solo (sin esto la lista quedaba vacía,
@@ -460,12 +467,31 @@ function Seguros() {
                 <section aria-labelledby="pide-atencion" className="mb-6">
                   <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4">
                     <h2 id="pide-atencion" className="font-serif text-lg text-tinta">Pide atención</h2>
-                    <p className="text-sm text-taupe">{alcance.length - atencion.length} de {plural(alcance.length, "persona", "personas")} sin nada pendiente</p>
+                    <p className="text-sm text-taupe">{sinPendientes} de {plural(alcance.length, "persona", "personas")} sin nada pendiente</p>
                   </div>
-                  {atencion.length === 0 ? (
+                  {atencion.length === 0 && colectivas.length === 0 ? (
                     <EstadoVacio>Nadie pide atención hoy.</EstadoVacio>
                   ) : (
                     <div className="space-y-2">
+                      {colectivas.map((c) => {
+                        const z = polizas.find((x) => x.poliza_id === c.polizaId);
+                        return (
+                          <TarjetaInfo key={c.clave} className="flex flex-wrap items-center justify-between gap-3 py-3 sm:py-3">
+                            <div className="min-w-0">
+                              <p className="font-serif text-base text-tinta">{c.titulo}</p>
+                              <p className="text-sm text-taupe">{c.persona} · {c.detalle}</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Boton tamano="sm" onClick={() => setBusqueda(c.buscar ?? "")}>Ver a {c.persona}</Boton>
+                              {c.tipo !== "papeleo" && z && (
+                                <Boton variante="primario" tamano="sm" onClick={() => registrar({ producto: z.producto, aseguradora: z.aseguradora, numeroPoliza: z.numero_poliza, desde: c.hasta ?? undefined, prima: z.prima_total })}>
+                                  Registrar la renovación
+                                </Boton>
+                              )}
+                            </div>
+                          </TarjetaInfo>
+                        );
+                      })}
                       {atencion.map((p) => {
                         const clave = `atencion:${p.personaId}`;
                         return (

@@ -73,7 +73,7 @@ function textoComplementario(c: SeguroComplementario): string | null {
   }
 }
 
-const textoDeComplementarios = (p: SeguroDePersona) => p.complementarios.map(textoComplementario).filter(Boolean).join(" · ");
+const textoDeComplementarios = (p: Pick<SeguroDePersona, "complementarios">) => p.complementarios.map(textoComplementario).filter(Boolean).join(" · ");
 
 /** «Seguro: FOLA · por su vínculo», o quién y por qué se lo cambió. */
 function LineaSeguro({ p }: { p: SeguroDePersona }) {
@@ -276,8 +276,9 @@ export function FichaPersona({
 }) {
   if (abierta) return <FichaAbierta p={p} hoy={hoy} tipos={tipos} acciones={acciones} onCerrar={onAlternar} />;
   const pendientes = pendientesDe(p);
-  const complementarios = textoDeComplementarios(p);
   const porAtender = p.activa ? p.complementarios.filter((c) => c.estado === "por_vencer" || c.estado === "vencida") : [];
+  // Lo que va en insignia no se repite en la línea de abajo.
+  const complementarios = textoDeComplementarios({ complementarios: p.complementarios.filter((c) => !porAtender.includes(c)) });
   return (
     <button
       type="button"
