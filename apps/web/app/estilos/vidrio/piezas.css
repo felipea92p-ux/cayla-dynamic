@@ -113,6 +113,11 @@
   [data-vidrio="panel"] [role="dialog"] :is(.text-taupe, [class*="text-taupe/"]):not([role="tab"], .vidrio-pestanas > button, .hoja *) {
     color: color-mix(in srgb, var(--color-taupe) 72%, var(--color-tinta));
   }
+  /* Las pantallas que enteras llevan la clase del papel (las dos de constancias y la hoja de una norma): lo que queda fuera del papel es pantalla, y su letra secundaria
+     es la del vidrio. Con el café de siempre, «Para guardarlo como PDF…» y «Versión:» daban 4.22:1 sobre el fondo. */
+  [data-vidrio="panel"] main.hoja :is(.text-taupe, [class*="text-taupe/"]):not([role="tab"], .vidrio-pestanas > button, .vidrio-papel *) {
+    color: var(--vidrio-letra-secundaria);
+  }
   /* El ámbar para leer es el profundo, como en Retail. El otro es para marcar. */
   [data-vidrio="panel"] .text-ambar:not(.hoja *) {
     color: var(--color-ambar-profundo);
