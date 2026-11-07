@@ -158,8 +158,12 @@
   [data-vidrio="panel"] :is(button, a, [role="button"]).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, .hoja *) {
     border-radius: var(--radius-boton);
   }
+  /* La altura de la píldora. Un <button> centra su texto solo; un enlace no: el alto que esta regla le agrega caía entero debajo de la letra, y
+     «Volver al panel» de Lo mío quedaba pegado arriba (Felipe, 2026-11-07). `align-content` centra sin tocar el `display` del enlace —cambiarlo
+     encendería los `hidden md:inline-flex`—; en un flex de una línea no hace nada. Un navegador sin soporte (Safari < 17.4) lo deja como estaba. */
   [data-vidrio="panel"] :is(button, a).rounded-control.py-2:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, .hoja *) {
     min-height: 2.5rem;
+    align-content: center;
   }
   [data-vidrio="panel"] :is(button, a).bg-tinta:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) {
     background: var(--ahumado-fondo);
