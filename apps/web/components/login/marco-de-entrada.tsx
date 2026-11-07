@@ -11,7 +11,6 @@
 import { useSyncExternalStore, type ReactNode } from "react";
 import { Colibri } from "@/components/marca";
 import { PanelVuelo } from "@/components/login/PanelVuelo";
-import { Rotulo } from "@/components/ui/rotulo";
 import { saludoDelDia } from "@/lib/login-vuelo";
 
 const sinSuscripcion = () => () => {};
@@ -42,7 +41,8 @@ export function MarcoDeEntrada({
           <div className="login-marca-chica">
             <Colibri tono="rojo" className="w-12" />
             <p className="mt-4 font-serif text-3xl leading-none">Dynamic</p>
-            <Rotulo className="mt-2 text-taupe">{subtitulo}</Rotulo>
+            {/* receta-propia: es la misma marca chica de Entrar (login/page.tsx), que la escribe así; las dos se cambian juntas o ninguna */}
+            <p className="etiqueta mt-2 text-taupe">{subtitulo}</p>
           </div>
 
           <div className="mb-3">
