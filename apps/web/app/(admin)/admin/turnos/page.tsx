@@ -40,7 +40,9 @@ import { TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-
 import { RepeticionDelDia } from "./repeticion-del-dia";
 import { PropuestaDeLaSemana } from "./sugerencia-semana";
 import { BorradorDeLaSemana, type FilaComparativa } from "./borrador-de-la-semana";
-import { comoPropuesta, compararSemanas, esTablaInexistente, filasDelBorradorParaGuardar, semanaDesdeBorrador, type FilaDiaBorrador, type SemanaTurnos } from "@/lib/admin/borrador-semana";
+import { TablaSemana, type CasillaSemana, type FilaSemana } from "./tabla-semana";
+import { resumenSemanalDelDia } from "@/lib/admin/semana-por-persona";
+import { comoPropuesta, compararSemanas, cumpleJornada, esTablaInexistente, filasDelBorradorParaGuardar, horasNetas, semanaDesdeBorrador, type FilaDiaBorrador, type SemanaTurnos } from "@/lib/admin/borrador-semana";
 import { ventaPedia, type PersonaRepeticion } from "@/lib/admin/repeticion";
 import { lideresDelDia, metasPorFecha, pideEn, type MetaDelDia, type FilaMeta } from "@/lib/admin/metas-cobertura";
 import { leerMetasDeCobertura } from "@/lib/admin/leer-metas";
@@ -72,6 +74,7 @@ function lunesDeLaSemana(iso: string): string {
   return addDays(iso, dow === 0 ? -6 : 1 - dow);
 }
 const DIAS_ABR = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const DIAS_LARGOS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 // Para la frase "cambia su horario de los sábados…" (plural, en minúscula).
 const DIAS_PLURAL = ["domingos", "lunes", "martes", "miércoles", "jueves", "viernes", "sábados"];
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -690,23 +693,22 @@ export default function TurnosPage() {
   const conteoBase = useCallback((n: number | null, espejos: number) => { setNBase(n); setNEspejos(espejos); }, []);
   const conteoTope = useCallback((n: number | null, grave: boolean) => { setNTope(n); setTopeGrave(grave); }, []);
   const [lunes, setLunes] = useState<string>(() => lunesDeLaSemana(hoyLima()));
-  // Dos vistas (decisión de Felipe, 2026-11-02): Integrada = la semana hora por
-  // hora con quién está en cada hora, la de entrada · Día = un día, con la línea de
-  // cada persona. «Semana» (las siluetas de mañana y tarde) y la Integrada vieja
-  // (la sábana de medias horas, solo con números) se retiraron: la Integrada de hoy
-  // dice lo mismo con los nombres. La preferencia vive en «turnos.vista.v2» para que
-  // todos arranquen una vez en la Integrada nueva; un valor viejo («semana») cae a ella.
-  type Vista = "integrada" | "dia";
-  const [vistaGuardada, setVista] = useFiltroGuardado<Vista>("turnos.vista.v2", "integrada");
-  const vista: Vista = vistaGuardada === "dia" ? "dia" : "integrada";
+  // Dos vistas (decisión de Felipe, 2026-11-07, sobre la de 2026-11-02): Integrada = la semana hora por hora con
+  // quién está en cada hora · Semana = una fila por persona, como un rol de turnos, y el día que se toca se abre
+  // debajo con lo que antes era la vista Día (repetición, lo marcado, la línea de cada persona, la sugerencia). Día
+  // dejó de ser pestaña: el día sigue, dentro de la semana. Un «dia» guardado de antes cae en Semana.
+  type Vista = "integrada" | "semana";
+  const [vistaGuardada, setVista] = useFiltroGuardado<Vista | "dia">("turnos.vista.v2", "integrada");
+  const vista: Vista = vistaGuardada === "semana" || vistaGuardada === "dia" ? "semana" : "integrada";
   // El resumen de horas al pie de la Integrada: abierto por defecto, y cada navegador recuerda si lo plegó.
   const [resumenAbierto, setResumenAbierto] = useFiltroGuardado("turnos.resumen-abierto", true);
-  // El día que se mira en la vista Día (uno a la vez: «mañana y tarde» de ese día). Se guarda como fecha; si la semana
-  // cambia y esa fecha ya no está en ella, se cae a hoy (o al lunes) sin necesitar un efecto que lo corrija.
-  const [diaSel, setDiaSel] = useState<string | null>(null);
+  // El día abierto en Semana. null = el automático: hoy, si cae en la semana que se mira; si no, ninguno.
+  // { iso: null } = la persona lo cerró. { iso } = el que tocó; si la semana cambia y ya no está, vuelve al automático
+  // sin necesitar un efecto que lo corrija.
+  const [diaElegido, setDiaElegido] = useState<{ iso: string | null } | null>(null);
   function irADia(iso: string) {
-    setDiaSel(iso);
-    setVista("dia");
+    setDiaElegido({ iso });
+    setVista("semana");
   }
   // Desde la Integrada: el día, con la línea de cada persona ya abierta y a la vista.
   function verLineaDelDia(iso: string) {
@@ -770,7 +772,9 @@ export default function TurnosPage() {
   const [cicloEdit, setCicloEdit] = useState<ReturnType<typeof cicloVigente>>(null);
 
   const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(lunes, i)), [lunes]);
-  const diaActivo = diaSel && dias.includes(diaSel) ? diaSel : (dias.includes(hoyLima()) ? hoyLima() : dias[0]);
+  const diaAbierto: string | null = diaElegido && (diaElegido.iso === null || dias.includes(diaElegido.iso))
+    ? diaElegido.iso
+    : (dias.includes(hoyLima()) ? hoyLima() : null);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const reqId = useRef(0); // "última carga gana": descarta respuestas fuera de orden
   const cargaConMetas = useRef(0); // id de la carga completa o en sitio que está en curso (0 = ninguna); ver `cargar`
@@ -1164,16 +1168,6 @@ export default function TurnosPage() {
     return { id: p.id, nombre: `${p.nombres} ${p.apellidos}`, detalle, aparte: !esOperativa(p) && !esEncargada(p) ? areaCorto(areas, p.funcion) : undefined };
   };
   const nombrePersona = (id: string) => personas.find((x) => x.id === id);
-  // Un símbolo por día para el selector: lo que importa a primera vista, con su palabra.
-  const simboloDelDia = (iso: string): { s: string; t: string } => {
-    if (sedeSinTurnosEn(iso)) return { s: "–", t: "sin turnos" };
-    const t = tramosDelDia(iso);
-    const e = [t.manana.estado, t.tarde.estado];
-    if (e.includes("falta") || e.includes("con_huecos") || t.lideres.estado === "falta") return { s: "▲", t: "falta gente" };
-    if (e.includes("sobra")) return { s: "●", t: "sobra gente" };
-    if (e.every((x) => x === "sin_meta") && t.lideres.estado === "sin_meta") return { s: "·", t: "sin meta" };
-    return { s: "✓", t: "cubierto" };
-  };
   // La sugerencia de siempre (redistribuir / falta personal), con el candidato concreto a mover.
   const sugerenciaDe = (iso: string): string | null => {
     const mt = mtDe(iso);
@@ -1217,12 +1211,15 @@ export default function TurnosPage() {
   };
   // Integrada: los turnos de un día con su nombre corto y si suman (ver lib/admin/semana-con-nombres.ts).
   // Nombre y primera letra del apellido: en una casilla no cabe el completo, y dos «Diana» se distinguen igual.
+  // Por qué alguien no suma a la meta, en una o dos palabras. Lo usan la Integrada y Semana: una sola respuesta.
+  const aparteDe = (p: Persona): string | undefined =>
+    esOperativa(p) || esEncargada(p) ? undefined : p.tipoVinculo === "prueba" ? "preselección" : areaCorto(areas, p.funcion);
   const turnosConNombreDe = (iso: string, conLoReal = false): TurnoConNombre[] =>
     personas.flatMap((p) => {
       const c = celda(p.id, iso);
       if (c.tipo !== "turno" && c.tipo !== "default") return [];
       const cuenta = esOperativa(p), lider = esEncargada(p);
-      const aparte = cuenta || lider ? undefined : p.tipoVinculo === "prueba" ? "preselección" : areaCorto(areas, p.funcion);
+      const aparte = aparteDe(p);
       const corto = `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`;
       const entrada = horaADecimal(c.entrada), salida = c.salida ? horaADecimal(c.salida) : HORA_FIN;
       // El plan de almacén de un día sin turno se ignora: no hay en qué piso descontarlo.
@@ -1496,6 +1493,37 @@ export default function TurnosPage() {
     });
     return [...propios, ...propuestos];
   };
+
+  // La cuenta de la semana, UNA vez para las dos vistas: la Integrada la dibuja hora por hora y Semana la resume
+  // por día. Si cada una contara por su lado, la misma hora podría decir «falta 1» en una y «completo» en la otra.
+  const cuentaDeLaSemana = () => {
+    const porDia = dias.map((iso) => ({ iso, turnos: turnosDeLaIntegrada(iso) }));
+    const horas = horasDeLaSemana(porDia.map((d) => d.turnos));
+    const celdas = porDia.map(({ iso, turnos: delDia }) =>
+      horas.map((h) => celdaConNombres({ turnos: delDia, hora: h, metaEn: metaHoraDe(iso), metaLideres: lideresDelDia(rangosDe(iso)) })));
+    return { porDia, horas, celdas };
+  };
+
+  // Semana: la fila de cada persona. Qué le toca cada día lo dice `celda` (jornada-esperada.ts); las horas y si
+  // cumple su jornada, borrador-semana.ts —las mismas que compara el borrador—.
+  const filasDeLaSemana = (): FilaSemana[] =>
+    personas.map((p) => {
+      const casillas = dias.map((iso): CasillaSemana => {
+        const c = celda(p.id, iso);
+        if (c.tipo === "descanso") return { tipo: "descanso" };
+        if (c.tipo === "libre") return { tipo: "sin_turno" };
+        const turno = { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN };
+        const alm = tramosEnAlmacen(puestoDe(p.id, iso), turno);
+        const todoElTurno = alm.length === 1 && alm[0].desde <= turno.desde + 1e-9 && alm[0].hasta >= turno.hasta - 1e-9;
+        const almacen = alm.length === 0 ? null : todoElTurno ? "todo el turno" : alm.map((a) => `${decimalAHHMM(a.desde)}–${decimalAHHMM(a.hasta)}`).join(", ");
+        return { tipo: "turno", entrada: hhmm(c.entrada), salida: c.salida ? hhmm(c.salida) : null, almacen };
+      });
+      const netas = horasNetas(Object.fromEntries(dias.map((f) => [f, turnoActualMin(p.id, f)])), dias, refrigerioDe(p.id));
+      return {
+        id: p.id, nombre: `${p.nombres} ${p.apellidos ?? ""}`.trim(), lider: esEncargada(p), aparte: aparteDe(p), casillas,
+        horas: cumpleJornada(netas.total, jornadasSede.get(p.id) ?? null, netas.porDia),
+      };
+    });
 
   // ── «¿Dónde trabaja ese día?»: piso o almacén planificado (0579) ────────────
   const [almacenEdit, setAlmacenEdit] = useState<{ personaId: string; fecha: string } | null>(null);
@@ -1957,7 +1985,7 @@ export default function TurnosPage() {
             enBarra
             pestanas={[
               { clave: "integrada", texto: "Integrada" },
-              { clave: "dia", texto: "Día" },
+              { clave: "semana", texto: "Semana" },
             ]}
             activa={vista}
             alElegir={setVista}
@@ -2057,22 +2085,14 @@ export default function TurnosPage() {
             // vive en lib/admin/semana-con-nombres.ts con sus pruebas; aquí solo se dibuja. El dibujo es el
             // de la maqueta B elegida por Felipe (2026-11-02): casillas claras con borde de su estado, la
             // cuenta arriba y los nombres como fichas.
-            const porDia = dias.map((iso) => ({ iso, turnos: turnosDeLaIntegrada(iso) }));
-            const horasSemana = horasDeLaSemana(porDia.map((d) => d.turnos));
+            // Cada casilla se calcula una vez, en cuentaDeLaSemana: la usan la grilla, el resumen del pie y Semana.
+            const { porDia, horas: horasSemana, celdas } = cuentaDeLaSemana();
             if (personas.length === 0) {
               return <SinDatos texto="Todavía no hay nadie asignado a esta sede." pista="Ve a Equipo, abre a una persona y elige esta sede como su sede base." />;
             }
             if (horasSemana.length === 0) {
-              return <SinDatos texto="Nadie tiene turno ni horario esta semana en esta sede." pista="Abre la vista Día y toca la fila de una persona para ponerle turno. Si su horario base ya está puesto en Horarios, aparece solo." />;
+              return <SinDatos texto="Nadie tiene turno ni horario esta semana en esta sede." pista="Abre Semana y toca el día de una persona para ponerle turno. Si su horario base ya está puesto en Horarios, aparece solo." />;
             }
-            // Cada casilla se calcula una vez: la usan la grilla y el resumen del pie.
-            const celdas = porDia.map(({ iso, turnos: delDia }) => {
-              return horasSemana.map((h) => celdaConNombres({
-                turnos: delDia, hora: h,
-                metaEn: metaHoraDe(iso),
-                metaLideres: lideresDelDia(rangosDe(iso)),
-              }));
-            });
             const resumenes = porDia.map((d, di) => resumenDelDia(celdas[di], d.turnos));
             const fmtH = (x: number) => (Math.round(x * 10) / 10).toLocaleString("es-PE");
             const cols = "4.75rem repeat(7, minmax(9.5rem, 1fr))";
@@ -2300,27 +2320,46 @@ export default function TurnosPage() {
             {personas.length === 0 ? (
               <SinDatos texto="Todavía no hay nadie asignado a esta sede." pista="Ve a Equipo, abre a una persona y elige esta sede como su sede base." />
             ) : (
-              <>
-                <div role="group" aria-label="Día de la semana" className={`flex flex-wrap gap-1.5${interruptoresVidrio().panel ? " vidrio-riel" : ""}`}>
-                  {dias.map((d) => {
-                    const { abr, num } = etiquetaDia(d);
-                    const sim = simboloDelDia(d);
-                    return (
-                      <Filtro key={d} activo={d === diaActivo} onClick={() => setDiaSel(d)} title={`${abr} ${num} · ${sim.t}${d === hoyLima() ? " · hoy" : ""}`}>
-                        {abr} <span className="text-[0.85em] opacity-70">{num}</span> <span aria-hidden className="ml-0.5">{sim.s}</span>
-                        <span className="sr-only"> {sim.t}</span>
-                      </Filtro>
-                    );
-                  })}
-                </div>
-
-                {detalleDelDia(diaActivo)}
-              </>
+              (() => {
+                // ── Vista Semana: una fila por persona; el día que se toca se abre debajo ──────────────────
+                // El dibujo es el de la maqueta que Felipe eligió el 2026-11-07 (docs/turnos-semana-prototipo-…).
+                const { porDia, celdas } = cuentaDeLaSemana();
+                const resumen = porDia.map((d, i) => resumenSemanalDelDia(celdas[i], d.turnos));
+                const hoy = hoyLima();
+                const abierto = diaAbierto;
+                const i = abierto ? dias.indexOf(abierto) : -1;
+                const titulo = abierto ? (() => { const { num } = etiquetaDia(abierto); return `${DIAS_LARGOS[diaSemana(abierto)]} ${num}${abierto === hoy ? " · hoy" : ""}`; })() : "";
+                return (
+                  <>
+                    <TablaSemana
+                      dias={dias.map((iso) => ({ iso, ...etiquetaDia(iso), hoy: iso === hoy }))}
+                      filas={filasDeLaSemana()}
+                      resumen={resumen}
+                      abierto={abierto}
+                      alTocarDia={(iso) => setDiaElegido({ iso: iso === abierto ? null : iso })}
+                      alTocarCasilla={puedeVer ? abrir : undefined}
+                    />
+                    {abierto && (
+                      <section id="turnos-dia-abierto" aria-label={titulo} className="scroll-mt-20 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-sand pt-4">
+                          <h2 className="font-serif text-2xl">{titulo}</h2>
+                          <div className="flex items-center gap-1">
+                            <BotonIcono etiqueta="Día anterior" icono={<ChevronLeft aria-hidden />} disabled={i <= 0} onClick={() => setDiaElegido({ iso: dias[i - 1] })} />
+                            <BotonIcono etiqueta="Día siguiente" icono={<ChevronRight aria-hidden />} disabled={i >= dias.length - 1} onClick={() => setDiaElegido({ iso: dias[i + 1] })} />
+                            <Boton variante="secundario" tamano="sm" onClick={() => setDiaElegido({ iso: null })}>Cerrar el día</Boton>
+                          </div>
+                        </div>
+                        {detalleDelDia(abierto)}
+                      </section>
+                    )}
+                  </>
+                );
+              })()
             )}
           </div>
         )}
 
-        {vista === "dia" && !cargando && (
+        {vista === "semana" && diaAbierto && !cargando && (
           <p className="mt-3 text-xs text-taupe">
             Cada barra es el rango de entrada–salida del turno de esa persona ese día (más clarita = horario por
             defecto del periodo, no se fijó turno puntual). En <strong className="text-azul">azul con «alm.»</strong>, el almacén
