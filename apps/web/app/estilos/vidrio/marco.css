@@ -63,6 +63,15 @@
     transform: none;
   }
 
+  /* ---------- El botón de las animaciones ----------
+     Su ícono también lo decide el atributo (lib/vidrio-movimiento.ts): quieto, el destello lleva una raya que lo cruza. Es el de Retail. */
+  [data-vidrio="panel"] .boton-movimiento .movimiento-raya {
+    opacity: 0;
+  }
+  :root[data-vidrio="panel"][data-movimiento="quieto"] .boton-movimiento .movimiento-raya {
+    opacity: 1;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     [data-vidrio="panel"] .vidrio-aurora i {
       animation: none;

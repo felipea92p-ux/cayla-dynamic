@@ -11,6 +11,7 @@
 // QUÉ ASUME
 //   Solo con el dedo y bajo 640 px: en la computadora y en la tablet la hoja va arriba y al centro, y esto no hace nada.
 
+import { prefiereQuieto } from "./vidrio-movimiento";
 import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import { decidirGesto, duracionHacia, posicionAlArrastrar, progresoDeCierre, seVaAlSoltar, velocidad, type Muestra } from "@/lib/hoja-gesto";
 
@@ -49,7 +50,7 @@ export function useHojaArrastre(opciones: Opciones) {
     let alto = 0;
     let yAhora = 0;
     let reloj: ReturnType<typeof setTimeout> | undefined;
-    const sinMovimiento = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const sinMovimiento = () => prefiereQuieto();
     const enCelular = () => window.matchMedia(CELULAR_HOJA).matches;
 
     const pintar = (y: number, ms = 0) => {

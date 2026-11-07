@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-animaciones-con-su-boton",
+    fecha: "2026-11-07",
+    titulo: "Las animaciones arrancan quietas, y se encienden con un botón",
+    queMejoro:
+      "Dynamic arranca sin animaciones: las hojas y las listas aparecen de una vez, sin deslizarse. Así va más ligero en una " +
+      "computadora o un teléfono sencillo.\n\n" +
+      "Si las quieres, toca el destello de arriba, junto a la luna: queda guardado en tu aparato. Lo que avisa «se está guardando» " +
+      "se sigue moviendo igual, para que sepas que el sistema está trabajando.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-07-ausencias-por-sede",
     fecha: "2026-11-07",
     titulo: "Ausencias se puede filtrar por sede",

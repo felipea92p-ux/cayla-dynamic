@@ -573,3 +573,36 @@
     transform: scale(0.7);
   }
 }
+
+/* ANIMACIONES ENCENDIDAS O QUIETAS. Es el botón «Animaciones» de Retail (ADR-0625 de Retail, Felipe 2026-11-07); la lógica, en lib/vidrio-movimiento.ts.
+   El panel arranca QUIETO: `<html data-movimiento="quieto">`, puesto por el guion de lib/vidrio.ts antes de pintar, y todo lo que se mueve llega de
+   una vez a su lugar. Quien quiera las animaciones las enciende con el botón de la cabecera, y queda recordado en ese aparato.
+
+   Cómo: en vez de tocar cada bloque `no-preference` de arriba, una sola regla deja cada animación y cada transición en 0,01 ms y una vuelta. Siguen
+   llegando `animationend` y `transitionend`, y lo que entra con `backwards` termina en su lugar. Lo que anima desde JavaScript pregunta `prefiereQuieto()`.
+
+   La excepción son las SEÑALES DE ESPERA (`data-senal`): el colibrí de «Guardando…» y el hilo y el anillo del loader. Sin ellas un guardado lento
+   parece colgado y la persona aprieta dos veces. Si el aparato pide menos movimiento, sus reglas de `reduce` siguen mandando, también sobre ellas.
+
+   Va al final, sin capa y con `!important`: le gana a las animaciones de este archivo que llevan `!important` (misma especificidad, después) y a
+   toda utilidad. Cuelga del panel, así que el terminal no cambia; y en `screen`, así que el papel tampoco. */
+@media screen {
+  :root[data-vidrio="panel"][data-movimiento="quieto"] :not([data-senal]),
+  :root[data-vidrio="panel"][data-movimiento="quieto"] :not([data-senal])::before,
+  :root[data-vidrio="panel"][data-movimiento="quieto"] :not([data-senal])::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+  }
+  :root[data-vidrio="panel"][data-movimiento="quieto"] {
+    scroll-behavior: auto !important;
+  }
+  /* El cambio de tema es un fundido de la página entera: quieto, cambia de golpe. */
+  :root[data-vidrio="panel"][data-movimiento="quieto"]::view-transition-group(*),
+  :root[data-vidrio="panel"][data-movimiento="quieto"]::view-transition-old(*),
+  :root[data-vidrio="panel"][data-movimiento="quieto"]::view-transition-new(*) {
+    animation: none !important;
+  }
+}

@@ -773,7 +773,9 @@ chicos, detrás del interruptor. En producción está apagado hasta el estreno, 
 (`NEXT_PUBLIC_VIDRIO` y `NEXT_PUBLIC_VIDRIO_TERMINAL`; solo un `1` exacto enciende, ver `apps/web/lib/vidrio.ts`). **Todo CSS nuevo cuelga de
 `[data-vidrio="panel"]` o `[data-vidrio="terminal"]`:** una regla suelta se cuela a producción y al terminal, como ya pasó (ver el comentario en
 `globals.css`), y `tests/vidrio-css.test.ts` falla si eso ocurre. Un `[data-vidrio]` sin valor alcanza a las dos superficies: úsalo solo a propósito.
-**Y lo que viene de vidrio no se imprime:** esas reglas también aplican al papel, así que van en `@media screen` o excluyen `.hoja`, porque un contrato
+**Las animaciones del panel arrancan quietas** (botón «Animaciones» de la cabecera, `lib/vidrio-movimiento.ts`): lo que anima desde JavaScript
+pregunta `prefiereQuieto()`, nunca `matchMedia` por su cuenta, y una señal de espera nueva lleva `data-senal` o se queda quieta (lo vigila
+`tests/vidrio-movimiento.test.ts`). **Y lo que viene de vidrio no se imprime:** esas reglas también aplican al papel, así que van en `@media screen` o excluyen `.hoja`, porque un contrato
 no puede salir con vidrio. La foto de `tests/vidrio-foto-piezas.test.ts` falla si una pieza cambia sus clases sin colgarlas del atributo. Mientras dure,
 siguen valiendo los trece tokens, la regla de `receta-suelta` y lo escrito aquí sobre colores; se reescriben el día del estreno, no antes.
 
