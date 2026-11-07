@@ -230,6 +230,11 @@
       content: attr(data-rotulo) " ";
       color: var(--color-taupe);
     }
+    /* Un ícono como dato (el ✓ de «Operativa de sede» en Áreas) va junto a su rótulo, no en el renglón de abajo. */
+    [data-vidrio="panel"] .vidrio-tabla-fichas td[data-rotulo] > svg {
+      display: inline-block;
+      vertical-align: -2px;
+    }
   }
 
   /* Cuentas: «Resetear contraseña» y «Cambiar correo» en una sola fila desde 1280 px. Apilados, cada persona ocupaba el doble de alto. Más angosto, se apilan como hoy. */
