@@ -1655,6 +1655,275 @@ export default function TurnosPage() {
     );
   }
 
+  // ── El detalle de UN día ─────────────────────────────────────────────────────
+  // Lo que la vista Día muestra debajo de su selector: la repetición de un día que ya cerró, la línea de cada
+  // persona con lo marcado en el terminal, las tarjetas Mañana / Tarde / Líderes, la sugerencia y quién no tiene
+  // turno. Vive en una función para que Semana lo abra al tocar un día sin escribir una segunda copia.
+  function detalleDelDia(iso: string): ReactNode {
+    const dia = diaSemana(iso);
+    const t = tramosDelDia(iso);
+    const sinTurnos = sedeSinTurnosEn(iso);
+    const sug = sugerenciaDe(iso);
+    const trabajan = personas.filter((p) => { const c = celda(p.id, iso); return c.tipo === "turno" || c.tipo === "default"; });
+    const deLaMeta = (ids: Set<string>) => trabajan.filter((p) => ids.has(p.id));
+    const opsTrabajan = trabajan.filter(esOperativa);
+    const abrirChip = puedeVer ? (id: string) => abrir(id, iso) : undefined;
+    const lideresChips = t.lideres.n > 0 ? deLaMeta(t.idsLideres).map((p) => personaDelDia(p, iso)) : [];
+    const libres = personas.filter((p) => { const c = celda(p.id, iso); return c.tipo === "descanso" || c.tipo === "libre"; }).map((p) => personaDelDia(p, iso));
+    const otrasAreas = opsTrabajan.length + deLaMeta(t.idsLideres).length < trabajan.length
+      ? trabajan.filter((p) => !esOperativa(p) && !esEncargada(p)).map((p) => personaDelDia(p, iso))
+      : [];
+    return (
+      <>
+        {/* LA REPETICIÓN de un día que ya cerró (2026-11-03): lo marcado de verdad, hora por hora, contra la
+            venta. Solo con lo marcado leído; un día que todavía no termina no se repite. */}
+        {iso < hoyLima() && reales && (() => {
+          const medianocheIso = rangoDelDiaLima(iso).inicio;
+          const personasRep: PersonaRepeticion[] = personas.flatMap((p) => {
+            const c = celda(p.id, iso);
+            const marcajesDia = reales.marcajes.get(`${p.id}|${iso}`) ?? [];
+            const trabaja = c.tipo === "turno" || c.tipo === "default";
+            if (!trabaja && marcajesDia.length === 0) return [];
+            const plan = trabaja ? { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN } : null;
+            return [{
+              id: p.id,
+              nombre: `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`,
+              cuenta: esOperativa(p), lider: esEncargada(p),
+              marcajes: marcajesDia,
+              almacen: plan ? almacenDe(p.id, iso, plan, true) : marcadoDe(p.id, iso, { desde: 0, hasta: 24 }),
+              plan,
+            }];
+          });
+          if (personasRep.length === 0) return null;
+          const delDia = compras?.get(iso);
+          return (
+            <RepeticionDelDia
+              key={iso}
+              personas={personasRep}
+              medianocheIso={medianocheIso}
+              esTienda={tipoSedeSel === "tienda"}
+              comprasFallo={tipoSedeSel === "tienda" && compras === null}
+              comprasDe={tipoSedeSel === "tienda" && compras !== null ? (h) => delDia?.get(h) ?? 0 : null}
+              parametros={coberturaVenta}
+            />
+          );
+        })()}
+
+        {/* LA LÍNEA DEL DÍA, arriba y siempre a la vista (antes vivía plegada en «Ver hora por hora»):
+            una barra por persona, con su tramo de almacén en azul, y abajo cuántas quedan en piso. */}
+        <div className="overflow-x-auto">
+            <div className="min-w-[700px] space-y-4">
+              {[iso].map((iso) => {
+    const { abr, num } = etiquetaDia(iso);
+    const hoy = iso === hoyLima();
+    const dia = diaSemana(iso);
+    const { manana: metaMan, tarde: metaTar, lideres: metaEnc } = mtDe(iso);
+    const horas = coberturaPorHora(iso);
+    const covFr = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esOperativa);
+    const covFrEnc = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esEncargada);
+    const r = resumenOperativas(covFr, metaMan, metaTar, HORA_INICIO_SEMANA, 0.5);
+    const rEnc = resumenEncargadas(covFrEnc, metaEnc);
+    // Un día en que la sede no se labora (a nadie le toca y las tres metas son 0)
+    // dice UNA vez «Sin turnos», en el lugar de la frase de operativas, y la de
+    // líderes no se dibuja: dos frases de grupo sonaban a falla un domingo de Central.
+    const sinTurnosSede = sedeSinTurnosEn(iso);
+    const etOp = sinTurnosSede ?? etiquetaCobertura({ quien: "operativas", hayGente: r.hayGente, sinMeta: r.sinMeta, hayMeta: Math.max(metaMan, metaTar) > 0, pct: r.pct });
+    const etEnc = etiquetaCobertura({ quien: "lideres", hayGente: rEnc.hayGente, sinMeta: rEnc.sinMeta, hayMeta: metaEnc > 0, pct: rEnc.pct });
+    // ¿Alguien de un área operativa trabaja este día? Si nadie, la franja de
+    // cobertura de abajo no tiene nada que contar y lo dice con palabras.
+    const sinOperativasHoy = horas.every((n) => n === 0);
+    // Hoy se marca con una línea la hora actual: a su izquierda la cobertura cuenta lo marcado en el
+    // terminal; a su derecha, el plan.
+    const ahoraEnLinea = hoy ? pctEnRango(horaADecimal(horaLima())) : null;
+    const lineaAhora = ahoraEnLinea === null ? null : (
+      <span aria-hidden className="pointer-events-none absolute inset-y-0 z-20 w-px bg-rojo/70" style={{ left: `${ahoraEnLinea}%` }} />
+    );
+    return (
+      <section key={iso} id={`turnos-dia-${iso}`} className={`overflow-hidden rounded-2xl border bg-papel ${hoy ? "border-tinta" : "border-sand"}`}>
+        {/* Cabecera del día: fecha + resumen (las metas se editan en las tarjetas de arriba) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-sand/50 px-4 py-2">
+          <div className={hoy ? "text-tinta" : ""}>
+            <span className="font-serif text-lg">{abr}</span>{" "}
+            <span className="text-sm text-taupe">{num}</span>
+          </div>
+          {/* Las metas se editan arriba, en las tarjetas «Mañana», «Tarde» y «Líderes»: acá solo se lee el resumen. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span className="text-taupe">Meta operativas {metaMan}/{metaTar} <span className="opacity-70">mañana / tarde</span></span>
+            <span className="font-medium" style={{ color: colorDeTono(etOp.tono, r.pct) }}>
+              {etOp.texto}
+              {r.supHoras > 0 && <span className="text-ambar"> · sobra {r.supHoras}h</span>}
+            </span>
+            <span className="border-l border-sand pl-3 text-taupe">Líderes {metaEnc || "—"}</span>
+            {!sinTurnosSede && (
+              <span className="font-medium" style={{ color: colorDeTono(etEnc.tono, rEnc.pct) }}>
+                {etEnc.texto}
+              </span>
+            )}
+          </div>
+        </div>
+        {/* Eje de horas */}
+        <div className="relative ml-[176px] h-4 border-b border-sand/60 text-[10px] text-taupe">
+          {MARCAS_HORA.map((h) => (
+            <span key={h} className="absolute -translate-x-1/2" style={{ left: `${pctEnRango(h)}%` }}>{h}h</span>
+          ))}
+        </div>
+
+        {/* Una fila por persona: barra = su rango de turno ese día */}
+        {personas.map((p) => {
+          const c = celda(p.id, iso);
+          const operativa = esOperativa(p);
+          const trabajaEseDia = c.tipo === "turno" || c.tipo === "default";
+          // La barra de quien trabaja abre «¿Dónde trabaja ese día?» (de hoy en adelante: 0579); la de quien
+          // descansa o no tiene turno abre su turno, igual que su nombre.
+          const barraAlmacen = puedeVer && trabajaEseDia && iso >= hoyLima();
+          const turnoDec = trabajaEseDia ? { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN } : null;
+          const almacenDeHoy = turnoDec ? tramosEnAlmacen(puestoDe(p.id, iso), turnoDec) : [];
+          // Lo marcado en el terminal (0580): solo de hoy hacia atrás, y aunque ese día no tuviera turno.
+          const marcadoHoy = iso <= hoyLima() ? marcadoDe(p.id, iso, turnoDec ?? { desde: 0, hasta: 24 }) : [];
+          return (
+            <div key={p.id} className="flex w-full items-center border-t border-sand/60 transition-colors hover:bg-sand/20">
+              {/* Sin `truncate`: con el nombre y el área más largos que la
+                  columna, el recorte se comía justo la etiqueta del área y
+                  quedaba «…» —con la barra en ámbar y ninguna explicación de
+                  por qué—. Ahora la etiqueta baja de renglón. */}
+              <button type="button" onClick={() => abrir(p.id, iso)} title={`Cambiar el turno de ${p.nombres}`}
+                className="flex w-[176px] shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 py-2 text-left text-xs">
+                <span>{p.nombres} {p.apellidos}</span>
+                {!operativa && (
+                  <Insignia variante="advertencia" tamano="sm">{areaCorto(areas, p.funcion)}</Insignia>
+                )}
+              </button>
+              <button type="button" onClick={() => (barraAlmacen ? abrirAlmacen(p.id, iso) : abrir(p.id, iso))}
+                title={barraAlmacen ? `¿Piso o almacén? Toca para elegir dónde trabaja ${p.nombres} ese día` : `Cambiar el turno de ${p.nombres}`}
+                className="relative h-7 flex-1 text-left">
+                {(c.tipo === "turno" || c.tipo === "default") && (() => {
+                  const left = pctEnRango(horaADecimal(c.entrada));
+                  const right = pctEnRango(c.salida ? horaADecimal(c.salida) : HORA_FIN);
+                  const claseColor = `${operativa ? "bg-verde" : "bg-ambar"} ${c.tipo === "default" ? "opacity-50" : ""}`;
+                  const tituloBase = `${c.entrada}${c.salida ? `–${c.salida}` : ""}`;
+                  // Hueco de refrigerio: no sabemos la hora exacta en que empieza (el
+                  // sistema solo guarda cuántos minutos dura), así que se dibuja
+                  // aproximado, centrado a la mitad del turno — no es literal.
+                  if (c.refrigerio && c.refrigerio > 0) {
+                    const durHoras = c.refrigerio / 60;
+                    const salidaDec = c.salida ? horaADecimal(c.salida) : HORA_FIN;
+                    const centro = (horaADecimal(c.entrada) + salidaDec) / 2;
+                    const huecoIni = pctEnRango(centro - durHoras / 2);
+                    const huecoFin = pctEnRango(centro + durHoras / 2);
+                    return (
+                      <>
+                        <span className={`absolute top-1.5 h-4 rounded-l ${claseColor}`}
+                          style={{ left: `${left}%`, width: `${Math.max(0.5, huecoIni - left)}%` }}
+                          title={`${tituloBase} (refrigerio ~${c.refrigerio}min hacia la mitad)`} />
+                        <span className={`absolute top-1.5 h-4 rounded-r ${claseColor}`}
+                          style={{ left: `${huecoFin}%`, width: `${Math.max(0.5, right - huecoFin)}%` }}
+                          title={`${tituloBase} (refrigerio ~${c.refrigerio}min hacia la mitad)`} />
+                      </>
+                    );
+                  }
+                  return (
+                    <span className={`absolute top-1.5 h-4 rounded ${claseColor}`}
+                      style={{ left: `${left}%`, width: `${Math.max(1, right - left)}%` }}
+                      title={tituloBase} />
+                  );
+                })()}
+                {/* El almacén planificado, encima de su barra: no cuenta en piso. */}
+                {almacenDeHoy.map((a) => (
+                  <span key={a.desde} className="absolute top-1 z-10 flex h-5 items-center overflow-hidden rounded bg-azul px-1 text-[9.5px] font-semibold text-crema"
+                    style={{ left: `${pctEnRango(a.desde)}%`, width: `${Math.max(1, pctEnRango(a.hasta) - pctEnRango(a.desde))}%` }}
+                    title={`Almacén ${decimalAHHMM(a.desde)}–${decimalAHHMM(a.hasta)}`}>
+                    alm.
+                  </span>
+                ))}
+                {/* Lo marcado en el terminal, debajo de la barra: lo que pasó de verdad, aparte de lo planificado. */}
+                {marcadoHoy.map((a) => (
+                  <span key={`m${a.desde}`} className="absolute bottom-0 z-10 h-[3px] rounded-full bg-azul"
+                    style={{ left: `${pctEnRango(a.desde)}%`, width: `${Math.max(0.5, pctEnRango(a.hasta) - pctEnRango(a.desde))}%` }}
+                    title={`Marcó almacén en el terminal: ${decimalAHHMM(a.desde)}–${decimalAHHMM(a.hasta)}`} />
+                ))}
+                {lineaAhora}
+                {c.tipo === "descanso" && <span className="absolute left-2 top-1.5 rounded bg-sand px-1.5 py-0.5 text-[10px] text-taupe">descanso</span>}
+                {c.tipo === "libre" && <span className="absolute left-2 top-1.5 text-[10px] text-taupe">+</span>}
+              </button>
+            </div>
+          );
+        })}
+
+        {/* Cobertura por hora: un bloque por hora, con el color de su estado (verde = cubierto, rojo = falta,
+            ámbar = sobra, gris = sin meta) y el número exacto adentro. Antes era un degradado continuo
+            que a media meta se volvía café y no decía ni «falta» ni «cubierto». */}
+        <div className="flex items-stretch border-t-2 border-sand">
+          <span className="w-[176px] shrink-0 px-3 py-2 text-xs text-taupe">Cobertura</span>
+          <div className="relative flex h-8 flex-1 gap-px overflow-hidden">
+            {(() => {
+              // La misma regla que la Integrada (semana-con-nombres.ts): el peor cuarto de cada hora,
+              // sin quien está en almacén, y sin medir lo que queda fuera de la primera entrada y la
+              // última salida del día. Así Día e Integrada dan el mismo número para la misma hora.
+              // Con lo real (decisión de Felipe, 2026-11-03): lo marcado en el terminal hasta ahora y el plan
+              // después. La Integrada sigue con el plan solo.
+              const delDia = turnosConNombreDe(iso, true);
+              return horas.map((_, i) => {
+                const cel = celdaConNombres({
+                  turnos: delDia, hora: HORA_INICIO + i,
+                  metaEn: metaHoraDe(iso), metaLideres: metaEnc,
+                });
+                const n = cel.fuera ? 0 : cel.enPiso;
+                const e = estiloDeHora(n, cel.fuera ? 0 : cel.meta);
+                const enAlm = cel.gente.filter((g) => g.almacen.length > 0).length;
+                return (
+                  <span
+                    key={i}
+                    className="flex flex-1 items-center justify-center text-[11px] font-medium tabular-nums"
+                    style={{ background: e.fondo, color: e.texto }}
+                    title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} en piso en el peor momento${cel.meta > 0 ? ` (meta ${cel.meta})` : ""}${enAlm ? ` · ${enAlm} en almacén parte o toda la hora` : ""}`}
+                  >
+                    {cel.fuera ? "" : n}
+                  </span>
+                );
+              });
+            })()}
+            {/* Si nadie de un área operativa trabaja ese día, la franja no
+                tiene nada que contar: se dice, en vez de dejar un bloque
+                que parezca «todo cubierto». */}
+            {lineaAhora}
+            {sinOperativasHoy && (
+              <span className="absolute inset-0 flex items-center bg-papel/80 px-3 text-[11px] text-taupe">
+                Nadie de un área operativa trabaja este día: aquí no hay cobertura que medir.
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  })}
+            </div>
+          </div>
+        {sinTurnos ? (
+          <TarjetaInfo>
+            <p className="text-sm text-taupe"><strong>{sinTurnos.texto}.</strong> A nadie de la sede le toca este día.</p>
+          </TarjetaInfo>
+        ) : (
+          <>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <TarjetaTramo titulo="Mañana" subtitulo="hasta las 14:15" {...t.manana} gente={t.manana.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} onAbrir={abrirChip} />
+              <TarjetaTramo titulo="Tarde" subtitulo="desde las 14:15" {...t.tarde} gente={t.tarde.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} onAbrir={abrirChip} />
+            </div>
+            <TarjetaTramo
+              titulo="Líderes" subtitulo="meta plana, todo el día" {...t.lideres} gente={lideresChips} onAbrir={abrirChip}
+            />
+            {sug && (
+              <p className="text-sm" style={{ color: sug.startsWith("↔") ? "var(--color-ambar)" : "var(--color-rojo)" }}>{sug}</p>
+            )}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <TarjetaGrupo titulo="Sin turno ese día" nota={puedeVer ? "toca a alguien para ponerle turno" : undefined} gente={libres} onAbrir={abrirChip} vacio="Todos tienen turno." />
+              <TarjetaGrupo titulo="Otras áreas" nota="no suman a la meta" gente={otrasAreas} onAbrir={abrirChip} />
+            </div>
+          </>
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
@@ -2031,286 +2300,22 @@ export default function TurnosPage() {
             {personas.length === 0 ? (
               <SinDatos texto="Todavía no hay nadie asignado a esta sede." pista="Ve a Equipo, abre a una persona y elige esta sede como su sede base." />
             ) : (
-              (() => {
-                // ── Vista Día: «mañana y tarde» de UN día; la hora por hora y las metas, debajo, a pedido ──
-                const iso = diaActivo;
-                const dia = diaSemana(iso);
-                const t = tramosDelDia(iso);
-                const sinTurnos = sedeSinTurnosEn(iso);
-                const sug = sugerenciaDe(iso);
-                const trabajan = personas.filter((p) => { const c = celda(p.id, iso); return c.tipo === "turno" || c.tipo === "default"; });
-                const deLaMeta = (ids: Set<string>) => trabajan.filter((p) => ids.has(p.id));
-                const opsTrabajan = trabajan.filter(esOperativa);
-                const abrirChip = puedeVer ? (id: string) => abrir(id, iso) : undefined;
-                const lideresChips = t.lideres.n > 0 ? deLaMeta(t.idsLideres).map((p) => personaDelDia(p, iso)) : [];
-                const libres = personas.filter((p) => { const c = celda(p.id, iso); return c.tipo === "descanso" || c.tipo === "libre"; }).map((p) => personaDelDia(p, iso));
-                const otrasAreas = opsTrabajan.length + deLaMeta(t.idsLideres).length < trabajan.length
-                  ? trabajan.filter((p) => !esOperativa(p) && !esEncargada(p)).map((p) => personaDelDia(p, iso))
-                  : [];
-                return (
-                  <>
-                    <div role="group" aria-label="Día de la semana" className={`flex flex-wrap gap-1.5${interruptoresVidrio().panel ? " vidrio-riel" : ""}`}>
-                      {dias.map((d) => {
-                        const { abr, num } = etiquetaDia(d);
-                        const sim = simboloDelDia(d);
-                        return (
-                          <Filtro key={d} activo={d === iso} onClick={() => setDiaSel(d)} title={`${abr} ${num} · ${sim.t}${d === hoyLima() ? " · hoy" : ""}`}>
-                            {abr} <span className="text-[0.85em] opacity-70">{num}</span> <span aria-hidden className="ml-0.5">{sim.s}</span>
-                            <span className="sr-only"> {sim.t}</span>
-                          </Filtro>
-                        );
-                      })}
-                    </div>
+              <>
+                <div role="group" aria-label="Día de la semana" className={`flex flex-wrap gap-1.5${interruptoresVidrio().panel ? " vidrio-riel" : ""}`}>
+                  {dias.map((d) => {
+                    const { abr, num } = etiquetaDia(d);
+                    const sim = simboloDelDia(d);
+                    return (
+                      <Filtro key={d} activo={d === diaActivo} onClick={() => setDiaSel(d)} title={`${abr} ${num} · ${sim.t}${d === hoyLima() ? " · hoy" : ""}`}>
+                        {abr} <span className="text-[0.85em] opacity-70">{num}</span> <span aria-hidden className="ml-0.5">{sim.s}</span>
+                        <span className="sr-only"> {sim.t}</span>
+                      </Filtro>
+                    );
+                  })}
+                </div>
 
-                    {/* LA REPETICIÓN de un día que ya cerró (2026-11-03): lo marcado de verdad, hora por hora, contra la
-                        venta. Solo con lo marcado leído; un día que todavía no termina no se repite. */}
-                    {iso < hoyLima() && reales && (() => {
-                      const medianocheIso = rangoDelDiaLima(iso).inicio;
-                      const personasRep: PersonaRepeticion[] = personas.flatMap((p) => {
-                        const c = celda(p.id, iso);
-                        const marcajesDia = reales.marcajes.get(`${p.id}|${iso}`) ?? [];
-                        const trabaja = c.tipo === "turno" || c.tipo === "default";
-                        if (!trabaja && marcajesDia.length === 0) return [];
-                        const plan = trabaja ? { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN } : null;
-                        return [{
-                          id: p.id,
-                          nombre: `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`,
-                          cuenta: esOperativa(p), lider: esEncargada(p),
-                          marcajes: marcajesDia,
-                          almacen: plan ? almacenDe(p.id, iso, plan, true) : marcadoDe(p.id, iso, { desde: 0, hasta: 24 }),
-                          plan,
-                        }];
-                      });
-                      if (personasRep.length === 0) return null;
-                      const delDia = compras?.get(iso);
-                      return (
-                        <RepeticionDelDia
-                          key={iso}
-                          personas={personasRep}
-                          medianocheIso={medianocheIso}
-                          esTienda={tipoSedeSel === "tienda"}
-                          comprasFallo={tipoSedeSel === "tienda" && compras === null}
-                          comprasDe={tipoSedeSel === "tienda" && compras !== null ? (h) => delDia?.get(h) ?? 0 : null}
-                          parametros={coberturaVenta}
-                        />
-                      );
-                    })()}
-
-                    {/* LA LÍNEA DEL DÍA, arriba y siempre a la vista (antes vivía plegada en «Ver hora por hora»):
-                        una barra por persona, con su tramo de almacén en azul, y abajo cuántas quedan en piso. */}
-                    <div className="overflow-x-auto">
-                        <div className="min-w-[700px] space-y-4">
-                          {[iso].map((iso) => {
-                const { abr, num } = etiquetaDia(iso);
-                const hoy = iso === hoyLima();
-                const dia = diaSemana(iso);
-                const { manana: metaMan, tarde: metaTar, lideres: metaEnc } = mtDe(iso);
-                const horas = coberturaPorHora(iso);
-                const covFr = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esOperativa);
-                const covFrEnc = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esEncargada);
-                const r = resumenOperativas(covFr, metaMan, metaTar, HORA_INICIO_SEMANA, 0.5);
-                const rEnc = resumenEncargadas(covFrEnc, metaEnc);
-                // Un día en que la sede no se labora (a nadie le toca y las tres metas son 0)
-                // dice UNA vez «Sin turnos», en el lugar de la frase de operativas, y la de
-                // líderes no se dibuja: dos frases de grupo sonaban a falla un domingo de Central.
-                const sinTurnosSede = sedeSinTurnosEn(iso);
-                const etOp = sinTurnosSede ?? etiquetaCobertura({ quien: "operativas", hayGente: r.hayGente, sinMeta: r.sinMeta, hayMeta: Math.max(metaMan, metaTar) > 0, pct: r.pct });
-                const etEnc = etiquetaCobertura({ quien: "lideres", hayGente: rEnc.hayGente, sinMeta: rEnc.sinMeta, hayMeta: metaEnc > 0, pct: rEnc.pct });
-                // ¿Alguien de un área operativa trabaja este día? Si nadie, la franja de
-                // cobertura de abajo no tiene nada que contar y lo dice con palabras.
-                const sinOperativasHoy = horas.every((n) => n === 0);
-                // Hoy se marca con una línea la hora actual: a su izquierda la cobertura cuenta lo marcado en el
-                // terminal; a su derecha, el plan.
-                const ahoraEnLinea = hoy ? pctEnRango(horaADecimal(horaLima())) : null;
-                const lineaAhora = ahoraEnLinea === null ? null : (
-                  <span aria-hidden className="pointer-events-none absolute inset-y-0 z-20 w-px bg-rojo/70" style={{ left: `${ahoraEnLinea}%` }} />
-                );
-                return (
-                  <section key={iso} id={`turnos-dia-${iso}`} className={`overflow-hidden rounded-2xl border bg-papel ${hoy ? "border-tinta" : "border-sand"}`}>
-                    {/* Cabecera del día: fecha + resumen (las metas se editan en las tarjetas de arriba) */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 bg-sand/50 px-4 py-2">
-                      <div className={hoy ? "text-tinta" : ""}>
-                        <span className="font-serif text-lg">{abr}</span>{" "}
-                        <span className="text-sm text-taupe">{num}</span>
-                      </div>
-                      {/* Las metas se editan arriba, en las tarjetas «Mañana», «Tarde» y «Líderes»: acá solo se lee el resumen. */}
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <span className="text-taupe">Meta operativas {metaMan}/{metaTar} <span className="opacity-70">mañana / tarde</span></span>
-                        <span className="font-medium" style={{ color: colorDeTono(etOp.tono, r.pct) }}>
-                          {etOp.texto}
-                          {r.supHoras > 0 && <span className="text-ambar"> · sobra {r.supHoras}h</span>}
-                        </span>
-                        <span className="border-l border-sand pl-3 text-taupe">Líderes {metaEnc || "—"}</span>
-                        {!sinTurnosSede && (
-                          <span className="font-medium" style={{ color: colorDeTono(etEnc.tono, rEnc.pct) }}>
-                            {etEnc.texto}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {/* Eje de horas */}
-                    <div className="relative ml-[176px] h-4 border-b border-sand/60 text-[10px] text-taupe">
-                      {MARCAS_HORA.map((h) => (
-                        <span key={h} className="absolute -translate-x-1/2" style={{ left: `${pctEnRango(h)}%` }}>{h}h</span>
-                      ))}
-                    </div>
-
-                    {/* Una fila por persona: barra = su rango de turno ese día */}
-                    {personas.map((p) => {
-                      const c = celda(p.id, iso);
-                      const operativa = esOperativa(p);
-                      const trabajaEseDia = c.tipo === "turno" || c.tipo === "default";
-                      // La barra de quien trabaja abre «¿Dónde trabaja ese día?» (de hoy en adelante: 0579); la de quien
-                      // descansa o no tiene turno abre su turno, igual que su nombre.
-                      const barraAlmacen = puedeVer && trabajaEseDia && iso >= hoyLima();
-                      const turnoDec = trabajaEseDia ? { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN } : null;
-                      const almacenDeHoy = turnoDec ? tramosEnAlmacen(puestoDe(p.id, iso), turnoDec) : [];
-                      // Lo marcado en el terminal (0580): solo de hoy hacia atrás, y aunque ese día no tuviera turno.
-                      const marcadoHoy = iso <= hoyLima() ? marcadoDe(p.id, iso, turnoDec ?? { desde: 0, hasta: 24 }) : [];
-                      return (
-                        <div key={p.id} className="flex w-full items-center border-t border-sand/60 transition-colors hover:bg-sand/20">
-                          {/* Sin `truncate`: con el nombre y el área más largos que la
-                              columna, el recorte se comía justo la etiqueta del área y
-                              quedaba «…» —con la barra en ámbar y ninguna explicación de
-                              por qué—. Ahora la etiqueta baja de renglón. */}
-                          <button type="button" onClick={() => abrir(p.id, iso)} title={`Cambiar el turno de ${p.nombres}`}
-                            className="flex w-[176px] shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 py-2 text-left text-xs">
-                            <span>{p.nombres} {p.apellidos}</span>
-                            {!operativa && (
-                              <Insignia variante="advertencia" tamano="sm">{areaCorto(areas, p.funcion)}</Insignia>
-                            )}
-                          </button>
-                          <button type="button" onClick={() => (barraAlmacen ? abrirAlmacen(p.id, iso) : abrir(p.id, iso))}
-                            title={barraAlmacen ? `¿Piso o almacén? Toca para elegir dónde trabaja ${p.nombres} ese día` : `Cambiar el turno de ${p.nombres}`}
-                            className="relative h-7 flex-1 text-left">
-                            {(c.tipo === "turno" || c.tipo === "default") && (() => {
-                              const left = pctEnRango(horaADecimal(c.entrada));
-                              const right = pctEnRango(c.salida ? horaADecimal(c.salida) : HORA_FIN);
-                              const claseColor = `${operativa ? "bg-verde" : "bg-ambar"} ${c.tipo === "default" ? "opacity-50" : ""}`;
-                              const tituloBase = `${c.entrada}${c.salida ? `–${c.salida}` : ""}`;
-                              // Hueco de refrigerio: no sabemos la hora exacta en que empieza (el
-                              // sistema solo guarda cuántos minutos dura), así que se dibuja
-                              // aproximado, centrado a la mitad del turno — no es literal.
-                              if (c.refrigerio && c.refrigerio > 0) {
-                                const durHoras = c.refrigerio / 60;
-                                const salidaDec = c.salida ? horaADecimal(c.salida) : HORA_FIN;
-                                const centro = (horaADecimal(c.entrada) + salidaDec) / 2;
-                                const huecoIni = pctEnRango(centro - durHoras / 2);
-                                const huecoFin = pctEnRango(centro + durHoras / 2);
-                                return (
-                                  <>
-                                    <span className={`absolute top-1.5 h-4 rounded-l ${claseColor}`}
-                                      style={{ left: `${left}%`, width: `${Math.max(0.5, huecoIni - left)}%` }}
-                                      title={`${tituloBase} (refrigerio ~${c.refrigerio}min hacia la mitad)`} />
-                                    <span className={`absolute top-1.5 h-4 rounded-r ${claseColor}`}
-                                      style={{ left: `${huecoFin}%`, width: `${Math.max(0.5, right - huecoFin)}%` }}
-                                      title={`${tituloBase} (refrigerio ~${c.refrigerio}min hacia la mitad)`} />
-                                  </>
-                                );
-                              }
-                              return (
-                                <span className={`absolute top-1.5 h-4 rounded ${claseColor}`}
-                                  style={{ left: `${left}%`, width: `${Math.max(1, right - left)}%` }}
-                                  title={tituloBase} />
-                              );
-                            })()}
-                            {/* El almacén planificado, encima de su barra: no cuenta en piso. */}
-                            {almacenDeHoy.map((a) => (
-                              <span key={a.desde} className="absolute top-1 z-10 flex h-5 items-center overflow-hidden rounded bg-azul px-1 text-[9.5px] font-semibold text-crema"
-                                style={{ left: `${pctEnRango(a.desde)}%`, width: `${Math.max(1, pctEnRango(a.hasta) - pctEnRango(a.desde))}%` }}
-                                title={`Almacén ${decimalAHHMM(a.desde)}–${decimalAHHMM(a.hasta)}`}>
-                                alm.
-                              </span>
-                            ))}
-                            {/* Lo marcado en el terminal, debajo de la barra: lo que pasó de verdad, aparte de lo planificado. */}
-                            {marcadoHoy.map((a) => (
-                              <span key={`m${a.desde}`} className="absolute bottom-0 z-10 h-[3px] rounded-full bg-azul"
-                                style={{ left: `${pctEnRango(a.desde)}%`, width: `${Math.max(0.5, pctEnRango(a.hasta) - pctEnRango(a.desde))}%` }}
-                                title={`Marcó almacén en el terminal: ${decimalAHHMM(a.desde)}–${decimalAHHMM(a.hasta)}`} />
-                            ))}
-                            {lineaAhora}
-                            {c.tipo === "descanso" && <span className="absolute left-2 top-1.5 rounded bg-sand px-1.5 py-0.5 text-[10px] text-taupe">descanso</span>}
-                            {c.tipo === "libre" && <span className="absolute left-2 top-1.5 text-[10px] text-taupe">+</span>}
-                          </button>
-                        </div>
-                      );
-                    })}
-
-                    {/* Cobertura por hora: un bloque por hora, con el color de su estado (verde = cubierto, rojo = falta,
-                        ámbar = sobra, gris = sin meta) y el número exacto adentro. Antes era un degradado continuo
-                        que a media meta se volvía café y no decía ni «falta» ni «cubierto». */}
-                    <div className="flex items-stretch border-t-2 border-sand">
-                      <span className="w-[176px] shrink-0 px-3 py-2 text-xs text-taupe">Cobertura</span>
-                      <div className="relative flex h-8 flex-1 gap-px overflow-hidden">
-                        {(() => {
-                          // La misma regla que la Integrada (semana-con-nombres.ts): el peor cuarto de cada hora,
-                          // sin quien está en almacén, y sin medir lo que queda fuera de la primera entrada y la
-                          // última salida del día. Así Día e Integrada dan el mismo número para la misma hora.
-                          // Con lo real (decisión de Felipe, 2026-11-03): lo marcado en el terminal hasta ahora y el plan
-                          // después. La Integrada sigue con el plan solo.
-                          const delDia = turnosConNombreDe(iso, true);
-                          return horas.map((_, i) => {
-                            const cel = celdaConNombres({
-                              turnos: delDia, hora: HORA_INICIO + i,
-                              metaEn: metaHoraDe(iso), metaLideres: metaEnc,
-                            });
-                            const n = cel.fuera ? 0 : cel.enPiso;
-                            const e = estiloDeHora(n, cel.fuera ? 0 : cel.meta);
-                            const enAlm = cel.gente.filter((g) => g.almacen.length > 0).length;
-                            return (
-                              <span
-                                key={i}
-                                className="flex flex-1 items-center justify-center text-[11px] font-medium tabular-nums"
-                                style={{ background: e.fondo, color: e.texto }}
-                                title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} en piso en el peor momento${cel.meta > 0 ? ` (meta ${cel.meta})` : ""}${enAlm ? ` · ${enAlm} en almacén parte o toda la hora` : ""}`}
-                              >
-                                {cel.fuera ? "" : n}
-                              </span>
-                            );
-                          });
-                        })()}
-                        {/* Si nadie de un área operativa trabaja ese día, la franja no
-                            tiene nada que contar: se dice, en vez de dejar un bloque
-                            que parezca «todo cubierto». */}
-                        {lineaAhora}
-                        {sinOperativasHoy && (
-                          <span className="absolute inset-0 flex items-center bg-papel/80 px-3 text-[11px] text-taupe">
-                            Nadie de un área operativa trabaja este día: aquí no hay cobertura que medir.
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </section>
-                );
-              })}
-                        </div>
-                      </div>
-                    {sinTurnos ? (
-                      <TarjetaInfo>
-                        <p className="text-sm text-taupe"><strong>{sinTurnos.texto}.</strong> A nadie de la sede le toca este día.</p>
-                      </TarjetaInfo>
-                    ) : (
-                      <>
-                        <div className="grid gap-4 lg:grid-cols-2">
-                          <TarjetaTramo titulo="Mañana" subtitulo="hasta las 14:15" {...t.manana} gente={t.manana.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} onAbrir={abrirChip} />
-                          <TarjetaTramo titulo="Tarde" subtitulo="desde las 14:15" {...t.tarde} gente={t.tarde.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} onAbrir={abrirChip} />
-                        </div>
-                        <TarjetaTramo
-                          titulo="Líderes" subtitulo="meta plana, todo el día" {...t.lideres} gente={lideresChips} onAbrir={abrirChip}
-                        />
-                        {sug && (
-                          <p className="text-sm" style={{ color: sug.startsWith("↔") ? "var(--color-ambar)" : "var(--color-rojo)" }}>{sug}</p>
-                        )}
-                        <div className="grid gap-4 lg:grid-cols-2">
-                          <TarjetaGrupo titulo="Sin turno ese día" nota={puedeVer ? "toca a alguien para ponerle turno" : undefined} gente={libres} onAbrir={abrirChip} vacio="Todos tienen turno." />
-                          <TarjetaGrupo titulo="Otras áreas" nota="no suman a la meta" gente={otrasAreas} onAbrir={abrirChip} />
-                        </div>
-                      </>
-                    )}
-
-                  </>
-                );
-              })()
+                {detalleDelDia(diaActivo)}
+              </>
             )}
           </div>
         )}
