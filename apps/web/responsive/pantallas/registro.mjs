@@ -39,7 +39,7 @@ import pantallaDashboard from "./inicio.dashboard.mjs";
 const PANTALLAS = [
   { id: "login", nombre: "Entrar al panel", ruta: "/admin/login", cuenta: "anonima" },
   { id: "olvide-clave", nombre: "Olvidé mi clave", ruta: "/admin/olvide-clave", cuenta: "anonima" },
-  { id: "nueva-clave", nombre: "Nueva clave", ruta: "/admin/nueva-clave", cuenta: "sin-datos" },
+  { id: "nueva-clave", nombre: "Nueva clave", ruta: "/admin/nueva-clave", cuenta: "anonima" },
   pantallaDashboard,
   { id: "bandeja", nombre: "Bandeja", ruta: "/admin/bandeja", cuenta: "admin" },
   { id: "incidencias", nombre: "Incidencias", ruta: "/admin/incidencias", cuenta: "admin" },
