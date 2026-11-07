@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-planilla-el-nombre-no-se-pierde-al-deslizar",
+    fecha: "2026-11-07",
+    titulo: "En Planilla, el nombre ya no se pierde al deslizar la tabla",
+    queMejoro:
+      "En computadora la tabla de Planilla no cabe entera y hay que deslizarla de lado. Al llegar a «Total» y " +
+      "«Pagado», el nombre de la persona salía de la vista, y al marcar un pago no se veía a quién se lo estabas " +
+      "marcando. Ahora el nombre queda fijo a la izquierda y «Total» y «Pagado» a la derecha: solo se deslizan las " +
+      "columnas del medio.\n\n" +
+      "Al pie de la tabla, el monto de «Sale de la cuenta de CAYLA» ahora queda debajo de «Total», donde corresponde. " +
+      "En el celular no cambia nada.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-06-entendido-todas-las-novedades",
     fecha: "2026-11-06",
     titulo: "Ya puedes marcar todas las novedades como entendidas de una vez",
