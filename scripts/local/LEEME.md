@@ -35,7 +35,7 @@ Y dos personas que ya cesaron, para que Liquidaciones tenga un detalle con monto
 
 Una cesada solo está en Pendientes 48 horas, así que al arrancar se mueve el cese de Filomena a hoy si ya se le acabó el plazo. Si la marcas como pagada para probar, se queda en Pagadas y `responsive:check liquidaciones` da ERROR hasta que la anules en la pantalla.
 
-Lo que cambian en otras pantallas, medido el 2026-11-06 comparando el texto de las 52 pantallas sin parámetros, con la cuenta de admin (y 7 con la de líder de TRU):
+Lo que cambian en otras pantallas, medido el 2026-11-06 comparando el texto de las 52 pantallas sin parámetros, con la cuenta de admin (y 7 con la de líder de TRU). El periodo de marzo no es la vista por defecto de Planilla: se midió consultando el cálculo.
 
 | Pantalla | Cambio |
 |---|---|
