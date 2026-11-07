@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Check } from "lucide-react";
@@ -190,7 +191,7 @@ export default function AreasPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
-          sobretitulo={sobretituloDeHoy("Empresa")}
+          sobretitulo={sobretituloDeHoy(interruptoresVidrio().panel ? "Configuración" : "Empresa")}
           titulo="Áreas"
           descripcion="Las áreas de trabajo y cuáles cuentan como operativas para la cobertura."
           accion={
@@ -222,7 +223,7 @@ export default function AreasPage() {
             {cargando ? (
               <Cargando />
             ) : (
-              <Tabla>
+              <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
                 <TablaEncabezado>
                   <Th>Nombre</Th>
                   <Th>Código</Th>
@@ -241,14 +242,14 @@ export default function AreasPage() {
                         )}
                       </td>
                       <td className="px-4 py-2 font-mono text-xs text-taupe">{a.codigo}</td>
-                      <td className="px-4 py-2">
+                      <td data-rotulo="Operativa de sede" className="px-4 py-2">
                         {a.operativa ? <Check size={14} className="text-verde" /> : <span className="text-taupe">—</span>}
                       </td>
-                      <td className="px-4 py-2">{a.orden}</td>
+                      <td data-rotulo="Orden" className="px-4 py-2">{a.orden}</td>
                       <td className="px-4 py-2">
                         <Insignia atenuada={!a.activa}>{a.activa ? "activa" : "inactiva"}</Insignia>
                       </td>
-                      <td className="px-4 py-2">
+                      <td data-ancha className="px-4 py-2">
                         {edicionHabilitada && (
                           <div className="flex flex-wrap gap-2">
                             <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(a)}>Editar</Boton>
@@ -270,9 +271,15 @@ export default function AreasPage() {
             )}
 
             <p className="mt-4 max-w-2xl text-xs text-taupe">
+              {interruptoresVidrio().panel ? (
+                <>Las áreas <span className="font-medium">operativas de sede</span> cuentan para la cobertura de tienda en Turnos. Desactivar un área no se la quita a quien ya la tiene.</>
+              ) : (
+                <>
               Las áreas <span className="font-medium">operativas de sede</span> son las que cuentan para
               la cobertura de tienda en Turnos. Desactivar un área no le quita nada a nadie: quien ya la
               tiene asignada la conserva; solo deja de ofrecerse para nuevas asignaciones.
+                </>
+              )}
             </p>
           </>
         )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
@@ -188,7 +189,7 @@ export default function SedesPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
-          sobretitulo={sobretituloDeHoy("Empresa")}
+          sobretitulo={sobretituloDeHoy(interruptoresVidrio().panel ? "Configuración" : "Empresa")}
           titulo="Sedes"
           descripcion="Las sedes del equipo, con su código y su tipo."
           accion={
@@ -219,7 +220,7 @@ export default function SedesPage() {
             {cargando ? (
               <Cargando />
             ) : (
-              <Tabla>
+              <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
                 <TablaEncabezado>
                   <Th>Nombre</Th>
                   <Th>Código</Th>
@@ -238,7 +239,7 @@ export default function SedesPage() {
                           {s.activa ? "activa" : "inactiva"}
                         </Insignia>
                       </td>
-                      <td className="px-4 py-2">
+                      <td data-ancha className="px-4 py-2">
                         {edicionHabilitada && (
                           <div className="flex flex-wrap gap-2">
                             {/* CAMBIO · «Hoja» se ofrecía en TODAS las filas (hallazgo 31 de la
@@ -280,10 +281,16 @@ export default function SedesPage() {
             )}
 
             <p className="mt-4 max-w-2xl text-xs text-taupe">
+              {interruptoresVidrio().panel ? (
+                <>Cada <span className="font-medium">terminal</span> muestra a la gente de <span className="font-medium">su</span> sede: una tienda y un taller van como dos sedes. Las sedes <span className="font-medium">no se borran</span>: se desactivan, y quien ya está ahí lo conserva.</>
+              ) : (
+                <>
               Cada <span className="font-medium">terminal</span> muestra a la gente de <span className="font-medium">su</span> sede
               (más quien esté marcado como “visible en todas las sedes” en Equipo). Por eso dos locales distintos —una tienda y un
               taller— van como dos sedes, cada una con su terminal. Las sedes <span className="font-medium">no se borran</span>:
               se desactivan, y quien ya está asignado ahí lo conserva.
+                </>
+              )}
             </p>
 
             {/* Antes era window.confirm(...) — Felipe aprobó migrar todos los

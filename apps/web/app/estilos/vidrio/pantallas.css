@@ -232,6 +232,13 @@
     }
   }
 
+  /* Cuentas: «Resetear contraseña» y «Cambiar correo» en una sola fila desde 1280 px. Apilados, cada persona ocupaba el doble de alto. Más angosto, se apilan como hoy. */
+  @media (min-width: 80rem) {
+    [data-vidrio="panel"] .vidrio-acciones {
+      flex-wrap: nowrap;
+    }
+  }
+
   /* Los datos de un documento en su hoja (Normas, «Ver documento»): en el teléfono, detrás del vidrio queda el botón oscuro «+ Nueva versión», y «Versión:» bajaba a
      4.25:1 aun con el punto de más que ya llevan las hojas. Un punto más de tinta, solo para esa letra chica. */
   [data-vidrio="panel"] [role="dialog"] dl.text-xs.text-taupe:not(.hoja *) {
