@@ -189,7 +189,7 @@ const colorDeTono = (tono: TonoCobertura, pct: number) =>
 // el horario cambió), sigue mandando en silencio. Este panel los saca a la luz
 // —desde que empezó el periodo de planilla abierto— para que la encargada los
 // revise: los que sean excepción real, se dejan; los que sean "espejos viejos",
-// se ajustan en la Vista Día.
+// se ajustan en el día abierto en Semana.
 // Solo lectura: no toca nada.
 // tE/tS = las horas REALES del turno (null = ese turno es descanso). Se guardan
 // para poder promover el turno a horario base ("Hacer permanente") sin re-consultar.
@@ -867,7 +867,7 @@ export default function TurnosPage() {
       // El almacén no frena la semana: si falla, se sigue sin él. Ya resuelto con el puesto base (0588), por la
       // lectura única de lib/puestos-resueltos.ts: nunca la tabla directo.
       leerPuestosResueltos(supabase, lunes, domingo),
-      // Lo real del terminal (0580), solo para la vista Día. Tampoco frena la semana. `as never`: la tabla todavía
+      // Lo real del terminal (0580), solo para el día abierto en Semana. Tampoco frena la semana. `as never`: la tabla todavía
       // no está en los tipos generados (el terminal la lee igual, en lib/terminal/ubicacion-cola.ts).
       supabase.from("cambios_ubicacion" as never).select("persona_id, ubicacion, timestamp_cambio, vuelve_previsto")
         .eq("sede_id" as never, sedeSel as never).is("anulado_at" as never, null)
@@ -973,7 +973,7 @@ export default function TurnosPage() {
   // grilla. Y lo que cambia otra persona, en otra pestaña u otra sede, llega por
   // useAlDia (lib/tiempo-real.ts): la base avisa al guardar. Escucha los tres
   // temas porque la semana lee los tres: horarios y turnos, lo marcado en el
-  // terminal para la vista Día, y quién está en el equipo.
+  // terminal para el día abierto en Semana, y quién está en el equipo.
   const [alDia, setAlDia] = useState(0);
   const cargarRef = useRef(cargar);
   useEffect(() => { cargarRef.current = cargar; });
@@ -1085,7 +1085,7 @@ export default function TurnosPage() {
   }, [feriadosSemana, personas, celda, pruebaDeLaPersona]);
 
   // Cuántas personas (según `filtro`) cubren cada franja del día — reusada para
-  // la franja de la Vista Día (operativas, 1h) y las 2 tablas de la Vista
+  // la franja del día abierto en Semana (operativas, 1h) y las 2 tablas de la Vista
   // Semana (operativas y encargadas, 30 min ancladas a :15/:45).
   const coberturaPorFranja = useCallback((fecha: string, horaInicio: number, nFranjas: number, tamHoras: number, filtro: (p: Persona) => boolean): number[] => {
     const franjas = Array.from({ length: nFranjas }, () => 0);
@@ -1193,7 +1193,7 @@ export default function TurnosPage() {
 
   // El plan de piso/almacén de una persona un día (piso si no hay nada, o si no se pudo leer).
   const puestoDe = (personaId: string, iso: string): PuestoDelDia => puestos?.get(`${personaId}|${iso}`) ?? PISO;
-  // El almacén de una persona un día. La Integrada usa SOLO el plan (planificar la semana); la vista Día usa
+  // El almacén de una persona un día. La Integrada usa SOLO el plan (planificar la semana); el día abierto en Semana usa
   // `conLoReal`: lo marcado en el terminal hasta ahora y el plan después (decisión de Felipe, 2026-11-03). Quién
   // estuvo dónde lo decide la regla del terminal (almacenConLoReal → tramosDelDia), no esta pantalla.
   const almacenDe = (personaId: string, iso: string, turno: TramoDecimal, conLoReal: boolean): TramoDecimal[] => {
@@ -1666,11 +1666,11 @@ export default function TurnosPage() {
     const { error } = await supabase.rpc("fn_set_horario_semanal", {
       p_persona_id: edit.personaId, p_vigente_desde: desde, p_horario: semanal,
       // Motivo fijo: mismo criterio que "Hacer permanente" en Revisión de
-      // Turnos (ver 0440) — es un clic desde la Vista Día, no un formulario
+      // Turnos (ver 0440) — es un clic desde el editor de turno, no un formulario
       // donde alguien redacta por qué.
       p_motivo: esPasado
-        ? `Horario de los ${DIAS_PLURAL[Number(dow)]} cambiado desde la Vista Día, vigente desde el ${desde}: el día editado (${edit.fecha}) ya pasó y un horario nuevo no reescribe días ya juzgados.`
-        : `Horario de los ${DIAS_PLURAL[Number(dow)]} cambiado desde la Vista Día, vigente desde el ${edit.fecha}.`,
+        ? `Horario de los ${DIAS_PLURAL[Number(dow)]} cambiado desde Turnos, vigente desde el ${desde}: el día editado (${edit.fecha}) ya pasó y un horario nuevo no reescribe días ya juzgados.`
+        : `Horario de los ${DIAS_PLURAL[Number(dow)]} cambiado desde Turnos, vigente desde el ${edit.fecha}.`,
     });
     // El `error` de esta segunda mitad NO se miraba, y la pantalla terminaba
     // diciendo «Horario base actualizado» con el turno puntual todavía puesto.
@@ -1767,7 +1767,7 @@ export default function TurnosPage() {
   }
 
   // ── El detalle de UN día ─────────────────────────────────────────────────────
-  // Lo que la vista Día muestra debajo de su selector: la repetición de un día que ya cerró, la línea de cada
+  // Lo que se abre al tocar un día en Semana (hasta el 2026-11-07, la vista Día): la repetición de un día que ya cerró, la línea de cada
   // persona con lo marcado en el terminal, las tarjetas Mañana / Tarde / Líderes, la sugerencia y quién no tiene
   // turno. Vive en una función para que Semana lo abra al tocar un día sin escribir una segunda copia.
   function detalleDelDia(iso: string): ReactNode {
@@ -2050,11 +2050,11 @@ export default function TurnosPage() {
                 { titulo: "Poner un turno", texto: "Toca la fila de una persona en un día: eliges su hora de entrada y salida, o la marcas de descanso." },
                 { titulo: "La meta", texto: "Va por rangos de hora, con su personal y sus líderes: «Metas de cobertura». Hay una predeterminada por día de la semana y excepciones para una campaña, un mes o un feriado, que rigen el tiempo que elijas; si dos se pisan, manda la más corta. Manda la meta: donde un rango no tiene número, en las tiendas manda lo que pide la venta; un 0 dice que ahí no se exige a nadie. La franja de abajo de cada día compara la gente de cada hora contra eso. Las cambian admin y DO." },
                 { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma. Quien está en preselección tampoco suma hasta que deje de estarlo: da igual si es practicante o tiene otro cargo." },
-                { titulo: "Las vistas", texto: "Integrada muestra la semana hora por hora y quién está en cada hora, con el resumen de horas al pie; Día, la línea de cada persona en un día." },
-                { titulo: "Piso o almacén", texto: "En Día, toca la barra de una persona para decir si ese día trabaja en piso, todo el turno en almacén o unas horas en almacén (con una sugerencia de las horas en que el piso aguanta sin ella). Se planifica de hoy en adelante. Quien está en almacén no cuenta en piso, y no cambia su turno, sus horas ni su pago." },
-                { titulo: "Sugerir la semana", texto: "En la Integrada, en una semana que todavía no empieza, «Sugerir la semana» arma una propuesta: a qué hora entra y sale cada persona y qué día descansa, para cubrir la venta de cada hora (el promedio de las últimas 4 semanas). Respeta la disponibilidad aprobada, las ausencias y los horarios fijos, y cada una suma las horas de su jornada sin pasar de 48. Si no la publicas en el momento, «Guardar como borrador» la deja guardada sin publicar: la ven la líder, DO y administración, se compara con lo que hoy tiene cada persona (horas, días que cambian y si cumple su jornada) y se publica o descarta después. La líder de equipo también puede publicarse su propio turno si suma su jornada." },
-                { titulo: "Repetición de un día cerrado", texto: "En Día, al elegir un día que ya pasó, arriba aparece su repetición: mueve la hora o dale «Reproducir» y se ve quién estaba en piso, en almacén, en refrigerio, por llegar o ya se había ido, con lo que se marcó de verdad en el terminal. En las tiendas, además, cuántas compras hubo en esa hora y cuánta gente pedía la venta: las compras ÷ el ritmo de la tienda, nunca menos que su mínimo (los dos se cambian en Parámetros)." },
-                { titulo: "Lo marcado en el terminal", texto: "En Día, la línea azul bajo la barra es lo que la persona marcó en el terminal con «Voy a almacén». Hoy, la cobertura cuenta lo que pasó hasta la hora actual (la línea roja) y el plan de ahí en adelante; si alguien marca «Vuelvo a tienda» antes de tiempo, vuelve a contar en piso desde esa hora. La Integrada muestra solo el plan." },
+                { titulo: "Las vistas", texto: "Integrada muestra la semana hora por hora y quién está en cada hora, con el resumen de horas al pie. Semana muestra una fila por persona con su turno de cada día, y arriba cómo va cada día contra la meta: toca un día para abrirlo debajo, con la línea de cada persona. Las dos cuentan igual. Las líderes de equipo entran en Semana y DO y administración en la Integrada; después, cada quien vuelve a la que eligió." },
+                { titulo: "Piso o almacén", texto: "Con un día abierto en Semana, toca la barra de una persona para decir si ese día trabaja en piso, todo el turno en almacén o unas horas en almacén (con una sugerencia de las horas en que el piso aguanta sin ella). Se planifica de hoy en adelante. Quien está en almacén no cuenta en piso, y no cambia su turno, sus horas ni su pago." },
+                { titulo: "Sugerir la semana", texto: "En una semana que todavía no empieza, «Sugerir la semana» arma una propuesta: a qué hora entra y sale cada persona y qué día descansa, para cubrir la venta de cada hora (el promedio de las últimas 4 semanas). Respeta la disponibilidad aprobada, las ausencias y los horarios fijos, y cada una suma las horas de su jornada sin pasar de 48. Si no la publicas en el momento, «Guardar como borrador» la deja guardada sin publicar: la ven la líder, DO y administración, se compara con lo que hoy tiene cada persona (horas, días que cambian y si cumple su jornada) y se publica o descarta después. La líder de equipo también puede publicarse su propio turno si suma su jornada." },
+                { titulo: "Repetición de un día cerrado", texto: "En Semana, al abrir un día que ya pasó, arriba aparece su repetición: mueve la hora o dale «Reproducir» y se ve quién estaba en piso, en almacén, en refrigerio, por llegar o ya se había ido, con lo que se marcó de verdad en el terminal. En las tiendas, además, cuántas compras hubo en esa hora y cuánta gente pedía la venta: las compras ÷ el ritmo de la tienda, nunca menos que su mínimo (los dos se cambian en Parámetros)." },
+                { titulo: "Lo marcado en el terminal", texto: "Con un día abierto en Semana, la línea azul bajo la barra es lo que la persona marcó en el terminal con «Voy a almacén». Hoy, la cobertura cuenta lo que pasó hasta la hora actual (la línea roja) y el plan de ahí en adelante; si alguien marca «Vuelvo a tienda» antes de tiempo, vuelve a contar en piso desde esa hora. La Integrada muestra solo el plan." },
               ]}
             />
           }

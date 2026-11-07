@@ -6,6 +6,24 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-07 — Turnos: «Semana» reemplaza a Día, y el día se abre dentro · sin SQL · commits locales, SIN SUBIR (esperan que Felipe lo vea en local) · rama `claude/compact-view-leaders-45d7bf`
+
+**De dónde sale.** Las líderes de equipo no se hallaban con la Integrada; a otros sí les sirve. Felipe eligió entre tres maquetas la de una fila
+por persona ([`turnos-compacta-prototipo-2026-11-07.html`](turnos-compacta-prototipo-2026-11-07.html)), y después que reemplazara a Día con el día
+desplegable dentro ([`turnos-semana-prototipo-2026-11-07.html`](turnos-semana-prototipo-2026-11-07.html), opción 2). Día no sobraba: tenía la
+repetición (0585) y lo marcado en el terminal (0580), que solo vivían ahí; lo que sobraba era la pestaña.
+
+**Construido.** Pestañas «Integrada · Semana». La tabla es `turnos/tabla-semana.tsx`; arriba de cada día, su estado (falta con su peor tramo, alcanza,
+sin meta, sin líder) sale de `lib/admin/semana-por-persona.ts` con las MISMAS celdas de la Integrada (`cuentaDeLaSemana`), con 10 pruebas que se
+pusieron en rojo al romper la regla tres veces. Tocar un día abre debajo `detalleDelDia` (lo de Día, movido sin cambios: texto idéntico antes y
+después). La líder entra en Semana y DO/admin en la Integrada (`turnos.vista.v3`). El borrador y la propuesta se ven en las dos vistas, y el editor
+avisa en un día de alguien que está en el borrador, porque publicarlo escribe encima. Novedad `2026-11-07-turnos-semana-en-lugar-de-dia`.
+
+**Pendiente.** Que Felipe lo vea con `node scripts/local/web.mjs` (cuentas `lider@` y `do@`). Con su OK: `/abrir-pr`, y la `fecha` de la novedad se
+corrige al día en que se fusione.
+
+---
+
 ## 2026-11-07 — Tiempo real, lote 1: la base avisa y las pantallas se enteran al instante · migración **0604 PEGADA Y VERIFICADA (2026-11-07)** · prueba 491 · FUSIONADO Y PUBLICADO ([#703](https://github.com/felipea92p-ux/cayla-dynamic/pull/703), 2026-11-07)
 
 **De dónde sale.** Felipe (2026-11-07): todo Dynamic en tiempo real, con websocket, e investigar si hay otra forma segura, rápida y precisa. Se comparó contra

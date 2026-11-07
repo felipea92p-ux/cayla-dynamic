@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-turnos-semana-en-lugar-de-dia",
+    fecha: "2026-11-07",
+    titulo: "En Turnos, «Día» ahora es «Semana», y el día se abre dentro",
+    queMejoro:
+      "En Turnos, la pestaña «Día» pasa a ser «Semana»: una fila por persona con su turno de cada día, como un rol de " +
+      "turnos, y arriba cómo va cada día contra la meta. Para ver un día en detalle, toca su nombre arriba de la tabla: " +
+      "se abre debajo con todo lo que mostraba Día, como la línea de cada persona, lo marcado en el terminal y, si el día " +
+      "ya pasó, su repetición.\n\n" +
+      "Las líderes de equipo entran en Semana; DO y administración, en la Integrada, que no cambia. Después, cada quien " +
+      "vuelve a la vista que eligió la última vez. Si hay un borrador de la semana guardado, también se ve en Semana, y al " +
+      "cambiar un turno de alguien que está en ese borrador, el sistema avisa que publicarlo lo reemplaza.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-07-ausencias-por-sede",
     fecha: "2026-11-07",
     titulo: "Ausencias se puede filtrar por sede",
