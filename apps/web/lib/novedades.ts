@@ -115,6 +115,29 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-hoja-de-sede-abre-tu-sede",
+    fecha: "2026-11-07",
+    titulo: "La Hoja de sede abre la de tu sede",
+    queMejoro:
+      "Si eres líder de equipo, al abrir la Hoja de sede desde el menú aparecía otra sede, la primera de la lista. " +
+      "Te salía vacía, como si no hubiera nada pendiente. Ahora se abre la tuya, con tu equipo, y ya no está el " +
+      "selector de sedes, porque las demás te salían vacías.\n\n" +
+      "Para DO y la dirección no cambia nada: siguen eligiendo la sede.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-11-07-planilla-el-nombre-no-se-pierde-al-deslizar",
+    fecha: "2026-11-07",
+    titulo: "En Planilla, el nombre ya no se pierde al deslizar la tabla",
+    queMejoro:
+      "En computadora la tabla de Planilla no cabe entera y hay que deslizarla de lado. Al llegar a «Total» y " +
+      "«Pagado», el nombre de la persona salía de la vista, y al marcar un pago no se veía a quién se lo estabas " +
+      "marcando. Ahora el nombre queda fijo a la izquierda y «Total» y «Pagado» a la derecha: solo se deslizan las " +
+      "columnas del medio.\n\n" +
+      "Al pie de la tabla, el monto de «Sale de la cuenta de CAYLA» ahora queda debajo de «Total», donde corresponde. " +
+      "En el celular no cambia nada.",
+  },
+  {
     id: "2026-11-06-tu-seguro-llega-a-tu-bandeja",
     fecha: "2026-11-06",
     titulo: "Cuando tu póliza esté lista, te avisamos en tu Bandeja",
