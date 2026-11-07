@@ -1,12 +1,16 @@
 ---
 name: ultra-criterio
-description: Diseña y programa con el criterio de los mejores arquitectos, diseñadores y programadores del mundo (Linus Torvalds, Knuth, Dijkstra, Hoare, Brooks, Pike, Rams, Norman, Kleppmann…) y con prácticas modernas de élite, el pedido de Felipe del 2026-08-13. Úsala al diseñar una solución nueva, al analizar un módulo o cuando Felipe pida «como lo harían los mejores del mundo».
+description: Diseña y programa con el criterio de los mejores arquitectos, diseñadores y programadores del mundo (Linus Torvalds, Knuth, Dijkstra, Hoare, Brooks, Pike, Rams, Norman, Kleppmann, Pólya…) y con prácticas modernas de élite, el pedido de Felipe del 2026-08-13. Doce reglas, la última de juicio y creatividad. Úsala al diseñar una solución nueva, al analizar un módulo o cuando Felipe pida «como lo harían los mejores del mundo».
 ---
 
 > El pedido original de Felipe (2026-08-13), palabra por palabra:
 > «explicame bien y diseña la solución más óptima, con bastante inteligencia, con buen código, como los mejores arquitectos,
 > diseñadores y programadores del mundo. Vamos a trabajar de una forma formidable, ¿de acuerdo? Si tienes preguntas, házmelas
 > tipo ask user question.»
+>
+> El curso que explica cada regla con ejemplos, casos de CAYLA y ejercicios:
+> [Ultra criterio, versión 2](https://claude.ai/artifact/PBjJT4opUs88ULfCYmRkxz) (noviembre de 2026). Las doce reglas de esta skill
+> y las del curso son las mismas y van en el mismo orden: si cambias una, cambia la otra.
 
 Aplica sobre: $ARGUMENTS
 
@@ -76,36 +80,54 @@ aplicó es que el diseño cambió por ella.
    - En CAYLA: que una persona de tienda lo entienda sin explicación. Con contraste medido (WCAG ≥ 4.5:1), que funcione en celular y
      en escritorio, con los trece tokens de color y las piezas de `components/ui`.
 
-9. **Las preguntas, con AskUserQuestion.** Lo que Felipe ya decidió no se reabre.
+9. **Software moderno, de élite, sin caer en la moda.**
+   El software de élite de hoy no se mide por usar lo último. Se mide por lo que hace imposible equivocarse. Primero el freno:
+   - *Dan McKinley* (Etsy), «Choose Boring Technology»: cada equipo tiene pocas «fichas de innovación»; gástalas donde CAYLA gana
+     algo que se pueda medir, no en cambiar de herramienta. Una tecnología nueva tiene que pagar su costo de mantenerla durante años.
 
-10. **Al terminar, la evidencia, sin adornos.**
+   Lo que sí es de élite, y cómo está CAYLA (medido el 2026-11-06 en los `package.json`):
+
+   | Práctica | Maestro | En CAYLA hoy |
+   |---|---|---|
+   | **Estados imposibles que no se pueden escribir**: uniones discriminadas en TypeScript, `CHECK` y `NOT NULL` en Postgres | *Yaron Minsky* (Jane Street) | Parcial: la base tiene `CHECK`; usarlo también en los tipos de TS |
+   | **Parsear, no validar**: el dato que entra se convierte una vez, en el borde, en un tipo que ya es correcto | *Alexis King* | No hay librería de esquemas (ni zod ni valibot); proponerla al tocar un formulario que mueve plata |
+   | **Pruebas por propiedades**: miles de casos generados contra una invariante («ninguna planilla da negativo», «la suma de las partes es el total») | *John Hughes* (QuickCheck) | No está `fast-check`; es la candidata más fuerte para el cálculo de planilla |
+   | **Pruebas de mutación**: se rompe el código a propósito y la prueba tiene que ponerse en rojo | *Richard DeMillo* | El repo ya lo hace a mano con los frenos (receta-suelta se rompió de ocho maneras); `Stryker` lo haría sistemático |
+   | **Eventos como fuente de verdad**: se guarda lo que pasó y lo demás se deriva | *Greg Young*, *Martin Kleppmann* | Ya está: marcajes append-only y `jornadas` derivadas por trigger |
+   | **Local-first**: la app sigue andando sin internet y reconcilia después | *Martin Kleppmann* (Ink & Switch) | Ya está en el terminal, con la reconciliación de marcajes offline en `fn_registrar_marcaje` |
+   | **Métodos formales** para lo crítico: especificar la máquina de estados antes de programarla | *Leslie Lamport* (TLA+, lo usa AWS) | Candidato: la máquina de estados del marcaje en `packages/shared` |
+   | **Observabilidad**: preguntas nuevas sin desplegar código nuevo | *Charity Majors* | Sentry ya está (`@sentry/nextjs`); falta mirar los errores por sede y por pantalla |
+   | **Entrega progresiva**: lo nuevo entra apagado, detrás de un interruptor | Google SRE | Ya está: el interruptor de vidrio |
+   | **Seguridad por mínimo privilegio** en la base, no en la pantalla | *Saltzer y Schroeder* | Ya está: RLS y funciones guardián `SECURITY DEFINER` |
+   | **Plataforma al día**: Next 16, React 19, TypeScript 5, Vitest 4 | — | Ya está |
+
+   La regla: cuando propongas algo «moderno», di en qué fila de esta tabla cae, qué falla de CAYLA evita y cuánto cuesta
+   mantenerlo. Si no evita una falla concreta, es moda.
+
+10. **Las preguntas, con AskUserQuestion.**
+    - Una a una, con dos o tres opciones, lo que se gana y se paga en cada una, y tu recomendación. La respuesta a la primera cambia
+      la segunda.
+    - Lo que Felipe ya decidió no se reabre, salvo que aparezca información nueva y real (una medición, una ley que cambió, un caso
+      que nadie consideró). Ejemplos: el terminal sin PIN, el régimen MYPE y la base de 6.5 h.
+
+11. **Al terminar, la evidencia, sin adornos.**
     - *Linus Torvalds*: «hablar es barato; muéstrame el código». *Richard Feynman*: no debes engañarte a ti mismo, y eres la persona
       más fácil de engañar.
     - En CAYLA: di qué quedó verificado (con qué prueba o qué consulta) y qué no. «Debería funcionar» no es verificado.
 
-11. **Software moderno, de élite, sin caer en la moda.**
-    El software de élite de hoy no se mide por usar lo último. Se mide por lo que hace imposible equivocarse. Primero el freno:
-    - *Dan McKinley* (Etsy), «Choose Boring Technology»: cada equipo tiene pocas «fichas de innovación»; gástalas donde CAYLA gana
-      algo que se pueda medir, no en cambiar de herramienta. Una tecnología nueva tiene que pagar su costo de mantenerla durante años.
-
-    Lo que sí es de élite, y cómo está CAYLA (medido el 2026-11-06 en los `package.json`):
-
-    | Práctica | Maestro | En CAYLA hoy |
-    |---|---|---|
-    | **Estados imposibles que no se pueden escribir**: uniones discriminadas en TypeScript, `CHECK` y `NOT NULL` en Postgres | *Yaron Minsky* (Jane Street) | Parcial: la base tiene `CHECK`; usarlo también en los tipos de TS |
-    | **Parsear, no validar**: el dato que entra se convierte una vez, en el borde, en un tipo que ya es correcto | *Alexis King* | No hay librería de esquemas (ni zod ni valibot); proponerla al tocar un formulario que mueve plata |
-    | **Pruebas por propiedades**: miles de casos generados contra una invariante («ninguna planilla da negativo», «la suma de las partes es el total») | *John Hughes* (QuickCheck) | No está `fast-check`; es la candidata más fuerte para el cálculo de planilla |
-    | **Pruebas de mutación**: se rompe el código a propósito y la prueba tiene que ponerse en rojo | *Richard DeMillo* | El repo ya lo hace a mano con los frenos (receta-suelta se rompió de ocho maneras); `Stryker` lo haría sistemático |
-    | **Eventos como fuente de verdad**: se guarda lo que pasó y lo demás se deriva | *Greg Young*, *Martin Kleppmann* | Ya está: marcajes append-only y `jornadas` derivadas por trigger |
-    | **Local-first**: la app sigue andando sin internet y reconcilia después | *Martin Kleppmann* (Ink & Switch) | Ya está en el terminal, con la reconciliación de marcajes offline en `fn_registrar_marcaje` |
-    | **Métodos formales** para lo crítico: especificar la máquina de estados antes de programarla | *Leslie Lamport* (TLA+, lo usa AWS) | Candidato: la máquina de estados del marcaje en `packages/shared` |
-    | **Observabilidad**: preguntas nuevas sin desplegar código nuevo | *Charity Majors* | Sentry ya está (`@sentry/nextjs`); falta mirar los errores por sede y por pantalla |
-    | **Entrega progresiva**: lo nuevo entra apagado, detrás de un interruptor | Google SRE | Ya está: el interruptor de vidrio |
-    | **Seguridad por mínimo privilegio** en la base, no en la pantalla | *Saltzer y Schroeder* | Ya está: RLS y funciones guardián `SECURITY DEFINER` |
-    | **Plataforma al día**: Next 16, React 19, TypeScript 5, Vitest 4 | — | Ya está |
-
-    La regla: cuando propongas algo «moderno», di en qué fila de esta tabla cae, qué falla de CAYLA evita y cuánto cuesta
-    mantenerlo. Si no evita una falla concreta, es moda.
+12. **Amplitud de criterio, juicio y creatividad.**
+    - Las reglas sirven para pensar, no para dejar de pensar. Cuando dos chocan (medir contra decidir a tiempo, rediseñar contra no
+      romper, rigor contra simpleza), di cuál pesa más aquí y por qué.
+    - *George Pólya* (How to Solve It, 1945): si no ves cómo atacar el problema, resuelve primero uno relacionado: más pequeño (una
+      sede), más general o parecido a uno ya resuelto.
+    - Entre tus opciones, incluye una que nadie pidió. *Christopher Alexander* (A Pattern Language): un buen diseño resuelve las
+      fuerzas en tensión del lugar; de los mejores se copia el principio, no la forma.
+    - *Daniel Kahneman*: desconfía de la respuesta que llega rápida y segura. *Gary Klein*: antes de entregar algo importante, haz el
+      premortem: imagina que ya falló y escribe por qué.
+    - *Richard Hamming*: trabaja en el problema importante, no en el cómodo.
+    - En CAYLA: pon precio a cada tipo de error, porque casi nunca cuestan lo mismo; los falsos positivos son el peor (acusar de
+      falta a quien no la cometió). Y elegir qué NO hacer también es criterio: el freno que buscaba `horario_por_dia` fuera de
+      `jornada-esperada.ts` se descartó porque daba 28 aciertos, casi todos legítimos, y un guardián con ruido se desactiva a la semana.
 
 Este criterio no está por encima de las reglas de `CLAUDE.md`: el SQL lo pega Felipe, el md5 se pide a producción, fusionar es
 publicar. Los mejores del mundo también respetan los frenos de la casa.
