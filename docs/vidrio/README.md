@@ -108,7 +108,7 @@ trabajo propio de cada módulo. Documentos va antes que Personas y Pago porque l
 | 7 | **Reportes:** Hoja de sede y Exportar | 2 | 3 | Hoja de sede impresa | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 8 | **Empresa y Configuración:** Archivo, Áreas, Sedes, Cuentas y Parámetros | 6 | 13 | Casi nada | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 9 | **Entrada:** login, nueva clave y olvidé mi clave | 3 | 4 | Compararlo con «El vuelo vivo» de Retail | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
-| 10 | **Lo mío:** lo que cada integrante ve en su teléfono | 12 | 46 | Casi todo: Retail no tiene un espacio personal así | | | | | | |
+| 10 | **Lo mío:** lo que cada integrante ve en su teléfono | 12 | 46 | Casi todo: Retail no tiene un espacio personal así | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 11 | **Terminal de marcaje** | 3 | Exento | Casillas, reloj y marcar sin conexión | | | | | | |
 
 Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** cuando tiene las seis.
@@ -148,6 +148,6 @@ La guía de foco, empezando por solicitudes y contratos, y lo que haya quedado d
 
 | Riesgo | Qué se hace |
 |---|---|
-| El desenfoque y el loader en un teléfono barato, que se eligieron igual que Retail y no se han medido | Medirlo al revisar «Lo mío», en el teléfono más barato del equipo. Si va a tirones, se le muestra a Felipe: el desenfoque se apaga con una línea. |
+| El desenfoque y el loader en un teléfono barato, que se eligieron igual que Retail | Medido el 2026-11-07 en Lo mío con el navegador seis veces más lento, como un teléfono de gama baja, y las dos versiones construidas igual: al bajar por la pantalla, 60 cuadros por segundo y ningún tirón, como hoy; «Mis días» llega en 2,5 s, igual que hoy. Ojo: el servidor de desarrollo (`web.mjs`) da 6,4 s, y no vale para medir. Falta el teléfono real más barato del equipo. Si va a tirones, se le muestra a Felipe: el desenfoque se apaga con una línea. |
 | Los datos inventados no muestran todo | Tienen casos extremos, y cada módulo se vuelve a mirar con datos reales el día del estreno. |
 | Otras sesiones crean pantallas con piezas viejas | `receta-suelta` sigue activo, y la regla está en `CLAUDE.md`. |
