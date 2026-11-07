@@ -136,6 +136,7 @@ export const NOVEDADES: readonly Novedad[] = [
       "columnas del medio.\n\n" +
       "Al pie de la tabla, el monto de «Sale de la cuenta de CAYLA» ahora queda debajo de «Total», donde corresponde. " +
       "En el celular no cambia nada.",
+    audiencia: "do",
   },
   {
     id: "2026-11-06-tu-seguro-llega-a-tu-bandeja",
