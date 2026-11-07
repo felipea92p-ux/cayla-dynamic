@@ -30,19 +30,28 @@ const MAXIMO_VISIBLES = 3;
 
 export function NovedadesWidget() {
   const persona = usePersonaActual();
-  const { vistas, marcar } = useNovedadesVistas(persona !== null);
+  const { vistas, marcar, marcarVarias } = useNovedadesVistas(persona !== null);
 
   if (!persona || vistas === null) return null;
-  return <NovedadesPendientes pendientes={novedadesPendientes(persona.rol, vistas)} onEntendido={marcar} />;
+  return (
+    <NovedadesPendientes
+      pendientes={novedadesPendientes(persona.rol, vistas)}
+      onEntendido={marcar}
+      onEntendidoTodas={marcarVarias}
+    />
+  );
 }
 
 /** La tarjeta, sin datos ni sesión: recibe lo que ya se decidió mostrar. */
 export function NovedadesPendientes({
   pendientes,
   onEntendido,
+  onEntendidoTodas,
 }: {
   pendientes: readonly Novedad[];
   onEntendido: (id: string) => void;
+  /** Sin esta, no hay botón de «todas»: la tarjeta sigue funcionando una por una. */
+  onEntendidoTodas?: (ids: readonly string[]) => void;
 }) {
   if (pendientes.length === 0) return null;
 
@@ -72,9 +81,20 @@ export function NovedadesPendientes({
           </li>
         ))}
       </ul>
-      <Link href="/admin/anuncios" className="mt-3 inline-block text-xs text-taupe underline">
-        {restantes > 0 ? `Y ${restantes} más — ver todas las novedades` : "Ver todas las novedades"}
-      </Link>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        {/* Solo cuando hay más de las que caben: con tres o menos, tres clics
+            no son un problema y un botón de «todas» sería uno más que mirar.
+            Marca TAMBIÉN las que no se ven, y por eso lleva el número. Siguen
+            leyéndose completas en Anuncios. */}
+        {onEntendidoTodas && restantes > 0 && (
+          <Boton variante="sutil" tamano="sm" onClick={() => onEntendidoTodas(pendientes.map((n) => n.id))}>
+            Entendido todas ({pendientes.length})
+          </Boton>
+        )}
+        <Link href="/admin/anuncios" className="text-xs text-taupe underline">
+          {restantes > 0 ? `Y ${restantes} más — ver todas las novedades` : "Ver todas las novedades"}
+        </Link>
+      </div>
     </section>
   );
 }
