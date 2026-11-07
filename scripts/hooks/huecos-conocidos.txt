@@ -247,3 +247,41 @@
 # huecos de supabase/migrations. Queda escrito acá y en docs/estado.md.
 
 0526  Borrador SIN PEGAR de la rama claude/agitated-nightingale-7e118e (commit a23658f8, 2026-10-17): la constancia de un apoyo mensual se pide desde el día 1. NO se recupera el archivo: reescribe fn_educacion_situacion partiendo de la 0450, igual que la 0549 que SÍ está en main, y pegarla después de ella la revertiría en silencio sin PARAR (no tiene guardia de md5, solo un comentario) — la propia 0549 lo advierte en su párrafo «ORDEN CON LA 0526». Está además sin terminar (@@TABLA@@ y @@LLEGADA@@ sin rellenar, md5 de producción PENDIENTE). La mejora sigue haciendo falta: se rehace sobre el cuerpo de la 0549 con un número nuevo.
+
+# ── 0596 · LA MISMA MIGRACIÓN, ESCRITA DOS VECES EL MISMO DÍA (2026-11-04) ────
+#
+# Dos sesiones arreglaron a la vez que la fecha de ingreso por defecto fuera la
+# de Lima y no la del servidor: 9740edf3 como 0595 y 57ede941 como 0596. Las
+# dos hacen lo mismo —`personas.fecha_ingreso` pasa a `default fn_hoy_lima()`—,
+# y la 0595 es la que llegó a main.
+#
+# La 0596 quedó en la rama remota claude/default-ingreso-hora-lima, sin PR y
+# fuera de main. Comprobado contra producción el 2026-11-07:
+# `migraciones_aplicadas` no tiene fila para 596.
+#
+# NO se reutiliza el número mientras esa rama exista: fusionarla traería su 0596
+# de vuelta. Sería inofensiva —deja el mismo default—, pero ocuparía el número.
+
+0596  Duplicada de la 0595 el 2026-11-04 (commit 57ede941, rama claude/default-ingreso-hora-lima, sin PR): el mismo default fn_hoy_lima() para la fecha de ingreso. Nunca se aplicó en producción.
+
+# ── 0599, 0600 y 0601 · RESERVADAS POR UNA RAMA QUE NO APARECIÓ (2026-11-07) ──
+#
+# La rama de Seguros (PR #697) nació con la 0600 y la 0601 (ed75b6d6) y las
+# renumeró a 0602 y 0603 (eab0f841, 2026-11-06 22:22) con este motivo: «la rama
+# de licencias tomó la 0600 y la 0601». Su estado decía que esa rama ocupaba de
+# la 0599 a la 0601 y reescribía fn_alertas_resolver_fallidas desde la 0548.
+#
+# Esa rama no existe. Buscada el 2026-11-07 en las ramas locales y de GitHub,
+# los PR de cualquier estado, el stash, los worktrees de esta Mac con sus
+# archivos sin commitear y las transcripciones de sesiones: nada. Ese mismo día
+# se confirmó que no se trabajó en otra máquina, así que se da por abandonada.
+# Comprobado contra producción el 2026-11-07: `migraciones_aplicadas` no tiene
+# fila para 599, 600 ni 601.
+#
+# NO se reutilizan: por número quedarían antes de la 0603, y una migración que
+# partiera de la fn_alertas_resolver_fallidas de la 0548 revertiría la 0603. Su
+# guardia de md5 lo frenaría, pero el número ya invita a la trampa.
+
+0599  Reservada por una «rama de licencias» que nunca apareció (ver arriba). Nunca se aplicó en producción.
+0600  Reservada por la misma rama. Fue el primer número de la 0602 de Seguros, renumerada en eab0f841. Nunca se aplicó en producción.
+0601  Reservada por la misma rama. Fue el primer número de la 0603 de Seguros, renumerada en eab0f841. Nunca se aplicó en producción.
