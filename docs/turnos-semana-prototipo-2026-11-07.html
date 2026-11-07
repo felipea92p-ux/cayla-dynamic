@@ -268,6 +268,8 @@
   .horas-r .vb{ height:30px; width:100%; display:flex; align-items:flex-end; justify-content:center; }
   .horas-r .vb i{ width:7px; border-radius:2px; background:color-mix(in srgb, var(--color-tinta) 40%, transparent); }
   .horas-r .h{ font-size:.62rem; color:var(--color-taupe); font-variant-numeric:tabular-nums; }
+  .horas-r .h-c{ display:none; flex-direction:column; align-items:center; line-height:1.15; }
+  .horas-r .h-c i{ font-style:normal; opacity:.8; }
 
   @container pagina (max-width: 720px){
     .cab h1{ font-size:1.5rem; }
@@ -280,7 +282,13 @@
     .planilla .col-s{ width:4.6rem; min-width:4.6rem; }
     .quien .pre{ display:none; }
     .tramos3, .dos, .cifras{ grid-template-columns:1fr; }
-    .cols5{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+    /* Cada estado es una fila entera con los nombres seguidos: con 5 estados en 2 columnas, «Ya salió» quedaba sola. */
+    .cols5{ grid-template-columns:1fr; gap:10px; }
+    .col5 ul{ flex-direction:row; flex-wrap:wrap; gap:2px 12px; }
+    /* La tira de horas: en 14 casillas de ~23 px no cabe «8:00 · 1»; va la hora arriba y las compras abajo. */
+    .horas-r{ gap:2px; }
+    .horas-r .h-l{ display:none; }
+    .horas-r .h-c{ display:flex; }
     .panel-dia{ padding:12px; }
     .pd-cab h2{ font-size:1.3rem; }
   }
@@ -717,7 +725,7 @@
       <div class="horas-r" role="group" aria-label="Horas del día">${horas.map((h) => {
         const n = gente.filter((x) => x.p.cuenta && estadoEn(x.r, h + 0.5) === 'piso').length, c = comprasDe(d, h), pd = pedia(c);
         const st = n < pd ? 'falta' : n > pd + 1 ? 'sobra' : 'ok';
-        return `<button type="button" class="${st}${H === h ? ' act' : ''}" data-h="${h}" title="${h}:00 · ${n} en piso · ${c} compras · la venta pedía ${pd}"><b class="num">${n}</b><span class="vb"><i style="height:${(c / maxC) * 100}%"></i></span><span class="h">${h}:00 · ${c}</span></button>`;
+        return `<button type="button" class="${st}${H === h ? ' act' : ''}" data-h="${h}" title="${h}:00 · ${n} en piso · ${c} compras · la venta pedía ${pd}"><b class="num">${n}</b><span class="vb"><i style="height:${(c / maxC) * 100}%"></i></span><span class="h h-l">${h}:00 · ${c}</span><span class="h h-c" aria-hidden="true">${h}h<i>${c}</i></span></button>`;
       }).join('')}</div>`;
   }
 
