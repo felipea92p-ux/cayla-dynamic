@@ -195,7 +195,7 @@
     box-shadow: var(--ahumado-luz);
   }
   @media (hover: hover) {
-    [data-vidrio="panel"] :is(button, a).bg-tinta:is(.rounded-control, .rounded-pildora, .rounded-full):not(:disabled, .hoja *):hover,
+    [data-vidrio="panel"] :is(button, a).bg-tinta:is(.rounded-control, .rounded-pildora, .rounded-full):not(:disabled, [aria-pressed], .hoja *):hover,
     [data-vidrio="panel"] [role="dialog"] button.rounded-control[class*="border-rojo"]:last-child:not(:disabled, .hoja *):hover {
       background: var(--ahumado-hover);
       border-color: color-mix(in srgb, var(--color-rojo-profundo) 70%, transparent);

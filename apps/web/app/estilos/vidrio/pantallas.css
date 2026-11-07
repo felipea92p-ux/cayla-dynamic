@@ -266,7 +266,7 @@
   /* ---------- Pago ---------- */
 
   /* Una tabla ancha: con menos aire entre columnas, y el nombre se queda a la vista al deslizar. El ancho mínimo evita que un nombre largo ocupe ocho renglones.
-     El fondo de lo pegado es casi opaco y sin desenfoque: serían decenas de filtros por pantalla, y lo que pasa por debajo igual no se lee. */
+     El fondo de lo pegado es opaco y sin desenfoque: serían decenas de filtros por pantalla, y con 94 % todavía se leía lo que pasaba por debajo. */
   [data-vidrio="panel"] .vidrio-tabla-ancha :is(th, td) {
     padding-inline: 10px;
   }
@@ -277,7 +277,7 @@
     z-index: 1;
     min-width: 10.5rem;
     padding-left: 16px;
-    background: color-mix(in srgb, var(--color-vidrio) 94%, transparent);
+    background: var(--color-vidrio);
   }
 
   /* Planilla: «Total» y «Pagado» tampoco se van. A 1440 px la tabla sobraba 346 px y justo esas dos quedaban fuera. Desde 1024 px: más angosto, lo fijo se comería la tabla. */
@@ -286,7 +286,7 @@
     [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(-n + 3) {
       position: sticky;
       z-index: 1;
-      background: color-mix(in srgb, var(--color-vidrio) 94%, transparent);
+      background: var(--color-vidrio);
     }
     [data-vidrio="panel"] .vidrio-tabla-con-total :is(thead, tbody) tr > :nth-last-child(1),
     [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(1) {
@@ -326,5 +326,10 @@
     border-color: var(--ahumado-denso-borde);
     background: var(--ahumado-denso-fondo);
     box-shadow: var(--ahumado-denso-luz);
+  }
+
+  /* Las barras de tinta de Costos, en oscuro: la tinta es casi blanca, y un bloque de ese tamaño encandilaba más que la cifra que acompaña. */
+  :root[data-vidrio="panel"][data-tema="oscuro"] [class*="bg-[color-mix(in_oklab,var(--color-tinta)_80%"]:not(.hoja *) {
+    background-color: color-mix(in oklab, var(--color-tinta) 52%, var(--color-papel));
   }
 }
