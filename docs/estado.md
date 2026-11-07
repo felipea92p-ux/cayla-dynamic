@@ -6,13 +6,13 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-07 — Tiempo real, lote 1: la base avisa y las pantallas se enteran al instante · migración **0604 SIN PEGAR** · prueba 491 · rama `claude/dynamic-real-time-websocket-d99d85`, **solo en local**
+## 2026-11-07 — Tiempo real, lote 1: la base avisa y las pantallas se enteran al instante · migración **0604 PEGADA (2026-11-07)** · prueba 491 · [#703](https://github.com/felipea92p-ux/cayla-dynamic/pull/703), **sin fusionar**
 
 **De dónde sale.** Felipe (2026-11-07): todo Dynamic en tiempo real, con websocket, e investigar si hay otra forma segura, rápida y precisa. Se comparó contra
 seis caminos y se eligió el aviso sin datos por Broadcast desde la base, con la lectura por las funciones de siempre. Qué se descartó y por qué:
 [`adr/0006-tiempo-real.md`](adr/0006-tiempo-real.md).
 
-**Construido (commits locales, sin push ni PR, por pedido de Felipe).** La 0604 hace que 22 tablas avisen a tres temas (asistencia, horarios, personas).
+**Construido, en el PR #703.** La 0604 hace que 22 tablas avisen a tres temas (asistencia, horarios, personas).
 Se pega en una sola vez: toma los candados sin esperar. La prueba 491 trae el guardián de tablas nuevas. `useAlDia` (`apps/web/lib/tiempo-real.ts`) lo
 usan el tablero (deja de pedir cada 30 s y «en vivo» dice la verdad), Turnos y Horarios, el terminal y los contadores de Incidencias y Bandeja del menú.
 Se borró `turnos-al-dia.ts`. El entorno local trae el Realtime de verdad si Docker está prendido (`scripts/local/tiempo-real.sh`), y se puede levantar una
@@ -21,11 +21,15 @@ segunda instancia para no tocar la que otra sesión tiene abierta.
 **Medido.** Ver el ADR: ~300 ms del guardado a la pantalla, 0 consultas del tablero en reposo, recuperación sola después de un corte, 395/395 pgTAP y
 3 650 vitest en verde.
 
-**Antes de subir, en este orden.** (1) Que Felipe lo vea en local (el tablero y Turnos en dos ventanas). (2) Push y PR con `/abrir-pr`. (3) En producción,
-antes de pegar: `select to_regprocedure('realtime.send(jsonb,text,text,boolean)'), to_regclass('realtime.messages');` tiene que devolver las dos cosas.
-(4) Pegar la 0604 con `./scripts/dame-el-sql.sh 0604`, fuera del horario de tienda. El SELECT del final dice «Lista» o «ATENCIÓN». (5) Recién entonces
-fusionar. **Si se fusiona sin la 0604 pegada, el tablero pierde su refresco de 30 s y queda en «cada 5 min»**: no se rompe nada, pero empeora.
-(6) Opcional, decisión de Felipe: apagar «Allow public access» en la configuración de Realtime.
+**Pegada en producción el 2026-11-07, a la segunda.** Producción tenía `realtime.send` y `realtime.messages` (lo confirmó Felipe antes de pegar). La
+primera pegada se negó en su primera línea —`relation "public.turnos_borradores" does not exist`— y no aplicó nada: **la 0593 se había fusionado el
+5-nov (#668) sin pegarse**. Se pegó la 0593 (sus cinco comprobaciones en `true`) y la 0604 volvió a pegarse: «Lista: 22 tablas avisan al instante a
+asistencia, horarios y personas.» El aviso del SQL Editor («destructive operations», «table without RLS: `tiempo_real_lote1`») es falso: es una tabla
+temporal `on commit drop`; se corre con «Run without RLS», nunca con el botón que agrega RLS.
+
+**Hasta fusionar,** la base ya avisa y nadie escucha: el código publicado sigue con sus relojes. Cuesta +0.04 ms por escritura y filas en
+`realtime.messages`, que Supabase retiene 3 días. **Fusionar es publicar** y lo pide Felipe; antes, el comentario `cayla:fusion-sesion`.
+Opcional, decisión de Felipe: apagar «Allow public access» en la configuración de Realtime.
 
 **Sigue.** Los lotes 2 a 5 (el ADR tiene la lista; la de tablas, la 491). El lote 4 (plata) va con aviso «Hubo cambios · Actualizar», no con refresco
 solo. Aparte: que dos personas que editan lo mismo no se pisen (el tiempo real no lo evita).
@@ -135,7 +139,12 @@ nada a medias). **El código ya está publicado:** hasta pegarla, la pantalla de
 
 ---
 
-## 2026-11-03 — El borrador de la semana · migración **0593 SIN PEGAR** · prueba 483 · rama `claude/turnos-borrador-semana` ([#668](https://github.com/felipea92p-ux/cayla-dynamic/pull/668))
+## 2026-11-03 — El borrador de la semana · migración **0593 PEGADA (2026-11-07, dos días DESPUÉS de fusionar)** · prueba 483 · fusionada en [#668](https://github.com/felipea92p-ux/cayla-dynamic/pull/668) (2026-11-05)
+
+**Se fusionó sin su migración.** El #668 entró a `main` el 2026-11-05 y la 0593 recién se pegó el 2026-11-07, cuando la 0604 se negó a correr por no
+encontrar `turnos_borradores`. En esos dos días Turnos no se rompió: al no hallar la tabla esconde «Guardar como borrador» (`esTablaInexistente`), así
+que las líderes no tuvieron el borrador y nadie vio un error. La regla de pegar antes de fusionar existe por esto; aquí el daño fue chico porque la
+pantalla supo degradarse.
 
 **De dónde sale.** Felipe (2026-11-03): tener a la vista «el horario sugerido (lo que predice el sistema), el que muestra el
 sistema y un borrador», comparar el actual con el recomendado o el modificado, y el «cumple 45 h / 30 h» medido contra lo
