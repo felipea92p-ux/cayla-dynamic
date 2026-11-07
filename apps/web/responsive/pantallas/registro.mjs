@@ -64,6 +64,8 @@ const PANTALLAS = [
   { id: "politica-constancias", nombre: "Constancias de la política", ruta: "/admin/politica-salarial/constancias", cuenta: "do" },
   { id: "anuncios", nombre: "Anuncios", ruta: "/admin/anuncios", cuenta: "do" },
   { id: "reporte-sede", nombre: "Hoja de sede", ruta: "/admin/reporte-sede", cuenta: "lider" },
+  { id: "reporte-sede-do", nombre: "Hoja de sede (DO)", ruta: "/admin/reporte-sede", cuenta: "do" },
+  { id: "exportar", nombre: "Exportar (CSV)", ruta: "/admin/exportar", cuenta: "do" },
   { id: "sedes", nombre: "Sedes", ruta: "/admin/sedes", cuenta: "do" },
   { id: "mio", nombre: "Lo mío", ruta: "/mio", cuenta: "integrante" },
   { id: "mio-nombre-largo", nombre: "Lo mío, con un nombre muy largo", ruta: "/mio", cuenta: "nombre-largo" },
