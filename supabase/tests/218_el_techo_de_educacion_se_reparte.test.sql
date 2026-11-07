@@ -13,10 +13,21 @@
 --   primera se queda con 90, la segunda con 0. Y cuando la suben a archicaylo
 --   (S/480), las dos vuelven a su 75 %.
 --
--- Todo en begin/rollback y en fechas de 2027-2028, lejos de cualquier dato real.
+-- Todo en begin/rollback y en fechas futuras, lejos de cualquier dato real.
 -- ============================================================================
 begin;
 select plan(28);
+
+-- Las fechas se leen como 2027 y 2028, y `pg_temp.fecha` las corre para que 2027
+-- sea siempre el año que viene. Tienen que ser futuras DE VERDAD: un cambio de
+-- rango no reparte hacia atrás, corta en el primer periodo sin pagar (0149 y
+-- 0281). Con el 2027-06-01 escrito a mano, esta prueba se habría puesto en rojo
+-- sola a partir del 2 de junio de 2027 sin que nadie tocara nada.
+create or replace function pg_temp.fecha(p_fecha text)
+returns date language sql stable as $$
+  select (p_fecha::date
+          + make_interval(years => extract(year from fn_hoy_lima())::int + 1 - 2027))::date;
+$$;
 
 -- ── Semilla ─────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa)
@@ -42,12 +53,12 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000ec09
 
 -- ── 1 · El saldo, que es el dato que faltaba ────────────────────────────────
 select is(
-  fn_educacion_saldo('00000000-0000-0000-0000-00000000ec02', '2027-03-01', '2027-12-31'),
+  fn_educacion_saldo('00000000-0000-0000-0000-00000000ec02', pg_temp.fecha('2027-03-01'), pg_temp.fecha('2027-12-31')),
   180.00::numeric,
   'SALDO · sin nada cargado, queda el techo entero del rango');
 
 select is(
-  fn_educacion_monto('00000000-0000-0000-0000-00000000ec02', 200::numeric, '2027-03-01', '2027-12-31'),
+  fn_educacion_monto('00000000-0000-0000-0000-00000000ec02', 200::numeric, pg_temp.fecha('2027-03-01'), pg_temp.fecha('2027-12-31')),
   150.00::numeric,
   'MONTO · con techo libre manda el 75 % del comprobante');
 
@@ -56,7 +67,7 @@ select is(
 select lives_ok($$
   select fn_educacion_registrar(
     '00000000-0000-0000-0000-00000000ec02'::uuid, 'Instituto de laboratorio', 200::numeric,
-    'trabajador', '2027-03-01'::date, '2027-12-31'::date,
+    'trabajador', pg_temp.fecha('2027-03-01'), pg_temp.fecha('2027-12-31'),
     null, 'educacion/x/ella.pdf', null, null, null) $$,
   'ALTA · la primera asignación entra por el 75 %');
 
@@ -67,7 +78,7 @@ select is(
   'ALTA · guardó S/150, que es el 75 % de S/200');
 
 select is(
-  fn_educacion_saldo('00000000-0000-0000-0000-00000000ec02', '2027-03-01', '2027-12-31'),
+  fn_educacion_saldo('00000000-0000-0000-0000-00000000ec02', pg_temp.fecha('2027-03-01'), pg_temp.fecha('2027-12-31')),
   30.00::numeric,
   'SALDO · después de la primera quedan S/30 de techo');
 
@@ -76,7 +87,7 @@ select is(
 select lives_ok($$
   select fn_educacion_registrar(
     '00000000-0000-0000-0000-00000000ec02'::uuid, 'Colegio de laboratorio', 200::numeric,
-    'hijo', '2027-03-01'::date, '2027-12-31'::date,
+    'hijo', pg_temp.fecha('2027-03-01'), pg_temp.fecha('2027-12-31'),
     'Lucia de Laboratorio', 'educacion/x/hija.pdf', null, null, null) $$,
   'REPARTO · el segundo comprobante ya no rebota: entra por el saldo');
 
@@ -97,7 +108,7 @@ select is(
 select throws_like($$
   select fn_educacion_registrar(
     '00000000-0000-0000-0000-00000000ec02'::uuid, 'Otro instituto', 400::numeric,
-    'trabajador', '2027-03-01'::date, '2027-12-31'::date,
+    'trabajador', pg_temp.fecha('2027-03-01'), pg_temp.fecha('2027-12-31'),
     null, 'educacion/x/otro.pdf', null, null, null) $$,
   '%No queda techo libre%',
   'SIN SALDO · una tercera en las mismas fechas se rechaza diciendo el motivo');
@@ -107,39 +118,39 @@ select throws_like($$
 select lives_ok($$
   select fn_educacion_registrar(
     '00000000-0000-0000-0000-00000000ec02'::uuid, 'Instituto del año siguiente', 200::numeric,
-    'trabajador', '2028-01-01'::date, '2028-06-30'::date,
+    'trabajador', pg_temp.fecha('2028-01-01'), pg_temp.fecha('2028-06-30'),
     null, 'educacion/x/2028.pdf', null, null, null) $$,
   'SOLAPE · un curso en fechas que no se solapan entra sin pelear por el techo');
 
 select is(
   (select monto from asignaciones_educacion
-    where persona_id = '00000000-0000-0000-0000-00000000ec02' and vigente_desde = '2028-01-01'),
+    where persona_id = '00000000-0000-0000-0000-00000000ec02' and vigente_desde = pg_temp.fecha('2028-01-01')),
   150.00::numeric,
-  'SOLAPE · y cobra su 75 % entero, no el saldo de 2027');
+  'SOLAPE · y cobra su 75 % entero, no el saldo del año anterior');
 
 
 -- ── 6 · La bajan de rango: el techo deja de ser una foto ────────────────────
 select lives_ok($$
   select fn_set_salario('00000000-0000-0000-0000-00000000ec02'::uuid, 'colibri',
-                        1130::numeric, '2027-06-01'::date, 'Prueba 281') $$,
+                        1130::numeric, pg_temp.fecha('2027-06-01'), 'Prueba 281') $$,
   'RANGO · el cambio de rango se aplica');
 
 select is(
   (select coalesce(sum(monto), 0) from asignaciones_educacion
     where persona_id = '00000000-0000-0000-0000-00000000ec02'
-      and vigente_desde <= '2027-07-01' and vigente_hasta >= '2027-07-01'),
+      and vigente_desde <= pg_temp.fecha('2027-07-01') and vigente_hasta >= pg_temp.fecha('2027-07-01')),
   90.00::numeric,
   'RANGO · con el techo de colibrí, lo vigente en julio suma S/90 y no S/180');
 
 select is(
   (select count(*)::int from asignaciones_educacion
-    where persona_id = '00000000-0000-0000-0000-00000000ec02' and vigente_hasta = '2027-05-31'),
+    where persona_id = '00000000-0000-0000-0000-00000000ec02' and vigente_hasta = pg_temp.fecha('2027-05-31')),
   2,
   'RANGO · las vigencias viejas se CIERRAN el día anterior, no se reescriben');
 
 select is(
   (select monto from asignaciones_educacion
-    where persona_id = '00000000-0000-0000-0000-00000000ec02' and vigente_desde = '2028-01-01'),
+    where persona_id = '00000000-0000-0000-0000-00000000ec02' and vigente_desde = pg_temp.fecha('2028-01-01')),
   90.00::numeric,
   'RANGO · el techo nuevo también alcanza a la que empieza el año siguiente');
 
@@ -154,26 +165,26 @@ select is(
 -- ── 7 · La suben de rango: el monto vuelve a lo que el papel sostiene ───────
 select lives_ok($$
   select fn_set_salario('00000000-0000-0000-0000-00000000ec02'::uuid, 'archicaylo',
-                        3000::numeric, '2027-09-01'::date, 'Prueba 281 · ascenso') $$,
+                        3000::numeric, pg_temp.fecha('2027-09-01'), 'Prueba 281 · ascenso') $$,
   'ASCENSO · el cambio de rango se aplica');
 
 select is(
   (select coalesce(sum(monto), 0) from asignaciones_educacion
     where persona_id = '00000000-0000-0000-0000-00000000ec02'
-      and vigente_desde <= '2027-10-01' and vigente_hasta >= '2027-10-01'),
+      and vigente_desde <= pg_temp.fecha('2027-10-01') and vigente_hasta >= pg_temp.fecha('2027-10-01')),
   300.00::numeric,
   'ASCENSO · con techo de S/480 las dos vuelven a su 75 %: 150 + 150');
 
 select is(
   (select monto from asignaciones_educacion
-    where persona_id = '00000000-0000-0000-0000-00000000ec02' and vigente_desde = '2028-01-01'),
+    where persona_id = '00000000-0000-0000-0000-00000000ec02' and vigente_desde = pg_temp.fecha('2028-01-01')),
   150.00::numeric,
-  'ASCENSO · y la de 2028 también vuelve a su 75 %');
+  'ASCENSO · y la del año siguiente también vuelve a su 75 %');
 
 
 -- ── 8 · Un cambio de sueldo sin cambio de techo no mueve nada ──────────────
 select is(
-  fn_educacion_realinear('00000000-0000-0000-0000-00000000ec02'::uuid, '2027-10-01'::date),
+  fn_educacion_realinear('00000000-0000-0000-0000-00000000ec02'::uuid, pg_temp.fecha('2027-10-01')),
   0,
   'IDEMPOTENTE · realinear contra el mismo techo no mueve ninguna fila');
 
@@ -187,14 +198,14 @@ update topes_educacion_rango set tope_mensual = 100 where rango = 'archicaylo';
 select throws_like($$
   update asignaciones_educacion set monto = monto + 10
    where persona_id = '00000000-0000-0000-0000-00000000ec02'
-     and vigente_desde = '2027-09-01' and beneficiario = 'trabajador' $$,
+     and vigente_desde = pg_temp.fecha('2027-09-01') and beneficiario = 'trabajador' $$,
   '%supera el tope%',
   'CANDADO · subir un monto por encima del techo se sigue rechazando');
 
 select lives_ok($$
   update asignaciones_educacion set monto = 120
    where persona_id = '00000000-0000-0000-0000-00000000ec02'
-     and vigente_desde = '2027-09-01' and beneficiario = 'trabajador' $$,
+     and vigente_desde = pg_temp.fecha('2027-09-01') and beneficiario = 'trabajador' $$,
   'CANDADO · bajarlo, en cambio, ahora se puede: el techo no puede impedir el arreglo');
 
 update topes_educacion_rango set tope_mensual = 480 where rango = 'archicaylo';
@@ -203,7 +214,7 @@ update topes_educacion_rango set tope_mensual = 480 where rango = 'archicaylo';
 -- ── 10 · Lo que ya se pagó no se reescribe ────────────────────────────────
 select is(
   (select sum(monto) from asignaciones_educacion
-    where persona_id = '00000000-0000-0000-0000-00000000ec02' and vigente_hasta = '2027-05-31'),
+    where persona_id = '00000000-0000-0000-0000-00000000ec02' and vigente_hasta = pg_temp.fecha('2027-05-31')),
   180.00::numeric,
   'PASADO · las cerradas conservan sus S/150 y S/30, no los S/90 y S/0 del recorte');
 
@@ -216,31 +227,31 @@ select is(
 -- fuerza otro recorte para ver si la hereda.
 update asignaciones_educacion set created_at = '2020-01-01'
  where persona_id = '00000000-0000-0000-0000-00000000ec02'
-   and beneficiario = 'trabajador' and vigente_desde = '2027-09-01';
+   and beneficiario = 'trabajador' and vigente_desde = pg_temp.fecha('2027-09-01');
 
 select lives_ok($$
   select fn_set_salario('00000000-0000-0000-0000-00000000ec02'::uuid, 'cayla',
-                        1130::numeric, '2027-11-01'::date, 'Prueba 281 · vuelta a cayla') $$,
+                        1130::numeric, pg_temp.fecha('2027-11-01'), 'Prueba 281 · vuelta a cayla') $$,
   'ORDEN · el rango vuelve a cayla');
 
 select is(
   (select created_at from asignaciones_educacion
     where persona_id = '00000000-0000-0000-0000-00000000ec02'
-      and beneficiario = 'trabajador' and vigente_desde = '2027-11-01'),
+      and beneficiario = 'trabajador' and vigente_desde = pg_temp.fecha('2027-11-01')),
   '2020-01-01'::timestamptz,
   'ORDEN · la vigencia nueva hereda el created_at de la que reemplaza');
 
 select is(
   (select monto from asignaciones_educacion
     where persona_id = '00000000-0000-0000-0000-00000000ec02'
-      and beneficiario = 'trabajador' and vigente_desde = '2027-11-01'),
+      and beneficiario = 'trabajador' and vigente_desde = pg_temp.fecha('2027-11-01')),
   150.00::numeric,
   'ORDEN · y por ser la primera de la cola se queda con su 75 % entero');
 
 select is(
   (select monto from asignaciones_educacion
     where persona_id = '00000000-0000-0000-0000-00000000ec02'
-      and beneficiario = 'hijo' and vigente_desde = '2027-11-01'),
+      and beneficiario = 'hijo' and vigente_desde = pg_temp.fecha('2027-11-01')),
   30.00::numeric,
   'ORDEN · y la segunda, con los S/30 que quedan bajo el techo de cayla');
 
