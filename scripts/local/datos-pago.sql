@@ -12,6 +12,7 @@ declare
   desde date := (select max(fecha_ini) from periodos_planilla where estado = 'abierto');
   version uuid;
   boleta uuid;
+  parte uuid;
   quien record;
 begin
   if exists (select 1 from asignaciones_educacion) then
@@ -34,12 +35,13 @@ begin
   loop
     boleta := gen_random_uuid();
     version := gen_random_uuid();
+    parte := gen_random_uuid();
     insert into boletas (id, periodo_id, persona_id, estado, publicada_at, publicada_por, creada_at, creada_por)
     values (boleta, periodo, quien.id, 'publicada', now() - interval '2 days', alma, now() - interval '2 days', alma);
     insert into boletas_versiones (id, boleta_id, n, tipo, avisar, creada_at, creada_por)
     values (version, boleta, 1, 'imagen', false, now() - interval '2 days', alma);
     insert into boletas_partes (id, version_id, tipo, orden, storage_path, mime, bytes)
-    values (gen_random_uuid(), version, 'imagen', 1, boleta || '/' || version || '/parte.jpg', 'image/jpeg', 1000);
+    values (parte, version, 'imagen', 1, boleta || '/' || version || '/' || parte || '.jpg', 'image/jpeg', 1000);
     if quien.nombres = 'Luz' then
       insert into boletas_acuses (version_id, vista_at, recibida_at, firma)
       select version, now() - interval '1 day', now() - interval '1 day', firma_sancionado
