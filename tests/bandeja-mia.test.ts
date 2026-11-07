@@ -32,6 +32,7 @@
 //    alguien les aplica DIAS_NOVEDAD «por consistencia», el aviso se apagaría
 //    justo cuando lleva tres meses sin resolverse.
 // ============================================================================
+import type { FilaPolizaAviso } from "../apps/web/lib/bandeja-mia";
 import { describe, expect, it } from "vitest";
 import {
   armarBandeja, DIAS_NOVEDAD, type FilaBoletaBandeja, type FilaEducacionEntrega, type FilaEducacionSituacion,
@@ -976,5 +977,42 @@ describe("armarBandeja · «Este día no me calza» (0587)", () => {
     const b = armarBandeja({ ...VACIO, pedidosTurno: [{ ...pedido, estado: "retirado" }] }, HOY);
     expect(b.esperando).toHaveLength(0);
     expect(b.respuestas).toHaveLength(0);
+  });
+});
+
+// ── Su seguro (0602) ───────────────────────────────────────────────────────
+// Lo que importa: que registrar y subir el PDF sean UN aviso, que un PDF que llega después avise otra vez,
+// y que nunca se le diga a nadie que está cubierta.
+describe("armarBandeja · su seguro", () => {
+  const poliza = (x: Partial<FilaPolizaAviso> = {}): FilaPolizaAviso => ({
+    poliza_id: "z1", producto_nombre: "Vida Ley", creada_at: enLima("2026-09-05"), archivo_id: null, archivo_subido_at: null, ...x,
+  });
+  const de = (polizas: FilaPolizaAviso[], vistos: string[] = []) => armarBandeja({ ...VACIO, polizas, vistos: new Set(vistos) }, HOY).respuestas;
+
+  it("sin archivo, avisa de la póliza; con archivo, es UN mensaje y lleva al PDF", () => {
+    expect(de([poliza()])[0]).toMatchObject({ origen: "seguro", titulo: "Tu póliza de Vida Ley quedó registrada", ir: "/mio?tab=seguro", nuevo: true });
+    const conPdf = de([poliza({ archivo_id: "a1", archivo_subido_at: enLima("2026-09-05", "10:05") })]);
+    expect(conPdf).toHaveLength(1);
+    expect(conPdf[0].titulo).toBe("Tu póliza de Vida Ley ya está en Mi seguro");
+  });
+
+  it("lo visto de la póliza no apaga el aviso del PDF que llegó después", () => {
+    expect(de([poliza()], ["poliza_mia:z1"])[0].nuevo).toBe(false);
+    expect(de([poliza({ archivo_id: "a1", archivo_subido_at: enLima("2026-09-07") })], ["poliza_mia:z1"])[0].nuevo).toBe(true);
+  });
+
+  it("caduca como las demás: lo viejo no aparece el día del estreno", () => {
+    expect(de([poliza({ creada_at: enLima("2026-08-01") })])).toEqual([]);
+    expect(de([poliza({ creada_at: enLima("2026-08-01"), archivo_id: "a1", archivo_subido_at: enLima("2026-09-07") })])).toHaveLength(1);
+  });
+
+  it("nunca afirma cobertura: la persona no ve si la prima está pagada", () => {
+    for (const m of [...de([poliza()]), ...de([poliza({ archivo_id: "a1", archivo_subido_at: enLima("2026-09-05") })])]) {
+      expect(`${m.titulo} ${m.detalle}`).not.toMatch(/cubiert|asegurad/i);
+    }
+  });
+
+  it("sin la 0602 no dice nada", () => {
+    expect(armarBandeja(VACIO, HOY).respuestas).toEqual([]);
   });
 });

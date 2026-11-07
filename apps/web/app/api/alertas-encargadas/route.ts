@@ -182,6 +182,24 @@ function componerCorreo(a: AlertaPendiente, hoy: string): { asunto: string; text
     };
   }
 
+  // Una póliza por renovar (0603). Va a DO, una vez por póliza: en una colectiva `persona` dice «17 personas».
+  // `vigente_hasta` es EXCLUSIVO: la póliza cubre hasta el mediodía de ese día.
+  if (a.tipo === "seguro_por_renovar") {
+    const seguro = texto(a.payload, "seguro");
+    const numero = texto(a.payload, "numero_poliza");
+    const fin = a.payload.vigente_hasta;
+    const { verbo, plazo, frase } = fraseDePlazo(diasAlEnviar(fin, a.payload.dias_restantes, hoy));
+    return {
+      asunto: `Dynamic: la póliza de ${seguro} ${numero} ${frase}`,
+      texto:
+        `La póliza ${numero} de ${seguro} (${texto(a.payload, "aseguradora")}) ${verbo}${typeof fin === "string" ? ` el ${fin} a las 12 del mediodía` : ""}${plazo ? ` — ${plazo}` : ""}. ` +
+        `Cubre a: ${texto(a.payload, "persona")} (${texto(a.payload, "sede")}). Todavía no hay una renovación registrada.` +
+        `${verbo === "venció" ? " Este aviso salió con retraso: antes de actuar, confirma en Seguros si ya se renovó." : ""}\n\n` +
+        `Revísala en Seguros: https://cayla-dynamic.vercel.app/admin/seguros?buscar=${encodeURIComponent(numero)}\n\n` +
+        `Este correo es un aviso automático — no es necesario responderlo.`,
+    };
+  }
+
   if (a.tipo === "vacaciones_por_vencer") {
     const persona = texto(a.payload, "persona");
     const sede = texto(a.payload, "sede");

@@ -128,6 +128,17 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-11-07-tres-botones-preguntan-antes",
+    fecha: "2026-11-07",
+    titulo: "Anular un comunicado, resetear una contraseña y desactivar un área ahora preguntan antes",
+    queMejoro:
+      "Esos tres botones actuaban al primer clic. Un clic en la fila de al lado bastaba para anular un comunicado " +
+      "que ya no se puede volver a publicar, o para dejar a alguien sin poder entrar con su contraseña. Ahora " +
+      "preguntan antes, igual que «Desactivar» una sede.\n\n" +
+      "Al resetear una contraseña, el aviso recuerda copiar la temporal antes de salir de Cuentas: no se vuelve a mostrar.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-07-hoja-de-sede-abre-tu-sede",
     fecha: "2026-11-07",
     titulo: "La Hoja de sede abre la de tu sede",
@@ -149,6 +160,25 @@ export const NOVEDADES: readonly Novedad[] = [
       "columnas del medio.\n\n" +
       "Al pie de la tabla, el monto de «Sale de la cuenta de CAYLA» ahora queda debajo de «Total», donde corresponde. " +
       "En el celular no cambia nada.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-11-06-tu-seguro-llega-a-tu-bandeja",
+    fecha: "2026-11-06",
+    titulo: "Cuando tu póliza esté lista, te avisamos en tu Bandeja",
+    queMejoro:
+      "Si te registran una póliza o suben su PDF, ahora te llega un aviso a la Bandeja de tu Info y «Mi seguro» muestra " +
+      "un número hasta que lo abras. Antes solo lo veías si entrabas a mirar.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-06-seguros-pide-atencion",
+    fecha: "2026-11-06",
+    titulo: "Seguros abre con lo que pide atención",
+    queMejoro:
+      "La pantalla de Seguros ya no esconde a las personas detrás de cada sede: arriba está lo que hay que resolver, y una " +
+      "póliza colectiva sale una sola vez. También se ve la Vida Ley de cada persona.\n\n" +
+      "Una póliza por terminar y sin renovación llega a la Bandeja y por correo, a los 45 y a los 15 días.",
     audiencia: "do",
   },
   {

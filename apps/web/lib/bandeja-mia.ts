@@ -126,7 +126,9 @@ export type OrigenBandeja =
   // «Este día no me calza» (0587): lo que pidió sobre un día con turno.
   | "pedido-turno"
   // «Cambiar con una compañera» (0592): lo que pidió, lo que le piden y cómo terminó.
-  | "cambio-companera";
+  | "cambio-companera"
+  // Su póliza o su PDF ya están en «Mi seguro» (0602). Tampoco lo pidió, y caduca igual que un turno.
+  | "seguro";
 
 /**
  * `atendido` es de las revisiones y no es lo mismo que `aprobado`: a un pedido
@@ -327,6 +329,18 @@ export interface FilaEducacionSituacion {
  * hecho que la base ya guarda (`vista_at`), así que no hay tabla de «vistos»
  * para esto, igual que con un contrato sin firmar.
  */
+/**
+ * Una póliza suya, de `fn_mis_polizas_avisos` (0602). Solo lo que hace falta para decir que hay algo nuevo:
+ * «¿Estás cubierta?» no sale de acá, porque la persona no ve la prima (ver `lib/mi-seguro.ts`).
+ */
+export interface FilaPolizaAviso {
+  poliza_id: string;
+  producto_nombre: string;
+  creada_at: string;
+  archivo_id: string | null;
+  archivo_subido_at: string | null;
+}
+
 export type FilaBoletaBandeja = Pick<FilaMiBoleta, "boleta_id" | "fecha_fin" | "estado" | "vista_at" | "recibida_at" | "publicada_at">;
 
 export interface FuentesBandeja {
@@ -371,6 +385,8 @@ export interface FuentesBandeja {
   pedidosTurno?: PedidoTurno[];
   /** Sus cambios de turno con una compañera (0592), de `fn_turno_cambios_mios`. Opcional. */
   cambiosTurno?: MiCambio[];
+  /** Sus pólizas (0602). Opcional: sin la 0602, no se dice nada de seguros. */
+  polizas?: FilaPolizaAviso[];
   /** Sus constancias de estudios (0450). Opcional: quien no estudia no trae nada. */
   educacionEntregas?: FilaEducacionEntrega[];
   /** Sus estudios y en qué está cada constancia (0450). */
@@ -1026,6 +1042,28 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   }
 
+  // Su seguro (0602). UN mensaje por póliza: registrarla y subirle el PDF en la misma sesión es un aviso, y un PDF que
+  // llega días después avisa otra vez, porque cambia lo que la persona puede abrir. Una póliza anulada ya no viene.
+  // Corregir un dato no avisa. Nunca dice «estás cubierta»: habla de la póliza, como `textoDelResumen`.
+  for (const z of fuentes.polizas ?? []) {
+    const cuando = z.archivo_subido_at && z.archivo_subido_at > z.creada_at ? z.archivo_subido_at : z.creada_at;
+    const fecha = fechaLima(cuando);
+    if (!esNueva(fecha)) continue;
+    const itemId = z.archivo_id ?? z.poliza_id;
+    respuestas.push({
+      instante: Date.parse(cuando),
+      m: {
+        clave: `seguro:${itemId}`, origen: "seguro", estado: "atendido", fecha,
+        titulo: z.archivo_id ? `Tu póliza de ${z.producto_nombre} ya está en Mi seguro` : `Tu póliza de ${z.producto_nombre} quedó registrada`,
+        respuesta: null,
+        detalle: z.archivo_id ? "Puedes abrirla o descargarla cuando la necesites." : "El PDF llegará después.",
+        nuevo: !fueVista("poliza_mia", itemId),
+        ir: "/mio?tab=seguro",
+        marcarVistoComo: { tipo: "poliza_mia", itemId },
+      },
+    });
+  }
+
   // «Este día no me calza» (0587). Abierto: lo está esperando. Respondido:
   // le contestaron, y caduca como las demás. Retirado: lo retiró ella, no hay
   // nada que decirle.
@@ -1254,7 +1292,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes, ficha, pedidosTurno, cambiosTurno] =
+    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes, ficha, pedidosTurno, cambiosTurno, polizas] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -1353,6 +1391,8 @@ export async function traerBandeja(
       .limit(LIMITE),
     // Sus cambios de turno con una compañera (0592). La función contesta solo por quien pregunta.
     supabase.rpc("fn_turno_cambios_mios"),
+    // Sus pólizas (0602). La función contesta solo por quien pregunta.
+    supabase.rpc("fn_mis_polizas_avisos"),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -1398,6 +1438,7 @@ export async function traerBandeja(
     reportes: reportes.filas,
     pedidosTurno: (pedidosTurno.data ?? []) as unknown as PedidoTurno[],
     cambiosTurno: (cambiosTurno.data ?? []) as unknown as MiCambio[],
+    polizas: (polizas.data ?? []) as unknown as FilaPolizaAviso[],
     vistos: new Set(
       ((vistos.data ?? []) as { tipo_item: string; item_id: string }[])
         .map((v) => `${v.tipo_item}:${v.item_id}`),
@@ -1437,6 +1478,7 @@ export async function traerBandeja(
       { error: reportes.error, que: "tus reportes" },
       { error: pedidosTurno.error, que: "tus pedidos de cambiar un turno" },
       { error: cambiosTurno.error, que: "tus cambios de turno con una compañera" },
+      { error: polizas.error, que: "tu seguro" },
     ]),
   };
 }

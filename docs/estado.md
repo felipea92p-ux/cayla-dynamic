@@ -32,6 +32,29 @@ solo. Aparte: que dos personas que editan lo mismo no se pisen (el tiempo real n
 
 ---
 
+## 2026-11-06 — Seguros: «Pide atención», aviso a cada persona y correo de renovación · migraciones 0602 y 0603 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-11-07) · FUSIONADO Y PUBLICADO ([#697](https://github.com/felipea92p-ux/cayla-dynamic/pull/697), 2026-11-07) · prueba 490 · rama `claude/insurance-notifications-management-7bdf3c`
+
+**De dónde sale.** Felipe preguntó quién falta en su seguro y pidió mejor vista, avisar a cada persona y un aviso de renovación. «Todo al día» no miraba Vida
+Ley, y una Vida Ley vencida o por vencer no avisaba a nadie.
+
+**Qué hay.** Seguros abre con lo que pide atención; una colectiva es una tarjeta y una fila en la Bandeja, no una por persona; «Registrar la renovación» abre con
+sus personas marcadas. **0602:** aviso derivado en la Bandeja de Info, con globito en Mi seguro. **0603:** correo a DO a los 45 y 15 días, con cron a las 11:00 UTC.
+
+**Lo que sigue decidido y no se reabre:** «planilla sin Vida Ley» se muestra y NO alerta; espera al contador (0543). `COMPLEMENTARIOS_DE_VINCULO` lo dice una vez.
+
+**Cómo se pegó.** El 2026-11-07 Felipe pidió a producción el md5 de las cuatro funciones reescritas —`fn_bandeja_marcar_visto`,
+`fn_alertas_email_pendientes`, `fn_alerta_sigue_vigente` y `fn_alertas_resolver_fallidas`— en el mismo mensaje de la entrega: coincidieron las cuatro, sin
+retornos, y los números 599 a 603 estaban libres. Pegó la 0602 y la 0603; sus comprobaciones dieron todo en `true`, `cron_de_1` = 1 y los dos registros con
+su nombre. Se fusionó después, con `db-tests` y `ui-tests` en verde.
+
+**Lo que esto le cambia a Licencias.** La rama `claude/license-renewal-management-d28ed8` (0599 a 0601) reescribía las mismas tres funciones de correo desde
+los md5 de ANTES de la 0603. Felipe decidió que Seguros entraba primero, así que Licencias se rehace sobre los cuerpos de la 0603 —`./scripts/donde-vive.sh`
+y el md5 de producción, pedido otra vez al entregar—; pegada tal cual, la guardia la detiene.
+
+**Fuera de esto.** Anclar el costo con Retail espera la razón de Felipe; la prima mensual de Vida Ley no cabe en `pagada_el`, y sigue pendiente de lo mismo. El
+formulario propone tres meses de vigencia también al renovar una Vida Ley anual: se cambia a mano. Y la Vida Ley 143720 sigue sin fecha de fin: hasta que
+Pacífico la dé y se cargue, el correo de renovación no tiene de qué avisar.
+
 ## 2026-11-05 — Rediseño como Retail: Etapa 0 aprobada para subir, en cuatro PR · la firma, publicada ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680))
 
 **De dónde sale.** Felipe decidió que Dynamic se vea y se mueva como Retail. Tablero: [`vidrio/README.md`](vidrio/README.md). Regla suya: nada del diseño se

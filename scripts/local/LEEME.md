@@ -57,6 +57,8 @@ node scripts/local/sembrar.mjs --solo-ceses  # agrega a las dos cesadas a una ba
 
 `arrancar.sh` ya corre `--solo-ceses`, así que normalmente no hace falta pedirlo.
 
+`arrancar.sh` también corre `--solo-seguros`: si la base no tiene ninguna póliza, siembra una Vida Ley colectiva que vence en 20 días y una póliza FOLA, y deja a una persona de planilla sin Vida Ley. No toca una base que ya tenga pólizas.
+
 **`--de-cero` borra la base que usan todos los worktrees de este clon:** no lo corras si otra sesión la está usando. La base vive en `$(git rev-parse --git-common-dir)/entorno-local`, así que no aparece en `git status` ni puede subirse por accidente.
 
 ## Qué es de verdad y qué no

@@ -14,8 +14,8 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import {
-  coincideSeguro, contarPorTipo, cubiertoHasta, estadoPrima, etiquetaTipoArchivo, etiquetaVinculo,
-  fechaDelPaso, fechasSospechosas, hermanasDe, numeroDeTexto, origenDelCambio, pasosDelCambio, pasosPendientes, pendientesDeSeguros, personasParaPoliza, polizaQueSeCruza,
+  coincideSeguro, contarPorTipo, cubiertoHasta, estadoPrima, etiquetaTipoArchivo, etiquetaVinculo, faltanPorRegistrar,
+  fechaDelPaso, fechasSospechosas, hermanasDe, numeroDeTexto, origenDelCambio, pasaElFiltro, pasosDelCambio, pasosPendientes, pendientesDeSeguros, personasParaPoliza, pideAlgo, polizaQueSeCruza,
   resumenDelCambio, resumenDeSeguros, seguroPorPersona, sinNadaQueMostrar, sumarMeses,
   DIAS_AVISO_PRIMA, DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA,
   type CambioSeguro, type FilaEquipoSeguro, type Poliza,
@@ -235,7 +235,7 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
     const vida = poliza({ persona_id: "p3", poliza_id: "zv", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false, vigente_hasta: "2027-06-01" });
     expect(sinNadaQueMostrar(una([rxh], [vida])[0], HOY)).toBe(false);
     // …una vencida no…
-    const vencida = poliza({ persona_id: "p3", poliza_id: "zx", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false, vigente_hasta: "2026-09-01" });
+    const vencida = poliza({ persona_id: "p3", poliza_id: "zx", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false, vigente_hasta: "2026-09-01", ...completa });
     expect(sinNadaQueMostrar(una([rxh], [vencida])[0], HOY)).toBe(true);
     // …y un cambio de seguro por cerrar (pasó de planilla a honorarios: falta la baja) tampoco se esconde.
     expect(sinNadaQueMostrar(una([rxh], [], [cambio({ persona_id: "p3" })])[0], HOY)).toBe(false);
@@ -345,7 +345,7 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
 
     it("las tarjetas cuentan a cada persona UNA vez, y los cambios y el papeleo por separado", () => {
       expect(resumenDeSeguros(todas())).toEqual({
-        hueco: 1, suspendida: 0, por_vencer: 1, baja_pendiente: 1, al_dia: 3, por_planilla: 1, sin_seguro: 1, cambios: 1, papeleo: 1,
+        hueco: 1, suspendida: 0, por_vencer: 1, baja_pendiente: 1, al_dia: 3, por_planilla: 1, sin_seguro: 1, cambios: 1, papeleo: 1, sin_registrar: 1,
       });
     });
   });
@@ -529,7 +529,7 @@ describe("lo que entra a la Bandeja", () => {
       pasos: ["pagada", "firmada", "factura"],
     });
     expect(items[0].detalle).toBe("Falta pagar la prima · Falta firmar y devolver la póliza y el convenio de pago · Falta la factura");
-    expect(items[0].prima).toEqual({ estado: "al_dia", dias: 14, venceEl: "2026-10-31" });
+    expect(items[0].prima).toEqual({ estado: "al_dia", dias: 14, venceEl: "2026-10-31", seSuspende: true });
   });
 
   it("con la prima pagada, el título pasa a lo que sigue", () => {
@@ -846,3 +846,115 @@ describe("las fechas que son un año mal tecleado y no una póliza", () => {
   });
 });
 
+
+describe("los seguros que van además del principal: Vida Ley", () => {
+  const vida = (o: Partial<Poliza> = {}) => poliza({
+    persona_id: "p2", persona: "Beto Planilla", poliza_id: "zv", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false,
+    aseguradora: "Pacífico Seguros", numero_poliza: "143720", vigente_desde: "2026-08-01", vigente_hasta: "2027-08-01", ...completa, ...o,
+  });
+  const beto = deLaPlanilla();
+  const carla = deLaPlanilla({ persona_id: "p3", persona: "Carla Planilla", sede: "AQP" });
+  const deCarla = { persona_id: "p3", persona: "Carla Planilla", sede: "AQP", poliza_id: "zw" };
+
+  it("planilla sin ninguna póliza: se muestra, y no se convierte en alerta (0543 espera al contador)", () => {
+    const [p] = una([beto]);
+    expect(p.situacion).toBe("por_planilla");
+    expect(p.complementarios.map((c) => c.estado)).toEqual(["sin_registrar"]);
+    expect(pideAlgo(p)).toBe(false);
+    expect(pendientesDeSeguros([p], HOY)).toEqual([]);
+    expect(faltanPorRegistrar([p])).toEqual([{ nombre: "Vida Ley", n: 1 }]);
+    expect(pasaElFiltro(p, "sin_registrar")).toBe(true);
+  });
+
+  it("la preselección y los practicantes no llevan Vida Ley: no se les marca que falta", () => {
+    expect(una([persona()])[0].complementarios).toEqual([]);
+    expect(una([deLaPlanilla({ tipo_vinculo: "prueba" })])[0].complementarios).toEqual([]);
+  });
+
+  it("vigente con margen: no pide nada", () => {
+    const [p] = una([beto], [vida()]);
+    expect(p.complementarios[0]).toMatchObject({ estado: "vigente", hasta: "2027-08-01" });
+    expect(pideAlgo(p)).toBe(false);
+  });
+
+  it("el último día del aviso sí avisa y el anterior no", () => {
+    const dentro = una([beto], [vida({ vigente_hasta: "2026-12-01" })])[0];
+    expect(dentro.complementarios[0]).toMatchObject({ estado: "por_vencer", dias: DIAS_AVISO_RENOVACION });
+    expect(una([beto], [vida({ vigente_hasta: "2026-12-02" })])[0].complementarios[0].estado).toBe("vigente");
+  });
+
+  it("una renovación que empalma calla el aviso", () => {
+    const [p] = una([beto], [vida({ vigente_hasta: "2026-11-01" }), vida({ poliza_id: "zn", vigente_desde: "2026-11-01", vigente_hasta: "2027-11-01", cubre_hoy: false })]);
+    expect(p.complementarios[0]).toMatchObject({ estado: "vigente", hasta: "2027-11-01" });
+  });
+
+  it("por vencer: pide algo, entra al filtro, y la Bandeja la dice una vez por póliza aunque sean dos personas", () => {
+    const polizas = [vida({ vigente_hasta: "2026-11-20", renueva_sola: true }), vida({ ...deCarla, vigente_hasta: "2026-11-20", renueva_sola: true })];
+    const personas = una([beto, carla], polizas);
+    expect(personas.every(pideAlgo)).toBe(true);
+    expect(personas.every((p) => pasaElFiltro(p, "por_vencer"))).toBe(true);
+    expect(resumenDeSeguros(personas).por_vencer).toBe(2);
+    const items = pendientesDeSeguros(personas, HOY);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      tipo: "por_vencer", persona: "2 personas", sede: "Varias sedes", buscar: "143720", dias: 34, hasta: "2026-11-20",
+      titulo: "La póliza 143720 de Vida Ley está por vencer", detalle: "La póliza dice que renueva sola: confirmar con la aseguradora",
+    });
+  });
+
+  it("de una sola persona, la fila sigue hablando de ella", () => {
+    const items = pendientesDeSeguros(una([beto], [vida({ vigente_hasta: "2026-11-20" })]), HOY);
+    expect(items[0]).toMatchObject({ persona: "Beto Planilla", titulo: "Su póliza de Vida Ley está por vencer", buscar: null });
+  });
+
+  it("vencida: es `poliza_vencida`, nunca `sin_poliza`, y cuenta los días desde que terminó", () => {
+    const [p] = una([beto], [vida({ vigente_hasta: "2026-10-10", cubre_hoy: false })]);
+    expect(p.situacion).toBe("por_planilla");
+    expect(pendientesDeSeguros([p], HOY)[0]).toMatchObject({ tipo: "poliza_vencida", dias: 7 });
+  });
+
+  it("vencida de quien ya no lleva ese seguro: es historia, no vuelve a pedir nada", () => {
+    const [p] = una([deLaPlanilla({ tipo_vinculo: "practicante" })], [vida({ vigente_hasta: "2026-10-10", cubre_hoy: false })]);
+    expect(p.complementarios[0].estado).toBe("terminada");
+    expect(pideAlgo(p)).toBe(false);
+  });
+
+  it("el papeleo de una colectiva es una fila; si una persona va distinto, sale aparte", () => {
+    const pendiente = { pagada_el: null };
+    const juntas = pendientesDeSeguros(una([beto, carla], [vida(pendiente), vida({ ...deCarla, ...pendiente })]), HOY);
+    expect(juntas).toHaveLength(1);
+    expect(juntas[0]).toMatchObject({ persona: "2 personas", buscar: "143720" });
+    expect(juntas[0].titulo).toContain("póliza 143720");
+    const distintas = pendientesDeSeguros(una([beto, carla], [vida(pendiente), vida({ ...deCarla, firmada_el: null })]), HOY);
+    expect(distintas).toHaveLength(2);
+  });
+
+  it("una renovación que empieza más adelante no tapa los días sin cobertura de quien debía tenerla", () => {
+    const [p] = una([beto], [vida({ vigente_hasta: "2026-10-01", cubre_hoy: false }), vida({ poliza_id: "zn", vigente_desde: "2026-12-01", vigente_hasta: "2027-12-01", cubre_hoy: false })]);
+    expect(p.complementarios[0]).toMatchObject({ estado: "vencida", empiezaEl: "2026-12-01" });
+    expect(pendientesDeSeguros([p], HOY)[0]).toMatchObject({ tipo: "poliza_vencida", detalle: "La que ya está registrada empieza el 1 de diciembre" });
+  });
+
+  it("dos fechas de prima distintas en la misma póliza no se funden: la peor mora no se esconde", () => {
+    const pendiente = { pagada_el: null };
+    const items = pendientesDeSeguros(una([beto, carla], [vida({ ...pendiente, prima_vence_el: "2026-10-16" }), vida({ ...deCarla, ...pendiente, prima_vence_el: "2026-09-01" })]), HOY);
+    expect(items).toHaveLength(2);
+  });
+
+  it("la colectiva sabe de qué sedes es y a quién cubre: la Bandeja filtra por ahí y el formulario las trae marcadas", () => {
+    const items = pendientesDeSeguros(una([beto, carla], [vida({ vigente_hasta: "2026-11-20" }), vida({ ...deCarla, vigente_hasta: "2026-11-20" })]), HOY);
+    expect(items[0]).toMatchObject({ sedes: ["TRU", "AQP"], personasIds: ["p2", "p3"], complementario: true });
+  });
+
+  it("un honorarios con papeleo pendiente sí se dibuja: la Bandeja lo manda aquí", () => {
+    const rxh = persona({ persona_id: "p9", tipo_vinculo: "rxh", practicante_modalidad: null, en_planilla: false, ...SIN_SEGURO });
+    const [p] = una([rxh], [vida({ persona_id: "p9", vigente_hasta: "2026-09-01", cubre_hoy: false, factura_recibida_el: null })]);
+    expect(sinNadaQueMostrar(p, HOY)).toBe(false);
+  });
+
+  it("de una póliza así no se afirma la suspensión de los 30 días: esa cláusula es del convenio de la de salud", () => {
+    const vieja = { prima_vence_el: "2026-08-01" };
+    expect(estadoPrima({ ...vida(vieja), pagada_el: null }, HOY).estado).toBe("en_mora");
+    expect(estadoPrima({ ...poliza(vieja), pagada_el: null }, HOY).estado).toBe("suspendida");
+  });
+});
