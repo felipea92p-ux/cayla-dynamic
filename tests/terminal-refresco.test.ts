@@ -1,16 +1,16 @@
 // ============================================================================
 // terminal-refresco.test.ts — cuándo el terminal vuelve a preguntar
 // ============================================================================
-// Dos reglas de `lib/terminal/refresco.ts`, nacidas de medir producción el
-// 2026-10-30 (la memoria de la base en «SEVERE»):
-//   · las sugerencias se piden al arrancar, al cambiar de día y cada 15 min, no
-//     en cada refresco de la lista;
-//   · el reloj de cada minuto se calla con la pestaña oculta.
+// La regla de `lib/terminal/refresco.ts`, nacida de medir producción el
+// 2026-10-30 (la memoria de la base en «SEVERE»): las sugerencias se piden al
+// arrancar, al cambiar de día y cada 15 min, no en cada refresco de la lista.
+// La otra regla de ese día —la pestaña oculta no lee— vive desde el 2026-11-07 en
+// `useAlDia` (lib/tiempo-real.ts) y se prueba en tests/tiempo-real.test.ts.
 // Lo que más importa probar es lo que NO debe callarse: una carga vacía o un
-// día nuevo siempre vuelven a pedir, y sin dato de visibilidad se refresca.
+// día nuevo siempre vuelven a pedir.
 // ============================================================================
 import { describe, it, expect } from "vitest";
-import { VIGENCIA_SUGERENCIAS_MS, refrescoPorRelojPermitido, sugerenciasVencidas } from "@/lib/terminal/refresco";
+import { VIGENCIA_SUGERENCIAS_MS, sugerenciasVencidas } from "@/lib/terminal/refresco";
 
 const DIA = "2026-10-30";
 const T0 = Date.parse("2026-10-30T14:00:00-05:00");
@@ -51,23 +51,5 @@ describe("sugerenciasVencidas", () => {
       }
     }
     expect(pedidas).toBe(4);
-  });
-});
-
-describe("refrescoPorRelojPermitido", () => {
-  it("a la vista y con red, refresca", () => {
-    expect(refrescoPorRelojPermitido(true, "visible")).toBe(true);
-  });
-
-  it("con la pestaña oculta, se calla", () => {
-    expect(refrescoPorRelojPermitido(true, "hidden")).toBe(false);
-  });
-
-  it("sin red, se calla (la lista ya cae a la caché)", () => {
-    expect(refrescoPorRelojPermitido(false, "visible")).toBe(false);
-  });
-
-  it("si el navegador no informa la visibilidad, refresca como siempre", () => {
-    expect(refrescoPorRelojPermitido(true, undefined)).toBe(true);
   });
 });

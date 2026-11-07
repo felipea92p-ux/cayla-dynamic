@@ -1,9 +1,9 @@
 // ============================================================================
 // refresco.ts — cuándo el terminal vuelve a preguntarle a la base
 // ============================================================================
-// El terminal de cada sede refresca su lista cada minuto (`marcar/page.tsx`).
-// Medido en producción el 2026-10-30, eso costaba caro por dos razones que esta
-// lógica corrige, sin tocar lo que hace falta para marcar:
+// El terminal de cada sede refrescaba su lista cada minuto (`marcar/page.tsx`).
+// Medido en producción el 2026-10-30, eso costaba caro por dos razones que se
+// corrigieron sin tocar lo que hace falta para marcar:
 //
 //  1. Cada vuelta volvía a bajar las «sugerencias» (`sugerencias.ts`): 30 días
 //     de salidas a refrigerio, TODOS los horarios y los turnos de hoy. Son datos
@@ -15,13 +15,13 @@
 //
 //  2. El terminal de AQP tenía tres pestañas abiertas, ocultas, y las tres
 //     preguntaban cada minuto, día y noche: 8 535 lecturas de marcajes en 24 h,
-//     el 78 % de todas. Una pestaña oculta ya no refresca por reloj; al volver a
-//     verse refresca en el acto (`visibilitychange`), así que quien llega a marcar
-//     ve la lista al día igual que antes.
+//     el 78 % de todas. Una pestaña oculta ya no lee; al volver a verse lee en
+//     el acto, así que quien llega a marcar ve la lista al día igual que antes.
 //
-// Lo que NO cambia: la cola de marcas sin enviar sigue subiendo con la pestaña
-// oculta (`sync.ts`), y la lista y las marcas de hoy siguen refrescándose cada
-// minuto mientras el terminal está a la vista.
+// Desde el 2026-11-07 (0604) la lista ya no se pide por reloj: se pide cuando la
+// base avisa un cambio (`useAlDia`, lib/tiempo-real.ts), que también se encarga
+// de no leer con la pestaña oculta. Aquí queda la vigencia de las sugerencias.
+// La cola de marcas sin enviar sigue subiendo con la pestaña oculta (`sync.ts`).
 // ============================================================================
 
 /** Cada cuánto, como mucho, se vuelven a pedir las sugerencias en el mismo día. */
@@ -44,13 +44,4 @@ export function sugerenciasVencidas(ultima: CargaSugerencias | null, dia: string
   if (ultima.dia !== dia) return true;
   const edad = ahoraMs - ultima.ms;
   return edad < 0 || edad >= VIGENCIA_SUGERENCIAS_MS;
-}
-
-/**
- * ¿Toca el refresco por reloj? Solo con red y con la pestaña a la vista.
- * `visibilidad` ausente (un navegador que no la informa) se trata como visible:
- * ante la duda, el terminal sigue refrescando como siempre.
- */
-export function refrescoPorRelojPermitido(enLinea: boolean, visibilidad: DocumentVisibilityState | undefined): boolean {
-  return enLinea && visibilidad !== "hidden";
 }
