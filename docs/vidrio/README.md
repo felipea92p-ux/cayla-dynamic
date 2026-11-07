@@ -104,7 +104,7 @@ trabajo propio de cada módulo. Documentos va antes que Personas y Pago porque l
 | 3 | **Documentos:** boleta, contrato, memo y bono | Dentro de otras | Exentos | Papel en su bandeja y su impresión | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
 | 4 | **Personas:** Equipo, ficha, Datos personales, Contratos, Documentación, Seguros, Objetivos, Casos y Disciplina | 12 | 23 | Ficha de la persona y editor de firma | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
 | 5 | **Pago:** Planilla, Boletas, Provisiones, Costos, Liquidaciones, Educación y Feriados | 8 | 38 | Tablas muy anchas de Planilla | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | 2026-11-06 | |
-| 6 | **Publicaciones:** Política salarial, Normas y Anuncios | 9 | 3 | Lectura de documentos y acuses | | | | | | |
+| 6 | **Publicaciones:** Política salarial, Normas y Anuncios | 9 | 3 | Lectura de documentos y acuses | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 7 | **Reportes:** Hoja de sede y Exportar | 2 | 3 | Hoja de sede impresa | | | | | | |
 | 8 | **Empresa y Configuración:** Archivo, Áreas, Sedes, Cuentas y Parámetros | 6 | 13 | Casi nada | | | | | | |
 | 9 | **Entrada:** login, nueva clave y olvidé mi clave | 3 | 4 | Compararlo con «El vuelo vivo» de Retail | | | | | | |
