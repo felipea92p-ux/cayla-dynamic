@@ -352,7 +352,9 @@
     min-width: 0;
     max-width: 100%;
   }
-  [data-vidrio="panel"] input[type="file"]:not(.hidden) {
+  /* El que se esconde con `sr-only` (Lo mío: «Adjuntar foto o PDF» en un reporte) se queda en su píxel: con el 100 % medía la pantalla entera desde
+     donde estaba, y la página se corría 312 px de lado a 1440. */
+  [data-vidrio="panel"] input[type="file"]:not(.hidden, .sr-only) {
     width: 100%;
     min-width: 0;
   }
@@ -373,6 +375,14 @@
   @media (max-width: 39.99rem) {
     [data-vidrio="panel"] .flex.items-center.gap-2:has(> label > input[type="date"]) {
       flex-wrap: wrap;
+    }
+  }
+
+  /* Lo mío: en el teléfono el nombre de la cabecera baja de 30 a 26 px. Con la serif en 600 (P6), «Ana Torres Ruiz» ya no cabía junto a la foto y se partía
+     en dos renglones; hoy cabe en uno. Un nombre largo se sigue partiendo, como hoy. El ancla es la del recorrido guiado, que no cambia de nombre. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] header[data-tour="mio-resumen-header"] h1.font-serif {
+      font-size: 1.625rem;
     }
   }
 }

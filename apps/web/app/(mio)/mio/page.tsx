@@ -2407,7 +2407,7 @@ export default function MioPage() {
             {jornadas.length === 0 ? (
               <p className="text-sm text-taupe">No hay días marcados en este rango.</p>
             ) : (
-              <Tabla>
+              <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
                 <TablaEncabezado>
                   <Th>Día</Th>
                   <Th>Entrada</Th>
@@ -2424,8 +2424,8 @@ export default function MioPage() {
                     return (
                       <Fila key={d.fecha}>
                         <td className="px-4 py-2">{diaYMes(d.fecha)}</td>
-                        <td className="px-4 py-2">{hora(j.entrada_ts)}</td>
-                        <td className="px-4 py-2">
+                        <td data-rotulo="Entrada" className="px-4 py-2">{hora(j.entrada_ts)}</td>
+                        <td data-rotulo="Salida" className="px-4 py-2">
                           {hora(j.salida_final_ts)}
                           {/* Esa hora NO la marcó ella: la inventó el auto-cierre porque
                               olvidó marcar. Es justo la que conviene que revise, así que
@@ -2436,17 +2436,17 @@ export default function MioPage() {
                         </td>
                         {/* Contra qué se midió su tardanza ese día. Sin esto, un
                             número de minutos es una afirmación sin origen. */}
-                        <td className="px-4 py-2 text-taupe">
+                        <td data-rotulo="Te tocaba" className="px-4 py-2 text-taupe">
                           {d.esperado.trabaja
                             ? <>{d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</>
                             : "—"}
                         </td>
-                        <td className="px-4 py-2">
+                        <td data-rotulo="Tardanza" className="px-4 py-2">
                           {!tarde ? <span className="text-taupe">—</span>
                             : d.perdonada ? <span className="text-taupe line-through">{j.minutos_tarde} min</span>
                             : <span className="text-ambar">{j.minutos_tarde} min</span>}
                         </td>
-                        <td className="px-4 py-2 text-right">{comoReloj(j.horas_trabajadas ?? 0)}</td>
+                        <td data-rotulo="Horas" className="px-4 py-2 text-right">{comoReloj(j.horas_trabajadas ?? 0)}</td>
                       </Fila>
                     );
                   })}
@@ -2653,8 +2653,10 @@ export default function MioPage() {
         <section data-tour="mio-datos-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tus datos</h2>
           <p className="mb-4 text-taupe">
-            Lo que Desarrollo Organizacional tiene registrado de ti. Si algo está mal o falta, avísales — esta
-            pantalla no tiene botón de editar.
+            {/* «No tiene botón de editar» sobra con el vidrio: arriba, en la cabecera, está «Editar datos», y la frase parecía negarlo. */}
+            {interruptoresVidrio().panel
+              ? "Lo que Desarrollo Organizacional tiene registrado de ti. Si algo está mal o falta, avísales."
+              : "Lo que Desarrollo Organizacional tiene registrado de ti. Si algo está mal o falta, avísales — esta pantalla no tiene botón de editar."}
           </p>
           {!misDatos ? (
             <p className="text-taupe">Cargando…</p>
@@ -3006,8 +3008,10 @@ export default function MioPage() {
         <section data-tour="mio-firma-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
           <p className="mb-3 text-sm text-taupe">
-            Aparecerá en tu contrato de trabajo, en tu propio apartado. Si además firmas documentos por la
-            empresa (memos, política salarial), es la misma firma la que se usa ahí.
+            {/* Con el vidrio, una línea: lo que se necesita saber es dónde aparece. Apagado, el texto de hoy, entero y en una sola pieza. */}
+            {interruptoresVidrio().panel
+              ? "Va en tu contrato y, si firmas por la empresa, también en esos papeles."
+              : "Aparecerá en tu contrato de trabajo, en tu propio apartado. Si además firmas documentos por la empresa (memos, política salarial), es la misma firma la que se usa ahí."}
           </p>
           {yo ? (
             <div data-tour="mio-firma-editor">
@@ -3099,8 +3103,10 @@ export default function MioPage() {
       )}
 
       <p className="mt-6 text-xs text-taupe">
-        Si algo no cuadra, no lo dejes pasar: avisa a tu líder de equipo y se corrige con el motivo anotado. Lo que
-        ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
+        {/* Va al pie de las diecisiete secciones: con el vidrio, solo lo que hay que hacer. Apagado, el texto de hoy. */}
+        {interruptoresVidrio().panel
+          ? "Si algo no cuadra, avísale a tu líder de equipo: se corrige con el motivo anotado."
+          : "Si algo no cuadra, no lo dejes pasar: avisa a tu líder de equipo y se corrige con el motivo anotado. Lo que ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes."}
       </p>
     </main>
     </MarcoDeLoMio>
@@ -3365,9 +3371,11 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
     <section data-tour="mio-historial-periodos" className="mt-5 rounded-2xl border border-sand p-5 text-sm">
       <h2 className="mb-1 font-serif text-lg">Tus últimos periodos</h2>
       <p className="mb-3 text-taupe">
-        Sin montos: un periodo ya cerrado puede tener su foto de pago desactualizada — para eso está tu boleta.
+        {interruptoresVidrio().panel
+          ? "Sin montos: lo que se te pagó está en tu boleta."
+          : "Sin montos: un periodo ya cerrado puede tener su foto de pago desactualizada — para eso está tu boleta."}
       </p>
-      <Tabla>
+      <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
         <TablaEncabezado>
           <Th>Periodo</Th>
           <Th>Días trabajados</Th>
@@ -3378,9 +3386,9 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
           {periodos.map((p) => (
             <Fila key={p.id}>
               <td className="px-4 py-2">{diaYMes(p.fecha_ini)} – {diaYMes(p.fecha_fin)}</td>
-              <td className="px-4 py-2 text-taupe">{p.diasTrabajados} de {p.dias}</td>
-              <td className="px-4 py-2">{comoReloj(p.horas)}</td>
-              <td className="px-4 py-2 text-right">{p.tardanzas}</td>
+              <td data-rotulo="Días trabajados" className="px-4 py-2 text-taupe">{p.diasTrabajados} de {p.dias}</td>
+              <td data-rotulo="Horas" className="px-4 py-2">{comoReloj(p.horas)}</td>
+              <td data-rotulo="Tardanzas" className="px-4 py-2 text-right">{p.tardanzas}</td>
             </Fila>
           ))}
         </tbody>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
@@ -181,8 +182,9 @@ export function BoletasMias({
     <section data-tour="mio-boletas-seccion" className="rounded-2xl border border-sand p-5 text-sm">
       <h2 className="mb-1 font-serif text-lg">Boletas emitidas</h2>
       <p className="mb-4 text-taupe">
-        Son las boletas oficiales que entrega el contador, una por periodo pagado. El cálculo del periodo
-        que corre está en el Resumen, en «Cómo va tu pago».
+        {interruptoresVidrio().panel
+          ? "Las oficiales, una por mes pagado. El mes en curso está en «Cómo va tu pago»."
+          : "Son las boletas oficiales que entrega el contador, una por periodo pagado. El cálculo del periodo que corre está en el Resumen, en «Cómo va tu pago»."}
       </p>
 
       {/* El aviso va ARRIBA de la lista: quien llega desde el globito o desde la

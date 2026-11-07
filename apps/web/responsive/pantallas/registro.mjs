@@ -34,6 +34,7 @@
 
 import { leerMenu, moduloDeRuta } from "../../tema/motor/rutas.mjs";
 import pantallaDashboard from "./inicio.dashboard.mjs";
+import pantallaLoMio from "./lo-mio.mjs";
 
 /** @type {PantallaSinModulo[]} */
 const PANTALLAS = [
@@ -75,7 +76,15 @@ const PANTALLAS = [
   { id: "mi-cuenta", nombre: "Mi cuenta (líder de equipo)", ruta: "/admin/cuentas", cuenta: "lider" },
   { id: "apariencia", nombre: "Apariencia", ruta: "/admin/apariencia", cuenta: "do" },
   { id: "parametros", nombre: "Parámetros", ruta: "/admin/parametros", cuenta: "do" },
-  { id: "mio", nombre: "Lo mío", ruta: "/mio", cuenta: "integrante" },
+  pantallaLoMio,
+  { id: "mio-bandeja", nombre: "Lo mío: Bandeja", ruta: "/mio/bandeja", cuenta: "integrante" },
+  { id: "mio-editar", nombre: "Lo mío: Editar datos", ruta: "/mio/editar", cuenta: "integrante" },
+  { id: "mio-boleta", nombre: "Lo mío: el pago del mes", ruta: "/mio/boleta", cuenta: "integrante" },
+  { id: "mio-contrato", nombre: "Lo mío: Contrato", ruta: "/mio/contrato", cuenta: "integrante" },
+  { id: "mio-movilidad", nombre: "Lo mío: Declaración de ruta", ruta: "/mio/movilidad", cuenta: "integrante" },
+  { id: "mio-educacion", nombre: "Lo mío: Educación", ruta: "/mio/educacion", cuenta: "integrante" },
+  { id: "mio-cumpleanos", nombre: "Lo mío: Bono de cumpleaños", ruta: "/mio/cumpleanos", cuenta: "integrante" },
+  { id: "mio-reporte-nuevo", nombre: "Lo mío: Contar algo", ruta: "/mio/reportes/nuevo", cuenta: "integrante" },
   { id: "mio-nombre-largo", nombre: "Lo mío, con un nombre muy largo", ruta: "/mio", cuenta: "nombre-largo" },
   { id: "mio-sin-datos", nombre: "Lo mío, sin datos todavía", ruta: "/mio", cuenta: "sin-datos" },
   { id: "marcar", nombre: "Terminal de marcaje", ruta: "/terminal/marcar", cuenta: "terminal-tru" },

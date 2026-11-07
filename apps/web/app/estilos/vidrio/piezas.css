@@ -511,7 +511,8 @@
   [data-vidrio="panel"] button[aria-pressed="true"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) * {
     color: inherit;
   }
-  [data-vidrio="panel"] button[aria-pressed="true"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *)::before {
+  /* La palomita va solo si el filtro no trae su propio ícono: en «Mi disponibilidad», «Puedo» ya lleva el suyo y quedaba «✓ ✓ Puedo». */
+  [data-vidrio="panel"] button[aria-pressed="true"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(:has(> svg), .hoja *)::before {
     content: "";
     flex: none;
     width: 13px;
