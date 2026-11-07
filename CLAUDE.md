@@ -498,6 +498,20 @@ contenedor lleva `.hoja` o un color fijo — la resolvió al construir el memo,
 que hasta entonces caía en la segunda categoría sin que hubiera una razón
 para eso, solo porque nunca se había actualizado.
 
+Y una séptima, del 2026-11-07: **una pantalla que muestra lo que otra persona cambia se pone al día con `useAlDia`
+(`apps/web/lib/tiempo-real.ts`), no con un reloj propio.** Había nueve relojes que preguntaban cada 30 s, cada minuto o
+cada 5 min, cada uno con su manera de no leer con la pestaña oculta. Ahora la base avisa al guardar (0604) y la
+pantalla relee en ~300 ms. El aviso no lleva datos: la pantalla lee por sus funciones de siempre. Si una pantalla
+promete «en vivo», usa lo que `useAlDia` devuelve para no mentir cuando el canal está cortado. Lo que depende de la
+hora se redibuja, no se vuelve a pedir (ver el tablero). Decisión y medidas: [ADR 0006](docs/adr/0006-tiempo-real.md).
+
+Y la regla que la sostiene: **toda tabla nueva decide su tiempo real.** La prueba 491 falla si una tabla de `public`
+no está vigilada (`select fn_tiempo_real_vigilar('public.tu_tabla', 'tema');` en tu migración), pendiente de un lote
+o excluida con su motivo. Si te frena, no es un error de tu migración: es la pregunta «¿alguien ve cambiar esto en
+vivo?», y la respuesta va en la lista de ese archivo. Sin ella, la pantalla de tu tabla volvería en silencio a
+ponerse al día cada 5 min. Un tema nuevo también se agrega en `fn_tiempo_real_puede_escuchar` (quién lo oye) y en
+`TEMAS` (`tests/tiempo-real.test.ts` compara las dos listas).
+
 ```bash
 npx pnpm install
 npx pnpm dev          # levanta todo
@@ -574,6 +588,10 @@ en silencio toda la lógica de marcas anuladas. Lo cazaron dos pruebas por azar.
   `disponibilidades` después). Cada parte empieza con `set local lock_timeout = '3s'` (una ALTER en cola frena a todos los que vienen detrás;
   mejor que falle y se repegue), las siguientes se niegan a correr si falta la anterior, y el registro va en la última. Entera sigue valiendo
   en una base sin tráfico (`db reset`, las pruebas). Se comprueba con dos sesiones: un lector que toma una tabla y lee la otra después.
+  **O en UNA pegada, si toma todos los candados sin esperar** (0604, aprobado por Felipe el 2026-11-07): un bloque que pide `lock table … nowait`
+  de todas las tablas y, si una está ocupada, deshace el intento —y con él los candados que ya tenía— y reintenta a los 0.2 s. El deadlock
+  necesita a alguien que espera un candado teniendo otro en la mano: así nadie lo hace. Se prueba igual, con dos sesiones, más un control
+  ingenuo que SÍ tiene que cerrar el deadlock (el de la 0604 lo cerró, y la víctima fue el marcaje). Ver la 0604 como molde.
 - **El registro va con `do update`, no con `do nothing`.** La línea del final de
   cada migración se escribe así:
 
