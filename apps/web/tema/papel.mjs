@@ -132,6 +132,7 @@ export const DOCUMENTOS = [
   },
   { nombre: "constancias-politica", cuenta: "do", ruta: "/admin/politica-salarial/constancias" },
   { nombre: "constancias-norma", cuenta: "do", ruta: `/admin/normas/${NORMA}/constancias` },
+  { nombre: "norma-imprimir", cuenta: "do", ruta: `/admin/normas/${NORMA}/imprimir` },
   { nombre: "cargos-disciplina", cuenta: "do", ruta: `/admin/disciplina/cargos/${CARGOS}` },
   { nombre: "cargos-mios", cuenta: "integrante", ruta: `/mio/cargos/${CARGOS}` },
   {

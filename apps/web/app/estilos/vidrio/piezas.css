@@ -240,6 +240,19 @@
     background: var(--color-papel);
     color: var(--color-tinta);
   }
+  /* El desplegable escrito a mano: la misma flecha fina del de la pieza (components/ui/campo.tsx), y no la gruesa del navegador. Se dibuja con dos
+     degradados y no con una imagen, para que tome el taupe de cada tema. Los angostos (w-14, w-16) se dejan: con la flecha no les cabe el texto. */
+  [data-vidrio="panel"] select:is(.bg-hueso, .bg-crema, .border-borde-control):not(.appearance-none, [multiple], [class*="w-1"], .hoja *) {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 1.9rem;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--color-taupe) 50% calc(50% + 1.5px), transparent calc(50% + 1.5px)),
+      linear-gradient(-45deg, transparent 50%, var(--color-taupe) 50% calc(50% + 1.5px), transparent calc(50% + 1.5px));
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
   /* Un campo con su lupa adentro: la caja es el pozo y el <input> de adentro no pinta nada. */
   [data-vidrio="panel"] label.bg-hueso:not(.hoja *),
   [data-vidrio="panel"] div.bg-hueso:has(> input):not(.hoja *) {
@@ -509,8 +522,9 @@
   }
 
   /* ---------- Las pestañas: la fila es un pozo y la elegida una gota clara ----------
-     Dos formas de escribirlas: la pieza `Pestanas` y las que traen `role="tablist"`. La gota que fluye de una a otra está en movimiento.css. */
-  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"]):not(.hoja *) {
+     Dos formas de escribirlas: la pieza `Pestanas` y las que traen `role="tablist"`. La gota que fluye de una a otra está en movimiento.css.
+     Fuera quedan solo las del papel: en Constancias de la política, la pantalla entera lleva la clase `hoja` y sus pestañas no son parte del documento. */
+  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"]):not(.hoja:not(main) *, .vidrio-papel *) {
     display: inline-flex;
     width: fit-content;
     max-width: 100%;
@@ -524,7 +538,7 @@
     background: var(--pozo-fondo);
     box-shadow: var(--pozo-sombra);
   }
-  [data-vidrio="panel"] :is(.vidrio-pestanas > button, [role="tablist"] > [role="tab"]):not(.hoja *) {
+  [data-vidrio="panel"] :is(.vidrio-pestanas > button, [role="tablist"] > [role="tab"]):not(.hoja:not(main) *, .vidrio-papel *) {
     flex: none;
     margin: 0;
     min-height: 36px;
@@ -539,13 +553,13 @@
     white-space: nowrap;
     transition: color 200ms var(--ease-cayla), background 200ms var(--ease-cayla);
   }
-  [data-vidrio="panel"] :is(.vidrio-pestanas > button[aria-current="page"], [role="tablist"] > [role="tab"][aria-selected="true"]):not(.hoja *) {
+  [data-vidrio="panel"] :is(.vidrio-pestanas > button[aria-current="page"], [role="tablist"] > [role="tab"][aria-selected="true"]):not(.hoja:not(main) *, .vidrio-papel *) {
     color: var(--color-tinta);
     background: var(--gota-marca);
     box-shadow: var(--gota-luz);
   }
   @media (hover: hover) {
-    [data-vidrio="panel"] :is(.vidrio-pestanas > button:not([aria-current="page"]), [role="tablist"] > [role="tab"]:not([aria-selected="true"])):not(.hoja *):hover {
+    [data-vidrio="panel"] :is(.vidrio-pestanas > button:not([aria-current="page"]), [role="tablist"] > [role="tab"]:not([aria-selected="true"])):not(.hoja:not(main) *, .vidrio-papel *):hover {
       color: var(--color-tinta);
     }
   }

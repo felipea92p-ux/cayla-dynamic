@@ -355,11 +355,11 @@
   }
 
   /* La gota de las pestañas: una sola pieza que viaja. Sin ella (antes de medir, o sin JavaScript) la elegida se pinta sola, como en piezas.css. */
-  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"])[data-gota]:not(.hoja *) {
+  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"])[data-gota]:not(.hoja:not(main) *, .vidrio-papel *) {
     position: relative;
     isolation: isolate;
   }
-  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"])[data-gota]:not(.hoja *)::before {
+  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"])[data-gota]:not(.hoja:not(main) *, .vidrio-papel *)::before {
     content: "";
     position: absolute;
     z-index: -1;

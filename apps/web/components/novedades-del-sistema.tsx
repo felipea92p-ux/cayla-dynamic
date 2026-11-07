@@ -22,6 +22,7 @@
 
 import { Insignia } from "@/components/ui/insignia";
 import { Boton } from "@/components/ui/boton";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { hoyLima, type AudienciaNovedad } from "@cayla-dynamic/shared";
 import { esNovedadPendiente, fechaDeNovedad, novedadesPara, type Novedad } from "@/lib/novedades";
 import { useNovedadesVistas } from "@/lib/use-novedades-vistas";
@@ -102,7 +103,9 @@ export function SeccionNovedades({
     <section aria-labelledby="novedades-titulo" className="mt-10">
       <h2 id="novedades-titulo" className="font-serif text-xl text-tinta">Novedades del sistema</h2>
       <p className="mb-4 mt-1 text-sm text-taupe">
-        Lo que mejora en Dynamic, explicado para quien lo usa. Cada vez que el sistema cambia en algo que se nota, queda escrito aquí.
+        {interruptoresVidrio().panel
+          ? "Lo que cambia en Dynamic y se nota al usarlo."
+          : "Lo que mejora en Dynamic, explicado para quien lo usa. Cada vez que el sistema cambia en algo que se nota, queda escrito aquí."}
       </p>
 
       <ul className="space-y-3">{recientes.map(tarjeta)}</ul>

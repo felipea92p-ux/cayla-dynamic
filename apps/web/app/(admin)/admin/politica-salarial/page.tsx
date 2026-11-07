@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ROLES_DO, TZ_LIMA, puedeEstamparFirmaDeEmpresa } from "@cayla-dynamic/shared";
@@ -357,7 +358,9 @@ function PortalColaborador({ cats, miRango }: { cats: CategoriaCuadro[]; miRango
         </div>
       )}
       <p className="mt-4 text-xs text-taupe">
-        Esto describe la categoría, no una promesa de ascenso: cómo se cambia de categoría se explica más abajo.
+        {interruptoresVidrio().panel
+          ? "Describe la categoría; no es una promesa de ascenso."
+          : "Esto describe la categoría, no una promesa de ascenso: cómo se cambia de categoría se explica más abajo."}
       </p>
     </div>
   );
@@ -636,7 +639,8 @@ export default function PoliticaSalarialPage() {
               <TarjetaInfo como="section" titulo="Constancia de haber recibido este documento" className="mt-8 print:hidden">
                 {vigente.mi_acuse !== null ? (
                   <p className="text-sm text-tinta">
-                    Dejaste constancia el {fechaHora(vigente.mi_acuse.acusado_at)} como <strong>{vigente.mi_acuse.nombre}</strong>. No hace falta hacer nada más hasta que se publique una versión nueva.
+                    Dejaste constancia el {fechaHora(vigente.mi_acuse.acusado_at)} como <strong>{vigente.mi_acuse.nombre}</strong>.{" "}
+                    {interruptoresVidrio().panel ? "No hace falta nada más hasta la próxima versión." : "No hace falta hacer nada más hasta que se publique una versión nueva."}
                   </p>
                 ) : (
                   <>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ROLES_DO } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -150,7 +151,7 @@ export default function CategoriasPoliticaSalarialPage() {
             <div className="min-w-0 flex-1">
               <div className="font-serif text-lg text-tinta">{NOMBRE_RANGO[c.rango] ?? c.rango}</div>
               <p className="mt-1 text-sm text-taupe">{c.proposito || "Sin propósito escrito."}</p>
-              <p className="mt-2 text-sm font-medium text-rojo">{soles(c.salario_declarado)} declarado</p>
+              <p className={interruptoresVidrio().panel ? "mt-2 text-sm font-medium text-tinta" : "mt-2 text-sm font-medium text-rojo"}>{soles(c.salario_declarado)} declarado</p>
               {c.salario_min !== null && c.salario_max !== null && (
                 <p className="text-xs text-taupe">Sueldos reales hoy: {soles(c.salario_min)} a {soles(c.salario_max)} ({c.personas} {c.personas === 1 ? "persona" : "personas"})</p>
               )}
