@@ -50,9 +50,13 @@ import { FiltrosCelular } from "./filtros-celular";
 import { usePendientesBandeja } from "./use-pendientes-bandeja";
 import { useCasosResumen } from "./use-casos-resumen";
 import { useRefrescoLento } from "./use-refresco-lento";
+import { useAlDia } from "@/lib/tiempo-real";
 
-const REFRESCO_MS = 30_000;
-// Los catálogos casi fijos (sedes, áreas, tipos de ausencia) no cambian cada 30 s: se
+// El reloj de la pantalla: cada cuánto se vuelve a DIBUJAR —sin consultar nada— para que lo que depende de la hora
+// siga la hora («sin marcar y ya le tocaba entrar», los minutos de una pausa, la meta de la mañana o de la tarde). Los
+// datos ya no se piden cada 30 s: llegan cuando la base avisa un cambio (0604, ver `useAlDia` más abajo).
+const RELOJ_MS = 30_000;
+// Los catálogos casi fijos (sedes, áreas, tipos de ausencia) no cambian a cada rato: se
 // piden al abrir y se vuelven a pedir cada 10 minutos. Recargar la pantalla los trae
 // al instante (la caché vive solo mientras la pestaña está abierta), así que reactivar
 // una sede y recargar la muestra enseguida. Las metas de cobertura NO entran aquí:
@@ -549,7 +553,7 @@ export default function DashboardPage() {
   // anota en Equipo; sin este aviso, anotarla solo sirve si alguien se acuerda de
   // ir a mirarla, y el día del vencimiento no lo recuerda nadie.
   //
-  // Aparte del refresco de asistencia porque no cambia cada 30 segundos. La RPC
+  // Aparte de la asistencia porque no cambia a cada rato. La RPC
   // ya devuelve vacío (sin error) para quien no es admin ni líder, así que ese
   // caso sigue sin mostrar nada, como corresponde. Pero si la consulta FALLA de
   // verdad (red, RPC caída), esta franja ya no lo calla: el artículo 77
@@ -799,20 +803,18 @@ export default function DashboardPage() {
     setCargando(false);
   }, [router]);
 
+  useEffect(() => { void cargar(); }, [cargar]);
+  // Al instante (2026-11-07, 0604). Antes se pedía todo cada 30 s; ahora la base avisa cuando alguien marca, cambia un
+  // horario o una persona, y se lee entonces —en menos de un segundo—. Si el aviso se pierde, `useAlDia` relee al
+  // reconectar, al volver a la pestaña y cada 5 min. `cargar` ya es silenciosa: no borra la pantalla mientras lee.
+  const conexion = useAlDia(["asistencia", "horarios", "personas"], useCallback(() => { void cargar(); }, [cargar]));
+  const alInstante = conexion !== "sin_conexion";
+  // El reloj (ver RELOJ_MS): redibuja con la pestaña a la vista, sin pedir nada a la base.
+  const [, setTic] = useState(0);
   useEffect(() => {
-    void cargar();
-    const t = setInterval(() => void cargar(), REFRESCO_MS);
-    // Refrescar también al volver a la pestaña (los navegadores pausan el interval en
-    // segundo plano; así un cambio reciente —ej. una persona nueva— aparece al regresar).
-    const alVolver = () => { if (document.visibilityState === "visible") void cargar(); };
-    document.addEventListener("visibilitychange", alVolver);
-    window.addEventListener("focus", alVolver);
-    return () => {
-      clearInterval(t);
-      document.removeEventListener("visibilitychange", alVolver);
-      window.removeEventListener("focus", alVolver);
-    };
-  }, [cargar]);
+    const t = setInterval(() => { if (document.visibilityState === "visible") setTic((n) => n + 1); }, RELOJ_MS);
+    return () => clearInterval(t);
+  }, []);
 
   const ahoraDecimal = horaDecimalLimaAhora();
   const tramoTarde = ahoraDecimal >= CORTE_TARDE;
@@ -1070,15 +1072,16 @@ export default function DashboardPage() {
                     </span>
                     {/* La fecha, porque «hoy» sin fecha no dice de qué día son los números
                         (una captura de esta pantalla no se puede fechar después). */}
-                    {/* Celular: una línea («… · en vivo · 05:59 p. m.»). Los segundos y el «se
-                        refresca cada 30s» siguen en el menú ⋯ y en el escritorio; la fecha se queda
-                        siempre, por la razón de arriba. */}
-                    <span>{fechaConDia(hoy)} · en vivo · {actualizado.replace(/^(\d{1,2}:\d{2}):\d{2}/, "$1")}</span>
+                    {/* Celular: una línea («… · en vivo · 05:59 p. m.»). Los segundos y cómo se
+                        pone al día siguen en el menú ⋯ y en el escritorio; la fecha se queda
+                        siempre, por la razón de arriba. Con el canal cortado, «en vivo» sería
+                        mentira: dice cada cuánto se pone al día mientras tanto. */}
+                    <span>{fechaConDia(hoy)} · {alInstante ? "en vivo" : "se pone al día cada 5 min"} · {actualizado.replace(/^(\d{1,2}:\d{2}):\d{2}/, "$1")}</span>
                     <AyudaPantalla
               titulo="Qué tan «en vivo» es esta pantalla"
               intro="Los números de asistencia se leen de las marcas del terminal."
               secciones={[
-                { titulo: "Cada 30 segundos", texto: <>Esta pantalla se refresca sola; la última vez fue a las {actualizado}. Si un refresco falla, el aviso deja de decir «en vivo» y muestra de qué hora son los datos.</> },
+                { titulo: "Al instante", texto: <>Cuando alguien marca, o cambia un horario o una persona, esta pantalla se pone al día sola en menos de un segundo; la última vez fue a las {actualizado}. Si se corta la conexión, arriba dice «se pone al día cada 5 min» hasta que vuelve. Si una lectura falla, deja de decir «en vivo» y muestra de qué hora son los datos.</> },
                 { titulo: "Cada 5 minutos", texto: "Disciplina, memos y contratos: cambian una vez al día, no cada medio minuto, así que van en un refresco aparte." },
                 { titulo: "La fecha", texto: "Siempre se muestra, porque «hoy» sin fecha no dice de qué día son los números cuando alguien guarda una captura." },
               ]}
@@ -1146,7 +1149,7 @@ export default function DashboardPage() {
           }
         />
 
-        {/* Hoy | Tendencias (2026-10-19): lo de hoy se refresca cada 30 s; la historia se pide una vez, al abrir
+        {/* Hoy | Tendencias (2026-10-19): lo de hoy se pone al día al instante; la historia se pide una vez, al abrir
             su pestaña, y no entra en ese refresco. */}
         <Pestanas
           etiqueta="Secciones del Dashboard"
@@ -1251,7 +1254,7 @@ export default function DashboardPage() {
                 )}
 
             {panelVisible("resumen") && (
-              <PanelColapsable {...panelProps("resumen", "Resumen del día", "en vivo · cada 30 s")}>
+              <PanelColapsable {...panelProps("resumen", "Resumen del día", alInstante ? "en vivo · al instante" : "cada 5 min")}>
             {/* RESUMEN GLOBAL. Número grande y con peso: EB Garamond en su peso
                 normal tiene el trazo tan fino que un "2" en rojo se leía como
                 gris claro a un metro de la pantalla. Rojo y no rojo-profundo:
@@ -1462,7 +1465,7 @@ export default function DashboardPage() {
             )}
 
             {panelVisible("sedes") && (
-              <PanelColapsable {...panelProps("sedes", "Sedes", "en vivo · cada 30 s")}>
+              <PanelColapsable {...panelProps("sedes", "Sedes", alInstante ? "en vivo · al instante" : "cada 5 min")}>
             {/* !alertaSinEntrada && horarioEsperadoNoRespondio, a nivel global:
                 si turnos/horarios fallaron, ninguna sede puede calcular su alerta
                 de "sin marcajes" ni su denominador de programados hoy. */}

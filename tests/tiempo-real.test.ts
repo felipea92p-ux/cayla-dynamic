@@ -7,6 +7,7 @@ import {
   alVolverHayQueLeer,
   tocaElRespaldo,
   escucharTema,
+  conexionDeTodos,
   ESPERA_RAFAGA_MS,
   MINIMO_ENTRE_LECTURAS_MS,
   MINIMO_AL_VOLVER_MS,
@@ -158,6 +159,48 @@ describe("escucharTema", () => {
     canales[0].alEstado!("CHANNEL_ERROR", new Error("socket closed"));
     canales[0].alEstado!("TIMED_OUT");
     expect(quitados).toEqual([]);
+  });
+});
+
+describe("el estado del canal, para no decir «en vivo» si no lo es", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("empieza conectando, pasa a conectado, y un corte lo deja sin conexión hasta que vuelve", () => {
+    const { cliente, canales } = clienteFalso();
+    const estados: string[] = [];
+    escucharTema(cliente, "asistencia", { alAviso() {}, alConectar() {}, alCambiarConexion: (e) => estados.push(e) });
+    canales[0].alEstado!("SUBSCRIBED");
+    canales[0].alEstado!("TIMED_OUT");
+    canales[0].alEstado!("SUBSCRIBED");
+    expect(estados).toEqual(["conectando", "conectado", "sin_conexion", "conectado"]);
+  });
+
+  it("quien llega a un canal ya abierto se entera en el acto de cómo está", () => {
+    const { cliente, canales } = clienteFalso();
+    escucharTema(cliente, "horarios", { alAviso() {}, alConectar() {} });
+    canales[0].alEstado!("SUBSCRIBED");
+    const estados: string[] = [];
+    escucharTema(cliente, "horarios", { alAviso() {}, alConectar() {}, alCambiarConexion: (e) => estados.push(e) });
+    expect(estados).toEqual(["conectado"]);
+  });
+
+  it("un tema que esta sesión no puede escuchar queda sin conexión, también para quien llega después", () => {
+    const { cliente, canales } = clienteFalso();
+    const a: string[] = [];
+    escucharTema(cliente, "personas", { alAviso() {}, alConectar() {}, alCambiarConexion: (e) => a.push(e) });
+    canales[0].alEstado!("CHANNEL_ERROR", new Error("Unauthorized: You do not have permissions to read from this Channel topic"));
+    const b: string[] = [];
+    escucharTema(cliente, "personas", { alAviso() {}, alConectar() {}, alCambiarConexion: (e) => b.push(e) });
+    expect(a.at(-1)).toBe("sin_conexion");
+    expect(b).toEqual(["sin_conexion"]);
+  });
+
+  it("varios temas juntos: basta uno cortado para no ser «al instante»", () => {
+    expect(conexionDeTodos(["conectado", "conectado"])).toBe("conectado");
+    expect(conexionDeTodos(["conectado", "conectando"])).toBe("conectando");
+    expect(conexionDeTodos(["conectado", "sin_conexion"])).toBe("sin_conexion");
+    expect(conexionDeTodos([])).toBe("conectando");
   });
 });
 

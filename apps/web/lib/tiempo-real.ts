@@ -27,7 +27,7 @@
 // mismo navegador y una relectura cada minuto. Aquel archivo decía que si un minuto dejaba de bastar, el paso
 // siguiente era Realtime: es esto.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 import { createAdminSupabaseClient, type ClienteCayla } from "@cayla-dynamic/database";
 
@@ -94,17 +94,27 @@ export function hayCampoEnUso(): boolean {
 /** Lo que este archivo usa del cliente de Supabase. Las pruebas lo imitan sin levantar nada. */
 export type ClienteTiempoReal = Pick<ClienteCayla, "channel" | "removeChannel">;
 
+/**
+ * Cómo está el canal, para que una pantalla que promete «en vivo» no mienta. `conectando` es el primer instante (o un
+ * reintento después de un corte); `sin_conexion`, un corte que la librería está reintentando, o un tema que esta
+ * sesión no puede escuchar.
+ */
+export type Conexion = "conectando" | "conectado" | "sin_conexion";
+
 export interface Escucha {
   /** Llegó un aviso: algo cambió. */
   alAviso: () => void;
   /** El canal quedó escuchando (la primera vez, o de nuevo tras un corte): pudo cambiar algo sin que llegara aviso. */
   alConectar: () => void;
+  /** Cambió el estado del canal. Se llama también al empezar a escuchar, con el estado que ya tenía. */
+  alCambiarConexion?: (estado: Conexion) => void;
 }
 
 interface Canal {
   canal: ReturnType<ClienteTiempoReal["channel"]>;
   escuchas: Set<Escucha>;
   cierre: ReturnType<typeof setTimeout> | null;
+  conexion: Conexion;
 }
 
 const canalesPorCliente = new WeakMap<ClienteTiempoReal, Map<Tema, Canal>>();
@@ -123,7 +133,10 @@ const negadosPorCliente = new WeakMap<ClienteTiempoReal, Set<Tema>>();
  * pantalla sigue con su respaldo, que es lo mismo que tenía antes del tiempo real.
  */
 export function escucharTema(cliente: ClienteTiempoReal, tema: Tema, escucha: Escucha): () => void {
-  if (negadosPorCliente.get(cliente)?.has(tema)) return () => {};
+  if (negadosPorCliente.get(cliente)?.has(tema)) {
+    escucha.alCambiarConexion?.("sin_conexion");
+    return () => {};
+  }
   let canales = canalesPorCliente.get(cliente);
   if (!canales) {
     canales = new Map();
@@ -136,6 +149,12 @@ export function escucharTema(cliente: ClienteTiempoReal, tema: Tema, escucha: Es
       canal: cliente.channel(`dynamic:${tema}`, { config: { private: true } }),
       escuchas: new Set(),
       cierre: null,
+      conexion: "conectando",
+    };
+    const cambiar = (conexion: Conexion) => {
+      if (nuevo.conexion === conexion) return;
+      nuevo.conexion = conexion;
+      for (const e of [...nuevo.escuchas]) e.alCambiarConexion?.(conexion);
     };
     nuevo.canal
       .on("broadcast", { event: "cambio" }, () => {
@@ -143,9 +162,11 @@ export function escucharTema(cliente: ClienteTiempoReal, tema: Tema, escucha: Es
       })
       .subscribe((estado, error) => {
         if (estado === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
+          cambiar("conectado");
           for (const e of [...nuevo.escuchas]) e.alConectar();
           return;
         }
+        cambiar("sin_conexion");
         if (estado === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR && /unauthorized/i.test(error?.message ?? "")) {
           let negados = negadosPorCliente.get(cliente);
           if (!negados) {
@@ -167,6 +188,7 @@ export function escucharTema(cliente: ClienteTiempoReal, tema: Tema, escucha: Es
     canal.cierre = null;
   }
   canal.escuchas.add(escucha);
+  escucha.alCambiarConexion?.(canal.conexion);
 
   return () => {
     canal.escuchas.delete(escucha);
@@ -193,10 +215,12 @@ export interface OpcionesAlDia {
 
 /**
  * Mantiene una pantalla al día: relee en silencio cuando la base avisa un cambio de `temas`, cuando el canal se
- * (re)conecta, al volver a la pestaña y con el respaldo. Ver el encabezado de este archivo.
+ * (re)conecta, al volver a la pestaña y con el respaldo. Ver el encabezado de este archivo. Devuelve cómo está el
+ * canal, para la pantalla que muestra «en vivo».
  */
-export function useAlDia(temas: readonly Tema[], ponerseAlDia: () => void | boolean, opciones: OpcionesAlDia = {}): void {
+export function useAlDia(temas: readonly Tema[], ponerseAlDia: () => void | boolean, opciones: OpcionesAlDia = {}): Conexion {
   const { activo = true, respaldoMs = RESPALDO_MS, cliente } = opciones;
+  const [conexion, setConexion] = useState<Conexion>("conectando");
   const ultima = useRef(ponerseAlDia);
   useEffect(() => {
     ultima.current = ponerseAlDia;
@@ -235,10 +259,18 @@ export function useAlDia(temas: readonly Tema[], ponerseAlDia: () => void | bool
       programar();
     }
 
+    const porTema = new Map<Tema, Conexion>();
     const dejar = clave
       .split(",")
       .filter((t): t is Tema => (TEMAS as readonly string[]).includes(t))
-      .map((tema) => escucharTema(sb, tema, { alAviso: marcar, alConectar: marcar }));
+      .map((tema) => escucharTema(sb, tema, {
+        alAviso: marcar,
+        alConectar: marcar,
+        alCambiarConexion: (estado) => {
+          porTema.set(tema, estado);
+          setConexion(conexionDeTodos([...porTema.values()]));
+        },
+      }));
 
     const alVolver = () => {
       if (document.visibilityState !== "visible") return;
@@ -265,4 +297,13 @@ export function useAlDia(temas: readonly Tema[], ponerseAlDia: () => void | bool
       if (temporizador !== null) clearTimeout(temporizador);
     };
   }, [activo, clave, respaldoMs, cliente]);
+
+  return conexion;
+}
+
+/** Varios temas juntos: basta uno cortado para que la pantalla no pueda decir «al instante». */
+export function conexionDeTodos(estados: Conexion[]): Conexion {
+  if (estados.includes("sin_conexion")) return "sin_conexion";
+  if (estados.length > 0 && estados.every((e) => e === "conectado")) return "conectado";
+  return "conectando";
 }
