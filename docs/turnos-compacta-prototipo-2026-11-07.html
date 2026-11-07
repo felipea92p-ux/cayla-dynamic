@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Vista compacta de Turnos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap">
+<!--
+  Maqueta de «Turnos y cobertura · Compacta» (2026-11-07). Tres formas de ver la MISMA semana
+  en poco espacio, pensadas para las líderes de equipo; la Integrada se queda como está.
+
+  NO es código de la app y no toca ninguna base. Datos inventados: ningún nombre es de una
+  persona real. «Hoy» es el sábado 7 de noviembre de 2026, Tienda TRU (se trabaja domingo).
+
+  Lo que NO cambia en ninguna demo (reglas de semana-con-nombres.ts y de CLAUDE.md):
+    · quién suma a la meta lo decide cuentaEnCobertura; la preselección se ve, pero no suma;
+    · el número de una hora es el PEOR cuarto de esa hora, no «quién pasa por ella»;
+    · lo que queda antes de la primera entrada o después de la última salida no se mide;
+    · la meta cambia a las 14:15 (mañana / tarde); la de líderes es 1, plana, todo el día;
+    · mientras alguien está en almacén no cuenta en piso;
+    · ningún estado va solo en color: lleva palabra o ícono.
+  Colores: los tokens de globals.css, claro y oscuro.
+-->
+<style>
+  /* Una mesa de trabajo: la barra de la maqueta arriba, la pantalla del panel en el centro, las notas al pie. */
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18;
+    --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f; --color-sand:#e8e0d0; --color-taupe:#805c4c;
+    --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-azul:#2f5f9e; --color-ceniza:#635f58;
+    --font-sans:'DM Sans', ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-serif:'EB Garamond', ui-serif, Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+      --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080;
+      --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+      --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+    --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080;
+    --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+    color-scheme: dark;
+  }
+  :root{
+    --falta-fondo: color-mix(in srgb, var(--color-rojo) 8%, var(--color-papel));
+    --falta-borde: color-mix(in srgb, var(--color-rojo) 38%, transparent);
+    --ok-fondo: color-mix(in srgb, var(--color-verde) 8%, var(--color-papel));
+    --ok-borde: color-mix(in srgb, var(--color-verde) 32%, transparent);
+    --sobra-fondo: color-mix(in srgb, var(--color-ambar) 8%, var(--color-papel));
+    --sobra-borde: color-mix(in srgb, var(--color-ambar) 36%, transparent);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ max-width:100%; overflow-x:hidden; }
+  body{ margin:0; background:var(--color-crema); color:var(--color-tinta); font-family:var(--font-sans); font-size:14.5px; line-height:1.45; }
+  body::before{ content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:60; background:var(--color-papel); }
+  h1,h2,h3{ font-family:var(--font-serif); font-weight:500; margin:0; text-wrap:balance; }
+  p{ margin:0; }
+  button,input{ font-family:inherit; font-size:inherit; color:inherit; }
+  button{ cursor:pointer; }
+  :focus-visible{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+  [hidden]{ display:none !important; }
+  .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  svg.i{ width:1em; height:1em; flex:none; stroke:currentColor; fill:none; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .gutter{ padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); }
+  .num{ font-variant-numeric:tabular-nums; }
+  .muted{ color:var(--color-taupe); }
+
+  /* ── la barra de la maqueta (no es parte de la pantalla) ── */
+  .proto{ position:sticky; top:env(safe-area-inset-top, 0px); z-index:50; background:var(--color-papel); border-bottom:1px solid var(--color-sand); }
+  .proto-in{ max-width:1280px; margin-inline:auto; padding-block:8px; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
+  .badge{ font-size:.68rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--color-pizarra); background:color-mix(in srgb, var(--color-pizarra) 13%, var(--color-papel)); border:1px solid color-mix(in srgb, var(--color-pizarra) 35%, transparent); padding:3px 9px; border-radius:100px; white-space:nowrap; }
+  .vars{ display:flex; flex-wrap:wrap; gap:6px; }
+  .vbtn{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:10px; padding:6px 11px; font-weight:600; font-size:.82rem; display:inline-flex; gap:7px; align-items:center; min-height:36px; }
+  .vbtn b{ display:inline-grid; place-items:center; width:20px; height:20px; border-radius:6px; background:var(--color-hueso); color:var(--color-taupe); font-size:.76rem; }
+  .vbtn small{ font-weight:500; color:var(--color-taupe); }
+  .vbtn[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); border-color:var(--color-tinta); }
+  .vbtn[aria-pressed="true"] b{ background:var(--color-crema); color:var(--color-tinta); }
+  .vbtn[aria-pressed="true"] small{ color:inherit; opacity:.75; }
+  .ctl{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-left:auto; }
+  .seg{ display:inline-flex; border:1px solid var(--color-sand); border-radius:8px; overflow:hidden; background:var(--color-papel); }
+  .seg button{ border:0; background:none; padding:6px 11px; font-size:.8rem; font-weight:600; color:var(--color-taupe); min-height:34px; }
+  .seg button[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); }
+  .lema{ max-width:1280px; margin-inline:auto; padding-block:12px 0; font-size:.88rem; color:var(--color-taupe); }
+  .lema strong{ color:var(--color-tinta); font-weight:600; }
+
+  /* ── la pantalla ── */
+  .marco{ padding-block:14px 28px; }
+  .page{ container: pagina / inline-size; max-width:1280px; margin-inline:auto; display:flex; flex-direction:column; gap:14px; }
+  .page.movil{ max-width:390px; border:1px solid var(--color-sand); border-radius:18px; padding:16px 12px 22px; background:var(--color-crema); }
+  .cab h1{ font-size:1.85rem; line-height:1.15; }
+  .cab p{ color:var(--color-taupe); font-size:.9rem; margin-top:4px; }
+  .controles{ display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; justify-content:space-between; border-bottom:1px solid var(--color-sand); }
+  .pest{ display:flex; gap:4px; }
+  .pest button{ border:0; background:none; padding:9px 12px 10px; font-weight:500; color:var(--color-taupe); border-bottom:2px solid transparent; margin-bottom:-1px; display:inline-flex; gap:6px; align-items:center; min-height:40px; }
+  .pest button[aria-current="page"]{ color:var(--color-tinta); font-weight:600; border-bottom-color:var(--color-tinta); }
+  .nuevo{ font-size:.64rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--color-pizarra); background:color-mix(in srgb, var(--color-pizarra) 13%, var(--color-papel)); border-radius:100px; padding:1px 7px; }
+  .der{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding-bottom:8px; }
+  .sede{ font-size:.84rem; color:var(--color-taupe); }
+  .sede strong{ color:var(--color-tinta); font-weight:600; }
+  .semana{ display:inline-flex; align-items:center; gap:2px; }
+  .semana span{ padding:0 8px; font-size:.84rem; color:var(--color-taupe); white-space:nowrap; }
+  .icono{ border:1px solid var(--color-sand); background:var(--color-papel); border-radius:8px; width:34px; height:34px; display:inline-grid; place-items:center; color:var(--color-tinta); }
+  .btn{ border:1px solid var(--color-taupe); background:transparent; color:var(--color-tinta); border-radius:8px; padding:6px 12px; font-weight:600; font-size:.82rem; min-height:34px; white-space:nowrap; }
+  .btn.prim{ background:var(--color-tinta); border-color:var(--color-tinta); color:var(--color-crema); }
+  .decidir{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .rot{ font-size:.7rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--color-taupe); }
+  .pildora{ display:inline-flex; align-items:center; gap:6px; border-radius:999px; border:1px solid color-mix(in srgb, var(--color-ambar) 40%, transparent); background:color-mix(in srgb, var(--color-ambar) 13%, var(--color-papel)); color:var(--color-ambar); padding:4px 11px; font-size:.78rem; font-weight:600; }
+  .leyenda{ display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.78rem; color:var(--color-taupe); align-items:center; }
+  .leyenda span{ display:inline-flex; gap:6px; align-items:center; }
+  .mu{ display:inline-block; width:12px; height:12px; border-radius:4px; border:1.5px solid; }
+  .mu.falta{ background:var(--falta-fondo); border-color:var(--color-rojo); }
+  .mu.ok{ background:var(--ok-fondo); border-color:var(--color-verde); }
+  .mu.sobra{ background:var(--sobra-fondo); border-color:var(--color-ambar); }
+  .mu.alm{ background:color-mix(in srgb, var(--color-azul) 12%, var(--color-papel)); border-color:var(--color-azul); }
+  .mu.pre{ background:transparent; border-style:dashed; border-color:var(--color-taupe); }
+  .mu.dist{ width:8px; height:8px; border-radius:50%; border:0; background:var(--color-pizarra); }
+  .L{ display:inline-grid; place-items:center; width:16px; height:16px; border-radius:50%; background:var(--color-tinta); color:var(--color-crema); font-size:.6rem; font-weight:700; flex:none; line-height:1; }
+
+  /* El estado de un día, en palabras: lo mismo en las tres demos. */
+  .estado{ display:inline-flex; align-items:center; gap:5px; font-size:.72rem; font-weight:600; padding:2px 8px; border-radius:100px; border:1px solid; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .estado.falta{ color:var(--color-rojo-profundo); background:var(--falta-fondo); border-color:var(--falta-borde); }
+  .estado.ok{ color:var(--color-verde); background:var(--ok-fondo); border-color:var(--ok-borde); }
+  .estado.sobra{ color:var(--color-ambar); background:var(--sobra-fondo); border-color:var(--sobra-borde); }
+  .estado.sinl{ color:var(--color-rojo-profundo); background:transparent; border-style:dashed; border-color:var(--falta-borde); }
+  .estado.cerrado{ color:var(--color-ceniza); background:var(--color-hueso); border-color:var(--color-sand); }
+  .estados{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
+  .linea-e{ display:flex; flex-wrap:wrap; align-items:center; gap:2px 5px; }
+  .rango{ font-size:.7rem; color:var(--color-taupe); white-space:nowrap; }
+  .tira{ display:flex; gap:2px; height:7px; width:100%; }
+  .tira i{ flex:1; border-radius:2px; background:var(--color-sand); }
+  .tira i.falta{ background:var(--color-rojo); }
+  .tira i.ok{ background:color-mix(in srgb, var(--color-verde) 60%, var(--color-papel)); }
+  .tira i.sobra{ background:color-mix(in srgb, var(--color-ambar) 55%, var(--color-papel)); }
+  .tira i.cerrado{ background:transparent; border:1px dashed var(--color-sand); }
+
+  .tarjeta{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; }
+  .scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px; }
+
+  /* ── A · Planilla: una fila por persona ── */
+  table.planilla{ border-collapse:separate; border-spacing:0; width:100%; min-width:900px; font-size:.86rem; }
+  .planilla th, .planilla td{ padding:3px 4px; text-align:left; vertical-align:middle; border-bottom:1px solid var(--color-sand); }
+  .planilla thead th{ font-weight:600; font-size:.72rem; letter-spacing:.07em; text-transform:uppercase; color:var(--color-taupe); padding-top:10px; background:var(--color-papel); }
+  .planilla thead th .n{ font-weight:500; letter-spacing:0; text-transform:none; margin-left:3px; }
+  .hoyp{ display:inline-block; margin-left:5px; font-size:.62rem; letter-spacing:.04em; padding:0 6px; border-radius:100px; background:var(--color-hueso); color:var(--color-taupe); }
+  .planilla .col-p{ position:sticky; left:0; z-index:2; background:var(--color-papel); width:9.5rem; min-width:9.5rem; padding-left:12px; }
+  .planilla tbody th.col-p{ font-weight:500; }
+  .planilla .col-s{ width:7rem; min-width:7rem; text-align:right; padding-right:12px; }
+  .planilla td.hoy, .planilla th.hoy{ background:color-mix(in srgb, var(--color-pizarra) 6%, var(--color-papel)); }
+  .planilla tr.cob th, .planilla tr.cob td{ vertical-align:top; padding-top:8px; padding-bottom:10px; background:var(--color-papel); }
+  .planilla tr.cob td.hoy{ background:color-mix(in srgb, var(--color-pizarra) 6%, var(--color-papel)); }
+  .planilla tr.cob th small{ display:block; font-weight:400; color:var(--color-taupe); font-size:.72rem; }
+  .planilla tr.grupo th{ background:var(--color-hueso); font-size:.7rem; letter-spacing:.07em; text-transform:uppercase; color:var(--color-taupe); font-weight:600; padding:5px 12px; position:static; }
+  .planilla tr.grupo th span{ text-transform:none; letter-spacing:0; font-weight:400; }
+  .quien{ display:flex; gap:7px; align-items:center; white-space:nowrap; }
+  .quien .pre{ font-size:.68rem; color:var(--color-taupe); border:1px dashed var(--color-taupe); border-radius:100px; padding:0 6px; }
+  .turno{ width:100%; display:flex; align-items:center; justify-content:center; gap:4px; flex-wrap:wrap; border:1px solid transparent; background:transparent; border-radius:7px; padding:4px 4px; min-height:32px; font-variant-numeric:tabular-nums; font-weight:500; position:relative; }
+  .turno:hover{ border-color:var(--color-taupe); background:var(--color-crema); }
+  .turno .g{ color:var(--color-taupe); }
+  .turno .punto{ position:static; margin-left:2px; align-self:flex-start; }
+  .turno.desc{ color:var(--color-ceniza); font-weight:400; font-size:.8rem; background:repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--color-sand) 70%, transparent) 6px 7px); }
+  .turno.prese{ border:1px dashed color-mix(in srgb, var(--color-taupe) 60%, transparent); color:var(--color-taupe); }
+  .tag{ font-size:.66rem; font-weight:600; border-radius:100px; padding:0 6px; white-space:nowrap; }
+  .tag.alm{ color:var(--color-azul); background:color-mix(in srgb, var(--color-azul) 12%, var(--color-papel)); border:1px solid color-mix(in srgb, var(--color-azul) 40%, transparent); }
+  .punto{ position:absolute; top:4px; right:4px; width:7px; height:7px; border-radius:50%; background:var(--color-pizarra); }
+  .horas{ font-variant-numeric:tabular-nums; font-weight:600; }
+  .horas small{ display:block; font-weight:500; font-size:.7rem; white-space:nowrap; }
+  .horas.ok small{ color:var(--color-verde); }
+  .horas.bajo small{ color:var(--color-ambar); }
+
+  /* ── B · Integrada compacta: una línea por hora ── */
+  .mapa{ display:grid; grid-template-columns: 4.4rem repeat(7, minmax(0, 1fr)); min-width:72rem; gap:4px; padding:10px; background:var(--color-papel); }
+  .mapa .hora{ position:sticky; left:0; z-index:2; background:var(--color-papel); font-variant-numeric:tabular-nums; font-weight:600; font-size:.84rem; display:flex; flex-direction:column; justify-content:center; padding-right:6px; text-align:right; }
+  .mapa .hora small{ font-weight:400; font-size:.68rem; color:var(--color-taupe); }
+  .mapa .dia{ font-size:.72rem; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--color-taupe); padding:2px 4px 0; }
+  .mapa .dia .n{ letter-spacing:0; text-transform:none; font-weight:500; margin-left:3px; }
+  .mapa .resd{ padding:2px 4px 6px; border-bottom:1px solid var(--color-sand); }
+  .mapa .esq{ position:sticky; left:0; z-index:2; background:var(--color-papel); }
+  .cel{ display:flex; align-items:center; gap:6px; border-radius:8px; border:1px solid var(--color-sand); background:var(--color-hueso); padding:0 6px; height:36px; text-align:left; min-width:0; position:relative; }
+  .cel:hover{ box-shadow:0 0 0 1.5px var(--color-tinta); }
+  .cel.falta{ background:var(--falta-fondo); border-color:var(--falta-borde); }
+  .cel.ok{ background:var(--ok-fondo); border-color:var(--ok-borde); }
+  .cel.sobra{ background:var(--sobra-fondo); border-color:var(--sobra-borde); }
+  .cel.cerrado{ background:transparent; border-style:dashed; color:var(--color-ceniza); font-size:.74rem; justify-content:center; cursor:default; }
+  .cel.cerrado:hover{ box-shadow:none; }
+  .cel.hoy{ outline:2px solid color-mix(in srgb, var(--color-pizarra) 35%, transparent); outline-offset:1px; }
+  .cuenta{ display:flex; align-items:center; gap:3px; font-variant-numeric:tabular-nums; font-weight:700; font-size:.9rem; min-width:2rem; flex:none; }
+  .cuenta small{ font-weight:500; font-size:.7rem; color:var(--color-taupe); }
+  .cel.falta .cuenta{ color:var(--color-rojo-profundo); }
+  .cel.ok .cuenta{ color:var(--color-verde); }
+  .cel.sobra .cuenta{ color:var(--color-ambar); }
+  .ini{ display:flex; gap:1px; min-width:0; overflow:hidden; }
+  .av{ width:18px; height:18px; flex:none; border-radius:50%; display:inline-grid; place-items:center; font-size:.56rem; font-weight:700; letter-spacing:-.02em; background:var(--color-papel); border:1px solid var(--color-sand); color:var(--color-tinta); }
+  .av.lider{ background:var(--color-tinta); border-color:var(--color-tinta); color:var(--color-crema); }
+  .av.pre{ background:transparent; border:1px dashed var(--color-taupe); color:var(--color-taupe); }
+  .av.alm{ background:color-mix(in srgb, var(--color-azul) 12%, var(--color-papel)); border-color:var(--color-azul); color:var(--color-azul); }
+  .av.mas{ background:transparent; border:0; color:var(--color-taupe); width:auto; font-size:.66rem; }
+  .marca-sinl{ position:absolute; top:-6px; right:5px; font-size:.56rem; font-weight:700; letter-spacing:.03em; color:var(--color-rojo-profundo); background:var(--color-papel); border:1px dashed var(--color-rojo); border-radius:100px; padding:0 4px; line-height:1.35; }
+
+  /* ── C · Abre y cierra: los nombres por momento del día ── */
+  .turnos-c{ display:grid; grid-template-columns: 7.2rem repeat(7, minmax(0, 1fr)); background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; overflow:hidden; }
+  .turnos-c > *{ padding:8px 7px; border-bottom:1px solid var(--color-sand); min-width:0; }
+  .turnos-c .lab{ font-size:.82rem; font-weight:600; background:var(--color-papel); }
+  .turnos-c .lab small{ display:block; font-weight:400; font-size:.7rem; color:var(--color-taupe); }
+  .turnos-c .cab-d{ font-size:.72rem; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--color-taupe); }
+  .turnos-c .cab-d .n{ letter-spacing:0; text-transform:none; font-weight:500; margin-left:3px; }
+  .turnos-c .cab-d small{ display:block; letter-spacing:0; text-transform:none; font-weight:400; font-size:.7rem; margin-top:1px; }
+  .turnos-c .hoy{ background:color-mix(in srgb, var(--color-pizarra) 6%, var(--color-papel)); }
+  .turnos-c .sec{ display:flex; flex-direction:column; gap:3px; }
+  .turnos-c .sec.vacio::after{ content:"—"; color:var(--color-sand); }
+  .turnos-c .ultima{ border-bottom:0; }
+  .turnos-c .lab-in{ display:none; }
+  .nom{ display:flex; align-items:center; gap:5px; width:100%; border:1px solid var(--color-sand); background:var(--color-crema); border-radius:7px; padding:3px 6px; font-size:.8rem; text-align:left; min-height:28px; min-width:0; position:relative; }
+  .nom:hover{ border-color:var(--color-taupe); }
+  .nom{ flex-wrap:wrap; }
+  .nom .tx{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto; }
+  .nom .h{ margin-left:auto; font-size:.68rem; color:var(--color-taupe); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .nom.pre{ border-style:dashed; color:var(--color-taupe); background:transparent; }
+  .nom.desc{ background:transparent; color:var(--color-ceniza); }
+  .nom .tag{ margin-left:auto; }
+  .nom .punto{ top:-3px; right:-3px; }
+
+  /* Celular: lo que cambia cuando la pantalla es angosta (se mide el ancho de la pantalla, no el de la ventana). */
+  @container pagina (max-width: 720px){
+    .cab h1{ font-size:1.5rem; }
+    .der{ width:100%; }
+    .der .btn:not(.prim){ display:none; }
+    .turno{ flex-direction:column; gap:0; line-height:1.15; padding:4px 2px; font-size:.8rem; }
+    .turno .g{ display:none; }
+    table.planilla{ min-width:640px; }
+    .planilla .col-p{ width:6.6rem; min-width:6.6rem; padding-left:8px; }
+    .planilla .col-s{ width:4.6rem; }
+    .quien .pre{ display:none; }
+    .turnos-c{ grid-template-columns:1fr; border:0; background:transparent; gap:0; overflow:visible; }
+    .turnos-c > *{ grid-column:1 !important; grid-row:auto !important; border:0; padding:0; }
+    .turnos-c .lab{ display:none; }
+    .turnos-c .cab-d{ order:var(--o); margin-top:12px; padding:10px 12px 6px; background:var(--color-papel); border:1px solid var(--color-sand); border-bottom:0; border-radius:12px 12px 0 0; font-size:.78rem; }
+    .turnos-c .celda-c{ order:var(--o); background:var(--color-papel); border-inline:1px solid var(--color-sand); padding:6px 12px; }
+    .turnos-c .celda-c.ultima{ border-bottom:1px solid var(--color-sand); border-radius:0 0 12px 12px; padding-bottom:12px; }
+    .turnos-c .sec{ flex-direction:row; flex-wrap:wrap; }
+    .turnos-c .sec .nom{ width:auto; }
+    .turnos-c .lab-in{ display:block; font-size:.66rem; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--color-taupe); margin-bottom:3px; }
+    .turnos-c .sec.vacio::after{ content:"nadie"; font-size:.78rem; color:var(--color-ceniza); }
+  }
+
+  /* ── popover de una hora (B) y editor de turno (las tres) ── */
+  .pop{ position:fixed; z-index:70; width:min(320px, calc(100vw - 32px)); background:var(--color-papel); border:1px solid var(--color-sand); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.18); padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .pop h3{ font-size:1.1rem; }
+  .pop .lista{ display:flex; flex-direction:column; gap:4px; }
+  .pop .cerrar{ position:absolute; top:8px; right:8px; border:0; background:none; color:var(--color-taupe); width:30px; height:30px; border-radius:6px; }
+  .velo{ position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.42); display:grid; place-items:center; padding:16px; }
+  .caja{ width:min(420px, 100%); background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:12px; }
+  .caja h3{ font-size:1.35rem; }
+  .campos{ display:flex; gap:10px; flex-wrap:wrap; }
+  .campos label{ display:flex; flex-direction:column; gap:4px; font-size:.78rem; font-weight:600; color:var(--color-taupe); flex:1; min-width:120px; }
+  .campos input{ background:var(--color-hueso); border:1px solid var(--color-taupe); border-radius:8px; padding:8px 10px; min-height:40px; font-variant-numeric:tabular-nums; }
+  .caja .acc{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+  .aviso{ font-size:.78rem; color:var(--color-pizarra); background:color-mix(in srgb, var(--color-pizarra) 10%, var(--color-papel)); border-radius:8px; padding:7px 10px; }
+
+  /* ── notas de la maqueta ── */
+  .notas{ max-width:1280px; margin-inline:auto; padding-block:6px 48px; display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+  .nota{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; padding:16px 18px; min-width:0; }
+  .nota h2{ font-size:1.25rem; margin-bottom:8px; }
+  .nota ul, .nota ol{ margin:0; padding-left:1.2em; display:flex; flex-direction:column; gap:5px; font-size:.88rem; }
+  .nota .k{ font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; margin:10px 0 4px; }
+  .nota .k.gana{ color:var(--color-verde); }
+  .nota .k.paga{ color:var(--color-rojo-profundo); }
+  .nota .k.igual{ color:var(--color-pizarra); }
+  .nota code{ font-size:.82em; background:var(--color-hueso); padding:1px 5px; border-radius:4px; }
+  .toast{ position:fixed; z-index:90; left:50%; bottom:calc(18px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); background:var(--color-tinta); color:var(--color-crema); border-radius:10px; padding:9px 14px; font-size:.84rem; max-width:calc(100vw - 32px); }
+  @media (prefers-reduced-motion: no-preference){ .pop, .caja{ animation:entra .14s ease-out; } @keyframes entra{ from{ opacity:0; transform:translateY(4px); } } }
+</style>
+
+<div class="proto">
+  <div class="proto-in gutter">
+    <span class="badge">Maqueta · datos inventados</span>
+    <div class="vars" role="group" aria-label="Las tres demos">
+      <button class="vbtn" data-v="planilla" aria-pressed="true"><b>A</b> Planilla <small>persona × día</small></button>
+      <button class="vbtn" data-v="integrada-compacta" aria-pressed="false"><b>B</b> Integrada compacta <small>hora × día</small></button>
+      <button class="vbtn" data-v="abre-y-cierra" aria-pressed="false"><b>C</b> Abre y cierra <small>momento × día</small></button>
+    </div>
+    <div class="ctl">
+      <div class="seg" role="group" aria-label="Ancho de la pantalla">
+        <button id="w-pc" data-w="pc" aria-pressed="true">Computadora</button>
+        <button id="w-cel" data-w="cel" aria-pressed="false">Celular</button>
+      </div>
+      <button class="vbtn" id="tema" type="button">Tema: sistema</button>
+    </div>
+  </div>
+</div>
+<p class="lema gutter" id="lema"></p>
+
+<main class="marco gutter">
+  <div class="page" id="page">
+    <header class="cab">
+      <h1>Turnos y cobertura</h1>
+      <p>Arma la semana de tu sede: toca a una persona en un día para poner su turno o marcar descanso.</p>
+    </header>
+    <div class="controles">
+      <nav class="pest" aria-label="Vistas de Turnos">
+        <button type="button" data-pest="integrada">Integrada</button>
+        <button type="button" aria-current="page">Compacta <span class="nuevo">nuevo</span></button>
+        <button type="button" data-pest="dia">Día</button>
+      </nav>
+      <div class="der">
+        <span class="sede">Tu sede: <strong>Tienda TRU</strong></span>
+        <span class="semana"><button class="icono" type="button" aria-label="Semana anterior" data-nada="1">‹</button><span class="num">2 nov – 8 nov</span><button class="icono" type="button" aria-label="Semana siguiente" data-nada="1">›</button></span>
+        <button class="btn" type="button" data-nada="1">Hoy</button>
+        <button class="btn" type="button" data-nada="1">Copiar semana anterior</button>
+      </div>
+    </div>
+    <div class="decidir"><span class="rot">Para decidir</span><span class="pildora">1 turno distinto al horario base</span></div>
+    <div class="leyenda" id="leyenda"></div>
+    <section id="vista" aria-live="polite"></section>
+  </div>
+</main>
+
+<section class="notas gutter" id="notas" aria-label="Notas de la maqueta"></section>
+<div id="pop" class="pop" hidden role="dialog" aria-modal="false" aria-labelledby="pop-t"></div>
+<div id="velo" class="velo" hidden></div>
+<div id="toast" class="toast" hidden role="status"></div>
+
+<script>
+(() => {
+  // ── Los datos (inventados). Semana del lunes 2 al domingo 8 de noviembre; hoy es el sábado. ──
+  const DIAS = [
+    { abr: 'Lun', num: '2 nov', largo: 'lunes 2 nov' },
+    { abr: 'Mar', num: '3 nov', largo: 'martes 3 nov' },
+    { abr: 'Mié', num: '4 nov', largo: 'miércoles 4 nov' },
+    { abr: 'Jue', num: '5 nov', largo: 'jueves 5 nov' },
+    { abr: 'Vie', num: '6 nov', largo: 'viernes 6 nov' },
+    { abr: 'Sáb', num: '7 nov', largo: 'sábado 7 nov' },
+    { abr: 'Dom', num: '8 nov', largo: 'domingo 8 nov' },
+  ];
+  const HOY = 5;
+  // Lunes a sábado: mañana, intermedio y tarde. El domingo TRU cierra a las 18:15.
+  const TURNOS = { M: [8.5, 17], I: [10.5, 19], T: [13, 21.5] };
+  const TURNOS_DOM = { M: [8.5, 17], T: [9.75, 18.25] };
+  // Metas de piso [mañana, tarde]; la tarde rige desde las 14:15. Meta de líderes: 1 todo el día.
+  const METAS = [[4, 3], [4, 3], [4, 3], [4, 3], [5, 4], [5, 5], [5, 4]];
+  const CORTE = 14.25;
+  const JORNADA = 45;
+  // sem: un carácter por día, de lunes a domingo. «-» es descanso.
+  const PERSONAS = [
+    { id: 'lucia', nombre: 'Lucía T.', ini: 'LT', lider: true, cuenta: true, sem: 'MMMTTM-' },
+    { id: 'rosa', nombre: 'Rosa M.', ini: 'RM', lider: true, cuenta: true, sem: 'TTMM-TM' },
+    { id: 'valeria', nombre: 'Valeria S.', ini: 'VS', lider: true, cuenta: true, sem: '-ITTTTT' },
+    { id: 'camila', nombre: 'Camila H.', ini: 'CH', cuenta: true, sem: 'MMMM-MM' },
+    { id: 'andrea', nombre: 'Andrea L.', ini: 'AL', cuenta: true, sem: 'M-MIMMT', almacen: { 2: [15, 17] } },
+    { id: 'fiorella', nombre: 'Fiorella G.', ini: 'FG', cuenta: true, sem: 'TTT-TTM' },
+    { id: 'milagros', nombre: 'Milagros P.', ini: 'MP', cuenta: true, sem: 'IMTMM-M' },
+    { id: 'ximena', nombre: 'Ximena R.', ini: 'XR', cuenta: true, sem: 'MTMTMM-' },
+    { id: 'brenda', nombre: 'Brenda C.', ini: 'BC', cuenta: true, sem: 'TMIMT-T', especial: { 2: [11, 17] } },
+    { id: 'sofia', nombre: 'Sofía D.', ini: 'SD', cuenta: false, aparte: 'preselección', sem: 'MM-MMM-' },
+  ];
+
+  // ── La regla de la hora (espejo de semana-con-nombres.ts, en chico) ──
+  const E = 1e-9;
+  const fmt = (h) => { const H = Math.floor(h + E), M = Math.round((h - H) * 60); return `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`; };
+  const fmtN = (x) => (Math.round(x * 10) / 10).toLocaleString('es-PE');
+  const base = (p, d) => { const c = p.sem[d]; return c === '-' ? null : (d === 6 ? TURNOS_DOM : TURNOS)[c]; };
+  function turnoDe(p, d) {
+    const b = base(p, d);
+    if (!b) return null;
+    const [e, s] = (p.especial && p.especial[d]) || b;
+    return { e, s, alm: p.almacen && p.almacen[d] ? [p.almacen[d]] : [], distinto: Boolean(p.especial && p.especial[d]) };
+  }
+  const delDia = (d) => PERSONAS.map((p) => ({ p, t: turnoDe(p, d) })).filter((x) => x.t);
+  function ventana(d) {
+    const ts = delDia(d).filter((x) => x.p.cuenta || x.p.lider).map((x) => x.t);
+    return { desde: Math.min(...ts.map((t) => t.e)), hasta: Math.max(...ts.map((t) => t.s)) };
+  }
+  const enAlm = (t, a, b) => t.alm.some(([x, y]) => x <= a + E && y >= b - E);
+  const presente = (t, a, b) => t.e <= a + E && t.s >= b - E;
+  function cuartos(d, desde, hasta, f) {
+    const gente = delDia(d);
+    for (let q = desde; q < hasta - E; q += 0.25) {
+      const q1 = Math.min(q + 0.25, hasta);
+      const en = gente.filter((x) => presente(x.t, q, q1) && !enAlm(x.t, q, q1));
+      f(q, q1, en.filter((x) => x.p.cuenta).length, en.filter((x) => x.p.lider).length);
+    }
+  }
+  function celda(d, h0) {
+    const v = ventana(d);
+    const desde = Math.max(h0, v.desde), hasta = Math.min(h0 + 1, v.hasta);
+    const nombres = delDia(d).filter((x) => x.t.e < h0 + 1 - E && x.t.s > h0 + E).map((x) => {
+      const a = Math.max(h0, x.t.e), b = Math.min(h0 + 1, x.t.s);
+      return {
+        ...x,
+        entra: x.t.e > h0 + E ? x.t.e : null,
+        sale: x.t.s < h0 + 1 - E ? x.t.s : null,
+        soloAlm: x.t.alm.some(([y, z]) => y <= a + E && z >= b - E),
+        algoAlm: x.t.alm.some(([y, z]) => y < b && z > a),
+      };
+    }).sort((a, b) => (b.p.lider - a.p.lider) || (b.p.cuenta - a.p.cuenta) || (a.t.e - b.t.e));
+    if (hasta - desde < E) return { fuera: true, h0, nombres, estado: 'cerrado' };
+    let enPiso = Infinity, lideres = Infinity, meta = 0, sinLider = false;
+    const [mM, mT] = METAS[d];
+    cuartos(d, desde, hasta, (q, q1, op, li) => {
+      enPiso = Math.min(enPiso, op); lideres = Math.min(lideres, li);
+      meta = Math.max(meta, q < CORTE - E ? mM : mT);
+      if (li === 0 && op > 0) sinLider = true;
+    });
+    const estado = enPiso < meta ? 'falta' : enPiso > meta ? 'sobra' : 'ok';
+    return { fuera: false, h0, nombres, enPiso, lideres, meta, sinLider, estado };
+  }
+  // Las filas arrancan en el minuto de la entrada más común (:30), igual que la Integrada.
+  const HORAS = []; for (let h = 8.5; h < 21.5 - E; h += 1) HORAS.push(h);
+  const CELDAS = DIAS.map((_, d) => HORAS.map((h) => celda(d, h)));
+
+  function resumen(d) {
+    const v = ventana(d);
+    const tramos = []; let cur = null;
+    CELDAS[d].forEach((c) => {
+      if (!c.fuera && c.estado === 'falta') {
+        const def = c.meta - c.enPiso;
+        if (cur && Math.abs(cur.hasta - c.h0) < E) { cur.hasta = c.h0 + 1; cur.def = Math.max(cur.def, def); }
+        else { cur = { desde: c.h0, hasta: c.h0 + 1, def }; tramos.push(cur); }
+      } else cur = null;
+    });
+    tramos.forEach((t) => { t.desde = Math.max(t.desde, v.desde); t.hasta = Math.min(t.hasta, v.hasta); });
+    const sinL = []; let s = null;
+    cuartos(d, v.desde, v.hasta, (q, q1, op, li) => {
+      if (li === 0 && op > 0) { if (s && Math.abs(s.hasta - q) < E) s.hasta = q1; else { s = { desde: q, hasta: q1 }; sinL.push(s); } }
+      else s = null;
+    });
+    const peor = tramos.slice().sort((a, b) => b.def - a.def || a.desde - b.desde)[0] || null;
+    return { tramos, peor, sinL, abre: v.desde, cierra: v.hasta };
+  }
+  const RES = DIAS.map((_, d) => resumen(d));
+  const horasSemana = (p) => DIAS.reduce((a, _, d) => { const t = turnoDe(p, d); return t ? a + (t.s - t.e - 1) : a; }, 0);
+
+  // ── Piezas comunes ──
+  const ICO = {
+    falta: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7"/></svg>',
+    ok: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    sinl: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>',
+    x: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const L = (p) => (p.lider ? '<span class="L" title="Líder de equipo">L</span>' : '');
+  function estadosDelDia(d) {
+    const r = RES[d];
+    const linea = (chip, rango) => `<span class="linea-e">${chip}${rango ? `<span class="rango num">${rango}</span>` : ''}</span>`;
+    let h = r.peor
+      ? linea(`<span class="estado falta">${ICO.falta}Falta ${r.peor.def}</span>`, `${fmt(r.peor.desde)}–${fmt(r.peor.hasta)}`)
+      : linea(`<span class="estado ok">${ICO.ok}Alcanza</span>`, 'todo el día');
+    if (r.tramos.length > 1) h += `<span class="rango">y ${r.tramos.length - 1} tramo${r.tramos.length > 2 ? 's' : ''} más con falta</span>`;
+    r.sinL.forEach((s) => { h += linea(`<span class="estado sinl">${ICO.sinl}Sin líder</span>`, `${fmt(s.desde)}–${fmt(s.hasta)}`); });
+    return `<div class="estados">${h}</div>`;
+  }
+  function tira(d) {
+    return `<div class="tira" aria-hidden="true">${CELDAS[d].map((c) => `<i class="${c.estado}" title="${fmt(c.h0)}–${fmt(c.h0 + 1)} · ${c.fuera ? 'cerrado' : `${c.enPiso} en piso, meta ${c.meta}`}"></i>`).join('')}</div>`;
+  }
+  const cabDia = (d) => `${DIAS[d].abr}<span class="n">${DIAS[d].num}</span>${d === HOY ? '<span class="hoyp">hoy</span>' : ''}`;
+
+  // ── A · Planilla ──
+  function vistaA() {
+    const grupos = [
+      ['Líderes de equipo', '· meta: 1 en piso todo el día', PERSONAS.filter((p) => p.lider)],
+      ['Equipo de piso', '', PERSONAS.filter((p) => !p.lider && p.cuenta)],
+      ['No suman a la meta', '· preselección u otra área', PERSONAS.filter((p) => !p.cuenta && !p.lider)],
+    ];
+    const fila = (p) => {
+      const tds = DIAS.map((_, d) => {
+        const t = turnoDe(p, d);
+        const cls = d === HOY ? ' class="hoy"' : '';
+        if (!t) return `<td${cls}><button class="turno desc" data-ed="${p.id}|${d}" aria-label="${esc(p.nombre)}, ${DIAS[d].largo}: descanso">Descanso</button></td>`;
+        const alm = t.alm.map(([a, b]) => `<span class="tag alm" title="En almacén de ${fmt(a)} a ${fmt(b)}: no cuenta en piso">alm ${fmt(a).replace(':00', '')}–${fmt(b).replace(':00', '')}</span>`).join('');
+        const dist = t.distinto ? '<span class="punto" title="Distinto a su horario base"></span>' : '';
+        return `<td${cls}><button class="turno${p.cuenta ? '' : ' prese'}" data-ed="${p.id}|${d}" aria-label="${esc(p.nombre)}, ${DIAS[d].largo}: ${fmt(t.e)} a ${fmt(t.s)}"><span>${fmt(t.e)}</span><span class="g">–</span><span>${fmt(t.s)}</span>${alm}${dist}</button></td>`;
+      }).join('');
+      const hs = horasSemana(p);
+      const sem = !p.cuenta
+        ? `<span class="horas">${fmtN(hs)} h<small class="muted">sin jornada</small></span>`
+        : hs >= JORNADA - E
+          ? `<span class="horas ok">${fmtN(hs)} h<small>completa</small></span>`
+          : `<span class="horas bajo">${fmtN(hs)} h<small>faltan ${fmtN(JORNADA - hs)} h</small></span>`;
+      return `<tr><th scope="row" class="col-p"><span class="quien">${L(p)}<span>${esc(p.nombre)}</span>${p.aparte ? `<span class="pre">${p.aparte}</span>` : ''}</span></th>${tds}<td class="col-s">${sem}</td></tr>`;
+    };
+    return `<div class="tarjeta scroll"><table class="planilla">
+      <caption class="sr">Turnos de la semana, una fila por persona</caption>
+      <thead>
+        <tr><th scope="col" class="col-p">Persona</th>${DIAS.map((_, d) => `<th scope="col"${d === HOY ? ' class="hoy"' : ''}>${cabDia(d)}</th>`).join('')}<th scope="col" class="col-s">Semana</th></tr>
+        <tr class="cob"><th scope="row" class="col-p">En piso<small>el peor momento</small></th>${DIAS.map((_, d) => `<td${d === HOY ? ' class="hoy"' : ''}>${tira(d)}<div style="margin-top:6px">${estadosDelDia(d)}</div></td>`).join('')}<td></td></tr>
+      </thead>
+      <tbody>${grupos.map(([t, s, ps]) => `<tr class="grupo"><th colspan="9" scope="rowgroup">${t} <span>${s}</span></th></tr>${ps.map(fila).join('')}`).join('')}</tbody>
+    </table></div>`;
+  }
+
+  // ── B · Integrada compacta ──
+  function vistaB() {
+    let h = '<div class="esq"></div>' + DIAS.map((_, d) => `<div class="dia">${cabDia(d)}</div>`).join('');
+    h += '<div class="esq resd"></div>' + DIAS.map((_, d) => `<div class="resd">${estadosDelDia(d)}</div>`).join('');
+    HORAS.forEach((hr, i) => {
+      h += `<div class="hora">${fmt(hr)}<small>a ${fmt(hr + 1)}</small></div>`;
+      DIAS.forEach((_, d) => {
+        const c = CELDAS[d][i];
+        const hoy = d === HOY ? ' hoy' : '';
+        if (c.fuera) { h += `<div class="cel cerrado${hoy}">cerrado</div>`; return; }
+        const visibles = c.nombres.slice(0, 5), resto = c.nombres.length - visibles.length;
+        const av = visibles.map((x) => {
+          const k = x.soloAlm ? 'alm' : !x.p.cuenta ? 'pre' : x.p.lider ? 'lider' : '';
+          return `<span class="av ${k}" title="${esc(x.p.nombre)}">${x.p.ini}</span>`;
+        }).join('') + (resto > 0 ? `<span class="av mas">+${resto}</span>` : '');
+        const palabra = c.estado === 'falta' ? `falta ${c.meta - c.enPiso}` : c.estado === 'sobra' ? `sobra ${c.enPiso - c.meta}` : 'completo';
+        h += `<button class="cel ${c.estado}${hoy}" data-hora="${d}|${i}" aria-label="${DIAS[d].largo}, ${fmt(hr)} a ${fmt(hr + 1)}: ${c.enPiso} en piso, meta ${c.meta}, ${palabra}${c.sinLider ? ', sin líder en algún momento' : ''}">
+          <span class="cuenta">${c.enPiso}<small>/${c.meta}</small></span><span class="ini">${av}</span>${c.sinLider ? '<span class="marca-sinl">sin L</span>' : ''}</button>`;
+      });
+    });
+    return `<div class="tarjeta scroll"><div class="mapa">${h}</div></div>`;
+  }
+
+  // ── C · Abre y cierra ──
+  function momento(t, r) {
+    if (t.e <= r.abre + 0.5 + E) return 'abre';
+    if (t.s >= r.cierra - 0.5 - E) return 'cierra';
+    return 'medio';
+  }
+  function vistaC() {
+    const FILAS = [
+      { k: 'abre', t: 'Abren', s: 'entran con la apertura' },
+      { k: 'medio', t: 'Intermedio', s: 'entran y salen a media jornada' },
+      { k: 'cierra', t: 'Cierran', s: 'se quedan hasta el cierre' },
+      { k: 'desc', t: 'Descansan', s: '' },
+    ];
+    let h = `<div class="lab" style="grid-row:1;grid-column:1"></div>`;
+    h += `<div class="lab" style="grid-row:2;grid-column:1">En piso<small>el peor momento</small></div>`;
+    FILAS.forEach((f, i) => { h += `<div class="lab${i === FILAS.length - 1 ? ' ultima' : ''}" style="grid-row:${i + 3};grid-column:1">${f.t}<small>${f.s}</small></div>`; });
+    DIAS.forEach((_, d) => {
+      const r = RES[d];
+      const col = d + 2, hoy = d === HOY ? ' hoy' : '';
+      h += `<div class="cab-d${hoy}" style="grid-row:1;grid-column:${col};--o:${d * 10}">${cabDia(d)}<small class="num">${fmt(r.abre)} → ${fmt(r.cierra)}</small></div>`;
+      h += `<div class="celda-c${hoy}" style="grid-row:2;grid-column:${col};--o:${d * 10 + 1}">${estadosDelDia(d)}</div>`;
+      // La hora solo se escribe cuando sale de lo común de ese momento en ese día.
+      const grupos = { abre: [], medio: [], cierra: [], desc: [] };
+      PERSONAS.forEach((p) => { const t = turnoDe(p, d); grupos[t ? momento(t, r) : 'desc'].push({ p, t }); });
+      const comun = (lista) => { const m = new Map(); lista.forEach(({ t }) => { const k = `${t.e}|${t.s}`; m.set(k, (m.get(k) || 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]; };
+      FILAS.forEach((f, i) => {
+        const lista = grupos[f.k].sort((a, b) => (b.p.lider - a.p.lider) || (b.p.cuenta - a.p.cuenta) || ((a.t?.e ?? 0) - (b.t?.e ?? 0)));
+        const c = f.k === 'desc' ? null : comun(lista);
+        const chips = lista.map(({ p, t }) => {
+          if (!t) return `<button class="nom desc" data-ed="${p.id}|${d}">${L(p)}<span class="tx">${esc(p.nombre)}</span></button>`;
+          const raro = `${t.e}|${t.s}` !== c;
+          const alm = t.alm.map(([a, b]) => `<span class="tag alm" title="En almacén de ${fmt(a)} a ${fmt(b)}">alm ${fmt(a).replace(':00', '')}–${fmt(b).replace(':00', '')}</span>`).join('');
+          const hora = !alm && (raro || f.k === 'medio') ? `<span class="h">${fmt(t.e)}–${fmt(t.s)}</span>` : '';
+          const pre = p.cuenta ? '' : ' pre';
+          return `<button class="nom${pre}" data-ed="${p.id}|${d}" title="${esc(p.nombre)} · ${fmt(t.e)} a ${fmt(t.s)}${p.cuenta ? '' : ' · ' + p.aparte + ', no suma'}">${L(p)}<span class="tx">${esc(p.nombre)}</span>${hora}${alm}${t.distinto ? '<span class="punto" title="Distinto a su horario base"></span>' : ''}</button>`;
+        }).join('');
+        const tipico = c && f.k !== 'medio' ? ` · ${fmt(+c.split('|')[0])}–${fmt(+c.split('|')[1])}` : '';
+        const ult = i === FILAS.length - 1 ? ' ultima' : '';
+        h += `<div class="celda-c${hoy}${ult}" style="grid-row:${i + 3};grid-column:${col};--o:${d * 10 + 2 + i}"><span class="lab-in">${f.t}${tipico}</span><div class="sec${lista.length ? '' : ' vacio'}">${chips}</div></div>`;
+      });
+    });
+    return `<div class="turnos-c">${h}</div>`;
+  }
+
+  // ── Leyenda y notas, según la demo ──
+  const LEYENDA_COMUN = `<span><span class="L">L</span>Líder de equipo</span><span><i class="mu pre"></i>No suma a la meta (preselección u otra área)</span><span><i class="mu alm"></i>En almacén: no cuenta en piso</span><span><i class="mu dist"></i>Distinto a su horario base</span>`;
+  const LEYENDA = {
+    'planilla': `<span><i class="mu falta"></i>Falta gente en piso</span><span><i class="mu ok"></i>Alcanza</span><span><i class="mu sobra"></i>Sobra</span>${LEYENDA_COMUN}`,
+    'integrada-compacta': `<span><i class="mu ok"></i>Alcanza</span><span><i class="mu falta"></i>Falta gente en piso</span><span><i class="mu sobra"></i>Sobra</span><span><span class="marca-sinl" style="position:static">sin L</span>Sin líder en algún momento</span><span><span class="av lider" style="display:inline-grid">LT</span>Iniciales: toca la hora para ver los nombres</span><span><i class="mu alm"></i>En almacén</span><span><i class="mu pre"></i>No suma</span>`,
+    'abre-y-cierra': `<span><i class="mu falta"></i>Falta gente en piso</span><span><i class="mu ok"></i>Alcanza</span>${LEYENDA_COMUN}<span>La hora solo aparece cuando sale de lo común</span>`,
+  };
+  const LEMA = {
+    'planilla': '<strong>A · Planilla.</strong> Responde primero «¿qué turno tiene cada una?». Una fila por persona y la semana entera a lo ancho, como un rol de turnos impreso. La cobertura queda arriba, resumida en el peor momento de cada día.',
+    'integrada-compacta': '<strong>B · Integrada compacta.</strong> La misma Integrada de hoy, con la hora por hora y la meta, pero cada casilla ocupa una línea: la cuenta y las iniciales. Los nombres completos salen al tocar la hora.',
+    'abre-y-cierra': '<strong>C · Abre y cierra.</strong> Habla como se habla en tienda: quién abre, quién está a media jornada, quién cierra y quién descansa. Nombres completos siempre a la vista; la hora solo cuando es distinta a la de su grupo.',
+  };
+  const NOTAS = {
+    'planilla': {
+      gana: ['La semana de una persona es una fila. En la Integrada está repartida en 13 filas de horas.', 'Diez personas son diez filas: cabe en una pantalla de computadora sin bajar.', 'Cambiar un turno es tocar la casilla de ese día; no hay que buscar el nombre entre las horas.', 'La columna «Semana» muestra quién no llega a su jornada antes de publicar.'],
+      paga: ['La hora por hora ya no está completa: queda la tira de color y el peor momento escrito. Para saber quién está a las 15:00 hay que ir a Integrada o Día.', 'En celular se lee con desplazamiento lateral (la columna de nombres queda fija).'],
+      igual: ['La misma cuenta del peor cuarto de hora, el corte de 14:15 y la meta de líderes; los números coinciden con la Integrada.', 'El mismo editor de turno, la L, la preselección aparte y el almacén.'],
+    },
+    'integrada-compacta': {
+      gana: ['Quien ya entiende la Integrada no aprende nada nuevo: mismas filas, mismos colores, mismos números.', 'Ocupa más o menos la sexta parte de alto: 13 líneas de 36 px en vez de casillas con 6 a 8 nombres cada una.', 'Sigue respondiendo «¿a qué hora me falta gente?» de un vistazo.'],
+      paga: ['Los nombres pasan a iniciales. Dos personas con las mismas iniciales obligan a tocar para saber quién es, y con más de 6 en una hora se ve «+2».', 'No responde rápido «¿qué turno tiene Camila?»: sigue repartido en horas.', 'Si la queja de las líderes es la forma de la Integrada y no su tamaño, esta no la resuelve.'],
+      igual: ['Es la misma regla (celdaConNombres) dibujada en chico: no hay una segunda forma de contar.', 'Tocar un nombre de la lista abre el mismo editor.'],
+    },
+    'abre-y-cierra': {
+      gana: ['Usa las palabras de la tienda: abre, cierra, descansa. Se entiende sin leyenda.', 'Nombres completos siempre visibles y la semana entera en cuatro filas.', 'Una captura de esta vista sirve para avisar la semana al equipo.'],
+      paga: ['«Abre» y «cierra» es una clasificación nueva: hay que acordar dónde termina la apertura (aquí, entrar hasta 30 min después de abrir). Un turno partido o muy raro se ve menos exacto.', 'La cobertura por hora no se ve; solo el peor momento del día y si falta líder.', 'Es el dibujo más distinto de los tres: la Integrada y esta no se parecen.'],
+      igual: ['Los mismos números de cobertura y la misma alerta de «sin líder».', 'El mismo editor de turno, la L, la preselección y el almacén.'],
+    },
+  };
+  function notas(v) {
+    const n = NOTAS[v];
+    const li = (xs) => xs.map((x) => `<li>${x}</li>`).join('');
+    return `
+      <article class="nota"><h2>Qué gana y qué paga esta demo</h2>
+        <p class="k gana">Gana</p><ul>${li(n.gana)}</ul>
+        <p class="k paga">Paga</p><ul>${li(n.paga)}</ul>
+        <p class="k igual">No cambia</p><ul>${li(n.igual)}</ul></article>
+      <article class="nota"><h2>Cómo llega cada quien a su vista</h2><ul>
+        <li>«Compacta» es una pestaña más, junto a Integrada y Día. Nadie pierde la que le gusta.</li>
+        <li>La primera vez, una líder de equipo entra en Compacta y el resto en Integrada.</li>
+        <li>Después, cada quien vuelve a la última que eligió. Turnos ya lo recuerda por navegador (<code>turnos.vista.v2</code>).</li>
+        <li>La regla de «quién arranca en cuál» va en <code>permisos.ts</code>, como cualquier otra pregunta por rol.</li>
+        <li>Las tres demos leen los mismos datos. Ninguna necesita migración: solo cambia el dibujo.</li>
+      </ul></article>
+      <article class="nota"><h2>Probarlo con dos líderes (10 minutos)</h2>
+        <p style="font-size:.88rem;margin-bottom:8px">Las mismas cuatro tareas en cada demo y en la Integrada de hoy. Se anota cuánto tarda y si se equivoca, sin ayudarla.</p>
+        <ol>
+          <li>¿Quién cierra el sábado?</li>
+          <li>¿A qué hora del viernes falta gente y cuántas?</li>
+          <li>¿Hay algún momento de la semana sin líder?</li>
+          <li>Cambia el turno de Brenda del miércoles a 10:30–19:00.</li>
+        </ol></article>`;
+  }
+
+  // ── Interacción ──
+  const $ = (s) => document.querySelector(s);
+  const VISTAS = { 'planilla': vistaA, 'integrada-compacta': vistaB, 'abre-y-cierra': vistaC };
+  let actual = 'planilla';
+  function mostrar(v) {
+    if (!VISTAS[v]) v = 'planilla';
+    actual = v;
+    document.querySelectorAll('.vbtn[data-v]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+    $('#vista').innerHTML = VISTAS[v]();
+    $('#leyenda').innerHTML = LEYENDA[v];
+    $('#lema').innerHTML = LEMA[v];
+    $('#notas').innerHTML = notas(v);
+    cerrarPop();
+  }
+  function aviso(t) {
+    const el = $('#toast'); el.textContent = t; el.hidden = false;
+    clearTimeout(aviso.t); aviso.t = setTimeout(() => { el.hidden = true; }, 2600);
+  }
+  document.querySelectorAll('.vbtn[data-v]').forEach((b) => b.addEventListener('click', () => {
+    try { history.replaceState(null, '', '#' + b.dataset.v); } catch (e) { location.hash = b.dataset.v; }
+    mostrar(b.dataset.v);
+  }));
+  window.addEventListener('hashchange', () => mostrar(location.hash.slice(1)));
+  document.querySelectorAll('[data-w]').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-w]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    $('#page').classList.toggle('movil', b.dataset.w === 'cel');
+    cerrarPop();
+  }));
+  const TEMAS = ['sistema', 'claro', 'oscuro'];
+  let tema = 0;
+  $('#tema').addEventListener('click', () => {
+    tema = (tema + 1) % 3;
+    const r = document.documentElement;
+    if (tema === 0) r.removeAttribute('data-theme'); else r.setAttribute('data-theme', tema === 1 ? 'light' : 'dark');
+    $('#tema').textContent = 'Tema: ' + TEMAS[tema];
+  });
+  document.querySelectorAll('[data-pest]').forEach((b) => b.addEventListener('click', () => aviso(`La ${b.textContent.trim()} de hoy no cambia; en la maqueta solo está dibujada la Compacta.`)));
+  document.querySelectorAll('[data-nada]').forEach((b) => b.addEventListener('click', () => aviso('En la maqueta la semana está fija: del 2 al 8 de noviembre.')));
+
+  // Popover de una hora (B)
+  const pop = $('#pop');
+  function cerrarPop() { pop.hidden = true; }
+  function abrirHora(btn, d, i) {
+    const c = CELDAS[d][i];
+    const palabra = c.estado === 'falta' ? `falta ${c.meta - c.enPiso}` : c.estado === 'sobra' ? `sobra ${c.enPiso - c.meta}` : 'completo';
+    const filas = c.nombres.map((x) => {
+      const det = [x.entra != null ? `entra ${fmt(x.entra)}` : '', x.sale != null ? `sale ${fmt(x.sale)}` : '', x.algoAlm ? 'en almacén' : '', x.p.cuenta ? '' : x.p.aparte].filter(Boolean).join(' · ');
+      return `<button class="nom${x.p.cuenta ? '' : ' pre'}" data-ed="${x.p.id}|${d}">${L(x.p)}<span class="tx">${esc(x.p.nombre)}</span>${det ? `<span class="h">${det}</span>` : ''}</button>`;
+    }).join('');
+    pop.innerHTML = `<button class="cerrar" type="button" aria-label="Cerrar">${ICO.x}</button>
+      <h3 id="pop-t">${DIAS[d].largo[0].toUpperCase() + DIAS[d].largo.slice(1)}</h3>
+      <p class="muted num" style="font-size:.84rem;margin-top:-4px">${fmt(c.h0)} a ${fmt(c.h0 + 1)}</p>
+      <span class="estado ${c.estado}" style="align-self:flex-start">${c.estado === 'falta' ? ICO.falta : ICO.ok}${c.enPiso} en piso · meta ${c.meta} · ${palabra}</span>
+      ${c.sinLider ? `<span class="estado sinl" style="align-self:flex-start">${ICO.sinl}Sin líder en algún momento de esta hora</span>` : ''}
+      <div class="lista">${filas}</div>
+      <p class="muted" style="font-size:.74rem">Toca un nombre para cambiar su turno de ese día.</p>`;
+    pop.hidden = false;
+    const r = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    let x = r.left, y = r.bottom + 6;
+    if (x + w > innerWidth - 16) x = innerWidth - 16 - w;
+    if (y + h > innerHeight - 16) y = Math.max(16, r.top - h - 6);
+    pop.style.left = Math.max(16, x) + 'px'; pop.style.top = y + 'px';
+    pop.querySelector('.cerrar').addEventListener('click', cerrarPop);
+    pop.querySelector('.cerrar').focus();
+  }
+
+  // Editor de turno (el mismo de hoy; en la maqueta no guarda)
+  const velo = $('#velo');
+  function abrirEditor(pid, d) {
+    const p = PERSONAS.find((x) => x.id === pid), t = turnoDe(p, d), b = base(p, d);
+    cerrarPop();
+    velo.innerHTML = `<div class="caja" role="dialog" aria-modal="true" aria-labelledby="ed-t">
+      <h3 id="ed-t">${esc(p.nombre)} · ${DIAS[d].largo}</h3>
+      <p class="muted" style="font-size:.84rem">${b ? `Su horario base ese día: ${fmt(b[0])} a ${fmt(b[1])}` : 'Ese día es su descanso en el horario base.'}${p.cuenta ? '' : ' · ' + p.aparte + ': no suma a la meta'}</p>
+      <div class="campos"><label for="ed-e">Entra<input id="ed-e" type="time" value="${t ? fmt(t.e) : ''}"></label><label for="ed-s">Sale<input id="ed-s" type="time" value="${t ? fmt(t.s) : ''}"></label></div>
+      <p class="aviso">Es el mismo editor que abre hoy la Integrada al tocar un nombre. En la maqueta no guarda nada.</p>
+      <div class="acc"><button class="btn" type="button" data-cerrar="1">Cancelar</button><button class="btn" type="button" data-cerrar="1">${t ? 'Marcar descanso' : 'Poner turno'}</button><button class="btn prim" type="button" data-cerrar="1">Guardar</button></div>
+    </div>`;
+    velo.hidden = false;
+    velo.querySelector('#ed-e').focus();
+  }
+  velo.addEventListener('click', (e) => {
+    if (e.target === velo) velo.hidden = true;
+    const c = e.target.closest('[data-cerrar]');
+    if (c) { velo.hidden = true; if (c.classList.contains('prim')) aviso('En la maqueta no se guarda nada.'); }
+  });
+  document.addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-ed]');
+    if (ed) { const [pid, d] = ed.dataset.ed.split('|'); abrirEditor(pid, +d); return; }
+    const hr = e.target.closest('[data-hora]');
+    if (hr) { const [d, i] = hr.dataset.hora.split('|').map(Number); abrirHora(hr, d, i); return; }
+    if (!pop.hidden && !e.target.closest('#pop')) cerrarPop();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { cerrarPop(); velo.hidden = true; } });
+  window.addEventListener('scroll', cerrarPop, { passive: true });
+
+  mostrar(location.hash.slice(1) || 'planilla');
+})();
+</script>
+
+</body>
+</html>
