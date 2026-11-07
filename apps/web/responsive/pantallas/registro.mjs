@@ -35,6 +35,7 @@
 import { leerMenu, moduloDeRuta } from "../../tema/motor/rutas.mjs";
 import pantallaDashboard from "./inicio.dashboard.mjs";
 import pantallaLiquidaciones from "./pago.liquidaciones.mjs";
+import pantallaPlanilla from "./pago.planilla.mjs";
 
 /** @type {PantallaSinModulo[]} */
 const PANTALLAS = [
@@ -45,7 +46,7 @@ const PANTALLAS = [
   { id: "contratos", nombre: "Contratos", ruta: "/admin/contratos", cuenta: "do" },
   { id: "equipo", nombre: "Equipo", ruta: "/admin/equipo", cuenta: "admin" },
   { id: "datos-personales", nombre: "Datos personales", ruta: "/admin/datos-personales", cuenta: "do" },
-  { id: "planilla", nombre: "Planilla", ruta: "/admin/planilla", cuenta: "do" },
+  pantallaPlanilla,
   pantallaLiquidaciones,
   { id: "normas", nombre: "Normas", ruta: "/admin/normas", cuenta: "integrante" },
   { id: "reporte-sede", nombre: "Hoja de sede", ruta: "/admin/reporte-sede", cuenta: "lider" },
