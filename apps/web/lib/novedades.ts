@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-pantallas-al-instante",
+    fecha: "2026-11-07",
+    titulo: "El Dashboard, Turnos, Horarios y el terminal se actualizan solos, al instante",
+    queMejoro:
+      "Cuando alguien marca en el terminal, cambia un turno o un horario, o se agrega a una persona, el Dashboard, Turnos, " +
+      "Horarios y la lista del terminal se ponen al día solos en menos de un segundo, sin recargar la página. Antes " +
+      "tardaban hasta un minuto, y Horarios no se ponía al día hasta recargarla.\n\n" +
+      "Si la conexión se corta, el Dashboard lo dice: donde decía «en vivo» dice «se pone al día cada 5 min» hasta que " +
+      "vuelve, y lo que pasó mientras tanto aparece solo. Si estás escribiendo en un campo, la pantalla espera a que " +
+      "termines. Y los números de Incidencias y Bandeja del menú suben en cuanto alguien pide revisar un día suyo.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-07-hoja-de-sede-abre-tu-sede",
     fecha: "2026-11-07",
     titulo: "La Hoja de sede abre la de tu sede",

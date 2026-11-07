@@ -6,6 +6,32 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-07 — Tiempo real, lote 1: la base avisa y las pantallas se enteran al instante · migración **0604 SIN PEGAR** · prueba 491 · rama `claude/dynamic-real-time-websocket-d99d85`, **solo en local**
+
+**De dónde sale.** Felipe (2026-11-07): todo Dynamic en tiempo real, con websocket, e investigar si hay otra forma segura, rápida y precisa. Se comparó contra
+seis caminos y se eligió el aviso sin datos por Broadcast desde la base, con la lectura por las funciones de siempre. Qué se descartó y por qué:
+[`adr/0006-tiempo-real.md`](adr/0006-tiempo-real.md).
+
+**Construido (commits locales, sin push ni PR, por pedido de Felipe).** La 0604 hace que 22 tablas avisen a tres temas (asistencia, horarios, personas).
+Se pega en una sola vez: toma los candados sin esperar. La prueba 491 trae el guardián de tablas nuevas. `useAlDia` (`apps/web/lib/tiempo-real.ts`) lo
+usan el tablero (deja de pedir cada 30 s y «en vivo» dice la verdad), Turnos y Horarios, el terminal y los contadores de Incidencias y Bandeja del menú.
+Se borró `turnos-al-dia.ts`. El entorno local trae el Realtime de verdad si Docker está prendido (`scripts/local/tiempo-real.sh`), y se puede levantar una
+segunda instancia para no tocar la que otra sesión tiene abierta.
+
+**Medido.** Ver el ADR: ~300 ms del guardado a la pantalla, 0 consultas del tablero en reposo, recuperación sola después de un corte, 395/395 pgTAP y
+3 650 vitest en verde.
+
+**Antes de subir, en este orden.** (1) Que Felipe lo vea en local (el tablero y Turnos en dos ventanas). (2) Push y PR con `/abrir-pr`. (3) En producción,
+antes de pegar: `select to_regprocedure('realtime.send(jsonb,text,text,boolean)'), to_regclass('realtime.messages');` tiene que devolver las dos cosas.
+(4) Pegar la 0604 con `./scripts/dame-el-sql.sh 0604`, fuera del horario de tienda. El SELECT del final dice «Lista» o «ATENCIÓN». (5) Recién entonces
+fusionar. **Si se fusiona sin la 0604 pegada, el tablero pierde su refresco de 30 s y queda en «cada 5 min»**: no se rompe nada, pero empeora.
+(6) Opcional, decisión de Felipe: apagar «Allow public access» en la configuración de Realtime.
+
+**Sigue.** Los lotes 2 a 5 (el ADR tiene la lista; la de tablas, la 491). El lote 4 (plata) va con aviso «Hubo cambios · Actualizar», no con refresco
+solo. Aparte: que dos personas que editan lo mismo no se pisen (el tiempo real no lo evita).
+
+---
+
 ## 2026-11-05 — Rediseño como Retail: Etapa 0 aprobada para subir, en cuatro PR · la firma, publicada ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680))
 
 **De dónde sale.** Felipe decidió que Dynamic se vea y se mueva como Retail. Tablero: [`vidrio/README.md`](vidrio/README.md). Regla suya: nada del diseño se
