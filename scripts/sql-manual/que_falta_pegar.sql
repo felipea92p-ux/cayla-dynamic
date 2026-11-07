@@ -456,7 +456,8 @@ with repo(numero, nombre, nunca) as (values
     (597, 'quien_se_da_de_baja_ya_no_entra', false),
     (598, 'liquidaciones_lista_sin_el_calculo_de_diferencias', false),
     (602, 'a_cada_persona_le_llega_el_aviso_de_su_seguro', false),
-    (603, 'renovar_un_seguro_avisa_por_correo_a_do', false)
+    (603, 'renovar_un_seguro_avisa_por_correo_a_do', false),
+    (604, 'las_pantallas_se_enteran_al_instante', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
