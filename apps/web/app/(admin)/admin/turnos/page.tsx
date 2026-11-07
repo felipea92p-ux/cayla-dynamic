@@ -1511,19 +1511,40 @@ export default function TurnosPage() {
 
   // Semana: la fila de cada persona. Qué le toca cada día lo dice `celda` (jornada-esperada.ts); las horas y si
   // cumple su jornada, borrador-semana.ts —las mismas que compara el borrador—.
+  //
+  // Con la propuesta o el borrador a la vista (la misma `capa` que dibuja la Integrada), la casilla que cambia muestra
+  // lo nuevo con lo de antes tachado, y las horas se miden con lo nuevo. Con un borrador guardado que no se está
+  // mirando, sus días quedan marcados: si la líder cambia uno, publicar el borrador escribe encima.
+  const igualTurno = (a: TurnoMin | null, b: TurnoMin | null) =>
+    (a === null && b === null) || (a !== null && b !== null && a.entrada === b.entrada && a.salida === b.salida);
+  const textoTurno = (t: TurnoMin | null) => (t ? `${decimalAHHMM(t.entrada / 60)}–${decimalAHHMM(t.salida / 60)}` : "descanso");
+  const enCapa = (personaId: string, iso: string): TurnoMin | null | undefined =>
+    capa && capa.ids.has(personaId) ? (capa.turnos[personaId]?.[iso] ?? null) : undefined;
+  const cambiaEnBorrador = (personaId: string, iso: string) =>
+    Boolean(semanaBorrador?.[personaId]) && !igualTurno(semanaBorrador![personaId][iso] ?? null, turnoActualMin(personaId, iso));
   const filasDeLaSemana = (): FilaSemana[] =>
     personas.map((p) => {
       const casillas = dias.map((iso): CasillaSemana => {
+        const actual = turnoActualMin(p.id, iso);
+        const nuevo = enCapa(p.id, iso);
+        if (nuevo !== undefined && !igualTurno(nuevo, actual)) {
+          const antes = textoTurno(actual);
+          return nuevo
+            ? { tipo: "turno", entrada: decimalAHHMM(nuevo.entrada / 60), salida: decimalAHHMM(nuevo.salida / 60), almacen: null, antes }
+            : { tipo: "descanso", antes };
+        }
+        const enBorrador = nuevo === undefined && cambiaEnBorrador(p.id, iso);
         const c = celda(p.id, iso);
-        if (c.tipo === "descanso") return { tipo: "descanso" };
-        if (c.tipo === "libre") return { tipo: "sin_turno" };
+        if (c.tipo === "descanso") return { tipo: "descanso", enBorrador };
+        if (c.tipo === "libre") return { tipo: "sin_turno", enBorrador };
         const turno = { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN };
         const alm = tramosEnAlmacen(puestoDe(p.id, iso), turno);
         const todoElTurno = alm.length === 1 && alm[0].desde <= turno.desde + 1e-9 && alm[0].hasta >= turno.hasta - 1e-9;
         const almacen = alm.length === 0 ? null : todoElTurno ? "todo el turno" : alm.map((a) => `${decimalAHHMM(a.desde)}–${decimalAHHMM(a.hasta)}`).join(", ");
-        return { tipo: "turno", entrada: hhmm(c.entrada), salida: c.salida ? hhmm(c.salida) : null, almacen };
+        return { tipo: "turno", entrada: hhmm(c.entrada), salida: c.salida ? hhmm(c.salida) : null, almacen, enBorrador };
       });
-      const netas = horasNetas(Object.fromEntries(dias.map((f) => [f, turnoActualMin(p.id, f)])), dias, refrigerioDe(p.id));
+      const visible = (f: string) => { const n = enCapa(p.id, f); return n === undefined ? turnoActualMin(p.id, f) : n; };
+      const netas = horasNetas(Object.fromEntries(dias.map((f) => [f, visible(f)])), dias, refrigerioDe(p.id));
       return {
         id: p.id, nombre: `${p.nombres} ${p.apellidos ?? ""}`.trim(), lider: esEncargada(p), aparte: aparteDe(p), casillas,
         horas: cumpleJornada(netas.total, jornadasSede.get(p.id) ?? null, netas.porDia),
@@ -1685,6 +1706,63 @@ export default function TurnosPage() {
       <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6"><p className="max-w-md text-center text-taupe">No tienes permiso para ver los turnos.</p></main>
       </div>
+    );
+  }
+
+  // ── Lo que se arma ANTES de publicar la semana ───────────────────────────────
+  // «Sugerir la semana», la propuesta a la vista y el borrador guardado. Lo dibujan la Integrada y Semana: una líder
+  // que trabaja en Semana tiene que ver el borrador que DO le dejó, porque publicarlo escribe encima de lo que ella
+  // cambie esos días (fn_publicar_semana, 0586: on conflict … do update).
+  function planDeLaSemana(): ReactNode {
+    const nombres = new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos ?? ""}`.trim()]));
+    const semanaFutura = lunes > hoyLima();
+    return (
+      <>
+        {puedeVer && !propuestaVigente && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Boton variante="secundario" tamano="sm" disabled={!semanaFutura || sugiriendo} onClick={() => void sugerirLaSemana()}
+              title={semanaFutura ? "Arma una propuesta con la venta de las últimas 4 semanas, la disponibilidad aprobada y la jornada de cada una" : "Solo se sugiere una semana que todavía no empieza"}>
+              {sugiriendo ? "Armando la propuesta…" : "Sugerir la semana"}
+            </Boton>
+            {!semanaFutura && <span className="text-xs text-taupe">Para sugerir, pasa a una semana que todavía no empieza.</span>}
+          </div>
+        )}
+        {propuestaVigente && filasDeLaPropuesta && (
+          <PropuestaDeLaSemana
+            propuesta={propuestaVigente.prop}
+            nombres={nombres}
+            semana={`del ${etiquetaDia(dias[0]).num} al ${etiquetaDia(dias[6]).num}`}
+            cambios={filasDeLaPropuesta.filas.length}
+            publicando={publicandoSemana}
+            notas={[...propuestaVigente.notas, ...(filasDeLaPropuesta.suyoFuera ? [filasDeLaPropuesta.suyoFuera] : [])]}
+            porAprobar={propuestaVigente.porAprobar}
+            onPublicar={() => void publicarLaSemana()}
+            onDescartar={() => setPropuesta(null)}
+            onGuardarBorrador={hayBorradores ? () => void guardarPropuestaComoBorrador() : undefined}
+            guardando={guardandoBorrador}
+            hayBorrador={Boolean(borradorVigente)}
+          />
+        )}
+        {borradorVigente && semanaBorrador && (
+          <BorradorDeLaSemana
+            key={`${borradorVigente.id}|${borradorVigente.actualizadoAt}`}
+            semana={`del ${etiquetaDia(dias[0]).num} al ${etiquetaDia(dias[6]).num}`}
+            guardado={`${borradorVigente.actualizadoPor ? `por ${nombreLargo(borradorVigente.actualizadoPor)}, ` : ""}el ${etiquetaDia(fechaLima(borradorVigente.actualizadoAt)).num} a las ${horaLima(borradorVigente.actualizadoAt)}${borradorVigente.origen === "sugerido" ? ", desde «Sugerir la semana»" : ""}`}
+            filas={filasComparativa}
+            notas={notasBorrador}
+            porPublicar={filasBorradorFuturas.length}
+            yaLlegaron={(publicacionBorrador?.filas.length ?? 0) - filasBorradorFuturas.length}
+            noVa={publicacionBorrador?.suyoFuera ?? null}
+            viendo={verBorrador && !propuestaVigente}
+            publicando={publicandoBorrador}
+            guardando={guardandoBorrador}
+            onVer={() => setVerBorrador((v) => !v)}
+            onPublicar={() => void publicarElBorrador()}
+            onDescartar={() => void descartarElBorrador()}
+            onGuardarNotas={(notas) => void guardarBorrador(semanaBorrador, borradorVigente.origen, notas).then((ok) => { if (ok) avisar("ok", "Se guardaron las notas del borrador."); })}
+          />
+        )}
+      </>
     );
   }
 
@@ -2112,54 +2190,9 @@ export default function TurnosPage() {
             const muestra = (t: { fondo: string; texto: string }) => (
               <span aria-hidden className="inline-block h-3 w-3 rounded-[4px] border-[1.5px]" style={{ background: t.fondo, borderColor: t.texto }} />
             );
-            const nombres = new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos ?? ""}`.trim()]));
-            const semanaFutura = lunes > hoyLima();
             return (
               <div className="space-y-3">
-                {puedeVer && !propuestaVigente && (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Boton variante="secundario" tamano="sm" disabled={!semanaFutura || sugiriendo} onClick={() => void sugerirLaSemana()}
-                      title={semanaFutura ? "Arma una propuesta con la venta de las últimas 4 semanas, la disponibilidad aprobada y la jornada de cada una" : "Solo se sugiere una semana que todavía no empieza"}>
-                      {sugiriendo ? "Armando la propuesta…" : "Sugerir la semana"}
-                    </Boton>
-                    {!semanaFutura && <span className="text-xs text-taupe">Para sugerir, pasa a una semana que todavía no empieza.</span>}
-                  </div>
-                )}
-                {propuestaVigente && filasDeLaPropuesta && (
-                  <PropuestaDeLaSemana
-                    propuesta={propuestaVigente.prop}
-                    nombres={nombres}
-                    semana={`del ${etiquetaDia(dias[0]).num} al ${etiquetaDia(dias[6]).num}`}
-                    cambios={filasDeLaPropuesta.filas.length}
-                    publicando={publicandoSemana}
-                    notas={[...propuestaVigente.notas, ...(filasDeLaPropuesta.suyoFuera ? [filasDeLaPropuesta.suyoFuera] : [])]}
-                    porAprobar={propuestaVigente.porAprobar}
-                    onPublicar={() => void publicarLaSemana()}
-                    onDescartar={() => setPropuesta(null)}
-                    onGuardarBorrador={hayBorradores ? () => void guardarPropuestaComoBorrador() : undefined}
-                    guardando={guardandoBorrador}
-                    hayBorrador={Boolean(borradorVigente)}
-                  />
-                )}
-                {borradorVigente && semanaBorrador && (
-                  <BorradorDeLaSemana
-                    key={`${borradorVigente.id}|${borradorVigente.actualizadoAt}`}
-                    semana={`del ${etiquetaDia(dias[0]).num} al ${etiquetaDia(dias[6]).num}`}
-                    guardado={`${borradorVigente.actualizadoPor ? `por ${nombreLargo(borradorVigente.actualizadoPor)}, ` : ""}el ${etiquetaDia(fechaLima(borradorVigente.actualizadoAt)).num} a las ${horaLima(borradorVigente.actualizadoAt)}${borradorVigente.origen === "sugerido" ? ", desde «Sugerir la semana»" : ""}`}
-                    filas={filasComparativa}
-                    notas={notasBorrador}
-                    porPublicar={filasBorradorFuturas.length}
-                    yaLlegaron={(publicacionBorrador?.filas.length ?? 0) - filasBorradorFuturas.length}
-                    noVa={publicacionBorrador?.suyoFuera ?? null}
-                    viendo={verBorrador && !propuestaVigente}
-                    publicando={publicandoBorrador}
-                    guardando={guardandoBorrador}
-                    onVer={() => setVerBorrador((v) => !v)}
-                    onPublicar={() => void publicarElBorrador()}
-                    onDescartar={() => void descartarElBorrador()}
-                    onGuardarNotas={(notas) => void guardarBorrador(semanaBorrador, borradorVigente.origen, notas).then((ok) => { if (ok) avisar("ok", "Se guardaron las notas del borrador."); })}
-                  />
-                )}
+                {planDeLaSemana()}
                 <ComoSeLee>
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-taupe">
                   <span className="flex items-center gap-1.5">{muestra(TONO.ok)}Alcanza</span>
@@ -2336,6 +2369,33 @@ export default function TurnosPage() {
                 const titulo = abierto ? (() => { const { num } = etiquetaDia(abierto); return `${DIAS_LARGOS[diaSemana(abierto)]} ${num}${abierto === hoy ? " · hoy" : ""}`; })() : "";
                 return (
                   <>
+                    {planDeLaSemana()}
+                    <ComoSeLee>
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-taupe">
+                        <span className="flex items-center gap-1.5">
+                          <span aria-hidden className="grid h-4 w-4 place-items-center rounded-full bg-tinta text-[9px] font-bold leading-none text-crema">L</span>
+                          Líder de equipo
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span aria-hidden className="inline-block h-3 w-3 rounded-[4px] border border-dashed border-taupe" />
+                          No suma a la meta (preselección u otra área)
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span aria-hidden className="rounded-full bg-azul/10 px-1.5 text-[10px] font-medium text-azul">alm.</span>
+                          En almacén: no cuenta en piso
+                        </span>
+                        {(capa || semanaBorrador) && (
+                          <span className="flex items-center gap-1.5">
+                            <span aria-hidden className="inline-block h-3 w-3 rounded-[4px] border border-dashed border-pizarra bg-pizarra/10" />
+                            Lo cambia {propuestaVigente ? "la propuesta" : "el borrador"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="max-w-3xl text-xs text-taupe">
+                        Arriba de cada día, cuántas hay en piso en su peor momento contra la meta (la misma cuenta de la Integrada).
+                        Toca un día para abrirlo debajo, o una casilla para cambiar ese turno.
+                      </p>
+                    </ComoSeLee>
                     <TablaSemana
                       dias={dias.map((iso) => ({ iso, ...etiquetaDia(iso), hoy: iso === hoy }))}
                       filas={filasDeLaSemana()}
@@ -2561,6 +2621,16 @@ export default function TurnosPage() {
                     <Campo etiqueta="Entrada" type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} />
                     <Campo etiqueta="Salida" type="time" value={salida} onChange={(e) => setSalida(e.target.value)} />
                   </div>
+                  {/* Una persona que está en el borrador guardado: publicarlo escribe sus días (fn_publicar_semana, on
+                      conflict … do update), también el que hoy coincide con el borrador y ella cambie después. Por eso el
+                      aviso no depende de que el día «cambie hoy». Solo los días que faltan: lo que ya pasó no se publica. */}
+                  {edit.fecha > hoyLima() && semanaBorrador?.[edit.personaId] && (
+                    <BannerAviso enLinea variante="informativo" className="mt-3 text-xs">
+                      Este día está en el borrador de la semana, que lo deja en{" "}
+                      <strong>{textoTurno(semanaBorrador?.[edit.personaId]?.[edit.fecha] ?? null)}</strong>. Si guardas aquí y después
+                      se publica el borrador, se queda lo del borrador.
+                    </BannerAviso>
+                  )}
                   {hayAviso && (
                     <CajaDeAviso variante="advertencia" clase="mt-3 space-y-1 rounded-lg border border-ambar/40 bg-ambar/[0.06] px-3 py-2 text-xs text-ambar">
                       {avisoDescansoAntes && (

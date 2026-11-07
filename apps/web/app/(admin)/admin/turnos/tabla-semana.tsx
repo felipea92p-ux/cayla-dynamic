@@ -21,10 +21,16 @@ import { cx } from "@/components/ui/cx";
 import { textoCumple, type Cumple } from "@/lib/admin/borrador-semana";
 import type { ResumenSemanalDelDia, TonoDeHora } from "@/lib/admin/semana-por-persona";
 
-export type CasillaSemana =
+export type CasillaSemana = (
   | { tipo: "turno"; entrada: string; salida: string | null; almacen: string | null }
   | { tipo: "descanso" }
-  | { tipo: "sin_turno" };
+  | { tipo: "sin_turno" }
+) & {
+  /** Con la propuesta o el borrador a la vista: lo que esta casilla dice hoy, que lo nuevo reemplaza. */
+  antes?: string;
+  /** Hay un borrador guardado que cambia este día y no se está mirando: publicarlo escribe encima. */
+  enBorrador?: boolean;
+};
 
 export interface FilaSemana {
   id: string;
@@ -202,22 +208,28 @@ export function TablaSemana({
                     {c.almacen && <span className="mt-0.5 block rounded-full bg-azul/10 px-1.5 text-[10px] font-medium text-azul">alm. {c.almacen}</span>}
                   </>
                 ) : c.tipo === "descanso" ? "Descanso" : "—";
+                const texto = c.tipo === "turno" ? `${c.entrada} a ${c.salida ?? "sin salida"}${c.almacen ? `, almacén ${c.almacen}` : ""}` : c.tipo === "descanso" ? "descanso" : "sin turno";
+                const aviso = c.antes !== undefined ? `, antes ${c.antes}` : c.enBorrador ? ", el borrador cambia este día" : "";
                 return (
                   <td key={d.iso} className={cx("px-1 py-1 text-center", col(d))}>
                     <button
                       type="button"
                       disabled={!alTocarCasilla}
                       onClick={() => alTocarCasilla?.(f.id, d.iso)}
-                      aria-label={`${titulo}: ${c.tipo === "turno" ? `${c.entrada} a ${c.salida ?? "sin salida"}${c.almacen ? `, almacén ${c.almacen}` : ""}` : c.tipo === "descanso" ? "descanso" : "sin turno"}`}
-                      title={alTocarCasilla ? `Cambiar el turno: ${titulo}` : undefined}
+                      aria-label={`${titulo}: ${texto}${aviso}`}
+                      title={c.enBorrador ? "El borrador de la semana cambia este día: si lo cambias aquí y después se publica el borrador, se queda lo del borrador." : alTocarCasilla ? `Cambiar el turno: ${titulo}` : undefined}
                       className={cx(
                         "w-full rounded-control border border-transparent px-1 py-1.5 text-[13px] transition-colors enabled:hover:border-taupe enabled:hover:bg-crema disabled:cursor-default",
                         c.tipo === "descanso" && "text-xs text-ceniza [background:repeating-linear-gradient(135deg,transparent_0_6px,color-mix(in_srgb,var(--color-sand)_70%,transparent)_6px_7px)]",
                         c.tipo === "sin_turno" && "text-taupe",
                         c.tipo === "turno" && f.aparte && "border-dashed border-taupe/60 text-taupe",
+                        // Lo que cambia la propuesta o el borrador, en pizarra: el color de «en revisión».
+                        c.antes !== undefined && "border-dashed border-pizarra bg-pizarra/10 text-tinta",
+                        c.enBorrador && "border-dashed border-pizarra/60",
                       )}
                     >
                       {contenido}
+                      {c.antes !== undefined && <span className="block text-[10px] text-taupe line-through">{c.antes}</span>}
                     </button>
                   </td>
                 );
