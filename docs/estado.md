@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-07 — Turnos: «Semana» reemplaza a Día, y el día se abre dentro · sin SQL · commits locales, SIN SUBIR (esperan que Felipe lo vea en local) · rama `claude/compact-view-leaders-45d7bf`
+## 2026-11-07 — Turnos: «Semana» reemplaza a Día, y el día se abre dentro · sin SQL · [#711](https://github.com/felipea92p-ux/cayla-dynamic/pull/711): Felipe lo vio en local y pidió fusionarlo con las pruebas en verde (2026-11-07) · rama `claude/compact-view-leaders-45d7bf`
 
 **De dónde sale.** Las líderes de equipo no se hallaban con la Integrada; a otros sí les sirve. Felipe eligió entre tres maquetas la de una fila
 por persona ([`turnos-compacta-prototipo-2026-11-07.html`](turnos-compacta-prototipo-2026-11-07.html)), y después que reemplazara a Día con el día
@@ -19,8 +19,13 @@ pusieron en rojo al romper la regla tres veces. Tocar un día abre debajo `detal
 después). La líder entra en Semana y DO/admin en la Integrada (`turnos.vista.v3`). El borrador y la propuesta se ven en las dos vistas, y el editor
 avisa en un día de alguien que está en el borrador, porque publicarlo escribe encima. Novedad `2026-11-07-turnos-semana-en-lugar-de-dia`.
 
-**Pendiente.** Que Felipe lo vea con `node scripts/local/web.mjs` (cuentas `lider@` y `do@`). Con su OK: `/abrir-pr`, y la `fecha` de la novedad se
-corrige al día en que se fusione.
+**Después de verlo en local, Felipe pidió dos cosas más, también en #711.** Tocar un día lleva a él (baja la página y deja el foco en su título, con
+`prefiereQuieto()` de `lib/vidrio-movimiento.ts`). Y arranca en Semana quien es líder por su ROL o por la marca de líder en piso (`es_encargada_piso`)
+de SU ficha, no del texto del cargo: es libre (0182) y en los datos locales DO tiene de cargo «Líder de Desarrollo Organizacional».
+En el mismo PR va un arreglo aparte: `useFiltroGuardado` escribía el valor inicial al montar, y en desarrollo (modo estricto) ninguna preferencia
+sobrevivía a una recarga; ahora solo escribe lo que la persona elige.
+
+**Pendiente.** Nada de código. Si se fusiona otro día que no sea el 2026-11-07, la `fecha` de la novedad se corrige antes.
 
 ---
 
