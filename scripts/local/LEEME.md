@@ -1,6 +1,6 @@
 # Dynamic en tu computadora, sin Docker
 
-Levanta Dynamic con **login real y datos inventados**. Nada de aquí toca producción, ni Docker, ni las bases que comparten los otros worktrees. **Nunca se copia producción aquí**: tiene DNI, sueldos y firmas reales.
+Levanta Dynamic con **login real y datos inventados**. Nada de aquí toca producción ni las bases que comparten los otros worktrees. Docker solo se usa para el tiempo real, y es opcional: ver [Tiempo real](#tiempo-real). **Nunca se copia producción aquí**: tiene DNI, sueldos y firmas reales.
 
 ## Encender
 
@@ -49,7 +49,8 @@ Ni el Dashboard, ni la Bandeja, ni Provisiones cambian. Si el cese de Filomena s
 ## Otras órdenes
 
 ```bash
-./scripts/local/apagar.sh                # apaga; los datos se quedan
+./scripts/local/apagar.sh                # apaga (también el tiempo real); los datos se quedan
+./scripts/local/tiempo-real.sh           # enciende solo el tiempo real, si el resto ya está encendido
 ./scripts/local/crear-base.sh --de-cero  # borra y rehace la base con todas las migraciones de este worktree
 node scripts/local/sembrar.mjs --solo-ceses  # agrega a las dos cesadas a una base que ya existe; no borra nada y se puede repetir
 ```
@@ -64,17 +65,40 @@ node scripts/local/sembrar.mjs --solo-ceses  # agrega a las dos cesadas a una ba
 |---|---|---|
 | Base de datos | 55890 | Postgres 17 de Homebrew, con **todas las migraciones reales** y sus reglas y permisos |
 | API | 55891 | PostgREST, el mismo de producción |
-| Puerta | 55892 | `puerta.mjs`: reemplaza a Kong y a GoTrue. Comprueba la clave contra `auth.users` igual que GoTrue |
+| Puerta | 55892 | `puerta.mjs`: reemplaza a Kong y a GoTrue. Comprueba la clave contra `auth.users` igual que GoTrue. Reenvía el websocket `/realtime/v1/` |
+| Tiempo real | 55893 | El Realtime de Supabase **de verdad** (`realtime:v2.124.2`, la de la CLI de CI), en Docker, conectado a esta base. Opcional |
 
 **Lo que no reproduce:**
 
 - **Correo:** «Olvidé mi clave» responde bien, pero el correo no sale.
 - **Fotos y PDF:** no hay almacenamiento. Subir o abrir un archivo da error, y eso incluye el PDF de las boletas.
 - **Tareas programadas:** `pg_cron` queda registrado, pero no corre nunca.
-- **Tiempo real:** las pantallas que dependen de él no se actualizan solas.
 - Un defecto que dependa del GoTrue de verdad no aparece aquí.
 
 Para esos casos sigue estando `supabase start`, que necesita Docker.
+
+## Tiempo real
+
+Con **Docker prendido**, `arrancar.sh` levanta el Realtime de Supabase (`tiempo-real.sh`) y las pantallas se enteran de un cambio en unos 50 ms, igual que en producción (migración 0604). Para verlo, abre la misma pantalla en dos ventanas —por ejemplo Turnos como `admin@` y como `lider@`— y cambia algo en una.
+
+**Sin Docker** no se rompe nada: la línea «Tiempo real: apagado» lo dice al encender, y las pantallas se ponen al día al volver a la pestaña y cada 5 min.
+
+Lo que conviene saber:
+
+- **La base tiene que haber arrancado con `wal_level=logical`.** Desde el 2026-11-07 las opciones de Postgres lo piden (`PG_OPCIONES` en `comun.sh`), pero solo valen desde el próximo arranque. Si tu base ya estaba encendida, `arrancar.sh` lo avisa: apágala y vuelve a encenderla **cuando nadie la esté usando**, porque es una sola para todos los worktrees.
+- **Realtime entra como `supabase_admin`, no como `postgres`.** Lo que crea `postgres` nace sin permiso de ejecutar (la 0076), y entonces Realtime contesta «Unauthorized» a todo el mundo. Pasó la primera vez que se probó.
+- **La política de la 0604 se pone al final.** La migración solo crea la política si `realtime.messages` existe, y esa tabla la crea Realtime la primera vez que arranca. `tiempo-real.sh` vuelve a correr la última migración que la define.
+- Si algo falla: `docker logs dynamic-local-realtime-55893`.
+
+## Una segunda instancia
+
+La base es **una sola para todos los worktrees**. Si otra sesión la tiene abierta (`lsof -iTCP:55892 -sTCP:LISTEN` y mira de qué carpeta sale), no la apagues: levanta otra con su carpeta y sus puertos.
+
+```bash
+ENTORNO_LOCAL=/tmp/mi-entorno PUERTOS_LOCAL_DESDE=55990 PORT=3010 node scripts/local/web.mjs
+```
+
+Usa los puertos 55990 a 55993 y la app en el 3010. La primera vez crea su propia base desde cero con las migraciones de **tu** worktree. Para apagarla, las mismas dos variables delante de `./scripts/local/apagar.sh`.
 
 ## Trampas medidas
 
