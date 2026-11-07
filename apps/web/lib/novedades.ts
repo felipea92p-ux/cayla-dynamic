@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-06-entendido-todas-las-novedades",
+    fecha: "2026-11-06",
+    titulo: "Ya puedes marcar todas las novedades como entendidas de una vez",
+    queMejoro:
+      "Cuando hay más de tres novedades pendientes en «Lo mío», aparece el botón «Entendido todas», con el número " +
+      "que va a marcar. Antes había que marcarlas una por una, y con varias juntas la tarjeta ocupaba media pantalla.\n\n" +
+      "Marca también las que no se ven en la tarjeta. Todas siguen en Anuncios para leerlas completas.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-06-los-papeles-del-panel-salen-sobre-blanco",
     fecha: "2026-11-06",
     titulo: "Los papeles del panel ya salen sobre blanco",
