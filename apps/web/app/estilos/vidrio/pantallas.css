@@ -332,4 +332,11 @@
   :root[data-vidrio="panel"][data-tema="oscuro"] [class*="bg-[color-mix(in_oklab,var(--color-tinta)_80%"]:not(.hoja *) {
     background-color: color-mix(in oklab, var(--color-tinta) 52%, var(--color-papel));
   }
+
+  /* Dos fechas con su flecha en medio (Feriados): en el teléfono la segunda se salía 33 px de la pantalla. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .flex.items-center.gap-2:has(> label > input[type="date"]) {
+      flex-wrap: wrap;
+    }
+  }
 }
