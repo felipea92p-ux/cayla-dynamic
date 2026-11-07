@@ -139,6 +139,25 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-11-06-tu-seguro-llega-a-tu-bandeja",
+    fecha: "2026-11-06",
+    titulo: "Cuando tu póliza esté lista, te avisamos en tu Bandeja",
+    queMejoro:
+      "Si te registran una póliza o suben su PDF, ahora te llega un aviso a la Bandeja de tu Info y «Mi seguro» muestra " +
+      "un número hasta que lo abras. Antes solo lo veías si entrabas a mirar.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-06-seguros-pide-atencion",
+    fecha: "2026-11-06",
+    titulo: "Seguros abre con lo que pide atención",
+    queMejoro:
+      "La pantalla de Seguros ya no esconde a las personas detrás de cada sede: arriba está lo que hay que resolver, y una " +
+      "póliza colectiva sale una sola vez. También se ve la Vida Ley de cada persona.\n\n" +
+      "Una póliza por terminar y sin renovación llega a la Bandeja y por correo, a los 45 y a los 15 días.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-06-entendido-todas-las-novedades",
     fecha: "2026-11-06",
     titulo: "Ya puedes marcar todas las novedades como entendidas de una vez",

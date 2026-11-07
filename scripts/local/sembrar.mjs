@@ -415,7 +415,29 @@ function sembrarBaja(ALMA) {
   `);
 }
 
-if (process.argv.includes("--solo-marcas")) {
+// Una póliza de cada caso que importa en Seguros, por la función real: nadie de aquí tiene póliza por defecto. La Vida Ley es colectiva, como la de verdad.
+// Solo agrega si la base no tiene ninguna: repetirlo no duplica. Los números son inventados. Las vigencias salen de hoy, para que «por vencer» siga por vencer.
+function sembrarSeguros() {
+  if (psql("select 1 from polizas_seguro limit 1")) return 0;
+  const ids = (donde) => psql(`select string_agg(id::text, ',' order by id) from personas where estado = 'activo' and not cuenta_de_servicio and ${donde}`).split(",").filter(Boolean);
+  const dia = (n) => `(fn_hoy_lima() + ${n})`;
+  const planilla = ids("tipo_vinculo = 'planilla'");
+  const practicantes = ids("tipo_vinculo = 'practicante'");
+  const unaPoliza = (persona, numero, desde, hasta) => `select fn_seguro_registrar(${esc(persona)}, 'salud_practicantes', 'Aseguradora Inventada', ${esc(numero)}, ${dia(desde)}, ${dia(hasta)}, 179.97, ${dia(desde + 10)}, null, null, null, null, null);`;
+  const vidaLey = (personas, numero, desde, hasta) => `select * from fn_seguro_registrar_varias(array[${personas.map(esc).join(",")}]::uuid[], 'vida_ley', 'Aseguradora Inventada', ${esc(numero)}, ${dia(desde)}, ${dia(hasta)}, 14.50, ${dia(desde + 10)}, null, null, null, null, null);`;
+  const conTodo = (donde) => `update polizas_seguro set pagada_el = vigente_desde, firmada_el = vigente_desde, factura_recibida_el = vigente_desde where ${donde};`;
+  // Tres de cada cuatro de planilla en una Vida Ley que vence en 20 días; una persona, sin ninguna, para ver «Sin Vida Ley registrada».
+  const conVida = planilla.slice(0, Math.max(1, planilla.length - 1));
+  comoAdmin(`${vidaLey(conVida, "VL-0001", -90, 20)}
+    ${practicantes[0] ? unaPoliza(practicantes[0], "FOLA-0001", -30, 300) : ""}`);
+  psql(conTodo("true"));
+  return conVida.length + (practicantes[0] ? 1 : 0);
+}
+
+if (process.argv.includes("--solo-seguros")) {
+  const n = sembrarSeguros();
+  console.log(n ? `  Seguros: ${n} pólizas inventadas.` : "  Seguros: ya tenía pólizas, no se tocó.");
+} else if (process.argv.includes("--solo-marcas")) {
   const ultima = psql("select coalesce(max(fecha), (now() - interval '100 days')::date) from jornadas");
   // Solo se agrega lo que falta: si ya hay marcas de hoy, no se toca nada.
   if (ultima < HOY) console.log(`Marcas agregadas desde ${sumarDias(ultima, 1)}: ${sembrarMarcas(sumarDias(ultima, 1))}`);

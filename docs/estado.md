@@ -6,6 +6,23 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-06 — Seguros: «Pide atención», aviso a cada persona y correo de renovación · migraciones **0602 y 0603 SIN PEGAR** · prueba 490 · rama `claude/insurance-notifications-management-7bdf3c` · SIN SUBIR
+
+**De dónde sale.** Felipe preguntó quién falta en su seguro y pidió mejor vista, avisar a cada persona y un aviso de renovación. «Todo al día» no miraba Vida
+Ley, y una Vida Ley vencida o por vencer no avisaba a nadie.
+
+**Qué hay.** Seguros abre con lo que pide atención; una colectiva es una tarjeta y una fila en la Bandeja, no una por persona; «Registrar la renovación» abre con
+sus personas marcadas. **0602:** aviso derivado en la Bandeja de Info, con globito en Mi seguro. **0603:** correo a DO a los 45 y 15 días, con cron a las 11:00 UTC.
+
+**Lo que sigue decidido y no se reabre:** «planilla sin Vida Ley» se muestra y NO alerta; espera al contador (0543). `COMPLEMENTARIOS_DE_VINCULO` lo dice una vez.
+
+**Antes de pegar.** (1) La rama `claude/license-renewal-management-d28ed8` reescribe `fn_alertas_email_pendientes`, `fn_alerta_sigue_vigente` y
+`fn_alertas_resolver_fallidas` desde los mismos md5, con la 0599 a 0601: la guardia de la 0603 detiene a la segunda en pegarse, y esa se rehace sobre la primera.
+(2) El md5 de `fn_alertas_resolver_fallidas` en la 0603 es del repositorio: falta el de producción. (3) El md5 se vuelve a pedir en el mensaje de entrega.
+
+**Fuera de esto.** Anclar el costo con Retail espera la razón de Felipe; la prima mensual de Vida Ley no cabe en `pagada_el`, y sigue pendiente de lo mismo. El
+formulario propone tres meses de vigencia también al renovar una Vida Ley anual: se cambia a mano.
+
 ## 2026-11-05 — Rediseño como Retail: Etapa 0 aprobada para subir, en cuatro PR · la firma, publicada ([#680](https://github.com/felipea92p-ux/cayla-dynamic/pull/680))
 
 **De dónde sale.** Felipe decidió que Dynamic se vea y se mueva como Retail. Tablero: [`vidrio/README.md`](vidrio/README.md). Regla suya: nada del diseño se

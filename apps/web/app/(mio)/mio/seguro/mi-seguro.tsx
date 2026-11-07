@@ -15,7 +15,7 @@ import { BUCKET_SEGUROS } from "@/lib/admin/seguros";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
   datosConfirmados, enlaceTelefono, estadoDeVigencia, guiasQueAplican, nombreDeDescarga, polizasComplementarias, resolverMiSeguro,
-  resumenSoloRepite, rotuloDeArchivo, SI_NO_CUADRA, textoDeComplementaria, textoDelResumen, textoDeVigencia, traerMiSeguro,
+  resumenSoloRepite, marcarMiSeguroVisto, rotuloDeArchivo, SI_NO_CUADRA, textoDeComplementaria, textoDelResumen, textoDeVigencia, traerMiSeguro,
   type ArchivoMio, type GuiaQueAplica, type MiSeguro as MiSeguroCalculado, type PolizaComplementaria, type PolizaMia,
   type SeguroPrincipal, type TelefonoDeUso, type TextoResumen,
 } from "@/lib/mi-seguro";
@@ -323,7 +323,7 @@ function ComoUsarlo({ g, nombrePrincipal, sinTelefonos }: { g: GuiaQueAplica; no
 
 // ── La sección ──────────────────────────────────────────────────────────────
 
-export function MiSeguro() {
+export function MiSeguro({ alVerlo }: { alVerlo?: () => void }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const { avisar } = useToast();
   const [carga, setCarga] = useState<{ principal: SeguroPrincipal | null; polizas: PolizaMia[]; error: string | null } | null>(null);
@@ -337,6 +337,12 @@ export function MiSeguro() {
     void traerMiSeguro(supabase).then((r) => { if (vivo) setCarga(r); });
     return () => { vivo = false; };
   }, [supabase, intento]);
+
+  // Se monta al abrir la sección por primera vez: abrirla es haber visto lo que la Bandeja avisaba.
+  useEffect(() => {
+    void marcarMiSeguroVisto(supabase).then(() => alVerlo?.());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una vez, al abrirla: `alVerlo` cambia en cada render de /mio.
+  }, [supabase]);
 
   const hoy = hoyLima();
   const seguro = useMemo(() => (carga ? resolverMiSeguro(carga.principal, carga.polizas, hoy) : null), [carga, hoy]);

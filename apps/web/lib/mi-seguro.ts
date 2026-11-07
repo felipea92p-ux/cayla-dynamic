@@ -144,6 +144,19 @@ export async function traerMiSeguro(
   };
 }
 
+/**
+ * Abrir «Mi seguro» es haber visto lo que la Bandeja le avisaba: sin esto, el globito no baja para quien entra
+ * directo. Best-effort: si falla, el aviso caduca solo a los 14 días. `.then` y no `void` a secas: sin él,
+ * postgrest-js arma la petición y no la manda (ver `mio/bandeja/page.tsx`).
+ */
+export async function marcarMiSeguroVisto(supabase: ClienteCayla): Promise<void> {
+  const { data, error } = await supabase.rpc("fn_mis_polizas_avisos");
+  if (error) return;
+  await Promise.all(((data ?? []) as unknown as { poliza_id: string; archivo_id: string | null }[]).map((z) =>
+    supabase.rpc("fn_bandeja_marcar_visto", { p_tipo_item: "poliza_mia", p_item_id: z.archivo_id ?? z.poliza_id }).then(() => {}, () => {}),
+  ));
+}
+
 // ── Cómo está su seguro hoy ─────────────────────────────────────────────────
 
 /**
