@@ -11,6 +11,8 @@ import { describe, expect, it } from "vitest";
 import { GRUPOS } from "../apps/web/app/(admin)/admin/nav-items";
 import { MATRIZ_VIEWPORTS, resolverViewports } from "../apps/web/responsive/matriz-viewports.mjs";
 import { MODULOS, resolverSeleccion, TODAS_LAS_PANTALLAS } from "../apps/web/responsive/pantallas/registro.mjs";
+import { SECCIONES_DE_LO_MIO } from "../apps/web/responsive/pantallas/lo-mio.mjs";
+import { TABS } from "../apps/web/lib/mio-secciones";
 import { coloresSueltosDe } from "../apps/web/tema/colores-sueltos.mjs";
 import { CUENTAS, porClave } from "../apps/web/tema/cuentas.mjs";
 import { ESCENARIOS } from "../apps/web/tema/escenarios/registro.mjs";
@@ -103,6 +105,10 @@ describe("lo registrado existe", () => {
       expect(porClave(p.cuenta)?.alcance(p.ruta)).toBe(true);
     });
   }
+
+  it("Lo mío se mide sección por sección: las mismas diecisiete que tiene la pantalla", () => {
+    expect(["resumen", ...SECCIONES_DE_LO_MIO].sort()).toEqual([...TABS].sort());
+  });
 
   it("`all` no incluye el caso que debe fallar, y pedirlo por su nombre sí lo trae", () => {
     expect(resolverSeleccion({ todas: true }).some((p: { soloPorId?: boolean }) => p.soloPorId)).toBe(false);

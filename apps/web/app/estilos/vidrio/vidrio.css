@@ -1,5 +1,5 @@
-/* El diseño nuevo («el vidrio») vive en esta carpeta. Todavía no hay ninguna regla, y nadie importa este archivo:
-   encendido y apagado se ven idénticos. Existe solo para que la carpeta exista.
+/* El diseño nuevo («el vidrio») vive en esta carpeta: marca.css (colores) y marco.css (fondo y botón del tema). Este archivo no
+   tiene reglas ni lo importa nadie: solo dice cómo se escribe aquí.
 
    La regla de la casa, que vigila tests/vidrio-css.test.ts: TODO lo de esta carpeta cuelga del atributo que pone
    lib/vidrio.ts en <html>. Sin el atributo, nada de aquí puede alcanzar a nadie.

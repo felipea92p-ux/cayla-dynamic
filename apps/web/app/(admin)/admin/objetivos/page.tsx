@@ -32,6 +32,7 @@ import { ParaAtender } from "@/components/ui/para-atender";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 // Mapa explícito (no `bg-${nivel}` interpolado) para que Tailwind encuentre
 // las clases literales al escanear el archivo.
@@ -185,7 +186,7 @@ function BandejaEquipo({
         </div>
       </div>
 
-      <Tabla>
+      <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
         <TablaEncabezado>
           <Th>Persona</Th>
           {verTodasLasSedes && <Th>Sede</Th>}
@@ -214,8 +215,8 @@ function BandejaEquipo({
                 {verTodasLasSedes && (
                   <td className="px-4 py-2.5 text-taupe">{f.persona.sedes?.codigo ?? "—"}</td>
                 )}
-                <td className="px-4 py-2.5 text-right text-taupe">{f.total > 0 ? `${f.cumplidos}/${f.total}` : "—"}</td>
-                <td className="px-4 py-2.5 text-right text-taupe">
+                <td data-rotulo="Objetivos" className="px-4 py-2.5 text-right text-taupe">{f.total > 0 ? `${f.cumplidos}/${f.total}` : "—"}</td>
+                <td data-rotulo="Cumplimiento" className="px-4 py-2.5 text-right text-taupe">
                   {f.total > 0 ? `${Math.round((f.cumplidos / f.total) * 100)}%` : "—"}
                 </td>
                 <td className="px-4 py-2.5">

@@ -21,20 +21,14 @@
 import { useId, useRef, type ReactNode } from "react";
 import { useSalidaAnimada } from "@/lib/use-salida-animada";
 import { useFocoAtrapado } from "@/lib/use-foco-atrapado";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { DrawerVidrio } from "@/components/vidrio/hojas";
 
 // Tiene que calzar con la duración de `.cajon-derecha-sale` en globals.css —
 // es la misma relación que ya exige el comentario de useSalidaAnimada.
 const DURACION_SALIDA_MS = 200;
 
-export function Drawer({
-  abierto,
-  onCerrar,
-  titulo,
-  bloqueado = false,
-  volverElFocoA,
-  ancho = "normal",
-  children,
-}: {
+type PropsDrawer = {
   /** "amplio" (2026-09-15, Disciplina): el panel de un caso lleva una tabla de
    * evidencia de cinco columnas que en 460px se parte en dos líneas por celda.
    * Dos anchos y no un número libre, por lo mismo que Modal. */
@@ -49,7 +43,22 @@ export function Drawer({
    * el drawer. Ver useFocoAtrapado. */
   volverElFocoA: React.RefObject<HTMLElement | null>;
   children: ReactNode;
-}) {
+};
+
+const ANCHO_DRAWER = { normal: "max-w-[460px]", amplio: "max-w-[640px]", extra: "max-w-[960px]" } as const;
+
+export function Drawer(props: PropsDrawer) {
+  const { abierto, onCerrar, titulo, bloqueado = false, volverElFocoA, ancho = "normal", children } = props;
+  return interruptoresVidrio().panel ? (
+    <DrawerVidrio abierto={abierto} onCerrar={onCerrar} titulo={titulo} anchoClase={ANCHO_DRAWER[ancho]} bloqueado={bloqueado} volverElFocoA={volverElFocoA}>
+      {children}
+    </DrawerVidrio>
+  ) : (
+    <DrawerClasico {...props} />
+  );
+}
+
+function DrawerClasico({ abierto, onCerrar, titulo, bloqueado = false, volverElFocoA, ancho = "normal", children }: PropsDrawer) {
   const ref = useRef<HTMLDivElement>(null);
   const tituloId = useId();
   const { montado, saliendo } = useSalidaAnimada(abierto, DURACION_SALIDA_MS);

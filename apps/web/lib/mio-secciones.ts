@@ -1,6 +1,7 @@
 import {
   CalendarCheck2, CalendarClock, CalendarDays, Car, FileSignature, Gavel, GraduationCap, History, IdCard, LayoutDashboard,
   MessageSquareText, ReceiptText, ScrollText, ShieldCheck, Target, TreePalm, UserRound,
+  ClipboardCheck, FolderOpen, ListChecks, Wallet,
 } from "lucide-react";
 import type { GrupoDetalle } from "./secciones-de-menu";
 
@@ -65,7 +66,7 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
   { secciones: [
     { valor: "resumen", label: "Resumen", Icon: LayoutDashboard, alias: ["inicio"] },
   ] },
-  { label: "Asistencia", secciones: [
+  { label: "Asistencia", Icon: ClipboardCheck, secciones: [
     { valor: "dias", label: "Mis días", Icon: CalendarDays, alias: ["asistencia", "marcaje", "tardanza", "falta", "horas"] },
     { valor: "turnos", label: "Mis turnos", Icon: CalendarClock, alias: ["horario", "feriado"] },
     // Qué días u horas no puede trabajar (0584). Junto a Mis turnos: una dice qué
@@ -73,7 +74,7 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
     { valor: "disponibilidad", label: "Mi disponibilidad", Icon: CalendarCheck2, alias: ["no puedo", "estudios", "horario fijo", "cuándo puedo", "disponible"] },
     { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm, alias: ["descanso médico", "licencia"] },
   ] },
-  { label: "Pago", secciones: [
+  { label: "Pago", Icon: Wallet, secciones: [
     // Las boletas OFICIALES del contador (0482), no la boleta en vivo de
     // `/mio/boleta`. Icono de recibo: es lo que es, y no repite ninguno del menú.
     { valor: "boletas", label: "Boletas", Icon: ReceiptText, alias: ["sueldo", "pago", "planilla"] },
@@ -81,7 +82,7 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
     // Mismo ícono que «Educación» en el menú del panel (nav-items.ts).
     { valor: "educacion", label: "Educación", Icon: GraduationCap, alias: ["bono de educación", "estudios", "colegio", "comprobante"] },
   ] },
-  { label: "Documentos", secciones: [
+  { label: "Documentos", Icon: FolderOpen, secciones: [
     { valor: "contrato", label: "Contrato", Icon: ScrollText },
     { valor: "firma", label: "Firma", Icon: FileSignature, alias: ["firmar"] },
     { valor: "dni", label: "Mi DNI", Icon: IdCard, alias: ["documento de identidad"] },
@@ -90,7 +91,7 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
     { valor: "seguro", label: "Mi seguro", Icon: ShieldCheck, alias: ["póliza", "fola", "essalud", "seguro", "salud", "clínica", "pacífico", "vida ley", "seguro de vida", "eps"] },
     { valor: "datos", label: "Mis datos", Icon: UserRound, alias: ["cuenta", "banco", "celular", "dirección", "emergencia", "ficha"] },
   ] },
-  { label: "Seguimiento", secciones: [
+  { label: "Seguimiento", Icon: ListChecks, corto: "Seguim.", secciones: [
     { valor: "objetivos", label: "Objetivos", Icon: Target, alias: ["metas"] },
     // Lo que contó y en qué va (0483/0488).
     { valor: "reportes", label: "Reportes", Icon: MessageSquareText, alias: ["contar", "queja"] },

@@ -46,6 +46,7 @@ import {
   type Asegurado,
 } from "@/lib/admin/seguros-asegurados";
 import { AvisoDeError } from "./aviso-de-error";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 export function ListaDeAsegurados({
   abierto, onCerrar, supabase, tipos, inicial, puedeDescargar, hoy,
@@ -133,8 +134,9 @@ function Cuerpo({
   return (
     <>
       <p className="mb-3 text-sm text-taupe">
-        Quiénes están en un seguro hoy, con lo que la aseguradora y el contador piden para emitir el certificado de cada persona.
-        Es información personal.
+        {interruptoresVidrio().panel
+          ? "Quiénes están en cada seguro y lo que piden para emitir su certificado. Es información personal."
+          : "Quiénes están en un seguro hoy, con lo que la aseguradora y el contador piden para emitir el certificado de cada persona. Es información personal."}
       </p>
 
       {opciones.length === 0 ? (
@@ -172,7 +174,9 @@ function Cuerpo({
           </p>
           {resumen!.incompletas > 0 && (
             <p className="mb-2 text-xs text-taupe">
-              Sin documento o sin fecha de nacimiento la aseguradora no emite el certificado de esa persona y queda fuera de la póliza sin que nadie lo note.
+              {interruptoresVidrio().panel
+                ? "Sin documento o fecha de nacimiento no hay certificado y esa persona queda fuera de la póliza."
+                : "Sin documento o sin fecha de nacimiento la aseguradora no emite el certificado de esa persona y queda fuera de la póliza sin que nadie lo note."}{" "}
               Se completan en <Link href="/admin/datos-personales" className="underline underline-offset-2 hover:text-tinta">Datos personales</Link>.
             </p>
           )}

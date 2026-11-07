@@ -40,6 +40,7 @@ import {
   type AlmuerzoDelDia, type EstadoDelDia,
 } from "@/lib/admin/almuerzo";
 import { parseAreas, areaNombre, AREA_DEFAULT } from "@/lib/areas";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 interface FilaJornada {
   id: string;
@@ -281,7 +282,7 @@ export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: { codigo: stri
     const Chevron = abierto ? ChevronDown : ChevronRight;
     return (
       <section key={clave} className="rounded-superficie border border-sand bg-crema/40">
-        <button type="button" aria-expanded={abierto} onClick={() => setAbiertas((a) => ({ ...a, [clave]: !abierto }))} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+        <button type="button" aria-expanded={abierto} onClick={() => setAbiertas((a) => ({ ...a, [clave]: !abierto }))} className={`${interruptoresVidrio().panel ? "vidrio-fila-grupo " : ""}flex w-full items-center justify-between gap-3 px-4 py-3 text-left`}>
           <span className="flex min-w-0 items-center gap-2">
             <Chevron size={16} strokeWidth={1.8} className="shrink-0 text-taupe" aria-hidden />
             <span className="font-serif text-lg text-tinta">{titulo}</span>

@@ -13,6 +13,8 @@
 
 import { useEffect, useId, useRef } from "react";
 import { useRafagaDeClics } from "@/lib/use-rafaga-de-clics";
+import { LogoCayla } from "@/components/vidrio/logo-cayla";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import {
   COLA_DEL_AVE,
   LINEA_DE_TIEMPO,
@@ -36,7 +38,8 @@ const SEDES = [
   { codigo: "LIM", nombre: "Lima" },
 ];
 
-export function PanelVuelo() {
+/** `sinVuelo`: el ave ya está en su lugar. Para «Olvidé mi clave» y «Nueva clave» (components/login/marco-de-entrada.tsx): el vuelo es de Entrar. */
+export function PanelVuelo({ sinVuelo = false }: { sinVuelo?: boolean } = {}) {
   const mascaraId = `hilo-${useId().replace(/:/g, "")}`;
   // Easter egg: cinco clics seguidos sobre el colibrí lo hacen revolotear. Ver docs/easter-eggs.md.
   const { activo: travieso, alClic } = useRafagaDeClics();
@@ -130,7 +133,7 @@ export function PanelVuelo() {
     const alCambiarTamano = () => terminar();
     window.addEventListener("resize", alCambiarTamano);
 
-    const quieto = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const quieto = sinVuelo || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (quieto || !medir()) {
       terminar();
       return () => window.removeEventListener("resize", alCambiarTamano);
@@ -173,12 +176,12 @@ export function PanelVuelo() {
       cancelAnimationFrame(cuadro);
       window.removeEventListener("resize", alCambiarTamano);
     };
-  }, []);
+  }, [sinVuelo]);
 
   return (
     <div ref={panelRef} className="login-panel" aria-hidden>
       <p className="login-panel-marca">
-        <span>CAYLA</span>
+        {interruptoresVidrio().panel ? <LogoCayla className="login-panel-logo" /> : <span>CAYLA</span>}
         <small>Dynamic</small>
       </p>
 

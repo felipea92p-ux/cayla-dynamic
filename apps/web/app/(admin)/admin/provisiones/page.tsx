@@ -23,6 +23,8 @@
 // `lib/admin/provisiones.ts`, con sus pruebas.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GotaDePestanas } from "@/components/vidrio/gota-de-pestanas";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { puedeVerPlanilla } from "@cayla-dynamic/shared";
@@ -228,6 +230,7 @@ export default function ProvisionesPage() {
           sobretitulo={sobretituloDeHoy("Pago")}
           titulo="Provisiones"
           descripcion={data ? `Obligaciones laborales acumuladas y próximos desembolsos, al ${fechaCorta(data.as_of)}.` : "Obligaciones laborales acumuladas y próximos desembolsos."}
+          vidrio={{ dato: data ? `Al ${fechaCorta(data.as_of)}` : undefined, frase: "Obligaciones laborales acumuladas y próximos desembolsos." }}
           ayuda={
             data ? (
               <AyudaPantalla
@@ -301,6 +304,7 @@ export default function ProvisionesPage() {
 
             <div className="mb-4 flex flex-wrap items-end gap-3">
               <div role="tablist" aria-label="Vista" className="inline-flex rounded-control border border-sand bg-hueso p-1">
+                {interruptoresVidrio().panel ? <GotaDePestanas /> : null}
                 {(
                   [
                     ["personas", "Por persona"],

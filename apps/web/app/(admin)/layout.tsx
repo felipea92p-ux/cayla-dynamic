@@ -1,4 +1,7 @@
 import { MarcoAdmin } from "./admin/nav";
+import { RUTAS_SIN_MARCO } from "./admin/nav-items";
+import { Aurora } from "@/components/vidrio/aurora";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { RegistrarSinConexion } from "@/components/registrar-sin-conexion";
 import { AvisoVersionNueva } from "@/components/aviso-version-nueva";
 
@@ -15,11 +18,20 @@ import { AvisoVersionNueva } from "@/components/aviso-version-nueva";
 // panel, y sin esto llega a la hoja aunque «gráficos de fondo» esté apagado. Ver
 // `tests/papel-sin-fondo.test.ts`.
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const marco = <MarcoAdmin>{children}</MarcoAdmin>;
   return (
     <div className="flex min-h-screen flex-1 flex-col bg-crema text-tinta print:bg-transparent">
       <RegistrarSinConexion />
       <AvisoVersionNueva />
-      <MarcoAdmin>{children}</MarcoAdmin>
+      {/* Un ternario y no `{x && <Aurora />}`: un hueco entre los hijos cambiaría el HTML apagado (lib/vidrio.ts). */}
+      {interruptoresVidrio().panel ? (
+        <>
+          <Aurora excepto={RUTAS_SIN_MARCO} />
+          {marco}
+        </>
+      ) : (
+        marco
+      )}
     </div>
   );
 }

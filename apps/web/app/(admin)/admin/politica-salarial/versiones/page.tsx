@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ROLES_DO, TZ_LIMA } from "@cayla-dynamic/shared";
@@ -239,7 +240,13 @@ export default function VersionesPoliticaSalarialPage() {
         ) : (
           <div className="flex flex-col gap-4">
             <BannerAviso variante="informativo" titulo="No hay cambios de contenido">
-              <p className="text-sm">Lo que se publicaría dice exactamente lo mismo que la versión {ultima?.version}. No se va a crear una versión nueva ni se van a reiniciar las constancias.</p>
+              <p className="text-sm">
+                {interruptoresVidrio().panel ? (
+                  <>Dice lo mismo que la versión {ultima?.version}: no se crea una versión nueva ni se reinician las constancias.</>
+                ) : (
+                  <>Lo que se publicaría dice exactamente lo mismo que la versión {ultima?.version}. No se va a crear una versión nueva ni se van a reiniciar las constancias.</>
+                )}
+              </p>
             </BannerAviso>
             <div className="flex justify-end gap-2">
               <Boton variante="secundario" onClick={() => setModalAbierto(false)}>Cancelar</Boton>

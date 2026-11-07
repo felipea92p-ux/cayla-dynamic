@@ -41,6 +41,7 @@ import {
   subEstadoSinMarcar,
   textoDesglose,
   textoEquipoDelDia,
+  textoEquipoDelDiaCorto,
   textoFueraDeHorario,
   textoLiderEnLasDosMetas,
   textoMetaPorRevisar,
@@ -172,6 +173,21 @@ describe("calcularCoberturaSede — trabajando y en pausa por separado", () => {
     const cob = calcularCoberturaSede(equipo, META_0, false, 10);
     expect(cob.trabajando).toHaveLength(1);
     expect(cob.programadosHoy).toBe(0);
+  });
+});
+
+describe("textoEquipoDelDiaCorto — lo mismo en pocas palabras", () => {
+  it("dice a cuántos de cuántos", () => {
+    expect(textoEquipoDelDiaCorto(4, 5)).toBe("Hoy les toca a 4 de 5");
+    expect(textoEquipoDelDiaCorto(1, 5)).toBe("Hoy le toca a 1 de 5");
+    expect(textoEquipoDelDiaCorto(5, 5)).toBe("Hoy les toca a 5 de 5");
+  });
+  it("a nadie y sin equipo no se confunden", () => {
+    expect(textoEquipoDelDiaCorto(0, 5)).toBe("Hoy no le toca a nadie.");
+    expect(textoEquipoDelDiaCorto(0, 0)).toBe("Sin personas en el equipo.");
+  });
+  it("un feriado sin turnos no afirma que hoy les toca", () => {
+    expect(textoEquipoDelDiaCorto(4, 5, true)).toBe("Por horario les toca a 4 de 5 · feriado sin turnos");
   });
 });
 

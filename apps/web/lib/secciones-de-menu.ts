@@ -41,6 +41,9 @@ export type SeccionDetalle<T extends string> = {
 export type GrupoDetalle<T extends string> = {
   /** Sin etiqueta, el grupo va arriba y sin título: es el primero del menú. */
   label?: string;
+  /** Con el vidrio, un grupo con título es un módulo que se abre: su ícono, y su nombre si no cabe bajo el ícono con el menú plegado (84 px). */
+  Icon?: LucideIcon;
+  corto?: string;
   secciones: readonly SeccionDetalle<T>[];
 };
 

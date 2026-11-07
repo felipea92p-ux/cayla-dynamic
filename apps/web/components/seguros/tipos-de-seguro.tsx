@@ -29,6 +29,7 @@ import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { etiquetaVinculo, plural, type TipoSeguro } from "@/lib/admin/seguros";
 import { AvisoDeError } from "./aviso-de-error";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 type Vista =
   | { cual: "lista" }
@@ -131,9 +132,9 @@ function Cuerpo({
   return (
     <>
       <p className="mb-4 text-sm text-taupe">
-        Estos son los seguros que el sistema conoce. Si un colaborador tiene uno que no está aquí, agrégalo: no se sabe con
-        exactitud cuáles tienen los demás, y lo decide Desarrollo Organizacional. Un seguro nuevo no le toca a nadie por su
-        vínculo; se asigna persona por persona.
+        {interruptoresVidrio().panel
+          ? "Si alguien tiene uno que no está aquí, agrégalo. Un seguro nuevo se asigna persona por persona."
+          : "Estos son los seguros que el sistema conoce. Si un colaborador tiene uno que no está aquí, agrégalo: no se sabe con exactitud cuáles tienen los demás, y lo decide Desarrollo Organizacional. Un seguro nuevo no le toca a nadie por su vínculo; se asigna persona por persona."}
       </p>
       {mensaje && <AvisoDeError mensaje={mensaje} />}
       <ul className="space-y-3">

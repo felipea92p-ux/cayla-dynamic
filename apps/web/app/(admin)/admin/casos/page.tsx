@@ -21,6 +21,7 @@ import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Cargando } from "@/components/cargando";
 import { etiquetaDeEstado, etiquetaDeVia, fechaEnPalabras } from "@/lib/reportes";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 /**
  * «Casos» — los reportes que le toca gestionar a quien mira (plan, secciones
@@ -132,8 +133,9 @@ export default function CasosPage() {
 
           {veCasos === false && puedeNombrarInvestigadora(rol) && (
             <BannerAviso enLinea variante="neutral" className="mb-4">
-              Tu cuenta tiene rol de administración pero no es la Gerencia General, así que no gestiona reportes: la
-              regla del Reglamento no te muestra ninguno. Si crees que deberías verlos, habla con Desarrollo Organizacional.
+              {interruptoresVidrio().panel
+                ? "Los reportes los gestiona la Gerencia General, no tu cuenta. Si crees que deberías verlos, habla con Desarrollo Organizacional."
+                : "Tu cuenta tiene rol de administración pero no es la Gerencia General, así que no gestiona reportes: la regla del Reglamento no te muestra ninguno. Si crees que deberías verlos, habla con Desarrollo Organizacional."}
             </BannerAviso>
           )}
 
@@ -177,7 +179,7 @@ export default function CasosPage() {
           )}
 
           {visibles.length > 0 && (
-            <Tabla>
+            <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
                 <TablaEncabezado>
                     <Th>Caso</Th>
                     <Th>Camino</Th>
@@ -202,8 +204,8 @@ export default function CasosPage() {
                         </td>
                         <td className="px-4 py-2.5">{etiquetaDeVia(c.via, c.tipo)}</td>
                         <td className="hidden px-4 py-2.5 sm:table-cell">{c.sede_codigo}</td>
-                        <td className="px-4 py-2.5">{c.gestiona ? LLEVA[c.gestiona] ?? c.gestiona : "—"}</td>
-                        <td className="px-4 py-2.5">
+                        <td data-rotulo="Lo lleva" className="px-4 py-2.5">{c.gestiona ? LLEVA[c.gestiona] ?? c.gestiona : "—"}</td>
+                        <td data-ancha className="px-4 py-2.5">
                           {sem && <Insignia variante={sem.variante} tamano="sm">{sem.texto}</Insignia>}
                           {c.proximo_plazo && (
                             <div className="mt-1 text-xs text-taupe">

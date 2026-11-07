@@ -1,0 +1,388 @@
+/* LO QUE UNA PANTALLA PIDE Y NINGUNA PIEZA DA. Etapa 2, módulo por módulo. Si algo de aquí lo empieza a usar una tercera pantalla, sube a piezas.css.
+   Como todo el vidrio: cuelga de [data-vidrio="panel"] y solo en pantalla. Las clases `vidrio-*` las pone la pantalla únicamente con el interruptor encendido. */
+
+@media screen {
+  /* La cabecera: una acción chica (el «⋯») se queda junto al título, y una grande baja a su renglón cuando no caben. Sin esto, un título con su línea de arriba larga mandaba el «⋯» abajo. */
+  [data-vidrio="panel"] .vidrio-cabecera > .min-w-0 {
+    flex: 1 1 14rem;
+  }
+  /* En el teléfono esos 40 px entre el título y el «⋯» mandaban el «?» solo al renglón de abajo. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-cabecera {
+      column-gap: 12px;
+    }
+  }
+
+  /* El riel: en el teléfono, una fila de filtros corre de lado en vez de comerse una pantalla. Llega hasta los bordes para que se note que sigue. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-riel {
+      flex-wrap: nowrap;
+      margin-inline: -1rem;
+      padding: 4px 1rem;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+    }
+    [data-vidrio="panel"] .vidrio-riel > * {
+      flex: none;
+    }
+
+    /* La fila de un grupo que se abre (Jornada): el nombre en su renglón y sus cuentas debajo, en vez de apretar «6 personas» entre las dos. */
+    [data-vidrio="panel"] .vidrio-fila-grupo {
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+    [data-vidrio="panel"] .vidrio-fila-grupo > :first-child {
+      flex: 1 1 100%;
+    }
+    [data-vidrio="panel"] .vidrio-fila-grupo > :last-child {
+      justify-content: flex-start;
+      margin-left: 24px;
+    }
+  }
+
+  /* Los títulos de una lista que se quedan pegados (Bandeja): el vidrio del pie, para que lo que pasa por debajo no se lea a través. */
+  [data-vidrio="panel"] .vidrio-cabeza-lista {
+    border-color: var(--placa-borde);
+    border-radius: 12px;
+    background: var(--vidrio-pie-fondo);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+  }
+
+  /* Una tabla ancha con su primera columna fija (Desempeño). En el teléfono, un nombre largo la dejaba ocupando toda la pantalla, y las demás pasaban por detrás sin verse. */
+  [data-vidrio="panel"] th.sticky.left-0.bg-sand:not(.hoja *) {
+    background: var(--vidrio-pie-fondo);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+  }
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] td.sticky.left-0 > .whitespace-nowrap:not(.hoja *) {
+      max-width: 44vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  /* Desde y Hasta en una línea, con su rótulo al lado (Incidencias): en el teléfono no caben y «Hasta» se salía de la tarjeta. Cada fecha pasa a su renglón, con su rótulo. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .flex.items-center.gap-2.text-xs:has(> * input[type="date"], > input[type="date"]) {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+    [data-vidrio="panel"] .flex.items-center.gap-2.text-xs:has(> * input[type="date"], > input[type="date"]) input {
+      width: 100%;
+    }
+  }
+
+  /* Una parte atenuada dentro de una letra que ya es secundaria («mañana / tarde» en Turnos): sumadas, bajaban a 3.31:1. */
+  [data-vidrio="panel"] .text-taupe .opacity-70:not(.hoja *) {
+    opacity: 1;
+  }
+
+  /* «Cómo se lee» (Turnos): se pliega en el teléfono. */
+  [data-vidrio="panel"] .vidrio-como-se-lee > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 2rem;
+    cursor: pointer;
+    color: var(--vidrio-letra-secundaria);
+    font-size: 13px;
+    list-style: none;
+  }
+  [data-vidrio="panel"] .vidrio-como-se-lee > summary::-webkit-details-marker {
+    display: none;
+  }
+  [data-vidrio="panel"] .vidrio-como-se-lee > summary::after {
+    content: "›";
+    font-size: 15px;
+    line-height: 1;
+    transition: rotate 200ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] .vidrio-como-se-lee[open] > summary::after {
+    rotate: 90deg;
+  }
+
+  /* El calor de Tendencias: en oscuro el café es claro, así que la celda más cargada dejaba su cifra en 3.54:1. Se llega a un tono más bajo: sigue leyéndose qué día pesa más. */
+  :root[data-vidrio="panel"][data-tema="oscuro"] {
+    --calor-k: 0.55;
+  }
+
+  /* El «?» junto al título de una tarjeta: el mismo signo, sin el ajuste que necesita al lado de un título de 46 px. */
+  [data-vidrio="panel"] h2 > .ayuda-cab-q {
+    top: 0;
+    vertical-align: 1px;
+    margin-left: 6px;
+  }
+
+  /* ---------- Un título con sus botones al lado ----------
+     En el teléfono el botón se apretaba a tres renglones (la constancia del bono). Baja a su propia línea. */
+  @media (max-width: 639px) {
+    [data-vidrio="panel"] .flex.items-center.justify-between:has(> h2):has(> .flex > button) {
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
+    [data-vidrio="panel"] .flex.items-center.justify-between:has(> h2) > .flex > button {
+      white-space: nowrap;
+    }
+  }
+
+  /* ---------- Personas ---------- */
+
+  /* La cara de la ficha: en su lente, como el avatar de Retail (colaboradores.css). El tinte rojo se leía como una alerta. */
+  [data-vidrio="panel"] .vidrio-cara.vidrio-cara.vidrio-cara {
+    color: var(--color-tinta);
+    background: var(--lente-avatar-fondo);
+    box-shadow: var(--lente-avatar-luz), 0 4px 10px -6px color-mix(in srgb, var(--color-sombra) 40%, transparent);
+  }
+  /* El nombre de la ficha: la letra del título de pantalla, un paso más chica, porque un nombre largo a 46 px se comía la pantalla. */
+  [data-vidrio="panel"] .vidrio-ficha-nombre {
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.005em;
+  }
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-ficha-nombre {
+      font-size: 22px;
+    }
+    [data-vidrio="panel"] .vidrio-cara.vidrio-cara.vidrio-cara {
+      width: 48px;
+      height: 48px;
+      font-size: 18px;
+    }
+  }
+
+  /* Una fila de persona en una columna angosta (Datos personales): el nombre arriba y su sede con pendientes debajo. Lado a lado, el nombre se cortaba en «Alma Reyes…». */
+  [data-vidrio="panel"] .vidrio-fila-persona {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 0;
+  }
+  [data-vidrio="panel"] .vidrio-fila-persona > :first-child {
+    grid-row: span 2;
+  }
+  [data-vidrio="panel"] .vidrio-fila-persona > :nth-child(2) {
+    white-space: normal;
+  }
+  [data-vidrio="panel"] .vidrio-fila-persona > :nth-child(3) {
+    grid-column: 2;
+  }
+
+  /* Una fila que abre su detalle (Seguros): en el teléfono la insignia baja a su renglón. Al lado del nombre, dejaba «Carmen Veg…». */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-fila-que-baja {
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+    [data-vidrio="panel"] .vidrio-fila-que-baja > :first-child {
+      flex: 1 1 100%;
+    }
+    [data-vidrio="panel"] .vidrio-fila-que-baja > :first-child .truncate {
+      white-space: normal;
+    }
+    [data-vidrio="panel"] .vidrio-fila-que-baja > :last-child {
+      flex: 1 1 100%;
+      flex-wrap: wrap;
+    }
+    [data-vidrio="panel"] .vidrio-fila-que-baja > :last-child > svg:last-child {
+      margin-left: auto;
+    }
+  }
+
+  /* Un botón dentro de una tabla no se parte en dos renglones (Documentación: «Subir / firmada»). La tabla ya corre de lado si no cabe. */
+  [data-vidrio="panel"] td :is(button, a).rounded-control:not(.hoja *) {
+    white-space: nowrap;
+  }
+
+  /* Una tabla corta que en el teléfono pasa a fichas (Casos, Objetivos), como ya hacen Equipo y Disciplina. Con todas sus columnas, «Próximo plazo» quedaba de una
+     palabra por renglón, y el nombre más largo ocupaba ocho. El primer dato va en su renglón; lo que no se entiende solo lleva su rótulo (`data-rotulo`). */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-tabla-fichas table,
+    [data-vidrio="panel"] .vidrio-tabla-fichas tbody {
+      display: block;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas thead {
+      display: none;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas tbody > tr {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 4px 14px;
+      padding: 12px 16px;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas tbody > tr:first-child {
+      border-top: 0;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas td:not(.hidden) {
+      display: block;
+      padding: 0;
+      text-align: left;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas td:first-child,
+    [data-vidrio="panel"] .vidrio-tabla-fichas td[data-ancha] {
+      flex: 1 1 100%;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-fichas td[data-rotulo]::before {
+      content: attr(data-rotulo) " ";
+      color: var(--color-taupe);
+    }
+    /* Un ícono como dato (el ✓ de «Operativa de sede» en Áreas) va junto a su rótulo, no en el renglón de abajo. */
+    [data-vidrio="panel"] .vidrio-tabla-fichas td[data-rotulo] > svg {
+      display: inline-block;
+      vertical-align: -2px;
+    }
+  }
+
+  /* Entrada: el logo oficial en el panel del colibrí, como en Retail (su `.login-panel-logo`). La palabra va en el color del panel (crema sobre la tinta;
+     en oscuro, crema sobre papel) y el colibrí en el rojo de la marca. Del alto de la letra «CAYLA» que había antes. */
+  [data-vidrio="panel"] .login-panel-logo {
+    height: 34px;
+    align-self: center;
+  }
+  [data-vidrio="panel"] .login-panel-logo .marco-logo-palabra {
+    fill: currentColor;
+  }
+
+  /* Cuentas: «Resetear contraseña» y «Cambiar correo» en una sola fila desde 1280 px. Apilados, cada persona ocupaba el doble de alto. Más angosto, se apilan como hoy. */
+  @media (min-width: 80rem) {
+    [data-vidrio="panel"] .vidrio-acciones {
+      flex-wrap: nowrap;
+    }
+  }
+
+  /* Los datos de un documento en su hoja (Normas, «Ver documento»): en el teléfono, detrás del vidrio queda el botón oscuro «+ Nueva versión», y «Versión:» bajaba a
+     4.25:1 aun con el punto de más que ya llevan las hojas. Un punto más de tinta, solo para esa letra chica. */
+  [data-vidrio="panel"] [role="dialog"] dl.text-xs.text-taupe:not(.hoja *) {
+    color: color-mix(in srgb, var(--color-taupe) 55%, var(--color-tinta));
+  }
+
+  /* Una insignia informativa dentro de una hoja, en oscuro (Tipos de seguro): la letra pizarra sobre el vidrio que deja pasar lo de atrás daba 4.34:1. */
+  :root[data-vidrio="panel"][data-tema="oscuro"] [role="dialog"] .rounded-pildora[class*="bg-pizarra/"]:not(.hoja *) {
+    color: color-mix(in srgb, var(--color-pizarra) 80%, var(--color-tinta));
+  }
+
+  /* El rótulo del buscador de personas: un poco más de aire sobre los filtros. Pegado, la sombra de la píldora oscura le llegaba a la letra. */
+  [data-vidrio="panel"] .space-y-2 > span.text-taupe:first-child + [role="group"] {
+    margin-top: 12px;
+  }
+
+  /* La insignia de una fila de casos puede partirse en dos renglones (Disciplina). Entera, a 768 px medía 160 en una columna de 122, y «Revisar caso» le tapaba «art. 25 h)». */
+  [data-vidrio="panel"] [role="row"] span.rounded-pildora:not(.hoja *) {
+    white-space: normal;
+  }
+
+  /* En una tablet, las celdas con menos aire: en Equipo los botones de vidrio dejaban el «•••» cortado. La tabla corre de lado solo si de verdad no cabe. */
+  @media (min-width: 48rem) and (max-width: 51.99rem) {
+    [data-vidrio="panel"] main table :is(th, td):not(.hoja *) {
+      padding-inline: 10px;
+    }
+  }
+
+  /* Un enlace rojo en una tabla, en oscuro (el «Sin salida» de la ficha): sobre el vidrio daba 4.06:1. */
+  :root[data-vidrio="panel"][data-tema="oscuro"] td a.text-rojo:not(.hoja *) {
+    color: color-mix(in srgb, var(--color-rojo) 80%, var(--color-tinta));
+  }
+  /* Y no se parte en dos renglones: «Sin salida» a 768 px dejaba su «›» solo abajo. */
+  [data-vidrio="panel"] td a.text-rojo:not(.hoja *) {
+    white-space: nowrap;
+  }
+
+  /* ---------- Pago ---------- */
+
+  /* Una tabla ancha: con menos aire entre columnas, y el nombre se queda a la vista al deslizar. El ancho mínimo evita que un nombre largo ocupe ocho renglones.
+     El fondo de lo pegado es opaco y sin desenfoque: serían decenas de filtros por pantalla, y con 94 % todavía se leía lo que pasaba por debajo. */
+  [data-vidrio="panel"] .vidrio-tabla-ancha :is(th, td) {
+    padding-inline: 10px;
+  }
+  [data-vidrio="panel"] .vidrio-tabla-ancha :is(thead, tbody) tr > :first-child,
+  [data-vidrio="panel"] .vidrio-tabla-ancha tfoot tr:first-child > :first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 10.5rem;
+    padding-left: 16px;
+    background: var(--color-papel);
+  }
+
+  /* En el teléfono lo fijo ocupa menos: con 168 px, en una tabla de 311 quedaba poco por deslizar. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-tabla-ancha :is(thead, tbody) tr > :first-child,
+    [data-vidrio="panel"] .vidrio-tabla-ancha tfoot tr:first-child > :first-child {
+      min-width: 8rem;
+    }
+  }
+
+  /* Planilla: «Total» y «Pagado» tampoco se van. A 1440 px la tabla sobraba 346 px y justo esas dos quedaban fuera. Desde 1024 px: más angosto, lo fijo se comería la tabla. */
+  @media (min-width: 64rem) {
+    [data-vidrio="panel"] .vidrio-tabla-con-total :is(thead, tbody) tr > :nth-last-child(-n + 3),
+    [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(-n + 3) {
+      position: sticky;
+      z-index: 1;
+      background: var(--color-papel);
+    }
+    [data-vidrio="panel"] .vidrio-tabla-con-total :is(thead, tbody) tr > :nth-last-child(1),
+    [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(1) {
+      right: 0;
+      width: 32px;
+      min-width: 32px;
+      padding-inline: 4px;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-con-total :is(thead, tbody) tr > :nth-last-child(2),
+    [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(2) {
+      right: 32px;
+      width: 104px;
+      min-width: 104px;
+    }
+    [data-vidrio="panel"] .vidrio-tabla-con-total :is(thead, tbody) tr > :nth-last-child(3),
+    [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(3) {
+      right: 136px;
+      width: 112px;
+      min-width: 112px;
+      box-shadow: inset 1px 0 0 var(--hilo-fila);
+    }
+  }
+
+  /* Un archivo por elegir no se sale de su tarjeta en el teléfono (Feriados: «Ningún archivo seleccionado»). */
+  [data-vidrio="panel"] .flex-wrap > label:has(input[type="file"]),
+  [data-vidrio="panel"] .flex-wrap > div:has(> label > input[type="file"]) {
+    min-width: 0;
+    max-width: 100%;
+  }
+  /* El que se esconde con `sr-only` (Lo mío: «Adjuntar foto o PDF» en un reporte) se queda en su píxel: con el 100 % medía la pantalla entera desde
+     donde estaba, y la página se corría 312 px de lado a 1440. */
+  [data-vidrio="panel"] input[type="file"]:not(.hidden, .sr-only) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* La tarjeta oscura de Provisiones («Próximo desembolso»): el vidrio ahumado, no un bloque de tinta sólida. */
+  [data-vidrio="panel"] div.border-tinta.bg-tinta.text-crema:not(.hoja *) {
+    border-color: var(--ahumado-denso-borde);
+    background: var(--ahumado-denso-fondo);
+    box-shadow: var(--ahumado-denso-luz);
+  }
+
+  /* Las barras de tinta de Costos, en oscuro: la tinta es casi blanca, y un bloque de ese tamaño encandilaba más que la cifra que acompaña. */
+  :root[data-vidrio="panel"][data-tema="oscuro"] [class*="bg-[color-mix(in_oklab,var(--color-tinta)_80%"]:not(.hoja *) {
+    background-color: color-mix(in oklab, var(--color-tinta) 52%, var(--color-papel));
+  }
+
+  /* Dos fechas con su flecha en medio (Feriados): en el teléfono la segunda se salía 33 px de la pantalla. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .flex.items-center.gap-2:has(> label > input[type="date"]) {
+      flex-wrap: wrap;
+    }
+  }
+
+  /* Lo mío: en el teléfono el nombre de la cabecera baja de 30 a 26 px. Con la serif en 600 (P6), «Ana Torres Ruiz» ya no cabía junto a la foto y se partía
+     en dos renglones; hoy cabe en uno. Un nombre largo se sigue partiendo, como hoy. El ancla es la del recorrido guiado, que no cambia de nombre. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] header[data-tour="mio-resumen-header"] h1.font-serif {
+      font-size: 1.625rem;
+    }
+  }
+}

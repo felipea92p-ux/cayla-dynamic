@@ -9,6 +9,8 @@
 
 import type { ReactNode } from "react";
 import { cx } from "./cx";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { GotaDePestanas } from "@/components/vidrio/gota-de-pestanas";
 
 export function Pestanas<T extends string>({
   etiqueta,
@@ -35,10 +37,12 @@ export function Pestanas<T extends string>({
     <nav
       aria-label={etiqueta}
       className={cx(
+        interruptoresVidrio().panel ? "vidrio-pestanas" : undefined,
         enBarra ? "flex gap-1 overflow-x-auto [scrollbar-width:none]" : "-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-sand px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]",
         className,
       )}
     >
+      {interruptoresVidrio().panel ? <GotaDePestanas /> : null}
       {pestanas.map((p) => (
         <button
           key={p.clave}

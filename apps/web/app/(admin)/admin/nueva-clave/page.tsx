@@ -8,6 +8,8 @@ import { guardarMiClave } from "@/lib/admin/mi-clave";
 import { Colibri } from "@/components/marca";
 import { CampoClave } from "@/components/ui/campo-clave";
 import { Boton } from "@/components/ui/boton";
+import { MarcoDeEntrada } from "@/components/login/marco-de-entrada";
+import { interruptoresVidrio } from "@/lib/vidrio";
 
 type Estado = "cargando" | "listo" | "invalido" | "guardado";
 
@@ -97,6 +99,69 @@ function NuevaClaveContenido() {
     setDestino(rol && ROLES_CON_PANEL.includes(rol as never) ? "/admin/dashboard" : "/mio");
     setGuardando(false);
     setEstado("guardado");
+  }
+
+  // Con el vidrio, el marco de Entrar (opción A de Felipe, 2026-11-07). Los estados, los avisos y `guardar` son los mismos de abajo.
+  if (interruptoresVidrio().panel) {
+    return (
+      <MarcoDeEntrada
+        subtitulo="Nueva clave"
+        titulo="Nueva clave"
+        texto={estado === "cargando" ? "Verificando el enlace…" : estado === "listo" ? "Elige la contraseña con la que vas a entrar." : undefined}
+        pie={estado === "invalido" ? <a href="/admin/olvide-clave" className="text-taupe underline-offset-2 hover:underline">Pedir un enlace nuevo</a> : undefined}
+      >
+        {estado === "invalido" && <p className="text-sm text-rojo">Este enlace ya no es válido o expiró.</p>}
+
+        {estado === "listo" && motivo === "debil" && (
+          <p className="rounded-lg bg-sand/60 px-4 py-3 text-sm text-tinta">
+            Tu clave actual ya no cumple lo que pide el sistema. Con esta cuenta se ven los
+            sueldos de todo el equipo, así que hay que cambiarla antes de seguir.
+          </p>
+        )}
+
+        {estado === "listo" && motivo === "temporal" && (
+          <p className="rounded-lg bg-sand/60 px-4 py-3 text-sm text-tinta">
+            Estás entrando con una clave que te dictaron. Elige la tuya: a partir de ahora
+            nadie más la conoce.
+          </p>
+        )}
+
+        {estado === "listo" && (
+          <form onSubmit={guardar} className="flex flex-col gap-3">
+            <CampoClave
+              etiqueta="Nueva contraseña"
+              autoComplete="new-password"
+              value={nueva}
+              onChange={(e) => setNueva(e.target.value)}
+              required
+            />
+            <CampoClave
+              etiqueta="Repite la nueva contraseña"
+              autoComplete="new-password"
+              value={confirma}
+              onChange={(e) => setConfirma(e.target.value)}
+              required
+            />
+            <ul className="flex flex-col gap-0.5 text-xs text-taupe">
+              {REQUISITOS_CLAVE.map((r) => <li key={r}>· {r}</li>)}
+            </ul>
+            {error && <p className="text-sm text-rojo">{error}</p>}
+            <Boton type="submit" variante="primario" disabled={guardando} cargando={guardando} className="login-entrar mt-2">
+              {guardando ? "Guardando…" : "Guardar y entrar"}
+            </Boton>
+          </form>
+        )}
+
+        {estado === "guardado" && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-verde">Tu contraseña se actualizó correctamente.</p>
+            <Boton type="button" variante="primario" onClick={() => router.replace(destino)} className="login-entrar">
+              {destino === "/mio" ? "Ir a lo mío" : "Ir al panel"}
+            </Boton>
+          </div>
+        )}
+      </MarcoDeEntrada>
+    );
   }
 
   return (

@@ -30,7 +30,8 @@ import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { NovedadesWidget } from "@/components/novedades-widget";
 import { SelectorTema } from "@/components/selector-tema";
-import { MenuDetalle } from "@/components/nav/menu-detalle";
+import { MarcoDeLoMio } from "@/components/nav/marco-de-lo-mio";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { GRUPOS_MIO, TABS, type Tab } from "@/lib/mio-secciones";
 import { areaNombre, parseAreas } from "@/lib/areas";
 import { Boton } from "@/components/ui/boton";
@@ -54,6 +55,8 @@ import {
   EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, formatoMinutos,
   ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, VINCULO_DERECHOHABIENTE_LABELS,
   TIPO_VINCULO_LABEL,
+  ROL_LABELS,
+  ROLES_DO,
 } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
@@ -1755,12 +1758,8 @@ export default function MioPage() {
   }
 
   return (
-    // El marco de esta pantalla, con la misma forma que el del panel
-    // (`(admin)/layout.tsx`): el menú pegado al borde izquierdo y el contenido
-    // ocupando el resto. En teléfono se apila, y ahí el menú es la barra
-    // pegajosa de arriba que abre el cajón.
-    <div className="flex min-h-screen flex-col bg-crema text-tinta md:flex-row">
-      <MenuDetalle
+    // El marco de esta pantalla: `MarcoDeLoMio` dibuja el de hoy o, con el vidrio, el mismo del panel.
+    <MarcoDeLoMio
         grupos={grupos}
         // Su propia memoria de grupos cerrados, no la del panel: los dos
         // menús tienen un «Pago» y una «Asistencia» con cosas distintas.
@@ -1797,7 +1796,14 @@ export default function MioPage() {
         // panel sí reparte por rol.
         onSalir={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}
         sesion={yo?.nombre}
-      />
+        placa={yo ? {
+          nombre: yo.nombre,
+          detalle: [ROL_LABELS[yo.rol ?? ""] ?? "Integrante", yo.sede].filter(Boolean).join(" · "),
+          fotoUrl: urlPublicaFotoPerfil(supabase, yo.fotoUrl),
+        } : null}
+        sede={yo && !ROLES_DO.includes(yo.rol ?? "") ? yo.sede : null}
+        alTocarPlaca={() => elegirSeccion("resumen")}
+      >
 
     {/* `w-full` no es adorno. En teléfono el marco es `flex-col`, y un hijo
         con `mx-auto` en una columna flex deja de estirarse al ancho del
@@ -1877,7 +1883,7 @@ export default function MioPage() {
                 `accion` de MenuDetalle), y dos veces el mismo botón en la
                 misma pantalla es uno de más. Mismo rojo que allá, para que sea
                 el mismo botón se mire donde se mire. */}
-            {yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
+            {!interruptoresVidrio().panel && yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
               <Link href="/admin/dashboard"
                 className="hidden items-center justify-center whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-sm font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97] md:inline-flex">
                 Volver al panel
@@ -1927,7 +1933,7 @@ export default function MioPage() {
               </Link>
             )}
             {/* El tema, solo de 768px para arriba: en teléfono está en la barra. */}
-            <SelectorTema className="hidden md:inline-flex" />
+            {interruptoresVidrio().panel ? null : <SelectorTema className="hidden md:inline-flex" />}
           </div>
         </div>
       </header>
@@ -2408,7 +2414,7 @@ export default function MioPage() {
             {jornadas.length === 0 ? (
               <p className="text-sm text-taupe">No hay días marcados en este rango.</p>
             ) : (
-              <Tabla>
+              <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
                 <TablaEncabezado>
                   <Th>Día</Th>
                   <Th>Entrada</Th>
@@ -2425,8 +2431,8 @@ export default function MioPage() {
                     return (
                       <Fila key={d.fecha}>
                         <td className="px-4 py-2">{diaYMes(d.fecha)}</td>
-                        <td className="px-4 py-2">{hora(j.entrada_ts)}</td>
-                        <td className="px-4 py-2">
+                        <td data-rotulo="Entrada" className="px-4 py-2">{hora(j.entrada_ts)}</td>
+                        <td data-rotulo="Salida" className="px-4 py-2">
                           {hora(j.salida_final_ts)}
                           {/* Esa hora NO la marcó ella: la inventó el auto-cierre porque
                               olvidó marcar. Es justo la que conviene que revise, así que
@@ -2437,17 +2443,17 @@ export default function MioPage() {
                         </td>
                         {/* Contra qué se midió su tardanza ese día. Sin esto, un
                             número de minutos es una afirmación sin origen. */}
-                        <td className="px-4 py-2 text-taupe">
+                        <td data-rotulo="Te tocaba" className="px-4 py-2 text-taupe">
                           {d.esperado.trabaja
                             ? <>{d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</>
                             : "—"}
                         </td>
-                        <td className="px-4 py-2">
+                        <td data-rotulo="Tardanza" className="px-4 py-2">
                           {!tarde ? <span className="text-taupe">—</span>
                             : d.perdonada ? <span className="text-taupe line-through">{j.minutos_tarde} min</span>
                             : <span className="text-ambar">{j.minutos_tarde} min</span>}
                         </td>
-                        <td className="px-4 py-2 text-right">{comoReloj(j.horas_trabajadas ?? 0)}</td>
+                        <td data-rotulo="Horas" className="px-4 py-2 text-right">{comoReloj(j.horas_trabajadas ?? 0)}</td>
                       </Fila>
                     );
                   })}
@@ -2654,8 +2660,10 @@ export default function MioPage() {
         <section data-tour="mio-datos-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tus datos</h2>
           <p className="mb-4 text-taupe">
-            Lo que Desarrollo Organizacional tiene registrado de ti. Si algo está mal o falta, avísales — esta
-            pantalla no tiene botón de editar.
+            {/* «No tiene botón de editar» sobra con el vidrio: arriba, en la cabecera, está «Editar datos», y la frase parecía negarlo. */}
+            {interruptoresVidrio().panel
+              ? "Lo que Desarrollo Organizacional tiene registrado de ti. Si algo está mal o falta, avísales."
+              : "Lo que Desarrollo Organizacional tiene registrado de ti. Si algo está mal o falta, avísales — esta pantalla no tiene botón de editar."}
           </p>
           {!misDatos ? (
             <p className="text-taupe">Cargando…</p>
@@ -3007,8 +3015,10 @@ export default function MioPage() {
         <section data-tour="mio-firma-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
           <p className="mb-3 text-sm text-taupe">
-            Aparecerá en tu contrato de trabajo, en tu propio apartado. Si además firmas documentos por la
-            empresa (memos, política salarial), es la misma firma la que se usa ahí.
+            {/* Con el vidrio, una línea: lo que se necesita saber es dónde aparece. Apagado, el texto de hoy, entero y en una sola pieza. */}
+            {interruptoresVidrio().panel
+              ? "Va en tu contrato y, si firmas por la empresa, también en esos papeles."
+              : "Aparecerá en tu contrato de trabajo, en tu propio apartado. Si además firmas documentos por la empresa (memos, política salarial), es la misma firma la que se usa ahí."}
           </p>
           {yo ? (
             <div data-tour="mio-firma-editor">
@@ -3100,11 +3110,13 @@ export default function MioPage() {
       )}
 
       <p className="mt-6 text-xs text-taupe">
-        Si algo no cuadra, no lo dejes pasar: avisa a tu líder de equipo y se corrige con el motivo anotado. Lo que
-        ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
+        {/* Va al pie de las diecisiete secciones: con el vidrio, solo lo que hay que hacer. Apagado, el texto de hoy. */}
+        {interruptoresVidrio().panel
+          ? "Si algo no cuadra, avísale a tu líder de equipo: se corrige con el motivo anotado."
+          : "Si algo no cuadra, no lo dejes pasar: avisa a tu líder de equipo y se corrige con el motivo anotado. Lo que ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes."}
       </p>
     </main>
-    </div>
+    </MarcoDeLoMio>
   );
 }
 
@@ -3366,9 +3378,11 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
     <section data-tour="mio-historial-periodos" className="mt-5 rounded-2xl border border-sand p-5 text-sm">
       <h2 className="mb-1 font-serif text-lg">Tus últimos periodos</h2>
       <p className="mb-3 text-taupe">
-        Sin montos: un periodo ya cerrado puede tener su foto de pago desactualizada — para eso está tu boleta.
+        {interruptoresVidrio().panel
+          ? "Sin montos: lo que se te pagó está en tu boleta."
+          : "Sin montos: un periodo ya cerrado puede tener su foto de pago desactualizada — para eso está tu boleta."}
       </p>
-      <Tabla>
+      <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
         <TablaEncabezado>
           <Th>Periodo</Th>
           <Th>Días trabajados</Th>
@@ -3379,9 +3393,9 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
           {periodos.map((p) => (
             <Fila key={p.id}>
               <td className="px-4 py-2">{diaYMes(p.fecha_ini)} – {diaYMes(p.fecha_fin)}</td>
-              <td className="px-4 py-2 text-taupe">{p.diasTrabajados} de {p.dias}</td>
-              <td className="px-4 py-2">{comoReloj(p.horas)}</td>
-              <td className="px-4 py-2 text-right">{p.tardanzas}</td>
+              <td data-rotulo="Días trabajados" className="px-4 py-2 text-taupe">{p.diasTrabajados} de {p.dias}</td>
+              <td data-rotulo="Horas" className="px-4 py-2">{comoReloj(p.horas)}</td>
+              <td data-rotulo="Tardanzas" className="px-4 py-2 text-right">{p.tardanzas}</td>
             </Fila>
           ))}
         </tbody>

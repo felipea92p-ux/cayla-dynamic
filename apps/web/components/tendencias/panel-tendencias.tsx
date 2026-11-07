@@ -20,6 +20,8 @@ import { Cargando } from "@/components/cargando";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { AyudaCabecera } from "@/components/vidrio/ayuda-cabecera";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { traerResumenCasos } from "@/lib/admin/casos-resumen";
 import {
   asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, llegadaPorSede, MINIMO_CASOS,
@@ -62,7 +64,29 @@ const PERIODOS = [
 ] as const;
 type ClavePeriodo = (typeof PERIODOS)[number]["clave"];
 
-function Seccion({ titulo, que, children, nota }: { titulo: string; que: string; children: React.ReactNode; nota?: React.ReactNode }) {
+function Seccion({ titulo, que, queCorto, children, nota }: { titulo: string; que: string; queCorto?: string; children: React.ReactNode; nota?: React.ReactNode }) {
+  // Con el vidrio cada gráfico lleva una línea a la vista, y la explicación completa va en su «?»: no se pierde ni una palabra de lo que aclara qué se cuenta y qué no.
+  if (interruptoresVidrio().panel) {
+    return (
+      <TarjetaInfo
+        como="section"
+        titulo={
+          <>
+            {titulo}
+            {nota || queCorto ? (
+              <AyudaCabecera nombre={titulo}>
+                {queCorto ? <span className="mb-2 block">{que}</span> : null}
+                {nota}
+              </AyudaCabecera>
+            ) : null}
+          </>
+        }
+      >
+        <p className="-mt-1 mb-3 text-sm text-taupe">{queCorto ?? que}</p>
+        {children}
+      </TarjetaInfo>
+    );
+  }
   return (
     <TarjetaInfo como="section" titulo={titulo}>
       <p className="-mt-1 mb-3 text-sm text-taupe">{que}</p>
@@ -144,7 +168,7 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
   return (
     <div className="grid gap-4">
       {/* ── Qué periodo y qué sede: lo que se toca, a la vista ── */}
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Periodo y sede de las tendencias">
+      <div className={`flex flex-wrap items-center gap-2${interruptoresVidrio().panel ? " vidrio-riel" : ""}`} role="group" aria-label="Periodo y sede de las tendencias">
         {PERIODOS.map((p) => <Filtro key={p.clave} tamano="sm" activo={periodo === p.clave} onClick={() => setPeriodo(p.clave)}>{p.texto}</Filtro>)}
         {sedesVisibles.length > 1 && (
           <>
@@ -161,6 +185,7 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
       <Seccion
         titulo="Asistencia sobre lo esperado"
         que="De los días que tocaba trabajar, en cuántos hubo marca. Por semana."
+        queCorto="En cuántos de los días que tocaba trabajar hubo marca."
         nota={<>Cuenta los días que tocaba trabajar, sin vacaciones, descansos, feriados ni días con motivo; no incluye a quien cobra por recibo, tiene sueldo fijo o es personal de dirección. Cada sede cuenta a su gente de hoy. La semana en curso va hueca porque no terminó.</>}
       >
         <Cuerpo estado={asist} reintentar={reintentarAsist}
@@ -170,7 +195,7 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
             const piso = pisoDeLinea(puntos);
             return (<>
               <LineaAsistencia puntos={puntos} />
-              {piso !== null && piso > 0 && <p className="mt-1 text-xs text-taupe">El eje empieza en {piso} %, no en 0: así se ven las diferencias chicas. No es una caída tan grande como parece.</p>}
+              {piso !== null && piso > 0 && <p className="mt-1 text-xs text-taupe">{interruptoresVidrio().panel ? `El eje empieza en ${piso} %, no en 0.` : `El eje empieza en ${piso} %, no en 0: así se ven las diferencias chicas. No es una caída tan grande como parece.`}</p>}
             </>);
           }} />
       </Seccion>
@@ -178,6 +203,7 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
       <Seccion
         titulo="A qué hora llega cada sede"
         que="Frente a la hora de entrada de cada quien: el punto es lo típico y la franja, lo que pasa casi siempre."
+        queCorto="El punto es lo típico; la franja, lo que pasa casi siempre."
         nota="Mide solo los días en que el sistema guardó con qué horario se midió la jornada, así que la historia empieza más tarde que la de asistencia. Nunca por persona."
       >
         <Cuerpo estado={asist} reintentar={reintentarAsist}
@@ -188,6 +214,7 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
       <Seccion
         titulo="Cuándo se llega tarde"
         que="En qué día de la semana pasa más seguido, por sede."
+        queCorto="En qué día pasa más seguido."
         nota="Tarde = 5 minutos o más después de la hora. «·» = pocas llegadas para decir algo; «–» = nadie de la sede trabajó ese día. Es para organizar el día, no para señalar a alguien."
       >
         <Cuerpo estado={asist} reintentar={reintentarAsist}
@@ -211,6 +238,7 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
         <Seccion
           titulo="Costo de planilla por periodo"
           que="Lo que costó cada periodo ya pagado (del 29 al 28). Últimos 12 meses."
+          queCorto="Cada periodo ya pagado, del 29 al 28."
           nota="Solo cuenta periodos marcados como pagados, tal como se pagaron. El que está en curso va rayado y sin monto: todavía no es un hecho. «Retroactivo» = reconstruido después del pago."
         >
           <Cuerpo estado={costo} reintentar={reintentarCosto}

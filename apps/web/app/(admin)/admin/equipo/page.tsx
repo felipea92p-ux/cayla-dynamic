@@ -17,6 +17,7 @@ import { ParaAtender } from "@/components/ui/para-atender";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { debeTenerSalario, finDeContratoProximo, VENTANA_FIN_CONTRATO_DIAS } from "@/lib/admin/equipo-situacion";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Drawer } from "@/components/ui/drawer";
 import { Insignia } from "@/components/ui/insignia";
@@ -1348,12 +1349,12 @@ export default function EquipoPage() {
           `packages/shared/src/nombres.ts`. */}
       <label className="flex flex-col gap-1 text-sm">
         Nombre corto{" "}
-        <span className="text-taupe">(el de todos los días: así se ve en el terminal y en el panel)</span>
+        <span className="text-taupe">{interruptoresVidrio().panel ? "(el de todos los días)" : "(el de todos los días: así se ve en el terminal y en el panel)"}</span>
         <input value={form.nombres} onChange={(e) => { setForm({ ...form, nombres: e.target.value }); setParecidas(null); }} disabled={guardando} className="rounded-lg border px-3 py-2 disabled:opacity-50" />
       </label>
       <label className="flex flex-col gap-1 text-sm">
         Apellido corto{" "}
-        <span className="text-taupe">(sin números: el DNI y el nombre completo se cargan en Datos personales y son los que salen en contratos, boletas y liquidaciones)</span>
+        <span className="text-taupe">{interruptoresVidrio().panel ? "(el nombre completo y el DNI van en Datos personales)" : "(sin números: el DNI y el nombre completo se cargan en Datos personales y son los que salen en contratos, boletas y liquidaciones)"}</span>
         <input value={form.apellidos} onChange={(e) => { setForm({ ...form, apellidos: e.target.value }); setParecidas(null); }} disabled={guardando} className="rounded-lg border px-3 py-2 disabled:opacity-50" />
       </label>
       {/* ── EL DOCUMENTO (0513) ─────────────────────────────────────────────
@@ -1399,7 +1400,7 @@ export default function EquipoPage() {
           />
           <span>
             Es una estación de retail (no es una persona)
-            <span className="block text-xs text-taupe">La cuenta compartida de una tienda en el sistema de retail. No lleva documento, no marca asistencia y no entra a la planilla.</span>
+            <span className="block text-xs text-taupe">{interruptoresVidrio().panel ? "Cuenta compartida de una tienda: sin documento, sin asistencia, sin planilla." : "La cuenta compartida de una tienda en el sistema de retail. No lleva documento, no marca asistencia y no entra a la planilla."}</span>
           </span>
         </label>
       )}
@@ -1453,7 +1454,7 @@ export default function EquipoPage() {
         <label className="flex flex-col gap-1 text-sm">
           Cargo{" "}
           <span className="text-taupe">
-            (cómo se la nombra en la columna Cargo y en su contrato. No cambia ningún permiso)
+            {interruptoresVidrio().panel ? "(sale en su contrato; no cambia permisos)" : "(cómo se la nombra en la columna Cargo y en su contrato. No cambia ningún permiso)"}
           </span>
           <input
             type="text"
@@ -1466,9 +1467,9 @@ export default function EquipoPage() {
         </label>
       ) : (
         <p className="rounded-lg bg-hueso px-3 py-2 text-xs text-taupe">
-          El cargo, el tipo de vínculo y el salario se completan después, con «Editar» y el menú «•••» de
-          esta persona. Mientras tanto queda como «Planilla»: si es practicante o va por recibo por
-          honorarios, cámbialo en «Editar» ANTES de asignarle salario.
+          {interruptoresVidrio().panel
+            ? "Cargo, vínculo y salario van después, en «Editar» y «•••». Queda como «Planilla»: si es practicante o va por recibos, cámbialo ANTES de asignarle salario."
+            : "El cargo, el tipo de vínculo y el salario se completan después, con «Editar» y el menú «•••» de esta persona. Mientras tanto queda como «Planilla»: si es practicante o va por recibo por honorarios, cámbialo en «Editar» ANTES de asignarle salario."}
         </p>
       )}
       <label className="flex flex-col gap-1 text-sm">
@@ -1476,7 +1477,7 @@ export default function EquipoPage() {
         <span className="text-taupe">
           {modo === "edicion" && !funcionesOk
             ? "(no se pudo cargar el área actual — deshabilitada para no pisarla)"
-            : "(las operativas de sede cuentan para la cobertura de tienda)"}
+            : interruptoresVidrio().panel ? "(las de sede cuentan para la cobertura)" : "(las operativas de sede cuentan para la cobertura de tienda)"}
         </span>
         <select
           value={form.funcion}
@@ -1591,7 +1592,9 @@ export default function EquipoPage() {
                     : "Ya está inactiva: su contrato terminó, no hay término que prever."
                   : form.tipoVinculo === "practicante"
                     ? "El convenio de prácticas no es indefinido: siempre tiene un plazo (Ley 28518, art. 30). Anotar la fecha NO la da de baja — sigue activa hasta ese día. Dar de baja es «Desactivar», y va aparte."
-                    : "En blanco es lo normal: el contrato indefinido no vence. Anotar la fecha NO la da de baja — sigue activa, sigue marcando y sigue cobrando hasta ese día. Dar de baja es «Desactivar», y va aparte."}
+                    : interruptoresVidrio().panel
+                      ? "En blanco si el contrato no vence. Anotarla NO la da de baja: sigue activa y cobrando hasta ese día. Dar de baja es «Desactivar»."
+                      : "En blanco es lo normal: el contrato indefinido no vence. Anotar la fecha NO la da de baja — sigue activa, sigue marcando y sigue cobrando hasta ese día. Dar de baja es «Desactivar», y va aparte."}
             </span>
             {antesDelIngreso && (
               <span className="text-xs text-rojo">
@@ -1770,7 +1773,7 @@ export default function EquipoPage() {
           />
           <span>
             Visible en todas las sedes
-            <span className="block text-xs text-taupe">Para quien marca en más de un local. Aparece en el terminal de cualquier sede, no solo en el de su sede base.</span>
+            <span className="block text-xs text-taupe">{interruptoresVidrio().panel ? "Para quien marca en más de un local." : "Para quien marca en más de un local. Aparece en el terminal de cualquier sede, no solo en el de su sede base."}</span>
           </span>
         </label>
       )}

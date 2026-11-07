@@ -7,6 +7,8 @@
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useTema, apariencia, type Tema } from "@/lib/use-tema";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { BotonTema } from "@/components/vidrio/boton-tema";
 
 const SIGUIENTE: Record<Tema, Tema> = { sistema: "claro", claro: "oscuro", oscuro: "sistema" };
 const ICONO: Record<Tema, LucideIcon> = { sistema: Monitor, claro: Sun, oscuro: Moon };
@@ -35,7 +37,7 @@ export function siguienteVisible(actual: Tema): Tema {
   return candidato;
 }
 
-export function SelectorTema({ className = "" }: { className?: string }) {
+function SelectorDeTresEstados({ className = "" }: { className?: string }) {
   // Pasa el cliente de admin para que, si nadie eligió tema a mano en este
   // navegador, se siga la configuración global de /admin/apariencia — ver
   // lib/use-tema.ts.
@@ -55,3 +57,7 @@ export function SelectorTema({ className = "" }: { className?: string }) {
     </button>
   );
 }
+
+// Con el vidrio encendido, el botón de dos estados de Retail. Es una constante y no un `if` adentro: apagado, el árbol de la página
+// queda idéntico, y una envoltura de más movería los ids de `useId` (se midió al construir el interruptor).
+export const SelectorTema = interruptoresVidrio().panel ? BotonTema : SelectorDeTresEstados;

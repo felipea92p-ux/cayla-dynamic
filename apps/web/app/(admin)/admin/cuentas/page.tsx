@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -18,7 +19,7 @@ import { filtrarCuentas, sedesDe } from "@/lib/admin/filtrar-cuentas";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { guardarMiClave } from "@/lib/admin/mi-clave";
-import { fechaLima, REQUISITOS_CLAVE, problemasDeClave, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { fechaLima, REQUISITOS_CLAVE, ROL_LABELS, problemasDeClave, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
@@ -89,12 +90,6 @@ function ListaNoCargada({ que, motivo, noSignifica, reintentar }: { que: string;
     </div>
   );
 }
-
-const ROL_LABEL: Record<string, string> = {
-  admin: "Admin",
-  lider_do: "Líder DO",
-  supervisor_sede: "Líder de equipo",
-};
 
 export default function CuentasPage() {
   const router = useRouter();
@@ -429,7 +424,7 @@ export default function CuentasPage() {
             )}
           </TarjetaInfo>
         )}
-        <Tabla>
+        <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
           <thead className="bg-sand/70 text-left">
             <tr className="etiqueta text-taupe">
               <th className="px-4 py-2.5 font-medium">Persona</th>
@@ -460,9 +455,9 @@ export default function CuentasPage() {
                 visibles.map((c) => (
                   <tr key={c.id} className="border-t border-sand align-top">
                     <td className="px-4 py-3">{c.nombre}</td>
-                    <td className="px-4 py-3 text-taupe">{ROL_LABEL[c.rol] ?? c.rol}</td>
+                    <td className="px-4 py-3 text-taupe">{ROL_LABELS[c.rol] ?? c.rol}</td>
                     <td className="px-4 py-3 text-taupe">{c.sede}</td>
-                    <td className="px-4 py-3">
+                    <td data-ancha className="px-4 py-3">
                       {c.tieneCuenta ? (
                         <span className="text-tinta">{c.email}</span>
                       ) : (
@@ -477,10 +472,10 @@ export default function CuentasPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-ancha className="px-4 py-3">
                       {c.tieneCuenta ? (
                         <div className="flex flex-col gap-2">
-                          <div className="flex flex-wrap gap-2">
+                          <div className={interruptoresVidrio().panel ? "vidrio-acciones flex flex-wrap gap-2" : "flex flex-wrap gap-2"}>
                             <Boton
                               variante="secundario"
                               onClick={() => setConfirmandoReseteo(c)}
@@ -562,10 +557,16 @@ export default function CuentasPage() {
           <div>
         <h2 className="mb-1 font-serif text-lg">Invitar para que dejen constancia</h2>
         <p className="mb-3 text-sm text-taupe">
+          {interruptoresVidrio().panel ? (
+            <>La Ley 30709 exige informar la política salarial a cada persona y poder probarlo, y para su constancia cada una necesita su cuenta. Recibe un correo y <strong>elige su clave</strong>: nadie más la conoce. No ve planilla, sueldos ni datos de nadie.</>
+          ) : (
+            <>
           La Ley 30709 obliga a informar la política salarial a cada persona y a poder probarlo. Para dejar
           su constancia necesitan entrar con su propia cuenta. Al invitarles reciben un correo y{" "}
           <strong>eligen su clave por su cuenta</strong> — nadie más la conoce. No ven planilla, ni sueldos, ni
           datos de nadie: su menú solo muestra lo que les corresponde.
+            </>
+          )}
         </p>
         <p className="mb-3 text-sm text-taupe">
           <strong>La invitación sale sola, una vez</strong>, en cuanto su ficha tiene correo. Acá solo queda quien
@@ -617,11 +618,17 @@ export default function CuentasPage() {
 
         <h2 className="mb-1 mt-10 font-serif text-lg">Volver a invitar — todavía no han entrado</h2>
         <p className="mb-3 text-sm text-taupe">
+          {interruptoresVidrio().panel ? (
+            <>Tienen cuenta pero <strong>nunca entraron</strong>: el correo se perdió, llegó a spam o quedó pendiente. Les llega otra vez la invitación, o el enlace para recuperar el acceso si ya tenían clave. <strong>Se reenvía una sola vez por correo</strong>: si está mal, cámbialo en Cuentas del equipo y se abre un envío más.</>
+          ) : (
+            <>
           Tienen cuenta creada pero <strong>nunca han iniciado sesión</strong>: el correo se perdió, llegó a spam
           o quedó pendiente. A quien fue invitada le llega otra vez la invitación; a quien ya tenía clave le llega
           el enlace de «recuperar acceso» para poner la suya. <strong>Se reenvía una sola vez por correo</strong>: si
           ese correo está mal, cámbialo en Cuentas del equipo y se abre un envío más. Van de a una, con una pausa
           entre correos, porque el proyecto tiene un tope por hora.
+            </>
+          )}
         </p>
         {cargando ? (
           <p className="text-sm text-taupe">Cargando…</p>
@@ -643,7 +650,7 @@ export default function CuentasPage() {
             {pendientes.map((p) => (
               <div key={p.id} className="flex items-center gap-3 rounded-control border border-sand bg-sand/25 px-3 py-2">
                 <span className="text-sm text-tinta">
-                  {p.nombre} <span className="text-taupe">· {p.sede} · {ROL_LABEL[p.rol] ?? p.rol}</span>
+                  {p.nombre} <span className="text-taupe">· {p.sede} · {ROL_LABELS[p.rol] ?? p.rol}</span>
                   {p.email ? (
                     <span className="block text-xs text-taupe">
                       {p.email} · {p.manualAt

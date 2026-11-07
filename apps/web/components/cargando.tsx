@@ -10,6 +10,8 @@
 // otra. Y `prefers-reduced-motion` ya apaga la animación para quien la tenga
 // desactivada (globals.css), así que el aleteo no molesta a nadie.
 
+import { interruptoresVidrio } from "@/lib/vidrio";
+
 /**
  * Carga a pantalla o sección completa. El caso normal.
  *
@@ -23,9 +25,25 @@
 export function Cargando({ texto = "Cargando…", clase = "text-sm", compacto = false }: { texto?: string; clase?: string; compacto?: boolean }) {
   return (
     <div className={`flex flex-col items-center gap-4 text-taupe ${compacto ? "py-6" : "py-20"}`} role="status" aria-live="polite">
-      <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
+      {interruptoresVidrio().panel ? <LenteDeEspera compacta={compacto} /> : <span className="colibri aletea w-12 text-rojo/70" aria-hidden />}
       <span className={clase}>{texto}</span>
+      {interruptoresVidrio().panel ? <span aria-hidden className="vidrio-espera-hilo hidden" /> : null}
     </div>
+  );
+}
+
+/**
+ * La espera con vidrio: el colibrí mirado a través de una lente, con su arco. Es la de Retail (`Espera.tsx`) en el sitio donde se espera, sin cubrir la pantalla.
+ * Sin el atributo del panel —el terminal usa este mismo `Cargando`— se reduce al colibrí de siempre: `contents` y `hidden` hacen que la lente no exista.
+ */
+export function LenteDeEspera({ compacta = false }: { compacta?: boolean }) {
+  return (
+    <span aria-hidden data-compacta={compacta ? "" : undefined} className="vidrio-espera-marca contents">
+      <span className="colibri aletea w-12 text-rojo/70" />
+      <svg viewBox="0 0 64 64" fill="none" strokeWidth={2} className="vidrio-espera-anillo hidden">
+        <circle cx="32" cy="32" r="29" stroke="currentColor" strokeDasharray="46 137" strokeLinecap="round" />
+      </svg>
+    </span>
   );
 }
 

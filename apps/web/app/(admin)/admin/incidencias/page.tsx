@@ -511,6 +511,7 @@ function IncidenciasContenido() {
           sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Incidencias"
           descripcion={<>{fechaCorta(desde)} – {fechaCorta(hasta)} · Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya.</>}
+          vidrio={{ dato: <>{fechaCorta(desde)} – {fechaCorta(hasta)}</>, frase: "Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya." }}
           ayuda={
             <AyudaPantalla
               titulo="Cómo se detectan las incidencias"
@@ -643,7 +644,7 @@ function IncidenciasContenido() {
           </div>
 
           {masFiltros && (
-            <div id="incidencias-mas-filtros" className="flex flex-col gap-3 rounded-superficie border border-sand bg-papel p-4">
+            <TarjetaInfo id="incidencias-mas-filtros" className="flex flex-col gap-3 !p-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <CampoSelect tamano="sm" id="incidencias-tipo" etiqueta="Tipo de incidencia" value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as TipoIncidencia | "")}>
                   <option value="">Todos los tipos</option>
@@ -674,7 +675,7 @@ function IncidenciasContenido() {
                     onChange={(e) => { if (e.target.value) { setHasta(e.target.value); setPeriodo("libre"); } }} />
                 </div>
               </div>
-            </div>
+            </TarjetaInfo>
           )}
 
           {/* ── Qué se mira: cuántos y de qué. Cada chip cuenta lo que mostraría al tocarlo. ── */}

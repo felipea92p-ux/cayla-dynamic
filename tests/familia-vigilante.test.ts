@@ -117,6 +117,42 @@ describe("la envoltura de las recetas", () => {
     });
   }
 
+  describe("«el vidrio que aguanta» de Retail: viajan las variables y no sus reglas", () => {
+    const macizo = (regla = '*, *::before, *::after { backdrop-filter: none !important; }') =>
+      `@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) { :root, :root[data-tema="oscuro"] { --gota-fondo: var(--color-papel); } ${regla} }`;
+    const contraste = (variable = "--color-taupe", regla = '[class*="text-tinta/"] { color: var(--color-tinta); }') =>
+      `@media (prefers-contrast: more) { :root, :root[data-tema="oscuro"] { ${variable}: var(--color-tinta); } ${regla} }`;
+
+    it("cuelga las variables del atributo y deja afuera la regla sobre todo: esa la escribe piezas.css, solo para el panel", () => {
+      const salida = envolverRecetas(macizo());
+      expect(salida).toContain(":root[data-vidrio]");
+      expect(salida).toContain("--gota-fondo");
+      expect(salida).not.toContain("backdrop-filter");
+    });
+    it("el bloque de más contraste no deja nada: lo escribe piezas.css después de los colores de marca", () => {
+      const salida = envolverRecetas(contraste());
+      expect(salida).not.toContain("--color-taupe");
+      expect(salida).not.toContain("text-tinta/");
+    });
+    it("se niega con una regla nueva adentro: alguien tiene que escribir su equivalente", () => {
+      expect(() => envolverRecetas(macizo(".btn-nuevo { color: red; }"))).toThrow(RecetaRechazada);
+      expect(() => envolverRecetas(contraste("--color-taupe", ".btn-nuevo { color: red; }"))).toThrow(RecetaRechazada);
+    });
+    it("se niega si el bloque de más contraste toca otro color", () => {
+      expect(() => envolverRecetas(contraste("--color-rojo"))).toThrow(RecetaRechazada);
+    });
+    it("los colores que pisa el bloque de más contraste no cuentan como choque con Dynamic", () => {
+      expect(revisarContraDynamic(contraste(), { cssDeDynamic: "--color-taupe: #000; --color-tinta: #111;" })).toEqual([]);
+    });
+    it("piezas.css tiene de verdad lo que aquí se deja afuera", () => {
+      const piezas = readFileSync(join(RAIZ, "apps/web/app/estilos/vidrio/piezas.css"), "utf8");
+      expect(piezas).toContain("@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)");
+      expect(piezas).toContain("@media (prefers-contrast: more)");
+      expect(piezas).toMatch(/--color-taupe:\s*var\(--color-tinta\)/);
+      expect(piezas).toMatch(/--color-borde-control:\s*var\(--color-tinta\)/);
+    });
+  });
+
   it("avisa de lo que un navegador no avisa: una variable que no existe queda en nada, en silencio", () => {
     const css = ":root { --a: var(--color-nuevo); --b: var(--color-tinta); }";
     const dynamic = "--color-tinta: #1a1a18;";

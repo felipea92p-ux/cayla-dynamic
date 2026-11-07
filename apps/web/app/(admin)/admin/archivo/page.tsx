@@ -22,6 +22,8 @@
 // ============================================================================
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { interruptoresVidrio } from "@/lib/vidrio";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { fechaLima, hoyLima, puedeGestionarArchivo } from "@cayla-dynamic/shared";
@@ -250,6 +252,7 @@ export default function ArchivoPage() {
   return (
     <main className="flex-1 p-6">
       <CabeceraPagina
+        sobretitulo={interruptoresVidrio().panel ? sobretituloDeHoy("Empresa") : undefined}
         titulo="Archivo de la empresa"
         descripcion="Los papeles que CAYLA presenta o recibe de una autoridad, a la mano para una inspección."
         ayuda={

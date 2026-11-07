@@ -1,0 +1,752 @@
+/* Las piezas con vidrio: botones, campos, tarjetas, tablas, insignias, avisos, filtros, pestañas, vacíos, listas y hojas. Copiadas de vidrio/campos-y-botones.css,
+   pantalla.css, pantalla-en-vidrio.css, notas-avisos-combos.css y hoja.css de Retail, armadas solo con sus recetas (recetas.generado.css).
+
+   QUÉ PROMETE
+     Con el interruptor encendido, TODA pantalla toma las piezas de Retail de una vez, también lo escrito a mano: Retail hizo lo mismo con `.pantalla-en-vidrio`.
+     Por eso esta hoja mira las clases que ya existen (`bg-papel`, `rounded-control`, `bg-hueso`) y no pide tocar 82 archivos. Solo cambia el material:
+     qué hace cada botón y qué dice cada pantalla no se mueve de aquí.
+
+   QUÉ ASUME
+     Fuera de capa: lo que vive fuera de capa le gana a las utilidades de Tailwind sin `!important`. La otra cara es que un `hover:bg-…` escrito en la pieza
+     pierde contra una regla de aquí, y por eso cada pieza repite su `:hover`.
+
+   LO QUE NO SE TOCA
+     Solo en pantalla (`@media screen`): el papel que se imprime no lleva vidrio. Y en pantalla tampoco lo que simula ese papel: `.hoja` (contrato, boleta, memo)
+     se excluye en cada regla, porque lo que se revisa en pantalla tiene que ser lo que va a salir.
+
+   DECIDÍ: sin `backdrop-filter` en las tarjetas y las tablas.
+   DESCARTÉ: copiarlo de `--serena-filtro` como Retail, porque aquí las ventanas viven DENTRO de las pantallas (`Modal` no va en un portal, y hay 50 usos): un
+     desenfoque en la tarjeta la vuelve el contenedor de todo lo `fixed` de adentro y la ventana quedaría encerrada en ella. Detrás de una tarjeta solo está la
+     aurora, que ya viene desenfocada: quitarlo no cambia lo que se ve.
+   SE ROMPE SI: alguien le pone un `transform` o un `filter` a una tarjeta que contiene una ventana. */
+@media screen {
+  /* ---------- La serif de títulos y cifras: 600 (P6 del contrato). El papel se queda como está. ---------- */
+  [data-vidrio="panel"] .font-serif:not(.hoja, .hoja *) {
+    font-weight: 600;
+  }
+
+  /* ---------- El papel en su bandeja ----------
+     Un documento no se oscurece: lo que se revisa tiene que ser lo que va a salir. Lleva los mismos trece colores del bloque de impresión de globals.css (lo comprueba
+     tests/vidrio-papel.test.ts) y descansa en un pozo, como en la bandeja de la impresora: la receta de Retail (.papel-fijo, y «A · En su bandeja» en liquidacion.css). La bandeja es una
+     sombra sin desenfoque y no un contenedor: así no hay que tocar las pantallas, y no ocupa lugar ni llega a lo que se imprime. */
+  [data-vidrio="panel"] :is(.hoja:not(main), .vidrio-papel) {
+    color-scheme: light;
+    color: var(--color-tinta);
+    --color-crema: #f5f0e8;
+    --color-papel: #fbf8f2;
+    --color-tinta: #1a1a18;
+    --color-rojo: #b8412d;
+    --color-rojo-profundo: #8b2a1f;
+    --color-sand: #e8e0d0;
+    --color-taupe: #805c4c;
+    --color-verde: #48603f;
+    --color-ambar: #74501a;
+    --color-hueso: #eae1d2;
+    --color-pizarra: #4c5d6e;
+    --color-azul: #2f5f9e;
+    --color-ceniza: #635f58;
+    --firma-fondo: transparent;
+    --firma-aire: 0;
+    margin-block: 12px;
+    border-color: var(--color-sand);
+    background-color: var(--color-papel);
+    border-radius: 8px; /* más los 12 de la bandeja: sus 20 px, los de Retail */
+    box-shadow: var(--papel-en-bandeja-sombra), 0 0 0 12px var(--pozo-fondo);
+  }
+  /* Los que no traen relleno propio: sin esto, el texto queda pegado al borde del papel. */
+  [data-vidrio="panel"] :is(.vidrio-papel, .vidrio-papel-aire) {
+    padding: clamp(16px, 3vw, 28px);
+  }
+  /* En el teléfono el papel respira con menos relleno. Solo en pantalla: el papel impreso no cambia. La boleta y las firmas ya bajan a dos líneas por su cuenta (#688). */
+  @media (max-width: 639px) {
+    [data-vidrio="panel"] .hoja.p-8 {
+      padding: 20px;
+    }
+    /* Las constancias: la pantalla entera lleva la clase del papel. Sin el min-width, la tabla ensanchaba todo y el texto quedaba cortado por el borde del teléfono. */
+    [data-vidrio="panel"] main.hoja {
+      width: 100%;
+      min-width: 0;
+      padding-inline: 16px;
+    }
+    [data-vidrio="panel"] .vidrio-papel > :is(section, div):has(> table) {
+      overflow-x: auto;
+    }
+    [data-vidrio="panel"] .vidrio-papel > table {
+      display: block;
+      overflow-x: auto;
+    }
+  }
+  /* Un dato atenuado en el papel se imprime igual que hoy; en la pantalla tiene que leerse. */
+  [data-vidrio="panel"] .hoja :is(.text-taupe\/40, .text-taupe\/60) {
+    color: var(--color-taupe);
+  }
+  /* El visor de un contrato o una liquidación: el papel corre dentro de una ventana que recorta lo que sobresale. El margen le da lugar a la bandeja. */
+  [data-vidrio="panel"] .hoja.overflow-y-auto {
+    margin: 12px;
+  }
+
+  /* ---------- Lo que empuja la página de lado ----------
+     Un `grid` sin columnas dadas crece hasta lo que pide su hijo más ancho, aunque ese hijo tenga su propio desplazamiento: así, Equipo y Contratos se salen hoy de la
+     pantalla a 768 px, con o sin vidrio. Con esto la tabla se desplaza dentro de su caja, que es lo que ya querían. */
+  [data-vidrio="panel"] .grid > *:not(.hoja *) {
+    min-width: 0;
+  }
+
+  /* ---------- Lo que se lee a medias ----------
+     El rojo de marca es para marcar, no para leer: la letra roja va en rojo profundo, como en Retail. Sobre una ficha teñida daba 4.21:1 (las iniciales de Correcciones).
+     Lo mismo con la letra aguada (`text-taupe/60`): el tinte bajaba a 2:1 sobre el vidrio, y lo que no se lee no aporta. */
+  [data-vidrio="panel"] .text-rojo:not(.hoja *) {
+    color: var(--color-rojo-profundo);
+  }
+  [data-vidrio="panel"] [class*="text-rojo/"]:not(.hoja *) {
+    color: var(--color-rojo-profundo);
+  }
+  [data-vidrio="panel"] [class*="text-taupe/"]:not(.hoja *) {
+    color: var(--color-taupe);
+  }
+  /* La letra secundaria: el café de marca da 5.2:1 sobre crema, pero sobre la nube más teñida de la aurora bajaba a 3.82:1, medido con los píxeles de 40 pantallas. Un punto
+     más de tinta y no otro color: se ve igual y pasa. No se toca el token: `taupe` también pinta líneas y fondos, y es del contrato. */
+  [data-vidrio="panel"] :is(.text-taupe, [class*="text-taupe/"]):not([role="tab"], .vidrio-pestanas > button, .hoja *) {
+    color: var(--vidrio-letra-secundaria);
+  }
+  /* Dentro de una hoja, un punto más: el vidrio deja pasar lo que hay detrás, y un botón oscuro desenfocado bajo la letra la bajaba a 4.29:1 en el teléfono. */
+  [data-vidrio="panel"] [role="dialog"] :is(.text-taupe, [class*="text-taupe/"]):not([role="tab"], .vidrio-pestanas > button, .hoja *) {
+    color: color-mix(in srgb, var(--color-taupe) 72%, var(--color-tinta));
+  }
+  /* Las pantallas que enteras llevan la clase del papel (las dos de constancias y la hoja de una norma): lo que queda fuera del papel es pantalla, y su letra secundaria
+     es la del vidrio. Con el café de siempre, «Para guardarlo como PDF…» y «Versión:» daban 4.22:1 sobre el fondo. */
+  [data-vidrio="panel"] main.hoja :is(.text-taupe, [class*="text-taupe/"]):not([role="tab"], .vidrio-pestanas > button, .vidrio-papel *) {
+    color: var(--vidrio-letra-secundaria);
+  }
+  /* El ámbar para leer es el profundo, como en Retail. El otro es para marcar. */
+  [data-vidrio="panel"] .text-ambar:not(.hoja *) {
+    color: var(--color-ambar-profundo);
+  }
+  /* Lo que va dentro de un botón o una insignia neutra: sobre su gota, el café oscuro no alcanzaba (4.34:1). */
+  [data-vidrio="panel"] :is(button, a).rounded-control.text-taupe:not(.hoja *),
+  [data-vidrio="panel"] .bg-sand.text-taupe:not(.hoja *) {
+    color: color-mix(in srgb, var(--color-tinta) 78%, transparent);
+  }
+  /* Un botón no hereda la letra apagada de su fila o de su vacío: «Editar» en un área inactiva bajaba a 4.26:1 en oscuro. Lo inactivo es el dato; el botón sigue funcionando. */
+  [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.bg-tinta, .text-taupe, .text-rojo, .text-crema, .text-verde, .text-ambar, :disabled, .hoja *) {
+    color: var(--color-tinta);
+  }
+  /* La vista previa de una firma es un trozo de papel: blanca en los dos temas, así que su letra y su línea tampoco cambian con el tema. */
+  [data-vidrio="panel"] .bg-white.bg-white.bg-white :is(.text-taupe, [class*="border-tinta/"]) {
+    color: color-mix(in srgb, var(--color-tinta-fija) 72%, transparent);
+    border-color: color-mix(in srgb, var(--color-tinta-fija) 40%, transparent);
+  }
+  /* Una etiqueta chica sobre un fondo a medias (el «sin meta» de Turnos). */
+  [data-vidrio="panel"] span[class*="bg-papel/"]:not(.hoja *) {
+    color: color-mix(in srgb, var(--color-tinta) 78%, transparent);
+  }
+  /* El conteo dentro de un filtro: al 70 % bajaba a 4.01:1. */
+  [data-vidrio="panel"] button[aria-pressed] [class*="opacity-"]:not(.hoja *) {
+    opacity: 0.85;
+  }
+
+  /* ---------- Las líneas: el hilo de las tablas ----------
+     Primero, para que las piezas de abajo le ganen. Un botón o un campo conservan el borde que dice que se tocan. */
+  [data-vidrio="panel"] .border-sand:not(a, button, input, select, textarea, [role="button"], .hoja, .hoja *),
+  [data-vidrio="panel"] .divide-sand:not(.hoja, .hoja *) > * {
+    border-color: var(--hilo-fila);
+  }
+
+  /* ---------- El botón: la píldora ----------
+     El principal es vidrio ahumado de tinta, el secundario la gota, el sutil apenas un filo, y lo peligroso la gota con letra roja. Un botón que es una tarjeta
+     entera (una fila que se toca, con su texto a la izquierda) no se vuelve píldora: en algo tan alto la esquina de 999 px se ve como un estadio. */
+  [data-vidrio="panel"] :is(button, a, [role="button"]).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, .hoja *) {
+    border-radius: var(--radius-boton);
+  }
+  /* La altura de la píldora. Un <button> centra su texto solo; un enlace no: el alto que esta regla le agrega caía entero debajo de la letra, y
+     «Volver al panel» de Lo mío quedaba pegado arriba (Felipe, 2026-11-07). `align-content` centra sin tocar el `display` del enlace —cambiarlo
+     encendería los `hidden md:inline-flex`—; en un flex de una línea no hace nada. Un navegador sin soporte (Safari < 17.4) lo deja como estaba. */
+  [data-vidrio="panel"] :is(button, a).rounded-control.py-2:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, .hoja *) {
+    min-height: 2.5rem;
+    align-content: center;
+  }
+  [data-vidrio="panel"] :is(button, a).bg-tinta:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) {
+    background: var(--ahumado-fondo);
+    border-color: var(--ahumado-borde);
+    box-shadow: var(--ahumado-luz);
+    transition: var(--vidrio-boton-transicion);
+  }
+  [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.bg-tinta, .hoja *) {
+    background: var(--gota-fondo);
+    box-shadow: var(--gota-luz);
+    transition: var(--vidrio-boton-transicion);
+  }
+  [data-vidrio="panel"] :is(button, a).rounded-control.border-sand:not(.bg-papel, .bg-tinta, .hoja *) {
+    background: transparent;
+    border-color: var(--placa-borde);
+    transition: var(--vidrio-boton-transicion);
+  }
+  /* Lo que estaba relleno de papel (el botón de un ícono, un atajo): la gota, con el filo de lo que se toca. */
+  [data-vidrio="panel"] :is(button, a).rounded-control.bg-papel:not(.hoja *) {
+    border-color: var(--plegar-borde);
+    background: var(--gota-fondo-encima);
+    box-shadow: var(--gota-luz);
+    transition: var(--vidrio-boton-transicion);
+  }
+  [data-vidrio="panel"] :is(button, a).rounded-control[class*="border-rojo"]:not(.hoja *) {
+    background: var(--gota-peligro-fondo);
+    border-color: var(--color-borde-control);
+    color: var(--color-rojo-profundo);
+    box-shadow: var(--gota-luz);
+    transition: var(--vidrio-boton-transicion);
+  }
+  /* La acción principal de una confirmación es negra aunque anule o borre: en un pie no puede haber dos negros, y lo que se lee primero es lo que confirma.
+     Se reconoce por su lugar: el último botón de su fila, dentro de una ventana. Un «Eliminar» en medio de una ficha sigue siendo la gota roja. */
+  [data-vidrio="panel"] [role="dialog"] button.rounded-control[class*="border-rojo"]:last-child:not(.hoja *) {
+    background: var(--ahumado-fondo);
+    border-color: var(--ahumado-borde);
+    color: var(--color-crema);
+    box-shadow: var(--ahumado-luz);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] :is(button, a).bg-tinta:is(.rounded-control, .rounded-pildora, .rounded-full):not(:disabled, [aria-pressed], .hoja *):hover,
+    [data-vidrio="panel"] [role="dialog"] button.rounded-control[class*="border-rojo"]:last-child:not(:disabled, .hoja *):hover {
+      background: var(--ahumado-hover);
+      border-color: color-mix(in srgb, var(--color-rojo-profundo) 70%, transparent);
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.bg-tinta, :disabled, .hoja *):hover,
+    [data-vidrio="panel"] :is(button, a).rounded-control.bg-papel:not(:disabled, [aria-pressed="true"], .hoja *):hover {
+      background: var(--gota-fondo-encima);
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control.border-sand:not(.bg-papel, .bg-tinta, :disabled, .hoja *):hover {
+      background: var(--gota-fondo);
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control[class*="border-rojo"]:not(:disabled, .hoja *):hover {
+      background: var(--gota-peligro-encima);
+    }
+  }
+
+  /* ---------- El campo: un pozo tallado en el vidrio ----------
+     Espera tu dato. Al escribir sube como la gota sin volverse sólido. El borde sigue siendo el de control (3:1); con un error, el rojo de siempre. */
+  [data-vidrio="panel"] :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select, textarea):is(.bg-hueso, .bg-crema, .border-borde-control):not(.hoja *) {
+    border-radius: var(--radius-campo);
+    background-color: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+    transition: background-color 300ms var(--ease-cayla), box-shadow 300ms var(--ease-cayla), border-color 220ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select, textarea):is(.bg-hueso, .bg-crema, .border-borde-control):not(.border-rojo, .hoja *) {
+    border-color: var(--color-borde-control);
+  }
+  [data-vidrio="panel"] :is(input, select, textarea):is(.bg-hueso, .bg-crema, .border-borde-control):not(.hoja *):focus {
+    background-color: var(--pozo-encendido-fondo);
+    box-shadow: var(--pozo-encendido-sombra);
+  }
+  /* El buscador de una lista: el mismo pozo, en píldora. */
+  [data-vidrio="panel"] input:is([type="search"], [placeholder^="Buscar"]):is(.bg-hueso, .bg-crema, .border-borde-control):not(.hoja *) {
+    border-radius: var(--radius-boton);
+  }
+  [data-vidrio="panel"] :is(input, textarea):not(.hoja *)::placeholder {
+    color: color-mix(in srgb, var(--color-tinta) 64%, transparent);
+    opacity: 1;
+  }
+  /* El opcional de un desplegable: el sistema pinta la lista y hace falta que sea opaca, si no el texto queda sobre la nada. */
+  [data-vidrio="panel"] select option {
+    background: var(--color-papel);
+    color: var(--color-tinta);
+  }
+  /* El desplegable escrito a mano: la misma flecha fina del de la pieza (components/ui/campo.tsx), y no la gruesa del navegador. Se dibuja con dos
+     degradados y no con una imagen, para que tome el taupe de cada tema. Los angostos (w-14, w-16) se dejan: con la flecha no les cabe el texto. */
+  [data-vidrio="panel"] select:is(.bg-hueso, .bg-crema, .border-borde-control):not(.appearance-none, [multiple], [class*="w-1"], .hoja *) {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 1.9rem;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--color-taupe) 50% calc(50% + 1.5px), transparent calc(50% + 1.5px)),
+      linear-gradient(-45deg, transparent 50%, var(--color-taupe) 50% calc(50% + 1.5px), transparent calc(50% + 1.5px));
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
+  /* Un campo con su lupa adentro: la caja es el pozo y el <input> de adentro no pinta nada. */
+  [data-vidrio="panel"] label.bg-hueso:not(.hoja *),
+  [data-vidrio="panel"] div.bg-hueso:has(> input):not(.hoja *) {
+    border-color: var(--color-borde-control);
+    border-radius: var(--radius-campo);
+    background-color: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+  }
+  [data-vidrio="panel"] :is(label, div).bg-hueso:has(> input:focus):not(.hoja *) {
+    background-color: var(--pozo-encendido-fondo);
+    box-shadow: var(--pozo-encendido-sombra);
+  }
+
+  /* La casilla: vacía es un pozo; marcada se llena de vidrio ahumado con su ✓. El tamaño es el que ya tenía: 44 px de toque los pone quien la usa. */
+  [data-vidrio="panel"] input[type="checkbox"]:not(.hoja *) {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
+    border: 1px solid var(--color-borde-control);
+    border-radius: 6px;
+    background: var(--pozo-fondo) center / 12px 12px no-repeat;
+    box-shadow: inset 0 1.5px 3px color-mix(in srgb, var(--color-sombra) 18%, transparent);
+    cursor: pointer;
+    transition: background-color 200ms var(--ease-cayla), border-color 200ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] input[type="checkbox"]:checked:not(.hoja *) {
+    border-color: var(--ahumado-borde);
+    background: var(--color-tinta) center / 12px 12px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f0e8' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-vidrio) 32%, transparent);
+  }
+  :root[data-vidrio="panel"][data-tema="oscuro"] input[type="checkbox"]:checked:not(.hoja *) {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c1a17' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  }
+  [data-vidrio="panel"] input[type="checkbox"]:disabled:not(.hoja *) {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  [data-vidrio="panel"] input[type="radio"]:not(.hoja *) {
+    accent-color: var(--color-tinta);
+  }
+
+  /* ---------- La tarjeta: la placa Serena ----------
+     Una placa de vidrio que se separa del fondo con su filo, su luz y su sombra larga (S5 del contrato). Lo que flota o se pega se queda opaco: tapa lo que pasa por
+     debajo. Lo que va adentro de otra tarjeta es la placa más liviana, para que no se apilen dos sombras. */
+  [data-vidrio="panel"] :is(div, section, article, header, aside, form, ul, li, details).bg-papel:not(.sticky, .fixed, .absolute, [data-color-dato], [role="dialog"], [role="menu"], .hoja, .hoja *) {
+    border-color: var(--serena-borde);
+    background: var(--serena-fondo);
+    box-shadow: var(--serena-sombra);
+  }
+  [data-vidrio="panel"] :is(.rounded-superficie, .rounded-2xl, .rounded-xl).bg-papel:not(.sticky, .fixed, .absolute, [role="dialog"], [role="menu"], .hoja, .hoja *) {
+    border-radius: var(--radius-tarjeta);
+  }
+  [data-vidrio="panel"] .bg-papel :is(div, section, article, ul, li).bg-papel:not(.sticky, .fixed, .absolute, [data-color-dato], [role="dialog"], [role="menu"], .hoja, .hoja *),
+  [data-vidrio="panel"] .bg-papel :is(div, section, article, ul, li):is(.bg-crema, .bg-hueso):not(.sticky, .fixed, .absolute, .rounded-full, [data-color-dato], [role="dialog"], [role="menu"], :has(> input), .hoja, .hoja *),
+  [data-vidrio="panel"] :is(div, section, ul, li)[class*="bg-sand/"]:not(.sticky, .fixed, .absolute, .rounded-full, [role="dialog"], .hoja, .hoja *) {
+    border-color: var(--placa-borde);
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+  /* Lo que era hueso suelto en la pantalla (la pista de una línea de tiempo, un ícono sobre su fondo): el pozo. Una fila de una tabla no: la sombra se le vería por fila. */
+  [data-vidrio="panel"] :is(div, section, span, li).bg-hueso:not(.sticky, .fixed, .absolute, .bg-papel *, [data-color-dato], :has(> input), [class*="rounded-pildora"], .hoja, .hoja *) {
+    background: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+  }
+  [data-vidrio="panel"] :is(tr, td).bg-hueso:not(.hoja *) {
+    background-color: color-mix(in srgb, var(--color-tinta) 3%, transparent);
+  }
+  /* Una barra pegada sobre lo que corre (el encabezado de Bandeja): vidrio, como la cabecera; sin él, en oscuro quedaba como una franja negra. */
+  [data-vidrio="panel"] div.sticky.bg-crema:not(.hoja *) {
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: var(--vidrio-flota-filtro);
+    backdrop-filter: var(--vidrio-flota-filtro);
+  }
+  /* La tarjeta que se toca (una cifra que filtra o lleva a otra pantalla): se alza 2 px al pasar. La puesta se hunde, como un campo que ya tiene tu dato. */
+  [data-vidrio="panel"] :is(button, a).rounded-superficie.bg-papel:not(.hoja *) {
+    border-color: var(--serena-borde);
+    border-radius: var(--radius-tarjeta);
+    background: var(--serena-fondo);
+    box-shadow: var(--serena-sombra);
+    transition: transform 250ms var(--ease-cayla), background 200ms var(--ease-cayla), box-shadow 250ms var(--ease-cayla);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] :is(button, a).rounded-superficie.bg-papel:not(.hoja *):hover {
+      transform: translateY(-2px);
+      background: var(--serena-fondo-encima);
+      box-shadow: var(--serena-sombra-encima);
+    }
+  }
+  [data-vidrio="panel"] :is(button, a, div).rounded-superficie.border-taupe.bg-hueso:not(.hoja *) {
+    border-color: var(--hundido-borde);
+    border-radius: var(--radius-tarjeta);
+    background: var(--hundido-fondo);
+    box-shadow: var(--hundido-sombra);
+  }
+  /* El número de una cifra: 28 px, como en Retail (D2). */
+  [data-vidrio="panel"] .font-serif.text-2xl.tabular-nums:not(.hoja *) {
+    font-size: 28px;
+  }
+
+  /* ---------- La tabla: la placa, sin banda de arena y con un hilo entre filas ---------- */
+  [data-vidrio="panel"] thead[class*="bg-papel"]:not([class*="max-h-"] *, .hoja *),
+  [data-vidrio="panel"] thead[class*="bg-sand/"]:not(.hoja *),
+  [data-vidrio="panel"] thead tr[class*="bg-sand/"]:not(.hoja *) {
+    background: none;
+  }
+  [data-vidrio="panel"] thead th:not(.hoja *) {
+    border-bottom: 1px solid var(--hilo-cabeza);
+  }
+  [data-vidrio="panel"] tbody tr:is(.border-t, .border-b, .border-y):not(.hoja *) {
+    border-color: var(--hilo-fila);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] tbody tr[class*="hover:bg-"]:not(.hoja *):hover {
+      background-color: color-mix(in srgb, var(--color-vidrio) 45%, transparent);
+    }
+    :root[data-vidrio="panel"][data-tema="oscuro"] tbody tr[class*="hover:bg-"]:not(.hoja *):hover {
+      background-color: color-mix(in srgb, var(--color-tinta) 6%, transparent);
+    }
+  }
+
+  /* ---------- La insignia de estado: una lente teñida de su tono ----------
+     Más clara arriba, con su luz y un filo del tono. Se sigue leyendo de un vistazo en una tabla, pero ya no es una mancha plana. La letra y el punto no cambian. */
+  [data-vidrio="panel"] .rounded-pildora:is([class*="bg-ambar/"], [class*="bg-verde/"], [class*="bg-rojo/"], [class*="bg-pizarra/"], [class*="bg-azul/"], .bg-sand):not(.hoja *) {
+    --tono-chip: var(--color-taupe);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--tono-chip) 10%, color-mix(in srgb, var(--color-vidrio) 75%, transparent)), color-mix(in srgb, var(--tono-chip) 16%, color-mix(in srgb, var(--color-vidrio) 40%, transparent)));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-vidrio) 85%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tono-chip) 26%, transparent);
+  }
+  [data-vidrio="panel"] .rounded-pildora[class*="bg-ambar/"]:not(.hoja *) {
+    --tono-chip: var(--color-ambar);
+  }
+  [data-vidrio="panel"] .rounded-pildora[class*="bg-verde/"]:not(.hoja *) {
+    --tono-chip: var(--color-verde);
+  }
+  [data-vidrio="panel"] .rounded-pildora[class*="bg-rojo/"]:not(.hoja *) {
+    --tono-chip: var(--color-rojo);
+  }
+  [data-vidrio="panel"] .rounded-pildora:is([class*="bg-pizarra/"], [class*="bg-azul/"]):not(.hoja *) {
+    --tono-chip: var(--color-pizarra);
+  }
+  :root[data-vidrio="panel"][data-tema="oscuro"] .rounded-pildora:is([class*="bg-ambar/"], [class*="bg-verde/"], [class*="bg-rojo/"], [class*="bg-pizarra/"], [class*="bg-azul/"], .bg-sand):not(.hoja *) {
+    /* 16 y 9 y no los 22 y 12 de Retail: con esos, la letra pizarra quedaba en 4.43:1 sobre una tarjeta. */
+    background: linear-gradient(180deg, color-mix(in srgb, var(--tono-chip) 16%, transparent), color-mix(in srgb, var(--tono-chip) 9%, transparent));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-tinta) 12%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tono-chip) 34%, transparent);
+  }
+  /* El número que pide algo: ámbar, como en el menú. El rojo es escaso (S1) y aquí no dice un error. */
+  [data-vidrio="panel"] :is(.rounded-pildora, .rounded-full).bg-rojo.text-crema:not(.hoja *) {
+    background: var(--color-ambar);
+    color: var(--color-crema);
+  }
+
+  /* ---------- El aviso: una placa teñida de lo que dice, con un filo de su color ----------
+     Mira las dos clases juntas (`border-ambar/40 bg-ambar/[0.07]`), que es como está escrito el aviso a mano y en `BannerAviso`. */
+  [data-vidrio="panel"] :is([class*="border-ambar/"][class*="bg-ambar/"], [class*="border-rojo/"][class*="bg-rojo/"], [class*="border-verde/"][class*="bg-verde/"], [class*="border-pizarra/"][class*="bg-pizarra/"]):not(button, a, .rounded-pildora, .hoja, .hoja *) {
+    --c: var(--color-taupe);
+    border-color: color-mix(in srgb, var(--c) 30%, transparent);
+    border-radius: 18px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--c) 7%, transparent), color-mix(in srgb, var(--c) 3%, transparent)), var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+  [data-vidrio="panel"] [class*="border-ambar/"][class*="bg-ambar/"]:not(button, a, .rounded-pildora, .hoja, .hoja *) {
+    --c: var(--color-ambar);
+  }
+  [data-vidrio="panel"] [class*="border-rojo/"][class*="bg-rojo/"]:not(button, a, .rounded-pildora, .hoja, .hoja *) {
+    --c: var(--color-rojo);
+  }
+  [data-vidrio="panel"] [class*="border-verde/"][class*="bg-verde/"]:not(button, a, .rounded-pildora, .hoja, .hoja *) {
+    --c: var(--color-verde);
+  }
+  [data-vidrio="panel"] [class*="border-pizarra/"][class*="bg-pizarra/"]:not(button, a, .rounded-pildora, .hoja, .hoja *) {
+    --c: var(--color-pizarra);
+  }
+
+  /* El aviso de `BannerAviso` lleva además su lente con el ícono, como `AvisoLinea` de Retail. El ícono es una máscara: se tiñe con `--c` y no agrega nada al HTML. */
+  [data-vidrio="panel"] .vidrio-aviso {
+    position: relative;
+    padding-left: 3.25rem;
+    min-height: 3.25rem;
+  }
+  [data-vidrio="panel"] .vidrio-aviso::before,
+  [data-vidrio="panel"] .vidrio-aviso::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+  }
+  [data-vidrio="panel"] .vidrio-aviso::before {
+    left: 0.75rem;
+    top: 0.625rem;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--c) 16%, transparent), color-mix(in srgb, var(--c) 6%, transparent)), var(--lente-fondo);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-vidrio) 90%, transparent), 0 0 0 1px color-mix(in srgb, var(--c) 24%, transparent);
+  }
+  [data-vidrio="panel"] .vidrio-aviso::after {
+    left: calc(0.75rem + 7px);
+    top: calc(0.625rem + 7px);
+    width: 16px;
+    height: 16px;
+    background: var(--c);
+    -webkit-mask: center / contain no-repeat var(--vidrio-aviso-icono);
+    mask: center / contain no-repeat var(--vidrio-aviso-icono);
+  }
+  [data-vidrio="panel"] .vidrio-aviso {
+    --vidrio-aviso-icono: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'/%3E%3C/svg%3E");
+  }
+  [data-vidrio="panel"] .vidrio-aviso[data-tono="positivo"] {
+    --vidrio-aviso-icono: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  }
+  [data-vidrio="panel"] .vidrio-aviso:is([data-tono="informativo"], [data-tono="neutral"]) {
+    --vidrio-aviso-icono: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 8h.01'/%3E%3C/svg%3E");
+  }
+  [data-vidrio="panel"] .vidrio-aviso[data-tono="neutral"] {
+    --c: var(--color-taupe);
+    border-color: var(--placa-borde);
+    border-radius: 18px;
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+
+  /* ---------- Las píldoras que filtran: gotas sueltas; la puesta, ahumada y con su ✓ ---------- */
+  [data-vidrio="panel"] button[aria-pressed]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) {
+    border-color: var(--color-borde-control);
+    border-radius: var(--radius-boton);
+    color: color-mix(in srgb, var(--color-tinta) 82%, transparent);
+    background: var(--gota-fondo-encima);
+    box-shadow: var(--gota-luz);
+    transition: background 200ms var(--ease-cayla), border-color 200ms, color 200ms, transform 250ms var(--ease-cayla);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] button[aria-pressed="false"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *):hover {
+      transform: translateY(-1px);
+      color: var(--color-tinta);
+      background: var(--gota-marca);
+    }
+  }
+  [data-vidrio="panel"] button[aria-pressed="true"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--color-crema);
+    border-color: var(--ahumado-denso-borde);
+    background: var(--ahumado-denso-fondo);
+    box-shadow: var(--ahumado-denso-luz);
+  }
+  /* Lo de adentro (el número, «1 vencido») hereda la letra: con su color propio no se leía sobre el ahumado, y eso se vio en Bandeja. */
+  [data-vidrio="panel"] button[aria-pressed="true"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) * {
+    color: inherit;
+  }
+  /* La palomita va solo si el filtro no trae su propio ícono: en «Mi disponibilidad», «Puedo» ya lleva el suyo y quedaba «✓ ✓ Puedo». */
+  [data-vidrio="panel"] button[aria-pressed="true"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(:has(> svg), .hoja *)::before {
+    content: "";
+    flex: none;
+    width: 13px;
+    height: 13px;
+    background: currentColor;
+    -webkit-mask: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+    mask: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  }
+  :root[data-vidrio="panel"][data-tema="oscuro"] button[aria-pressed="false"]:is(.rounded-control, .rounded-pildora, .rounded-full):not(.hoja *) {
+    border-color: color-mix(in srgb, var(--color-tinta) 30%, transparent);
+    background: color-mix(in srgb, var(--color-tinta) 9%, transparent);
+    box-shadow: none;
+  }
+
+  /* ---------- Las pestañas: la fila es un pozo y la elegida una gota clara ----------
+     Dos formas de escribirlas: la pieza `Pestanas` y las que traen `role="tablist"`. La gota que fluye de una a otra está en movimiento.css.
+     Fuera quedan solo las del papel: en Constancias de la política, la pantalla entera lleva la clase `hoja` y sus pestañas no son parte del documento. */
+  [data-vidrio="panel"] :is(.vidrio-pestanas, [role="tablist"]):not(.hoja:not(main) *, .vidrio-papel *) {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: 0;
+    gap: 2px;
+    padding: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border: 0;
+    border-radius: 999px;
+    background: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+  }
+  [data-vidrio="panel"] :is(.vidrio-pestanas > button, [role="tablist"] > [role="tab"]):not(.hoja:not(main) *, .vidrio-papel *) {
+    flex: none;
+    margin: 0;
+    min-height: 36px;
+    padding: 0 15px;
+    border: 0;
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--color-tinta) 72%, transparent);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color 200ms var(--ease-cayla), background 200ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] :is(.vidrio-pestanas > button[aria-current="page"], [role="tablist"] > [role="tab"][aria-selected="true"]):not(.hoja:not(main) *, .vidrio-papel *) {
+    color: var(--color-tinta);
+    background: var(--gota-marca);
+    box-shadow: var(--gota-luz);
+  }
+  @media (hover: hover) {
+    [data-vidrio="panel"] :is(.vidrio-pestanas > button:not([aria-current="page"]), [role="tablist"] > [role="tab"]:not([aria-selected="true"])):not(.hoja:not(main) *, .vidrio-papel *):hover {
+      color: var(--color-tinta);
+    }
+  }
+
+  /* ---------- El vacío: lo que falta es un hueco que espera llenarse ----------
+     Sin caja: un ícono en su hueco y la frase. La acción que lo resuelve es lo único que sobresale, y su botón ya es gota. */
+  [data-vidrio="panel"] .vidrio-vacio:not(.hoja *) {
+    gap: 0.875rem;
+    padding: 2.5rem 1.5rem 2.75rem;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+  [data-vidrio="panel"] .vidrio-vacio-ic {
+    display: grid;
+    width: 56px;
+    height: 56px;
+    place-items: center;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--color-borde-control) 45%, transparent);
+    background: color-mix(in srgb, var(--color-tinta) 6%, transparent);
+    box-shadow: inset 0 3px 8px color-mix(in srgb, var(--color-sombra) 18%, transparent), 0 1px 0 color-mix(in srgb, var(--color-vidrio) 80%, transparent);
+    color: var(--color-taupe);
+  }
+
+  /* ---------- La lista que flota (el menú «⋯»): la placa de vidrio; la opción donde estás, la gota ---------- */
+  [data-vidrio="panel"] [role="menu"].bg-papel {
+    border: 1px solid var(--placa-borde);
+    border-radius: 20px;
+    padding: 6px;
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: var(--vidrio-flota-filtro);
+    backdrop-filter: var(--vidrio-flota-filtro);
+    box-shadow: var(--vidrio-flota-sombra);
+  }
+  [data-vidrio="panel"] [role="menu"].bg-papel [role="menuitem"] {
+    border-radius: 14px;
+    transition: background 180ms var(--ease-cayla), box-shadow 180ms var(--ease-cayla);
+  }
+  [data-vidrio="panel"] [role="menu"].bg-papel [role="menuitem"]:not([aria-disabled="true"], :disabled):is(:hover, :focus) {
+    background: var(--gota-marca), var(--color-papel);
+    box-shadow: var(--gota-luz);
+  }
+
+  /* ---------- La hoja y el cajón ----------
+     Vidrio con su borde de luz y su sombra larga. Lo desenfoca el velo y no la hoja: un `backdrop-filter` en la hoja la volvería el contenedor de lo `fixed` de adentro,
+     y la hoja además hace scroll. En el teléfono la hoja sube desde abajo; cómo entra, se va y se baja con el dedo está en movimiento.css. */
+  [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"]:not([data-hoja-vidrio], .hoja *),
+  [data-vidrio="panel"] [data-hoja-vidrio]::before {
+    background: var(--vidrio-velo);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    backdrop-filter: blur(12px) saturate(1.4);
+  }
+  /* El velo de las hojas es una capa propia y no el fondo del contenedor: se aclara mientras la hoja baja con el dedo, y la hoja, que va adentro, no se apaga con él. */
+  [data-vidrio="panel"] [data-hoja-vidrio] {
+    background: none;
+  }
+  [data-vidrio="panel"] [data-hoja-vidrio]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    opacity: var(--velo-o, 1);
+    transition: opacity var(--velo-t, 0ms) var(--ease-cayla);
+  }
+  [data-vidrio="panel"] [role="dialog"].bg-papel,
+  [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"] > .bg-papel {
+    isolation: isolate;
+    border: 1px solid var(--vidrio-hoja-borde);
+    background: var(--vidrio-hoja-fondo);
+    box-shadow: var(--vidrio-hoja-sombra);
+  }
+  [data-vidrio="panel"] [role="dialog"] > h2.font-serif,
+  [data-vidrio="panel"] [role="dialog"] > div > h2.font-serif {
+    font-size: 27px;
+    line-height: 1.1;
+  }
+  /* El buscador y los atajos son ventanas escritas aparte, con su propio radio. */
+  [data-vidrio="panel"] [role="dialog"].fixed.bg-papel:is(.rounded-xl, .rounded-2xl, .rounded-flotante) {
+    border-radius: var(--radius-tarjeta);
+  }
+  @media (min-width: 40rem) {
+    [data-vidrio="panel"] .fixed.inset-0[class*="bg-black/"] > [role="dialog"].bg-papel.overflow-y-auto {
+      border-radius: var(--radius-hoja);
+      padding: 1.75rem;
+    }
+  }
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .fixed.inset-0.items-center[class*="bg-black/"]:not(.hoja *) {
+      align-items: flex-end;
+      padding: 0;
+    }
+    [data-vidrio="panel"] .fixed.inset-0.items-center[class*="bg-black/"] > .bg-papel {
+      width: 100%;
+      max-width: none;
+      max-height: 92dvh;
+      border-radius: 26px 26px 0 0;
+      padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    }
+    [data-vidrio="panel"] [role="dialog"].rounded-t-flotante {
+      border-radius: 26px 26px 0 0;
+    }
+  }
+  /* El cajón flota a 12 px de los bordes. Sus líneas son luz del vidrio, no tinta. */
+  [data-vidrio="panel"] [role="dialog"].inset-y-0.right-0.bg-papel {
+    overflow: hidden;
+  }
+  [data-vidrio="panel"] [role="dialog"].inset-y-0.right-0.bg-papel :is(.border-b, .border-t) {
+    border-color: var(--placa-borde);
+  }
+  @media (min-width: 40rem) {
+    [data-vidrio="panel"] [role="dialog"].inset-y-0.right-0.bg-papel {
+      top: 12px;
+      right: 12px;
+      bottom: 12px;
+      width: calc(100% - 24px);
+      border-radius: var(--radius-cajon);
+    }
+  }
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] [role="dialog"].inset-y-0.right-0.bg-papel {
+      top: 5dvh;
+      border-radius: 26px 26px 0 0;
+    }
+  }
+  /* Lo que era sólido dentro de una hoja: la placa, en un solo lugar y no pantalla por pantalla. Se queda opaco lo que flota o se pega, y los controles, que tienen su receta. */
+  [data-vidrio="panel"] [role="dialog"] :is(div, section, article, ul, li):is(.bg-hueso, .bg-papel, .bg-crema):not(.sticky, .fixed, .absolute, .rounded-full, :has(> input), [data-color-dato], .hoja, .hoja *) {
+    border-color: var(--placa-borde);
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+  /* Lo pegado dentro de una hoja (un pie con sus botones): el vidrio del pie, para que lo que pasa por debajo no se lea a través. */
+  [data-vidrio="panel"] [role="dialog"] .sticky:is(.bg-papel, .bg-crema) {
+    background: var(--vidrio-pie-fondo);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+  }
+  /* Una nota en arena dentro de una hoja («Por qué salió este aviso»): la placa. Solo si tiene relleno: una barra de avance también es `bg-sand`. */
+  [data-vidrio="panel"] [role="dialog"] :is(div, p).bg-sand:is([class*="p-"], [class*="px-"]):not(.sticky, .fixed, .absolute, .rounded-full, .rounded-pildora, .hoja *) {
+    border-color: var(--placa-borde);
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+
+  /* ---------- Quien pidió menos transparencia o más contraste en su aparato ----------
+     Las recetas ya pasan a sólido solas (recetas.generado.css); esto es lo que Retail le agrega a las piezas: sin nada desenfocado y, con más contraste, la letra
+     secundaria en tinta y un borde que se ve en lo que se toca. Lo decide el sistema operativo. */
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    [data-vidrio="panel"] *,
+    [data-vidrio="panel"] *::before,
+    [data-vidrio="panel"] *::after {
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+  }
+  @media (prefers-contrast: more) {
+    /* Con el mismo peso que marca.css y cargados después: colgados de las recetas, los colores de marca les ganarían. */
+    :root[data-vidrio="panel"]:not([data-tema="oscuro"]),
+    :root[data-vidrio="panel"][data-tema="oscuro"] {
+      --color-taupe: var(--color-tinta);
+      --color-taupe-profundo: var(--color-tinta);
+      --color-borde-control: var(--color-tinta);
+    }
+    [data-vidrio="panel"] [class*="text-tinta/"] {
+      color: var(--color-tinta);
+    }
+    [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.hoja *),
+    [data-vidrio="panel"] button[aria-pressed]:not(.hoja *),
+    [data-vidrio="panel"] :is(input, select, textarea):is(.bg-hueso, .border-borde-control):not(.hoja *) {
+      border: 1.5px solid var(--color-tinta);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-vidrio="panel"] :is(button, a).rounded-superficie.bg-papel:not(.hoja *):hover,
+    [data-vidrio="panel"] button[aria-pressed="false"]:not(.hoja *):hover {
+      transform: none;
+    }
+  }
+}

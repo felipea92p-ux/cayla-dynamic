@@ -64,7 +64,7 @@ export function leerMenu(texto = readFileSync(NAV_ITEMS, "utf8")) {
   const grupos = [];
   for (const linea of texto.slice(desde, hasta).split("\n")) {
     if (linea.trim().startsWith("//")) continue;
-    const grupo = linea.match(/\{\s*(?:label:\s*"([^"]+)",\s*)?items:\s*\[/);
+    const grupo = linea.match(/\{\s*(?:label:\s*"([^"]+)",\s*)?(?:Icon:\s*\w+,\s*)?(?:corto:\s*"[^"]*",\s*)?items:\s*\[/);
     if (grupo) grupos.push({ label: grupo[1], hrefs: [] });
     const href = linea.match(/\bhref:\s*"([^"]+)"/);
     if (href) grupos.at(-1).hrefs.push(href[1]);
