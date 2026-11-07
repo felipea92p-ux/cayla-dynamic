@@ -27,7 +27,7 @@ import { cuentaEnCobertura, esRolEncargada, fechaLima, horaLima, hoyLima, leCorr
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { consecuenciaDeUsarBase as consecuenciaDeUsarBaseLib } from "@/lib/admin/revision-turnos";
-import { avisarCambioDeTurnos, useTurnosAlDia } from "@/lib/admin/turnos-al-dia";
+import { useAlDia } from "@/lib/tiempo-real";
 import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 import { resumenDeLideres, resumenDelTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
 import { celdaConNombres, horasDeLaSemana, resumenDelDia, type TurnoConNombre } from "@/lib/admin/semana-con-nombres";
@@ -784,14 +784,14 @@ export default function TurnosPage() {
   //   · "completa": al entrar, cambiar de sede o de semana. Muestra «Cargando…».
   //   · "en-sitio": después de guardar algo aquí. Los números cambian en su
   //     lugar, sin borrar la grilla; si falla, se avisa.
-  //   · "fondo": otra pestaña u otra persona cambió algo (useTurnosAlDia). Igual
+  //   · "fondo": otra pestaña u otra persona cambió algo (useAlDia). Igual
   //     que "en-sitio", pero un error no se avisa: se queda lo último que se vio
-  //     y la próxima lectura lo vuelve a intentar, sin un aviso por minuto.
+  //     y la próxima lectura lo vuelve a intentar, sin un aviso cada vez.
   const cargar = useCallback(async (modo: "completa" | "en-sitio" | "fondo" = "completa") => {
     if (!sedeSel) return;
     // Una lectura de fondo no le gana a una que sí trae todo: con «última carga
     // gana», la de fondo descartaría la de la sede nueva y dejaría las metas de
-    // la sede anterior (el fondo no lee metas). Si hay una en curso, el fondo espera al minuto siguiente.
+    // la sede anterior (el fondo no lee metas). Si hay una en curso, el fondo no lee: `useAlDia` lo reintenta al segundo.
     if (modo === "fondo" && cargaConMetas.current !== 0) return;
     const mi = ++reqId.current;
     if (modo !== "fondo") cargaConMetas.current = mi;
@@ -933,27 +933,28 @@ export default function TurnosPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  // ── Al día sin recargar (2026-11-02) ─────────────────────────────────────
+  // ── Al día sin recargar (2026-11-02; al instante desde 2026-11-07, 0604) ──
   // `alDia` sube cada vez que cambiaron turnos u horarios fuera de «Para
   // decidir»: así ese panel vuelve a comparar contra lo nuevo. Lo que cambia
   // DENTRO de «Para decidir» llega por `alCambiarDesdeRevision`, que mueve la
-  // grilla. Y lo que cambia en otra pestaña o lo cambia otra persona llega por
-  // useTurnosAlDia (ver lib/admin/turnos-al-dia.ts).
+  // grilla. Y lo que cambia otra persona, en otra pestaña u otra sede, llega por
+  // useAlDia (lib/tiempo-real.ts): la base avisa al guardar. Escucha los tres
+  // temas porque la semana lee los tres: horarios y turnos, lo marcado en el
+  // terminal para la vista Día, y quién está en el equipo.
   const [alDia, setAlDia] = useState(0);
   const cargarRef = useRef(cargar);
   useEffect(() => { cargarRef.current = cargar; });
-  useTurnosAlDia(useCallback(() => {
+  useAlDia(["horarios", "asistencia", "personas"], useCallback(() => {
+    if (cargaConMetas.current !== 0) return false; // hay una carga completa en curso: reintenta al segundo
     void cargarRef.current("fondo");
     setAlDia((n) => n + 1);
-  }, []), Boolean(sedeSel));
+  }, []), { activo: Boolean(sedeSel) });
   const alCambiarDesdeRevision = useCallback(() => {
-    avisarCambioDeTurnos();
     void cargarRef.current("en-sitio");
   }, []);
-  // Después de guardar algo desde la grilla: avisa a las otras pestañas y a
-  // «Para decidir», y vuelve a leer sin borrar la grilla.
+  // Después de guardar algo desde la grilla: avisa a «Para decidir» y vuelve a
+  // leer sin borrar la grilla. Las otras pestañas y personas se enteran por la base.
   async function trasGuardar() {
-    avisarCambioDeTurnos();
     setAlDia((n) => n + 1);
     await cargar("en-sitio");
   }
