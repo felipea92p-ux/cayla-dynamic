@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Download } from "lucide-react";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { traerTodo } from "@/lib/admin/traer-todo";
@@ -398,31 +400,31 @@ export default function ExportarPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           <Boton
-            variante="primario"
+            variante={interruptoresVidrio().panel ? "secundario" : "primario"}
             tamano="lg"
             cargando={cargando === "jornadas"}
             disabled={cargando !== null}
             onClick={() => void exportarJornadas()}
           >
-            Jornadas (resumen)
+            {interruptoresVidrio().panel ? <ConIconoDeBajar>Jornadas (resumen)</ConIconoDeBajar> : "Jornadas (resumen)"}
           </Boton>
           <Boton
-            variante="primario"
+            variante={interruptoresVidrio().panel ? "secundario" : "primario"}
             tamano="lg"
             cargando={cargando === "marcajes"}
             disabled={cargando !== null}
             onClick={() => void exportarMarcajes()}
           >
-            Marcajes (crudo)
+            {interruptoresVidrio().panel ? <ConIconoDeBajar>Marcajes (crudo)</ConIconoDeBajar> : "Marcajes (crudo)"}
           </Boton>
           <Boton
-            variante="primario"
+            variante={interruptoresVidrio().panel ? "secundario" : "primario"}
             tamano="lg"
             cargando={cargando === "correcciones"}
             disabled={cargando !== null}
             onClick={() => void exportarCorrecciones()}
           >
-            Correcciones de auditoría
+            {interruptoresVidrio().panel ? <ConIconoDeBajar>Correcciones de auditoría</ConIconoDeBajar> : "Correcciones de auditoría"}
           </Boton>
         </div>
 
@@ -450,5 +452,16 @@ export default function ExportarPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+/** Con el vidrio, la cara del botón de descargar de Retail (`BotonDescargar`, ADR-0358): el ícono de bajar a la izquierda, que baja 2 px al pasar el mouse
+ *  (movimiento.css). Ninguno de los tres es negro: son tres archivos que se eligen, no la acción de la pantalla. */
+function ConIconoDeBajar({ children }: { children: string }) {
+  return (
+    <span className="flex items-center gap-2">
+      <Download aria-hidden className="-my-1 h-4 w-4 shrink-0" />
+      <span>{children}</span>
+    </span>
   );
 }
