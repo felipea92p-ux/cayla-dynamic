@@ -1,5 +1,6 @@
 // El logo oficial de CAYLA, el mismo dibujo que Retail (packages/shared/src/marca.ts, calcado del archivo oficial): la palabra CAYLA no es una letra,
-// es un trazo. Solo se usa en el menú con vidrio. El login, la boleta y el contrato siguen con el colibrí de siempre: no entran en esta etapa.
+// es un trazo. Se usa con el vidrio en el menú y, desde el módulo de Entrada (2026-11-07), en el panel del colibrí de Entrar, como en Retail.
+// La boleta y el contrato siguen con el colibrí de siempre: son papeles, y un papel no cambia con el vidrio.
 //
 // El rojo es el de la marca, el mismo en claro y en oscuro: Retail lo fija igual, y el rojo que cambia con el tema es el de los avisos.
 

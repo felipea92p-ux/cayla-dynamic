@@ -237,6 +237,16 @@
     }
   }
 
+  /* Entrada: el logo oficial en el panel del colibrí, como en Retail (su `.login-panel-logo`). La palabra va en el color del panel (crema sobre la tinta;
+     en oscuro, crema sobre papel) y el colibrí en el rojo de la marca. Del alto de la letra «CAYLA» que había antes. */
+  [data-vidrio="panel"] .login-panel-logo {
+    height: 34px;
+    align-self: center;
+  }
+  [data-vidrio="panel"] .login-panel-logo .marco-logo-palabra {
+    fill: currentColor;
+  }
+
   /* Cuentas: «Resetear contraseña» y «Cambiar correo» en una sola fila desde 1280 px. Apilados, cada persona ocupaba el doble de alto. Más angosto, se apilan como hoy. */
   @media (min-width: 80rem) {
     [data-vidrio="panel"] .vidrio-acciones {
