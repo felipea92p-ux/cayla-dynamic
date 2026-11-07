@@ -7,6 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, TIPO_VINCULO_LABEL, etiquetaDeCatalogo, hoyLima, puedeMarcarCuentaDeServicio, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { AREAS_FALLBACK, areaNombre, parseAreas, type Area } from "@/lib/areas";
 import { BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, urlFirmadaSolicitudPerfil, type CaraDni } from "@/lib/foto-dni";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
@@ -94,7 +95,7 @@ const CAMPO_LABEL: Record<string, string> = {
   funcion: "Área",
 };
 
-interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean; tipo_vinculo: string; rol: string }
+interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; cargo: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean; tipo_vinculo: string; rol: string }
 interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; genero: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null; foto_dni_anverso_ruta: string | null; foto_dni_reverso_ruta: string | null }
 interface Salario { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null }
 interface TramoSalarioHist { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null; asignado_por: string | null; nota: string | null }
@@ -186,6 +187,11 @@ export default function PerfilPersonaPage() {
 
   // ── Datos base (se cargan siempre) ────────────────────────────────────────
   const [persona, setPersona] = useState<Persona | null>(null);
+  // `funcion` es el código del área («calidad_servicio»): se muestra su nombre, pedido a la base como en el memo y en Equipo.
+  const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
+  useEffect(() => {
+    void supabase.rpc("fn_areas").then(({ data, error }) => setAreas(parseAreas(data, error)));
+  }, [supabase]);
   // ¿Es una estación de retail y no una persona? (0490). null = no se sabe.
   const [cuentaServicio, setCuentaServicio] = useState<boolean | null>(null);
   const [cambiandoServicio, setCambiandoServicio] = useState(false);
@@ -328,7 +334,7 @@ export default function PerfilPersonaPage() {
       const { data: sesion } = await supabase.auth.getSession();
       if (!sesion.session) { router.replace("/admin/login"); return; }
       const { data: p, error: eP } = await supabase.from("personas")
-        .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion, tipo_vinculo, rol")
+        .select("id, nombres, apellidos, documento, cargo, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion, tipo_vinculo, rol")
         .eq("id", id).maybeSingle();
       // La consulta que MANDA en esta pantalla tampoco funde error con vacío.
       // `eP` (la consulta falló) y `!p` (respondió y no hay fila) llevaban el
@@ -813,7 +819,7 @@ export default function PerfilPersonaPage() {
                 <div className="min-w-0">
                   <h1 className="font-serif text-2xl leading-tight">{ficha?.nombre_dni || nombre}</h1>
                   <p className="text-sm text-taupe">
-                    {persona.funcion} · Sede {errSede ? <span className="text-rojo">no se pudo cargar</span> : sede || "—"}
+                    {persona.cargo?.trim() ? `${persona.cargo.trim()} · ` : ""}{areaNombre(areas, persona.funcion)} · Sede {errSede ? <span className="text-rojo">no se pudo cargar</span> : sede || "—"}
                     {persona.estado !== "activo" && <Insignia atenuada punto={false} className="ml-2">{persona.estado}</Insignia>}
                     {persona.sueldo_fijo && <Insignia punto={false} className="ml-2">sueldo fijo</Insignia>}
                     {/* Estar marcada como dirección le quita un derecho —no genera
@@ -885,7 +891,9 @@ export default function PerfilPersonaPage() {
             {tab === "resumen" && (
               <div className="no-print grid gap-5 lg:grid-cols-2">
                 <TarjetaInfo como="section" titulo="Situación laboral">
-                  <Dato label="Rol / cargo" valor={persona.funcion} />
+                  {/* Decía «Rol / cargo» y mostraba el código del área. Son dos datos: lo que la persona es (como en Equipo) y dónde está. */}
+                  <Dato label="Cargo" valor={persona.cargo?.trim() || "Sin cargo"} />
+                  <Dato label="Área" valor={areaNombre(areas, persona.funcion)} />
                   <Dato label="Sede" valor={errSede ? <span className="text-rojo">no se pudo cargar</span> : sede || "—"} />
                   <Dato label="Tipo de vínculo" valor={TIPO_VINCULO_LABEL[persona.tipo_vinculo as keyof typeof TIPO_VINCULO_LABEL] ?? persona.tipo_vinculo} />
                   <Dato label="Ingreso" valor={fechaCorta(persona.fecha_ingreso)} />

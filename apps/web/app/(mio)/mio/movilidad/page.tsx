@@ -11,6 +11,7 @@ import { Boton } from "@/components/ui/boton";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { cargoParaUnPapel, parseAreas } from "@/lib/areas";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 
@@ -101,7 +102,8 @@ interface Yo {
   nombre: string;
   nombreOficial: string;
   documento: string | null;
-  funcion: string | null;
+  /** Lo que el papel dice tras «el cargo de»: el cargo de la ficha o, si falta, el nombre del área (`cargoParaUnPapel`). Nunca el código. */
+  cargo: string | null;
   sedeNombre: string | null;
 }
 
@@ -205,7 +207,7 @@ function MiMovilidadContenido() {
 
     const { data: p } = await supabase
       .from("personas")
-      .select("id, nombres, apellidos, documento, funcion, sede_base_id")
+      .select("id, nombres, apellidos, documento, cargo, funcion, sede_base_id")
       .eq("auth_user_id", uid)
       .maybeSingle();
     if (!p) {
@@ -213,9 +215,11 @@ function MiMovilidadContenido() {
       setError("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
       return;
     }
-    const [{ data: ficha }, { data: sede }] = await Promise.all([
+    // Las áreas se piden a la base, como en el memo: si fallan, `parseAreas` cae al respaldo del seed, nunca al código.
+    const [{ data: ficha }, { data: sede }, { data: areas, error: eAreas }] = await Promise.all([
       supabase.from("datos_personales").select("nombre_dni").eq("persona_id", p.id as string).maybeSingle(),
       supabase.from("sedes").select("nombre").eq("id", p.sede_base_id as string).maybeSingle(),
+      supabase.rpc("fn_areas"),
     ]);
     const nombre = `${p.nombres as string} ${p.apellidos as string}`;
     setYo({
@@ -223,7 +227,7 @@ function MiMovilidadContenido() {
       nombre,
       nombreOficial: (ficha?.nombre_dni as string | null) || nombre,
       documento: (p.documento as string | null) ?? null,
-      funcion: (p.funcion as string | null) ?? null,
+      cargo: cargoParaUnPapel({ cargo: (p.cargo as string | null) ?? null, funcion: (p.funcion as string | null) ?? null }, parseAreas(areas, eAreas)),
       sedeNombre: (sede?.nombre as string | null) ?? null,
     });
 
@@ -496,7 +500,7 @@ function MiMovilidadContenido() {
                 <p className="mb-4">
                   Yo, <strong>{yo?.nombreOficial}</strong>, con documento de identidad N.º{" "}
                   <strong>{yo?.documento ?? "—"}</strong>, que desempeño el cargo de{" "}
-                  <strong>{yo?.funcion ?? "—"}</strong> en la sede <strong>{yo?.sedeNombre ?? "—"}</strong> de{" "}
+                  <strong>{yo?.cargo ?? "—"}</strong> en la sede <strong>{yo?.sedeNombre ?? "—"}</strong> de{" "}
                   {EMPRESA.nombre}, declaro lo siguiente respecto de mi traslado diario entre mi domicilio y mi
                   centro de labores:
                 </p>
@@ -668,7 +672,7 @@ function MiMovilidadContenido() {
                 <p className="mb-4">
                   Yo, <strong>{yo?.nombreOficial}</strong>, con documento de identidad N.º{" "}
                   <strong>{yo?.documento ?? "—"}</strong>, que desempeño el cargo de{" "}
-                  <strong>{yo?.funcion ?? "—"}</strong> en la sede <strong>{yo?.sedeNombre ?? "—"}</strong>{" "}
+                  <strong>{yo?.cargo ?? "—"}</strong> en la sede <strong>{yo?.sedeNombre ?? "—"}</strong>{" "}
                   de {EMPRESA.nombre}, declaro lo siguiente respecto de mi traslado diario entre mi domicilio y
                   mi centro de labores:
                 </p>

@@ -127,6 +127,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-11-07-tu-cargo-no-un-codigo",
+    fecha: "2026-11-07",
+    titulo: "La declaración de ruta dice tu cargo, no un código",
+    queMejoro:
+      "Tu declaración de ruta y gasto de transporte decía «que desempeño el cargo de calidad_servicio»: un código interno " +
+      "del sistema, no tu cargo. Ahora dice tu cargo, el mismo de tu contrato, y si tu ficha todavía no lo tiene escrito, " +
+      "el nombre de tu área. Las que ya firmaste también se ven así.\n\n" +
+      "En «Mis datos», «Función» pasa a llamarse «Área» y muestra su nombre. En el panel, la ficha de cada persona muestra " +
+      "su cargo y su área por separado.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-07-pantallas-al-instante",
     fecha: "2026-11-07",
     titulo: "El Dashboard, Turnos, Horarios y el terminal se actualizan solos, al instante",

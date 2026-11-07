@@ -32,6 +32,7 @@ import { NovedadesWidget } from "@/components/novedades-widget";
 import { SelectorTema } from "@/components/selector-tema";
 import { MenuDetalle } from "@/components/nav/menu-detalle";
 import { GRUPOS_MIO, TABS, type Tab } from "@/lib/mio-secciones";
+import { areaNombre, parseAreas } from "@/lib/areas";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
@@ -231,7 +232,8 @@ interface MisDatos {
   tipoVinculo: string;
   conHijos: boolean;
   email: string | null;
-  funcion: string;
+  /** El NOMBRE de su área («Calidad & servicio al cliente»), no el código que guarda `personas.funcion`. */
+  area: string;
   fechaNacimiento: string | null;
   estadoCivil: string | null;
   genero: string | null;
@@ -643,7 +645,7 @@ export default function MioPage() {
    *  pantalla no tiene por qué pedir (`pin_hash` entre ellas). */
   const cargarMisDatos = useCallback(async () => {
     if (!yo?.id) { setMisDatos(null); setDerechohabientes([]); return; }
-    const [persona, ficha, familia] = await Promise.all([
+    const [persona, ficha, familia, areas] = await Promise.all([
       supabase.from("personas")
         .select("documento, tipo_vinculo, con_hijos, email, funcion")
         .eq("id", yo.id).maybeSingle(),
@@ -653,6 +655,8 @@ export default function MioPage() {
       supabase.from("derechohabientes")
         .select("id, nombres, apellidos, vinculo, documento, fecha_nacimiento, essalud, vida_ley")
         .eq("persona_id", yo.id).order("created_at", { ascending: true }),
+      // Las áreas, para mostrar el nombre y no el código: si fallan, `parseAreas` cae al respaldo del seed.
+      supabase.rpc("fn_areas"),
     ]);
     setMisDatos({
       nombreDni: (ficha.data?.nombre_dni as string | null | undefined) ?? null,
@@ -660,7 +664,7 @@ export default function MioPage() {
       tipoVinculo: persona.data?.tipo_vinculo ?? "",
       conHijos: persona.data?.con_hijos ?? false,
       email: persona.data?.email ?? null,
-      funcion: persona.data?.funcion ?? "",
+      area: persona.data?.funcion ? areaNombre(parseAreas(areas.data, areas.error), persona.data.funcion) : "",
       fechaNacimiento: ficha.data?.fecha_nacimiento ?? null,
       estadoCivil: ficha.data?.estado_civil ?? null,
       genero: ficha.data?.genero ?? null,
@@ -2682,7 +2686,7 @@ export default function MioPage() {
                 <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
                   <div><dt className="text-xs text-taupe">Cargo</dt><dd>{yo?.cargo ?? "— no registrado —"}</dd></div>
                   <div><dt className="text-xs text-taupe">Sede</dt><dd>{yo?.sede ?? "— no registrado —"}</dd></div>
-                  <div><dt className="text-xs text-taupe">Función</dt><dd>{misDatos.funcion || "— no registrado —"}</dd></div>
+                  <div><dt className="text-xs text-taupe">Área</dt><dd>{misDatos.area || "— no registrado —"}</dd></div>
                   <div>
                     <dt className="text-xs text-taupe">Tipo de vínculo</dt>
                     <dd>{etiquetaDe(misDatos.tipoVinculo, TIPO_VINCULO_LABEL)}</dd>

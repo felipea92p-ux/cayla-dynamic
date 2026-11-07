@@ -57,6 +57,21 @@ export function areaNombre(areas: Area[], codigo: string): string {
   return areas.find((a) => a.codigo === codigo)?.nombre ?? codigo;
 }
 
+/**
+ * Lo que un papel dice después de «el cargo de»: el cargo de la ficha (`personas.cargo`, 0182), el mismo dato que imprime el contrato.
+ * Si la ficha no tiene cargo escrito, el NOMBRE de su área. Nunca el código.
+ *
+ * Existe porque la declaración de ruta imprimía `personas.funcion` tal cual: «que desempeño el cargo de calidad_servicio». `funcion` es
+ * la llave del área (0022), y vale `calidad_servicio` para quien nadie cambió (0021), así que casi todo el equipo firmaba eso. Es el mismo
+ * defecto que el memo ya había corregido para su «Área:». Decidido por Felipe el 2026-11-07, mirando las maquetas: el cargo, como en el
+ * contrato; el área, solo cuando falta el cargo.
+ */
+export function cargoParaUnPapel(persona: { cargo: string | null; funcion: string | null }, areas: Area[]): string | null {
+  const cargo = persona.cargo?.trim();
+  if (cargo) return cargo;
+  return persona.funcion ? areaNombre(areas, persona.funcion) : null;
+}
+
 /** ¿Cuenta para la cobertura de tienda? Código desconocido → sí (mejor sobrecontar que ocultar gente). */
 export function esOperativaEn(areas: Area[], codigo: string): boolean {
   const a = areas.find((x) => x.codigo === codigo);
