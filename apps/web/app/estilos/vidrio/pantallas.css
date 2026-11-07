@@ -277,7 +277,15 @@
     z-index: 1;
     min-width: 10.5rem;
     padding-left: 16px;
-    background: var(--color-vidrio);
+    background: var(--color-papel);
+  }
+
+  /* En el teléfono lo fijo ocupa menos: con 168 px, en una tabla de 311 quedaba poco por deslizar. */
+  @media (max-width: 39.99rem) {
+    [data-vidrio="panel"] .vidrio-tabla-ancha :is(thead, tbody) tr > :first-child,
+    [data-vidrio="panel"] .vidrio-tabla-ancha tfoot tr:first-child > :first-child {
+      min-width: 8rem;
+    }
   }
 
   /* Planilla: «Total» y «Pagado» tampoco se van. A 1440 px la tabla sobraba 346 px y justo esas dos quedaban fuera. Desde 1024 px: más angosto, lo fijo se comería la tabla. */
@@ -286,7 +294,7 @@
     [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(-n + 3) {
       position: sticky;
       z-index: 1;
-      background: var(--color-vidrio);
+      background: var(--color-papel);
     }
     [data-vidrio="panel"] .vidrio-tabla-con-total :is(thead, tbody) tr > :nth-last-child(1),
     [data-vidrio="panel"] .vidrio-tabla-con-total tfoot tr:first-child > :nth-last-child(1) {
