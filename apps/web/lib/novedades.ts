@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-la-salida-real-reemplaza-a-la-del-sistema",
+    fecha: "2026-11-07",
+    titulo: "En Correcciones, la salida real reemplaza a la que puso el sistema",
+    queMejoro:
+      "Cuando alguien no marcó su salida y el sistema puso una, ahora basta con agregar la salida real en Correcciones: " +
+      "la del sistema se anula sola y queda en el historial quién lo hizo. Antes quedaban las dos y el día se medía con la " +
+      "más tardía.\n\n" +
+      "Si esa salida del sistema ya se había confirmado como buena, la pantalla lo avisa y pide corregir su hora o " +
+      "anularla primero. Y si un día de antes quedó con dos salidas finales, Correcciones lo muestra con un aviso propio " +
+      "que dice cuál se está tomando, para que elijas cuál anular.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-07-turnos-semana-en-lugar-de-dia",
     fecha: "2026-11-07",
     titulo: "En Turnos, «Día» ahora es «Semana», y el día se abre dentro",
