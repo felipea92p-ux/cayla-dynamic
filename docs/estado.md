@@ -52,6 +52,8 @@ select to_char(dia, 'YYYY-MM') as mes, count(*) as dias,
 DO revisa los días con dos salidas en Correcciones; los de un periodo pagado no se tocan sin reabrirlo. Aparte, y no en esta migración: agregar una
 salida pasada la medianoche desde Correcciones cae en el día del calendario y no en el de la jornada.
 
+---
+
 ## 2026-11-07 — Turnos: «Semana» reemplaza a Día, y el día se abre dentro · sin SQL · [#711](https://github.com/felipea92p-ux/cayla-dynamic/pull/711): Felipe lo vio en local y pidió fusionarlo con las pruebas en verde (2026-11-07) · rama `claude/compact-view-leaders-45d7bf`
 
 **De dónde sale.** Las líderes de equipo no se hallaban con la Integrada; a otros sí les sirve. Felipe eligió entre tres maquetas la de una fila
