@@ -6,6 +6,52 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-08 — La salida real reemplaza a la del auto-cierre también en Correcciones · migración **0605 SIN PEGAR** · prueba 492 · rama `claude/nifty-mayer-cijvwg`
+
+**De dónde sale.** Tarea 1 de [Las 30 de Dynamic](https://claude.ai/artifact/AikdSh3Coj9CLDBLh2Lpg2) (C14 de `hallazgos-abiertos.md`). Agregar en Correcciones
+la salida real de un día que cerró el sistema dejaba dos salidas finales activas, y `fn_recalcular_jornada` (0446) paga la más tardía: quien salió
+antes de su hora cobraba horas que no trabajó. El terminal lo resolvía desde la 0320; el panel entra por `fn_agregar_marcaje`, que nunca lo hizo.
+
+**Decidido por Felipe (2026-11-08), entre tres opciones.** La 1: «la real gana también en el panel». Descartadas: un trigger en `marcajes` (toca el
+camino del terminal) y arreglarlo solo en pantalla (la base quedaba abierta). Si DO ya CONFIRMÓ la salida del sistema, agregar otra se rechaza. Los
+días que ya quedaron con dos salidas se listan para DO; la migración no los toca.
+
+**Construido.**
+- `0605`: `fn_retirar_salida_del_robot` (la regla de la 0320 en un solo lugar; `security definer`, sin execute para la app). `fn_agregar_marcaje` y
+  `fn_confirmar_auto_cierre` copiadas de la 0437 con su `CAMBIO 0605`. Guarda al pegar: si alguna no es la de la 0437 (tal cual, sin comentarios o
+  con `\r\n`), PARA sin aplicar nada. El terminal conserva su copia de la 0320: pasarlo a la función nueva va en otra migración.
+- Correcciones (`lib/admin/salida-del-sistema.ts`, 12 vitest): avisa antes de agregar qué pasa con la salida del sistema, no ofrece «Confirmar» si
+  el día ya tiene otra salida y muestra «Este día tiene dos salidas finales», con cuál se está pagando. Novedad `2026-11-07-la-salida-real-reemplaza-a-la-del-sistema`.
+
+**Medido en local** (Postgres de Supabase con las 604 migraciones de `main` 75bbbcd):
+- Prueba 492: 19/19 con la 0605; sin ella fallan 12 (2 salidas activas, 9.00 h donde eran 7.00).
+- Suite pgTAP entera: control sin la 0605, 396/396 + la 492 en rojo; con la 0605, 397/397.
+- La 402 cazó en la primera versión que la función nueva era INVOKER y escribía la auditoría; se pasó a `security definer`.
+- La guarda: PARA con otra versión (mismo largo, otro md5), pasa con el mismo código en `\r\n` y deja repegar.
+
+**Antes de pegar (Felipe, en el SQL Editor).** (1) El md5 de producción de las dos funciones, otra vez en el mensaje de la entrega:
+`./scripts/donde-vive.sh fn_agregar_marcaje` y `fn_confirmar_auto_cierre`; la 0437 da `22017a5f…` (2252) y `c4927022…` (2548). (2) Cuántos días hay hoy con
+dos salidas, sin nombres:
+
+```sql
+with dobles as (
+  select m.persona_id, fn_fecha_de_jornada(m.timestamp_marca, m.fecha_jornada) as dia,
+         max(m.timestamp_marca) filter (where m.origen = 'auto_cierre')  as sistema,
+         max(m.timestamp_marca) filter (where m.origen <> 'auto_cierre') as otra
+    from marcajes m
+   where m.tipo = 'salida_final' and m.anulada_at is null
+   group by 1, 2
+  having count(*) > 1 and bool_or(m.origen = 'auto_cierre'))
+select to_char(dia, 'YYYY-MM') as mes, count(*) as dias,
+       count(*) filter (where otra < sistema) as se_pago_la_del_sistema,
+       count(*) filter (where fn_fecha_en_periodo_pagado(dia, persona_id)) as en_periodo_pagado
+  from dobles group by 1 order by 1;
+```
+
+**Pendiente.** Pegar la 0605 ANTES de fusionar. Si se fusiona otro día que no sea el 2026-11-07, corregir la `fecha` y el `id` de la novedad. Después,
+DO revisa los días con dos salidas en Correcciones; los de un periodo pagado no se tocan sin reabrirlo. Aparte, y no en esta migración: agregar una
+salida pasada la medianoche desde Correcciones cae en el día del calendario y no en el de la jornada.
+
 ## 2026-11-07 — Turnos: «Semana» reemplaza a Día, y el día se abre dentro · sin SQL · [#711](https://github.com/felipea92p-ux/cayla-dynamic/pull/711): Felipe lo vio en local y pidió fusionarlo con las pruebas en verde (2026-11-07) · rama `claude/compact-view-leaders-45d7bf`
 
 **De dónde sale.** Las líderes de equipo no se hallaban con la Integrada; a otros sí les sirve. Felipe eligió entre tres maquetas la de una fila

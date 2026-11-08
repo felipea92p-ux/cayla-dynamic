@@ -861,6 +861,8 @@ y se puede volver a correr cuando se quiera.
 
 ### 14. Corregir un auto-cierre desde Correcciones deja DOS salidas finales y paga horas que no existieron
 
+> **2026-11-08 · en camino con la 0605 (SIN PEGAR todavía).** `fn_agregar_marcaje` retira la salida del sistema con la regla de la 0320, que pasa a `fn_retirar_salida_del_robot`; si DO ya la confirmó, se rechaza; confirmar la del sistema con otra salida activa también se rechaza. Prueba 492 (sin la 0605 fallan 12 de 19). No se eligió que `fn_agregar_marcaje` delegue en `fn_registrar_marcaje`: esa función es la del terminal, tiene reglas de cola sin conexión y de toques dobles que no aplican al panel, y tocarla es otra migración con su prueba del terminal. Los días que ya quedaron con dos salidas NO se tocan: Correcciones los muestra con su aviso y DO elige. Se tacha cuando la 0605 esté pegada y fusionada.
+
 `consistencia-deuda` · 💰 dinero · arreglo de **horas**
 
 **Dónde:** supabase/migrations/0037_candado_periodo_pagado.sql:74 (fn_agregar_marcaje, definición viva) · apps/web/app/(admin)/admin/correcciones/page.tsx:324
