@@ -6,6 +6,33 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-08 — Anular la constancia del bono de cumpleaños lo saca de la boleta · migración **0606 SIN PEGAR** · prueba 493 · rama `claude/nifty-mayer-cijvwg`
+
+**De dónde sale.** Tarea 2 de [Las 30 de Dynamic](https://claude.ai/artifact/AikdSh3Coj9CLDBLh2Lpg2) (entrada del 2026-10-13, bono de S/ 180). Anular en
+Documentación la constancia de un bono que ya iba en la boleta (0479) dejaba su línea viva. Y como «un bono por año» excluye a las anuladas, si la
+persona volvía a firmar quedaban dos. **En producción, 0 casos** (Felipe lo consultó el 2026-11-08): latente.
+
+**Decidido.** Felipe no respondió las preguntas, solo mandó el número, así que se construyó con lo recomendado: la regla en la función que anula,
+rechazar si la planilla ya se pagó, y dar rastro a `fn_quitar_movimiento` en la misma migración. Si quiere otra cosa en alguna, se cambia.
+
+**Construido.**
+- `0606`:
+  - `fn_retirar_movimiento` es la única forma de quitar una línea de la boleta: candado `for share` del periodo, se niega si está pagado y deja
+    rastro `movimiento_quitado`. Es `security definer`, sin execute para la app.
+  - `fn_documento_anular` (0157) la usa para el bono; con la planilla pagada se niega y dice qué periodo.
+  - `fn_quitar_movimiento` (0327) también la usa: antes borraba sin rastro.
+  - Guarda de md5 al pegar.
+- Documentación avisa en el diálogo de anular un bono. Novedad para DO.
+
+**Medido en local.**
+- Prueba 493: 15/15 con la 0606; sin ella fallan 7 (dos líneas de cumpleaños en la misma boleta tras refirmar).
+- Suite pgTAP entera: 398/398.
+- La guarda: PARA con otra versión; deja repegar.
+
+**Antes de pegar.** md5 de producción en el mensaje de la entrega: `fn_documento_anular` `00886261…` (1063) y `fn_quitar_movimiento` `942d1964…` (655).
+
+---
+
 ## 2026-11-08 — La salida real reemplaza a la del auto-cierre también en Correcciones · migración **0605 PEGADA Y VERIFICADA (2026-11-08)** · prueba 492 · FUSIONADO Y PUBLICADO ([#712](https://github.com/felipea92p-ux/cayla-dynamic/pull/712), 2026-11-07 21:01 Lima)
 
 **De dónde sale.** Tarea 1 de [Las 30 de Dynamic](https://claude.ai/artifact/AikdSh3Coj9CLDBLh2Lpg2) (C14 de `hallazgos-abiertos.md`). Agregar en Correcciones
