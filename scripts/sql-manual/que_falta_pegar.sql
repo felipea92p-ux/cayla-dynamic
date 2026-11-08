@@ -458,7 +458,8 @@ with repo(numero, nombre, nunca) as (values
     (602, 'a_cada_persona_le_llega_el_aviso_de_su_seguro', false),
     (603, 'renovar_un_seguro_avisa_por_correo_a_do', false),
     (604, 'las_pantallas_se_enteran_al_instante', false),
-    (605, 'la_salida_real_gana_tambien_en_el_panel', false)
+    (605, 'la_salida_real_gana_tambien_en_el_panel', false),
+    (606, 'anular_el_bono_lo_saca_de_la_boleta', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
