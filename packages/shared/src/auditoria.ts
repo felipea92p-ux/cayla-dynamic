@@ -84,6 +84,10 @@ const EXACTOS: Record<string, TemaAuditoria> = {
   // cambia horas ni pago— así que NO va con CAMPOS_DE_MARCAJE: es dónde
   // trabajó dentro de su turno, y eso es tema de horario.
   cambio_ubicacion: "horario",
+  // Quitar un bono o descuento de una boleta (0606): desde Planilla, o al anular
+  // la constancia del bono de cumpleaños. Va con «documentos», como `boletas.`:
+  // es lo que la boleta de esa persona deja de decir.
+  movimiento_quitado: "documento",
 };
 
 export function temaDeCampo(campo: string): TemaAuditoria {
@@ -120,6 +124,7 @@ const ROTULOS: Record<string, string> = {
   "expediente.suspension_propuesta": "La líder pidió que se suspenda",
   "expediente.nivel": "Sanción elevada de peldaño",
   "expediente.carta_de_despido": "Carta de despido preparada",
+  movimiento_quitado: "Bono o descuento quitado de la boleta",
 };
 
 /** El nombre en español de un campo; si no lo conoce, el crudo sin guiones bajos. */
