@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-07-anular-el-bono-lo-saca-de-la-boleta",
+    fecha: "2026-11-07",
+    titulo: "Anular la constancia del bono de cumpleaños también lo saca de la boleta",
+    queMejoro:
+      "Cuando se anula en Documentación la constancia del bono de cumpleaños, el bono ahora sale de la boleta en el " +
+      "mismo paso. Ya no hace falta quitarlo antes a mano desde Planilla, y si la persona vuelve a firmar, su boleta " +
+      "lleva uno solo.\n\n" +
+      "Si esa planilla ya se pagó, el sistema no deja anular la constancia y dice en qué periodo se pagó. Y quitar un " +
+      "bono o un descuento desde Planilla ahora queda en el historial de correcciones, con quién lo hizo.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-07-la-salida-real-reemplaza-a-la-del-sistema",
     fecha: "2026-11-07",
     titulo: "En Correcciones, la salida real reemplaza a la que puso el sistema",

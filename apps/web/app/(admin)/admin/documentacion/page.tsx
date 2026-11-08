@@ -421,7 +421,8 @@ export default function DocumentacionPage() {
    *  `etiqueta` nombra de QUIÉN es el documento en la pregunta de confirmación
    *  — la política no tiene una (es de la empresa, no de una persona), una
    *  ruta o un bono sí. */
-  const [anulando, setAnulando] = useState<{ id: string; motivo: string; etiqueta?: string } | null>(null);
+  // `esBono` (0606): anular la constancia de un bono también lo saca de la boleta, y el diálogo lo dice.
+  const [anulando, setAnulando] = useState<{ id: string; motivo: string; etiqueta?: string; esBono?: boolean } | null>(null);
   // Qué se está subiendo. `que` decide todo lo demás: la política no lleva
   // persona, el bono no lleva monto y solo la ruta admite negativa. Antes esto
   // era un `{personaId, negativa}` y el tipo iba fijo en «ruta» dentro del
@@ -1395,7 +1396,7 @@ export default function DocumentacionPage() {
               el mismo camino que ruta y política: nunca se borra, se anula
               con motivo. */}
           {f.bono_id && (
-            <MenuItem variante="peligro" onClick={() => setAnulando({ id: f.bono_id!, motivo: "", etiqueta: f.persona })}>
+            <MenuItem variante="peligro" onClick={() => setAnulando({ id: f.bono_id!, motivo: "", etiqueta: f.persona, esBono: true })}>
               Anular
             </MenuItem>
           )}
@@ -2138,6 +2139,14 @@ export default function DocumentacionPage() {
                 <p className="text-sm text-taupe">
                   No se borra: queda guardado en el historial con tu nombre, la hora y este motivo.
                 </p>
+                {/* 0606: la base retira la línea del bono en el mismo paso, o se niega si
+                    esa planilla ya se pagó. Se dice antes de confirmar, no después. */}
+                {anulando.esBono && (
+                  <p className="mt-2 text-sm text-taupe">
+                    Si este bono ya va en su boleta, también sale de ella. Si la planilla de ese
+                    periodo ya se pagó, no se puede anular: primero hay que reabrirla.
+                  </p>
+                )}
                 <div className="mt-3">
                   <Campo etiqueta="Motivo" value={anulando.motivo}
                     onChange={(e) => setAnulando({ ...anulando, motivo: e.target.value })}
