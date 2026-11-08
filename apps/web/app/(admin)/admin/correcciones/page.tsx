@@ -13,6 +13,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { esperadoDelDia, esTurnoEspejoViejo, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { describirCambio, horaTextoLima, type Auditoria } from "@/lib/admin/historial-correcciones";
+import { avisoAlAgregar, dosSalidasFinales, sePuedeConfirmar } from "@/lib/admin/salida-del-sistema";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 import { horaDelHorario, tipoQueFalta } from "@/lib/admin/marcaje-faltante";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -685,6 +686,10 @@ export default function CorreccionesPage() {
     )
     ?? "entrada";
   const agregarHoraDelHorario = horaDelHorario(agregarTipo, esperado, momentoAgregar);
+  // 0605: qué pasa con la salida del sistema si se agrega esta marca, y si el día
+  // ya quedó con dos salidas finales (los de antes de la 0605).
+  const avisoAgregar = avisoAlAgregar(agregarTipo, marcajes);
+  const dosSalidas = dosSalidasFinales(marcajes);
   const agregarHora = agregarYaElegido.hora ?? agregarHoraDelHorario ?? "08:00";
   // Nombre de quién hizo cada corrección, resuelto desde la lista ya cargada
   // (evita depender de un embed de PostgREST que el schema cache puede no exponer).
@@ -1187,7 +1192,22 @@ export default function CorreccionesPage() {
                       marcas anuladas también contaban; (b) el texto hablaba siempre de
                       "secuencia imposible" aunque el motivo real fuera un auto-cierre,
                       que es otra cosa. Ahora se pregunta en vivo y cada caso dice lo suyo. */}
-                  {diaIncoherente && (
+                  {/* 0605: el día de antes de la 0605 con la salida del sistema Y otra
+                      salida final, las dos activas. Dice cuál se está pagando y qué
+                      hacer; reemplaza a los dos avisos genéricos de abajo, que en este
+                      caso dirían media verdad cada uno. DO elige en cada día (Felipe,
+                      2026-11-08): la base no los arregla sola. */}
+                  {dosSalidas && (
+                    <BannerAviso enLinea variante="alerta" titulo="Este día tiene dos salidas finales." className="mb-4 leading-relaxed">
+                      <span className="text-taupe">
+                        La que puso el sistema a las {horaTextoLima(dosSalidas.sistema.timestamp_marca)} y
+                        otra a las {horaTextoLima(dosSalidas.otra.timestamp_marca)}. Hoy se paga la más
+                        tardía ({horaTextoLima(dosSalidas.pagada.timestamp_marca)}). Anula la que no
+                        corresponda y el día queda con una sola.
+                      </span>
+                    </BannerAviso>
+                  )}
+                  {diaIncoherente && !dosSalidas && (
                     <BannerAviso enLinea titulo="La secuencia de marcas de este día no es posible." className="mb-4 leading-relaxed">
                       <span className="text-taupe">
                         Por ejemplo, dos salidas seguidas sin retorno entre medio. Suele pasar cuando una
@@ -1196,12 +1216,13 @@ export default function CorreccionesPage() {
                       </span>
                     </BannerAviso>
                   )}
-                  {marcajes.some((m) => m.anulada_at === null && m.origen === "auto_cierre" && m.estado_revision === "pendiente_revision") && (
+                  {!dosSalidas && marcajes.some((m) => m.anulada_at === null && m.origen === "auto_cierre" && m.estado_revision === "pendiente_revision") && (
                     <BannerAviso enLinea titulo="Este día lo cerró el sistema." className="mb-4 leading-relaxed">
                       <span className="text-taupe">
                         Nadie marcó la salida, así que el auto-cierre nocturno puso una hora. Mientras
                         siga sin revisar, ese día no mide salida anticipada ni tiempo adicional. Pulsa
-                        <em> Confirmar</em> si esa hora es la buena, o corrígela.
+                        <em> Confirmar</em> si esa hora es la buena, corrige su hora en la tabla, o
+                        agrega la salida real abajo: la del sistema se retira sola.
                       </span>
                     </BannerAviso>
                   )}
@@ -1459,7 +1480,9 @@ export default function CorreccionesPage() {
                                           }}>
                                           Guardar
                                         </Boton>
-                                        {esAutoCierrePendiente && (
+                                        {/* 0605: con otra salida final activa ese día, la base
+                                            rechaza confirmar esta. No se ofrece. */}
+                                        {esAutoCierrePendiente && sePuedeConfirmar(m, marcajes) && (
                                           <Boton
                                             variante="secundario" tamano="sm" className="min-h-11 md:min-h-0"
                                             onClick={() => { setAccion({ modo: "confirmar", marcaje: m }); setMotivo(""); }}
@@ -1509,10 +1532,27 @@ export default function CorreccionesPage() {
                       )}
                       <Boton
                         variante="primario"
+                        disabled={avisoAgregar?.clase === "confirmada"}
                         onClick={() => { setAccion({ modo: "agregar", tipo: agregarTipo, hora: agregarHora, motivoOtro: agregarMotivoOtro }); setMotivo(""); }}>
                         Agregar
                       </Boton>
                     </div>
+                    {/* 0605: lo que hará la base con la salida del sistema, dicho antes
+                        de pulsar. La regla vive en lib/admin/salida-del-sistema.ts. */}
+                    {avisoAgregar?.clase === "se_retira" && (
+                      <BannerAviso enLinea variante="informativo" className="mt-3 leading-relaxed">
+                        El sistema le puso la salida a las {horaTextoLima(avisoAgregar.sistema.timestamp_marca)}.
+                        Al agregar la salida real, esa marca se anula sola y queda en el historial
+                        quién lo hizo.
+                      </BannerAviso>
+                    )}
+                    {avisoAgregar?.clase === "confirmada" && (
+                      <BannerAviso enLinea className="mt-3 leading-relaxed">
+                        La salida que puso el sistema ({horaTextoLima(avisoAgregar.sistema.timestamp_marca)}) ya
+                        se confirmó como buena. Si estaba mal, corrige su hora en la tabla o anúlala; después
+                        podrás agregar la real.
+                      </BannerAviso>
+                    )}
                   </TarjetaInfo>
 
                   </div>
