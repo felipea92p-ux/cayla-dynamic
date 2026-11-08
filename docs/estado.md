@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-08 — La salida real reemplaza a la del auto-cierre también en Correcciones · migración **0605 PEGADA Y VERIFICADA (2026-11-08)** · prueba 492 · rama `claude/nifty-mayer-cijvwg`
+## 2026-11-08 — La salida real reemplaza a la del auto-cierre también en Correcciones · migración **0605 PEGADA Y VERIFICADA (2026-11-08)** · prueba 492 · FUSIONADO Y PUBLICADO ([#712](https://github.com/felipea92p-ux/cayla-dynamic/pull/712), 2026-11-07 21:01 Lima)
 
 **De dónde sale.** Tarea 1 de [Las 30 de Dynamic](https://claude.ai/artifact/AikdSh3Coj9CLDBLh2Lpg2) (C14 de `hallazgos-abiertos.md`). Agregar en Correcciones
 la salida real de un día que cerró el sistema dejaba dos salidas finales activas, y `fn_recalcular_jornada` (0446) paga la más tardía: quien salió
@@ -52,7 +52,7 @@ select to_char(dia, 'YYYY-MM') as mes, count(*) as dias,
 0437 tal cual. En el mismo mensaje se volvió a mirar `main` (seguía en 75bbbcd, sin migraciones nuevas). La pegada devolvió `retirar_existe`,
 `agregar_es_0605` y `confirmar_es_0605` en `true` y el registro `la_salida_real_gana_tambien_en_el_panel`.
 
-**Pendiente.** Fusionar el PR (con OK de Felipe). Si se fusiona otro día que no sea el 2026-11-07, corregir la `fecha` y el `id` de la novedad. Después,
+**Pendiente.** Felipe fusionó #712 el 2026-11-07 a las 21:01 (Lima): la fecha de la novedad quedó bien. Ahora
 DO revisa los días con dos salidas en Correcciones; los de un periodo pagado no se tocan sin reabrirlo. Aparte, y no en esta migración: agregar una
 salida pasada la medianoche desde Correcciones cae en el día del calendario y no en el de la jornada.
 
