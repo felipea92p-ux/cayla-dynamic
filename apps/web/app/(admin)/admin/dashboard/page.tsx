@@ -1209,7 +1209,7 @@ export default function DashboardPage() {
         {vistaDash === "tendencias" ? (
           <PanelTendencias rol={yo?.rol ?? null} sedes={sedesDeAlcance.map((s) => ({ codigo: s.codigo, nombre: s.etiqueta.texto }))} />
         ) : vistaDash === "jornada" ? (
-          <PanelJornada sedes={sedesDeAlcance.map((s) => ({ codigo: s.codigo, nombre: s.etiqueta.texto }))} />
+          <PanelJornada sedes={sedesDeAlcance.map((s) => ({ codigo: s.codigo, nombre: s.etiqueta.texto, titulo: s.etiqueta.titulo }))} />
         ) : (
           <>
         {error && (

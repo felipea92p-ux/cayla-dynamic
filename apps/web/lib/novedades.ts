@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-09-jornada-dice-el-nombre-de-cada-sede",
+    fecha: "2026-11-09",
+    titulo: "La Jornada del Dashboard dice el nombre de cada sede",
+    queMejoro:
+      "En la pestaña «Jornada» del Dashboard, cada grupo y cada filtro decían solo el código de la sede —«LIM», " +
+      "«TRU»—. Ahora dicen «Taller · Lima», «Tienda · Trujillo», como en «Hoy» y en «Tendencias», con el código " +
+      "al lado en chico. Así el Taller de Lima no se confunde con la Tienda de Lima.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-09-mis-dias-con-los-colores-de-tu-lider",
     fecha: "2026-11-09",
     titulo: "Mis días usa los mismos colores que ve tu líder, y tu firma escrita se ve en modo oscuro",

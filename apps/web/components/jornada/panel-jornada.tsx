@@ -66,7 +66,11 @@ const ETIQUETA_ESTADO: Record<EstadoDelDia, { texto: string; variante: "positivo
 const dur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${String(m % 60).padStart(2, "0")}` : ""}` : `${m} min`);
 const enMinutosDelDia = (ts: string) => Math.round(horaDecimalLima(ts) * 60);
 
-export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: { codigo: string; nombre: string }[] }) {
+/** `nombre` es la etiqueta completa («Taller · Lima (LIM)», para las pastillas); `titulo`, sin el código («Taller · Lima»),
+ *  para el encabezado del grupo, que lleva el código aparte y en chico, como las tarjetas de sede de «Hoy». */
+type SedeDeAlcance = { codigo: string; nombre: string; titulo?: string };
+
+export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: SedeDeAlcance[] }) {
   const hoy = hoyLima();
   const [dia, setDia] = useState(hoy);
   const [vista, setVista] = useFiltroGuardado<"linea" | "tabla">("dashboard.jornada.vista", "tabla");
@@ -151,11 +155,17 @@ export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: { codigo: stri
   // Tiendas y talleres, un grupo por sede; las oficinas, al final y por área.
   const tiendas = visibles.filter((d) => d.f.sedeTipo !== "central");
   const oficinas = visibles.filter((d) => d.f.sedeTipo === "central");
+  // Una sede se dice con su etiqueta («Taller · Lima (LIM)»), la misma que usan «Hoy» y «Tendencias»: el código solo
+  // no distingue el Taller de la Tienda de Lima. Si una sede no llegó en el alcance, cae a su código antes que a nada.
+  const nombreDeSede = useCallback(
+    (codigo: string) => sedesDeAlcance?.find((s) => s.codigo === codigo)?.nombre ?? codigo,
+    [sedesDeAlcance],
+  );
   const codigosTienda = useMemo(() => {
-    const delAlcance = (sedesDeAlcance ?? []).map((s) => s.codigo);
     const presentes = [...new Set(datos.filter((d) => d.f.sedeTipo !== "central").map((d) => d.f.sedeCodigo))];
-    return [...new Set([...delAlcance, ...presentes])].filter((c) => presentes.includes(c)).sort((a, b) => a.localeCompare(b, "es"));
-  }, [datos, sedesDeAlcance]);
+    // Por el nombre que se lee, no por el código: «003» (la Tienda de Lima) no puede ir primero solo por ser un número.
+    return presentes.sort((a, b) => nombreDeSede(a).localeCompare(nombreDeSede(b), "es"));
+  }, [datos, nombreDeSede]);
   const hayOficinas = datos.some((d) => d.f.sedeTipo === "central");
 
   const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => addDias(hoy, -i)), [hoy]);
@@ -275,8 +285,8 @@ export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: { codigo: stri
 
   const cuerpo = (ds: typeof datos) => (vista === "linea" ? linea(ds) : tablaDia(ds));
 
-  const grupo = (clave: string, titulo: string, ds: typeof datos, opciones: { nota?: string; hijos?: React.ReactNode } = {}) => {
-    const { nota, hijos } = opciones;
+  const grupo = (clave: string, titulo: string, ds: typeof datos, opciones: { codigo?: string; nota?: string; hijos?: React.ReactNode } = {}) => {
+    const { codigo, nota, hijos } = opciones;
     const abierto = abiertas[clave] ?? (sedeSel !== "todas" || solo !== "");
     const r = resumenDe(ds);
     const Chevron = abierto ? ChevronDown : ChevronRight;
@@ -286,6 +296,7 @@ export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: { codigo: stri
           <span className="flex min-w-0 items-center gap-2">
             <Chevron size={16} strokeWidth={1.8} className="shrink-0 text-taupe" aria-hidden />
             <span className="font-serif text-lg text-tinta">{titulo}</span>
+            {codigo && <span className="text-xs text-taupe">({codigo})</span>}
             <span className="text-sm text-taupe">· {ds.length} {ds.length === 1 ? "persona" : "personas"}{nota ? ` · ${nota}` : ""}</span>
           </span>
           <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
@@ -324,7 +335,7 @@ export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: { codigo: stri
         </div>
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Sede">
           <Filtro tamano="sm" activo={sedeSel === "todas"} onClick={() => setSedeSel("todas")}>Todas</Filtro>
-          {codigosTienda.map((c) => <Filtro key={c} tamano="sm" activo={sedeSel === c} onClick={() => setSedeSel(c)}>{c}</Filtro>)}
+          {codigosTienda.map((c) => <Filtro key={c} tamano="sm" activo={sedeSel === c} onClick={() => setSedeSel(c)}>{nombreDeSede(c)}</Filtro>)}
           {hayOficinas && <Filtro tamano="sm" activo={sedeSel === OFICINAS} onClick={() => setSedeSel(OFICINAS)}>Oficinas</Filtro>}
         </div>
         <div className="ml-auto flex gap-1.5" role="group" aria-label="Cómo ver la jornada">
@@ -337,9 +348,11 @@ export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: { codigo: stri
         <EstadoVacio>{solo ? "Nadie coincide con ese aviso." : "Nadie marcó entrada ese día."}</EstadoVacio>
       ) : (
         <div className="space-y-2.5">
-          {codigosTienda.filter((c) => tiendas.some((d) => d.f.sedeCodigo === c)).map((c) => (
-            grupo(c, c, tiendas.filter((d) => d.f.sedeCodigo === c))
-          ))}
+          {codigosTienda.filter((c) => tiendas.some((d) => d.f.sedeCodigo === c)).map((c) => {
+            const titulo = sedesDeAlcance?.find((s) => s.codigo === c)?.titulo;
+            // Sin título conocido, el encabezado ya ES el código: repetirlo entre paréntesis sería «TRU (TRU)».
+            return grupo(c, titulo ?? nombreDeSede(c), tiendas.filter((d) => d.f.sedeCodigo === c), { codigo: titulo ? c : undefined });
+          })}
           {oficinas.length > 0 && grupo(OFICINAS, "Oficinas", oficinas, {
             nota: "aparte: no cuentan en las tiendas",
             hijos: areasDeOficina.map((a) => (
