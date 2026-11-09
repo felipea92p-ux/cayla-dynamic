@@ -7,8 +7,10 @@
 //   colorTardanza(minutos): la tardanza en tres intensidades, porque siete minutos y dos horas no son la misma noticia.
 //
 // QUÉ ASUME
-//   Que el cuadrito se pinta sobre `bg-papel`, como en las dos pantallas. Los contrastes de abajo se midieron contra ese fondo, con los
-//   hex de globals.css y la fórmula de WCAG 2.x, y el piso es el de un elemento que no es texto: 3:1 (WCAG 1.4.11).
+//   Que el cuadrito se pinta sobre `bg-papel`, como en Horas. Los contrastes de abajo se midieron contra ese fondo, con los hex de
+//   globals.css y la fórmula de WCAG 2.x, y el piso es el de un elemento que no es texto: 3:1 (WCAG 1.4.11).
+//   Lo mío lo pinta sobre el fondo de la página (crema), un punto más oscuro en claro. Medido el 2026-11-09: en claro, ámbar/65 da 2.98:1
+//   y taupe/70 2.90:1, en el límite (con la copia vieja eran 2.04 y 1.40); en oscuro todo pasa, de 3.19 a 4.73:1.
 //
 // DECIDÍ: una sola escala para la persona y para su líder. Que las dos vean el mismo día del mismo color es lo que les deja hablar de él
 //   sin traducirse una a la otra.
