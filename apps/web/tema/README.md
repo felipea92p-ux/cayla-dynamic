@@ -22,9 +22,11 @@ de color que más fallan**, porque casi siempre se arreglan en un token y no pan
 Lo dice `app/globals.css`, y la mancha clara lo respeta:
 
 - El recuadro de la firma: `.firma-tinta`. La imagen de `.contrato .linea img` ya queda fuera por ser una imagen.
+- Lo que simula papel blanco por sí mismo: `data-papel` (la marca de Retail para lo mismo). Hoy, la vista previa de la firma en `FirmaEditor`.
+  Ojo: un fondo fijo pide letra fija adentro (`text-tinta-fija`); con la letra del tema, en oscuro queda blanca sobre blanco.
 - El recuadro con `--color-crema-fija`: pasa por ser un token del sistema, como cualquier relleno que use uno.
 
-Lo de `.firma-tinta` no cuenta como hallazgo, pero **se anota aparte** en el reporte en vez de callarlo.
+Lo de `.firma-tinta` y `data-papel` no cuenta como hallazgo, pero **se anota aparte** en el reporte en vez de callarlo.
 
 **Los documentos (`.hoja`, `.contrato`) ya no son excepción.** Hasta el 2026-11-09 se anotaban aparte, porque con el vidrio el papel se quedaba claro
 también en oscuro. Ese día Felipe decidió que el papel siga el tema en pantalla, con y sin vidrio (`piezas.css`, «El papel en su bandeja»): una superficie

@@ -190,11 +190,12 @@
     const velos = [];
     if (tema === "oscuro") {
       const pagina = fondoDeLaPagina();
-      // Claro a propósito: solo el recuadro de la firma (`.firma-tinta`). No cuenta como defecto, pero se anota aparte en vez de callarlo.
+      // Claro a propósito: el recuadro de la firma (`.firma-tinta`) y lo que simula papel blanco por sí mismo (`data-papel`, la misma marca que
+      // usa Retail: la vista previa de la firma en FirmaEditor). No cuentan como defecto, pero se anotan aparte en vez de callarlos.
       // Los documentos (`.hoja`, `.contrato`) ya NO están aquí: desde el 2026-11-09 siguen el tema en pantalla también con el vidrio (decisión de
       // Felipe), así que una superficie clara dentro de uno es un defecto como cualquier otro. Antes se anotaban aparte y nadie las miraba.
       // La imagen de `.contrato .linea img` ya queda fuera por ser una imagen, y el recuadro de `--color-crema-fija` por ser un token.
-      const CLARAS_A_PROPOSITO = ".firma-tinta";
+      const CLARAS_A_PROPOSITO = ".firma-tinta, [data-papel]";
       // Una superficie clara que ES un token del sistema (el relleno de `tinta` invertido, el verde de «hecho», la crema fija…) es una decisión
       // del diseño; un blanco escrito a mano NO coincide con ningún token. Se recogen los `--color-*` de las hojas.
       const raiz = getComputedStyle(document.documentElement);

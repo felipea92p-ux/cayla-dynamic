@@ -359,7 +359,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
         {firma ? (
           // Un trozo de papel: blanco en los dos temas, así que la letra y la línea de adentro van con la tinta fija y no con la del tema.
           // Con `text-taupe` y `text-tinta`, en oscuro quedaban claras sobre blanco (2026-11-09).
-          <div className="w-60 rounded-lg border border-sand bg-white px-4 pb-2 pt-3">
+          <div data-papel className="w-60 rounded-lg border border-sand bg-white px-4 pb-2 pt-3">
             <div className="flex h-20 items-end justify-center">
               <img src={firma.imagen} alt="Tu firma" className="block h-20 w-auto max-w-full" />
             </div>
@@ -434,6 +434,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                 ref={canvasRef}
                 width={600}
                 height={200}
+                data-papel
                 className="w-full max-w-md touch-none rounded-lg border border-sand bg-white"
                 style={{ aspectRatio: "3 / 1" }}
                 onPointerDown={iniciarTrazo}
@@ -481,7 +482,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                 ))}
               </div>
               {/* Tinta fija, como la imagen que se genera (#1a1a18): con `text-tinta`, en oscuro el nombre salía casi blanco sobre blanco. */}
-              <div className="rounded-lg border border-sand bg-white px-4 py-6 text-center">
+              <div data-papel className="rounded-lg border border-sand bg-white px-4 py-6 text-center">
                 {nombreOficial ? (
                   <span className={`${FUENTES[estilo].className} text-4xl text-tinta-fija`}>{nombreOficial}</span>
                 ) : (

@@ -39,6 +39,7 @@ const PAGINA_DE_CONTRASTE = `<!doctype html>
   <div class="hoja"><div style="background:#fff;${SUPERFICIE}"></div></div>
   <div class="contrato"><div style="background:#fff;${SUPERFICIE}"></div></div>
   <div class="firma-tinta" style="background:#fff;${SUPERFICIE}"></div>
+  <div data-papel style="background:#fff;${SUPERFICIE}"></div>
   <div style="background:var(--color-crema-fija);${SUPERFICIE}"></div>
   <div style="background:var(--color-papel);${SUPERFICIE}"></div>
   <div class="tarjeta-invertida" style="background:var(--color-tinta);${SUPERFICIE}"></div>
@@ -98,7 +99,7 @@ try {
     r.manchas.map((m) => m.donde.match(/(hoja|contrato|suelta|tarjeta-invertida|vidrio-claro)/)?.[0] ?? m.donde).sort(),
     ["suelta", "hoja", "contrato", "tarjeta-invertida", "vidrio-claro"].sort(),
   );
-  revisar("lo claro de .firma-tinta no cuenta, pero se anota", r.manchasExentas.length, 1);
+  revisar("lo claro de .firma-tinta y de [data-papel] no cuenta, pero se anota", r.manchasExentas.length, 2);
   revisar("un solo velo: el que aclara, no el que oscurece", r.velos.length, 1);
 
   // El fondo del vidrio (la aurora) es una capa fija, a pantalla completa, pintada con degradados. No es un velo ni una mancha: leer degradados
