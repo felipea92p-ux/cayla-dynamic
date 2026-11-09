@@ -112,6 +112,27 @@ export function esGradual(nivel: string): boolean {
 export type EtapaBorrador = "comunicar" | "esperando" | "valorar" | "firmar";
 
 /**
+ * Las columnas que leen las reglas de «qué le falta a este documento»
+ * (`etapaDelBorrador`, `pendientesDeEntregado`, `pestanaDelDocumento`). Es su
+ * contrato: deciden con esto y con nada más.
+ *
+ * Está escrito como tipo para que quien trae el documento con un `select` propio
+ * no pueda olvidarse una columna sin que TypeScript lo note. Pasó el 2026-11-09:
+ * la 0486 hizo que `pendientesDeEntregado` mirara `medio_entrega`, la Bandeja no
+ * la pedía, y como convertía sus filas con `as unknown as DocDisciplina[]` nadie
+ * lo vio. `undefined` no es `"digital"`, así que cada memo recibido y firmado
+ * por Info siguió pidiendo «Subir cargo» en la Bandeja mientras esta pantalla ya
+ * lo tenía en el historial.
+ *
+ * `estado` va como `string` y no como `EstadoDocumento` porque así llega de la
+ * base (la columna es texto con un CHECK) y las reglas ya tratan cualquier otro
+ * valor como «no pide nada». Exigir la unión obligaría a convertir la fila, y una
+ * conversión forzada es justo lo que escondió el defecto.
+ */
+export type CamposDelBorrador = Pick<DocDisciplina, "nivel" | "cargos_comunicados_at" | "descargo_vence_at" | "descargo_acogido">;
+export type CamposDeEntregado = Pick<DocDisciplina, "nivel" | "medio_entrega" | "resuelto_at"> & { estado: string };
+
+/**
  * El paso que toca en un borrador. Es la misma cascada que exige la base desde
  * la 0212 —comunicar cargos, esperar el plazo, valorar el descargo, firmar—
  * y que la pantalla tenía escrita como un ternario dentro de la fila.
@@ -120,7 +141,7 @@ export type EtapaBorrador = "comunicar" | "esperando" | "valorar" | "firmar";
  * plazo se mira contra el reloj del navegador solo para PINTAR: quien decide
  * es la base, que rechaza la firma mientras el plazo no haya vencido.
  */
-export function etapaDelBorrador(d: DocDisciplina, exigeDescargo: boolean, ahora: Date = new Date()): EtapaBorrador {
+export function etapaDelBorrador(d: CamposDelBorrador, exigeDescargo: boolean, ahora: Date = new Date()): EtapaBorrador {
   if (!exigeDescargo || !esGradual(d.nivel)) return "firmar";
   if (d.cargos_comunicados_at === null) return "comunicar";
   if (d.descargo_vence_at !== null && new Date(d.descargo_vence_at) > ahora) return "esperando";
@@ -164,7 +185,7 @@ export type PendienteDeEntregado = "cargo" | "resolver";
  * entrega que nunca tuvo papel sería un pendiente que no se puede cumplir, y
  * un aviso que no se puede cumplir enseña a ignorar los que sí.
  */
-export function pendientesDeEntregado(d: DocDisciplina, adjuntos: readonly Adjunto[]): PendienteDeEntregado[] {
+export function pendientesDeEntregado(d: CamposDeEntregado, adjuntos: readonly Adjunto[]): PendienteDeEntregado[] {
   if (d.estado !== "entregado") return [];
   const p: PendienteDeEntregado[] = [];
   if (!tienePapelDeEntrega(adjuntos) && d.medio_entrega !== "digital") p.push("cargo");
@@ -172,7 +193,7 @@ export function pendientesDeEntregado(d: DocDisciplina, adjuntos: readonly Adjun
   return p;
 }
 
-export function pestanaDelDocumento(d: DocDisciplina, adjuntos: readonly Adjunto[]): Exclude<Pestana, "revision"> {
+export function pestanaDelDocumento(d: CamposDeEntregado, adjuntos: readonly Adjunto[]): Exclude<Pestana, "revision"> {
   switch (d.estado) {
     case "borrador": return "borradores";
     case "firmado": return "entregar";
