@@ -87,6 +87,7 @@ text-verde
 -right-1.5
 -top-1.5
 [&_svg]:size-4
+[&_svg]:size-5
 absolute
 bg-papel
 bg-rojo
@@ -109,6 +110,7 @@ relative
 rounded-control
 rounded-full
 shrink-0
+size-11
 size-7
 size-8
 text-[10px]
