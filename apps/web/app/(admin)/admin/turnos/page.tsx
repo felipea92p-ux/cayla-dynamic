@@ -43,7 +43,7 @@ import { BorradorDeLaSemana, type FilaComparativa } from "./borrador-de-la-seman
 import { TablaSemana, type CasillaSemana, type FilaSemana } from "./tabla-semana";
 import { resumenSemanalDelDia } from "@/lib/admin/semana-por-persona";
 import { comoPropuesta, compararSemanas, cumpleJornada, esTablaInexistente, filasDelBorradorParaGuardar, horasNetas, semanaDesdeBorrador, type FilaDiaBorrador, type SemanaTurnos } from "@/lib/admin/borrador-semana";
-import { FIN_DE_LA_LINEA, personasDelDiaCerrado, planDelDia, ventaPedia } from "@/lib/admin/repeticion";
+import { FIN_DE_LA_LINEA, personasDelDiaCerrado, planDelDia, ventaPedia, type VentanaDia } from "@/lib/admin/repeticion";
 import { lideresDelDia, metasPorFecha, pideEn, type MetaDelDia, type FilaMeta } from "@/lib/admin/metas-cobertura";
 import { leerMetasDeCobertura } from "@/lib/admin/leer-metas";
 import { MetasDeCobertura } from "./metas-de-cobertura";
@@ -755,6 +755,9 @@ export default function TurnosPage() {
   const [compras, setCompras] = useState<Map<string, Map<number, number>> | null>(new Map());
   // El ritmo y el mínimo de la tienda (Parámetros, 0585); null = no se pudieron leer.
   const [coberturaVenta, setCoberturaVenta] = useState<{ ritmo: number; minimo: number } | null>(null);
+  // El horario de la tienda por día de la semana (0584): la repetición no juzga la hora en que abre o cierra a medias
+  // (horaDentroDeLaVentana). Vacío si no se pudo leer: entonces se juzgan todas, como antes.
+  const [ventanaSede, setVentanaSede] = useState<Map<number, VentanaDia>>(new Map());
   // La meta de cada fecha de la semana, ya resuelta (0590): la predeterminada o la excepción que rige, por rangos.
   const [metasFecha, setMetasFecha] = useState<Map<string, MetaDelDia>>(new Map());
   // Lo que pide la venta, del promedio de las últimas 4 semanas (0585): manda donde no hay meta. null si no se leyó.
@@ -869,6 +872,7 @@ export default function TurnosPage() {
       { data: cpv, error: cpvErr },
       { data: pba, error: pbaErr },
       { data: c4, error: c4Err },
+      { data: ven, error: venErr },
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
       // igual que cualquiera y cuenta para la meta de cobertura de la sede —
@@ -908,6 +912,8 @@ export default function TurnosPage() {
       supabase.from("puestos_base" as never).select("persona_id, vigente_desde, vigente_hasta"),
       // Lo que pide la venta donde no hay meta: el promedio de las últimas 4 semanas (vacío en una sede que no vende).
       supabase.rpc("fn_compras_por_hora", { p_sede_id: sedeSel, p_desde: addDays(hoyLima(), -28), p_hasta: addDays(hoyLima(), -1) }),
+      // El horario de la tienda, para no juzgar la hora en que abre o cierra a medias. Tampoco frena la semana.
+      supabase.rpc("fn_sede_ventana_semanal", { p_sede_id: sedeSel }),
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (modo !== "fondo") cargaConMetas.current = 0;
@@ -980,6 +986,8 @@ export default function TurnosPage() {
     }
     const filaCpv = !cpvErr && Array.isArray(cpv) ? (cpv as { ritmo: number; minimo: number }[])[0] : undefined;
     setCoberturaVenta(filaCpv ? { ritmo: Number(filaCpv.ritmo), minimo: Number(filaCpv.minimo) } : null);
+    setVentanaSede(venErr ? new Map() : new Map(((ven as { dia: number; abre: string; cierra: string }[] | null) ?? [])
+      .map((v) => [Number(v.dia), { abre: horaADecimal(v.abre), cierra: horaADecimal(v.cierra) }] as const)));
     setCargando(false);
     // Las metas se cambian en su editor (0590), que guarda entera la meta y recarga: el fondo ya puede leerlas.
     setMetasFecha(metasPorFecha((m as FilaMeta[] | null) ?? []));
@@ -1842,6 +1850,7 @@ export default function TurnosPage() {
               comprasFallo={tipoSedeSel === "tienda" && compras === null}
               comprasDe={tipoSedeSel === "tienda" && compras !== null ? (h) => delDia?.get(h) ?? 0 : null}
               parametros={coberturaVenta}
+              ventana={ventanaSede.get(diaSemana(iso))}
             />
           );
         })()}

@@ -41,21 +41,6 @@ export function esDelTipo(fecha: string, tipo: TipoDeDia): boolean {
   return tipo === "finde" ? finde : !finde;
 }
 
-/** El horario de la tienda un día de la semana, en horas decimales: de la primera entrada a la última salida de su equipo. */
-export interface VentanaDia {
-  abre: number;
-  cierra: number;
-}
-
-/**
- * Solo se juzgan las horas ENTERAS dentro del horario de la tienda. En la hora en que abre o cierra a medias, el
- * peor cuarto cae con la tienda cerrada (la gente llegando antes de abrir, o ya fuera después de cerrar) y diría
- * que faltó gente sin que faltara nadie. Sin horario conocido para ese día, no se descarta ninguna.
- */
-export function horaDentroDeLaVentana(hora: number, v: VentanaDia | undefined): boolean {
-  return !v || (hora >= v.abre - 1e-9 && hora + 1 <= v.cierra + 1e-9);
-}
-
 export interface HoraDePiso {
   hora: number;
   /** Días en que la tienda estuvo abierta a esa hora. */
@@ -235,7 +220,10 @@ export async function traerPisoYVenta(supabase: Cliente, sede: { id: string; tip
         personas: personasDia, medianocheIso,
         comprasDe: comprasFallo ? null : (hora) => delDia?.get(hora) ?? 0,
         parametros: comprasFallo ? null : (parametros ? { ritmo: Number(parametros.ritmo), minimo: Number(parametros.minimo) } : null),
-      }).filter((h) => horaDentroDeLaVentana(h.hora, deHoy)),
+        ventana: deHoy,
+      // Aquí, a diferencia de la repetición de Turnos, la hora que no se juzga ni se dibuja: promediar la media hora
+      // en que el equipo va llegando no dice nada de cómo se atiende.
+      }).filter((h) => h.juzgada),
     });
   }
   return { dias, comprasFallo, desde, hasta };

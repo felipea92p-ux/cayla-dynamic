@@ -17,8 +17,8 @@ import { Rotulo } from "@/components/ui/rotulo";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { estiloDeHora } from "@/lib/admin/cobertura-turnos";
 import {
-  columnasEnElMomento, diaCompletoReal, horasDeLaRepeticion, resumenReal, ventaPedia,
-  type EstadoEnElMomento, type PersonaRepeticion,
+  columnasEnElMomento, diaCompletoReal, horasDeLaRepeticion, resumenReal,
+  type EstadoEnElMomento, type PersonaRepeticion, type VentanaDia,
 } from "@/lib/admin/repeticion";
 
 const PASO = 5 / 60; // la barra avanza de 5 en 5 minutos
@@ -43,6 +43,7 @@ export function RepeticionDelDia({
   parametros,
   esTienda,
   comprasFallo,
+  ventana,
 }: {
   personas: PersonaRepeticion[];
   medianocheIso: string;
@@ -53,6 +54,8 @@ export function RepeticionDelDia({
   esTienda: boolean;
   /** La lectura de compras falló: se dice con palabras, nunca como cero. */
   comprasFallo: boolean;
+  /** El horario de la tienda ese día: la hora en que abre o cierra a medias no se juzga. Sin él, se juzgan todas. */
+  ventana?: VentanaDia | null;
 }) {
   const horas = useMemo(() => horasDeLaRepeticion(personas, medianocheIso), [personas, medianocheIso]);
   const desde = horas[0] ?? 8;
@@ -78,12 +81,15 @@ export function RepeticionDelDia({
   const col = columnasEnElMomento(personas, t, medianocheIso, true);
   const horaEntera = Math.min(Math.floor(t), hasta - 1);
   const comprasHora = comprasDe ? comprasDe(horaEntera) : null;
-  const pedia = parametros ? ventaPedia(comprasHora, parametros) : null;
   const enPisoAhora = col.piso.filter((f) => f.persona.cuenta).length;
-  const dia = diaCompletoReal({ personas, medianocheIso, comprasDe, parametros });
+  const dia = diaCompletoReal({ personas, medianocheIso, comprasDe, parametros, ventana });
+  // Lo que pedía la venta en la hora de la barra sale del mismo día armado: una hora que no se juzga no pide nada.
+  const horaDeLaBarra = dia.find((h) => h.hora === horaEntera);
+  const pedia = horaDeLaBarra?.pedia ?? null;
   const resumen = resumenReal(dia);
   const maxCompras = Math.max(1, ...dia.map((h) => h.compras ?? 0));
   const conVenta = esTienda && comprasDe !== null;
+  const sinJuzgar = conVenta && parametros ? dia.filter((h) => !h.juzgada).map((h) => `${h.hora}:00`) : [];
 
   return (
     <TarjetaInfo className="space-y-4" titulo="Repetición del día" accion={<Insignia variante="neutral" tamano="sm">día cerrado</Insignia>}>
@@ -107,7 +113,7 @@ export function RepeticionDelDia({
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Cifra etiqueta="Operativas en piso" valor={String(enPisoAhora)}
-          detalle={pedia !== null ? `la venta pedía ${pedia}` : undefined}
+          detalle={pedia !== null ? `la venta pedía ${pedia}` : conVenta && horaDeLaBarra && !horaDeLaBarra.juzgada ? "la tienda abre o cierra en esta hora: no se compara" : undefined}
           tono={pedia === null ? undefined : enPisoAhora < pedia ? "alerta" : enPisoAhora > pedia + 1 ? "advertencia" : "positivo"} />
         <Cifra etiqueta="En refrigerio o pausa" valor={String(col.refrigerio.length + col.pausa.length)} />
         {esTienda && (
@@ -146,7 +152,7 @@ export function RepeticionDelDia({
               const actual = h.hora === horaEntera;
               return (
                 <button key={h.hora} type="button" onClick={() => { setReproduciendo(false); setT(h.hora + 0.5); }}
-                  title={`${h.hora}:00 · ${h.enPiso} en piso${h.compras !== null ? ` · ${h.compras} compras` : ""}${h.pedia !== null ? ` · la venta pedía ${h.pedia}` : ""}`}
+                  title={`${h.hora}:00 · ${h.enPiso} en piso${h.compras !== null ? ` · ${h.compras} compras` : ""}${h.pedia !== null ? ` · la venta pedía ${h.pedia}` : ""}${conVenta && !h.juzgada ? " · la tienda abre o cierra en esta hora: no se compara" : ""}`}
                   className={`flex flex-1 flex-col items-center gap-0.5 rounded px-0.5 pb-1 pt-1 text-[11px] ${actual ? "ring-2 ring-tinta" : ""}`}
                   style={{ background: e.fondo, color: e.texto }}>
                   <span className="font-medium tabular-nums">{h.enPiso}</span>
@@ -161,6 +167,11 @@ export function RepeticionDelDia({
             })}
           </div>
         </div>
+        {sinJuzgar.length > 0 && (
+          <p className="mt-1 text-xs text-taupe">
+            {sinJuzgar.length === 1 ? `La de las ${sinJuzgar[0]} no se compara con la venta` : `Las de las ${sinJuzgar.slice(0, -1).join(", ")} y ${sinJuzgar.at(-1)} no se comparan con la venta`}: la tienda abre o cierra a mitad de la hora.
+          </p>
+        )}
       </div>
 
       <p className="text-sm text-taupe">

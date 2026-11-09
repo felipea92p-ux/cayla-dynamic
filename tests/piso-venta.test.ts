@@ -1,8 +1,9 @@
 // piso-venta.test.ts — la tendencia «Gente en piso frente a la venta» junta días; no decide quién estaba en piso
 import { describe, expect, it } from "vitest";
-import { esDelTipo, faltaSeguido, horaDentroDeLaVentana, horaMasCorta, MINIMO_DIAS_HORA, pisoPorHora, type DiaDePiso } from "../apps/web/lib/admin/piso-venta";
+import { esDelTipo, faltaSeguido, horaMasCorta, MINIMO_DIAS_HORA, pisoPorHora, type DiaDePiso } from "../apps/web/lib/admin/piso-venta";
+import { horaDentroDeLaVentana } from "../apps/web/lib/admin/repeticion";
 
-const hora = (h: number, enPiso: number, compras: number | null, pedia: number | null) => ({ hora: h, enPiso, compras, pedia });
+const hora = (h: number, enPiso: number, compras: number | null, pedia: number | null) => ({ hora: h, enPiso, compras, pedia, juzgada: true });
 // 2026-11-02 es lunes; 2026-11-07 sábado; 2026-11-08 domingo.
 const dia = (fecha: string, horas: ReturnType<typeof hora>[]): DiaDePiso => ({ fecha, horas });
 

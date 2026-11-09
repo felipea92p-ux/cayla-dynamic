@@ -188,7 +188,26 @@ export interface HoraDelDiaReal {
   hora: number;
   enPiso: number;
   compras: number | null;
+  /** null si no se sabe cuánto se vendió, o si la hora no se juzga. */
   pedia: number | null;
+  /** ¿Se compara con lo que pedía la venta? Ver `horaDentroDeLaVentana`. */
+  juzgada: boolean;
+}
+
+/** El horario de la tienda un día de la semana, en horas decimales: de la primera entrada a la última salida de su equipo (fn_sede_ventana_semanal, 0584). */
+export interface VentanaDia {
+  abre: number;
+  cierra: number;
+}
+
+/**
+ * Solo se juzgan las horas ENTERAS dentro del horario de la tienda. En la hora en que abre o cierra a medias, el
+ * peor cuarto cae con la tienda cerrada —el equipo llegando antes de abrir, o ya fuera después de cerrar— y diría
+ * que faltó gente sin que faltara nadie. La hora se sigue dibujando: lo que no se hace es compararla con la venta.
+ * Sin horario conocido para ese día, se juzgan todas (como antes del 2026-11-09).
+ */
+export function horaDentroDeLaVentana(hora: number, v: VentanaDia | null | undefined): boolean {
+  return !v || (hora >= v.abre - 1e-9 && hora + 1 <= v.cierra + 1e-9);
 }
 
 /** Las horas que se dibujan: de la primera entrada (o plan) a la última salida (o plan), enteras. */
@@ -208,15 +227,19 @@ export function diaCompletoReal(args: {
   /** Compras por hora entera (8 → de 08:00 a 09:00); null si no se pudieron leer. */
   comprasDe: ((hora: number) => number) | null;
   parametros: { ritmo: number; minimo: number } | null;
+  /** El horario de la tienda ese día; sin él se juzgan todas las horas. */
+  ventana?: VentanaDia | null;
 }): HoraDelDiaReal[] {
-  const { personas, medianocheIso, comprasDe, parametros } = args;
+  const { personas, medianocheIso, comprasDe, parametros, ventana } = args;
   return horasDeLaRepeticion(personas, medianocheIso).map((hora) => {
     const compras = comprasDe ? comprasDe(hora) : null;
+    const juzgada = horaDentroDeLaVentana(hora, ventana);
     return {
       hora,
       enPiso: enPisoEnLaHora(personas, hora, medianocheIso),
       compras,
-      pedia: parametros ? ventaPedia(compras, parametros) : null,
+      pedia: juzgada && parametros ? ventaPedia(compras, parametros) : null,
+      juzgada,
     };
   });
 }
@@ -233,14 +256,16 @@ export function resumenReal(horas: readonly HoraDelDiaReal[]): ResumenReal {
   const conVenta = horas.filter((h) => h.compras !== null);
   const totalCompras = conVenta.length ? conVenta.reduce((a, h) => a + (h.compras ?? 0), 0) : null;
   let masCargada: ResumenReal["masCargada"] = null;
-  for (const h of conVenta) {
+  // La más cargada sale solo de las horas que se juzgan: en la que la tienda cierra a medias, el peor cuarto cae
+  // con la tienda cerrada y la venta de esa media hora parecería repartida entre casi nadie.
+  for (const h of conVenta.filter((x) => x.juzgada)) {
     if (!h.compras) continue;
     const r = h.compras / Math.max(1, h.enPiso);
     if (!masCargada || r > masCargada.comprasPorPersona + 1e-9) masCargada = { hora: h.hora, comprasPorPersona: Math.round(r * 10) / 10 };
   }
   return {
     totalCompras,
-    horasConFalta: horas.filter((h) => h.pedia !== null && h.enPiso < h.pedia).length,
+    horasConFalta: horas.filter((h) => h.juzgada && h.pedia !== null && h.enPiso < h.pedia).length,
     masCargada,
   };
 }

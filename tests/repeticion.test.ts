@@ -99,11 +99,28 @@ describe("el día completo y su resumen", () => {
   });
   it("a las 11 la venta pedía 4 y había 2: es una hora con falta", () => {
     const once = horas.find((h) => h.hora === 11)!;
-    expect(once).toEqual({ hora: 11, enPiso: 2, compras: 6, pedia: 4 });
+    expect(once).toEqual({ hora: 11, enPiso: 2, compras: 6, pedia: 4, juzgada: true });
     const r = resumenReal(horas);
     expect(r.totalCompras).toBe(10);
     expect(r.masCargada).toEqual({ hora: 11, comprasPorPersona: 3 });
     expect(r.horasConFalta).toBeGreaterThanOrEqual(1);
+  });
+  it("la hora en que la tienda abre o cierra a medias se dibuja, pero no se compara con la venta", () => {
+    // A las 8 llegan las dos (08:30 y 08:34): el peor cuarto da 0 en piso y, sin horario, eso es «falta».
+    const sinHorario = horas.find((h) => h.hora === 8)!;
+    expect(sinHorario).toMatchObject({ enPiso: 0, pedia: 2, juzgada: true });
+    const conHorario = diaCompletoReal({
+      personas: [ana, bea], medianocheIso, comprasDe: (h) => compras[h] ?? 0, parametros: { ritmo: 1.5, minimo: 2 },
+      ventana: { abre: 9, cierra: 16.5 },
+    });
+    expect(conHorario.map((h) => h.hora)).toEqual(horas.map((h) => h.hora)); // se siguen dibujando todas
+    expect(conHorario.find((h) => h.hora === 8)).toMatchObject({ enPiso: 0, pedia: null, juzgada: false });
+    expect(conHorario.find((h) => h.hora === 16)).toMatchObject({ pedia: null, juzgada: false });
+    expect(conHorario.find((h) => h.hora === 11)).toMatchObject({ pedia: 4, juzgada: true });
+    // Dejan de contar como falta las 8 (el equipo llegando) y las 17 (ya se fueron): ninguna era gente que faltó.
+    expect(conHorario.find((h) => h.hora === 17)).toMatchObject({ enPiso: 0, juzgada: false });
+    expect(resumenReal(conHorario).horasConFalta).toBe(resumenReal(horas).horasConFalta - 2);
+    expect(resumenReal(conHorario).masCargada).toEqual({ hora: 11, comprasPorPersona: 3 });
   });
   it("sin la venta no hay total ni falta que contar", () => {
     const sin = diaCompletoReal({ personas: [ana], medianocheIso, comprasDe: null, parametros: { ritmo: 1.5, minimo: 2 } });
