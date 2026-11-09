@@ -43,7 +43,7 @@ import { BorradorDeLaSemana, type FilaComparativa } from "./borrador-de-la-seman
 import { TablaSemana, type CasillaSemana, type FilaSemana } from "./tabla-semana";
 import { resumenSemanalDelDia } from "@/lib/admin/semana-por-persona";
 import { comoPropuesta, compararSemanas, cumpleJornada, esTablaInexistente, filasDelBorradorParaGuardar, horasNetas, semanaDesdeBorrador, type FilaDiaBorrador, type SemanaTurnos } from "@/lib/admin/borrador-semana";
-import { ventaPedia, type PersonaRepeticion } from "@/lib/admin/repeticion";
+import { FIN_DE_LA_LINEA, personasDelDiaCerrado, planDelDia, ventaPedia } from "@/lib/admin/repeticion";
 import { lideresDelDia, metasPorFecha, pideEn, type MetaDelDia, type FilaMeta } from "@/lib/admin/metas-cobertura";
 import { leerMetasDeCobertura } from "@/lib/admin/leer-metas";
 import { MetasDeCobertura } from "./metas-de-cobertura";
@@ -103,7 +103,7 @@ const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : "");
 
 // ── Línea de tiempo / mapa de calor de cobertura (7h–21h) ───────────────────
 const HORA_INICIO = 7;
-const HORA_FIN = 21;
+const HORA_FIN = FIN_DE_LA_LINEA; // también es hasta dónde dura un turno sin salida (planDelDia)
 const MARCAS_HORA = [7, 9, 11, 13, 15, 17, 19, 21];
 // Vista Semana: franjas de 30 min ancladas a :15/:45 (7:45, 8:15, 8:45…), igual
 // que las horas de entrada reales del equipo — fijo, no automático (decisión
@@ -1813,20 +1813,23 @@ export default function TurnosPage() {
             venta. Solo con lo marcado leído; un día que todavía no termina no se repite. */}
         {iso < hoyLima() && reales && (() => {
           const medianocheIso = rangoDelDiaLima(iso).inicio;
-          const personasRep: PersonaRepeticion[] = personas.flatMap((p) => {
-            const c = celda(p.id, iso);
-            const marcajesDia = reales.marcajes.get(`${p.id}|${iso}`) ?? [];
-            const trabaja = c.tipo === "turno" || c.tipo === "default";
-            if (!trabaja && marcajesDia.length === 0) return [];
-            const plan = trabaja ? { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN } : null;
-            return [{
+          // Quién estuvo y dónde lo arma personasDelDiaCerrado (lib/admin/repeticion.ts): la misma respuesta que da
+          // la tendencia «Gente en piso frente a la venta» de Inicio.
+          const personasRep = personasDelDiaCerrado({
+            personas: personas.map((p) => ({
               id: p.id,
               nombre: `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`,
               cuenta: esOperativa(p), lider: esEncargada(p),
-              marcajes: marcajesDia,
-              almacen: plan ? almacenDe(p.id, iso, plan, true) : marcadoDe(p.id, iso, { desde: 0, hasta: 24 }),
-              plan,
-            }];
+            })),
+            medianocheIso,
+            ahora: new Date(),
+            planDe: (id) => {
+              const c = celda(id, iso);
+              return c.tipo === "turno" || c.tipo === "default" ? planDelDia({ trabaja: true, entrada: c.entrada, salida: c.salida }) : null;
+            },
+            puestoDe: (id) => puestoDe(id, iso),
+            cambiosDe: (id) => reales.cambios.get(`${id}|${iso}`) ?? [],
+            marcajesDe: (id) => reales.marcajes.get(`${id}|${iso}`) ?? [],
           });
           if (personasRep.length === 0) return null;
           const delDia = compras?.get(iso);

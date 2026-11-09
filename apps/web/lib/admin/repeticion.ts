@@ -20,7 +20,8 @@
 // forma de que la repetición y el terminal digan lo mismo de la misma persona.
 // ============================================================================
 import { estadoPresencia, horaLima, type MarcajeDelDia } from "@cayla-dynamic/shared";
-import type { TramoDecimal } from "./almacen";
+import type { CambioUbicacion } from "@/lib/terminal/ubicacion";
+import { aDecimal, almacenConLoReal, tramosEnAlmacen, type PuestoDelDia, type TramoDecimal } from "./almacen";
 
 export type EstadoEnElMomento = "por_llegar" | "piso" | "almacen" | "refrigerio" | "pausa" | "salio";
 
@@ -36,6 +37,49 @@ export interface PersonaRepeticion {
   almacen: readonly TramoDecimal[];
   /** Su turno planificado, en horas decimales; null si ese día no le tocaba. */
   plan: TramoDecimal | null;
+}
+
+/** Hasta dónde llega el día en Turnos (su línea va de 7 a 21): un turno sin hora de salida dura hasta aquí. */
+export const FIN_DE_LA_LINEA = 21;
+
+/** El turno que le tocaba, en horas decimales, como lo dibuja Turnos. null si ese día no le tocaba. */
+export function planDelDia(esperado: { trabaja: boolean; entrada: string | null; salida: string | null }): TramoDecimal | null {
+  if (!esperado.trabaja || !esperado.entrada) return null;
+  return { desde: aDecimal(esperado.entrada), hasta: esperado.salida ? aDecimal(esperado.salida) : FIN_DE_LA_LINEA };
+}
+
+/**
+ * Quiénes estuvieron un día ya cerrado y dónde, como los repite Turnos. Lo usan la repetición del día (Turnos ·
+ * Día) y la tendencia de Inicio «Gente en piso frente a la venta»: así las dos dicen lo mismo de la misma hora.
+ *
+ * El almacén de quien tenía turno es lo marcado en el terminal más su plan, como si hubiera pasado (decisión de
+ * Felipe, 2026-11-03: `almacenConLoReal`); el de quien vino sin turno, solo lo marcado. Quien no tenía turno ni
+ * marcó no está.
+ */
+export function personasDelDiaCerrado(args: {
+  personas: readonly { id: string; nombre: string; cuenta: boolean; lider: boolean }[];
+  medianocheIso: string;
+  ahora: Date;
+  planDe: (personaId: string) => TramoDecimal | null;
+  puestoDe: (personaId: string) => PuestoDelDia;
+  cambiosDe: (personaId: string) => readonly CambioUbicacion[];
+  marcajesDe: (personaId: string) => readonly MarcajeDelDia[];
+}): PersonaRepeticion[] {
+  const { personas, medianocheIso, ahora, planDe, puestoDe, cambiosDe, marcajesDe } = args;
+  return personas.flatMap((p) => {
+    const marcajes = marcajesDe(p.id);
+    const plan = planDe(p.id);
+    if (!plan && marcajes.length === 0) return [];
+    const real = almacenConLoReal({
+      plan: plan ? tramosEnAlmacen(puestoDe(p.id), plan) : [],
+      turno: plan ?? { desde: 0, hasta: 24 },
+      cambios: cambiosDe(p.id),
+      marcajes,
+      medianocheIso,
+      ahora,
+    });
+    return [{ id: p.id, nombre: p.nombre, cuenta: p.cuenta, lider: p.lider, marcajes, almacen: plan ? real.cobertura : real.marcado, plan }];
+  });
 }
 
 const ms = (iso: string) => new Date(iso).getTime();
