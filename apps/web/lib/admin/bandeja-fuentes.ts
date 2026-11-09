@@ -11,8 +11,8 @@ import { diaYMes } from "../bandeja-mia";
 import { formatSoles } from "../rangos";
 import { pendientesDeSeguros, seguroPorPersona, type CambioSeguro, type FilaEquipoSeguro, type Poliza } from "./seguros";
 import {
-  etapaDelBorrador, lecturaPendienteParaAviso, pendientesDeEntregado, type Adjunto, type CamposDeEntregado,
-  type CamposDelBorrador, type DocDisciplina, type LecturaMemo,
+  etapaDelBorrador, lecturaPendienteParaAviso, pendientesDeEntregado, type CamposDeEntregado,
+  type CamposDelBorrador, type LecturaMemo, type PapelArchivado,
 } from "./disciplina";
 import {
   compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
@@ -259,7 +259,7 @@ export interface ItemDisciplina {
  * No es una regla nueva: son `etapaDelBorrador` y `pendientesDeEntregado`, las
  * mismas que ordenan las pestañas de la pantalla de Disciplina.
  */
-export function pasoDisciplina(d: CamposDelBorrador & CamposDeEntregado, adjuntos: readonly Adjunto[], exigeDescargo: boolean, ahora: Date = new Date()): PasoDisciplina | null {
+export function pasoDisciplina(d: CamposDelBorrador & CamposDeEntregado, adjuntos: readonly PapelArchivado[], exigeDescargo: boolean, ahora: Date = new Date()): PasoDisciplina | null {
   if (d.estado === "borrador") return etapaDelBorrador(d, exigeDescargo, ahora);
   if (d.estado === "firmado") return "entregar";
   if (d.estado === "entregado") {
@@ -571,8 +571,9 @@ async function traerDisciplina(
   ]);
   if (adj.error || per.error) { fallo("disciplina", "los documentos disciplinarios", adj.error ?? per.error); return []; }
 
-  const adjuntosDe = new Map<string, Adjunto[]>();
-  for (const a of (adj.data ?? []) as unknown as Adjunto[]) {
+  // Solo `documento_id` y `tipo`: es lo que pide el select y lo único que mira la regla.
+  const adjuntosDe = new Map<string, PapelArchivado[]>();
+  for (const a of adj.data ?? []) {
     adjuntosDe.set(a.documento_id, [...(adjuntosDe.get(a.documento_id) ?? []), a]);
   }
   const codigoSede = new Map(((sed.data ?? []) as { id: string; codigo: string }[]).map((s) => [s.id, s.codigo] as const));
@@ -713,7 +714,7 @@ async function traerLecturasPendientes(
     .in("nivel", ["verbal", "amonestacion", "suspension"])
     .gte("entregado_at", hace12m.toISOString());
   if (error) { fallo("disciplina", "los documentos sin leer", error); return []; }
-  const filas = (docs ?? []) as unknown as Array<Pick<DocDisciplina, "id" | "persona_id" | "nivel" | "estado" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at">>;
+  const filas = docs ?? [];
   if (filas.length === 0) return [];
 
   const { data: lect, error: eL } = await supabase.from("lecturas_memo")

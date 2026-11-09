@@ -63,7 +63,7 @@ export async function sincronizarApartadas(): Promise<number> {
     });
     if (error || !data) return apartadas.length;
 
-    const resueltas = new Set(data as unknown as string[]);
+    const resueltas = new Set(data satisfies string[]);
     for (const uuid of resueltas) await eliminarDeOutbox(uuid);
     return apartadas.length - resueltas.size;
   } catch {

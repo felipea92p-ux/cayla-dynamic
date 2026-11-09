@@ -173,7 +173,7 @@ export function PanelCambio({
     if (fuente === "pruebas") {
       const { data, error } = await supabase.rpc("fn_pruebas_abiertas");
       if (error) setErrorImpacto(mensajeDeError(error, "ver quién está en preselección"));
-      else setImpacto(impactoDiasDePrueba((data ?? []) as unknown as FilaPrueba[], v.valor));
+      else setImpacto(impactoDiasDePrueba((data ?? []) satisfies FilaPrueba[], v.valor));
     } else if (fuente === "descanso_medico") {
       const { data, error } = await supabase.rpc("fn_ausencias_subsidio");
       if (error) setErrorImpacto(mensajeDeError(error, "ver los días de descanso médico"));

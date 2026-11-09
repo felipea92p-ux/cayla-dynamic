@@ -330,7 +330,7 @@ function IncidenciasContenido() {
       metas: (metasData as { sede_id: string; fecha: string; dia_semana: number; meta_encargadas: number }[] | null) ?? [],
       horarios: (horariosData as HorarioTramo[] | null) ?? [],
       turnos: (turnosData as DatosDeteccion["turnos"] | null) ?? [],
-      faltas: (faltasData as unknown as DatosDeteccion["faltas"] | null) ?? [],
+      faltas: (faltasData satisfies DatosDeteccion["faltas"] | null) ?? [],
       etiquetaMotivo: etiqueta,
     }));
     setSedes(sedesRows);

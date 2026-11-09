@@ -63,7 +63,7 @@ export function useHistorialHorario(
       const disps = disp.error ? [] : ((disp.data as unknown as FilaDisponibilidad[]) ?? []);
       setEstado({
         cargando: false, error: null,
-        entradas: armarHistorial((aud as unknown as FilaAuditoria[]) ?? [], disps, quien),
+        entradas: armarHistorial((aud satisfies FilaAuditoria[]) ?? [], disps, quien),
       });
     })();
     return () => { vivo = false; };

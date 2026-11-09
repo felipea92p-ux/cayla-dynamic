@@ -136,10 +136,10 @@ export async function traerMiSeguro(
   if (seguro.error || polizas.error) {
     return { principal: null, polizas: [], error: "No pudimos leer tu seguro. Vuelve a intentarlo en un momento." };
   }
-  const filas = (seguro.data ?? []) as unknown as SeguroPrincipal[];
+  const filas = (seguro.data ?? []) satisfies SeguroPrincipal[];
   return {
     principal: filas[0] ?? null,
-    polizas: leerPolizasMias((polizas.data ?? []) as unknown as FilaMisPolizas[]),
+    polizas: leerPolizasMias((polizas.data ?? []) satisfies FilaMisPolizas[]),
     error: null,
   };
 }
@@ -152,7 +152,7 @@ export async function traerMiSeguro(
 export async function marcarMiSeguroVisto(supabase: ClienteCayla): Promise<void> {
   const { data, error } = await supabase.rpc("fn_mis_polizas_avisos");
   if (error) return;
-  await Promise.all(((data ?? []) as unknown as { poliza_id: string; archivo_id: string | null }[]).map((z) =>
+  await Promise.all(((data ?? []) satisfies { poliza_id: string; archivo_id: string | null }[]).map((z) =>
     supabase.rpc("fn_bandeja_marcar_visto", { p_tipo_item: "poliza_mia", p_item_id: z.archivo_id ?? z.poliza_id }).then(() => {}, () => {}),
   ));
 }

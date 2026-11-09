@@ -363,7 +363,7 @@ export default function PlanillaPage() {
     if (!puedeVer || !periodoActual || periodoActual.estado !== "pagado") return { desvios: null, error: null };
     const { data, error } = await supabase.rpc("fn_planilla_foto_diferencias", { p_periodo_id: periodoActual.id });
     // Si falla no se dice «todo cuadra»: se muestra el error.
-    return error ? { desvios: null, error: error.message } : { desvios: (data as unknown as Desvio[]) ?? [], error: null };
+    return error ? { desvios: null, error: error.message } : { desvios: (data satisfies Desvio[]) ?? [], error: null };
   }, [supabase, puedeVer, periodoActual]);
   const refrescarDesvios = useCallback(async () => {
     const r = await cargarDesvios();
