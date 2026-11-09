@@ -69,7 +69,7 @@ type Cliente = ReturnType<typeof createAdminSupabaseClient>;
  */
 export const PASOS_GUIA_DISCIPLINA: readonly PasoRecorrido[] = [
   { selector: '[data-tour="mio-disciplina-header"]', titulo: "Tu legajo",
-    texto: "Aquí ves lo que consta de ti —los documentos que te entregaron— y cómo vas este mes con tus tardanzas. Si no hay nada, también te lo decimos." },
+    texto: "Aquí ves lo que consta de ti —los documentos que te entregaron— y cómo vas este mes con tus tardanzas. Si no hay nada, también te lo decimos. El enlace de aquí explica cómo funciona todo: escalones, plazos y tus garantías." },
   { selector: '[data-tour="mio-disciplina-documentos"]', titulo: "Tus documentos",
     texto: "Lo que pide algo de ti va primero. «Leer el documento» abre lo que pasó; leerlo deja constancia de que lo leíste, no de que estés de acuerdo." },
   { selector: '[data-tour="mio-disciplina-comovas"]', titulo: "Cómo vas este mes",
@@ -150,6 +150,9 @@ export function DisciplinaMia({
       <header data-tour="mio-disciplina-header">
         <h2 className="font-serif text-lg">Disciplina</h2>
         <p className="text-taupe">Lo que consta en tu legajo y cómo vas este mes.</p>
+        <Link href="/mio/disciplina/como-funciona" className="mt-1 inline-block underline underline-offset-2 hover:text-tinta">
+          Cómo funciona la disciplina: escalones, plazos y tus garantías →
+        </Link>
       </header>
 
       {error ? (
