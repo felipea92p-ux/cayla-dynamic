@@ -50,7 +50,7 @@ import type { Contadores } from "@/components/nav/panel-navegacion";
 import { GRUPOS, RUTAS_SIN_MARCO, type Item } from "./nav-items";
 import { GuardaDeAcceso } from "@/lib/cuenta-de-servicio";
 import { MarcoPanelVidrio } from "@/components/vidrio/marco-panel";
-import { interruptoresVidrio } from "@/lib/vidrio";
+import { interruptoresVidrio, quienSigueElTemaGlobal } from "@/lib/vidrio";
 import { ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
 import { Keyboard, LogOut, Menu, Search } from "lucide-react";
 
@@ -276,9 +276,13 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     router.replace("/admin/login");
   }
 
+  // Se sabe al construir (los interruptores se hornean), así que no espera a nada.
+  const sigue = quienSigueElTemaGlobal();
+  const temaGlobalManda = sigue.panel || sigue.terminal;
   const visible = (it: Item) =>
     (!it.roles || (rol !== null && it.roles.includes(rol)))
-    && (it.requiere !== "casos" || veCasos);
+    && (it.requiere !== "casos" || veCasos)
+    && (it.requiere !== "tema-global" || temaGlobalManda);
   const grupos = GRUPOS
     .map((g) => ({ ...g, items: g.items.filter(visible) }))
     .filter((g) => g.items.length > 0);

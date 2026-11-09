@@ -228,3 +228,13 @@ describe("las rutas sin marco", () => {
     }
   });
 });
+
+describe("«Apariencia» sale del menú cuando no cambia nada", () => {
+  // Con el vidrio encendido en las dos superficies, cada aparato elige claro u oscuro con su botón y /admin/apariencia no cambia
+  // nada (2026-11-09). El filtro de nav.tsx la esconde por `requiere: "tema-global"`: si alguien se lo quita, vuelve a aparecer
+  // un renglón que dice cambiar el tema de todo el equipo y no cambia el de nadie.
+  it("Apariencia lleva la condición del tema global, y es la única", () => {
+    const conLaCondicion = TODOS.filter((i) => i.requiere === "tema-global").map((i) => i.href);
+    expect(conLaCondicion).toEqual(["/admin/apariencia"]);
+  });
+});
