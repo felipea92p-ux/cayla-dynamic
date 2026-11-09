@@ -126,6 +126,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-11-09-guia-de-como-funciona-la-disciplina",
+    fecha: "2026-11-09",
+    titulo: "Una guía nueva en Disciplina: cómo funciona, paso a paso",
+    queMejoro:
+      "En Info › Disciplina hay un enlace nuevo, «Cómo funciona la disciplina». Explica con ejemplos qué pasa con las " +
+      "tardanzas, las inasistencias y las faltas de conducta, qué es una amonestación o una suspensión, cómo se cuenta tu " +
+      "plazo para dar tu versión, y todas tus garantías. También se abre desde la pantalla de unos cargos.\n\n" +
+      "Es un resumen del Reglamento Interno de Trabajo y dice arriba qué versión resume. Si algo no coincide, vale el " +
+      "Reglamento, que sigue en Publicaciones › Normas.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-09-lo-mio-en-el-telefono-se-lee-mejor",
     fecha: "2026-11-09",
     titulo: "En el teléfono, el menú vuelve a mostrar sus nombres y las listas van de a 5",

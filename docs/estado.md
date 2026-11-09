@@ -6,6 +6,26 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-09 — El Reglamento vigente dice que es la versión 4.0 · migración **0607 SIN PEGAR** · prueba 494 · rama `claude/rit-etiqueta-4-0`
+
+**De dónde sale.** Medido por Felipe en producción el 2026-11-09: el Reglamento vigente en Normas es la publicación 1 con `etiqueta_version`
+vacía y `vigente_desde` 2026-08-11. La etiqueta existe desde la 0265 para cruzar el cargo en papel («4.0») con la base. Se notó por la guía de
+disciplina del PR #715, que sin etiqueta tiene que comparar fechas.
+
+**Construido.** `fn_documento_poner_etiqueta(tipo, versión, etiqueta)`: rotula una publicación solo si la PRIMERA versión que declara su texto es
+esa (un 4.1 que «sustituye a la versión 4.0» no se rotula 4.0) y nunca pisa una etiqueta ya puesta. Sin permiso para la app. La migración la
+llama para `('rit', 1, '4.0')`; en una base sin esa fila no hace nada. No toca el texto ni `vigente_desde`.
+
+**Medido.** Banco nativo con reloj real: suite entera 398/398, 6050 aserciones en verde con la 0607; la 494, 17/17. Control: sin la 0607 la 494
+no corre; con la condición de portada cambiada a «cualquier mención» fallan las 3 de PORTADA, y sin el freno de «no pisar» fallan las 3 de NO PISA
+e IDEMPOTENTE. Contra el texto completo de `docs/reglamento-interno-de-trabajo.md`, la función lee «4.0».
+
+**Queda para Felipe.** Pegar la 0607 y verificar con la consulta de su encabezado. El día de diferencia (el texto rige desde el 10 de agosto y la
+fila desde el 11) NO se tocó: el freno del 60.5 calla para hechos del 10 de agosto, como decidió la 0228 para lo anterior a la publicación.
+Moverlo es decisión suya, y la consulta para medir cuántos documentos caen en ese día está en el PR.
+
+---
+
 ## 2026-11-08 — La salida real reemplaza a la del auto-cierre también en Correcciones · migración **0605 PEGADA Y VERIFICADA (2026-11-08)** · prueba 492 · rama `claude/nifty-mayer-cijvwg`
 
 **De dónde sale.** Tarea 1 de [Las 30 de Dynamic](https://claude.ai/artifact/AikdSh3Coj9CLDBLh2Lpg2) (C14 de `hallazgos-abiertos.md`). Agregar en Correcciones
