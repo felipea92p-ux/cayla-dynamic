@@ -772,19 +772,23 @@ se ve, como medidores, contrato y vigilante. Por módulo: se construye en local 
 y se abre el PR. Un PR abierto para «dejarlo listo» ya es subirlo. Un arreglo de un defecto que no es parte del rediseño va por su camino normal:
 así fue la firma en oscuro (#680).
 
-**Y lo aprobado entra apagado.** `main` recibe unos 49 commits al día y una rama larga no sirve, así que lo que Felipe aprueba entra a `main` por PR
-chicos, detrás del interruptor. En producción está apagado hasta el estreno, que es uno solo. El terminal tiene su propio interruptor
-(`NEXT_PUBLIC_VIDRIO` y `NEXT_PUBLIC_VIDRIO_TERMINAL`; solo un `1` exacto enciende, ver `apps/web/lib/vidrio.ts`). **Todo CSS nuevo cuelga de
+**El panel ya está encendido en producción; el terminal no** (2026-11-09). `NEXT_PUBLIC_VIDRIO` existe en Vercel desde hacia el 2026-11-07 y se
+confirmó que es a propósito: no es un accidente que haya que «corregir». Así que **en el panel, fusionar un cambio de vidrio es publicarlo
+encendido** para todo el equipo, y la regla de verlo en local antes pesa más que nunca. El terminal tiene su propio interruptor,
+`NEXT_PUBLIC_VIDRIO_TERMINAL`, que no existe en Vercel: lo suyo sigue entrando a `main` por PR chicos, apagado, hasta su estreno (`main` recibe
+unos 49 commits al día y una rama larga no sirve). Solo un `1` exacto enciende (`apps/web/lib/vidrio.ts`), y qué está encendido se ve sin leer
+secretos en el guion `(function(){var d=…` del HTML público. **Todo CSS nuevo cuelga de
 `[data-vidrio="panel"]` o `[data-vidrio="terminal"]`:** una regla suelta se cuela a producción y al terminal, como ya pasó (ver el comentario en
 `globals.css`), y `tests/vidrio-css.test.ts` falla si eso ocurre. Un `[data-vidrio]` sin valor alcanza a las dos superficies: úsalo solo a propósito.
 **Las animaciones del panel arrancan quietas** (botón «Animaciones» de la cabecera, `lib/vidrio-movimiento.ts`): lo que anima desde JavaScript
 pregunta `prefiereQuieto()`, nunca `matchMedia` por su cuenta, y una señal de espera nueva lleva `data-senal` o se queda quieta (lo vigila
 `tests/vidrio-movimiento.test.ts`). **Y lo que viene de vidrio no se imprime:** esas reglas también aplican al papel, así que van en `@media screen` o excluyen `.hoja`, porque un contrato
 no puede salir con vidrio. La foto de `tests/vidrio-foto-piezas.test.ts` falla si una pieza cambia sus clases sin colgarlas del atributo. Mientras dure,
-siguen valiendo los trece tokens, la regla de `receta-suelta` y lo escrito aquí sobre colores; se reescriben el día del estreno, no antes.
+siguen valiendo los trece tokens, la regla de `receta-suelta` y lo escrito aquí sobre colores; se reescriben cuando se borre el diseño viejo (paso 4
+del estreno en el tablero), no antes: el terminal todavía lo usa.
 
-**El día del estreno, crear la variable en Vercel y construir van juntos, con las fusiones frenadas.** Una variable creada se publica con la siguiente
-fusión de cualquier sesión: sin ese cuidado, el estreno ocurre sin que nadie lo elija.
+**El día del estreno del terminal, crear su variable en Vercel y construir van juntos, con las fusiones frenadas.** Una variable creada se publica
+con la siguiente fusión de cualquier sesión: sin ese cuidado, el estreno ocurre sin que nadie lo elija.
 
 **Se revisa con datos inventados, nunca con una copia de producción:** tiene DNI, sueldos y firmas.
 
@@ -796,7 +800,9 @@ se propone primero en Retail. La lista de lo que viaja, el contrato y su prueba 
 - **Quien cambia, avisa.** Al tocar el diseño de Retail, la sesión le dice a Felipe «esto también llega a Dynamic».
 - **Un vigilante revisa cada hora** si los archivos compartidos cambiaron, prepara lo mismo en Dynamic y corre sus pruebas. Hasta el estreno
   **solo avisa**. Después publica solo con tres condiciones: tocó únicamente archivos compartidos, todas las pruebas en verde (contraste incluido) y
-  fuera del horario de tienda. Si no se cumple alguna, no publica y avisa. Tiene un interruptor para apagarlo.
+  fuera del horario de tienda. Si no se cumple alguna, no publica y avisa. Tiene un interruptor para apagarlo. Lo que lo deja publicar no es el
+  estreno sino la variable `FAMILIA_PUBLICAR=si` del repositorio: al 2026-11-09, con el panel ya estrenado, esa variable no existe y el vigilante
+  sigue solo avisando. Encenderla es decisión de Felipe, y desde el estreno del panel lo que publique llega encendido a todo el equipo.
 - **Lo que no se puede copiar solo:** Retail y Dynamic arman sus piezas con código distinto. Un cambio de aspecto viaja; un cambio de cómo funciona
   una pieza abre una tarea para Dynamic y se le avisa a Felipe.
 
