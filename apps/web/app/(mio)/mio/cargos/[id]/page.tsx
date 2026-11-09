@@ -17,6 +17,7 @@
 // confirmación: es un escrito de defensa con efecto, no un borrador.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { EnlaceVolver } from "@/components/enlace-volver";
@@ -133,6 +134,13 @@ export default function MisCargosPage() {
           Confirmaste que los recibiste el {fechaLarga(recibido)}, a las {horaLima(recibido)} h.
         </BannerAviso>
       )}
+
+      {/* La guía, en el momento en que más se necesita: qué pasa ahora y cómo corre el plazo. */}
+      <p className="mb-4 text-sm">
+        <Link href="/mio/disciplina/como-funciona#cargos" className="underline underline-offset-2 hover:text-tinta">
+          Qué pasa ahora y cómo se cuenta tu plazo →
+        </Link>
+      </p>
 
       {recibido && (
         <section className="mb-4 grid gap-3">
