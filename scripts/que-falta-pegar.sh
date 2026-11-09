@@ -180,76 +180,197 @@ md5de() {
   if command -v md5 >/dev/null 2>&1; then md5 -q; else md5sum | cut -d' ' -f1; fi
 }
 
-# Del archivo: desde el delimitador que abre el cuerpo hasta el que lo cierra.
-# El `print ""` inicial repone el salto de línea que va justo después del
-# delimitador y que forma parte de `prosrc`: sin él los md5 no coinciden con los
-# de la base, y el error es invisible porque el texto se ve igual.
-CUERPO_AWK='
-BEGIN { est = "buscando" }
-est == "buscando" && tolower($0) ~ /create[ \t]+or[ \t]+replace[ \t]+function[ \t]+(public\.)?fn_planilla_calcular[ \t]*\(/ { est = "cabecera"; next }
-est == "cabecera" {
-  if (match($0, /\$function\$/)) { delim = "$function$"; est = "cuerpo"; print ""; next }
-  if (match($0, /\$\$/))         { delim = "$$";         est = "cuerpo"; print ""; next }
+# ── DE UNA FUNCIÓN A SU md5, como lo guardaría Postgres ─────────────────────
+#
+# Hasta el 2026-11-09 esto servía solo a `fn_planilla_calcular`, solo con los
+# delimitadores `$$` y `$function$`, y solo tal cual. Desde entonces vale para
+# cualquier función de `hooks/funciones-de-plata.txt`, y de cada versión salen
+# las formas en que de verdad llega a producción:
+#
+#   tal          el cuerpo exacto, que es lo que Postgres guarda en `prosrc`
+#   pelado       sin comentarios: la mitad de las funciones de producción se
+#                pegó así (medido el 2026-08-18). La regla es la MISMA que usa
+#                `donde-vive.sh` en SQL —fuera la línea cuyo texto sin espacios
+#                empieza con `--`, y de cada línea, desde el primer `--`—, para
+#                que los dos digan lo mismo de la misma función.
+#   crlf         pegada desde Windows: cada salto de línea llega como \r\n (0401)
+#   crlf_pelado  pegada desde Windows y sin comentarios
+#
+# Y de la vigente, además, la de los acentos rotos (Mac OS Roman, 0185).
+#
+# Del archivo se toma la ÚLTIMA definición, no la primera: una migración que
+# crea la función y la vuelve a crear más abajo deja viva la segunda. El cuerpo
+# va desde lo que sigue al delimitador de apertura hasta justo antes del de
+# cierre, aunque compartan línea con otro texto: así lo guarda Postgres, y un
+# salto de línea de más o de menos cambia el md5 sin que se vea nada distinto.
+#
+# CADA ARCHIVO SE LEE UNA SOLA VEZ. La primera versión de esto pasaba un `awk`
+# por función, por archivo y por forma: con las migraciones de planilla, de
+# miles de líneas cada una, el script pasó de 5 a 27 segundos, y corre en cada
+# push. Ahora un solo recorrido por archivo saca las funciones de la lista que
+# defina, en sus cuatro formas, a archivos sueltos en `$CUERPOS/<función>/`; y
+# los md5 se calculan todos de una vez.
+EXTRAER_AWK='
+BEGIN { n = split(lista, F, " "); est = 0 }
+function abrir(s,   p, resto) {
+  if (!match(s, /[$][A-Za-z_]*[$]/)) return
+  delim = substr(s, RSTART, RLENGTH); resto = substr(s, RSTART + RLENGTH)
+  p = index(resto, delim)
+  if (p > 0) { ultimo[actual] = substr(resto, 1, p - 1); est = 0; return }
+  buf = resto "\n"; est = 2
+}
+est == 0 {
+  if ($0 ~ /^[ \t]*--/) next
+  l = tolower($0)
+  if (l !~ /create[ \t]+(or[ \t]+replace[ \t]+)?function/) next
+  for (i = 1; i <= n; i++) {
+    if (match(l, "create[ \t]+(or[ \t]+replace[ \t]+)?function[ \t]+(public[.])?" F[i] "[ \t]*[(]")) {
+      actual = F[i]; est = 1; abrir(substr($0, RSTART + RLENGTH)); break
+    }
+  }
   next
 }
-est == "cuerpo" { if (index($0, delim) > 0) { exit } print }
+est == 1 { abrir($0); next }
+est == 2 {
+  p = index($0, delim)
+  if (p > 0) { ultimo[actual] = buf substr($0, 1, p - 1); est = 0; next }
+  buf = buf $0 "\n"; next
+}
+function pelar(t,   m, L, j, x, y, out, primero) {
+  m = split(t, L, "\n"); out = ""; primero = 1
+  for (j = 1; j <= m; j++) {
+    x = L[j]; y = x; gsub(/^ +| +$/, "", y)
+    if (substr(y, 1, 2) == "--") continue
+    sub(/[[:space:]]*--.*$/, "", x)
+    out = primero ? x : out "\n" x; primero = 0
+  }
+  return out
+}
+function escribir(ruta, t) { printf "%s", t > ruta; close(ruta) }
+END {
+  for (f in ultimo) {
+    t = ultimo[f]; if (t ~ /^[ \t\r\n]*$/) continue
+    base = dir "/" f "/" num
+    p = pelar(t); c = t; cp = p
+    gsub(/\n/, "\r\n", c); gsub(/\n/, "\r\n", cp)
+    escribir(base ".tal", t); escribir(base ".pelado", p)
+    escribir(base ".crlf", c); escribir(base ".crlf_pelado", cp)
+  }
+}
 '
 
-catalogo_planilla() {
+FUNCIONES_DE_PLATA="scripts/hooks/funciones-de-plata.txt"
+funciones_de_plata() {
+  [ -f "$FUNCIONES_DE_PLATA" ] || return 0
+  grep -E '^fn_[a-z0-9_]+' "$FUNCIONES_DE_PLATA" | awk '{print $1}'
+}
+
+# Extrae, una vez, el cuerpo de cada versión de cada función de la lista.
+CUERPOS="$(mktemp -d)"
+trap 'rm -f "$TMP" "$TMPC"; rm -rf "$CUERPOS"' EXIT
+extraer_cuerpos() {
+  LISTA="$(funciones_de_plata | tr '\n' ' ')"
+  [ -z "$LISTA" ] && return 0
+  for fn in $LISTA; do mkdir -p "$CUERPOS/$fn"; done
+  ALTERNATIVAS="$(echo $LISTA | tr ' ' '|')"
   # `-l -i -E` y no `-lieE`: en el grep de esta Mac (ugrep) el `-e` del medio se
   # come el patrón como si fuera su argumento, y la lista sale vacía sin avisar.
-  ARCHIVOS=$(grep -l -i -E 'create[ \t]+or[ \t]+replace[ \t]+function[ \t]+(public\.)?fn_planilla_calcular[ \t]*\(' \
-               supabase/migrations/*.sql 2>/dev/null | sort)
-  [ -z "$ARCHIVOS" ] && return 0
-  ULTIMO=$(echo "$ARCHIVOS" | tail -1)
-  NUM_ULTIMO=$(basename "$ULTIMO" | sed -E 's/^([0-9]+)_.*/\1/')
-
-  # El WHEN del md5 vigente se imprime PRIMERO, antes que ningún otro — no en su
-  # lugar cronológico. La 0339 partió la función en núcleo + envoltorio, y desde
-  # entonces el envoltorio no volvió a cambiar textualmente: su cuerpo en la 0339
-  # y en la última migración que lo redefine son el mismo md5. Un CASE de SQL
-  # resuelve por el PRIMER WHEN que coincide, así que si la etiqueta vieja
-  # («se quedó en la 0339») fuera antes, escondería para siempre a la correcta
-  # («al día») detrás de una alarma falsa — pasó el 2026-09-04 y dijo que
-  # producción llevaba diez migraciones de atraso en la función que paga a todos,
-  # cuando en realidad estaba al día. Iterar del final hacia el principio no
-  # alcanza: cualquier duplicado más viejo entre medias tendría el mismo problema.
-  # Imprimir el vigente antes que cualquier otro es la única forma de que un
-  # empate se resuelva siempre a favor de la verdad.
-  awk "$CUERPO_AWK" "$ULTIMO" > "$TMPC"
-  if tr -d '[:space:]' < "$TMPC" | grep -q .; then
-    SANO_ULTIMO=$(md5de < "$TMPC")
-    echo "             when '$SANO_ULTIMO' then '$NUM_ULTIMO — al día con el repositorio'"
-    ROTO_ULTIMO=$(iconv -f MAC -t UTF-8 < "$TMPC" 2>/dev/null | md5de)
-    if [ -n "$ROTO_ULTIMO" ] && [ "$ROTO_ULTIMO" != "$SANO_ULTIMO" ]; then
-      echo "             when '$ROTO_ULTIMO' then '✗ $NUM_ULTIMO CON LOS ACENTOS ROTOS — vuelve a pegarla'"
-    fi
-  fi
-
-  echo "$ARCHIVOS" | while read -r f; do
-    [ -z "$f" ] && continue
-    [ "$f" = "$ULTIMO" ] && continue
+  grep -l -i -E "create[ \t]+(or[ \t]+replace[ \t]+)?function[ \t]+(public\.)?(${ALTERNATIVAS})[ \t]*\(" \
+       supabase/migrations/*.sql 2>/dev/null | sort | while read -r f; do
     NUM=$(basename "$f" | sed -E 's/^([0-9]+)_.*/\1/')
-    # A un archivo y no a una variable: `$(...)` se come los saltos de línea
-    # finales, y varias versiones de esta función terminan con líneas en blanco
-    # antes del delimitador. Perderlas cambia el md5 y el catálogo entero deja de
-    # coincidir con lo que Postgres guarda — sin que nada se vea distinto.
-    awk "$CUERPO_AWK" "$f" > "$TMPC"
-    # Vacío = este archivo escribe la función de una forma que el extractor no
-    # reconoce (las más viejas usan otro delimitador). Se salta: catalogar el md5
-    # de una cadena vacía como si fuera una versión sería peor que no tenerlo.
-    tr -d '[:space:]' < "$TMPC" | grep -q . || continue
-    SANO=$(md5de < "$TMPC")
-    echo "             when '$SANO' then '⚠ se quedó en la $NUM — falta pegar lo posterior'"
-    # La variante con los acentos rotos. Si este sistema no tiene la tabla MAC en
-    # su iconv, se omite: el catálogo pierde precisión pero nunca miente, y el
-    # barrido del signo «√» de más abajo sigue cazando el caso igual.
-    ROTO=$(iconv -f MAC -t UTF-8 < "$TMPC" 2>/dev/null | md5de)
-    if [ -n "$ROTO" ] && [ "$ROTO" != "$SANO" ]; then
-      echo "             when '$ROTO' then '✗ $NUM CON LOS ACENTOS ROTOS — vuelve a pegarla'"
-    fi
+    awk -v lista="$LISTA" -v dir="$CUERPOS" -v num="$NUM" "$EXTRAER_AWK" "$f"
   done
 }
+
+# «md5 ruta» por línea, para muchos archivos de una vez.
+md5_de_archivos() {
+  if command -v md5 >/dev/null 2>&1; then md5 -r "$@"; else md5sum "$@" | awk '{print $1 " " $2}'; fi
+}
+
+# Los WHEN del CASE de una función: cada md5 conocido y lo que significa.
+#
+# EL VIGENTE VA PRIMERO, en sus cuatro formas. Un CASE de SQL resuelve por el
+# PRIMER WHEN que coincide, y dos versiones pueden ser textualmente iguales: la
+# 0339 partió `fn_planilla_calcular` en núcleo y envoltorio, y el envoltorio no
+# volvió a cambiar. Si una etiqueta vieja («se quedó en la 0339») fuera antes,
+# escondería para siempre a la correcta detrás de una alarma falsa: pasó el
+# 2026-09-04 y dijo que producción llevaba diez migraciones de atraso en la
+# función que paga a todos, cuando estaba al día. Después, las viejas de la más
+# nueva a la más antigua, y cada md5 una sola vez.
+catalogo() {
+  FN="$1"; D="$CUERPOS/$FN"
+  NUM_ULTIMO=$(ls "$D" 2>/dev/null | sed -E 's/\..*//' | sort -n | tail -1)
+  [ -z "$NUM_ULTIMO" ] && return 0
+  {
+    md5_de_archivos "$D/$NUM_ULTIMO.tal" "$D/$NUM_ULTIMO.pelado" "$D/$NUM_ULTIMO.crlf" "$D/$NUM_ULTIMO.crlf_pelado" \
+      | while read -r h ruta; do
+          case "$ruta" in
+            *.tal)         como="" ;;
+            *.crlf_pelado) como=", desde Windows y sin comentarios" ;;
+            *.pelado)      como=", pegada sin comentarios" ;;
+            *.crlf)        como=", pegada desde Windows" ;;
+          esac
+          echo "             when '$h' then '✓   al día ($NUM_ULTIMO$como)'"
+        done
+    ROTO=$(iconv -f MAC -t UTF-8 < "$D/$NUM_ULTIMO.tal" 2>/dev/null | md5de)
+    [ -n "$ROTO" ] && echo "             when '$ROTO' then '✗   $NUM_ULTIMO con los acentos rotos — vuelve a pegarla'"
+    VIEJAS=$(ls "$D" | sed -E 's/\..*//' | sort -un | grep -v -x "$NUM_ULTIMO" | sort -rn)
+    for NUM in $VIEJAS; do
+      md5_de_archivos "$D/$NUM.tal" "$D/$NUM.pelado" | while read -r h ruta; do
+        echo "             when '$h' then '❌  se quedó en la $NUM — la vigente es la $NUM_ULTIMO'"
+      done
+    done
+  } | awk -F"'" '!visto[$2]++'
+}
+
+# El número de la migración que RETIRÓ la función, si la última que la toca la
+# borra: un `drop function` (en código, no en el «cómo se revierte» de un
+# comentario) posterior a su última definición. Una retirada que no existe en
+# producción está bien; una retirada que sigue viva es la alarma.
+retirada_en() {
+  FN="$1"
+  ULT_DROP=$(grep -l -i -E "^[[:space:]]*drop[[:space:]]+function[[:space:]]+(if[[:space:]]+exists[[:space:]]+)?(public\.)?${FN}[[:space:]]*(\(|;)" \
+               supabase/migrations/*.sql 2>/dev/null | sort | tail -1)
+  [ -z "$ULT_DROP" ] && return 0
+  N_DROP=$(basename "$ULT_DROP" | sed -E 's/^0*([0-9]+)_.*/\1/')
+  N_CREA=$(ls "$CUERPOS/$FN" 2>/dev/null | sed -E 's/\..*//; s/^0*//' | sort -n | tail -1)
+  # Mayor ESTRICTO: la que borra y vuelve a crear en el mismo archivo (para
+  # cambiar lo que devuelve, como la 0161) no la retira.
+  if [ -z "$N_CREA" ] || [ "$N_DROP" -gt "$N_CREA" ]; then
+    basename "$ULT_DROP" | sed -E 's/^([0-9]+)_.*/\1/'
+  fi
+}
+
+# Una fila de la consulta por cada función de la lista. La de planilla conserva
+# su nombre de siempre, PLANILLA, porque así la nombran el CLAUDE.md y quienes
+# la leen; el núcleo también, porque desde la 0339 es el que de verdad calcula.
+filas_de_plata() {
+  i=0
+  funciones_de_plata | while read -r fn; do
+    i=$((i + 1))
+    case "$fn" in fn_planilla_calcular*) etiqueta="PLANILLA" ;; *) etiqueta="PLATA" ;; esac
+    [ "$i" -gt 1 ] && echo "  union all"
+    RETIRADA=$(retirada_en "$fn")
+    if [ -n "$RETIRADA" ]; then
+      echo "  select '$etiqueta', '$fn', coalesce(("
+      echo "           select '❌  sigue viva aunque la $RETIRADA la retiró'"
+      echo "           from pg_proc p join pg_namespace n on n.oid = p.pronamespace"
+      echo "           where n.nspname = 'public' and p.proname = '$fn' limit 1"
+      echo "         ), '✓   retirada en la $RETIRADA, como debe'), $((1000000 + i))"
+      continue
+    fi
+    echo "  select '$etiqueta', '$fn', coalesce(("
+    echo "           select string_agg(case md5(p.prosrc)"
+    catalogo "$fn"
+    echo "             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh $fn'"
+    echo "           end, ' · ')"
+    echo "           from pg_proc p join pg_namespace n on n.oid = p.pronamespace"
+    echo "           where n.nspname = 'public' and p.proname = '$fn'"
+    echo "         ), '⚠   la función NO EXISTE'), $((1000000 + i))"
+  done
+}
+
+extraer_cuerpos
 
 {
 cat <<'CAB'
@@ -270,12 +391,18 @@ cat <<'CAB'
 -- QUÉ RESPONDE, todo en la misma tabla
 --   · migración por migración, cuál falta pegar y cuál está anotada
 --   · el resumen: cuántas faltan de cuántas
---   · en qué versión está VIVA `fn_planilla_calcular`
+--   · en qué versión está VIVA cada función que calcula, mueve o reporta plata
+--     (la lista: scripts/hooks/funciones-de-plata.txt)
 --
--- LO QUE NO PUEDE VER
+-- LO QUE EL REGISTRO NO PUEDE VER
 --   Que una migración esté anotada NO prueba que su contenido siga vivo: una
---   pegada posterior pudo pisarlo sin dar ningún error. Por eso las dos últimas
---   filas miran el cuerpo real de la función y no el registro.
+--   pegada posterior pudo pisarlo sin dar ningún error. Pasó con
+--   fn_costos_planilla: el 2026-11-09 era la de la 0099 aunque la 0260 y la 0323
+--   figuraban aplicadas, y esta consulta no lo vio en cinco semanas porque solo
+--   miraba el registro y fn_planilla_calcular. Por eso las filas PLANILLA y
+--   PLATA miran el cuerpo real de cada función. «Al día» acepta las formas en
+--   que una función llega a producción —tal cual, sin comentarios, desde
+--   Windows—; «se quedó en la NNN» o «sin catalogar» es para mirar ese día.
 -- ============================================================================
 
 with repo(numero, nombre, nunca) as (values
@@ -336,6 +463,12 @@ huerfanas as (
   from migraciones_aplicadas a
   where a.numero >= (select min(numero) from repo)
     and not exists (select 1 from repo r where r.numero = a.numero)
+),
+-- Las funciones de plata, por su cuerpo y no por el registro.
+plata(etiqueta, funcion, estado, orden) as (
+PIE1
+filas_de_plata
+cat <<'PIE1B'
 )
 select * from (
   -- Una fila por migración.
@@ -374,35 +507,31 @@ select * from (
          (select count(*) from diff)::text || ' en git' ||
          case when (select count(*) filter (where not explicada) from huerfanas) > 0
               then ' · ⚠️ ' || (select count(*) filter (where not explicada) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
+              else '' end ||
+         case when (select count(*) from plata where estado not like '✓%') > 0
+              then ' · ❌ ' || (select count(*) from plata where estado not like '✓%')::text || ' FUNCIONES DE PLATA NO ESTÁN AL DÍA'
               else '' end,
          -- Una huérfana sin explicar manda sobre todo lo demás: que falte pegar
          -- algo es atraso normal; que algo esté pegado y sin guardar es lo que
          -- costó tres sustos y no avisa solo.
          case when (select count(*) filter (where not explicada) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
+              -- Una función de plata atrasada va antes que lo que falta pegar: el
+              -- registro dice que está y el cuerpo dice que no.
+              when (select count(*) from plata where estado not like '✓%') > 0 then '❌  MIRA ABAJO'
               when (select count(*) filter (where falta) from diff) = 0
               then '✓   al día' else '❌  hay pendientes' end,
          '', 999999
 
   union all
 
-  -- Y la única pregunta que el registro no puede responder.
-  select 'PLANILLA',
-         'fn_planilla_calcular · versión viva',
-         coalesce((
-           select case md5(prosrc)
-PIE1
-catalogo_planilla
-cat <<'PIE2'
-             else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
-           end
-           from pg_proc where proname = 'fn_planilla_calcular'
-         ), '⚠ la función NO EXISTE'),
-         '', 1000000
+  -- Lo que el registro no puede responder: qué versión de cada función de plata
+  -- está viva de verdad.
+  select etiqueta, funcion || ' · versión viva', estado, '', orden from plata
 
   union all
 
   -- El barrido, que no depende de ninguna lista escrita a mano y por eso vale
-  -- más que la fila de arriba: cuenta CUALQUIER función cuyo cuerpo lleve el
+  -- más que las filas de arriba: cuenta CUALQUIER función cuyo cuerpo lleve el
   -- signo «√», que en castellano no aparece nunca dentro de un mensaje. Su
   -- presencia siempre significa lo mismo: el texto entró leído como Mac OS
   -- Roman y cada acento quedó partido en dos.
@@ -419,10 +548,10 @@ cat <<'PIE2'
            where n.nspname = 'public' and p.proname like 'fn\_%'
              and p.prosrc like '%' || chr(8730) || '%'
          ), '—'),
-         '', 1000001
+         '', 2000000
 ) t
 order by orden;
-PIE2
+PIE1B
 } > "$TMP"
 
 al_dia() { [ -f "$SALIDA" ] && cmp -s "$TMP" "$SALIDA"; }
