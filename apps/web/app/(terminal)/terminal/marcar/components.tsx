@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Store, Warehouse } from "lucide-react";
 import { etiquetaDePrueba, type TipoMarca } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
@@ -38,19 +38,23 @@ import {
 // los tres porque Tailwind v4 dejó de ponerlo solo en los `<button>` — la casa
 // entera lo necesita (ver `globals.css`), pero eso no toca este archivo; acá
 // se repone donde se puede.
+//
+// Las clases `terminal-…` son el gancho del vidrio (estilos/vidrio/terminal.css): sin su interruptor no tienen
+// ninguna regla, y con él cada pieza toma su material de Retail. Nombran QUÉ es la pieza (gota, ahumado, casilla,
+// hoja), no cómo se ve hoy.
 const TILE =
-  "cursor-pointer rounded-control border border-borde-control bg-papel transition-colors hover:border-rojo hover:bg-sand active:scale-95";
+  "terminal-gota cursor-pointer rounded-control border border-borde-control bg-papel transition-colors hover:border-rojo hover:bg-sand active:scale-95";
 // La tarjeta que SÍ dice en qué punto del día está la persona: un solo botón, igual
 // que la de siempre —tocar en cualquier parte marca, el ícono de la foto incluido—.
 // El color lo pone `REPOSO_PRESENCIA` o, si el estado está iluminado desde la
 // píldora, el del estado. Al presionar, el borde se va a rojo y la caja se encoge,
 // igual que en TILE: es el feedback que se ve a un metro de la pantalla.
 const CAJA_PRESENCIA =
-  "cursor-pointer rounded-control border-[1.5px] transition-all hover:border-rojo active:scale-95";
+  "terminal-casilla cursor-pointer rounded-control border-[1.5px] transition-all hover:border-rojo active:scale-95";
 const BTN_PRIMARIO =
-  "cursor-pointer rounded-control bg-rojo px-5 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo active:scale-95";
+  "terminal-ahumado cursor-pointer rounded-control bg-rojo px-5 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo active:scale-95";
 const BTN_SECUNDARIO =
-  "cursor-pointer rounded-control border border-sand px-5 py-3 text-tinta transition-colors hover:bg-sand/50";
+  "terminal-gota cursor-pointer rounded-control border border-sand px-5 py-3 text-tinta transition-colors hover:bg-sand/50";
 // Salidas de emergencia (Cancelar, "otra salida"): en un kiosco NINGÚN objetivo
 // debería bajar de 44-48px, ni siquiera el que se toca poco — sobre todo el que
 // se toca con prisa y arrepentimiento, cuando alguien tocó "Me voy" por error y
@@ -74,10 +78,12 @@ export function SelectorSede({
   return (
     <div className="flex items-center gap-3">
       <span className="etiqueta text-taupe">Sede</span>
-      <div className="flex gap-1 rounded-pildora border border-sand p-1">
+      <div className="terminal-pestanas flex gap-1 rounded-pildora border border-sand p-1">
         {sedes.map((s) => (
           <button
             key={s.codigo}
+            type="button"
+            aria-pressed={activa === s.codigo}
             onClick={() => onCambiar(s.codigo)}
             className={`cursor-pointer rounded-pildora px-4 py-1.5 text-sm transition-colors ${
               activa === s.codigo ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"
@@ -153,7 +159,7 @@ export function NombreGrid({
     // no tiene la lista.
     if (estado === "error") {
       return (
-        <div className="flex max-w-xl flex-col items-center gap-5 text-center">
+        <div className="terminal-hoja flex max-w-xl flex-col items-center gap-5 text-center" data-tono="alerta">
           <span aria-hidden className="text-5xl">⚠️</span>
           <p className="font-serif text-3xl text-rojo" role="alert">
             No se pudo cargar el equipo de esta sede.
@@ -208,7 +214,7 @@ export function NombreGrid({
             <button
               key={persona.id}
               onClick={() => onSeleccionar(persona)}
-              className={`${TILE} ${claseDePrueba(persona)} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`}
+              className={`${TILE} terminal-casilla ${claseDePrueba(persona)} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`}
             >
               <CintaDePrueba persona={persona} />
               <AvatarPersona persona={persona} />
@@ -234,6 +240,8 @@ export function NombreGrid({
             // ícono de la foto y, al pasar el mouse, su etiqueta—, así que quien
             // usa lector de pantalla lo escucha acá completo.
             aria-label={`${nombre}${textoDePrueba(persona) ? `, ${textoDePrueba(persona)}` : ""}: ${etiqueta}${pres.ubicacion ? (pres.ubicacion === "almacen" ? ", en almacén" : ", en piso") : ""}, ${pres.detalle}${pres.detalle2 ? `, ${pres.detalle2}` : ""}`}
+            data-encendida={encendida || undefined}
+            style={encendida ? ({ "--c": estilo.tono } as CSSProperties) : undefined}
             className={`${CAJA_PRESENCIA} ${claseDePrueba(persona)} ${encendida ? estilo.iluminada : REPOSO_PRESENCIA} ${
               atenuada ? "opacity-30" : ""
             } flex flex-col items-center gap-1 px-3 pb-4 pt-5 text-center font-serif text-xl`}
@@ -353,7 +361,7 @@ function AvatarPersona({
       />
     ) : (
       <span
-        className={`flex h-full w-full items-center justify-center rounded-pildora bg-sand text-lg text-taupe ${apagada}`}
+        className={`terminal-iniciales flex h-full w-full items-center justify-center rounded-pildora bg-sand text-lg text-taupe ${apagada}`}
       >
         {inicialesDe(persona.nombres, persona.apellidos)}
       </span>
@@ -464,7 +472,7 @@ export function SelectorSalida({
 
   if (neutra) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+      <div className="terminal-hoja flex flex-1 flex-col items-center justify-center gap-6 p-8">
         <p className="font-serif text-2xl">{nombre}</p>
         {estadoAlmacen}
         <div className="flex w-full max-w-sm flex-col gap-3">
@@ -503,11 +511,11 @@ export function SelectorSalida({
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+    <div className="terminal-hoja flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <p className="font-serif text-2xl">{nombre}</p>
       {estadoAlmacen}
       {aviso && (
-        <p className="max-w-sm rounded-control bg-ambar/10 px-4 py-3 text-center text-sm text-tinta" role="alert">
+        <p className="terminal-aviso max-w-sm rounded-control bg-ambar/10 px-4 py-3 text-center text-sm text-tinta" role="alert">
           {aviso}
         </p>
       )}
@@ -597,7 +605,7 @@ export function ElegirTiempoAlmacen({
   onCancelar: () => void;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+    <div className="terminal-hoja flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <p className="font-serif text-2xl">{nombre}, ¿por cuánto tiempo vas al almacén?</p>
       <div className="grid w-full max-w-md grid-cols-2 gap-3">
         {duraciones.map((d) => (
@@ -632,13 +640,13 @@ export function FormularioMotivoOtro({
   const valido = motivo.trim().length >= 3;
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+    <div className="terminal-hoja flex flex-1 flex-col items-center justify-center gap-4 p-8">
       <p className="font-serif text-xl">Cuéntanos brevemente el motivo</p>
       <textarea
         value={motivo}
         onChange={(e) => setMotivo(e.target.value)}
         rows={3}
-        className="w-full max-w-sm rounded-control border border-sand bg-crema p-3 text-tinta outline-none placeholder:text-taupe/60 focus:border-taupe"
+        className="terminal-pozo w-full max-w-sm rounded-control border border-sand bg-crema p-3 text-tinta outline-none placeholder:text-taupe/60 focus:border-taupe"
         placeholder="Ej: trámite bancario personal"
       />
       {/* La regla para habilitar "Continuar" (3 letras, línea de abajo) no se
@@ -706,7 +714,7 @@ export function ConfirmacionToast({
   }, [segundosRestantes]);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
+    <div className="terminal-hoja flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
       <p className="font-serif text-3xl">{texto}</p>
       {/*
        * El reloj se DIBUJA, no se lee: antes lo único que avisaba de la
@@ -718,7 +726,7 @@ export function ConfirmacionToast({
        * misma historia.
        */}
       <div className="w-full max-w-xs">
-        <div className="h-2 overflow-hidden rounded-pildora bg-sand" aria-hidden>
+        <div className="terminal-pozo h-2 overflow-hidden rounded-pildora bg-sand" aria-hidden>
           <div
             className="h-full rounded-pildora bg-rojo"
             style={{
@@ -763,12 +771,12 @@ export function PantallaCerrado({
   onCancelar: () => void;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
+    <div className="terminal-hoja flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
       <p className="font-serif text-2xl">{nombre}</p>
       {/* Tarjeta, no botón: usa `rounded-superficie` (el token de "tarjetas y
           el contenedor de Tabla"), no `rounded-control` como TILE/BTN_* de
           arriba. */}
-      <div className="w-full max-w-sm rounded-superficie border border-sand bg-sand/25 px-5 py-4 text-left">
+      <div className="terminal-placa w-full max-w-sm rounded-superficie border border-sand bg-sand/25 px-5 py-4 text-left">
         <div className="etiqueta mb-2 text-taupe">Tu día de hoy</div>
         <ul className="flex flex-col gap-1.5 text-sm">
           {historial.map((h, i) => (
@@ -805,7 +813,7 @@ export function ConfirmarRefrigerio({
   onCancelar: () => void;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
+    <div className="terminal-hoja flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
       <p className="font-serif text-2xl">{nombre}</p>
       <p className="max-w-sm text-lg">
         Hoy no marcaste una salida a refrigerio. ¿Trabajaste corrido, sin parar a almorzar?
@@ -835,7 +843,7 @@ export function MotivoReentrada({
   onCancelar: () => void;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+    <div className="terminal-hoja flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <p className="font-serif text-2xl">¿Por qué volviste a entrar?</p>
       <div className="flex w-full max-w-sm flex-col gap-3">
         {MOTIVOS_REENTRADA.map((m) => (
@@ -873,7 +881,10 @@ export function PantallaMensaje({
 }) {
   const alerta = tono === "alerta";
   return (
-    <div className={`flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center ${alerta ? "bg-rojo/[0.06]" : ""}`}>
+    <div
+      className={`terminal-hoja flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center ${alerta ? "bg-rojo/[0.06]" : ""}`}
+      data-tono={alerta ? "alerta" : undefined}
+    >
       {alerta && <span aria-hidden className="text-5xl">⚠️</span>}
       <p className={`font-serif text-3xl ${alerta ? "font-medium text-rojo" : ""}`} role={alerta ? "alert" : undefined}>
         {mensaje}
