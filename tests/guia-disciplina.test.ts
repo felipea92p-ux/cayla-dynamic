@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  CARGOS, EJEMPLOS_DE_PLAZO, INASISTENCIAS, REGLAMENTO_RESUMIDO, TARDANZAS, citasDe, estadoDeLaGuia,
+  CARGOS, EJEMPLOS_DE_PLAZO, GUIA_REVISADA, INASISTENCIAS, REGLAMENTO_RESUMIDO, TARDANZAS, citasDe, estadoDeLaGuia,
   normalizarEtiqueta, tiraDePlazo, todosLosTextos, trozos,
 } from "@/lib/guia-disciplina";
 
@@ -87,10 +87,22 @@ describe("¿está al día con el Reglamento vigente?", () => {
     expect(estadoDeLaGuia({ etiqueta_version: "4.0", vigente_desde: "2026-11-20" })).toEqual({ clase: "al_dia", vigente: "4.0" });
   });
 
-  it("sin etiqueta, compara la fecha de vigencia (si no, el aviso no se encendería nunca)", () => {
-    expect(estadoDeLaGuia({ etiqueta_version: null, vigente_desde: "2026-08-10" })).toEqual({ clase: "al_dia", vigente: null });
-    expect(estadoDeLaGuia({ etiqueta_version: "", vigente_desde: "2026-10-27" }))
-      .toEqual({ clase: "desactualizada", vigente: null, desde: "2026-10-27" });
+  it("PRODUCCIÓN, medido el 2026-11-09: sin etiqueta y cargado el 11 de agosto → al día, no «desactualizada»", () => {
+    // La primera versión comparaba esta fecha con el 10 de agosto que declara el texto y avisaba a todo el equipo.
+    expect(estadoDeLaGuia({ etiqueta_version: null, vigente_desde: "2026-08-11" })).toEqual({ clase: "al_dia", vigente: null });
+  });
+
+  it("sin etiqueta, avisa solo si se publicó un Reglamento después de la última revisión de la guía", () => {
+    expect(estadoDeLaGuia({ etiqueta_version: "", vigente_desde: GUIA_REVISADA })).toEqual({ clase: "al_dia", vigente: null });
+    expect(estadoDeLaGuia({ etiqueta_version: null, vigente_desde: "2026-11-20" }))
+      .toEqual({ clase: "desactualizada", vigente: null, desde: "2026-11-20" });
+    // Un timestamptz también sirve: se mira solo el día.
+    expect(estadoDeLaGuia({ etiqueta_version: null, vigente_desde: "2027-01-15T05:00:00+00:00" }))
+      .toEqual({ clase: "desactualizada", vigente: null, desde: "2027-01-15" });
+  });
+
+  it("la fecha de revisión tiene forma de fecha, para que la comparación como texto sea una comparación de fechas", () => {
+    expect(GUIA_REVISADA).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it("sin ningún dato no afirma nada: ni al día ni vieja", () => {

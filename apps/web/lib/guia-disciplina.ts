@@ -41,7 +41,11 @@
 /** La versión del Reglamento que esta guía resume. Se cambia SOLO revisando la guía entera contra la nueva. */
 export const REGLAMENTO_RESUMIDO = { etiqueta: "4.0", vigenteDesde: "2026-08-10" } as const;
 
-/** El día en que la guía se revisó por última vez contra el Reglamento y contra lo que hace Dynamic. */
+/**
+ * El día en que la guía se revisó por última vez contra el Reglamento y contra lo que hace Dynamic.
+ * Se actualiza en cada revisión: es también la fecha con la que `estadoDeLaGuia` decide, cuando el
+ * Reglamento no trae etiqueta, si hay uno publicado después de esta revisión.
+ */
 export const GUIA_REVISADA = "2026-11-09";
 
 // ── El texto con marcas ──────────────────────────────────────────────────────
@@ -92,12 +96,23 @@ export type EstadoGuia =
  * no se pudo leer o no hay Reglamento publicado.
  *
  * Primero manda la etiqueta, porque es lo que el Reglamento dice de sí mismo.
- * Si la base no la tiene —`etiqueta_version` es opcional desde la 0265, y en el
- * entorno local viene vacía—, se compara la fecha de vigencia, que siempre está:
- * sin ese respaldo, este aviso no se encendería nunca. Lo que el respaldo NO
- * distingue: volver a publicar la misma versión (o restaurarla, 0460) le pone
- * una fecha nueva y la guía avisaría de más. Se paga con un aviso de sobra, que
- * solo manda a leer el Reglamento; el error contrario callaría un desfase real.
+ *
+ * Si la base no la tiene, la pregunta cambia: ¿se publicó en Normas un
+ * Reglamento DESPUÉS de la última revisión de esta guía (`GUIA_REVISADA`)? Si
+ * sí, nadie revisó la guía contra él y se avisa. Medido en producción el
+ * 2026-11-09: el Reglamento vigente es la publicación 1, con `etiqueta_version`
+ * vacía y `vigente_desde` 2026-08-11. La primera versión de este respaldo
+ * comparaba esa fecha con la que declara el texto (10 de agosto,
+ * `REGLAMENTO_RESUMIDO.vigenteDesde`) y le habría dicho «puede no estar al día»
+ * a todo el equipo desde el primer día: son dos fechas distintas —la que dice el
+ * papel y la del día en que se cargó en Normas— y no se comparan entre sí.
+ *
+ * Lo que el respaldo NO distingue: volver a publicar la misma versión, o
+ * restaurarla (0460), después de una revisión le pone una fecha nueva y la guía
+ * avisaría de más. Se paga con un aviso de sobra, que solo manda a leer el
+ * Reglamento; el error contrario callaría un desfase real. Tampoco ve una
+ * versión nueva publicada con una fecha de vigencia anterior a la revisión:
+ * para eso está la etiqueta.
  *
  * Sin ninguno de los dos datos no se afirma nada: ni «al día» ni «vieja».
  */
@@ -111,9 +126,10 @@ export function estadoDeLaGuia(rit: { etiqueta_version: string | null; vigente_d
       : { clase: "desactualizada", vigente, desde };
   }
   if (!desde) return { clase: "sin_saber" };
-  return desde === REGLAMENTO_RESUMIDO.vigenteDesde
-    ? { clase: "al_dia", vigente: null }
-    : { clase: "desactualizada", vigente: null, desde };
+  // Fechas ISO (AAAA-MM-DD): compararlas como texto es compararlas como fechas.
+  return desde > GUIA_REVISADA
+    ? { clase: "desactualizada", vigente: null, desde }
+    : { clase: "al_dia", vigente: null };
 }
 
 // ── La tira de días hábiles (un ejemplo, no un cálculo) ──────────────────────
