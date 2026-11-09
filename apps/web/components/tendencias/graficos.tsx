@@ -610,7 +610,7 @@ export function AntiguedadGrafico({ datos }: { datos: Antiguedad }) {
     <div>
       <Encabeza
         valor={`${nuevos} ${nuevos === 1 ? "persona" : "personas"}`}
-        detalle={<>llevan menos de tres meses{datos.enPrueba > 0 ? <> · <strong className="font-medium text-tinta">{datos.enPrueba} en planilla</strong>, en su periodo de prueba de ley</> : null} · {menosDeUnAnio} de {datos.total} llevan menos de un año</>}
+        detalle={<>{nuevos === 1 ? "lleva" : "llevan"} menos de tres meses{datos.enPrueba > 0 ? <> · <strong className="font-medium text-tinta">{datos.enPrueba} en planilla</strong>, en su periodo de prueba de ley</> : null} · {menosDeUnAnio} de {datos.total} {menosDeUnAnio === 1 ? "lleva" : "llevan"} menos de un año</>}
       />
       <ul className="grid gap-2" aria-label="Personas por tramo de antigüedad">
         {datos.tramos.map((t, i) => (
