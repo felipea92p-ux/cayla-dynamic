@@ -51,7 +51,7 @@ export function MarcoPanelVidrio({
       .then(
         ({ data }) => {
           if (!vivo || !data) return;
-          const sede = (data as unknown as { sedes: { nombre: string } | null }).sedes?.nombre ?? null;
+          const sede = (data satisfies { sedes: { nombre: string } | null }).sedes?.nombre ?? null;
           setExtra({ fotoUrl: urlPublicaFotoPerfil(supabase, (data as { foto_url: string | null }).foto_url), sede });
         },
         () => {},
