@@ -957,6 +957,36 @@ nav [scrollbar-width:none] flex gap-1 overflow-x-auto
   button -mb-px border-b-2 border-tinta duration-150 flex font-medium gap-1.5 items-center px-3 py-2 shrink-0 text-sm text-tinta transition-colors
     span bg-rojo leading-4 px-1.5 rounded-full text-[11px] text-crema
   button -mb-px border-b-2 border-transparent duration-150 flex gap-1.5 hover:text-tinta items-center px-3 py-2 shrink-0 text-sm text-taupe transition-colors
+## Paginas pag={"pagina":0,"paginas":1,"desde":1,"hasta":3,"total":3}
+(no dibuja nada)
+## Paginas pag={"pagina":0,"paginas":3,"desde":1,"hasta":5,"total":12}
+nav border-sand border-t flex gap-2 items-center justify-between pt-3
+  button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-3 py-1 rounded-control text-xs transition-colors
+  span tabular-nums text-taupe text-xs whitespace-nowrap
+  button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-3 py-1 rounded-control text-xs transition-colors
+## Paginas pag={"pagina":1,"paginas":3,"desde":6,"hasta":10,"total":12}
+nav border-sand border-t flex gap-2 items-center justify-between pt-3
+  button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-3 py-1 rounded-control text-xs transition-colors
+  span tabular-nums text-taupe text-xs whitespace-nowrap
+  button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-3 py-1 rounded-control text-xs transition-colors
+## ListaPaginada items=[1,2,3]
+div scroll-mt-24
+  ul
+    li
+    li
+    li
+## ListaPaginada items=[1,2,3,4,5,6,7]
+div scroll-mt-24
+  ul
+    li
+    li
+    li
+    li
+    li
+  nav border-sand border-t flex gap-2 items-center justify-between mt-4 pt-3
+    button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-3 py-1 rounded-control text-xs transition-colors
+    span tabular-nums text-taupe text-xs whitespace-nowrap
+    button active:scale-[0.98] border border-borde-control disabled:opacity-50 duration-150 font-medium hover:bg-sand/50 px-3 py-1 rounded-control text-xs transition-colors
 ## Modal ancho=sm titulo=undefined
 div bg-black/40 fixed flex inset-0 items-center justify-center p-4 z-40
   div bg-papel border border-taupe/35 max-h-[90vh] max-w-sm outline-none overflow-y-auto p-6 rounded-flotante w-full

@@ -121,28 +121,7 @@ export function ordenarParaLaPersona(docs: readonly DocMio[]): DocMio[] {
   });
 }
 
-export interface Pagina<T> {
-  items: T[];
-  /** Base 0. */
-  pagina: number;
-  paginas: number;
-  total: number;
-  /** «1–10 de 23»: desde y hasta, base 1. */
-  desde: number;
-  hasta: number;
-}
-
-/** La página `n` (base 0) de una lista, de a `tamano`. Una página fuera de rango se acerca a la última. */
-export function paginar<T>(items: readonly T[], n: number, tamano: number = POR_PAGINA): Pagina<T> {
-  const total = items.length;
-  const paginas = Math.max(1, Math.ceil(total / tamano));
-  const pagina = Math.min(Math.max(0, Math.floor(n)), paginas - 1);
-  const inicio = pagina * tamano;
-  return {
-    items: items.slice(inicio, inicio + tamano), pagina, paginas, total,
-    desde: total === 0 ? 0 : inicio + 1, hasta: Math.min(inicio + tamano, total),
-  };
-}
+// Cortar en páginas vive en lib/paginar.ts desde el 2026-11-09: lo usan también Mis días, Mis turnos e Historial.
 
 // ── Cómo se llama cada documento ─────────────────────────────────────────────
 

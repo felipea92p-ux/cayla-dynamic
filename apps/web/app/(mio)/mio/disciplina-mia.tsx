@@ -15,9 +15,11 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { citaDeFalta } from "@/lib/admin/conducta";
 import { fechaLarga, horaLima } from "@/components/disciplina/memo-documento";
 import {
-  cargoPorRecibir, hayAliento, mensajeDeAliento, ordenarParaLaPersona, paginar, porLeer, queFaltaEs, textoComoVas, tituloDe,
+  POR_PAGINA, cargoPorRecibir, hayAliento, mensajeDeAliento, ordenarParaLaPersona, porLeer, queFaltaEs, textoComoVas, tituloDe,
   type CargoMio, type CuentaMia, type DocMio,
 } from "@/lib/mio-disciplina";
+import { paginar } from "@/lib/paginar";
+import { Paginas } from "@/components/ui/paginas";
 
 /**
  * La sección «Disciplina» de /mio — lo que la persona ve de lo suyo.
@@ -101,7 +103,7 @@ export function DisciplinaMia({
   const [ocupado, setOcupado] = useState<string | null>(null);
 
   const ordenados = docs ? ordenarParaLaPersona(docs) : [];
-  const pag = paginar(ordenados, pagina);
+  const pag = paginar(ordenados, pagina, POR_PAGINA);
   const comoVas = textoComoVas(cuenta);
 
   async function abrir(id: string) {
@@ -194,13 +196,7 @@ export function DisciplinaMia({
             </ul>
           )}
 
-          {pag.paginas > 1 && (
-            <nav aria-label="Páginas de documentos" className="flex items-center justify-between gap-2 border-t border-sand pt-3">
-              <Boton variante="secundario" tamano="sm" disabled={pag.pagina === 0} onClick={() => setPagina(pag.pagina - 1)}>← Anterior</Boton>
-              <span className="whitespace-nowrap text-xs text-taupe">{pag.desde}–{pag.hasta} de {pag.total}</span>
-              <Boton variante="secundario" tamano="sm" disabled={pag.pagina >= pag.paginas - 1} onClick={() => setPagina(pag.pagina + 1)}>Siguiente →</Boton>
-            </nav>
-          )}
+          <Paginas pag={pag} etiqueta="Páginas de documentos" alCambiar={setPagina} />
 
           {comoVas && (
             <TarjetaInfo como="section" className="grid gap-2" data-tour="mio-disciplina-comovas">

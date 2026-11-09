@@ -10,9 +10,11 @@
 //   Que el guion de lib/vidrio.ts puso `data-movimiento` antes de pintar, y solo en el panel. Sin el atributo —el terminal, o el vidrio
 //   apagado— nada cambia: manda solo el sistema operativo, como antes de esto.
 //
-// DECIDÍ: seguir a Retail tal cual: preferencia del aparato, arranca quieto, una sola regla de CSS que deja toda animación en 0,01 ms (siguen
-//   llegando `animationend` y `transitionend`, así que una hoja que espera su salida se cierra igual), y una sola pregunta desde JavaScript:
-//   `prefiereQuieto()`.
+// DECIDÍ: seguir a Retail: preferencia del aparato, arranca quieto, una sola regla de CSS que deja toda animación en 0,01 ms (sigue llegando
+//   `animationend`, así que una pieza que espera el final de la suya termina igual), y una sola pregunta desde JavaScript: `prefiereQuieto()`.
+//   Una diferencia con Retail, del 2026-11-09: las TRANSICIONES quedan en 0 s, no en 0,01 ms. Con 0,01 ms, cada elemento que no pidió
+//   transición (`transition-property: all` de fábrica) pasaba a transitar todo, y Safari del iPhone dejaba el menú sin palabras. El detalle,
+//   en movimiento.css. Por eso nadie en apps/web puede esperar un `transitionend`: quieto, no llega (lo vigila tests/vidrio-movimiento.test.ts).
 // DESCARTÉ: tocar uno por uno los bloques `prefers-reduced-motion: no-preference` de estilos/vidrio, porque son decenas y el siguiente que
 //   alguien escriba se quedaría afuera sin que nada avise.
 // SE ROMPE SI: una pieza anima desde JavaScript preguntando `matchMedia` por su cuenta: no vería el botón (lo vigila tests/vidrio-movimiento.test.ts).

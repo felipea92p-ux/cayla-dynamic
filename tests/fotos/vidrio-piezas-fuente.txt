@@ -567,6 +567,20 @@ text-tinta
 w-full
 xl
 z-40
+## paginas.tsx
+border-sand
+border-t
+flex
+gap-2
+items-center
+justify-between
+mt-4
+pt-3
+scroll-mt-24
+tabular-nums
+text-taupe
+text-xs
+whitespace-nowrap
 ## para-atender.tsx
 bg-ambar/15
 bg-papel

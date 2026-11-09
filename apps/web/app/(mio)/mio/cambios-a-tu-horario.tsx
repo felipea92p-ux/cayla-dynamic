@@ -5,6 +5,7 @@ import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima, rangoDelDiaLima } from "@cayla-dynamic/shared";
 import { sumarDias } from "@/lib/mi-semana";
 import { ListaHistorial, useHistorialHorario } from "@/components/historial-horario/historial-horario";
+import { ListaPaginada } from "@/components/ui/paginas";
 
 /**
  * «Cambios a tu horario», debajo de «Tu semana» en Mis turnos: lo que le
@@ -12,6 +13,11 @@ import { ListaHistorial, useHistorialHorario } from "@/components/historial-hora
  * jornada o su disponibilidad, en los últimos tres meses. Plegado: se consulta
  * de vez en cuando. No dice quién lo hizo —en «Lo mío» nunca se nombra a otra
  * persona—; el detalle completo lo tienen su líder y DO en «Cambios de horario».
+ *
+ * De a 5 (Felipe, 2026-11-09: en el teléfono quedaba muy largo). La página se
+ * corta por cambio, no por día: un día con siete cambios ocupa dos páginas y
+ * su fecha se repite arriba de la segunda, que es justo lo que hace falta para
+ * no leer esos cambios como del día anterior.
  */
 export function CambiosATuHorario({ supabase, personaId }: {
   supabase: ReturnType<typeof createAdminSupabaseClient>;
@@ -28,7 +34,9 @@ export function CambiosATuHorario({ supabase, personaId }: {
       </summary>
       {h.entradas.length > 0 && (
         <div className="mt-3">
-          <ListaHistorial entradas={h.entradas} mostrarQuien={false} />
+          <ListaPaginada items={h.entradas} etiqueta="Páginas de cambios a tu horario">
+            {(entradas) => <ListaHistorial entradas={entradas} mostrarQuien={false} />}
+          </ListaPaginada>
         </div>
       )}
     </details>
