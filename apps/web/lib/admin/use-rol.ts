@@ -73,10 +73,27 @@ async function traerPersonaActual(supabase: ClienteAdmin): Promise<PersonaActual
 export function usePersonaActual(): PersonaActual | null {
   const [persona, setPersona] = useState<PersonaActual | null>(null);
 
+  // Si no llega, se vuelve a preguntar a los 3, 10 y 30 s (2026-11-08). El marco del
+  // panel se monta UNA vez por pestaña (`(admin)/layout.tsx`), así que un solo tropiezo
+  // al abrir —el wifi de la tienda, un token que se estaba refrescando— dejaba el menú
+  // con «Info» y «Publicaciones» hasta recargar, sin decir nada. Una cuenta que de verdad
+  // no tiene ficha la saca `GuardaDeAcceso`; estos tres intentos solo cuestan una lectura.
   useEffect(() => {
     let vivo = true;
-    void traerPersonaActual(createAdminSupabaseClient()).then((p) => { if (vivo && p) setPersona(p); });
-    return () => { vivo = false; };
+    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    const esperas = [3_000, 10_000, 30_000];
+    const intentar = () => {
+      void traerPersonaActual(createAdminSupabaseClient())
+        .catch(() => null)
+        .then((p) => {
+          if (!vivo) return;
+          if (p) { setPersona(p); return; }
+          const espera = esperas.shift();
+          if (espera !== undefined) temporizador = setTimeout(intentar, espera);
+        });
+    };
+    intentar();
+    return () => { vivo = false; if (temporizador) clearTimeout(temporizador); };
   }, []);
 
   return persona;

@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-08-el-panel-avisa-si-entras-con-la-cuenta-del-terminal",
+    fecha: "2026-11-08",
+    titulo: "El panel avisa si entras con la cuenta del terminal",
+    queMejoro:
+      "Si alguien entra al panel con el usuario del terminal de marcaje de la sede, ahora el sistema lo dice y pide " +
+      "entrar con el usuario propio. Antes dejaba entrar y las pantallas se veían vacías —el menú casi sin opciones, " +
+      "Correcciones sin nadie del equipo y «Nada pendiente»—, aunque sí hubiera marcas por atender. El terminal sigue " +
+      "funcionando igual: no se desvincula.\n\n" +
+      "Lo mismo con un usuario que no está unido a ninguna ficha del equipo: el sistema lo dice en vez de mostrar " +
+      "pantallas vacías. Y si el menú no alcanzaba a cargar tus opciones al abrir el panel, ahora lo vuelve a intentar solo.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-07-la-salida-real-reemplaza-a-la-del-sistema",
     fecha: "2026-11-07",
     titulo: "En Correcciones, la salida real reemplaza a la que puso el sistema",

@@ -10,7 +10,7 @@ import { useRafagaDeClics } from "@/lib/use-rafaga-de-clics";
 import { ROLES_CON_PANEL, claveSirve } from "@cayla-dynamic/shared";
 import { clavePorCambiar, marcarMiClavePorCambiar } from "@/lib/admin/mi-clave";
 import { esFallaDeRed } from "@/lib/admin/mensaje-error";
-import { esCuentaDadaDeBaja, esCuentaDeServicio, MENSAJE_CUENTA_DADA_DE_BAJA, MENSAJE_CUENTA_DE_SERVICIO } from "@/lib/cuenta-de-servicio";
+import { cerrarSesionSinAcceso, esCuentaDadaDeBaja, MENSAJE_CUENTA_DADA_DE_BAJA, mensajeSinAcceso, motivoSinAcceso } from "@/lib/cuenta-de-servicio";
 import { Campo } from "@/components/ui/campo";
 import { CampoClave } from "@/components/ui/campo-clave";
 import { Boton } from "@/components/ui/boton";
@@ -78,10 +78,17 @@ export default function AdminLoginPage() {
     // Una estación de retail tiene usuario (así entra a las tiendas), pero no
     // es una persona: aquí no tiene nada que ver. Antes que la clave, porque
     // mandarla a cambiarla sería invitarla a quedarse (0490).
-    if (await esCuentaDeServicio(supabase, data.user?.id)) {
-      await supabase.auth.signOut();
+    //
+    // Lo mismo la cuenta del TERMINAL de una sede y un usuario sin ficha
+    // (2026-11-08): entraban, aterrizaban en «Lo mío» y desde ahí cualquier
+    // pantalla del panel se veía vacía y sin error. La sesión se cierra SOLO en
+    // este navegador: cerrarla en todos lados desvincularía la Mac mini del
+    // terminal (ver el encabezado de lib/cuenta-de-servicio.tsx).
+    const motivo = await motivoSinAcceso(supabase, data.user?.id);
+    if (motivo === "servicio" || motivo === "terminal" || motivo === "sin_ficha") {
+      await cerrarSesionSinAcceso(supabase, motivo);
       setCargando(false);
-      setError(MENSAJE_CUENTA_DE_SERVICIO);
+      setError(mensajeSinAcceso(motivo));
       return;
     }
 
