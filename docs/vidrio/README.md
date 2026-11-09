@@ -21,7 +21,7 @@ sirve: Dynamic recibe unos 49 commits al día. Ver «El vidrio» en [`CLAUDE.md`
 | Aspecto | El de Retail: vidrio, botones en píldora, pestañas en pozo y gota, su cabecera, letra de lectura desde 14 px y cifras que pueden llevar color. |
 | Modo oscuro | Los colores de Retail. Arranca en claro y cada quien lo cambia con su botón. `/admin/apariencia` se retira, porque el tema pasa a ser de cada aparato. |
 | Lo que no se deshace | Botón negro con el aviso «No se puede deshacer», en una sola hoja de vidrio. También cambia en Retail. Junto a «Guardar», el botón peligroso es gota con letra roja. |
-| Boleta, contrato y memo | Papel en su bandeja, en claro y en oscuro. |
+| Boleta, contrato y memo | Papel en su bandeja. **El papel sigue el tema**: en oscuro es oscuro, y al imprimir o guardar el PDF sale claro. Felipe lo decidió el 2026-11-09 al verlo en el teléfono: el papel claro en una pantalla oscura se leía como un error. Hasta ese día era el `.papel-fijo` de Retail (claro en los dos temas); en esto Dynamic se separa de Retail. |
 | Terminal | Último módulo, con su botón de tema y fuera del loader. Ningún botón cambia lo que hace ni cómo se marca. |
 | Movimiento, espera, listas y desenfoque | Como Retail, también en el teléfono. Lo que Retail no tiene se muestra con imagen antes de decidirlo. |
 | Animaciones encendidas o quietas | Como Retail (ADR-0625 de Retail, 2026-11-07): botón «Animaciones» junto al modo oscuro, del aparato, y el panel arranca quieto. Las señales de espera siguen moviéndose. Felipe lo pidió el 2026-11-07; en local hasta que diga que se sube. |

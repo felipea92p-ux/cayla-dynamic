@@ -21,12 +21,14 @@ de color que más fallan**, porque casi siempre se arreglan en un token y no pan
 
 Lo dice `app/globals.css`, y la mancha clara lo respeta:
 
-- Los documentos en pantalla: `.hoja` y `.contrato`.
 - El recuadro de la firma: `.firma-tinta`. La imagen de `.contrato .linea img` ya queda fuera por ser una imagen.
 - El recuadro con `--color-crema-fija`: pasa por ser un token del sistema, como cualquier relleno que use uno.
 
-Lo de `.hoja`, `.contrato` y `.firma-tinta` no cuenta como hallazgo, pero **se anota aparte** en el reporte en vez de callarlo: en pantalla un documento sigue el tema
-(CLAUDE.md), así que algo claro dentro de uno merece una mirada aunque no sea un defecto seguro.
+Lo de `.firma-tinta` no cuenta como hallazgo, pero **se anota aparte** en el reporte en vez de callarlo.
+
+**Los documentos (`.hoja`, `.contrato`) ya no son excepción.** Hasta el 2026-11-09 se anotaban aparte, porque con el vidrio el papel se quedaba claro
+también en oscuro. Ese día Felipe decidió que el papel siga el tema en pantalla, con y sin vidrio (`piezas.css`, «El papel en su bandeja»): una superficie
+clara dentro de un documento es ahora un defecto como cualquier otro.
 
 ### Lo que este escáner NO ve
 

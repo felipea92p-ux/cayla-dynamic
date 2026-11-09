@@ -89,8 +89,8 @@ try {
   revisar("el contraste encuentra justo el texto ilegible, la tecla y el gráfico por debajo de 3:1", r.contrastes.map((h) => h.texto).sort(), ["No se lee", "·", "/"].sort());
   revisar("el gráfico se mide contra 3 y lo demás contra 4.5", r.contrastes.map((h) => h.umbral).sort(), [3, 4.5, 4.5]);
   revisar("cuenta lo que no puede medir: un texto sobre un degradado y una letra recortada de uno, sin darla por ilegible", r.sobreDegradado, 2);
-  revisar("una sola mancha: el blanco suelto, no el token ni la crema fija ni lo chico", r.manchas.length, 1);
-  revisar("lo claro de .hoja, .contrato y .firma-tinta no cuenta, pero se anota", r.manchasExentas.length, 3);
+  revisar("tres manchas: el blanco suelto y el de dentro de .hoja y .contrato, no el token ni la crema fija ni lo chico", r.manchas.length, 3);
+  revisar("lo claro de .firma-tinta no cuenta, pero se anota", r.manchasExentas.length, 1);
   revisar("un solo velo: el que aclara, no el que oscurece", r.velos.length, 1);
 
   console.log("Auditoría de contraste, en claro:");
