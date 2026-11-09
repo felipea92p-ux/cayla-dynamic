@@ -56,11 +56,17 @@ export interface PeriodoCosto {
   costo: number;
   version: number;
   reconstruida: boolean;
+  /** Cuántas personas entraron a ese periodo (0323). Opcional: explica por qué un mes cuesta más que otro. */
+  personas?: number;
 }
 export interface ColumnaCosto {
   clave: string;
   /** «28 oct»: el día en que cierra el periodo, que es como se nombra («el de octubre»). */
   etiqueta: string;
+  /** Las fechas reales del periodo, leídas de la base: no todos van del 29 al 28 (hubo uno que cerró el 27 sep). */
+  fechaIni: string;
+  fechaFin: string;
+  personas: number | null;
   costo: number | null;
   /** El periodo en curso: se dibuja rayado y SIN monto, porque todavía no es un hecho. */
   enCurso: boolean;
@@ -82,14 +88,41 @@ export function columnasDeCosto(
   const cols: ColumnaCosto[] = [...porPeriodo]
     .sort((a, b) => (a.fecha_ini < b.fecha_ini ? -1 : 1))
     .map((p) => ({
-      clave: p.periodo_id, etiqueta: etiquetaCierre(p.fecha_fin), costo: p.costo, enCurso: false,
+      clave: p.periodo_id, etiqueta: etiquetaCierre(p.fecha_fin), fechaIni: p.fecha_ini, fechaFin: p.fecha_fin,
+      personas: p.personas ?? null, costo: p.costo, enCurso: false,
       retroactivo: p.reconstruida, repagado: p.version > 1,
     }));
   const yaEsta = periodoEnCurso && porPeriodo.some((p) => p.fecha_ini === periodoEnCurso.fecha_ini);
   if (periodoEnCurso && !yaEsta) {
-    cols.push({ clave: `en-curso-${periodoEnCurso.fecha_ini}`, etiqueta: etiquetaCierre(periodoEnCurso.fecha_fin), costo: null, enCurso: true, retroactivo: false, repagado: false });
+    cols.push({
+      clave: `en-curso-${periodoEnCurso.fecha_ini}`, etiqueta: etiquetaCierre(periodoEnCurso.fecha_fin),
+      fechaIni: periodoEnCurso.fecha_ini, fechaFin: periodoEnCurso.fecha_fin, personas: null,
+      costo: null, enCurso: true, retroactivo: false, repagado: false,
+    });
   }
   return cols;
+}
+
+type ColumnaPagada = ColumnaCosto & { costo: number };
+
+export interface ResumenCosto {
+  /** El último periodo YA PAGADO: el que está en curso no tiene monto, así que nunca es la cifra grande. */
+  ultima: ColumnaPagada | null;
+  anterior: ColumnaPagada | null;
+  /** En soles, contra el pagado anterior. null si no hay con qué comparar. */
+  diferencia: number | null;
+  /** Lo mismo en %, redondeado a entero. null si no hay anterior o el anterior costó 0. */
+  variacionPct: number | null;
+}
+
+/** La cifra que encabeza el gráfico compacto de costo: el último periodo pagado frente al anterior. */
+export function resumenCosto(columnas: readonly ColumnaCosto[]): ResumenCosto {
+  const pagadas = columnas.filter((c): c is ColumnaPagada => !c.enCurso && c.costo !== null);
+  const ultima = pagadas.at(-1) ?? null;
+  const anterior = pagadas.at(-2) ?? null;
+  if (!ultima || !anterior) return { ultima, anterior, diferencia: null, variacionPct: null };
+  const diferencia = Math.round((ultima.costo - anterior.costo) * 100) / 100;
+  return { ultima, anterior, diferencia, variacionPct: anterior.costo > 0 ? Math.round((diferencia / anterior.costo) * 100) : null };
 }
 
 // ── Asistencia por sede, semana y día ────────────────────────────────────────
@@ -130,6 +163,30 @@ export function asistenciaSemanal(filas: readonly FilaAsistencia[], hoy: string,
       pct: t + f > 0 ? Math.round((t / (t + f)) * 1000) / 10 : null,
       parcial: sumarDias(semana, 6) >= hoy,
     }));
+}
+
+type SemanaMedida = PuntoSemana & { pct: number };
+
+export interface ResumenAsistencia {
+  /** La última semana COMPLETA con dato. La parcial no encabeza: un lunes con una falta la mostraría en 80 %. */
+  ultima: SemanaMedida | null;
+  /**
+   * De todas las semanas completas, ponderado por días: Σ trabajados ÷ Σ (trabajados + faltas). No es el
+   * promedio de los porcentajes —una semana con 4 días esperados pesaría lo mismo que una con 120—.
+   */
+  promedio: number | null;
+  /** La semana completa más baja; si empatan, la más reciente (la que alguien todavía recuerda). */
+  minima: SemanaMedida | null;
+  semanas: number;
+}
+
+export function resumenAsistencia(puntos: readonly PuntoSemana[]): ResumenAsistencia {
+  const completas = puntos.filter((p): p is SemanaMedida => p.pct !== null && !p.parcial);
+  if (completas.length === 0) return { ultima: null, promedio: null, minima: null, semanas: 0 };
+  const t = completas.reduce((s, p) => s + p.trabajados, 0);
+  const e = completas.reduce((s, p) => s + p.trabajados + p.faltas, 0);
+  const minima = completas.reduce((m, p) => (p.pct <= m.pct ? p : m));
+  return { ultima: completas.at(-1)!, promedio: Math.round((t / e) * 1000) / 10, minima, semanas: completas.length };
 }
 
 function sumarDias(iso: string, n: number): string {
