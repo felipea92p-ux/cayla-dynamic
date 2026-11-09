@@ -1416,13 +1416,13 @@ export async function traerBandeja(
     // ignorar el aviso el día que falte algo de verdad.
     perfil: ((perfil.data ?? []) as { campo: string }[] as (FilaPerfil & { campo: string })[])
       .map((f) => ({ ...f, etiqueta: etiquetas.get(f.campo) ?? f.campo })),
-    vacaciones: (vacaciones.data ?? []) as unknown as FilaVacacion[],
-    revisiones: (revisiones.data ?? []) as unknown as FilaRevision[],
-    contrato: (contrato.data ?? null) as unknown as FilaContrato | null,
-    memos: ((memos.data ?? []) as unknown as FilaMemo[]),
-    memosPorRecibir: ((memosPorRecibir.data ?? []) as unknown as FilaMemoPorRecibir[]),
+    vacaciones: (vacaciones.data ?? []) satisfies FilaVacacion[],
+    revisiones: (revisiones.data ?? []) satisfies FilaRevision[],
+    contrato: (contrato.data ?? null) satisfies FilaContrato | null,
+    memos: ((memos.data ?? []) satisfies FilaMemo[]),
+    memosPorRecibir: ((memosPorRecibir.data ?? []) satisfies FilaMemoPorRecibir[]),
     acuses,
-    marcajes: ((marcajes?.data ?? []) as unknown as FilaMarcaje[]),
+    marcajes: ((marcajes?.data ?? []) satisfies FilaMarcaje[]),
     periodo: per,
     movilidad: ((movilidad.data ?? []) as FilaMovilidad[])[0] ?? null,
     revisionesMovilidad: (revisionesMovilidad.data ?? []) as unknown as FilaRevisionMovilidad[],
@@ -1438,7 +1438,7 @@ export async function traerBandeja(
     reportes: reportes.filas,
     pedidosTurno: (pedidosTurno.data ?? []) as unknown as PedidoTurno[],
     cambiosTurno: (cambiosTurno.data ?? []) as unknown as MiCambio[],
-    polizas: (polizas.data ?? []) as unknown as FilaPolizaAviso[],
+    polizas: (polizas.data ?? []) satisfies FilaPolizaAviso[],
     vistos: new Set(
       ((vistos.data ?? []) as { tipo_item: string; item_id: string }[])
         .map((v) => `${v.tipo_item}:${v.item_id}`),

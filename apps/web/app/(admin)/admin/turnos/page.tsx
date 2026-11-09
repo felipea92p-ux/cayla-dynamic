@@ -1460,7 +1460,7 @@ export default function TurnosPage() {
     const { error } = await supabase.rpc("fn_turnos_borrador_guardar", {
       p_sede_id: sedeSel, p_lunes: lunes,
       p_dias: filasDelBorradorParaGuardar(semana, dias, hoyLima(), conHorario) as unknown as Json,
-      p_notas: [...notas].filter(([, t]) => t.trim()).map(([persona_id, nota]) => ({ persona_id, nota: nota.trim() })) as unknown as Json,
+      p_notas: [...notas].filter(([, t]) => t.trim()).map(([persona_id, nota]) => ({ persona_id, nota: nota.trim() })) satisfies Json,
       p_origen: origen,
     });
     setGuardandoBorrador(false);

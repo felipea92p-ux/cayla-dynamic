@@ -195,10 +195,10 @@ export default function FeriadosPage() {
     setPersonasTodas((pt as Persona[]) ?? []);
     setSedes((sd as Sede[]) ?? []);
     setFeriados((f as Feriado[]) ?? []);
-    setLaborados(eL ? [] : ((l as unknown as Laborado[]) ?? []));
+    setLaborados(eL ? [] : ((l satisfies Laborado[]) ?? []));
     setErrorLaborados(eL ? mensajeDeError(eL, "cargar quién trabajó feriados") : null);
     setRegistros((r as Registro[]) ?? []);
-    setActas(Array.isArray(ac) ? (ac as unknown as Acta[]) : []);
+    setActas(Array.isArray(ac) ? (ac satisfies Acta[]) : []);
     setCargando(false);
   }, [supabase, router, desde, hasta, avisar]);
 

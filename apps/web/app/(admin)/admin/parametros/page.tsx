@@ -105,11 +105,11 @@ export default function ParametrosPage() {
     }
     setSinMigracion(false);
     setError(null);
-    setFilas(normalizarParametros(lista.data as unknown as Record<string, unknown>[]));
+    setFilas(normalizarParametros(lista.data satisfies Record<string, unknown>[]));
 
     const hist = await supabase.rpc("fn_parametros_historial", { p_limite: 50 });
     // El historial se lee aparte: si falla, la lista se sigue viendo y el panel lo dice.
-    setHistorial(hist.error ? null : normalizarCambios(hist.data as unknown as Record<string, unknown>[]));
+    setHistorial(hist.error ? null : normalizarCambios(hist.data satisfies Record<string, unknown>[]));
   }, [supabase, puedeVer]);
 
   useEffect(() => {

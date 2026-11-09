@@ -876,7 +876,7 @@ function DesempenoContenido() {
       horariosPor.set(h.persona_id, l);
     }
     const turnoPor = new Map<string, TurnoDia>();
-    for (const t of ((turnosData as unknown as { persona_id: string; fecha: string; hora_entrada: string | null; hora_salida: string | null; es_descanso: boolean }[] | null) ?? [])) {
+    for (const t of ((turnosData satisfies { persona_id: string; fecha: string; hora_entrada: string | null; hora_salida: string | null; es_descanso: boolean }[] | null) ?? [])) {
       turnoPor.set(`${t.persona_id}|${t.fecha}`, t);
     }
     const jornadaPor = new Map<string, { entrada_ts: string | null; salida_final_ts: string | null; horas_trabajadas: number | null; minutos_tarde: number | null; horas_extra_detectadas: number | null; estado: string }>();
@@ -924,9 +924,9 @@ function DesempenoContenido() {
         personaId: pid,
         nombre: `${p.nombres} ${p.apellidos}`,
         sede: (p as unknown as { sedes?: { codigo: string } }).sedes?.codigo ?? "?",
-        area: (p as unknown as { funcion: string }).funcion ?? "",
-        activa: (p as unknown as { estado: string }).estado === "activo",
-        fechaIngreso: (p as unknown as { fecha_ingreso: string | null }).fecha_ingreso ?? null,
+        area: p.funcion ?? "",
+        activa: p.estado === "activo",
+        fechaIngreso: p.fecha_ingreso ?? null,
         ausenciasDias: ausRes?.dias ?? 0,
         ausenciasDiasPagados: ausRes?.diasPagados ?? 0,
         ausenciasDiasNoPagados: ausRes?.diasNoPagados ?? 0,
@@ -941,7 +941,7 @@ function DesempenoContenido() {
         faltas: 0, faltasJustificadas: 0, incompletas: 0, pendientes: 0,
         objCumplidos: objPor.get(pid)?.cumplidos ?? 0, objTotal: objPor.get(pid)?.total ?? 0,
         objetivos: objPor.get(pid)?.items ?? [], tieneHorario: false,
-        jornada: (() => { const j = (p as unknown as { jornada_semanal_horas: number | null }).jornada_semanal_horas; return j === null || j === undefined ? null : Number(j); })(),
+        jornada: (() => { const j = p.jornada_semanal_horas; return j === null || j === undefined ? null : Number(j); })(),
       };
 
       for (const fecha of listaFechas) {

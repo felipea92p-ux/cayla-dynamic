@@ -157,7 +157,7 @@ export function ModalRegistrarFalta({
     setGuardando(false);
     // El mensaje de la base es el bueno: dice qué regla del RIT se cruzó.
     if (e || !data) { setError(mensajeDeError(e, "registrar la falta")); return; }
-    onRegistrado(data as unknown as string);
+    onRegistrado(data satisfies string);
   }
 
   const chip = (f: FaltaCatalogo) => {

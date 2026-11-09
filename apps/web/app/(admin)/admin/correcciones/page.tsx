@@ -339,7 +339,7 @@ export default function CorreccionesPage() {
     if (!p.error) setPersonas((p.data as Persona[]) ?? []);
     if (!s.error) setSedes((s.data as Sede[]) ?? []);
     if (!dr.error) setPorRevisar((dr.data as unknown as DiaPorRevisar[]) ?? []);
-    if (!ap.error) setApartadas((ap.data as unknown as MarcaApartada[]) ?? []);
+    if (!ap.error) setApartadas((ap.data satisfies MarcaApartada[]) ?? []);
   }, [router]);
 
   useEffect(() => {
