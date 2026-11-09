@@ -125,6 +125,19 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-11-09-mis-dias-con-los-colores-de-tu-lider",
+    fecha: "2026-11-09",
+    titulo: "Mis días usa los mismos colores que ve tu líder, y tu firma escrita se ve en modo oscuro",
+    queMejoro:
+      "En Lo mío › Mis días, cada cuadrito se pinta ahora con los mismos colores que ve tu líder de equipo en el panel, " +
+      "y la explicación de abajo los muestra igual. Los días «con motivo» y los que no tienen marca se distinguen mejor, " +
+      "y en modo oscuro un día en que llegaste muy tarde ya no se ve más suave que uno en que llegaste un poco tarde: " +
+      "lleva un borde rojo, como en el panel.\n\n" +
+      "Y al escribir tu firma (Cambiar firma › Escribir), en modo oscuro tu nombre salía casi blanco sobre blanco y no " +
+      "se veía. Ya se ve.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-09-la-bandeja-ya-no-pide-cargo-de-lo-recibido-por-info",
     fecha: "2026-11-09",
     titulo: "La Bandeja ya no pide el cargo de un documento que la persona recibió por su Info",

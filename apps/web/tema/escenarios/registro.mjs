@@ -30,7 +30,12 @@ export const ESCENARIOS = [
     ruta: "/admin/dashboard",
     ancho: "escritorio",
     nombre: "Los atajos de teclado abiertos",
-    preparar: clicEnBoton("Atajos de teclado"),
+    // Con la tecla y no con el botón: con el vidrio encendido la cabecera es otra y no trae el botón, y el escenario fallaba en cada corrida
+    // (2026-11-09). «?» abre la misma ventana con y sin vidrio (components/atajos-teclado.tsx).
+    preparar: async (pagina) => {
+      await pagina.keyboard.press("?");
+      await esperar(pagina);
+    },
     abre: '[role="dialog"][aria-label="Atajos de teclado"]',
   },
   {
