@@ -399,3 +399,127 @@ export function calorTardanza(filas: readonly FilaAsistencia[], minimo = MINIMO_
       }),
     }));
 }
+
+// ── Antigüedad del equipo ────────────────────────────────────────────────────
+//
+// Cuánta gente es nueva y cuánta lleva años. No cuenta a quien está en preselección (`tipo_vinculo = 'prueba'`):
+// todavía no empezó su contrato. El periodo de prueba de ley son los primeros tres meses de quien está en
+// planilla (art. 10 del D.S. 003-97-TR); para personal de confianza o de dirección puede pactarse más largo, y
+// eso lo dice el contrato, no esta cuenta.
+
+export interface PersonaAntiguedad {
+  fecha_ingreso: string | null;
+  tipo_vinculo: string | null;
+  /** Código de su sede base. */
+  sede: string;
+}
+
+export const TRAMOS_ANTIGUEDAD = [
+  { clave: "menos_3", texto: "Menos de 3 meses", hastaMeses: 3 },
+  { clave: "3_a_6", texto: "3 a 6 meses", hastaMeses: 6 },
+  { clave: "6_a_12", texto: "6 a 12 meses", hastaMeses: 12 },
+  { clave: "1_a_2", texto: "1 a 2 años", hastaMeses: 24 },
+  { clave: "2_a_5", texto: "2 a 5 años", hastaMeses: 60 },
+  { clave: "mas_5", texto: "Más de 5 años", hastaMeses: Number.POSITIVE_INFINITY },
+] as const;
+
+export interface Antiguedad {
+  tramos: { clave: string; texto: string; n: number }[];
+  /** Quienes entran en algún tramo. */
+  total: number;
+  /** En planilla y con menos de tres meses: su periodo de prueba de ley. */
+  enPrueba: number;
+  /** Sin fecha de ingreso cargada: se dicen aparte, no se adivinan. */
+  sinFecha: number;
+}
+
+/** Meses COMPLETOS entre dos fechas YYYY-MM-DD (del 15 de enero al 14 de abril son 2). Nunca negativo. */
+export function mesesCumplidos(desde: string, hasta: string): number {
+  const [ay, am, ad] = desde.split("-").map(Number);
+  const [by, bm, bd] = hasta.split("-").map(Number);
+  return Math.max(0, (by - ay) * 12 + (bm - am) - (bd < ad ? 1 : 0));
+}
+
+export function antiguedadDelEquipo(personas: readonly PersonaAntiguedad[], hoy: string, sede: string | null): Antiguedad {
+  const n = TRAMOS_ANTIGUEDAD.map(() => 0);
+  let enPrueba = 0, sinFecha = 0;
+  for (const p of personas) {
+    if (sede && p.sede !== sede) continue;
+    if (p.tipo_vinculo === "prueba") continue;
+    if (!p.fecha_ingreso) { sinFecha += 1; continue; }
+    const meses = mesesCumplidos(p.fecha_ingreso, hoy);
+    n[TRAMOS_ANTIGUEDAD.findIndex((t) => meses < t.hastaMeses)] += 1;
+    if (meses < 3 && p.tipo_vinculo === "planilla") enPrueba += 1;
+  }
+  return {
+    tramos: TRAMOS_ANTIGUEDAD.map((t, i) => ({ clave: t.clave, texto: t.texto, n: n[i] })),
+    total: n.reduce((s, x) => s + x, 0),
+    enPrueba,
+    sinFecha,
+  };
+}
+
+// ── Acuses pendientes de toda la empresa ─────────────────────────────────────
+//
+// Cuánta gente ya acusó recibo de lo que la ley o el reglamento exigen que reciba: la política salarial vigente
+// (`fn_politica_salarial_vigente`) y cada documento institucional que pide constancia (`fn_documentos_vigentes`).
+// Son las mismas cuentas de Política salarial, de Normas y de la señal de Normas en la Bandeja, con su misma
+// población: esto no decide quién debía acusar, solo las pone juntas. Nunca dice quién falta: eso se ve donde
+// ya se ve hoy, y cada fila lleva hasta allá.
+
+/** Lo que devuelve `fn_politica_salarial_vigente`, en lo que aquí importa. */
+export interface PoliticaConAcuses {
+  publicada?: boolean | null;
+  version?: number | null;
+  total_personas?: number | null;
+  total_acuses?: number | null;
+}
+/** Una fila de `fn_documentos_vigentes`, en lo que aquí importa. */
+export interface DocumentoVigente {
+  documento_id: string;
+  tipo_nombre: string | null;
+  titulo: string | null;
+  version: number | null;
+  etiqueta_version: string | null;
+  requiere_acuse: boolean | null;
+  total_acuses: number | null;
+  poblacion: number | null;
+}
+
+export interface AcuseDeDocumento {
+  clave: string;
+  titulo: string;
+  acusaron: number;
+  deben: number;
+  /** Dónde se ve quién falta. */
+  href: string;
+}
+
+export function acusesDeLaEmpresa(politica: PoliticaConAcuses | null, documentos: readonly DocumentoVigente[] | null): AcuseDeDocumento[] {
+  const lista: AcuseDeDocumento[] = [];
+  const deben = (n: number | null | undefined) => Math.max(0, n ?? 0);
+  if (politica?.publicada && deben(politica.total_personas) > 0) {
+    const total = deben(politica.total_personas);
+    lista.push({
+      clave: "politica_salarial",
+      titulo: politica.version ? `Política salarial, versión ${politica.version}` : "Política salarial",
+      acusaron: Math.min(total, deben(politica.total_acuses)),
+      deben: total,
+      href: "/admin/politica-salarial",
+    });
+  }
+  for (const d of documentos ?? []) {
+    if (!d.requiere_acuse || deben(d.poblacion) === 0) continue;
+    const total = deben(d.poblacion);
+    const version = d.etiqueta_version ? `versión ${d.etiqueta_version}` : d.version ? `versión ${d.version}` : null;
+    lista.push({
+      clave: d.documento_id,
+      titulo: [d.tipo_nombre ?? d.titulo ?? "Documento", version].filter(Boolean).join(", "),
+      acusaron: Math.min(total, deben(d.total_acuses)),
+      deben: total,
+      href: "/admin/normas",
+    });
+  }
+  // Lo más atrasado primero: es lo que hay que ir a recoger.
+  return lista.sort((a, b) => (b.deben - b.acusaron) - (a.deben - a.acusaron) || a.titulo.localeCompare(b.titulo, "es"));
+}

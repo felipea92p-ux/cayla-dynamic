@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { hoyLima, mesesRecientesLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { hoyLima, mesesRecientesLima, puedeVerConstancias, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { Cargando } from "@/components/cargando";
@@ -25,16 +25,17 @@ import { AyudaCabecera } from "@/components/vidrio/ayuda-cabecera";
 import { interruptoresVidrio } from "@/lib/vidrio";
 import { traerResumenCasos } from "@/lib/admin/casos-resumen";
 import {
-  asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, diasPerdidosPorMes, llegadaPorSede, MINIMO_CASOS,
-  OTROS_MOTIVOS, SIN_JUSTIFICAR, type FilaAsistencia, type FilaFalta, type PeriodoCosto,
+  acusesDeLaEmpresa, antiguedadDelEquipo, asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, diasPerdidosPorMes,
+  llegadaPorSede, MINIMO_CASOS, OTROS_MOTIVOS, SIN_JUSTIFICAR,
+  type DocumentoVigente, type FilaAsistencia, type FilaFalta, type PeriodoCosto, type PersonaAntiguedad, type PoliticaConAcuses,
 } from "@/lib/admin/tendencias";
 import { DIAS_DE_PISO, pisoPorHora, traerPisoYVenta, type TipoDeDia } from "@/lib/admin/piso-venta";
 import { nombreDeMotivo } from "@/lib/admin/motivo-falta";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import {
-  AsistenciaCompacta, BarrasCasos, CalorTardanza, ColumnasCosto, CostoCompacto, DiasPerdidosGrafico, LineaAsistencia, LlegadaPorSede,
-  PisoYVentaGrafico, pisoDeLinea,
+  AcusesPendientesGrafico, AntiguedadGrafico, AsistenciaCompacta, BarrasCasos, CalorTardanza, ColumnasCosto, CostoCompacto,
+  DiasPerdidosGrafico, LineaAsistencia, LlegadaPorSede, PisoYVentaGrafico, pisoDeLinea,
 } from "./graficos";
 
 type Estado<T> = { cargando: true } | { cargando: false; error: string } | { cargando: false; error: null; datos: T };
@@ -180,6 +181,37 @@ export function PanelTendencias({ rol, sedes }: {
   const sedeArriba = sede ? sedes.find((s) => s.codigo === sede) ?? null : null;
   const tienda = sedeArriba ? (sedeArriba.tipo === "tienda" ? sedeArriba : null) : (tiendas.find((t) => t.codigo === tiendaPropia) ?? tiendas[0] ?? null);
   const [piso, reintentarPiso] = useConsulta(tienda !== null, `piso:${tienda?.id ?? ""}`, () => traerPisoYVenta(supabase, tienda!, hoy));
+
+  // ── Antigüedad del equipo: quien está activo en las sedes de su alcance ────
+  const [filasEquipo, reintentarEquipo] = useConsulta(true, "antiguedad", async () => {
+    const { data, error } = await supabase.from("personas").select("fecha_ingreso, tipo_vinculo, sede_base_id")
+      .eq("estado", "activo").eq("cuenta_de_servicio", false);
+    if (error) throw new Error(mensajeDeError(error, "traer la antigüedad del equipo"));
+    return (data ?? []) as { fecha_ingreso: string | null; tipo_vinculo: string | null; sede_base_id: string | null }[];
+  });
+  // Solo las sedes de su alcance (a la líder de equipo, su sede). Se cruza al dibujar: las sedes pueden llegar después.
+  const equipo = useMemo((): Estado<PersonaAntiguedad[]> => {
+    if (filasEquipo.cargando || filasEquipo.error !== null) return filasEquipo;
+    const codigoDe = new Map(sedes.map((x) => [x.id, x.codigo] as const));
+    return {
+      cargando: false, error: null,
+      datos: filasEquipo.datos.flatMap((p) => {
+        const codigo = p.sede_base_id ? codigoDe.get(p.sede_base_id) : undefined;
+        return codigo ? [{ fecha_ingreso: p.fecha_ingreso, tipo_vinculo: p.tipo_vinculo, sede: codigo }] : [];
+      }),
+    };
+  }, [filasEquipo, sedes]);
+
+  // ── Acuses pendientes: las cuentas de Política salarial y de Normas, solo para DO ──
+  const verConstancias = puedeVerConstancias(rol);
+  const [acuses, reintentarAcuses] = useConsulta(verConstancias, "acuses", async () => {
+    const [{ data: pol, error: polErr }, { data: docs, error: docsErr }] = await Promise.all([
+      supabase.rpc("fn_politica_salarial_vigente"),
+      supabase.rpc("fn_documentos_vigentes"),
+    ]);
+    if (polErr || docsErr) throw new Error(mensajeDeError((polErr ?? docsErr)!, "traer los acuses"));
+    return acusesDeLaEmpresa(pol as PoliticaConAcuses | null, docs as DocumentoVigente[] | null);
+  });
 
   // ── Casos: solo quien ya los ve ────────────────────────────────────────────
   const [veCasos, setVeCasos] = useState<boolean | null>(null);
@@ -339,6 +371,31 @@ export function PanelTendencias({ rol, sedes }: {
           )}
         </Seccion>
       )}
+
+      <div className={verConstancias ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
+        {verConstancias && (
+          <Seccion
+            titulo="Acuses pendientes"
+            que="Cuánta gente ya acusó recibo de la política salarial y de cada documento que pide constancia. Toda la empresa: el filtro de sede no lo cambia."
+            queCorto="Toda la empresa: no cambia con el filtro de sede."
+            nota="Son las mismas cuentas de Política salarial y de Normas, con su misma gente: quien está activo y debe recibir ese documento. Una política sin acuse no se puede aplicar a quien no la recibió. Aquí solo se cuenta; quién falta se ve en cada pantalla, con su enlace."
+          >
+            <Cuerpo estado={acuses} reintentar={reintentarAcuses}
+              vacio={(d) => (d.length === 0 ? "No hay ninguna política ni documento vigente que pida constancia." : null)}
+              hijos={(d) => <AcusesPendientesGrafico documentos={d} />} />
+          </Seccion>
+        )}
+        <Seccion
+          titulo="Antigüedad del equipo"
+          que="Cuánta gente es nueva y cuánta lleva años, por tramo. Sirve para planear vacaciones ganadas, CTS y quién está en su periodo de prueba."
+          queCorto="Cuánta gente es nueva y cuánta lleva años."
+          nota="Cuenta a quien está activo hoy, sin la preselección. El periodo de prueba de ley son los primeros tres meses de quien está en planilla (art. 10 del D.S. 003-97-TR); para personal de confianza o de dirección puede pactarse más largo, y eso lo dice su contrato."
+        >
+          <Cuerpo estado={equipo} reintentar={reintentarEquipo}
+            vacio={(d) => (antiguedadDelEquipo(d, hoy, sede).total === 0 ? (sede ? "Esta sede no tiene a nadie con fecha de ingreso cargada." : "No hay a nadie con fecha de ingreso cargada.") : null)}
+            hijos={(d) => <AntiguedadGrafico datos={antiguedadDelEquipo(d, hoy, sede)} />} />
+        </Seccion>
+      </div>
 
       {veCasos === true && (
         <Seccion

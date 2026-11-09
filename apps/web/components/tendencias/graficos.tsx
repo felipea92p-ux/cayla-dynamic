@@ -12,9 +12,11 @@
 //     (finanzas/GraficoSemanas): en tinta, con el extremo del dato redondeado y ancladas a la línea base.
 
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import {
   etiquetaCierre, MESES_CORTOS, resumenAsistencia, resumenCosto,
-  type BarrasCasos, type CeldaCalor, type ColumnaCosto, type DiasPerdidos, type LlegadaSede, type PuntoSemana,
+  type AcuseDeDocumento, type Antiguedad, type BarrasCasos, type CeldaCalor, type ColumnaCosto, type DiasPerdidos, type LlegadaSede,
+  type PuntoSemana,
 } from "@/lib/admin/tendencias";
 import { faltaSeguido, horaMasCorta, type HoraDePiso } from "@/lib/admin/piso-venta";
 import { MESES_LARGO } from "@/lib/admin/planilla/formato";
@@ -556,6 +558,72 @@ export function CalorTardanza({ filas, nombreDe }: { filas: { sede: string; celd
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ── Acuses pendientes: un medidor por documento ─────────────────────────────
+export function AcusesPendientesGrafico({ documentos }: { documentos: AcuseDeDocumento[] }) {
+  const faltan = documentos.reduce((s, d) => s + d.deben - d.acusaron, 0);
+  const conPendientes = documentos.filter((d) => d.acusaron < d.deben);
+  const peor = conPendientes[0];
+  return (
+    <div>
+      {faltan > 0 ? (
+        <Encabeza
+          valor={`${faltan} ${faltan === 1 ? "pendiente" : "pendientes"}`}
+          detalle={<>en <strong className="font-medium text-tinta">{conPendientes.length} de {documentos.length}</strong> {documentos.length === 1 ? "documento" : "documentos"}{peor ? <> · el más atrasado: {peor.titulo.toLowerCase()} (faltan {peor.deben - peor.acusaron})</> : null}</>}
+        />
+      ) : (
+        <Encabeza valor="Al día" detalle="Todos acusaron recibo de lo que está vigente." />
+      )}
+      <ul className="grid gap-3" aria-label="Avance de cada acuse">
+        {documentos.map((d) => {
+          const pct = d.deben > 0 ? Math.round((d.acusaron / d.deben) * 100) : 0;
+          const falta = d.deben - d.acusaron;
+          return (
+            <li key={d.clave} className="grid gap-1">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+                <span className="min-w-0 text-tinta">{d.titulo}</span>
+                <span className="text-xs text-taupe tabular-nums">
+                  <strong className="font-medium text-tinta">{d.acusaron} de {d.deben}</strong> acusaron{falta > 0 ? ` · faltan ${falta}` : " · completo"}
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-sand" role="img" aria-label={`${d.acusaron} de ${d.deben} acusaron recibo (${pct} %)`}>
+                <div className={cx("h-full rounded-full", falta > 0 ? "bg-tinta" : "bg-taupe/60")} style={{ width: `${pct}%` }} />
+              </div>
+              {falta > 0 && <Link href={d.href} className="justify-self-start text-xs text-taupe underline underline-offset-2 hover:text-tinta">Ver quién falta</Link>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// ── Antigüedad del equipo: una barra por tramo ──────────────────────────────
+export function AntiguedadGrafico({ datos }: { datos: Antiguedad }) {
+  const max = Math.max(1, ...datos.tramos.map((t) => t.n));
+  const nuevos = datos.tramos[0].n;
+  const menosDeUnAnio = datos.tramos.slice(0, 3).reduce((s, t) => s + t.n, 0);
+  return (
+    <div>
+      <Encabeza
+        valor={`${nuevos} ${nuevos === 1 ? "persona" : "personas"}`}
+        detalle={<>llevan menos de tres meses{datos.enPrueba > 0 ? <> · <strong className="font-medium text-tinta">{datos.enPrueba} en planilla</strong>, en su periodo de prueba de ley</> : null} · {menosDeUnAnio} de {datos.total} llevan menos de un año</>}
+      />
+      <ul className="grid gap-2" aria-label="Personas por tramo de antigüedad">
+        {datos.tramos.map((t, i) => (
+          <li key={t.clave} className="grid grid-cols-[minmax(0,8rem)_1fr_2rem] items-center gap-3 text-sm">
+            <span className="text-tinta">{t.texto}</span>
+            <span className="h-2.5 rounded-full bg-sand" aria-hidden>
+              <span className={cx("block h-2.5 rounded-full", i === 0 ? "bg-tinta" : "bg-taupe/60")} style={{ width: `${(t.n / max) * 100}%` }} />
+            </span>
+            <span className="text-right tabular-nums text-tinta">{t.n}</span>
+          </li>
+        ))}
+      </ul>
+      {datos.sinFecha > 0 && <p className="mt-2 text-xs text-taupe">{datos.sinFecha} sin fecha de ingreso cargada: no entran en ningún tramo.</p>}
     </div>
   );
 }

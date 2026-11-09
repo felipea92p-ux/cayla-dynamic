@@ -200,3 +200,47 @@ describe("diasPerdidosPorMes — todo lo que se perdió, separado por qué", () 
     expect(r.meses).toEqual([{ mes: "2026-10", parcial: true, perdidos: 1, trabajados: 5, pct: 16.7 }]);
   });
 });
+
+describe("antiguedadDelEquipo — cuánta gente es nueva y cuánta lleva años", () => {
+  // Las funciones nuevas se importan aquí para no tocar el import de arriba.
+  it("meses completos, nunca negativos", async () => {
+    const { mesesCumplidos } = await import("../apps/web/lib/admin/tendencias");
+    expect(mesesCumplidos("2026-01-15", "2026-04-14")).toBe(2);
+    expect(mesesCumplidos("2026-01-15", "2026-04-15")).toBe(3);
+    expect(mesesCumplidos("2026-12-01", "2026-11-09")).toBe(0);
+  });
+  it("reparte por tramo, deja fuera la preselección y dice aparte quién no tiene fecha", async () => {
+    const { antiguedadDelEquipo } = await import("../apps/web/lib/admin/tendencias");
+    const p = (fecha_ingreso: string | null, tipo_vinculo = "planilla", sede = "TRU") => ({ fecha_ingreso, tipo_vinculo, sede });
+    const r = antiguedadDelEquipo([
+      p("2026-09-01"), p("2026-10-01", "practicante"), p("2026-10-20", "prueba"), p("2026-06-15"),
+      p("2025-06-01"), p("2023-01-01"), p("2019-01-01", "planilla", "AQP"), p(null),
+    ], "2026-11-09", null);
+    expect(r.tramos.map((t) => t.n)).toEqual([2, 1, 0, 1, 1, 1]);
+    expect(r).toMatchObject({ total: 6, enPrueba: 1, sinFecha: 1 }); // la practicante no tiene periodo de prueba de ley
+    expect(antiguedadDelEquipo([p("2019-01-01", "planilla", "AQP"), p("2026-09-01")], "2026-11-09", "AQP").total).toBe(1);
+  });
+});
+
+describe("acusesDeLaEmpresa — junta las cuentas que ya hacen Política salarial y Normas", () => {
+  const doc = (over: Record<string, unknown>) => ({
+    documento_id: "d1", tipo_nombre: "Reglamento interno de trabajo", titulo: "RIT", version: 4, etiqueta_version: "4.0",
+    requiere_acuse: true, total_acuses: 20, poblacion: 24, ...over,
+  });
+  it("la política y cada documento que pide constancia, lo más atrasado primero", async () => {
+    const { acusesDeLaEmpresa } = await import("../apps/web/lib/admin/tendencias");
+    const r = acusesDeLaEmpresa(
+      { publicada: true, version: 2, total_personas: 24, total_acuses: 23 },
+      [doc({}), doc({ documento_id: "d2", tipo_nombre: "Norma de uniformes", requiere_acuse: false })],
+    );
+    expect(r.map((x) => [x.titulo, x.acusaron, x.deben, x.href])).toEqual([
+      ["Reglamento interno de trabajo, versión 4.0", 20, 24, "/admin/normas"],
+      ["Política salarial, versión 2", 23, 24, "/admin/politica-salarial"],
+    ]);
+  });
+  it("sin política publicada ni población no inventa un medidor, y nunca más acuses que gente", async () => {
+    const { acusesDeLaEmpresa } = await import("../apps/web/lib/admin/tendencias");
+    expect(acusesDeLaEmpresa({ publicada: false }, [doc({ poblacion: 0 })])).toEqual([]);
+    expect(acusesDeLaEmpresa(null, [doc({ total_acuses: 30 })])[0]).toMatchObject({ acusaron: 24, deben: 24 });
+  });
+});
