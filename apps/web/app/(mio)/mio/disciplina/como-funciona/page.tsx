@@ -22,6 +22,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { EnlaceVolver } from "@/components/enlace-volver";
+import { VolverArriba } from "@/components/volver-arriba";
 import { fechaLarga } from "@/components/disciplina/memo-documento";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cifra } from "@/components/ui/cifra";
@@ -212,15 +213,16 @@ export default function ComoFuncionaLaDisciplinaPage() {
     return () => { vigente = false; };
   }, [supabase]);
 
+  // Abajo sobra espacio (pb-24) para que la flecha de volver arriba no tape la última línea al llegar al final.
   return (
-    <main className="mx-auto grid w-full min-w-0 max-w-[760px] gap-8 px-4 py-6 text-sm leading-relaxed sm:p-6 sm:text-[15px]">
+    <main className="mx-auto grid w-full min-w-0 max-w-[760px] gap-8 px-4 pb-24 pt-6 text-sm leading-relaxed sm:px-6 sm:text-[15px]">
       <div className="grid gap-4">
         <EnlaceVolver href="/mio?tab=disciplina" className="text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Disciplina
         </EnlaceVolver>
         <header className="grid gap-3">
           <Rotulo>Info · Disciplina</Rotulo>
-          <h1 className="font-serif text-3xl leading-tight sm:text-4xl">Cómo funciona la disciplina</h1>
+          <h1 id="guia-titulo" tabIndex={-1} className="font-serif text-3xl leading-tight focus:outline-none sm:text-4xl">Cómo funciona la disciplina</h1>
           <p className="max-w-prose text-base">
             Dynamic cuenta las tardanzas y las inasistencias, y avisa. No sanciona. Cualquier sanción la decide una
             persona, después de escucharte y con plazos que tú puedes ver en tu Info.
@@ -483,6 +485,8 @@ export default function ComoFuncionaLaDisciplinaPage() {
           y contra lo que hace hoy Dynamic. No reemplaza al Reglamento ni a tu contrato.
         </p>
       </footer>
+
+      <VolverArriba destino="guia-titulo" />
     </main>
   );
 }

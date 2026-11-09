@@ -3,15 +3,20 @@
 // controlaban. Un ícono lo dice con menos espacio SI su nombre accesible lo explica: por eso `etiqueta`
 // es obligatoria —alimenta el `aria-label` y el globo (`title`)— y nunca se omite.
 //
-// Mismo vocabulario que <Boton variante="secundario">: esquina de botón, borde sand, papel. Dos tamaños:
-// «sm» (28 px) para dentro de un aviso o de una tarjeta, «md» (32 px) suelto en una barra.
+// Mismo vocabulario que <Boton variante="secundario">: esquina de botón, borde sand, papel. Tres tamaños:
+// «sm» (28 px) para dentro de un aviso o de una tarjeta, «md» (32 px) suelto en una barra, y «lg» (44 px,
+// desde el 2026-11-09) para el que flota sobre la pantalla —la flecha de volver arriba—: ahí el dedo lo
+// busca sin mirar, y 44 px es lo mínimo que Apple pide para un blanco táctil suelto.
 // `contador` es el número rojo de «hay algo aquí» (como el de las alertas críticas): el color no va solo,
 // el número se lee.
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cx } from "./cx";
 
-const TAMANOS = { sm: "size-7", md: "size-8" } as const;
+const TAMANOS = { sm: "size-7", md: "size-8", lg: "size-11" } as const;
+// El ícono crece solo en «lg»: 16 px dentro de 44 se ve perdido. Va aparte de TAMANOS y en el mismo lugar
+// de la lista donde estaba, para que «sm» y «md» sigan saliendo con las mismas clases en el mismo orden.
+const ICONOS = { sm: "[&_svg]:size-4", md: "[&_svg]:size-4", lg: "[&_svg]:size-5" } as const;
 
 export function BotonIcono({
   etiqueta,
@@ -38,7 +43,8 @@ export function BotonIcono({
       title={etiqueta}
       aria-pressed={activo}
       className={cx(
-        "relative inline-flex shrink-0 items-center justify-center rounded-control border transition-colors duration-150 focus-visible:outline-offset-2 [&_svg]:size-4",
+        "relative inline-flex shrink-0 items-center justify-center rounded-control border transition-colors duration-150 focus-visible:outline-offset-2",
+        ICONOS[tamano],
         activo ? "border-tinta bg-tinta text-crema" : "border-sand bg-papel text-taupe hover:border-taupe hover:text-tinta",
         TAMANOS[tamano],
         className,

@@ -78,6 +78,27 @@ button [&amp;_svg]:size-4 bg-tinta border border-tinta duration-150 focus-visibl
 button [&amp;_svg]:size-4 bg-tinta border border-tinta duration-150 focus-visible:outline-offset-2 inline-flex items-center justify-center relative rounded-control shrink-0 size-8 text-crema transition-colors
   svg size-4
   span -right-1.5 -top-1.5 absolute bg-rojo font-semibold leading-4 min-w-4 px-1 rounded-full text-[10px] text-center text-crema
+## BotonIcono tamano=lg activo=undefined contador=undefined
+button [&amp;_svg]:size-5 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-11 text-taupe transition-colors
+  svg size-4
+## BotonIcono tamano=lg activo=undefined contador=3
+button [&amp;_svg]:size-5 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-11 text-taupe transition-colors
+  svg size-4
+  span -right-1.5 -top-1.5 absolute bg-rojo font-semibold leading-4 min-w-4 px-1 rounded-full text-[10px] text-center text-crema
+## BotonIcono tamano=lg activo=false contador=undefined
+button [&amp;_svg]:size-5 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-11 text-taupe transition-colors
+  svg size-4
+## BotonIcono tamano=lg activo=false contador=3
+button [&amp;_svg]:size-5 bg-papel border border-sand duration-150 focus-visible:outline-offset-2 hover:border-taupe hover:text-tinta inline-flex items-center justify-center relative rounded-control shrink-0 size-11 text-taupe transition-colors
+  svg size-4
+  span -right-1.5 -top-1.5 absolute bg-rojo font-semibold leading-4 min-w-4 px-1 rounded-full text-[10px] text-center text-crema
+## BotonIcono tamano=lg activo=true contador=undefined
+button [&amp;_svg]:size-5 bg-tinta border border-tinta duration-150 focus-visible:outline-offset-2 inline-flex items-center justify-center relative rounded-control shrink-0 size-11 text-crema transition-colors
+  svg size-4
+## BotonIcono tamano=lg activo=true contador=3
+button [&amp;_svg]:size-5 bg-tinta border border-tinta duration-150 focus-visible:outline-offset-2 inline-flex items-center justify-center relative rounded-control shrink-0 size-11 text-crema transition-colors
+  svg size-4
+  span -right-1.5 -top-1.5 absolute bg-rojo font-semibold leading-4 min-w-4 px-1 rounded-full text-[10px] text-center text-crema
 ## BotonAyuda
 button -my-2 duration-150 hover:bg-sand/60 hover:text-tinta inline-flex items-center justify-center rounded-pildora shrink-0 size-8 text-taupe transition-colors
   svg size-[18px]
