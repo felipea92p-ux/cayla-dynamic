@@ -365,6 +365,14 @@
     background: var(--ahumado-denso-fondo);
     box-shadow: var(--ahumado-denso-luz);
   }
+  /* En oscuro, esa misma tarjeta sube en vez de invertirse (`.tarjeta-invertida` en globals.css): el ahumado de la tinta era un bloque casi blanco. Va con la
+     placa de una tarjeta y, encima, la gota de lo que está más arriba. Tiene que ser una receta propia y no el ahumado con la tinta cambiada: las recetas se
+     calculan en la raíz, así que no ven el cambio de tokens que la tarjeta hace por dentro. */
+  :root[data-vidrio="panel"][data-tema="oscuro"] div.tarjeta-invertida:not(.hoja *) {
+    border-color: var(--serena-borde);
+    background: var(--gota-fondo-encima);
+    box-shadow: var(--serena-sombra);
+  }
 
   /* Las barras de tinta de Costos, en oscuro: la tinta es casi blanca, y un bloque de ese tamaño encandilaba más que la cifra que acompaña. */
   :root[data-vidrio="panel"][data-tema="oscuro"] [class*="bg-[color-mix(in_oklab,var(--color-tinta)_80%"]:not(.hoja *) {

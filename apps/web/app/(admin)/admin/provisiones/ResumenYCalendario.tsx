@@ -73,9 +73,10 @@ export function ResumenProvisiones({
           detalle="Acumulado a hoy, aún sin pagar"
           cuando="Se paga cuando cada persona las goza"
         />
-        {/* bg-tinta con text-crema, nunca text-white: en oscuro los dos tokens
-            se invierten juntos y la tarjeta sigue legible (ver CLAUDE.md). */}
-        <div className="flex flex-col gap-1 rounded-superficie border border-tinta bg-tinta p-4 text-crema">
+        {/* bg-tinta con text-crema, nunca text-white ni text-tinta: en oscuro
+            `.tarjeta-invertida` (globals.css) cambia los dos tokens de lugar y la
+            tarjeta sube un paso en vez de volverse un bloque claro. */}
+        <div className="tarjeta-invertida flex flex-col gap-1 rounded-superficie border border-tinta bg-tinta p-4 text-crema">
           <span className="text-xs tracking-wide text-crema/70 uppercase">Próximo desembolso</span>
           {prox ? (
             <>
