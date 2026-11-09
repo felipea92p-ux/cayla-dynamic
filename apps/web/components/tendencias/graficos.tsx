@@ -17,6 +17,7 @@ import { faltaSeguido, horaMasCorta, type HoraDePiso } from "@/lib/admin/piso-ve
 import { MESES_LARGO } from "@/lib/admin/planilla/formato";
 import { soles } from "@/lib/admin/educacion-formato";
 import { cx } from "@/components/ui/cx";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { useEsCelular } from "@/lib/use-vidrio-lateral";
 import { interruptoresVidrio } from "@/lib/vidrio";
 
@@ -78,7 +79,8 @@ export function DiasPerdidosGrafico({ datos, nombreDe }: { datos: DiasPerdidos; 
 
   const cols = W >= 720 ? Math.min(motivos.length, 4) : W >= 400 ? Math.min(motivos.length, 2) : 1;
   const GAP = 20, PT = 34, PH = 84, PB = 18, ENTRE = 16;
-  const pw = cols > 0 ? (W - GAP * (cols - 1)) / cols : W;
+  // Un panel no pasa de 420 px: con un solo motivo, estirarlo a toda la tarjeta dejaba los meses a un palmo uno de otro.
+  const pw = Math.min(420, cols > 0 ? (W - GAP * (cols - 1)) / cols : W);
   const filas = Math.ceil(motivos.length / Math.max(cols, 1));
   const H = filas * (PT + PH + PB) + Math.max(0, filas - 1) * ENTRE;
   const max = Math.max(1, ...motivos.flatMap((m) => m.dias));
@@ -138,7 +140,8 @@ export function DiasPerdidosGrafico({ datos, nombreDe }: { datos: DiasPerdidos; 
 export function PisoYVentaGrafico({ horas, comprasFallo }: { horas: HoraDePiso[]; comprasFallo: boolean }) {
   const [ref, W] = useAncho<HTMLDivElement>();
   const peor = comprasFallo ? null : horaMasCorta(horas);
-  const T1 = 18, H1 = 76, ENTRE = 34, H2 = 64, PB = 18;
+  // Sin compras no se deja el hueco de su fila: se dice arriba, en una línea, y se dibuja solo la gente.
+  const T1 = comprasFallo ? 0 : 18, H1 = comprasFallo ? 0 : 76, ENTRE = comprasFallo ? 18 : 34, H2 = 64, PB = 18;
   const base1 = T1 + H1, top2 = base1 + ENTRE, base2 = top2 + H2, H = base2 + PB;
   const carril = W / Math.max(horas.length, 1);
   const ancho = Math.min(carril * 0.56, 26);
@@ -156,15 +159,20 @@ export function PisoYVentaGrafico({ horas, comprasFallo }: { horas: HoraDePiso[]
       ) : (
         <Encabeza valor="Sin faltas" detalle="Ninguna hora tuvo menos gente en piso de la que pedía la venta." />
       ))}
-      <div ref={ref} className="w-full">
+      {comprasFallo && (
+        <BannerAviso enLinea role="status">
+          No se pudieron leer las compras de retail: se ve la gente en piso, pero no cuánta pedía la venta.
+        </BannerAviso>
+      )}
+      <div ref={ref} className={cx("w-full", comprasFallo && "mt-3")}>
         {W > 0 && (
           <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Compras y personas en piso por hora del día" className="block overflow-visible">
             {horas.map((h, i) => faltaSeguido(h) && (
               <rect key={`b${h.hora}`} x={carril * i + 1} y={0} width={carril - 2} height={base2} rx={8} fill="var(--color-hueso)" />
             ))}
-            <text x={0} y={11} {...TT}>{comprasFallo ? "Compras por hora: no se pudieron leer de retail" : "Compras por hora, en promedio"}</text>
+            {!comprasFallo && <text x={0} y={11} {...TT}>Compras por hora, en promedio</text>}
             <text x={0} y={top2 - 8} {...TT}>Personas en piso, en promedio</text>
-            <line x1={0} x2={W} y1={base1} y2={base1} stroke="var(--color-sand)" />
+            {!comprasFallo && <line x1={0} x2={W} y1={base1} y2={base1} stroke="var(--color-sand)" />}
             <line x1={0} x2={W} y1={base2} y2={base2} stroke="var(--color-sand)" />
             {horas.map((h, i) => {
               const cx0 = carril * i + carril / 2;
@@ -192,9 +200,9 @@ export function PisoYVentaGrafico({ horas, comprasFallo }: { horas: HoraDePiso[]
           </svg>
         )}
       </div>
-      <p className="mt-2 text-xs text-taupe">
-        {comprasFallo ? "Sin las compras no se sabe cuánta gente pedía la venta." : "La raya es lo que pedía la venta. La franja marca las horas en que faltó gente la mitad de los días o más."}
-      </p>
+      {!comprasFallo && (
+        <p className="mt-2 text-xs text-taupe">La raya es lo que pedía la venta. La franja marca las horas en que faltó gente la mitad de los días o más.</p>
+      )}
     </div>
   );
 }

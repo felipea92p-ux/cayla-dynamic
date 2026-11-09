@@ -295,7 +295,7 @@ export function PanelTendencias({ rol, sedes }: {
           titulo="Gente en piso frente a la venta"
           que={`Hora por hora: cuántas compras hubo, cuánta gente había en piso y cuánta pedía la venta. Últimos ${DIAS_DE_PISO} días.`}
           queCorto={`Hora por hora, en los últimos ${DIAS_DE_PISO} días.`}
-          nota={<>Una compra es un ticket completado de Retail. En piso es el peor cuarto de cada hora, sin quien está en almacén, en refrigerio o en pausa: la misma cuenta que la repetición del día en Turnos. Lo que pedía la venta son las compras de la hora divididas por el ritmo de la tienda, nunca menos que su mínimo (Parámetros). Una hora con menos de cuatro días medidos no se marca. Nunca por persona.</>}
+          nota={<>Una compra es un ticket completado de Retail. En piso es el peor cuarto de cada hora, sin quien está en almacén, en refrigerio o en pausa: la misma cuenta que la repetición del día en Turnos. Lo que pedía la venta son las compras de la hora divididas por el ritmo de la tienda, nunca menos que su mínimo (Parámetros). Solo se miran las horas enteras dentro del horario de la tienda (de la primera entrada a la última salida de su equipo): en la que abre o cierra a medias, el peor cuarto cae con la tienda cerrada. Una hora con menos de cuatro días medidos no se marca. Nunca por persona.</>}
         >
           {tienda === null ? (
             <EstadoVacio>{sedeArriba?.nombre ?? "Esta sede"} no es tienda: este gráfico mira la venta de cada hora.</EstadoVacio>

@@ -1,6 +1,6 @@
 // piso-venta.test.ts — la tendencia «Gente en piso frente a la venta» junta días; no decide quién estaba en piso
 import { describe, expect, it } from "vitest";
-import { esDelTipo, faltaSeguido, horaMasCorta, MINIMO_DIAS_HORA, pisoPorHora, type DiaDePiso } from "../apps/web/lib/admin/piso-venta";
+import { esDelTipo, faltaSeguido, horaDentroDeLaVentana, horaMasCorta, MINIMO_DIAS_HORA, pisoPorHora, type DiaDePiso } from "../apps/web/lib/admin/piso-venta";
 
 const hora = (h: number, enPiso: number, compras: number | null, pedia: number | null) => ({ hora: h, enPiso, compras, pedia });
 // 2026-11-02 es lunes; 2026-11-07 sábado; 2026-11-08 domingo.
@@ -50,5 +50,17 @@ describe("horaMasCorta y faltaSeguido — una hora con pocos días no se juzga",
   });
   it("sin ninguna falta no hay hora que señalar", () => {
     expect(horaMasCorta([h(10, 20, 0)])).toBeNull();
+  });
+});
+
+describe("horaDentroDeLaVentana — no se juzga la hora en que la tienda abre o cierra a medias", () => {
+  const v = { abre: 10, cierra: 18.5 };
+  it("de 10:00 a 18:30 se miran de las 10 a las 17", () => {
+    expect([9, 10, 17, 18].map((h) => horaDentroDeLaVentana(h, v))).toEqual([false, true, true, false]);
+  });
+  it("si abre a las 9:30, la hora de las 9 tampoco; sin horario, ninguna se descarta", () => {
+    expect(horaDentroDeLaVentana(9, { abre: 9.5, cierra: 21 })).toBe(false);
+    expect(horaDentroDeLaVentana(20, { abre: 9.5, cierra: 21 })).toBe(true);
+    expect(horaDentroDeLaVentana(7, undefined)).toBe(true);
   });
 });

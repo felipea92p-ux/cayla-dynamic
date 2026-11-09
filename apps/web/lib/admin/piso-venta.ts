@@ -16,7 +16,7 @@ import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AREA_DEFAULT, esOperativaEn, parseAreas } from "@/lib/areas";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { leerPuestosResueltos } from "@/lib/puestos-resueltos";
-import { PISO, puestoDesdeFilas, type PuestoDelDia } from "@/lib/admin/almacen";
+import { aDecimal, PISO, puestoDesdeFilas, type PuestoDelDia } from "@/lib/admin/almacen";
 import { diaCompletoReal, personasDelDiaCerrado, planDelDia, type HoraDelDiaReal } from "@/lib/admin/repeticion";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import type { CambioUbicacion, Ubicacion } from "@/lib/terminal/ubicacion";
@@ -39,6 +39,21 @@ export function esDelTipo(fecha: string, tipo: TipoDeDia): boolean {
   const dow = new Date(`${fecha}T12:00:00Z`).getUTCDay();
   const finde = dow === 0 || dow === 6;
   return tipo === "finde" ? finde : !finde;
+}
+
+/** El horario de la tienda un día de la semana, en horas decimales: de la primera entrada a la última salida de su equipo. */
+export interface VentanaDia {
+  abre: number;
+  cierra: number;
+}
+
+/**
+ * Solo se juzgan las horas ENTERAS dentro del horario de la tienda. En la hora en que abre o cierra a medias, el
+ * peor cuarto cae con la tienda cerrada (la gente llegando antes de abrir, o ya fuera después de cerrar) y diría
+ * que faltó gente sin que faltara nadie. Sin horario conocido para ese día, no se descarta ninguna.
+ */
+export function horaDentroDeLaVentana(hora: number, v: VentanaDia | undefined): boolean {
+  return !v || (hora >= v.abre - 1e-9 && hora + 1 <= v.cierra + 1e-9);
 }
 
 export interface HoraDePiso {
@@ -132,7 +147,7 @@ export async function traerPisoYVenta(supabase: Cliente, sede: { id: string; tip
   const [
     { data: f, error: fErr }, { data: ar, error: arErr }, { data: h, error: hErr }, { data: t, error: tErr },
     { data: pue, error: pueErr }, { data: cam, error: camErr }, { data: mar, error: marErr },
-    { data: com, error: comErr }, { data: par },
+    { data: com, error: comErr }, { data: par }, { data: ven },
   ] = await Promise.all([
     supabase.rpc("fn_personas_funciones"),
     supabase.rpc("fn_areas"),
@@ -151,6 +166,8 @@ export async function traerPisoYVenta(supabase: Cliente, sede: { id: string; tip
       .order("timestamp_marca").order("id").range(a, b)),
     supabase.rpc("fn_compras_por_hora", { p_sede_id: sede.id, p_desde: desde, p_hasta: hasta }),
     supabase.rpc("fn_cobertura_por_venta", { p_sede_id: sede.id }),
+    // El horario de la tienda por día de la semana (0584). Si falla, no se descarta ninguna hora.
+    supabase.rpc("fn_sede_ventana_semanal", { p_sede_id: sede.id }),
   ]);
   // Sin funciones, áreas, horarios, turnos, almacén o marcas, «cuántas había en piso» saldría inventado.
   if (fErr || arErr || hErr || tErr || pueErr || camErr || marErr) throw new Error("No se pudo leer lo marcado en la tienda.");
@@ -193,6 +210,8 @@ export async function traerPisoYVenta(supabase: Cliente, sede: { id: string; tip
     compras.set(x.fecha, m);
   }
   const parametros = ((par as { ritmo: number; minimo: number }[] | null) ?? [])[0] ?? null;
+  const ventana = new Map(((ven as { dia: number; abre: string; cierra: string }[] | null) ?? [])
+    .map((v) => [Number(v.dia), { abre: aDecimal(v.abre), cierra: aDecimal(v.cierra) }] as const));
   const comprasFallo = Boolean(comErr);
 
   const dias: DiaDePiso[] = [];
@@ -209,13 +228,14 @@ export async function traerPisoYVenta(supabase: Cliente, sede: { id: string; tip
       marcajesDe: (id) => marcajes.get(`${id}|${fecha}`) ?? [],
     });
     const delDia = compras.get(fecha);
+    const deHoy = ventana.get(new Date(`${fecha}T12:00:00Z`).getUTCDay());
     dias.push({
       fecha,
       horas: diaCompletoReal({
         personas: personasDia, medianocheIso,
         comprasDe: comprasFallo ? null : (hora) => delDia?.get(hora) ?? 0,
         parametros: comprasFallo ? null : (parametros ? { ritmo: Number(parametros.ritmo), minimo: Number(parametros.minimo) } : null),
-      }),
+      }).filter((h) => horaDentroDeLaVentana(h.hora, deHoy)),
     });
   }
   return { dias, comprasFallo, desde, hasta };
