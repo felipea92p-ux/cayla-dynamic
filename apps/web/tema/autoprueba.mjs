@@ -29,6 +29,7 @@ const PAGINA_DE_CONTRASTE = `<!doctype html>
   <p style="color:#6b6b6b">No se lee</p>
   <p style="color:#6b6b6b;font-size:30px">Grande con 3 alcanza</p>
   <button disabled style="color:#333">Deshabilitado queda exento</button>
+  <a href="#" style="position:absolute;width:1px;height:1px;padding:8px 16px;overflow:hidden;clip-path:inset(50%);color:#1c1a16">Recortado a la vista queda exento</a>
   <span aria-hidden="true" style="color:#777">›</span>
   <span aria-hidden="true" style="color:#444">·</span>
   <kbd aria-hidden="true" style="color:#777">/</kbd>

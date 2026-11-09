@@ -107,6 +107,18 @@
     return o;
   }
 
+  /**
+   * Recortado a la vista (`sr-only`: `clip-path: inset(50%)`, o el `clip: rect(0 0 0 0)` de antes): está para el lector de pantalla y no se ve.
+   * «Saltar al contenido» salía a 1:1 en cada pantalla y era la mitad de los hallazgos: un ruido así enseña a no mirar el reporte.
+   */
+  function recortadoALaVista(el) {
+    for (let e = el; e && e !== document.body; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (cs.clipPath.startsWith("inset(50%") || cs.clip === "rect(0px, 0px, 0px, 0px)") return true;
+    }
+    return false;
+  }
+
   /** Un control deshabilitado queda exento de contraste (WCAG 1.4.3). */
   const deshabilitado = (el) => !!el.closest(":disabled, [aria-disabled='true'], [data-disabled]");
 
@@ -139,7 +151,7 @@
       if (cs.visibility === "hidden" || cs.display === "none") continue;
       const caja = el.getBoundingClientRect();
       if (caja.width < 2 || caja.height < 2) continue;
-      if (parseFloat(cs.fontSize) < 1 || deshabilitado(el)) continue;
+      if (parseFloat(cs.fontSize) < 1 || deshabilitado(el) || recortadoALaVista(el)) continue;
       const op = opacidadHeredada(el);
       if (op < 0.05) continue;
       const rango = document.createRange();
