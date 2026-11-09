@@ -31,11 +31,14 @@
     background-color: transparent;
   }
 
-  /* ---------- La letra, como en el panel ----------
-     La serif a 600 (P6 del contrato). La secundaria un punto más tinta: sobre la nube más teñida el café bajaba a 3.82:1. El rojo y el ámbar de
-     marca son para marcar, no para leer: la letra va en su tono profundo. */
+  /* ---------- La letra ----------
+     La serif a 500, no a la 600 del panel (P6 del contrato, pensada para títulos). Aquí la serif son sobre todo NOMBRES en una casilla de 192 px:
+     a 600 se veían gruesos y anchos, y «Carmen Vega Núñez» se partía en dos líneas. Elegido el 2026-11-09 mirando 400, 500 y 600 en el terminal
+     real: 400 (la de antes del vidrio) se adelgaza demasiado sobre el vidrio a un metro, sobre todo en oscuro.
+     La secundaria un punto más tinta: sobre la nube más teñida el café bajaba a 3.82:1. El rojo y el ámbar de marca son para marcar, no para leer:
+     la letra va en su tono profundo. */
   [data-vidrio="terminal"] .font-serif {
-    font-weight: 600;
+    font-weight: 500;
   }
   [data-vidrio="terminal"] .text-taupe {
     color: var(--vidrio-letra-secundaria);
