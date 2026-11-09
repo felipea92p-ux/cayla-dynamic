@@ -11,7 +11,8 @@ import { diaYMes } from "../bandeja-mia";
 import { formatSoles } from "../rangos";
 import { pendientesDeSeguros, seguroPorPersona, type CambioSeguro, type FilaEquipoSeguro, type Poliza } from "./seguros";
 import {
-  etapaDelBorrador, lecturaPendienteParaAviso, pendientesDeEntregado, type Adjunto, type DocDisciplina, type LecturaMemo,
+  etapaDelBorrador, lecturaPendienteParaAviso, pendientesDeEntregado, type Adjunto, type CamposDeEntregado,
+  type CamposDelBorrador, type DocDisciplina, type LecturaMemo,
 } from "./disciplina";
 import {
   compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
@@ -258,7 +259,7 @@ export interface ItemDisciplina {
  * No es una regla nueva: son `etapaDelBorrador` y `pendientesDeEntregado`, las
  * mismas que ordenan las pestañas de la pantalla de Disciplina.
  */
-export function pasoDisciplina(d: DocDisciplina, adjuntos: readonly Adjunto[], exigeDescargo: boolean, ahora: Date = new Date()): PasoDisciplina | null {
+export function pasoDisciplina(d: CamposDelBorrador & CamposDeEntregado, adjuntos: readonly Adjunto[], exigeDescargo: boolean, ahora: Date = new Date()): PasoDisciplina | null {
   if (d.estado === "borrador") return etapaDelBorrador(d, exigeDescargo, ahora);
   if (d.estado === "firmado") return "entregar";
   if (d.estado === "entregado") {
@@ -545,12 +546,16 @@ async function traerDisciplina(
 ): Promise<ItemDisciplina[]> {
   const [docs, cfg] = await Promise.all([
     supabase.from("expediente_disciplinario")
-      .select("id, persona_id, nivel, estado, creado_at, firmado_at, entregado_at, cargos_comunicados_at, descargo_vence_at, descargo_acogido, resuelto_at")
+      .select("id, persona_id, nivel, estado, creado_at, firmado_at, entregado_at, medio_entrega, cargos_comunicados_at, descargo_vence_at, descargo_acogido, resuelto_at")
       .in("estado", ["borrador", "firmado", "entregado"]),
     supabase.from("configuracion").select("valor").eq("clave", "disciplina_descargo_previo").maybeSingle(),
   ]);
   if (docs.error) { fallo("disciplina", "los documentos disciplinarios", docs.error); return []; }
-  const filas = (docs.data ?? []) as unknown as DocDisciplina[];
+  // Sin conversión forzada, a propósito: el tipo de cada fila sale del `select`
+  // de arriba, y `pasoDisciplina` exige las columnas que lee su regla. Si una
+  // migración le suma una columna a la regla, esta línea deja de compilar en vez
+  // de pasarle un `undefined` (ver `CamposDeEntregado`).
+  const filas = docs.data ?? [];
   if (filas.length === 0) return [];
   // Mismo criterio que la pantalla: solo un `false` explícito apaga el descargo previo.
   const exigeDescargo = (cfg.data?.valor as unknown) !== false;

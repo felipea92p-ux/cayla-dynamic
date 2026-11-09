@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-09-la-bandeja-ya-no-pide-cargo-de-lo-recibido-por-info",
+    fecha: "2026-11-09",
+    titulo: "La Bandeja ya no pide el cargo de un documento que la persona recibió por su Info",
+    queMejoro:
+      "Cuando un documento de Disciplina se entrega por la Info de la persona y ella confirma que lo recibió, esa " +
+      "confirmación es la constancia: no hay papel que subir. Disciplina ya lo pasaba al historial, pero la Bandeja lo " +
+      "seguía mostrando como «entregada, sin cargo firmado» y pedía «Subir cargo». Ya no aparece ahí.\n\n" +
+      "Lo que se entrega en papel sigue pidiendo su cargo firmado, igual que antes.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-09-lo-mio-en-el-telefono-se-lee-mejor",
     fecha: "2026-11-09",
     titulo: "En el teléfono, el menú vuelve a mostrar sus nombres y las listas van de a 5",
