@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-09-mis-dias-con-los-colores-de-tu-lider",
+    fecha: "2026-11-09",
+    titulo: "Mis días usa los mismos colores que ve tu líder, y tu firma escrita se ve en modo oscuro",
+    queMejoro:
+      "En Lo mío › Mis días, cada cuadrito se pinta ahora con los mismos colores que ve tu líder de equipo en el panel, " +
+      "y la explicación de abajo los muestra igual. Los días «con motivo» y los que no tienen marca se distinguen mejor, " +
+      "y en modo oscuro un día en que llegaste muy tarde ya no se ve más suave que uno en que llegaste un poco tarde: " +
+      "lleva un borde rojo, como en el panel.\n\n" +
+      "Y al escribir tu firma (Cambiar firma › Escribir), en modo oscuro tu nombre salía casi blanco sobre blanco y no " +
+      "se veía. Ya se ve.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-09-lo-mio-en-el-telefono-se-lee-mejor",
     fecha: "2026-11-09",
     titulo: "En el teléfono, el menú vuelve a mostrar sus nombres y las listas van de a 5",
