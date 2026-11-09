@@ -11,11 +11,193 @@
 //   · Con el vidrio, en el teléfono se dibuja a su tamaño (`useAngosto`): encoger un dibujo de 640 a 300 px dejaba la letra en 5 px. Y las columnas son las de Retail
 //     (finanzas/GraficoSemanas): en tinta, con el extremo del dato redondeado y ancladas a la línea base.
 
-import type { BarrasCasos, CeldaCalor, ColumnaCosto, LlegadaSede, PuntoSemana } from "@/lib/admin/tendencias";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { MESES_CORTOS, type BarrasCasos, type CeldaCalor, type ColumnaCosto, type DiasPerdidos, type LlegadaSede, type PuntoSemana } from "@/lib/admin/tendencias";
+import { faltaSeguido, horaMasCorta, type HoraDePiso } from "@/lib/admin/piso-venta";
+import { MESES_LARGO } from "@/lib/admin/planilla/formato";
 import { soles } from "@/lib/admin/educacion-formato";
 import { cx } from "@/components/ui/cx";
 import { useEsCelular } from "@/lib/use-vidrio-lateral";
 import { interruptoresVidrio } from "@/lib/vidrio";
+
+// ── Piezas comunes de los dibujos que se hacen a su medida ──────────────────
+// «Días perdidos» y «Gente en piso» (2026-11-09) no se estiran con un viewBox: miden su contenedor y dibujan en
+// píxeles. Un viewBox de 640 en una tarjeta de 1 800 px dejaba la letra de 10 px en casi 30.
+
+/** El ancho real del contenedor, que cambia con la ventana. 0 hasta que se monta. */
+function useAncho<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [ancho, setAncho] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const medir = () => setAncho(Math.floor(el.clientWidth));
+    medir();
+    const obs = new ResizeObserver(medir);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return [ref, ancho] as const;
+}
+
+/** Una columna con el extremo del dato redondeado y anclada a la línea base (las de Retail). */
+function columna(x: number, y: number, w: number, h: number): string {
+  const r = Math.min(4, w / 2, h);
+  return `M${x},${y + h} V${y + r} q0,-${r} ${r},-${r} h${w - 2 * r} q${r},0 ${r},${r} V${y + h} Z`;
+}
+
+/** 6 → «6»; 6.4 → «6.4». */
+const numero = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+/** La cifra que encabeza un gráfico y su línea de contexto. */
+function Encabeza({ valor, detalle }: { valor: ReactNode; detalle: ReactNode }) {
+  return (
+    <p className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      {/* receta-propia: es la cifra que encabeza un gráfico dentro de su tarjeta; <Cifra> es una casilla con borde y aquí quedaría una caja dentro de otra */}
+      <span className="font-serif text-3xl leading-none text-tinta">{valor}</span>
+      <span className="text-sm text-taupe">{detalle}</span>
+    </p>
+  );
+}
+
+const T = { fontSize: 11, fill: "var(--color-taupe)" } as const;
+const TT = { fontSize: 11, fill: "var(--color-tinta)", fontWeight: 500 } as const;
+
+// ── Días perdidos, por motivo: un panel por motivo, todos con la misma escala ──
+export function DiasPerdidosGrafico({ datos, nombreDe }: { datos: DiasPerdidos; nombreDe: (clave: string) => string }) {
+  const [ref, W] = useAncho<HTMLDivElement>();
+  const rayado = useId().replace(/:/g, "");
+  const { meses, motivos } = datos;
+  // Encabeza el último mes que terminó; si ninguno terminó todavía, el que hay.
+  const terminado = meses.findLastIndex((m) => !m.parcial && m.pct !== null);
+  const iRef = terminado >= 0 ? terminado : meses.findLastIndex((m) => m.pct !== null);
+  const ref0 = meses[iRef];
+  const mayor = [...motivos].filter((m) => m.dias[iRef] > 0).sort((a, b) => b.dias[iRef] - a.dias[iRef])[0];
+  const nombreMes = (mes: string) => MESES_LARGO[Number(mes.slice(5, 7)) - 1];
+  const corto = (mes: string) => MESES_CORTOS[Number(mes.slice(5, 7)) - 1];
+
+  const cols = W >= 720 ? Math.min(motivos.length, 4) : W >= 400 ? Math.min(motivos.length, 2) : 1;
+  const GAP = 20, PT = 34, PH = 84, PB = 18, ENTRE = 16;
+  const pw = cols > 0 ? (W - GAP * (cols - 1)) / cols : W;
+  const filas = Math.ceil(motivos.length / Math.max(cols, 1));
+  const H = filas * (PT + PH + PB) + Math.max(0, filas - 1) * ENTRE;
+  const max = Math.max(1, ...motivos.flatMap((m) => m.dias));
+  const carril = pw / Math.max(meses.length, 1);
+  const ancho = Math.min(carril * 0.55, 28);
+
+  return (
+    <div>
+      {ref0 && ref0.pct !== null && (
+        <Encabeza
+          valor={`${ref0.pct}%`}
+          detalle={<>de los días que tocaba trabajar se perdieron en {nombreMes(ref0.mes)}{ref0.parcial ? " (va en curso)" : ""} · <strong className="font-medium text-tinta">{ref0.perdidos} de {ref0.perdidos + ref0.trabajados}</strong>{mayor ? <> · el motivo más grande: {nombreDe(mayor.clave).toLowerCase()} ({mayor.dias[iRef]})</> : null}</>}
+        />
+      )}
+      <div ref={ref} className="w-full">
+        {W > 0 && (
+          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Días perdidos por mes, un panel por motivo" className="block overflow-visible">
+            <defs>
+              <pattern id={rayado} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-taupe)" strokeWidth="1.6" />
+              </pattern>
+            </defs>
+            {motivos.map((m, k) => {
+              const ox = (k % cols) * (pw + GAP), oy = Math.floor(k / cols) * (PT + PH + PB + ENTRE);
+              const base = oy + PT + PH;
+              return (
+                <g key={m.clave}>
+                  <text x={ox} y={oy + 12} {...TT}>{nombreDe(m.clave)}</text>
+                  <text x={ox} y={oy + 26} {...T}>{m.total} {m.total === 1 ? "día" : "días"} en el periodo</text>
+                  <line x1={ox} x2={ox + pw} y1={base} y2={base} stroke="var(--color-sand)" />
+                  {m.dias.map((d, i) => {
+                    const cx0 = ox + carril * i + carril / 2, h = (d / max) * (PH - 14), y0 = base - h;
+                    const parcial = meses[i].parcial;
+                    return (
+                      <g key={meses[i].mes}>
+                        <title>{`${nombreDe(m.clave)}, ${nombreMes(meses[i].mes)}${parcial ? " (parcial)" : ""}: ${d} ${d === 1 ? "día" : "días"}`}</title>
+                        <rect x={cx0 - carril / 2} y={oy} width={carril} height={PT + PH + PB} fill="transparent" />
+                        {h > 0 && (parcial
+                          ? <rect x={cx0 - ancho / 2} y={y0} width={ancho} height={h} rx={3} fill={`url(#${rayado})`} stroke="var(--color-taupe)" strokeDasharray="3 2" />
+                          : <path d={columna(cx0 - ancho / 2, y0, ancho, h)} fill="var(--color-tinta)" />)}
+                        {d > 0 && carril >= 22 && <text x={cx0} y={y0 - 5} textAnchor="middle" className="tabular-nums" {...(parcial ? T : TT)}>{d}</text>}
+                        {(carril >= 24 || i % 2 === meses.length % 2) && <text x={cx0} y={base + 14} textAnchor="middle" {...T}>{corto(meses[i].mes)}</text>}
+                      </g>
+                    );
+                  })}
+                </g>
+              );
+            })}
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Gente en piso frente a la venta: dos filas que comparten la hora ─────────
+export function PisoYVentaGrafico({ horas, comprasFallo }: { horas: HoraDePiso[]; comprasFallo: boolean }) {
+  const [ref, W] = useAncho<HTMLDivElement>();
+  const peor = comprasFallo ? null : horaMasCorta(horas);
+  const T1 = 18, H1 = 76, ENTRE = 34, H2 = 64, PB = 18;
+  const base1 = T1 + H1, top2 = base1 + ENTRE, base2 = top2 + H2, H = base2 + PB;
+  const carril = W / Math.max(horas.length, 1);
+  const ancho = Math.min(carril * 0.56, 26);
+  const maxC = Math.max(1, ...horas.map((h) => h.compras ?? 0));
+  const maxP = Math.max(1, ...horas.map((h) => Math.max(h.enPiso, h.pedia ?? 0)));
+  const conEtiqueta = carril >= 30;
+
+  return (
+    <div>
+      {!comprasFallo && (peor ? (
+        <Encabeza
+          valor={`${peor.hora}:00`}
+          detalle={<>es la hora en que más seguido faltó gente: <strong className="font-medium text-tinta">{peor.conFalta} de {peor.dias} días</strong> · en promedio había {numero(peor.enPiso)} en piso y la venta pedía {numero(peor.pedia ?? 0)}</>}
+        />
+      ) : (
+        <Encabeza valor="Sin faltas" detalle="Ninguna hora tuvo menos gente en piso de la que pedía la venta." />
+      ))}
+      <div ref={ref} className="w-full">
+        {W > 0 && (
+          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Compras y personas en piso por hora del día" className="block overflow-visible">
+            {horas.map((h, i) => faltaSeguido(h) && (
+              <rect key={`b${h.hora}`} x={carril * i + 1} y={0} width={carril - 2} height={base2} rx={8} fill="var(--color-hueso)" />
+            ))}
+            <text x={0} y={11} {...TT}>{comprasFallo ? "Compras por hora: no se pudieron leer de retail" : "Compras por hora, en promedio"}</text>
+            <text x={0} y={top2 - 8} {...TT}>Personas en piso, en promedio</text>
+            <line x1={0} x2={W} y1={base1} y2={base1} stroke="var(--color-sand)" />
+            <line x1={0} x2={W} y1={base2} y2={base2} stroke="var(--color-sand)" />
+            {horas.map((h, i) => {
+              const cx0 = carril * i + carril / 2;
+              const hc = h.compras !== null ? (h.compras / maxC) * (H1 - 16) : 0;
+              const hp = (h.enPiso / maxP) * (H2 - 14);
+              const yPedia = h.pedia !== null ? base2 - (h.pedia / maxP) * (H2 - 14) : null;
+              return (
+                <g key={h.hora}>
+                  <title>{[
+                    `${h.hora}:00 a ${h.hora + 1}:00 · ${h.dias} ${h.dias === 1 ? "día" : "días"}`,
+                    h.compras !== null ? `Compras: ${numero(h.compras)} en promedio` : "Compras: sin leer",
+                    `En piso: ${numero(h.enPiso)}${h.pedia !== null ? ` · la venta pedía ${numero(h.pedia)}` : ""}`,
+                    h.pedia !== null ? `Faltó gente ${h.conFalta} de ${h.dias} días` : "",
+                  ].filter(Boolean).join("\n")}</title>
+                  <rect x={cx0 - carril / 2} y={0} width={carril} height={H} fill="transparent" />
+                  {hc > 0 && <path d={columna(cx0 - ancho / 2, base1 - hc, ancho, hc)} fill="var(--color-tinta)" />}
+                  {conEtiqueta && h.compras !== null && h.compras > 0 && <text x={cx0} y={base1 - hc - 5} textAnchor="middle" className="tabular-nums" {...T}>{numero(h.compras)}</text>}
+                  {hp > 0 && <path d={columna(cx0 - ancho / 2, base2 - hp, ancho, hp)} fill="var(--color-taupe)" />}
+                  {yPedia !== null && <line x1={cx0 - ancho / 2 - 3} x2={cx0 + ancho / 2 + 3} y1={yPedia} y2={yPedia} stroke="var(--color-tinta)" strokeWidth={1.5} strokeDasharray="3 2" />}
+                  {conEtiqueta && <text x={cx0} y={Math.min(base2 - hp, yPedia ?? Infinity) - 5} textAnchor="middle" className="tabular-nums" {...T}>{numero(h.enPiso)}</text>}
+                  {(carril >= 22 || i % 2 === 0) && <text x={cx0} y={H - 4} textAnchor="middle" {...T}>{h.hora}</text>}
+                </g>
+              );
+            })}
+          </svg>
+        )}
+      </div>
+      <p className="mt-2 text-xs text-taupe">
+        {comprasFallo ? "Sin las compras no se sabe cuánta gente pedía la venta." : "La raya es lo que pedía la venta. La franja marca las horas en que faltó gente la mitad de los días o más."}
+      </p>
+    </div>
+  );
+}
 
 /** ¿Se dibuja para el teléfono? Apagado, nunca: el gráfico sigue siendo el de hoy. */
 function useAngosto(): boolean {

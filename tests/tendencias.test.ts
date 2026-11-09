@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, etiquetaCierre, llegadaPorSede, percentil,
-  resumenAsistencia, resumenCosto, type FilaAsistencia, type PuntoSemana,
+  resumenAsistencia, resumenCosto, diasPerdidosPorMes, fechaDeSemana, OTROS_MOTIVOS, SIN_JUSTIFICAR,
+  type FilaAsistencia, type FilaFalta, type PuntoSemana,
 } from "../apps/web/lib/admin/tendencias";
 import type { FilaCasoResumen } from "../apps/web/lib/admin/casos-resumen";
 
@@ -140,5 +141,62 @@ describe("llegadaPorSede y calorTardanza — nunca con pocos datos", () => {
     expect(lunes).toMatchObject({ dia: 1, pctTarde: 20, llegadas: 25 });
     expect(martes).toMatchObject({ pctTarde: null, llegadas: 3, sinTrabajo: false });
     expect(domingo).toMatchObject({ dia: 0, sinTrabajo: true, pctTarde: null });
+  });
+});
+
+describe("diasPerdidosPorMes — todo lo que se perdió, separado por qué", () => {
+  const falta = (fecha: string, motivo: string | null, sede = "TRU"): FilaFalta =>
+    ({ persona_id: "p", sede, fecha, justificada: motivo !== null, motivo });
+  // 2026-10-05 es lunes: con dia_semana 1..6 son los días 5 al 10 de octubre.
+  const semana = (lunes: string, trab: number, sede = "TRU") =>
+    [1, 2, 3, 4, 5, 6].map((d) => fila(sede, lunes, d, trab, 0, []));
+
+  it("fechaDeSemana: el lunes más el día de la semana, con el domingo al final", () => {
+    expect(fechaDeSemana("2026-10-05", 1)).toBe("2026-10-05");
+    expect(fechaDeSemana("2026-10-05", 0)).toBe("2026-10-11");
+  });
+
+  it("no cuenta vacaciones, descanso sustitutorio ni suspensión; sin motivo es «sin justificar»", () => {
+    const r = diasPerdidosPorMes(
+      [falta("2026-10-06", "vacaciones"), falta("2026-10-07", "descanso_sustitutorio"), falta("2026-10-08", "suspension"),
+       falta("2026-10-09", null), falta("2026-10-12", "descanso_medico"), falta("2026-10-13", "permiso_concedido")],
+      semana("2026-10-05", 3), "2026-10-01", "2026-11-01", null,
+    );
+    expect(r.motivos.map((m) => [m.clave, m.total])).toEqual([["descanso_medico", 1], ["permiso_personal", 1], [SIN_JUSTIFICAR, 1]]);
+    // 18 trabajados + 3 perdidos: 3 / 21
+    expect(r.meses).toEqual([{ mes: "2026-10", parcial: false, perdidos: 3, trabajados: 18, pct: 14.3 }]);
+  });
+
+  it("con más de cuatro motivos, los tres más grandes van solos y el resto junto", () => {
+    const f = [
+      ...Array.from({ length: 5 }, () => falta("2026-10-06", "descanso_medico")),
+      ...Array.from({ length: 4 }, () => falta("2026-10-06", null)),
+      ...Array.from({ length: 3 }, () => falta("2026-10-06", "salud")),
+      falta("2026-10-06", "duelo"), falta("2026-10-07", "otro"),
+    ];
+    const r = diasPerdidosPorMes(f, [], "2026-10-01", "2026-11-01", null);
+    expect(r.motivos.map((m) => [m.clave, m.total])).toEqual([["descanso_medico", 5], [SIN_JUSTIFICAR, 4], ["salud", 3], [OTROS_MOTIVOS, 2]]);
+    const cuatro = diasPerdidosPorMes(f.slice(0, 13), [], "2026-10-01", "2026-11-01", null);
+    expect(cuatro.motivos.map((m) => m.clave)).toEqual(["descanso_medico", SIN_JUSTIFICAR, "salud", "duelo"]);
+  });
+
+  it("marca parcial el mes que el periodo o el día de hoy cortan, y no dibuja meses sin medir", () => {
+    const r = diasPerdidosPorMes(
+      [falta("2026-09-20", null), falta("2026-11-03", null)],
+      [...semana("2026-09-14", 2), ...semana("2026-10-05", 2), ...semana("2026-11-02", 2)],
+      "2026-06-10", "2026-11-05", null,
+    );
+    expect(r.meses.map((m) => [m.mes, m.parcial])).toEqual([["2026-09", false], ["2026-10", false], ["2026-11", true]]);
+    expect(r.motivos[0].dias).toEqual([1, 0, 1]); // los días de cada motivo siguen alineados con sus meses
+  });
+
+  it("lo de hoy no cuenta todavía, y el filtro de sede vale para las faltas y para los días trabajados", () => {
+    const r = diasPerdidosPorMes(
+      [falta("2026-10-09", null), falta("2026-10-10", null), falta("2026-10-09", null, "AQP")],
+      [...semana("2026-10-05", 1), ...semana("2026-10-05", 5, "AQP")],
+      "2026-10-01", "2026-10-10", "TRU",
+    );
+    // el 10 es hoy: solo cuenta la falta del 9; trabajados de TRU del 5 al 9 = 5
+    expect(r.meses).toEqual([{ mes: "2026-10", parcial: true, perdidos: 1, trabajados: 5, pct: 16.7 }]);
   });
 });

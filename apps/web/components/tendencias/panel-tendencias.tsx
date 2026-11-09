@@ -2,12 +2,13 @@
 
 // La pestaña «Tendencias» del Dashboard: la historia, no la foto de hoy.
 //
-// PROMETE: cuatro a cinco gráficos —asistencia sobre lo esperado, hora de llegada por sede, cuándo se llega
-//   tarde, reportes por motivo y costo de planilla— cada uno con su propia carga, su propio error y su propio
-//   vacío. Un gráfico que no respondió dice «no se pudo consultar»; nunca se dibuja como si todo estuviera bien.
+// PROMETE: cinco a siete gráficos —asistencia sobre lo esperado, días perdidos por motivo, hora de llegada por
+//   sede, cuándo se llega tarde, gente en piso frente a la venta (tiendas), reportes por motivo y costo de
+//   planilla— cada uno con su propia carga, su propio error y su propio vacío. Un gráfico que no respondió dice «no se pudo consultar»; nunca se dibuja como si todo estuviera bien.
 // ASUME: se monta SOLO cuando alguien abre la pestaña, y pide su historia UNA vez (más otra si cambia el
 //   periodo). No entra en el refresco de 30 s del Dashboard: la historia no cambia cada medio minuto.
-// QUIÉN VE QUÉ: asistencia y puntualidad, quien llegó al Dashboard (la base ya recorta al líder a su sede);
+// QUIÉN VE QUÉ: asistencia, días perdidos y puntualidad, quien llegó al Dashboard (la base ya recorta al líder a
+//   su sede); gente en piso, las tiendas de su alcance (fn_compras_por_hora también recorta);
 //   Casos, solo quien `fn_ve_casos` deja; costo de planilla, solo quien `puedeVerPlanilla` — y para quien no,
 //   NI SIQUIERA se llama a la RPC (un líder de sede no debe ver sueldos).
 
@@ -24,11 +25,16 @@ import { AyudaCabecera } from "@/components/vidrio/ayuda-cabecera";
 import { interruptoresVidrio } from "@/lib/vidrio";
 import { traerResumenCasos } from "@/lib/admin/casos-resumen";
 import {
-  asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, llegadaPorSede, MINIMO_CASOS,
-  type FilaAsistencia, type PeriodoCosto,
+  asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, diasPerdidosPorMes, llegadaPorSede, MINIMO_CASOS,
+  OTROS_MOTIVOS, SIN_JUSTIFICAR, type FilaAsistencia, type FilaFalta, type PeriodoCosto,
 } from "@/lib/admin/tendencias";
+import { DIAS_DE_PISO, pisoPorHora, traerPisoYVenta, type TipoDeDia } from "@/lib/admin/piso-venta";
+import { nombreDeMotivo } from "@/lib/admin/motivo-falta";
+import { traerTodo } from "@/lib/admin/traer-todo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { BarrasCasos, CalorTardanza, ColumnasCosto, LineaAsistencia, LlegadaPorSede, pisoDeLinea } from "./graficos";
+import {
+  BarrasCasos, CalorTardanza, ColumnasCosto, DiasPerdidosGrafico, LineaAsistencia, LlegadaPorSede, PisoYVentaGrafico, pisoDeLinea,
+} from "./graficos";
 
 type Estado<T> = { cargando: true } | { cargando: false; error: string } | { cargando: false; error: null; datos: T };
 
@@ -113,7 +119,25 @@ function Cuerpo<T>({ estado, reintentar, vacio, hijos }: {
   return sinDatos ? <EstadoVacio>{sinDatos}</EstadoVacio> : <>{hijos(estado.datos)}</>;
 }
 
-export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { codigo: string; nombre: string }[] }) {
+const TIPOS_DE_DIA: { clave: TipoDeDia; texto: string }[] = [
+  { clave: "todos", texto: "Todos los días" },
+  { clave: "semana", texto: "Lunes a viernes" },
+  { clave: "finde", texto: "Sábado y domingo" },
+];
+
+/** Dos consultas como una: carga si alguna carga, falla si alguna falla. */
+function combinar<A, B>(a: Estado<A>, b: Estado<B>): Estado<[A, B]> {
+  if (a.cargando || b.cargando) return { cargando: true };
+  if (a.error !== null) return a;
+  if (b.error !== null) return b;
+  return { cargando: false, error: null, datos: [a.datos, b.datos] };
+}
+
+export function PanelTendencias({ rol, sedes }: {
+  rol: string | null;
+  /** `id` y `tipo` los usa «Gente en piso»: solo las tiendas tienen venta por hora. */
+  sedes: { id: string; codigo: string; nombre: string; tipo: string | null }[];
+}) {
   // Las sedes salen de la TABLA `sedes` (la que ve quien mira), no de lo que devolvió la función: una sede sin
   // días medidos —por ejemplo Central, si su equipo es de sueldo fijo o de dirección— tiene que seguir
   // en la lista y DECIR por qué está vacía, no desaparecer como si no existiera.
@@ -131,6 +155,30 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
     if (error) throw new Error(mensajeDeError(error, "traer la asistencia"));
     return (data ?? []) as FilaAsistencia[];
   });
+
+  // ── Días perdidos (fn_faltas, 0414): cada día que tocaba y no se vino, con su motivo ──
+  // Un periodo largo pasa de las 1000 filas que corta PostgREST: se pide todo, en lotes, con un orden único.
+  const [faltas, reintentarFaltas] = useConsulta(true, `faltas:${desde}`, async () => {
+    const [{ data, error }, { data: tipos }] = await Promise.all([
+      traerTodo((a, b) => supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hoy }).order("fecha").order("persona_id").range(a, b)),
+      // Sin el catálogo, el motivo se lee por su código («descanso medico»): no se frena el gráfico por un nombre.
+      supabase.from("tipos_ausencia").select("codigo, nombre"),
+    ]);
+    if (error) throw new Error(mensajeDeError(error, "traer los días perdidos"));
+    return {
+      filas: (data ?? []) as FilaFalta[],
+      nombres: new Map(((tipos as { codigo: string; nombre: string }[] | null) ?? []).map((t) => [t.codigo, t.nombre] as const)),
+    };
+  });
+
+  // ── Gente en piso frente a la venta: una tienda a la vez ───────────────────
+  // La tienda la decide el filtro de sede de arriba si es una tienda; con «Todas las sedes», unos botones propios.
+  const tiendas = sedes.filter((s) => s.tipo === "tienda");
+  const [tiendaPropia, setTiendaPropia] = useState<string | null>(null);
+  const [tipoDeDia, setTipoDeDia] = useState<TipoDeDia>("todos");
+  const sedeArriba = sede ? sedes.find((s) => s.codigo === sede) ?? null : null;
+  const tienda = sedeArriba ? (sedeArriba.tipo === "tienda" ? sedeArriba : null) : (tiendas.find((t) => t.codigo === tiendaPropia) ?? tiendas[0] ?? null);
+  const [piso, reintentarPiso] = useConsulta(tienda !== null, `piso:${tienda?.id ?? ""}`, () => traerPisoYVenta(supabase, tienda!, hoy));
 
   // ── Casos: solo quien ya los ve ────────────────────────────────────────────
   const [veCasos, setVeCasos] = useState<boolean | null>(null);
@@ -201,6 +249,26 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
       </Seccion>
 
       <Seccion
+        titulo="Días perdidos, por motivo"
+        que="Todo lo que se perdió de los días que tocaba trabajar, separado por qué. Por mes."
+        queCorto="Lo que se perdió de los días que tocaba trabajar, y por qué."
+        nota={<>La asistencia de arriba solo mira los días sin motivo, así que un descanso médico no la baja: aquí sí cuenta. Son días laborables, no de calendario. No cuenta vacaciones, descansos sustitutorios ni suspensiones. Mide a la misma gente que la asistencia, con su equipo de hoy; nunca por persona. Más de cuatro motivos: los tres más grandes van solos y el resto junto. El mes que el periodo o el día de hoy cortan va rayado.</>}
+      >
+        <Cuerpo estado={combinar(asist, faltas)} reintentar={() => { reintentarAsist(); reintentarFaltas(); }}
+          vacio={([a, f]) => (diasPerdidosPorMes(f.filas, a, desde, hoy, sede).meses.length === 0 ? (sede ? SIN_DIAS_DE_SEDE : "Todavía no hay días medidos en este periodo.") : null)}
+          hijos={([a, f]) => {
+            const d = diasPerdidosPorMes(f.filas, a, desde, hoy, sede);
+            if (d.motivos.length === 0) return <EstadoVacio>No se perdió ningún día que tocaba trabajar en este periodo.</EstadoVacio>;
+            return (
+              <DiasPerdidosGrafico
+                datos={d}
+                nombreDe={(clave) => (clave === SIN_JUSTIFICAR ? "Faltas sin justificar" : clave === OTROS_MOTIVOS ? "Otros motivos" : nombreDeMotivo(clave, f.nombres))}
+              />
+            );
+          }} />
+      </Seccion>
+
+      <Seccion
         titulo="A qué hora llega cada sede"
         que="Frente a la hora de entrada de cada quien: el punto es lo típico y la franja, lo que pasa casi siempre."
         queCorto="El punto es lo típico; la franja, lo que pasa casi siempre."
@@ -221,6 +289,34 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
           vacio={() => (calorTardanza(filtradas).length === 0 ? (sede ? SIN_DIAS_DE_SEDE : "Todavía no hay llegadas medidas en este periodo.") : null)}
           hijos={() => <CalorTardanza filas={calorTardanza(filtradas)} nombreDe={nombreDeSede} />} />
       </Seccion>
+
+      {tiendas.length > 0 && (
+        <Seccion
+          titulo="Gente en piso frente a la venta"
+          que={`Hora por hora: cuántas compras hubo, cuánta gente había en piso y cuánta pedía la venta. Últimos ${DIAS_DE_PISO} días.`}
+          queCorto={`Hora por hora, en los últimos ${DIAS_DE_PISO} días.`}
+          nota={<>Una compra es un ticket completado de Retail. En piso es el peor cuarto de cada hora, sin quien está en almacén, en refrigerio o en pausa: la misma cuenta que la repetición del día en Turnos. Lo que pedía la venta son las compras de la hora divididas por el ritmo de la tienda, nunca menos que su mínimo (Parámetros). Una hora con menos de cuatro días medidos no se marca. Nunca por persona.</>}
+        >
+          {tienda === null ? (
+            <EstadoVacio>{sedeArriba?.nombre ?? "Esta sede"} no es tienda: este gráfico mira la venta de cada hora.</EstadoVacio>
+          ) : (
+            <>
+              <div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="Tienda y días">
+                {!sedeArriba && tiendas.length > 1 && (
+                  <>
+                    {tiendas.map((t) => <Filtro key={t.codigo} tamano="sm" activo={tienda.codigo === t.codigo} onClick={() => setTiendaPropia(t.codigo)}>{t.nombre}</Filtro>)}
+                    <span aria-hidden className="mx-1 h-4 w-px bg-sand" />
+                  </>
+                )}
+                {TIPOS_DE_DIA.map((t) => <Filtro key={t.clave} tamano="sm" activo={tipoDeDia === t.clave} onClick={() => setTipoDeDia(t.clave)}>{t.texto}</Filtro>)}
+              </div>
+              <Cuerpo estado={piso} reintentar={reintentarPiso}
+                vacio={(d) => (pisoPorHora(d.dias, tipoDeDia).length === 0 ? `Todavía no hay días con marcas en ${tienda.nombre} para mirar.` : null)}
+                hijos={(d) => <PisoYVentaGrafico horas={pisoPorHora(d.dias, tipoDeDia)} comprasFallo={d.comprasFallo} />} />
+            </>
+          )}
+        </Seccion>
+      )}
 
       {veCasos === true && (
         <Seccion

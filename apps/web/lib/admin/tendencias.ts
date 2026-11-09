@@ -14,6 +14,7 @@
 
 import type { FilaCasoResumen } from "@/lib/admin/casos-resumen";
 import { TIPOS_REPORTE } from "@/lib/reportes";
+import { codigoDeMotivo } from "@/lib/admin/motivo-falta";
 
 export const MINIMO_CASOS = 5;
 export const MINIMO_LLEGADAS = 20;
@@ -74,7 +75,7 @@ export interface ColumnaCosto {
   repagado: boolean;
 }
 
-const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+export const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 export function etiquetaCierre(fechaFin: string): string {
   const [, m, d] = fechaFin.split("-").map(Number);
   return `${d} ${MESES_CORTOS[m - 1]}`;
@@ -187,6 +188,142 @@ export function resumenAsistencia(puntos: readonly PuntoSemana[]): ResumenAsiste
   const e = completas.reduce((s, p) => s + p.trabajados + p.faltas, 0);
   const minima = completas.reduce((m, p) => (p.pct <= m.pct ? p : m));
   return { ultima: completas.at(-1)!, promedio: Math.round((t / e) * 1000) / 10, minima, semanas: completas.length };
+}
+
+// ── Días perdidos, por motivo ────────────────────────────────────────────────
+//
+// La asistencia (arriba) solo mira los días SIN motivo: un descanso médico no la baja, así que puede decir 99 %
+// mientras se pierde el 5 % de los días. Esto cuenta todo lo que se perdió y separa por qué.
+//
+// La fuente es `fn_faltas` (0414): una fila por cada día que a alguien le TOCABA trabajar (la cascada turno →
+// horario por día → días laborables) y no vino, con su motivo. Son días laborables, no de calendario: un descanso
+// médico de 15 días no cuenta los domingos de quien no trabaja domingo. Mide a la misma gente que la asistencia
+// (en planilla o practicante, sin sueldo fijo) con los mismos permisos (la líder de equipo, su sede).
+
+/** Una fila de `fn_faltas`. `motivo` null = no hay nada que lo justifique. */
+export interface FilaFalta {
+  persona_id: string;
+  sede: string;
+  fecha: string;
+  justificada: boolean | null;
+  motivo: string | null;
+}
+
+/** Motivos de fn_faltas que no son un día perdido: un descanso planificado o compensado, o una sanción. */
+export const MOTIVOS_QUE_NO_SE_PIERDEN: ReadonlySet<string> = new Set(["vacaciones", "descanso_sustitutorio", "suspension"]);
+/** La clave de los días sin motivo. */
+export const SIN_JUSTIFICAR = "sin_justificar";
+/** La clave de los motivos que se juntan por chicos. */
+export const OTROS_MOTIVOS = "otros";
+/** Cuántos motivos se dibujan por separado; el resto va junto en «Otros motivos». */
+export const MOTIVOS_A_LA_VISTA = 3;
+
+export interface MesPerdido {
+  /** YYYY-MM */
+  mes: string;
+  /** El periodo elegido o el día de hoy cortan el mes: sus días no se comparan con los de un mes entero. */
+  parcial: boolean;
+  perdidos: number;
+  trabajados: number;
+  /** perdidos ÷ (trabajados + perdidos), con un decimal. null si ese mes no hubo días que mirar. */
+  pct: number | null;
+}
+export interface MotivoPerdido {
+  clave: string;
+  /** Un número por cada mes de `meses`, en el mismo orden. */
+  dias: number[];
+  total: number;
+}
+export interface DiasPerdidos {
+  meses: MesPerdido[];
+  /** De más días a menos; «Otros motivos», si hace falta, al final. */
+  motivos: MotivoPerdido[];
+}
+
+/** El lunes de `semana` más el día de la semana (0 = domingo, como `extract(dow)`): la fecha exacta. */
+export function fechaDeSemana(semana: string, diaSemana: number): string {
+  return sumarDias(semana, (diaSemana + 6) % 7);
+}
+
+/**
+ * `desde` es el primer día del periodo elegido y `hoy` la fecha de Lima: lo de hoy todavía no es un hecho, así que
+ * el último día que se mira es ayer, como en la asistencia.
+ */
+export function diasPerdidosPorMes(
+  faltas: readonly FilaFalta[],
+  asistencia: readonly FilaAsistencia[],
+  desde: string,
+  hoy: string,
+  sede: string | null,
+): DiasPerdidos {
+  const hasta = sumarDias(hoy, -1);
+  if (hasta < desde) return { meses: [], motivos: [] };
+  const claves: string[] = [];
+  for (let m = desde.slice(0, 7); m <= hasta.slice(0, 7); m = mesSiguiente(m)) claves.push(m);
+  const indice = new Map(claves.map((m, i) => [m, i]));
+
+  const trabajados = claves.map(() => 0);
+  for (const r of asistencia) {
+    if (sede && r.sede_codigo !== sede) continue;
+    const f = fechaDeSemana(r.semana, r.dia_semana);
+    const i = f >= desde && f <= hasta ? indice.get(f.slice(0, 7)) : undefined;
+    if (i !== undefined) trabajados[i] += r.dias_trabajados;
+  }
+
+  const porMotivo = new Map<string, number[]>();
+  for (const f of faltas) {
+    if (sede && f.sede !== sede) continue;
+    if (f.motivo && MOTIVOS_QUE_NO_SE_PIERDEN.has(f.motivo)) continue;
+    const i = f.fecha >= desde && f.fecha <= hasta ? indice.get(f.fecha.slice(0, 7)) : undefined;
+    if (i === undefined) continue;
+    const clave = f.motivo ? codigoDeMotivo(f.motivo) : SIN_JUSTIFICAR;
+    const fila = porMotivo.get(clave) ?? claves.map(() => 0);
+    fila[i] += 1;
+    porMotivo.set(clave, fila);
+  }
+
+  const todos = [...porMotivo.entries()]
+    .map(([clave, dias]) => ({ clave, dias, total: dias.reduce((s, n) => s + n, 0) }))
+    .sort((a, b) => b.total - a.total || a.clave.localeCompare(b.clave));
+  // Más de MOTIVOS_A_LA_VISTA + 1 motivos: los primeros por separado y el resto junto. Si sobra uno solo, se
+  // muestra con su nombre: «Otros motivos» con un único motivo adentro escondería un nombre que cabía.
+  const motivos = todos.length <= MOTIVOS_A_LA_VISTA + 1
+    ? todos
+    : [
+        ...todos.slice(0, MOTIVOS_A_LA_VISTA),
+        todos.slice(MOTIVOS_A_LA_VISTA).reduce<MotivoPerdido>(
+          (acc, m) => ({ clave: OTROS_MOTIVOS, dias: acc.dias.map((n, i) => n + m.dias[i]), total: acc.total + m.total }),
+          { clave: OTROS_MOTIVOS, dias: claves.map(() => 0), total: 0 },
+        ),
+      ];
+
+  const meses = claves.map((mes, i): MesPerdido => {
+    const perdidos = todos.reduce((s, m) => s + m.dias[i], 0);
+    const base = trabajados[i] + perdidos;
+    return {
+      mes,
+      parcial: `${mes}-01` < desde || finDeMes(mes) > hasta,
+      perdidos,
+      trabajados: trabajados[i],
+      pct: base > 0 ? Math.round((perdidos / base) * 1000) / 10 : null,
+    };
+  });
+  // «Desde enero» en un sistema que empezó a medir en julio: los meses de antes no son meses en cero, son meses
+  // sin medir. No se dibujan.
+  const primero = meses.findIndex((m) => m.pct !== null);
+  if (primero < 0) return { meses: [], motivos: [] };
+  return {
+    meses: meses.slice(primero),
+    motivos: motivos.map((m) => ({ ...m, dias: m.dias.slice(primero) })),
+  };
+}
+
+function mesSiguiente(mes: string): string {
+  const [y, m] = mes.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+function finDeMes(mes: string): string {
+  return sumarDias(`${mesSiguiente(mes)}-01`, -1);
 }
 
 function sumarDias(iso: string, n: number): string {
