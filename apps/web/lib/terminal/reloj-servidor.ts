@@ -75,7 +75,8 @@ export async function medirDesfase(): Promise<MedidaDesfase | null> {
     // cambia los argumentos opcionales de `string | null` a `string | undefined`
     // y rompe tres pantallas — está medido y anotado en docs/estado.md como una
     // migración de tipos aparte.
-    const llamada = cliente.rpc("fn_ahora_servidor" as never) as unknown as PromiseLike<{ data: string | null; error: unknown }>;
+    const llamada = cliente.rpc("fn_ahora_servidor" as never) as unknown as
+      PromiseLike<{ data: string | null; error: unknown }>;
     const respuesta = await conTope(llamada, null);
     const t1 = Date.now();
     if (!respuesta || respuesta.error || !respuesta.data) return null;
