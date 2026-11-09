@@ -39,6 +39,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { ListaPaginada } from "@/components/ui/paginas";
 import { Modal } from "@/components/ui/modal";
 import { Rotulo } from "@/components/ui/rotulo";
 import { useToast } from "@/components/toast";
@@ -1435,6 +1436,9 @@ export default function MioPage() {
     });
   }, [yo, desde, hasta, jornadas, turnos, tramos, faltas, perdonadas]);
 
+  // «Día por día»: solo los días con marcaje, lo más nuevo primero. Un descanso o un feriado no ocupan una ficha vacía.
+  const diasMarcados = useMemo(() => [...dias].reverse().filter((d) => d.jornada !== null), [dias]);
+
   // Las que YA te respondieron, hayas mirado ese día o no. Es la vuelta del
   // circuito de la 0257: pediste que revisaran un día y alguien contestó. Sin
   // esto, la respuesta solo se veía si navegabas justo a esa fecha.
@@ -2414,51 +2418,57 @@ export default function MioPage() {
             {jornadas.length === 0 ? (
               <p className="text-sm text-taupe">No hay días marcados en este rango.</p>
             ) : (
-              <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
-                <TablaEncabezado>
-                  <Th>Día</Th>
-                  <Th>Entrada</Th>
-                  <Th>Salida</Th>
-                  <Th>Te tocaba</Th>
-                  <Th>Tardanza</Th>
-                  <Th className="text-right">Horas</Th>
-                </TablaEncabezado>
-                <tbody>
-                  {[...dias].reverse().filter((d) => d.jornada !== null).map((d) => {
-                    const j = d.jornada!;
-                    const tarde = (j.minutos_tarde ?? 0) > 0;
-                    const laPusoElSistema = j.estado === "auto_cerrada_pendiente";
-                    return (
-                      <Fila key={d.fecha}>
-                        <td className="px-4 py-2">{diaYMes(d.fecha)}</td>
-                        <td data-rotulo="Entrada" className="px-4 py-2">{hora(j.entrada_ts)}</td>
-                        <td data-rotulo="Salida" className="px-4 py-2">
-                          {hora(j.salida_final_ts)}
-                          {/* Esa hora NO la marcó ella: la inventó el auto-cierre porque
-                              olvidó marcar. Es justo la que conviene que revise, así que
-                              se dice en vez de dejarla pasar por buena. */}
-                          {laPusoElSistema && (
-                            <Insignia tamano="sm" variante="advertencia" className="ml-2">la puso el sistema</Insignia>
-                          )}
-                        </td>
-                        {/* Contra qué se midió su tardanza ese día. Sin esto, un
-                            número de minutos es una afirmación sin origen. */}
-                        <td data-rotulo="Te tocaba" className="px-4 py-2 text-taupe">
-                          {d.esperado.trabaja
-                            ? <>{d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</>
-                            : "—"}
-                        </td>
-                        <td data-rotulo="Tardanza" className="px-4 py-2">
-                          {!tarde ? <span className="text-taupe">—</span>
-                            : d.perdonada ? <span className="text-taupe line-through">{j.minutos_tarde} min</span>
-                            : <span className="text-ambar">{j.minutos_tarde} min</span>}
-                        </td>
-                        <td data-rotulo="Horas" className="px-4 py-2 text-right">{comoReloj(j.horas_trabajadas ?? 0)}</td>
-                      </Fila>
-                    );
-                  })}
-                </tbody>
-              </Tabla>
+              /* De a 5, lo más nuevo primero (Felipe, 2026-11-09: en el teléfono un mes eran unas 26 fichas). La `key` con el
+                 rango vuelve a la página 1 cuando se elige otro: seguir en la 4 de un rango nuevo no tiene sentido. */
+              <ListaPaginada key={`${desde}-${hasta}`} items={diasMarcados} etiqueta="Páginas de tus días">
+                {(enEstaPagina) => (
+                  <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
+                    <TablaEncabezado>
+                      <Th>Día</Th>
+                      <Th>Entrada</Th>
+                      <Th>Salida</Th>
+                      <Th>Te tocaba</Th>
+                      <Th>Tardanza</Th>
+                      <Th className="text-right">Horas</Th>
+                    </TablaEncabezado>
+                    <tbody>
+                      {enEstaPagina.map((d) => {
+                        const j = d.jornada!;
+                        const tarde = (j.minutos_tarde ?? 0) > 0;
+                        const laPusoElSistema = j.estado === "auto_cerrada_pendiente";
+                        return (
+                          <Fila key={d.fecha}>
+                            <td className="px-4 py-2">{diaYMes(d.fecha)}</td>
+                            <td data-rotulo="Entrada" className="px-4 py-2">{hora(j.entrada_ts)}</td>
+                            <td data-rotulo="Salida" className="px-4 py-2">
+                              {hora(j.salida_final_ts)}
+                              {/* Esa hora NO la marcó ella: la inventó el auto-cierre porque
+                                  olvidó marcar. Es justo la que conviene que revise, así que
+                                  se dice en vez de dejarla pasar por buena. */}
+                              {laPusoElSistema && (
+                                <Insignia tamano="sm" variante="advertencia" className="ml-2">la puso el sistema</Insignia>
+                              )}
+                            </td>
+                            {/* Contra qué se midió su tardanza ese día. Sin esto, un
+                                número de minutos es una afirmación sin origen. */}
+                            <td data-rotulo="Te tocaba" className="px-4 py-2 text-taupe">
+                              {d.esperado.trabaja
+                                ? <>{d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</>
+                                : "—"}
+                            </td>
+                            <td data-rotulo="Tardanza" className="px-4 py-2">
+                              {!tarde ? <span className="text-taupe">—</span>
+                                : d.perdonada ? <span className="text-taupe line-through">{j.minutos_tarde} min</span>
+                                : <span className="text-ambar">{j.minutos_tarde} min</span>}
+                            </td>
+                            <td data-rotulo="Horas" className="px-4 py-2 text-right">{comoReloj(j.horas_trabajadas ?? 0)}</td>
+                          </Fila>
+                        );
+                      })}
+                    </tbody>
+                  </Tabla>
+                )}
+              </ListaPaginada>
             )}
           </section>
         </>
@@ -3295,6 +3305,9 @@ interface PeriodoTendencia {
  * no duran lo mismo (20 a 46 días, CHECK de la 0025), así que comparar solo
  * horas totales compararía peras con manzanas.
  */
+/** Cuántos periodos trae «Tus últimos periodos»: un año, de a 5 por página. */
+const PERIODOS_EN_HISTORIAL = 12;
+
 function TusUltimosPeriodos({ personaId }: { personaId: string }) {
   const [periodos, setPeriodos] = useState<PeriodoTendencia[] | null>(null);
 
@@ -3306,7 +3319,8 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
         .from("periodos_planilla")
         .select("id, fecha_ini, fecha_fin, estado")
         .order("fecha_fin", { ascending: false })
-        .limit(6);
+        // Un año. Eran 6 mientras se veían todos de una vez; desde que se ven de a 5 (2026-11-09), la página 2 lleva al año pasado.
+        .limit(PERIODOS_EN_HISTORIAL);
       if (!vivo || !pers || pers.length === 0) { setPeriodos([]); return; }
 
       const lista = pers as { id: string; fecha_ini: string; fecha_fin: string; estado: string }[];
@@ -3357,8 +3371,9 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
         .filter((j) => (j.minutos_tarde ?? 0) > 0 && !perdonadas.has(j.fecha))
         .map((j) => j.fecha);
 
+      // Lo más nuevo primero: paginado de a 5, el periodo en curso tiene que estar en la primera página, no en la última.
       setPeriodos(
-        [...lista].reverse().map((p) => ({
+        lista.map((p) => ({
           id: p.id,
           fecha_ini: p.fecha_ini,
           fecha_fin: p.fecha_fin,
@@ -3382,24 +3397,28 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
           ? "Sin montos: lo que se te pagó está en tu boleta."
           : "Sin montos: un periodo ya cerrado puede tener su foto de pago desactualizada — para eso está tu boleta."}
       </p>
-      <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
-        <TablaEncabezado>
-          <Th>Periodo</Th>
-          <Th>Días trabajados</Th>
-          <Th>Horas</Th>
-          <Th className="text-right">Tardanzas</Th>
-        </TablaEncabezado>
-        <tbody>
-          {periodos.map((p) => (
-            <Fila key={p.id}>
-              <td className="px-4 py-2">{diaYMes(p.fecha_ini)} – {diaYMes(p.fecha_fin)}</td>
-              <td data-rotulo="Días trabajados" className="px-4 py-2 text-taupe">{p.diasTrabajados} de {p.dias}</td>
-              <td data-rotulo="Horas" className="px-4 py-2">{comoReloj(p.horas)}</td>
-              <td data-rotulo="Tardanzas" className="px-4 py-2 text-right">{p.tardanzas}</td>
-            </Fila>
-          ))}
-        </tbody>
-      </Tabla>
+      <ListaPaginada items={periodos} etiqueta="Páginas de tus periodos">
+        {(enEstaPagina) => (
+          <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-fichas" : undefined}>
+            <TablaEncabezado>
+              <Th>Periodo</Th>
+              <Th>Días trabajados</Th>
+              <Th>Horas</Th>
+              <Th className="text-right">Tardanzas</Th>
+            </TablaEncabezado>
+            <tbody>
+              {enEstaPagina.map((p) => (
+                <Fila key={p.id}>
+                  <td className="px-4 py-2">{diaYMes(p.fecha_ini)} – {diaYMes(p.fecha_fin)}</td>
+                  <td data-rotulo="Días trabajados" className="px-4 py-2 text-taupe">{p.diasTrabajados} de {p.dias}</td>
+                  <td data-rotulo="Horas" className="px-4 py-2">{comoReloj(p.horas)}</td>
+                  <td data-rotulo="Tardanzas" className="px-4 py-2 text-right">{p.tardanzas}</td>
+                </Fila>
+              ))}
+            </tbody>
+          </Tabla>
+        )}
+      </ListaPaginada>
     </section>
   );
 }
