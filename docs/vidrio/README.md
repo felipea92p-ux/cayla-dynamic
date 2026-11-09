@@ -8,9 +8,15 @@ módulo por módulo, y el estreno es uno solo. Referencias: [el plan](https://cl
 en local para ir viendo antes de realizar cualquier subida». Se construye en local con commits locales, Felipe lo mira corriendo en su computadora,
 se ajusta, y solo con su aprobación se hace `git push` y se abre el PR. También vale para lo que no se ve, como medidores, contrato y vigilante.
 
-**Cómo entra sin frenar el día a día:** lo aprobado se guarda en `main` en cambios chicos, **apagado**. En su computadora está encendido; en
-producción, apagado. El día del estreno se enciende un interruptor y todos lo ven a la vez. El terminal tiene el suyo. Una rama larga no
-sirve: Dynamic recibe unos 49 commits al día. Ver «El vidrio» en [`CLAUDE.md`](../../CLAUDE.md).
+**Dónde está hoy (2026-11-09): el panel ya se estrenó; el terminal no.** `NEXT_PUBLIC_VIDRIO` existe en Vercel, en producción, desde hacia el
+2026-11-07, y el 2026-11-09 se confirmó que está encendido a propósito: el panel y Lo mío se ven con vidrio para todo el equipo. El terminal tiene
+su propio interruptor, `NEXT_PUBLIC_VIDRIO_TERMINAL`, que no existe en Vercel: sigue apagado aunque su módulo ya está en `main` (#722). Para
+comprobarlo sin leer secretos, el guion `(function(){var d=…` del HTML público de producción dice `"panel"` o `null` en cada superficie.
+
+**Lo que eso cambia:** en el panel ya no hay «entra apagado». Fusionar un cambio de vidrio del panel lo publica **encendido**, en menos de un
+minuto, para todo el equipo; por eso la regla de mirarlo en local antes vale más que antes, no menos. En el terminal sigue valiendo lo de siempre:
+lo aprobado entra a `main` en cambios chicos, apagado, hasta su estreno. Una rama larga no sirve: Dynamic recibe unos 49 commits al día. Ver
+«El vidrio» en [`CLAUDE.md`](../../CLAUDE.md).
 
 **Para mirarlo en local:** `node scripts/local/web.mjs`. Las cuentas están en [`scripts/local/LEEME.md`](../../scripts/local/LEEME.md).
 
@@ -128,7 +134,7 @@ Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** c
 3. **Medir el responsive y el contraste.** En claro y oscuro, a 375, 768, 1024, 1280, 1440 y 1920 px: `tema:auditar` y `responsive:check`. Cómo se corren: `apps/web/tema/README.md` y `apps/web/responsive/README.md`.
 4. **Recorrer como la gente.** Con la cuenta de menor rango y con la de mayor rango, porque suelen fallar cosas distintas.
 5. **Mostrárselo a Felipe.** Capturas de antes y después en el chat, y en vivo en su computadora. Si algo no calza con ninguna pieza de Retail, se le pregunta con imagen, con la pieza más cercana al lado. No se inventa.
-6. **Cerrar.** Se hacen sus ajustes, se marca aquí y, **solo con su aprobación**, se sube apagado. Antes de eso, nada de `git push` ni de PR.
+6. **Cerrar.** Se hacen sus ajustes, se marca aquí y, **solo con su aprobación**, se sube. En el panel eso ya es publicarlo encendido; en el terminal, apagado. Antes de eso, nada de `git push` ni de PR.
 
 ## Cuándo un módulo «se ve bien»
 
@@ -142,6 +148,10 @@ Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** c
 - **Los textos recortados se muestran:** en cada parada, Felipe los ve antes y después. Si una palabra deja dudas, se le pregunta con la pantalla a la vista.
 
 ## Etapa 3: el estreno
+
+**Panel:** encendido en producción hacia el 2026-11-07, a propósito (confirmado el 2026-11-09). De su paso 2 falta la novedad para el equipo
+(`apps/web/lib/novedades.ts` no tiene ninguna sobre el nuevo aspecto), y el paso 4 todavía no: el diseño viejo sigue vivo porque el terminal lo usa.
+**Terminal:** pendiente; su interruptor no existe en Vercel.
 
 1. Revisión final en local y pruebas completas.
 2. Se avisa al equipo con su novedad, se enciende el interruptor y se mira en producción con datos reales.
