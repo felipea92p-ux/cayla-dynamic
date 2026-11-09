@@ -44,11 +44,33 @@ type Hasta = "sin_fin" | "fin_ciclo" | "fecha";
 // horas» y, adentro, otro «No puedo»: se leía como una doble negación).
 // «Prefiero trabajar» no es un botón del día: es un estado de cada horario, dentro
 // de «Por horas» y de las horas de un día puntual (Felipe, 2026-11-03).
-const MODOS: { valor: ModoDia; label: string; icono: LucideIcon }[] = [
-  { valor: "puede", label: "Puedo", icono: Check },
-  { valor: "prefiere_no", label: "Prefiero no", icono: CircleAlert },
-  { valor: "no_puede", label: "No puedo", icono: Ban },
-  { valor: "horas", label: "Por horas", icono: Clock }, // antes «Depende de la hora»: Felipe lo pidió más formal (2026-11-03)
+//
+// La leyenda «qué significa cada opción» se dibuja de ESTA lista, con el mismo
+// ícono, la misma palabra y el mismo orden que los botones de cada día (Felipe,
+// 2026-11-09: «unificar el diseño de la leyenda»). Antes era un texto aparte, en
+// otro orden y sin íconos, y empezaba por «Prefiero trabajar», que no es ninguno
+// de los cuatro botones: había que adivinar qué renglón iba con qué botón.
+const MODOS: { valor: ModoDia; label: string; icono: LucideIcon; significa: (quien: "tu" | "ella") => string }[] = [
+  {
+    valor: "puede", label: "Puedo", icono: Check,
+    significa: (q) => (q === "tu" ? "Tu líder de equipo te puede poner." : "Se la puede poner."),
+  },
+  {
+    valor: "prefiere_no", label: "Prefiero no", icono: CircleAlert,
+    significa: (q) => `Se intenta evitar, pero si falta gente ${q === "tu" ? "te puede tocar" : "le puede tocar"}.`,
+  },
+  {
+    valor: "no_puede", label: "No puedo", icono: Ban,
+    significa: (q) => `${q === "tu" ? "No te ponen" : "No se la pone"} en ese día.`,
+  },
+  {
+    // antes «Depende de la hora»: Felipe lo pidió más formal (2026-11-03)
+    valor: "horas", label: "Por horas", icono: Clock,
+    significa: (q) =>
+      `Eliges las horas y, en cada una, «Prefiero trabajar», «Prefiero no» o «No puedo». «Prefiero trabajar»: ${
+        q === "tu" ? "tu líder de equipo lo tiene en cuenta" : "se tiene en cuenta"
+      } al armar turnos, pero no es una promesa.`,
+  },
 ];
 
 const ESTADOS: { valor: EstadoBloque; label: string }[] = [
@@ -140,25 +162,19 @@ export function EditorDisponibilidad({
 
       {parcial && (
         <>
-          <dl className="grid gap-2 rounded-control bg-hueso p-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <dt className="font-medium">Prefiero trabajar</dt>
-              <dd className="text-taupe">
-                Se marca en «Por horas». {quien === "tu" ? "Tu líder de equipo lo tiene en cuenta al armar turnos" : "Se tiene en cuenta al armar turnos"}, pero no es una promesa.
-              </dd>
-            </div>
-            <div>
-              <dt className="font-medium">Puedo</dt>
-              <dd className="text-taupe">{quien === "tu" ? "Tu líder de equipo te puede poner." : "Se la puede poner."}</dd>
-            </div>
-            <div>
-              <dt className="font-medium">Prefiero no</dt>
-              <dd className="text-taupe">Se intenta evitar, pero si falta gente {quien === "tu" ? "te puede tocar" : "le puede tocar"}.</dd>
-            </div>
-            <div>
-              <dt className="font-medium">No puedo</dt>
-              <dd className="text-taupe">{quien === "tu" ? "No te ponen" : "No se la pone"} en ese día u hora.</dd>
-            </div>
+          {/* Sin borde ni forma de botón a propósito: es para leer, y una píldora aquí invitaría a tocarla. */}
+          <dl aria-label="Qué significa cada opción" className="grid gap-3 rounded-control bg-hueso p-3 text-sm sm:grid-cols-2">
+            {MODOS.map((m) => {
+              const Icono = m.icono;
+              return (
+                <div key={m.valor}>
+                  <dt className="flex items-center gap-1.5 font-medium">
+                    <Icono className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{m.label}
+                  </dt>
+                  <dd className="pl-5 text-taupe">{m.significa(quien)}</dd>
+                </div>
+              );
+            })}
           </dl>
 
           <div className="flex flex-wrap gap-2" aria-label="Atajos">

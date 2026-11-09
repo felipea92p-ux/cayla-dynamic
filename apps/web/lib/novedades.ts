@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-09-lo-mio-en-el-telefono-se-lee-mejor",
+    fecha: "2026-11-09",
+    titulo: "En el teléfono, el menú vuelve a mostrar sus nombres y las listas van de a 5",
+    queMejoro:
+      "En el iPhone, con las animaciones apagadas, el menú se abría con los íconos y sin los nombres de cada " +
+      "sección. Ya se ven otra vez, en claro y en oscuro.\n\n" +
+      "En Lo mío, «Día por día» (Mis días), «Cambios a tu horario» (Mis turnos) y «Tus últimos periodos» (Historial) " +
+      "muestran 5 por página, con «Anterior» y «Siguiente» al pie, para no tener que bajar tanto. Tus últimos periodos " +
+      "empiezan por el más reciente y llegan hasta un año atrás. Y en Mi disponibilidad, la explicación de cada opción " +
+      "lleva el mismo ícono y va en el mismo orden que los botones de cada día.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-08-el-panel-avisa-si-entras-con-la-cuenta-del-terminal",
     fecha: "2026-11-08",
     titulo: "El panel avisa si entras con la cuenta del terminal",
