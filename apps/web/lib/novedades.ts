@@ -128,6 +128,17 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-11-09-la-bandeja-ya-no-pide-cargo-de-lo-recibido-por-info",
+    fecha: "2026-11-09",
+    titulo: "La Bandeja ya no pide el cargo de un documento que la persona recibió por su Info",
+    queMejoro:
+      "Cuando un documento de Disciplina se entrega por la Info de la persona y ella confirma que lo recibió, esa " +
+      "confirmación es la constancia: no hay papel que subir. Disciplina ya lo pasaba al historial, pero la Bandeja lo " +
+      "seguía mostrando como «entregada, sin cargo firmado» y pedía «Subir cargo». Ya no aparece ahí.\n\n" +
+      "Lo que se entrega en papel sigue pidiendo su cargo firmado, igual que antes.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-09-guia-de-como-funciona-la-disciplina",
     fecha: "2026-11-09",
     titulo: "Una guía nueva en Disciplina: cómo funciona, paso a paso",

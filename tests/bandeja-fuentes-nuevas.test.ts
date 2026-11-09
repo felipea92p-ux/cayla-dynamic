@@ -16,7 +16,7 @@
 import { describe, expect, it } from "vitest";
 import {
   armarPendientes, FUENTES_VACIAS, modulosDeLaBandeja, pasoDisciplina, pendientesDeDocumento,
-  type FuentesBandeja,
+  traerFuentesBandeja, type FuentesBandeja,
 } from "../apps/web/lib/admin/bandeja-fuentes";
 import {
   ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias, urgenciaBono, urgenciaContrato,
@@ -133,6 +133,71 @@ describe("disciplina usa las etapas de su pantalla", () => {
     expect(pasoDisciplina(doc({ estado: "entregado" }), [{ id: "a", documento_id: "d", storage_path: "x", tipo: "cargo_firmado", nota: null, subido_at: "" }], true, ahora)).toBeNull();
     expect(pasoDisciplina(doc({ estado: "entregado", nivel: "imputacion" }), [], true, ahora)).toBe("cargo_y_resolver");
     expect(pasoDisciplina(doc({ estado: "anulado" }), [], true, ahora)).toBeNull();
+  });
+
+  it("una entrega por Info no pide cargo: la constancia es la confirmación de la persona (0486)", () => {
+    expect(pasoDisciplina(doc({ estado: "entregado", medio_entrega: "digital" }), [], true, ahora)).toBeNull();
+  });
+});
+
+// La prueba de arriba arma el documento ENTERO a mano, así que nunca vio lo que
+// pasó en producción el 2026-11-09: la regla estaba bien, pero la Bandeja le
+// pasaba el documento sin `medio_entrega` porque su `select` no lo pedía. Un
+// `undefined` no es `"digital"`, así que cada memo recibido y firmado por Info
+// seguía pidiendo «Subir cargo» en la Bandeja mientras Disciplina ya lo tenía en
+// el historial. Esta prueba pasa por el `select` real, con un cliente que —como
+// PostgREST— devuelve SOLO las columnas que se le piden.
+describe("la Bandeja lee de la base todo lo que la regla de Disciplina necesita", () => {
+  type Fila = Record<string, unknown>;
+  function cliente(tablas: Record<string, Fila[]>) {
+    const consulta = (tabla: string) => {
+      let columnas: string[] | null = null;
+      let unica = false;
+      const filtros: ((f: Fila) => boolean)[] = [];
+      const q: Record<PropertyKey, unknown> = {
+        select: (cols: string) => { columnas = cols.split(",").map((c) => c.trim()); return proxy; },
+        eq: (c: string, v: unknown) => { filtros.push((f) => f[c] === v); return proxy; },
+        // Como en SQL: `null <> 'digital'` no es verdadero, así que un null no pasa.
+        neq: (c: string, v: unknown) => { filtros.push((f) => f[c] != null && f[c] !== v); return proxy; },
+        in: (c: string, vs: unknown[]) => { filtros.push((f) => vs.includes(f[c])); return proxy; },
+        maybeSingle: () => { unica = true; return proxy; },
+        then: (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) => {
+          const filas = (tablas[tabla] ?? []).filter((f) => filtros.every((pasa) => pasa(f)))
+            .map((f) => (columnas ? Object.fromEntries(columnas.filter((c) => c in f).map((c) => [c, f[c]])) : f));
+          return Promise.resolve({ data: unica ? (filas[0] ?? null) : filas, error: null }).then(ok, ko);
+        },
+      };
+      // Cualquier otro filtro (`order`, `gte`, `limit`…) se acepta y no filtra.
+      const proxy: unknown = new Proxy(q, { get: (t, p) => (p in t ? t[p] : () => proxy) });
+      return proxy;
+    };
+    return {
+      rpc: () => Promise.resolve({ data: [], error: null }),
+      from: consulta,
+      auth: { getUser: () => Promise.resolve({ data: { user: null }, error: null }) },
+    } as never;
+  }
+
+  const entregado = {
+    persona_id: "p1", nivel: "amonestacion_escrita", estado: "entregado", creado_at: "2026-11-01T15:00:00Z",
+    firmado_at: "2026-11-03T15:00:00Z", entregado_at: "2026-11-07T15:00:00Z", cargos_comunicados_at: null,
+    descargo_vence_at: null, descargo_acogido: null, resuelto_at: null,
+  };
+
+  it("un memo recibido por Info no aparece como «sin cargo firmado»; uno en papel sin cargo, sí", async () => {
+    const supabase = cliente({
+      expediente_disciplinario: [
+        { ...entregado, id: "por-info", medio_entrega: "digital", firma_sancionado_confirmada_at: "2026-11-07T15:00:00Z" },
+        // El control: sin él, la prueba pasaría también si la Bandeja no trajera nada.
+        { ...entregado, id: "en-papel", medio_entrega: "fisico" },
+      ],
+      expediente_adjuntos: [],
+      personas: [{ id: "p1", nombres: "Integrante", apellidos: "De Prueba", sede_base_id: "s1" }],
+      sedes: [{ id: "s1", codigo: "TRU" }],
+    });
+    const f = await traerFuentesBandeja(supabase, "admin", () => {}, "2026-11-09");
+    expect(f.fallidas).not.toContain("disciplina");
+    expect(f.disciplina.map((d) => [d.id, d.paso])).toEqual([["en-papel", "cargo"]]);
   });
 });
 
