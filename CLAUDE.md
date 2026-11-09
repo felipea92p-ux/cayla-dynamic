@@ -88,10 +88,18 @@ consultar **en el mensaje en que se entrega el SQL**, no en el que se empieza a
 escribirlo. Cuesta un minuto. La otra opción costó repegar la 0293 entera con la
 planilla del mes a tres días de cerrar.
 
-Y la señal que lo delata sin ninguna herramienta: la línea **PLANILLA** de
-`que_falta_pegar.sql` dice qué versión de `fn_planilla_calcular` corre de verdad.
-Si dice «se quedó en la 00NN», producción tiene una función más vieja que el
-repositorio — mírala SIEMPRE después de pegar algo que la reescriba.
+Y la señal que lo delata sin ninguna herramienta: las filas **PLANILLA** y
+**PLATA** de `que_falta_pegar.sql` dicen qué versión corre de verdad de cada
+función que calcula, mueve o reporta plata (la lista:
+`scripts/hooks/funciones-de-plata.txt`). Si una dice «se quedó en la 00NN»,
+producción tiene una función más vieja que el repositorio — mírala SIEMPRE
+después de pegar algo que la reescriba. Hasta el 2026-11-09 solo existía la fila
+de `fn_planilla_calcular`, y desde la 0339 miraba el envoltorio, que ya no cambia:
+el cálculo vive en `fn_planilla_calcular_nucleo`. Y ese día se midió por qué no
+basta el registro: `fn_costos_planilla` era en producción la de la 0099 aunque la
+0260 y la 0323 figuraban aplicadas. «Al día» acepta la función pegada sin
+comentarios o desde Windows; `scripts/hooks/probar-que-falta-pegar.sh` prueba los
+ocho casos contra la base local.
 
 **Y el md5 de llegada se mide DESPUÉS de renumerar, nunca antes.** Cuando el
 hook obliga a cambiar el número —pasa a menudo, con varias sesiones tomando

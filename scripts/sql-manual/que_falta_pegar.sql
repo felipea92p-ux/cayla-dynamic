@@ -15,12 +15,18 @@
 -- QUÉ RESPONDE, todo en la misma tabla
 --   · migración por migración, cuál falta pegar y cuál está anotada
 --   · el resumen: cuántas faltan de cuántas
---   · en qué versión está VIVA `fn_planilla_calcular`
+--   · en qué versión está VIVA cada función que calcula, mueve o reporta plata
+--     (la lista: scripts/hooks/funciones-de-plata.txt)
 --
--- LO QUE NO PUEDE VER
+-- LO QUE EL REGISTRO NO PUEDE VER
 --   Que una migración esté anotada NO prueba que su contenido siga vivo: una
---   pegada posterior pudo pisarlo sin dar ningún error. Por eso las dos últimas
---   filas miran el cuerpo real de la función y no el registro.
+--   pegada posterior pudo pisarlo sin dar ningún error. Pasó con
+--   fn_costos_planilla: el 2026-11-09 era la de la 0099 aunque la 0260 y la 0323
+--   figuraban aplicadas, y esta consulta no lo vio en cinco semanas porque solo
+--   miraba el registro y fn_planilla_calcular. Por eso las filas PLANILLA y
+--   PLATA miran el cuerpo real de cada función. «Al día» acepta las formas en
+--   que una función llega a producción —tal cual, sin comentarios, desde
+--   Windows—; «se quedó en la NNN» o «sin catalogar» es para mirar ese día.
 -- ============================================================================
 
 with repo(numero, nombre, nunca) as (values
@@ -459,7 +465,8 @@ with repo(numero, nombre, nunca) as (values
     (603, 'renovar_un_seguro_avisa_por_correo_a_do', false),
     (604, 'las_pantallas_se_enteran_al_instante', false),
     (605, 'la_salida_real_gana_tambien_en_el_panel', false),
-    (607, 'el_reglamento_vigente_dice_que_es_la_version_4_0', false)
+    (607, 'el_reglamento_vigente_dice_que_es_la_version_4_0', false),
+    (608, 'fn_costos_planilla_vuelve_a_la_version_vigente', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -512,6 +519,573 @@ huerfanas as (
   from migraciones_aplicadas a
   where a.numero >= (select min(numero) from repo)
     and not exists (select 1 from repo r where r.numero = a.numero)
+),
+-- Las funciones de plata, por su cuerpo y no por el registro.
+plata(etiqueta, funcion, estado, orden) as (
+  select 'PLANILLA', 'fn_planilla_calcular_nucleo', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '7556c6de573137549c33692d6412e9f3' then '✓   al día (0577)'
+             when '87343eb4edd67a9f6fd3ff423f956a22' then '✓   al día (0577, pegada sin comentarios)'
+             when 'e90e3b5f4ca58e25de8eec0fd75b5934' then '✓   al día (0577, pegada desde Windows)'
+             when 'fd4a16b11dd78e21d985ce3c1ebb96e8' then '✓   al día (0577, desde Windows y sin comentarios)'
+             when '98845271658e0ea652fe53cc27e8bbea' then '✗   0577 con los acentos rotos — vuelve a pegarla'
+             when '7f9a8a8ef951567eca1dbfd7c8d33f76' then '❌  se quedó en la 0576 — la vigente es la 0577'
+             when '5f45bdb17a521dd06a851636803c6057' then '❌  se quedó en la 0576 — la vigente es la 0577'
+             when '40748ba949e32789c06c48c8eac9fca8' then '❌  se quedó en la 0575 — la vigente es la 0577'
+             when '14cdc80e1fbe702ab5eb31500f50d29c' then '❌  se quedó en la 0575 — la vigente es la 0577'
+             when '8480448f341d0d6d424c4b31816878b2' then '❌  se quedó en la 0573 — la vigente es la 0577'
+             when '8403aeb1f157d7ad1c92eefd8151da9c' then '❌  se quedó en la 0573 — la vigente es la 0577'
+             when 'aad8a0f00628539f27a4d789a4c1ac04' then '❌  se quedó en la 0555 — la vigente es la 0577'
+             when '2f73c7e931f7e0e42235d1104bc05dbe' then '❌  se quedó en la 0555 — la vigente es la 0577'
+             when '4e25d9fd99e5e6a4e8f82952207c0652' then '❌  se quedó en la 0537 — la vigente es la 0577'
+             when '195886a1d1967107791d8f9aff72e8ae' then '❌  se quedó en la 0537 — la vigente es la 0577'
+             when '11425cadd0e0d2289283ac17d9cafec8' then '❌  se quedó en la 0524 — la vigente es la 0577'
+             when '62c6e4f550ccbb005bb850a0092395ce' then '❌  se quedó en la 0524 — la vigente es la 0577'
+             when 'f1781d68a87190ee75937eafc3f6facc' then '❌  se quedó en la 0504 — la vigente es la 0577'
+             when 'ca3e922e46d5cc7adbab6ac81e595aaf' then '❌  se quedó en la 0504 — la vigente es la 0577'
+             when '27dda4084d0efbad293c36d66a39adf7' then '❌  se quedó en la 0495 — la vigente es la 0577'
+             when '27b82dcac5bef3f003553963abb6f1dd' then '❌  se quedó en la 0495 — la vigente es la 0577'
+             when 'dd3eaed7707d997cb21963dc3549abc9' then '❌  se quedó en la 0491 — la vigente es la 0577'
+             when '706301b8092d191a533ac54d143d2058' then '❌  se quedó en la 0484 — la vigente es la 0577'
+             when 'bc267bf46a383186f5505973d78a58f6' then '❌  se quedó en la 0484 — la vigente es la 0577'
+             when '4f5a98023616903a3765d68d4a566d9f' then '❌  se quedó en la 0463 — la vigente es la 0577'
+             when 'cef78dd6dbd44dc2a57ade5a0dd24a0c' then '❌  se quedó en la 0463 — la vigente es la 0577'
+             when 'afeaf7a77ca9ded8e67549b7413bc4ec' then '❌  se quedó en la 0418 — la vigente es la 0577'
+             when 'dc97129b0c2bf83f418748dafbbde80e' then '❌  se quedó en la 0418 — la vigente es la 0577'
+             when 'fd51c1ff32561d7806b5515447e8c0fb' then '❌  se quedó en la 0417 — la vigente es la 0577'
+             when '202aae000ff52da8ea09c1847e9f9149' then '❌  se quedó en la 0417 — la vigente es la 0577'
+             when 'ebb017c5cd1b0a856796edf4c1596ea9' then '❌  se quedó en la 0416 — la vigente es la 0577'
+             when '1bfc928a8d75d79bdf4fd322bfa3dfe8' then '❌  se quedó en la 0416 — la vigente es la 0577'
+             when 'aad24b5a1958563c425789e29f39fb29' then '❌  se quedó en la 0397 — la vigente es la 0577'
+             when '368773a7f7ace1887d888219e0ef81f7' then '❌  se quedó en la 0397 — la vigente es la 0577'
+             when '59229a838dd72c5285f6c4ff0be360b3' then '❌  se quedó en la 0349 — la vigente es la 0577'
+             when '4f0c3467fdd5f9c511a1ecdc74a7335a' then '❌  se quedó en la 0349 — la vigente es la 0577'
+             when '8fc2d28343d2ed6a18fe57246442e347' then '❌  se quedó en la 0339 — la vigente es la 0577'
+             when 'f6f0684cbb70c4ccee7790a3a87e2be7' then '❌  se quedó en la 0339 — la vigente es la 0577'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_planilla_calcular_nucleo'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_planilla_calcular_nucleo'
+         ), '⚠   la función NO EXISTE'), 1000001
+  union all
+  select 'PLANILLA', 'fn_planilla_calcular', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when 'dacebb574315f3f7d880c9117cb3de7f' then '✓   al día (0397)'
+             when '89a7d47f4fe8b368246eb7dd94f0a872' then '✓   al día (0397, pegada sin comentarios)'
+             when 'cde403dc1e007a8b8a514a1caaf19ff4' then '✓   al día (0397, pegada desde Windows)'
+             when 'd8e7978da1df4807579ea490b0dcb4a7' then '✓   al día (0397, desde Windows y sin comentarios)'
+             when '03bbe3413099044329ddaab8a1dec8c8' then '✗   0397 con los acentos rotos — vuelve a pegarla'
+             when 'c86ef4707f51bf57024efac7eea41643' then '❌  se quedó en la 0322 — la vigente es la 0397'
+             when '812128114da1a72e22a20fe3ddea299b' then '❌  se quedó en la 0322 — la vigente es la 0397'
+             when '6838c789a2f2444166f2dbebfd9faa0d' then '❌  se quedó en la 0317 — la vigente es la 0397'
+             when '768cb9bc902c135edda8e603617a6fde' then '❌  se quedó en la 0317 — la vigente es la 0397'
+             when 'f6ece4f8e21a8171b0d393ddf47cd1ce' then '❌  se quedó en la 0316 — la vigente es la 0397'
+             when 'd4e883954165c44def38509c7bfb3304' then '❌  se quedó en la 0316 — la vigente es la 0397'
+             when 'c8070bb865e977d2d0e6b1bb4bac58d2' then '❌  se quedó en la 0314 — la vigente es la 0397'
+             when '006a830a8a8ddc67118c2d27de14ad90' then '❌  se quedó en la 0314 — la vigente es la 0397'
+             when '4688bf0101891f347f05cf96c0db9e68' then '❌  se quedó en la 0306 — la vigente es la 0397'
+             when '5585aa09f32b3d72534514477e7e43e6' then '❌  se quedó en la 0306 — la vigente es la 0397'
+             when 'b1fa2aaaee9a6e4192ea3d616e3d8304' then '❌  se quedó en la 0293 — la vigente es la 0397'
+             when '92a1c1a787e6f4da2b08277697cbb22d' then '❌  se quedó en la 0293 — la vigente es la 0397'
+             when '00346e399226432bee73b1047488d178' then '❌  se quedó en la 0286 — la vigente es la 0397'
+             when '41438e8d9f587c8651d2a02269595a6c' then '❌  se quedó en la 0286 — la vigente es la 0397'
+             when '0912fcb75893b146ea778163ae9d1ecd' then '❌  se quedó en la 0280 — la vigente es la 0397'
+             when '75d0ad65d2bbe81f01dfbd92fafeadf1' then '❌  se quedó en la 0280 — la vigente es la 0397'
+             when '2f38e5ce76bcb22164cd0794671b349f' then '❌  se quedó en la 0276 — la vigente es la 0397'
+             when 'b2c4baeeaf06640981b6fad5a784fe01' then '❌  se quedó en la 0276 — la vigente es la 0397'
+             when 'b132c828fde4aa5fedd6cf946fee7f08' then '❌  se quedó en la 0275 — la vigente es la 0397'
+             when 'bfc5280e79ffb94708d75cc4820ab826' then '❌  se quedó en la 0275 — la vigente es la 0397'
+             when '5e755bdedd964d289104e824eb2925ec' then '❌  se quedó en la 0269 — la vigente es la 0397'
+             when 'a4e36a11674285f04533c65d4dc56528' then '❌  se quedó en la 0269 — la vigente es la 0397'
+             when 'f6b4f2649f4132dd2db5711b391b1f54' then '❌  se quedó en la 0263 — la vigente es la 0397'
+             when '0576ce83061538cc9ff2a538358a5c7b' then '❌  se quedó en la 0263 — la vigente es la 0397'
+             when '261329fc2a8045ece063cfb0e5d38eca' then '❌  se quedó en la 0262 — la vigente es la 0397'
+             when '936c329acf7d586c7437d2bf7924ca5b' then '❌  se quedó en la 0262 — la vigente es la 0397'
+             when '0d0f5fdd5f53d29fb316be50c794cec6' then '❌  se quedó en la 0261 — la vigente es la 0397'
+             when '5cf6bf4909df4a9193d9561563ce4d8c' then '❌  se quedó en la 0261 — la vigente es la 0397'
+             when '19eb593a757e0b7480b6a1dc99d7f8c9' then '❌  se quedó en la 0254 — la vigente es la 0397'
+             when 'f012ce5a39bc000d509dbd2e0a32d44b' then '❌  se quedó en la 0254 — la vigente es la 0397'
+             when 'e8b055e5ec144e20629bdc8b7bdbd0ea' then '❌  se quedó en la 0252 — la vigente es la 0397'
+             when '9320ff68835957cf809c2002d1722833' then '❌  se quedó en la 0252 — la vigente es la 0397'
+             when '7799d0a7ecabee450d2dd7609c50fab1' then '❌  se quedó en la 0250 — la vigente es la 0397'
+             when '764c09721c74bbdddb78255607d3359d' then '❌  se quedó en la 0250 — la vigente es la 0397'
+             when '3fee1553db2482aa2566d54d1b67438b' then '❌  se quedó en la 0245 — la vigente es la 0397'
+             when 'b4802d9a407ced6acb8b1756b14c9d96' then '❌  se quedó en la 0245 — la vigente es la 0397'
+             when 'b9765d1799dc71a9363c292b62daab5e' then '❌  se quedó en la 0242 — la vigente es la 0397'
+             when '7a6a8a9d71b129bba7c9488d1b7c4957' then '❌  se quedó en la 0242 — la vigente es la 0397'
+             when '7d67ff3c1d769ebffc3de0af20ab83fe' then '❌  se quedó en la 0239 — la vigente es la 0397'
+             when 'fe2ed410d335828dec86aa3250947013' then '❌  se quedó en la 0239 — la vigente es la 0397'
+             when '7d285ab4eb0cd8c1e5871b0eebaf78a2' then '❌  se quedó en la 0236 — la vigente es la 0397'
+             when 'a6dea37009e588beedd7c45e850c668d' then '❌  se quedó en la 0236 — la vigente es la 0397'
+             when 'f61eca56c6d2017155c990a958ecd3a6' then '❌  se quedó en la 0233 — la vigente es la 0397'
+             when 'fb4a049d973f3180696ddd58096a99bc' then '❌  se quedó en la 0233 — la vigente es la 0397'
+             when '3ca25dd82de07418c9b9c77abffc8dec' then '❌  se quedó en la 0199 — la vigente es la 0397'
+             when 'af15b1d8e0ac6387c8b81bd63d7da1d1' then '❌  se quedó en la 0199 — la vigente es la 0397'
+             when '449cc75cc4d097096fd87cdbd13b68f1' then '❌  se quedó en la 0193 — la vigente es la 0397'
+             when 'c970dd69e7f7b10663c30cf35b51e11f' then '❌  se quedó en la 0193 — la vigente es la 0397'
+             when '684634d24dd1a28ace4e99f1fd174ad6' then '❌  se quedó en la 0192 — la vigente es la 0397'
+             when '7126feda5469f9fbddb9d9f485b7f98a' then '❌  se quedó en la 0192 — la vigente es la 0397'
+             when 'ba9dfd2726ea59b86b43fc057c210ece' then '❌  se quedó en la 0187 — la vigente es la 0397'
+             when '30181216bedbf719311300e3f26cf2cb' then '❌  se quedó en la 0187 — la vigente es la 0397'
+             when 'f81bcf49a3a20337365b06f5a850d53e' then '❌  se quedó en la 0186 — la vigente es la 0397'
+             when '9c3db3b34fd96e972c1ac734319d940f' then '❌  se quedó en la 0186 — la vigente es la 0397'
+             when '187cb5c3b5389f507fc77a18f8af846c' then '❌  se quedó en la 0185 — la vigente es la 0397'
+             when '064052093582dab81ba79960dea31fd6' then '❌  se quedó en la 0185 — la vigente es la 0397'
+             when '93e96e37e05799121485e5721de3dc06' then '❌  se quedó en la 0177 — la vigente es la 0397'
+             when 'ba54d2460495b01d02e502b0f7157637' then '❌  se quedó en la 0177 — la vigente es la 0397'
+             when 'cb3c5de14dd2b5a8872965814d5e7cd9' then '❌  se quedó en la 0173 — la vigente es la 0397'
+             when 'aca343e04e465cad2cf748ee93155190' then '❌  se quedó en la 0173 — la vigente es la 0397'
+             when '46c6c3de546f4da080d328a079470478' then '❌  se quedó en la 0171 — la vigente es la 0397'
+             when 'e40cb70a5f0cedc0accbac8ebcd60358' then '❌  se quedó en la 0171 — la vigente es la 0397'
+             when '30e0ecbf11ac5939457df6c2b3cccc77' then '❌  se quedó en la 0166 — la vigente es la 0397'
+             when 'af4992f6b933bcc84ef0a36f31f9d96e' then '❌  se quedó en la 0166 — la vigente es la 0397'
+             when '5dc12a1413d38c740e9ac220fe4d8d66' then '❌  se quedó en la 0159 — la vigente es la 0397'
+             when 'b49adbd3fdff4af3d656f21a94656a8e' then '❌  se quedó en la 0159 — la vigente es la 0397'
+             when 'aa3f471cf18636f4d6725831864bff64' then '❌  se quedó en la 0150 — la vigente es la 0397'
+             when '807a2a8d8731697bd7429e44787b6f60' then '❌  se quedó en la 0150 — la vigente es la 0397'
+             when '7917eb444c76116c22c6782236c8fb2f' then '❌  se quedó en la 0142 — la vigente es la 0397'
+             when '6a1a69954e96a561699d33ba73702131' then '❌  se quedó en la 0142 — la vigente es la 0397'
+             when '19924714a7482291388a10c1f922e4c3' then '❌  se quedó en la 0134 — la vigente es la 0397'
+             when '44238d7db8c192d42733fd76930f5d68' then '❌  se quedó en la 0134 — la vigente es la 0397'
+             when 'aa3639dbb9b6a20e194b24bb963b4b65' then '❌  se quedó en la 0122 — la vigente es la 0397'
+             when '47ad746dc86add2915ec906c4e1712a1' then '❌  se quedó en la 0122 — la vigente es la 0397'
+             when 'fc986792fd3d0d19adcceb378babe9de' then '❌  se quedó en la 0120 — la vigente es la 0397'
+             when '3fb83c5c622b5f06db9fb68ead36b97c' then '❌  se quedó en la 0120 — la vigente es la 0397'
+             when '9e7dffb54bd3cef1c1c33bbe576c99a1' then '❌  se quedó en la 0118 — la vigente es la 0397'
+             when 'ec35956f618148c9561d839b823de0d7' then '❌  se quedó en la 0118 — la vigente es la 0397'
+             when 'a99e6681ad0f856f4ccd8cf58ccc91e4' then '❌  se quedó en la 0117 — la vigente es la 0397'
+             when '871a03d32f971c98672ff8d6984469f2' then '❌  se quedó en la 0117 — la vigente es la 0397'
+             when '0ec3cde07e6b7fa2123665ac4e0855f2' then '❌  se quedó en la 0116 — la vigente es la 0397'
+             when '71dbbcec2c9ecbc7074ead8607808f1b' then '❌  se quedó en la 0116 — la vigente es la 0397'
+             when 'a13dc52b70ab5d4afdfb732479bfbc0c' then '❌  se quedó en la 0114 — la vigente es la 0397'
+             when 'b437779355b983c27d516e1857e1e89f' then '❌  se quedó en la 0114 — la vigente es la 0397'
+             when '8579625601fe7a926e70d396526d0fe4' then '❌  se quedó en la 0113 — la vigente es la 0397'
+             when '9abb2b1dfdb11e2d0bad59a9a3f2fdf5' then '❌  se quedó en la 0113 — la vigente es la 0397'
+             when 'bc6f93f13c3a1ef18608c4c26368e53f' then '❌  se quedó en la 0112 — la vigente es la 0397'
+             when '9405cb840a397199bb7e1fb8395a1384' then '❌  se quedó en la 0112 — la vigente es la 0397'
+             when 'd5b08b9ba9e271f8b427caef1d200489' then '❌  se quedó en la 0111 — la vigente es la 0397'
+             when '3421b00781129ac0989578ee858f2d6c' then '❌  se quedó en la 0111 — la vigente es la 0397'
+             when 'f37bf8c0b814f81274d6e2beb9711a10' then '❌  se quedó en la 0110 — la vigente es la 0397'
+             when 'a28d6bbc0e6a7c0d14fc2144449c8c4c' then '❌  se quedó en la 0110 — la vigente es la 0397'
+             when '079e6d87c34feedca8af94b8f27d7e54' then '❌  se quedó en la 0109 — la vigente es la 0397'
+             when '97a73bab6f0116b5e6a054ab4c66ded7' then '❌  se quedó en la 0109 — la vigente es la 0397'
+             when 'e9c9409fcfa3f3fc6b337638cfcd7741' then '❌  se quedó en la 0105 — la vigente es la 0397'
+             when '586bd01d3528bcf86fee0c56bd157654' then '❌  se quedó en la 0105 — la vigente es la 0397'
+             when 'e827bfeff70fd273356f89a986ad65bf' then '❌  se quedó en la 0100 — la vigente es la 0397'
+             when '549917eff84590dbc6d0fe87b3ce616a' then '❌  se quedó en la 0100 — la vigente es la 0397'
+             when 'b400b2ecad0a5b7fc9c8d47f553708be' then '❌  se quedó en la 0090 — la vigente es la 0397'
+             when '6e7de5d2b038d8df55a4433f8a33d2e2' then '❌  se quedó en la 0090 — la vigente es la 0397'
+             when 'bee6d6c37d83eb6fb98f333208c928a1' then '❌  se quedó en la 0069 — la vigente es la 0397'
+             when 'cf298d4e28fbc40e833d486b8e7409cb' then '❌  se quedó en la 0069 — la vigente es la 0397'
+             when '4eaf8a2dc5118e7e29afaf3c03f777d1' then '❌  se quedó en la 0047 — la vigente es la 0397'
+             when '763842a5b32ff86b2d90c2b1314bd25d' then '❌  se quedó en la 0047 — la vigente es la 0397'
+             when '9d00f7c9959638019bcde843dd204ea1' then '❌  se quedó en la 0027 — la vigente es la 0397'
+             when '55530d5655ecc83559b5e36b1bea10c4' then '❌  se quedó en la 0027 — la vigente es la 0397'
+             when '5b263656b9ff462699eaca0db6e1a7b4' then '❌  se quedó en la 0026 — la vigente es la 0397'
+             when '6ad7e6bb9d7a1678924c07c89a8e9df4' then '❌  se quedó en la 0025 — la vigente es la 0397'
+             when '7b9fa00b76194ae23a8194e0d61fe253' then '❌  se quedó en la 0025 — la vigente es la 0397'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_planilla_calcular'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'
+         ), '⚠   la función NO EXISTE'), 1000002
+  union all
+  select 'PLANILLA', 'fn_planilla_calcular_persona', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '4f0713a6c817e18e3fad6755ab4e7139' then '✓   al día (0397)'
+             when '6467f3a9911e952c4b1c97848842a7f4' then '✓   al día (0397, pegada sin comentarios)'
+             when 'e6fcb43b1a96a33f6b830c7f5c6be64d' then '✓   al día (0397, pegada desde Windows)'
+             when 'bc1ec48079442a1947658e65a2c73970' then '✓   al día (0397, desde Windows y sin comentarios)'
+             when '77dffbf75fd0521e6677955c4dfa61d6' then '✗   0397 con los acentos rotos — vuelve a pegarla'
+             when '018c7819fc09ad99a26ffce4177f87b3' then '❌  se quedó en la 0329 — la vigente es la 0397'
+             when '9a71f6edef21ca4a9fd4b2c80f006bba' then '❌  se quedó en la 0329 — la vigente es la 0397'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_planilla_calcular_persona'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_planilla_calcular_persona'
+         ), '⚠   la función NO EXISTE'), 1000003
+  union all
+  select 'PLATA', 'fn_provisiones', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when 'e36c150c5db587354d48d6b0916273bb' then '✓   al día (0491)'
+             when '62a7146b113b6a061710b79bf9d038ef' then '✓   al día (0491, pegada sin comentarios)'
+             when '32a92a7ffbb39b369abec2edba7cec0c' then '✓   al día (0491, pegada desde Windows)'
+             when 'f6c0482d1118c832ddbedea5180f1343' then '✓   al día (0491, desde Windows y sin comentarios)'
+             when '40fe8af23d63716036e99b09980e04ac' then '✗   0491 con los acentos rotos — vuelve a pegarla'
+             when '51b69875b258b8c7d6812a8d64019f7b' then '❌  se quedó en la 0471 — la vigente es la 0491'
+             when 'a89483d1f63933d7064550b9ccb441e9' then '❌  se quedó en la 0471 — la vigente es la 0491'
+             when '08026578b3f7f97109d8c3dc53812fb7' then '❌  se quedó en la 0465 — la vigente es la 0491'
+             when 'edc4eb855bc2734856b5706bda8149fe' then '❌  se quedó en la 0465 — la vigente es la 0491'
+             when '6f33984ae7ce841d9dcbb7935324be6b' then '❌  se quedó en la 0372 — la vigente es la 0491'
+             when '3585861dff4fb0804307cb5b8473302b' then '❌  se quedó en la 0372 — la vigente es la 0491'
+             when '4b7b7bd996651f5e5a4d1a978cc3edb9' then '❌  se quedó en la 0365 — la vigente es la 0491'
+             when '148ff0e066e187389605aefe056ae595' then '❌  se quedó en la 0365 — la vigente es la 0491'
+             when '62795c4ec4f7c197dea4c2fefa82787f' then '❌  se quedó en la 0338 — la vigente es la 0491'
+             when '67e5f56b1aa65a99cd839d2a360c91db' then '❌  se quedó en la 0338 — la vigente es la 0491'
+             when 'b40ded0faad67ac72625369d22699562' then '❌  se quedó en la 0310 — la vigente es la 0491'
+             when 'ab00d5f9dfd48ffc89e1e4f66a00e332' then '❌  se quedó en la 0310 — la vigente es la 0491'
+             when 'adb0a986b32d26920fb9488a314b4d45' then '❌  se quedó en la 0308 — la vigente es la 0491'
+             when '1f6439d0a445f5e82456b658df8c5ac8' then '❌  se quedó en la 0308 — la vigente es la 0491'
+             when '866c0a1664afde204ae6d685760afb84' then '❌  se quedó en la 0302 — la vigente es la 0491'
+             when '083aa93b57db9d3c42132e6b83d972c5' then '❌  se quedó en la 0302 — la vigente es la 0491'
+             when '93531851f35abcdd295fd8fb4aa77922' then '❌  se quedó en la 0276 — la vigente es la 0491'
+             when 'c3a8f243ce9fedab8b33fd2cff6760bc' then '❌  se quedó en la 0276 — la vigente es la 0491'
+             when '84aae8bf6905f372d08a49b2056c3c3b' then '❌  se quedó en la 0274 — la vigente es la 0491'
+             when 'ee7116bba5671fc383355019b7574573' then '❌  se quedó en la 0274 — la vigente es la 0491'
+             when 'e057765cfa852239b9683267cf9244f4' then '❌  se quedó en la 0273 — la vigente es la 0491'
+             when '4a3e38f89d6245e9c430560b58c3088e' then '❌  se quedó en la 0273 — la vigente es la 0491'
+             when '86d01fa3ab543865f7245912377d92d9' then '❌  se quedó en la 0271 — la vigente es la 0491'
+             when 'f42b026f691dabe4b92f896352dd51da' then '❌  se quedó en la 0271 — la vigente es la 0491'
+             when 'fad142f69ea100b55a15a98b631f9e9c' then '❌  se quedó en la 0196 — la vigente es la 0491'
+             when '42c548a9a3d6092883458188d490b167' then '❌  se quedó en la 0196 — la vigente es la 0491'
+             when 'c09677917ebfd34aa9d67d342e0a0160' then '❌  se quedó en la 0160 — la vigente es la 0491'
+             when 'b7fdb518019230e303b4c72cf55c856e' then '❌  se quedó en la 0160 — la vigente es la 0491'
+             when '9b6be5fae9b82d5d1da3d7b8d1f82252' then '❌  se quedó en la 0158 — la vigente es la 0491'
+             when '677aa5d5a27ef4a2b6089c4bd9e44ce5' then '❌  se quedó en la 0158 — la vigente es la 0491'
+             when 'd07fe93b516328b0fc1d6986f6082c3c' then '❌  se quedó en la 0135 — la vigente es la 0491'
+             when 'fe812de20f0c622b40fe04db0155bea3' then '❌  se quedó en la 0135 — la vigente es la 0491'
+             when '5b6f7db22fcb2ba85008b3845f5ffa11' then '❌  se quedó en la 0134 — la vigente es la 0491'
+             when '8efbc565485d278025955fc04c1300a4' then '❌  se quedó en la 0134 — la vigente es la 0491'
+             when '77eec07c1e79a72a86c234d8827ec27d' then '❌  se quedó en la 0123 — la vigente es la 0491'
+             when '2db29423c81aa7e1df55cab49633c8e0' then '❌  se quedó en la 0123 — la vigente es la 0491'
+             when 'b550de5faa91c77c817760b71a3885f8' then '❌  se quedó en la 0122 — la vigente es la 0491'
+             when '067471428ff5b6e1c3dce8d2dbc97ad1' then '❌  se quedó en la 0122 — la vigente es la 0491'
+             when '1563fbf37d5f4e369f4571552b3097ca' then '❌  se quedó en la 0113 — la vigente es la 0491'
+             when '752c81495f49a8df7b84370390096bb9' then '❌  se quedó en la 0113 — la vigente es la 0491'
+             when 'ada683a910790ad3b9db24f804f2ca32' then '❌  se quedó en la 0112 — la vigente es la 0491'
+             when '7151b05b4792598bc4f0385c1595d20a' then '❌  se quedó en la 0112 — la vigente es la 0491'
+             when 'd7a580e4d6a7f3bfce9ba4ea7419b901' then '❌  se quedó en la 0091 — la vigente es la 0491'
+             when '79ab5bf2a3081df56b5a7f4348f1ccaa' then '❌  se quedó en la 0091 — la vigente es la 0491'
+             when '9dc5c6556880e544202b6c8b9c690c2b' then '❌  se quedó en la 0048 — la vigente es la 0491'
+             when 'e32dd910eb59c3c4a4d5674a3f882570' then '❌  se quedó en la 0048 — la vigente es la 0491'
+             when 'a124a16cc4d2f2339b88d1a4b022bb10' then '❌  se quedó en la 0035 — la vigente es la 0491'
+             when 'ab67fd3d815e238f12dc51af06d58431' then '❌  se quedó en la 0035 — la vigente es la 0491'
+             when 'f41fbffb0003d6247b23ad04be606af5' then '❌  se quedó en la 0030 — la vigente es la 0491'
+             when '2824918732fa6408a25a8cfb25e0b153' then '❌  se quedó en la 0030 — la vigente es la 0491'
+             when '7994e80b03131946a4dcd12d43899592' then '❌  se quedó en la 0029 — la vigente es la 0491'
+             when '14d8b8c879a39ea9b8f5291e131abced' then '❌  se quedó en la 0029 — la vigente es la 0491'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_provisiones'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_provisiones'
+         ), '⚠   la función NO EXISTE'), 1000004
+  union all
+  select 'PLATA', 'fn_planilla_congelar', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '3e581b656db64e9d3e55c4d404836441' then '✓   al día (0476)'
+             when 'e12ef7d2fddff5b26cf339e0a5eb81ce' then '✓   al día (0476, pegada sin comentarios)'
+             when 'bb6f77c44573275aff389960ca109dc5' then '✓   al día (0476, pegada desde Windows)'
+             when 'dd9fc21c9df58e77bc1b0e4b638c3306' then '✓   al día (0476, desde Windows y sin comentarios)'
+             when '93e3ea7dc0e661b90f7dc2ebb8b5f59c' then '✗   0476 con los acentos rotos — vuelve a pegarla'
+             when '7a66a410278e86724092adf360904535' then '❌  se quedó en la 0323 — la vigente es la 0476'
+             when '331e95a0eef8131185dfaff61987082e' then '❌  se quedó en la 0323 — la vigente es la 0476'
+             when '645667b844f2e977534fbad6829632c5' then '❌  se quedó en la 0284 — la vigente es la 0476'
+             when '28aedd342f7cc05fa05347a7909d6596' then '❌  se quedó en la 0284 — la vigente es la 0476'
+             when '1692771a95d4fe46d1d01d7005b37728' then '❌  se quedó en la 0280 — la vigente es la 0476'
+             when '63364f40980570e732b03374d04428cc' then '❌  se quedó en la 0280 — la vigente es la 0476'
+             when '998f5305129d865719e531fd9c0d957f' then '❌  se quedó en la 0244 — la vigente es la 0476'
+             when '42d59bddd0d28090c32178c38ecb287b' then '❌  se quedó en la 0244 — la vigente es la 0476'
+             when 'e7e8058baf4eaef7b832c089c7c47fbd' then '❌  se quedó en la 0243 — la vigente es la 0476'
+             when '9504720348bfa5234384012989fb569a' then '❌  se quedó en la 0243 — la vigente es la 0476'
+             when 'af7956b5b84122c148196ff6a559adda' then '❌  se quedó en la 0201 — la vigente es la 0476'
+             when '1cc68dc56acb76a68f3c6ce4cea9b82a' then '❌  se quedó en la 0201 — la vigente es la 0476'
+             when '8c07866249e413c2b76bb7f5a75b47da' then '❌  se quedó en la 0134 — la vigente es la 0476'
+             when '1c6297943a4725112e48982c4c9ee285' then '❌  se quedó en la 0134 — la vigente es la 0476'
+             when '1b916cb6ba3643297fe75e6b1c3a24d1' then '❌  se quedó en la 0127 — la vigente es la 0476'
+             when 'd73fcd77d90d6909fedc1ef55a14c318' then '❌  se quedó en la 0127 — la vigente es la 0476'
+             when '3ef6a55f0b4d70ebc4f9cb7572d4a939' then '❌  se quedó en la 0096 — la vigente es la 0476'
+             when 'b1f1c38057e2417d581e2506818527a4' then '❌  se quedó en la 0096 — la vigente es la 0476'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_planilla_congelar'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_planilla_congelar'
+         ), '⚠   la función NO EXISTE'), 1000005
+  union all
+  select 'PLATA', 'fn_planilla_congelar_pendientes', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '29a080658c80f06c79ff68dfc1771bae' then '✓   al día (0323)'
+             when 'c238d46d08f45c7828a2e94ee29a20ea' then '✓   al día (0323, pegada desde Windows)'
+             when 'f9fca2b0f9e6fbe6b667ce8a481e69a7' then '✗   0323 con los acentos rotos — vuelve a pegarla'
+             when '433bebcadda139cfb3a723e269f9b0b6' then '❌  se quedó en la 0096 — la vigente es la 0323'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_planilla_congelar_pendientes'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_planilla_congelar_pendientes'
+         ), '⚠   la función NO EXISTE'), 1000006
+  union all
+  select 'PLATA', 'fn_periodo_pagado', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '4c655cdd6b1b73784037491baabc02d2' then '✓   al día (0323)'
+             when '7bf1b7ac9384fda0f86d297426e790b0' then '✓   al día (0323, pegada sin comentarios)'
+             when '44e3c5dfa50a665566fec91ac9add366' then '✓   al día (0323, pegada desde Windows)'
+             when '3ebe2d06d0c7e3512f8a334a28b915cc' then '✓   al día (0323, desde Windows y sin comentarios)'
+             when 'fde0d3864c04e5d6de54784d208015f4' then '✗   0323 con los acentos rotos — vuelve a pegarla'
+             when 'ba09a250d6496084f093dccb2bd9108b' then '❌  se quedó en la 0096 — la vigente es la 0323'
+             when '0d7897c8043128160a3f0bbfd42a108c' then '❌  se quedó en la 0095 — la vigente es la 0323'
+             when 'e503c37f75625c7db7512a2276993a6f' then '❌  se quedó en la 0025 — la vigente es la 0323'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_periodo_pagado'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_periodo_pagado'
+         ), '⚠   la función NO EXISTE'), 1000007
+  union all
+  select 'PLATA', 'fn_revertir_pago', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '0e9f58bed7f60fd01dbff3ab36c8bda1' then '✓   al día (0546)'
+             when 'bab96337babf321944b9db2baa228e53' then '✓   al día (0546, pegada sin comentarios)'
+             when 'f2f63bd841e6f34d37ae35ed987cadcc' then '✓   al día (0546, pegada desde Windows)'
+             when '502850fa97280075c2648be1b6e967d3' then '✓   al día (0546, desde Windows y sin comentarios)'
+             when '973f205e7ed257edcbf3f2ea640a3bb2' then '✗   0546 con los acentos rotos — vuelve a pegarla'
+             when 'ac66bb056d28898f209ec7e17b9511af' then '❌  se quedó en la 0323 — la vigente es la 0546'
+             when '8a28101cbcfafe2e35665224815a70f4' then '❌  se quedó en la 0323 — la vigente es la 0546'
+             when '76e13c78f37272a0fcb549b87c224947' then '❌  se quedó en la 0203 — la vigente es la 0546'
+             when '1176db7e5595eefbb3aa8efaa6f18a1d' then '❌  se quedó en la 0203 — la vigente es la 0546'
+             when '05d12836850e6fb9a5745ff661a1f23a' then '❌  se quedó en la 0066 — la vigente es la 0546'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_revertir_pago'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_revertir_pago'
+         ), '⚠   la función NO EXISTE'), 1000008
+  union all
+  select 'PLATA', 'fn_repagar_periodo', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '7d2a5ffb4ca80368f3312925cbf706d8' then '✓   al día (0323)'
+             when '0399c817e02a33a2d7b2e948c1612169' then '✓   al día (0323, pegada sin comentarios)'
+             when '6ff8f29b2fddfd4ab809c854da9db8c0' then '✓   al día (0323, pegada desde Windows)'
+             when '6c3f1cf20145c79c8d96997cf11f8998' then '✓   al día (0323, desde Windows y sin comentarios)'
+             when '03def4d04f9fa78bc153126ab3725e8e' then '✗   0323 con los acentos rotos — vuelve a pegarla'
+             when 'ae86e4e9204325dec278ff2617083bb0' then '❌  se quedó en la 0098 — la vigente es la 0323'
+             when '5a6f698ce7443f3a8e5d9e4822f6badf' then '❌  se quedó en la 0098 — la vigente es la 0323'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_repagar_periodo'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_repagar_periodo'
+         ), '⚠   la función NO EXISTE'), 1000009
+  union all
+  select 'PLATA', 'fn_proyeccion_periodo', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '7724765c6a73abbcf01378b807ac93c9' then '✓   al día (0323)'
+             when 'f883bd1063c4f35d6a3a6ec0c78212c7' then '✓   al día (0323, pegada sin comentarios)'
+             when 'b7ac9bf4f3d7abee8434501b09f404bb' then '✓   al día (0323, pegada desde Windows)'
+             when 'aa56108a87cf91bec49bff57b28ebdc6' then '✓   al día (0323, desde Windows y sin comentarios)'
+             when '2d4699602909ce55aad43f71f739d788' then '✗   0323 con los acentos rotos — vuelve a pegarla'
+             when '0c9718e51240a97b809495c28a68ce93' then '❌  se quedó en la 0313 — la vigente es la 0323'
+             when '1fd7511c585c331ead402a55ae7cc463' then '❌  se quedó en la 0313 — la vigente es la 0323'
+             when 'fad72eefc30b5b2de9dd81460cf87dd9' then '❌  se quedó en la 0105 — la vigente es la 0323'
+             when '63cd6604ab9e6e9793d5f5a65c711977' then '❌  se quedó en la 0104 — la vigente es la 0323'
+             when 'e3a68815feac82da3ea293ed1a63a5ab' then '❌  se quedó en la 0104 — la vigente es la 0323'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_proyeccion_periodo'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_proyeccion_periodo'
+         ), '⚠   la función NO EXISTE'), 1000010
+  union all
+  select 'PLATA', 'fn_costos_planilla', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when 'a25fbbc2a67dcc6b07f1cb2a8647c124' then '✓   al día (0608)'
+             when '171b0f29312249244e60dff106b73887' then '✓   al día (0608, pegada sin comentarios)'
+             when '5431bd4f16d008a90612a6ab564a2764' then '✓   al día (0608, pegada desde Windows)'
+             when '0e9fbcdce8ab6f53a6ffff6c8fa2f829' then '✓   al día (0608, desde Windows y sin comentarios)'
+             when 'd23ea98ef93328615caaeb37286f0f55' then '✗   0608 con los acentos rotos — vuelve a pegarla'
+             when '939e5ef4840e6ca088b08a17d2084e74' then '❌  se quedó en la 0260 — la vigente es la 0608'
+             when '32beb6a3c1bd9790cfa0f49b2b41be53' then '❌  se quedó en la 0260 — la vigente es la 0608'
+             when '2e960fc4db713c4fc4dad10f6c42a67b' then '❌  se quedó en la 0099 — la vigente es la 0608'
+             when '85ed93683f4deeaaf1bab2367862c195' then '❌  se quedó en la 0099 — la vigente es la 0608'
+             when '6c15090ca01d6d581ed579e3d17efbb8' then '❌  se quedó en la 0097 — la vigente es la 0608'
+             when '3b28c16970dac901fff93637d6c20df0' then '❌  se quedó en la 0097 — la vigente es la 0608'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_costos_planilla'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_costos_planilla'
+         ), '⚠   la función NO EXISTE'), 1000011
+  union all
+  select 'PLATA', 'fn_vacaciones_truncas', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when 'f4b999990f36f2471dce7ba8f053b27f' then '✓   al día (0341)'
+             when '1ac4f5f78e9870390ea12f0be7f9f62e' then '✓   al día (0341, pegada sin comentarios)'
+             when '07719de72894b212b0b904e3c64eb869' then '✓   al día (0341, pegada desde Windows)'
+             when '9c03d69c3cae85576bb8e11a886acb4c' then '✓   al día (0341, desde Windows y sin comentarios)'
+             when '66888cb5e9c03804ec2188ac750bdd9b' then '✗   0341 con los acentos rotos — vuelve a pegarla'
+             when '530af4af90c1fa90d0f9b9e8c36b1f05' then '❌  se quedó en la 0297 — la vigente es la 0341'
+             when 'd1d87a44eaf89377e48e832261972264' then '❌  se quedó en la 0297 — la vigente es la 0341'
+             when 'a005fc6907be6a55d7243bdf6e65aa9d' then '❌  se quedó en la 0283 — la vigente es la 0341'
+             when '9a95ca72803189a2b56f321a24e7bdae' then '❌  se quedó en la 0283 — la vigente es la 0341'
+             when '9535ed57eebc317ddbefca0dc8fd409e' then '❌  se quedó en la 0278 — la vigente es la 0341'
+             when '47baa810366546ef4db66d5ea50de8ee' then '❌  se quedó en la 0278 — la vigente es la 0341'
+             when '0d411bdbc3edd858264f80d7a929ddc9' then '❌  se quedó en la 0196 — la vigente es la 0341'
+             when '31fcce36551b5499b4773e2e879d0839' then '❌  se quedó en la 0196 — la vigente es la 0341'
+             when 'fdb8caba30b8652037a2312296f7a39c' then '❌  se quedó en la 0129 — la vigente es la 0341'
+             when '1c27c4807089a88e299be2ebf4be6746' then '❌  se quedó en la 0129 — la vigente es la 0341'
+             when 'ab17762b22fb34c67f557c7aba56226b' then '❌  se quedó en la 0087 — la vigente es la 0341'
+             when '4781866e5cd00d0f8a0e62c23ad57272' then '❌  se quedó en la 0087 — la vigente es la 0341'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_vacaciones_truncas'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_vacaciones_truncas'
+         ), '⚠   la función NO EXISTE'), 1000012
+  union all
+  select 'PLATA', 'fn_cts_trunca', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '62edcd69debfe33261d41759192555c2' then '✓   al día (0278)'
+             when 'fd1da0c43ac790d5cdf2cd6bad558d74' then '✓   al día (0278, pegada sin comentarios)'
+             when '266c1d58012054006288458c8720c263' then '✓   al día (0278, pegada desde Windows)'
+             when '7eca562787ba1b1be0071e9c5d2757ba' then '✓   al día (0278, desde Windows y sin comentarios)'
+             when 'cf3045b08f1ee8665fb8ceedbfdc267f' then '✗   0278 con los acentos rotos — vuelve a pegarla'
+             when '84e6226144339fef7eb1bee079f7de5b' then '❌  se quedó en la 0196 — la vigente es la 0278'
+             when 'b30b95baecb6fe5685a4fe144ee1aafa' then '❌  se quedó en la 0196 — la vigente es la 0278'
+             when '1538ac9dfbc59d71f6e48260a3df410b' then '❌  se quedó en la 0163 — la vigente es la 0278'
+             when 'ed66f489563979fe8503b06834de68b8' then '❌  se quedó en la 0163 — la vigente es la 0278'
+             when '33a6b796c2bc91e496d591d0337900f1' then '❌  se quedó en la 0129 — la vigente es la 0278'
+             when 'e22724f77efe97b401ceb56f19af2334' then '❌  se quedó en la 0129 — la vigente es la 0278'
+             when 'cec45b4dde4d3f6e7e5abc45a076ab5e' then '❌  se quedó en la 0087 — la vigente es la 0278'
+             when 'd2ef429a227c3eefa9eb9106a138c9af' then '❌  se quedó en la 0087 — la vigente es la 0278'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_cts_trunca'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_cts_trunca'
+         ), '⚠   la función NO EXISTE'), 1000013
+  union all
+  select 'PLATA', 'fn_grati_trunca', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when 'fc8bdd9c80e9304137ee19baa21c83ff' then '✓   al día (0163)'
+             when '96a3ccaac63df85bef7ff72b39ab21e2' then '✓   al día (0163, pegada sin comentarios)'
+             when 'ccfbe39126686399c3de5524f56d9b87' then '✓   al día (0163, pegada desde Windows)'
+             when '729949f397a1e9b83ae8a4e7b6a3daa9' then '✓   al día (0163, desde Windows y sin comentarios)'
+             when '0084f4cc66b02654c4f2b2e9532b2cce' then '✗   0163 con los acentos rotos — vuelve a pegarla'
+             when 'e5d3fca5304b54c7de6777f0c6f17ad1' then '❌  se quedó en la 0129 — la vigente es la 0163'
+             when '48ab9c755d17f87d67bd213282e03e2a' then '❌  se quedó en la 0129 — la vigente es la 0163'
+             when 'ef453848206b7fb1cdc394a33571edcb' then '❌  se quedó en la 0087 — la vigente es la 0163'
+             when '18b8a0ef50d78510a25af5db5f3284dc' then '❌  se quedó en la 0087 — la vigente es la 0163'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_grati_trunca'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_grati_trunca'
+         ), '⚠   la función NO EXISTE'), 1000014
+  union all
+  select 'PLATA', 'fn_grati_trunca_bruta', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '0b932c856bbe6f189b53a08a6fbf161f' then '✓   al día (0343)'
+             when '05c1b09e2a22df1824bc0167003939c8' then '✓   al día (0343, pegada sin comentarios)'
+             when '9a03bf50bfdc7e343239c577c47108c8' then '✓   al día (0343, pegada desde Windows)'
+             when '7cf60b0eebaeb3ac6abf4629d505cf7c' then '✓   al día (0343, desde Windows y sin comentarios)'
+             when '83ec1cf9753cbad03ca9d099ed9e2945' then '✗   0343 con los acentos rotos — vuelve a pegarla'
+             when '8a4d089c3bf1bc78ef0563191c942a2f' then '❌  se quedó en la 0289 — la vigente es la 0343'
+             when 'c56aa4fb65eaaeeadad589b88ab4fa9e' then '❌  se quedó en la 0289 — la vigente es la 0343'
+             when '78cb6ac19121bb40f76d62f23f58dfd4' then '❌  se quedó en la 0196 — la vigente es la 0343'
+             when '1832cbfe08d0a9c52c1fd5ad6640d822' then '❌  se quedó en la 0196 — la vigente es la 0343'
+             when 'e5d3fca5304b54c7de6777f0c6f17ad1' then '❌  se quedó en la 0163 — la vigente es la 0343'
+             when '48ab9c755d17f87d67bd213282e03e2a' then '❌  se quedó en la 0163 — la vigente es la 0343'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_grati_trunca_bruta'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_grati_trunca_bruta'
+         ), '⚠   la función NO EXISTE'), 1000015
+  union all
+  select 'PLATA', 'fn_grati_cts_periodo', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '029c534ff79b6e60d7a5a760be659053' then '✓   al día (0346)'
+             when '6fa0ce305883c9d3216161998cee43bc' then '✓   al día (0346, pegada sin comentarios)'
+             when 'ba3842ca25d44d0c33eaae589ad8831e' then '✓   al día (0346, pegada desde Windows)'
+             when 'ab45ed033f142e0a9dadee1c8d35a813' then '✓   al día (0346, desde Windows y sin comentarios)'
+             when '8167a3ba9914f22c1fe4debb025df8bc' then '✗   0346 con los acentos rotos — vuelve a pegarla'
+             when '2051d2fc838ca0514a75f32791aef614' then '❌  se quedó en la 0338 — la vigente es la 0346'
+             when '1737f40c452fe240db07ea2a4a2320d3' then '❌  se quedó en la 0338 — la vigente es la 0346'
+             when '0bc70f11dd23ede89441e11486d58d70' then '❌  se quedó en la 0088 — la vigente es la 0346'
+             when '1c01cf1afcedd57358d9c7cd4f65346c' then '❌  se quedó en la 0088 — la vigente es la 0346'
+             when 'b9739b9367b2e32bf250dc6455d9e30f' then '❌  se quedó en la 0050 — la vigente es la 0346'
+             when 'c9f611aa3eb2e7efff0c9c8b6451aa3a' then '❌  se quedó en la 0050 — la vigente es la 0346'
+             when '8357793976dc7db790fb443c067d4cac' then '❌  se quedó en la 0049 — la vigente es la 0346'
+             when '9ea7afb55c21135c7370e946eb3e4020' then '❌  se quedó en la 0049 — la vigente es la 0346'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_grati_cts_periodo'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_grati_cts_periodo'
+         ), '⚠   la función NO EXISTE'), 1000016
+  union all
+  select 'PLATA', 'fn_liquidacion', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when 'c229efda8ca8ee484a9eafd7959e8829' then '✓   al día (0244)'
+             when '39e2e6fb82c02a2b5920f6dae056223c' then '✓   al día (0244, pegada sin comentarios)'
+             when '71eefc2793f5511ea58468c203279076' then '✓   al día (0244, pegada desde Windows)'
+             when '92d8e6525a312bb482657f45dc0fbad9' then '✓   al día (0244, desde Windows y sin comentarios)'
+             when 'f50c5705121cc41f09e372eba0acae46' then '✗   0244 con los acentos rotos — vuelve a pegarla'
+             when 'c724dc210b4974e2dd887aee373a02e8' then '❌  se quedó en la 0243 — la vigente es la 0244'
+             when 'b574a405f47e8e42ebf1d866de93cc6e' then '❌  se quedó en la 0243 — la vigente es la 0244'
+             when 'f346444e985b40caf0e5e4f3df4e1f43' then '❌  se quedó en la 0164 — la vigente es la 0244'
+             when '2e7073f098287c0b050c8440470a6bc5' then '❌  se quedó en la 0164 — la vigente es la 0244'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_liquidacion'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_liquidacion'
+         ), '⚠   la función NO EXISTE'), 1000017
+  union all
+  select 'PLATA', 'fn_liquidacion_pagar', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when 'e9b657d6b1b4f7f72310c6e988fcc725' then '✓   al día (0454)'
+             when '3331e2e3d3a10183e09f0c9c7f73fb5e' then '✓   al día (0454, pegada sin comentarios)'
+             when 'f5a0565c028c3958c4af0368bd5bc3cb' then '✓   al día (0454, pegada desde Windows)'
+             when '1f88dd83154a3c305407a1d6d12d1ac0' then '✓   al día (0454, desde Windows y sin comentarios)'
+             when 'ef6cc45d94a46a1ed701991cf220fcd4' then '✗   0454 con los acentos rotos — vuelve a pegarla'
+             when '0e5b1a1d4c3d3e75d0ba1e160d450d79' then '❌  se quedó en la 0255 — la vigente es la 0454'
+             when '0bcd3e31ed192d71bf26ce11e5569efb' then '❌  se quedó en la 0255 — la vigente es la 0454'
+             when '0f54650a4fd955b83e937486cfe8e7eb' then '❌  se quedó en la 0167 — la vigente es la 0454'
+             when 'e510224bedcdecbef86f3099e20642d3' then '❌  se quedó en la 0167 — la vigente es la 0454'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_liquidacion_pagar'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_liquidacion_pagar'
+         ), '⚠   la función NO EXISTE'), 1000018
+  union all
+  select 'PLATA', 'fn_liquidacion_diferencias', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when 'facbab10e25e5b04b5c6315cbe863d88' then '✓   al día (0454)'
+             when 'ae604dd6c37ddd19de5cebd5c50804ad' then '✓   al día (0454, pegada sin comentarios)'
+             when '8414d4f483644b59fa515a0337de6913' then '✓   al día (0454, pegada desde Windows)'
+             when '2bf52da267ca83e9e4287954e23325e2' then '✓   al día (0454, desde Windows y sin comentarios)'
+             when '8e461c442a542b139bce81bb37da39c8' then '✗   0454 con los acentos rotos — vuelve a pegarla'
+             when '8b52942fd1a8029c9600ba6a00cc6754' then '❌  se quedó en la 0251 — la vigente es la 0454'
+             when '57b802d098f06ec9dd26b1e5c25be692' then '❌  se quedó en la 0251 — la vigente es la 0454'
+             when 'e803b9b00e497f18a069beeedf622980' then '❌  se quedó en la 0167 — la vigente es la 0454'
+             when 'b18b73ca5949292c596bd1444b564d2f' then '❌  se quedó en la 0167 — la vigente es la 0454'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_liquidacion_diferencias'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_liquidacion_diferencias'
+         ), '⚠   la función NO EXISTE'), 1000019
+  union all
+  select 'PLATA', 'fn_liquidaciones_pendientes', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when '1d69c2b044e8f058dd199f6f95e7951e' then '✓   al día (0475)'
+             when 'e20ddb0a92fd5344375c1dfbe959db49' then '✓   al día (0475, pegada sin comentarios)'
+             when 'f4a179c62f4ffa6657ddba979cfe1ccb' then '✓   al día (0475, pegada desde Windows)'
+             when '094289b8a7f89f064722293bb478441d' then '✓   al día (0475, desde Windows y sin comentarios)'
+             when 'a9f0f6dd2becaf3f95a01e53d7da71b5' then '✗   0475 con los acentos rotos — vuelve a pegarla'
+             when '3b8560fc935080cf485cb1a6895bf373' then '❌  se quedó en la 0454 — la vigente es la 0475'
+             when 'cbb2c6978238bfccfd6350f1f14ff387' then '❌  se quedó en la 0454 — la vigente es la 0475'
+             when '924153ffc2446d6de4067168d4127ea1' then '❌  se quedó en la 0251 — la vigente es la 0475'
+             when '24a08306ff6ae9924dab03340def6b20' then '❌  se quedó en la 0251 — la vigente es la 0475'
+             when 'b52de313bf26b012e6cdbb89bf0ff292' then '❌  se quedó en la 0167 — la vigente es la 0475'
+             when '56774b85a2c74b3d668fea0a3aaab62b' then '❌  se quedó en la 0164 — la vigente es la 0475'
+             when '35e6393367c4f01bbced5aaedfbc0f40' then '❌  se quedó en la 0164 — la vigente es la 0475'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_liquidaciones_pendientes'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_liquidaciones_pendientes'
+         ), '⚠   la función NO EXISTE'), 1000020
+  union all
+  select 'PLATA', 'fn_educacion_monto', coalesce((
+           select string_agg(case md5(p.prosrc)
+             when 'd04294d428d0dcfb82e44e1e5af60ed9' then '✓   al día (0281)'
+             when '34b64714bf70d9cce3c7c39724eab82a' then '✓   al día (0281, pegada sin comentarios)'
+             when '2524a59a502c9f0da60b9cfcdfe22b38' then '✓   al día (0281, pegada desde Windows)'
+             when 'fb103a38416441ed139cfea42144bed1' then '✓   al día (0281, desde Windows y sin comentarios)'
+             when '3c8e59c3d476a7c2335f0497c3caaad6' then '❌  se quedó en la 0149 — la vigente es la 0281'
+             when '85c19bb03591e507575b634ecc0f46f0' then '❌  se quedó en la 0149 — la vigente es la 0281'
+             else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_educacion_monto'
+           end, ' · ')
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'fn_educacion_monto'
+         ), '⚠   la función NO EXISTE'), 1000021
 )
 select * from (
   -- Una fila por migración.
@@ -550,147 +1124,31 @@ select * from (
          (select count(*) from diff)::text || ' en git' ||
          case when (select count(*) filter (where not explicada) from huerfanas) > 0
               then ' · ⚠️ ' || (select count(*) filter (where not explicada) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
+              else '' end ||
+         case when (select count(*) from plata where estado not like '✓%') > 0
+              then ' · ❌ ' || (select count(*) from plata where estado not like '✓%')::text || ' FUNCIONES DE PLATA NO ESTÁN AL DÍA'
               else '' end,
          -- Una huérfana sin explicar manda sobre todo lo demás: que falte pegar
          -- algo es atraso normal; que algo esté pegado y sin guardar es lo que
          -- costó tres sustos y no avisa solo.
          case when (select count(*) filter (where not explicada) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
+              -- Una función de plata atrasada va antes que lo que falta pegar: el
+              -- registro dice que está y el cuerpo dice que no.
+              when (select count(*) from plata where estado not like '✓%') > 0 then '❌  MIRA ABAJO'
               when (select count(*) filter (where falta) from diff) = 0
               then '✓   al día' else '❌  hay pendientes' end,
          '', 999999
 
   union all
 
-  -- Y la única pregunta que el registro no puede responder.
-  select 'PLANILLA',
-         'fn_planilla_calcular · versión viva',
-         coalesce((
-           select case md5(prosrc)
-             when 'dacebb574315f3f7d880c9117cb3de7f' then '0397 — al día con el repositorio'
-             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0397 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '6ad7e6bb9d7a1678924c07c89a8e9df4' then '⚠ se quedó en la 0025 — falta pegar lo posterior'
-             when '83c9996ff2c82490c8191edc5bd0a996' then '✗ 0025 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '5b263656b9ff462699eaca0db6e1a7b4' then '⚠ se quedó en la 0026 — falta pegar lo posterior'
-             when '9d00f7c9959638019bcde843dd204ea1' then '⚠ se quedó en la 0027 — falta pegar lo posterior'
-             when '0209595e1e31cabde71a58e2f20b0330' then '✗ 0027 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '4eaf8a2dc5118e7e29afaf3c03f777d1' then '⚠ se quedó en la 0047 — falta pegar lo posterior'
-             when 'bb5b21e571788ea5d3ae93d5a8a64b47' then '✗ 0047 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'bee6d6c37d83eb6fb98f333208c928a1' then '⚠ se quedó en la 0069 — falta pegar lo posterior'
-             when '9a6846f5db22f3362082606b4ff72f95' then '✗ 0069 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'b400b2ecad0a5b7fc9c8d47f553708be' then '⚠ se quedó en la 0090 — falta pegar lo posterior'
-             when 'ef970d812bd2975041abd5b493c78647' then '✗ 0090 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'e827bfeff70fd273356f89a986ad65bf' then '⚠ se quedó en la 0100 — falta pegar lo posterior'
-             when 'da62c44e2acedee52765cc02b5427c6f' then '✗ 0100 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'e9c9409fcfa3f3fc6b337638cfcd7741' then '⚠ se quedó en la 0105 — falta pegar lo posterior'
-             when '3bd35a73d8b48489ad050afa57a77eee' then '✗ 0105 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '079e6d87c34feedca8af94b8f27d7e54' then '⚠ se quedó en la 0109 — falta pegar lo posterior'
-             when 'e6424a3e85c7a4d732556f16129886f3' then '✗ 0109 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'f37bf8c0b814f81274d6e2beb9711a10' then '⚠ se quedó en la 0110 — falta pegar lo posterior'
-             when 'de95ba2b717d73cda61869ca32a6db6a' then '✗ 0110 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'd5b08b9ba9e271f8b427caef1d200489' then '⚠ se quedó en la 0111 — falta pegar lo posterior'
-             when 'd55718fc12fca2d3553a4fae3fd45f81' then '✗ 0111 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'bc6f93f13c3a1ef18608c4c26368e53f' then '⚠ se quedó en la 0112 — falta pegar lo posterior'
-             when '64c6161dc260c312742f32333f080525' then '✗ 0112 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '8579625601fe7a926e70d396526d0fe4' then '⚠ se quedó en la 0113 — falta pegar lo posterior'
-             when 'aefe702fe4edb7e26dcb81ddc4d1504d' then '✗ 0113 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'a13dc52b70ab5d4afdfb732479bfbc0c' then '⚠ se quedó en la 0114 — falta pegar lo posterior'
-             when '6717483cf5668e1aa62bb527347420c1' then '✗ 0114 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '0ec3cde07e6b7fa2123665ac4e0855f2' then '⚠ se quedó en la 0116 — falta pegar lo posterior'
-             when '21febade6043a4e98836203f7d96cea1' then '✗ 0116 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'a99e6681ad0f856f4ccd8cf58ccc91e4' then '⚠ se quedó en la 0117 — falta pegar lo posterior'
-             when '19521d9d3133f4e67949af967fc397ba' then '✗ 0117 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '9e7dffb54bd3cef1c1c33bbe576c99a1' then '⚠ se quedó en la 0118 — falta pegar lo posterior'
-             when '56cf23c540edff4f08bda84aff1a2bbd' then '✗ 0118 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'fc986792fd3d0d19adcceb378babe9de' then '⚠ se quedó en la 0120 — falta pegar lo posterior'
-             when '2c9ad7bfe83a1eedc9f8b452159a771d' then '✗ 0120 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'aa3639dbb9b6a20e194b24bb963b4b65' then '⚠ se quedó en la 0122 — falta pegar lo posterior'
-             when 'ee17fa9eda410ddde13b521c237f5b9e' then '✗ 0122 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '19924714a7482291388a10c1f922e4c3' then '⚠ se quedó en la 0134 — falta pegar lo posterior'
-             when '64e01bbec2acf10a5025c4c24ac585b6' then '✗ 0134 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '7917eb444c76116c22c6782236c8fb2f' then '⚠ se quedó en la 0142 — falta pegar lo posterior'
-             when 'ad1112d74bf3856af80e0fcdf5a44aeb' then '✗ 0142 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'aa3f471cf18636f4d6725831864bff64' then '⚠ se quedó en la 0150 — falta pegar lo posterior'
-             when '45cae1ccee8b24f5e3e8f5512122c18b' then '✗ 0150 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '5dc12a1413d38c740e9ac220fe4d8d66' then '⚠ se quedó en la 0159 — falta pegar lo posterior'
-             when 'd6b4931c563646fe949b512744ee8072' then '✗ 0159 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '30e0ecbf11ac5939457df6c2b3cccc77' then '⚠ se quedó en la 0166 — falta pegar lo posterior'
-             when '96041d2475318146fb9bf60826045f94' then '✗ 0166 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '46c6c3de546f4da080d328a079470478' then '⚠ se quedó en la 0171 — falta pegar lo posterior'
-             when 'b7bcaa87ca7179fb140481878f61065b' then '✗ 0171 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'cb3c5de14dd2b5a8872965814d5e7cd9' then '⚠ se quedó en la 0173 — falta pegar lo posterior'
-             when '296c9870840f27defecf80071a8e3b75' then '✗ 0173 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '93e96e37e05799121485e5721de3dc06' then '⚠ se quedó en la 0177 — falta pegar lo posterior'
-             when '17e05875aa7d862e6e9310b124e81f7e' then '✗ 0177 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '187cb5c3b5389f507fc77a18f8af846c' then '⚠ se quedó en la 0185 — falta pegar lo posterior'
-             when '244e9cf3de7412d7603c036040669a1b' then '✗ 0185 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'f81bcf49a3a20337365b06f5a850d53e' then '⚠ se quedó en la 0186 — falta pegar lo posterior'
-             when '1654991224bc19095b32468683c5a8e4' then '✗ 0186 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'ba9dfd2726ea59b86b43fc057c210ece' then '⚠ se quedó en la 0187 — falta pegar lo posterior'
-             when '9ea5860ccb48d497209051de551e8ab3' then '✗ 0187 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '684634d24dd1a28ace4e99f1fd174ad6' then '⚠ se quedó en la 0192 — falta pegar lo posterior'
-             when 'f588806871f74189de370355dfb22767' then '✗ 0192 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '449cc75cc4d097096fd87cdbd13b68f1' then '⚠ se quedó en la 0193 — falta pegar lo posterior'
-             when 'c6c75c8a3f12c6aeaf1cb9ac19a7044a' then '✗ 0193 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '3ca25dd82de07418c9b9c77abffc8dec' then '⚠ se quedó en la 0199 — falta pegar lo posterior'
-             when '2c368e0da180350dad2221012a0a4d57' then '✗ 0199 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'f61eca56c6d2017155c990a958ecd3a6' then '⚠ se quedó en la 0233 — falta pegar lo posterior'
-             when 'f38d38f3b72f1a8aa85b8e9a79b20d28' then '✗ 0233 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '7d285ab4eb0cd8c1e5871b0eebaf78a2' then '⚠ se quedó en la 0236 — falta pegar lo posterior'
-             when '6124769053b350ff9c877b983275080a' then '✗ 0236 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '7d67ff3c1d769ebffc3de0af20ab83fe' then '⚠ se quedó en la 0239 — falta pegar lo posterior'
-             when '6a920445e3fb7ca0fc4a79bf17c89374' then '✗ 0239 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'b9765d1799dc71a9363c292b62daab5e' then '⚠ se quedó en la 0242 — falta pegar lo posterior'
-             when '8080aed645e88f7bbfa88723eb147306' then '✗ 0242 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '3fee1553db2482aa2566d54d1b67438b' then '⚠ se quedó en la 0245 — falta pegar lo posterior'
-             when '7ee382b01ac1b48e1f9cf9337afc335e' then '✗ 0245 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '7799d0a7ecabee450d2dd7609c50fab1' then '⚠ se quedó en la 0250 — falta pegar lo posterior'
-             when '31ea2d1949da27167f767dc903aecd78' then '✗ 0250 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'e8b055e5ec144e20629bdc8b7bdbd0ea' then '⚠ se quedó en la 0252 — falta pegar lo posterior'
-             when '7c038d3bbbe63aba6ae0b2a09aa4196a' then '✗ 0252 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '19eb593a757e0b7480b6a1dc99d7f8c9' then '⚠ se quedó en la 0254 — falta pegar lo posterior'
-             when '76b07847407ae03f1d24bb15096179fc' then '✗ 0254 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '0d0f5fdd5f53d29fb316be50c794cec6' then '⚠ se quedó en la 0261 — falta pegar lo posterior'
-             when '3b690e4e66251589066edfe85a009a0a' then '✗ 0261 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '261329fc2a8045ece063cfb0e5d38eca' then '⚠ se quedó en la 0262 — falta pegar lo posterior'
-             when '172b8aa710b3b06f89a53c3cf7ae6ff8' then '✗ 0262 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'f6b4f2649f4132dd2db5711b391b1f54' then '⚠ se quedó en la 0263 — falta pegar lo posterior'
-             when 'ea201e37d15fbd3ef34d0c5bf8d722fd' then '✗ 0263 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '5e755bdedd964d289104e824eb2925ec' then '⚠ se quedó en la 0269 — falta pegar lo posterior'
-             when '4f24030bdce39bd665a13f503a2e7d7e' then '✗ 0269 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'b132c828fde4aa5fedd6cf946fee7f08' then '⚠ se quedó en la 0275 — falta pegar lo posterior'
-             when '3af7cdc468be355687ad53a4af446222' then '✗ 0275 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '2f38e5ce76bcb22164cd0794671b349f' then '⚠ se quedó en la 0276 — falta pegar lo posterior'
-             when '2792fa305cc21dec63339fc03af71f30' then '✗ 0276 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '0912fcb75893b146ea778163ae9d1ecd' then '⚠ se quedó en la 0280 — falta pegar lo posterior'
-             when '2398570d2d547504320b423d9b21b12f' then '✗ 0280 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '00346e399226432bee73b1047488d178' then '⚠ se quedó en la 0286 — falta pegar lo posterior'
-             when '1be99135441ef1d937aa0cbfd059ae95' then '✗ 0286 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'b1fa2aaaee9a6e4192ea3d616e3d8304' then '⚠ se quedó en la 0293 — falta pegar lo posterior'
-             when '70e0f0270b72ea121eb5ba8edda348e6' then '✗ 0293 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '4688bf0101891f347f05cf96c0db9e68' then '⚠ se quedó en la 0306 — falta pegar lo posterior'
-             when 'cce36e70ae3d5f58d2fb9d063a451b16' then '✗ 0306 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'c8070bb865e977d2d0e6b1bb4bac58d2' then '⚠ se quedó en la 0314 — falta pegar lo posterior'
-             when 'c60b66ae4c1eca9515f4e3b79be82c4d' then '✗ 0314 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'f6ece4f8e21a8171b0d393ddf47cd1ce' then '⚠ se quedó en la 0316 — falta pegar lo posterior'
-             when '151ceaa7d2745e13718dbd5e53ca472f' then '✗ 0316 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '6838c789a2f2444166f2dbebfd9faa0d' then '⚠ se quedó en la 0317 — falta pegar lo posterior'
-             when '00cd2aae9b8d01b943bb99c06eaa3727' then '✗ 0317 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'c86ef4707f51bf57024efac7eea41643' then '⚠ se quedó en la 0322 — falta pegar lo posterior'
-             when '71b1779aa219c4ea7b01d9a062563552' then '✗ 0322 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'dacebb574315f3f7d880c9117cb3de7f' then '⚠ se quedó en la 0339 — falta pegar lo posterior'
-             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0339 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'dacebb574315f3f7d880c9117cb3de7f' then '⚠ se quedó en la 0349 — falta pegar lo posterior'
-             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0349 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
-           end
-           from pg_proc where proname = 'fn_planilla_calcular'
-         ), '⚠ la función NO EXISTE'),
-         '', 1000000
+  -- Lo que el registro no puede responder: qué versión de cada función de plata
+  -- está viva de verdad.
+  select etiqueta, funcion || ' · versión viva', estado, '', orden from plata
 
   union all
 
   -- El barrido, que no depende de ninguna lista escrita a mano y por eso vale
-  -- más que la fila de arriba: cuenta CUALQUIER función cuyo cuerpo lleve el
+  -- más que las filas de arriba: cuenta CUALQUIER función cuyo cuerpo lleve el
   -- signo «√», que en castellano no aparece nunca dentro de un mensaje. Su
   -- presencia siempre significa lo mismo: el texto entró leído como Mac OS
   -- Roman y cada acento quedó partido en dos.
@@ -707,6 +1165,6 @@ select * from (
            where n.nspname = 'public' and p.proname like 'fn\_%'
              and p.prosrc like '%' || chr(8730) || '%'
          ), '—'),
-         '', 1000001
+         '', 2000000
 ) t
 order by orden;
