@@ -23,6 +23,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { ItemObjetivo } from "@/components/ui/item-objetivo";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
+import { ListaPaginada, Paginas } from "@/components/ui/paginas";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { Pestanas } from "@/components/ui/pestanas";
 import { Punto } from "@/components/ui/punto";
@@ -176,6 +177,15 @@ const ITEMS_ATENDER = (["pizarra", "rojo", "ambar", "neutro"] as const).map((ton
 variantes("ParaAtender", ParaAtender, { compacta: BOOLEANO, activa: [null, "rojo"], extra: [undefined, X] }, { items: ITEMS_ATENDER, alTocar: nada }, null);
 variantes("ParaAtender vacía", ParaAtender, { compacta: BOOLEANO }, { items: [], activa: null, alTocar: nada }, null);
 variantes("Pestanas", Pestanas, { enBarra: BOOLEANO }, { etiqueta: X, activa: "a", alElegir: nada, pestanas: [{ clave: "a", texto: X, aviso: 2 }, { clave: "b", texto: X }] }, null);
+// Una sola página no dibuja la fila; en la primera, «Anterior» va apagado; en la del medio, los dos encendidos.
+variantes("Paginas", Paginas, { pag: [
+  { pagina: 0, paginas: 1, desde: 1, hasta: 3, total: 3 },
+  { pagina: 0, paginas: 3, desde: 1, hasta: 5, total: 12 },
+  { pagina: 1, paginas: 3, desde: 6, hasta: 10, total: 12 },
+] }, { etiqueta: X, alCambiar: nada }, null);
+// Sus hijos son una función: va como tercer argumento de `h`, que es por donde llegan los hijos.
+const dibujarLista = ((n: number[]) => h("ul", null, n.map((i) => h("li", { key: i }, i)))) as unknown as ReactNode;
+variantes("ListaPaginada", ListaPaginada, { items: [[1, 2, 3], [1, 2, 3, 4, 5, 6, 7]] }, { etiqueta: X }, dibujarLista);
 
 variantes("Modal", Modal, { ancho: ["sm", "md", "lg", "xl"], titulo: [undefined, X] }, { abierto: true, onCerrar: nada });
 variantes("Modal cerrado", Modal, {}, { abierto: false, onCerrar: nada });

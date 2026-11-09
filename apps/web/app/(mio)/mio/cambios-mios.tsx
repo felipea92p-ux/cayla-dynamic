@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { TZ_LIMA } from "@cayla-dynamic/shared";
-import { Boton } from "@/components/ui/boton";
+import { Paginas } from "@/components/ui/paginas";
 import { describirCambio, type Auditoria } from "@/lib/admin/historial-correcciones";
 
 /**
@@ -129,19 +129,10 @@ export function CambiosMios({
               })}
             </ul>
 
-            {paginas > 1 && (
-              <nav aria-label="Páginas de cambios" className="mt-4 flex items-center justify-between gap-2 border-t border-sand pt-3">
-                <Boton variante="secundario" tamano="sm" disabled={pagina === 0}
-                  onClick={() => setPagina((p) => p - 1)}>
-                  ← Anterior
-                </Boton>
-                <span className="whitespace-nowrap text-xs text-taupe">{primera}–{ultima} de {total}</span>
-                <Boton variante="secundario" tamano="sm" disabled={pagina >= paginas - 1}
-                  onClick={() => setPagina((p) => p + 1)}>
-                  Siguiente →
-                </Boton>
-              </nav>
-            )}
+            <Paginas
+              pag={{ pagina, paginas, desde: primera, hasta: ultima, total: total ?? 0 }}
+              etiqueta="Páginas de cambios" alCambiar={setPagina} className="mt-4"
+            />
           </>
         )}
       </div>

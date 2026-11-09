@@ -5,9 +5,13 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  MENSAJES_DE_ALIENTO, POR_PAGINA, cuantosPiden, hayAliento, mensajeDeAliento, ordenarParaLaPersona, paginar,
+  MENSAJES_DE_ALIENTO, POR_PAGINA, cuantosPiden, hayAliento, mensajeDeAliento, ordenarParaLaPersona,
   pesa, pideAtencion, porLeer, queFaltaEs, textoComoVas, tituloDe, type DocMio,
 } from "@/lib/mio-disciplina";
+import { paginar as paginarDe } from "@/lib/paginar";
+
+// Los documentos se cortan de a POR_PAGINA con la regla común de lib/paginar.ts.
+const paginar = <T,>(items: readonly T[], n: number) => paginarDe(items, n, POR_PAGINA);
 
 const doc = (id: string, extra: Partial<DocMio> = {}): DocMio => ({
   id, correlativo: null, nivel: "amonestacion", tipo_causal: "conducta", estado: "entregado", medio_entrega: "fisico",
