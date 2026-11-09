@@ -100,6 +100,33 @@ describe("el CSS que aquieta", () => {
     for (const s of selectores) expect(s.startsWith(':root[data-vidrio="panel"][data-movimiento="quieto"]')).toBe(true);
   });
 
+  // 2026-11-09: con 0,01 ms, todo elemento sin transición propia (`transition-property: all` de fábrica) pasaba a transitar cada propiedad, y
+  // Safari del iPhone abría el menú sin una sola palabra. Quieto no puede INVENTAR transiciones: las deja en 0 s.
+  it("quieto, las transiciones quedan en 0 s: no inventa una donde no la había", () => {
+    const regla = bloque.slice(bloque.indexOf("@media screen"));
+    const duraciones = [...regla.matchAll(/transition-duration:\s*([^;!]+)/g)].map((m) => m[1].trim());
+    expect(duraciones.length).toBeGreaterThan(0);
+    for (const d of duraciones) expect(d, "una transición en quieto con duración > 0 vuelve a dejar el menú del iPhone sin palabras").toBe("0s");
+  });
+
+  it("nadie espera un transitionend: quieto, no llega", () => {
+    const raiz = join(__dirname, "../apps/web");
+    function archivos(dir: string): string[] {
+      return readdirSync(join(raiz, dir)).flatMap((n) => {
+        const rel = `${dir}/${n}`;
+        if (n === "node_modules" || n.startsWith(".")) return [];
+        if (statSync(join(raiz, rel)).isDirectory()) return archivos(rel);
+        return /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) ? [rel] : [];
+      });
+    }
+    // Sin comentarios: el que explica esta regla nombra `transitionend`, y castigar a quien la explica sería absurdo.
+    const sinComentarios = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "");
+    const esperan = ["app", "components", "lib"]
+      .flatMap(archivos)
+      .filter((f) => /onTransitionEnd|["'`]transitionend["'`]/.test(sinComentarios(readFileSync(join(raiz, f), "utf8"))));
+    expect(esperan, "Quieto deja las transiciones en 0 s y el transitionend nunca llega: usa prefiereQuieto() para no esperarlo").toEqual([]);
+  });
+
   it("salva las señales de espera: el colibrí de «Guardando…» y el hilo y el anillo del loader llevan data-senal", () => {
     const boton = readFileSync(join(__dirname, "../apps/web/components/ui/boton.tsx"), "utf8");
     const cargando = readFileSync(join(__dirname, "../apps/web/components/cargando.tsx"), "utf8");

@@ -578,8 +578,17 @@
    El panel arranca QUIETO: `<html data-movimiento="quieto">`, puesto por el guion de lib/vidrio.ts antes de pintar, y todo lo que se mueve llega de
    una vez a su lugar. Quien quiera las animaciones las enciende con el botón de la cabecera, y queda recordado en ese aparato.
 
-   Cómo: en vez de tocar cada bloque `no-preference` de arriba, una sola regla deja cada animación y cada transición en 0,01 ms y una vuelta. Siguen
-   llegando `animationend` y `transitionend`, y lo que entra con `backwards` termina en su lugar. Lo que anima desde JavaScript pregunta `prefiereQuieto()`.
+   Cómo: en vez de tocar cada bloque `no-preference` de arriba, una sola regla deja cada animación en 0,01 ms y una vuelta, y cada transición en
+   0 s. Siguen llegando los `animationend` (el colibrí viajero espera el suyo), y lo que entra con `backwards` termina en su lugar. Lo que anima
+   desde JavaScript pregunta `prefiereQuieto()`.
+
+   Las transiciones van en 0 s y NO en 0,01 ms como en Retail, y es a propósito. Un elemento que nunca pidió transición tiene
+   `transition-property: all`, el valor de fábrica: con 0 s no pasa nada, pero con 0,01 ms cada propiedad de cada elemento pasa a «transitar».
+   Al abrir el menú del teléfono, cada palabra hereda el cambio de `visibility: hidden` a `visible`, lo transita en 0,01 ms, y Safari del
+   iPhone no vuelve a pintar el texto que se recorta con «…» (`truncate`): el cajón salía con los íconos y sin una palabra, ni el nombre de la
+   placa. Lo vio Felipe en producción el 2026-11-09 y se midió en el simulador (iOS 26.5): quieto, sin palabras; con las animaciones
+   encendidas, bien; quitándole la transición solo a esos textos, bien. Chromium no tiene el defecto. Nadie en apps/web espera un
+   `transitionend` (lo vigila tests/vidrio-movimiento.test.ts), así que no hay nada que se quede esperando.
 
    La excepción son las SEÑALES DE ESPERA (`data-senal`): el colibrí de «Guardando…» y el hilo y el anillo del loader. Sin ellas un guardado lento
    parece colgado y la persona aprieta dos veces. Si el aparato pide menos movimiento, sus reglas de `reduce` siguen mandando, también sobre ellas.
@@ -593,7 +602,7 @@
     animation-duration: 0.01ms !important;
     animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0s !important;
     transition-delay: 0s !important;
   }
   :root[data-vidrio="panel"][data-movimiento="quieto"] {
