@@ -84,9 +84,12 @@ export function guionVidrioAntesDePintar(interruptores: InterruptoresVidrio = in
   const inicio = JSON.stringify(INICIO_TERMINAL);
   const enTerminal = JSON.stringify(interruptores.terminal ? "terminal" : null);
   const enPanel = JSON.stringify(interruptores.panel ? "panel" : null);
-  // En el panel, además, el tema (arranca en claro y solo cambia con su botón, lib/vidrio-tema.ts), si el menú va plegado (lib/vidrio-lateral.ts)
-  // y si las animaciones van quietas o encendidas (lib/vidrio-movimiento.ts). Va aquí y no en un segundo guion
+  // En las dos superficies encendidas, el tema: arranca en claro y solo cambia con su botón (lib/vidrio-tema.ts). El terminal
+  // lo comparte desde su módulo: con su interruptor encendido ya no lo decide /admin/apariencia, sino el botón de esa Mac.
+  // Solo en el panel, además, si el menú va plegado (lib/vidrio-lateral.ts) y si las animaciones van quietas o encendidas
+  // (lib/vidrio-movimiento.ts): el terminal no tiene menú ni botón de animaciones. Va aquí y no en un segundo guion
   // porque depende de la superficie, y le gana al guion viejo de app/layout.tsx porque corre después.
-  const temaDelPanel = `if(v==="panel"){var d=document.documentElement,t="claro";try{if(localStorage.getItem(${JSON.stringify(CLAVE_TEMA)})==="oscuro")t="oscuro"}catch(e){}d.setAttribute("data-tema",t);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="oscuro"?${JSON.stringify(COLOR_BARRA.oscuro)}:${JSON.stringify(COLOR_BARRA.claro)});var g=null;try{g=localStorage.getItem(${JSON.stringify(CLAVE_LATERAL)})}catch(e){}try{if(g==="rail"||(g!=="ancho"&&!matchMedia(${JSON.stringify(CONSULTA_ANCHA)}).matches))d.setAttribute(${JSON.stringify(ATRIBUTO_LATERAL)},"plegado")}catch(e){}${GUION_MOVIMIENTO}}`;
-  return `(function(){var r=location.pathname,v=r===${inicio}||r.indexOf(${inicio}+"/")===0?${enTerminal}:${enPanel};if(v)document.documentElement.setAttribute(${JSON.stringify(ATRIBUTO_VIDRIO)},v);${temaDelPanel}})();`;
+  const tema = `if(v){var t="claro";try{if(localStorage.getItem(${JSON.stringify(CLAVE_TEMA)})==="oscuro")t="oscuro"}catch(e){}d.setAttribute("data-tema",t);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="oscuro"?${JSON.stringify(COLOR_BARRA.oscuro)}:${JSON.stringify(COLOR_BARRA.claro)})}`;
+  const soloDelPanel = `if(v==="panel"){var g=null;try{g=localStorage.getItem(${JSON.stringify(CLAVE_LATERAL)})}catch(e){}try{if(g==="rail"||(g!=="ancho"&&!matchMedia(${JSON.stringify(CONSULTA_ANCHA)}).matches))d.setAttribute(${JSON.stringify(ATRIBUTO_LATERAL)},"plegado")}catch(e){}${GUION_MOVIMIENTO}}`;
+  return `(function(){var d=document.documentElement,r=location.pathname,v=r===${inicio}||r.indexOf(${inicio}+"/")===0?${enTerminal}:${enPanel};if(v)d.setAttribute(${JSON.stringify(ATRIBUTO_VIDRIO)},v);${tema}${soloDelPanel}})();`;
 }

@@ -62,6 +62,8 @@ import {
 } from "@/lib/terminal/reloj-servidor";
 import { Marca } from "@/components/marca";
 import { RelojCentral } from "@/components/reloj";
+import { BotonTema } from "@/components/vidrio/boton-tema";
+import { interruptoresVidrio } from "@/lib/vidrio";
 import { Insignia } from "@/components/ui/insignia";
 import { Cargando } from "@/components/cargando";
 import {
@@ -1100,7 +1102,7 @@ export default function MarcarPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between border-b border-sand px-6 py-4">
+      <header className="terminal-cabecera flex items-center justify-between border-b border-sand px-6 py-4">
         <Marca tono="tinta" isotipo="rojo" />
         <div className="flex items-center gap-3">
           {pendientesSinEnviar > 0 && (
@@ -1109,6 +1111,9 @@ export default function MarcarPage() {
             </Insignia>
           )}
           <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
+          {/* El botón del tema solo existe con el vidrio del terminal: es de esta Mac y nada más (lib/vidrio-tema.ts). No
+              cambia nada de lo que se marca, y arranca en claro aunque alguien lo haya dejado en oscuro en otra Mac. */}
+          {interruptoresVidrio().terminal ? <BotonTema /> : null}
         </div>
       </header>
 
@@ -1122,7 +1127,8 @@ export default function MarcarPage() {
           resuelve esto. */}
       {marcasApartadas > 0 && (
         <div
-          className="flex items-center justify-center gap-3 border-b border-sand px-6 py-3 text-center"
+          className="terminal-aviso flex items-center justify-center gap-3 border-b border-sand px-6 py-3 text-center"
+          data-tono="alerta"
           role="alert"
         >
           <span
@@ -1146,7 +1152,8 @@ export default function MarcarPage() {
           y las marcas esperan en la cola mientras tanto. */}
       {sesionPerdida && (
         <div
-          className="flex flex-wrap items-center justify-center gap-3 border-b border-sand px-6 py-3 text-center"
+          className="terminal-aviso flex flex-wrap items-center justify-center gap-3 border-b border-sand px-6 py-3 text-center"
+          data-tono="alerta"
           role="alert"
         >
           <span
@@ -1178,7 +1185,10 @@ export default function MarcarPage() {
           segundo renglón, siempre visible, sin depender de un puntero que este
           terminal no tiene. */}
       {desfase && Math.abs(desfase.segundos) >= DESFASE_AVISO_SEG && (
-        <div className="flex flex-col items-center gap-1 border-b border-sand px-6 py-2.5 text-center">
+        <div
+          className="terminal-aviso flex flex-col items-center gap-1 border-b border-sand px-6 py-2.5 text-center"
+          data-tono={Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG ? "alerta" : undefined}
+        >
           <p
             className={`text-base font-medium sm:text-lg ${
               Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG ? "text-rojo" : "text-ambar"
@@ -1198,7 +1208,7 @@ export default function MarcarPage() {
       <main className="flex flex-1 flex-col items-center justify-center p-6">
         {pantalla === "lista" && (
           <div className="flex flex-1 flex-col items-center justify-center gap-8">
-            <RelojCentral />
+            <RelojCentral className="terminal-reloj" />
             <SelectorSede
               sedes={sedesDisponibles}
               activa={sedeSeleccionada}

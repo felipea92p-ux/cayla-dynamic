@@ -47,6 +47,12 @@ export interface EstiloPresencia {
   iluminada: string;
   /** Ya no hay nada que hacer ahí (terminó, o hoy no trabaja): foto y nombre se apagan. */
   apagada: boolean;
+  /**
+   * El color del estado como valor de CSS, para el vidrio del terminal: tiñe la casilla encendida sobre la placa
+   * (estilos/vidrio/terminal.css, `--c`). Es el mismo color que `iluminada`; Tailwind solo genera clases escritas
+   * literal, y por eso el valor se repite aquí al lado en vez de armarse de la clase.
+   */
+  tono: string;
 }
 
 /** La tarjeta en reposo: la misma para todos los estados. */
@@ -58,6 +64,7 @@ export const ESTILO_PRESENCIA: Record<ClavePresencia, EstiloPresencia> = {
     punto: "bg-sand text-taupe",
     texto: "text-taupe",
     iluminada: "border-tinta bg-papel [--anillo:var(--color-papel)]",
+    tono: "var(--color-tinta)",
     apagada: false,
   },
   laborando: {
@@ -65,6 +72,7 @@ export const ESTILO_PRESENCIA: Record<ClavePresencia, EstiloPresencia> = {
     punto: "bg-verde text-crema",
     texto: "text-verde",
     iluminada: "border-verde bg-verde/10 [--anillo:color-mix(in_srgb,var(--color-verde)_10%,var(--color-papel))]",
+    tono: "var(--color-verde)",
     apagada: false,
   },
   refrigerio: {
@@ -72,6 +80,7 @@ export const ESTILO_PRESENCIA: Record<ClavePresencia, EstiloPresencia> = {
     punto: "bg-ambar text-crema",
     texto: "text-ambar",
     iluminada: "border-ambar bg-ambar/10 [--anillo:color-mix(in_srgb,var(--color-ambar)_10%,var(--color-papel))]",
+    tono: "var(--color-ambar)",
     apagada: false,
   },
   pausa: {
@@ -79,6 +88,7 @@ export const ESTILO_PRESENCIA: Record<ClavePresencia, EstiloPresencia> = {
     punto: "bg-azul text-crema",
     texto: "text-azul",
     iluminada: "border-azul bg-azul/10 [--anillo:color-mix(in_srgb,var(--color-azul)_10%,var(--color-papel))]",
+    tono: "var(--color-azul)",
     apagada: false,
   },
   termino: {
@@ -86,6 +96,7 @@ export const ESTILO_PRESENCIA: Record<ClavePresencia, EstiloPresencia> = {
     punto: "bg-ceniza text-crema",
     texto: "text-ceniza",
     iluminada: "border-ceniza bg-ceniza/10 [--anillo:color-mix(in_srgb,var(--color-ceniza)_10%,var(--color-papel))]",
+    tono: "var(--color-ceniza)",
     apagada: true,
   },
   libre: {
@@ -93,6 +104,7 @@ export const ESTILO_PRESENCIA: Record<ClavePresencia, EstiloPresencia> = {
     punto: "bg-sand text-taupe",
     texto: "text-taupe",
     iluminada: "border-tinta bg-papel [--anillo:var(--color-papel)]",
+    tono: "var(--color-tinta)",
     apagada: true,
   },
 };
@@ -181,7 +193,7 @@ export function PildoraDeEstados({
 }) {
   return (
     <div
-      className="inline-flex flex-wrap items-center justify-center rounded-pildora border border-borde-control p-0.5"
+      className="terminal-pestanas inline-flex flex-wrap items-center justify-center rounded-pildora border border-borde-control p-0.5"
       role="group"
       aria-label="Estados"
     >

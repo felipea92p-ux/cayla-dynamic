@@ -92,10 +92,23 @@ describe("el vidrio no sale al papel ni al terminal", () => {
     expect(fueraDePantalla(marco).replace(/@keyframes vidrio-[\w-]+\s*\{[^{}]*\{[^{}]*\}\s*\}/g, "").trim()).toBe("");
   });
 
-  it("todo es del panel: el terminal sigue con sus colores hasta su módulo", () => {
+  it("cada superficie se nombra: ningún [data-vidrio] a secas, que alcanzaría a las dos sin quererlo", () => {
     for (const css of [marca, marco]) {
-      for (const m of css.matchAll(/\[data-vidrio(="[a-z]+")?\]/g)) expect(m[1]).toBe('="panel"');
+      for (const m of css.matchAll(/\[data-vidrio(="[a-z]+")?\]/g)) expect(['="panel"', '="terminal"']).toContain(m[1]);
     }
+  });
+
+  it("el terminal lleva los mismos colores que el panel: comparte sus dos bloques, no tiene una copia", () => {
+    for (const tema of [':not([data-tema="oscuro"])', '[data-tema="oscuro"]']) {
+      expect(marca).toMatch(new RegExp(`:root\\[data-vidrio="terminal"\\]${tema.replace(/[[\]()]/g, "\\$&")},\\s*:root\\[data-vidrio="panel"\\]`));
+    }
+    expect(marca.match(/--color-crema:/g)).toHaveLength(1);
+  });
+
+  it("del marco, al terminal solo le llegan el fondo y el botón del tema: el menú y la cabecera del panel no", () => {
+    const reglasDelTerminal = [...marco.matchAll(/[^{};]*\[data-vidrio="terminal"\][^{};,]*/g)].map((m) => m[0]);
+    expect(reglasDelTerminal.length).toBeGreaterThan(0);
+    for (const regla of reglasDelTerminal) expect(regla).toMatch(/vidrio-aurora|boton-tema/);
   });
 
   it("los colores fijos y los del terminal no se tocan", () => {

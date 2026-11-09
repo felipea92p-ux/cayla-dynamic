@@ -19,8 +19,9 @@ export function VidrioEnRuta() {
   useLayoutEffect(() => {
     const valor = valorVidrio(ruta);
     aplicarVidrio(document.documentElement, valor);
+    // El tema es del aparato en las dos superficies encendidas: al cruzar entre ellas no se pierde (lib/vidrio.ts).
+    if (valor) aplicarTemaGuardado();
     if (valor === "panel") {
-      aplicarTemaGuardado();
       aplicarLateral();
       aplicarMovimientoGuardado();
     } else {

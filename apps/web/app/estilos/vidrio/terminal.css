@@ -1,0 +1,240 @@
+/* El terminal con vidrio: el módulo 11 del tablero (docs/vidrio/README.md). Armado solo con las recetas de Retail (recetas.generado.css) y con
+   los mismos colores, fondo y botón de tema que el panel (marca.css y marco.css lo nombran en cada selector).
+
+   QUÉ PROMETE
+     Con NEXT_PUBLIC_VIDRIO_TERMINAL=1, la Mac mini de cada sede se ve como Retail: la aurora detrás, la cabecera de vidrio, las casillas como
+     placas, los pasos de marcar como una hoja, el principal ahumado y lo demás en gota. Apagado, ninguna regla de aquí alcanza a nadie.
+     Solo cambia el material: ningún botón cambia lo que hace, ni cuántos toques cuesta marcar, ni su tamaño mínimo de 48 px.
+
+   QUÉ ASUME
+     Que cada pieza del terminal lleva su clase `terminal-…` (las ponen marcar/components.tsx, marcar/presencia-visual.tsx, marcar/page.tsx,
+     vincular/page.tsx y (terminal)/error.tsx). Sin el atributo esas clases no tienen ninguna regla: el HTML apagado gana nombres, no aspecto.
+     Fuera de capa, como piezas.css: le gana a las utilidades de Tailwind sin `!important`, y por eso cada pieza repite su `:hover`.
+
+   DECIDÍ: clases propias, una por material (gota, ahumado, placa, pozo, hoja) más las dos piezas que Retail no tiene (casilla y reloj).
+   DESCARTÉ: leer las clases de Tailwind como hace piezas.css, porque en el terminal la misma receta escrita (`TILE`) es a la vez la casilla de un
+     nombre y una opción de salida, y el CSS tendría que adivinar cuál es por su lugar. Son siete pantallas en cuatro archivos: nombrarlas es barato.
+   SE ROMPE SI: alguien agrega un botón al terminal sin su clase. No se rompe en silencio: se ve con el aspecto viejo sobre la aurora.
+
+   LO QUE NO ES DE RETAIL, y por eso va a mostrarse con imagen antes de decidirlo (paso 5 del tablero):
+     · La casilla conserva el borde café de control. Retail separa sus placas solo con luz y sombra, pero aquí se midió en septiembre que sin borde
+       una grilla de nombres a un metro «es una nube sin nada que diga esto es un botón» (WCAG 1.4.11, comentario de TILE en components.tsx).
+       Y conserva también su borde rojo al pasar o apretar: es la señal que se ve a un metro.
+     · El reloj es una lente redonda de la placa Serena, con el anillo y el segundero de siempre.
+     · Lo que avisa (marcas sin registrar, Mac sin vínculo, reloj corrido) es el aviso teñido del panel, ancho y con su color.
+   Sin `backdrop-filter` salvo en la cabecera, que es lo único que tiene algo pasando por detrás: detrás de una casilla o de una hoja solo está
+   la aurora, que ya viene desenfocada, y una Mac mini con treinta casillas no tiene por qué pagar treinta desenfoques. */
+@media screen {
+  /* ---------- El fondo ----------
+     La envoltura del terminal (y su pantalla de error) traen `bg-crema`, que taparía la aurora. El crema sigue siendo el del <body>. */
+  [data-vidrio="terminal"] .bg-crema.min-h-screen {
+    background-color: transparent;
+  }
+
+  /* ---------- La letra, como en el panel ----------
+     La serif a 600 (P6 del contrato). La secundaria un punto más tinta: sobre la nube más teñida el café bajaba a 3.82:1. El rojo y el ámbar de
+     marca son para marcar, no para leer: la letra va en su tono profundo. */
+  [data-vidrio="terminal"] .font-serif {
+    font-weight: 600;
+  }
+  [data-vidrio="terminal"] .text-taupe {
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .text-rojo {
+    color: var(--color-rojo-profundo);
+  }
+  [data-vidrio="terminal"] .text-ambar {
+    color: var(--color-ambar-profundo);
+  }
+
+  /* ---------- La cabecera: una barra de vidrio pegada arriba ----------
+     La de la grilla corre por debajo cuando la sede tiene más gente de la que cabe. El botón del tema crece a 44 px: aquí se toca con el dedo. */
+  [data-vidrio="terminal"] .terminal-cabecera {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    border-bottom-color: var(--marco-vidrio-borde);
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: var(--vidrio-flota-filtro);
+    backdrop-filter: var(--vidrio-flota-filtro);
+    box-shadow: var(--vidrio-flota-sombra);
+  }
+  [data-vidrio="terminal"] .terminal-cabecera .boton-tema {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-boton);
+  }
+
+  /* ---------- El aviso: una placa teñida de lo que dice, con un filo de su color (la del panel) ---------- */
+  [data-vidrio="terminal"] .terminal-aviso {
+    --c: var(--color-ambar);
+    margin: 12px 16px 0;
+    border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+    border-radius: 18px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--c) 9%, transparent), color-mix(in srgb, var(--c) 4%, transparent)), var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+  [data-vidrio="terminal"] .terminal-aviso[data-tono="alerta"] {
+    --c: var(--color-rojo);
+  }
+  [data-vidrio="terminal"] .terminal-hoja .terminal-aviso {
+    margin: 0;
+  }
+
+  /* ---------- El reloj: una lente redonda ---------- */
+  [data-vidrio="terminal"] .terminal-reloj {
+    border-radius: 999px;
+    background: var(--serena-fondo);
+    box-shadow: var(--serena-sombra), inset 0 0 0 1px var(--serena-borde);
+  }
+
+  /* ---------- Las pestañas: la fila es un pozo y la elegida una gota clara ----------
+     La sede y la píldora de estados. El color del ícono del estado elegido se queda: sobre la gota clara se lee, y sobre el ahumado no se leería. */
+  [data-vidrio="terminal"] .terminal-pestanas {
+    gap: 2px;
+    padding: 4px;
+    border-color: transparent;
+    border-radius: 999px;
+    background: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+  }
+  [data-vidrio="terminal"] .terminal-pestanas button {
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--color-tinta) 72%, transparent);
+    transition: color 200ms var(--ease-cayla), background 200ms var(--ease-cayla), box-shadow 200ms var(--ease-cayla);
+  }
+  [data-vidrio="terminal"] .terminal-pestanas button[aria-pressed="true"] {
+    color: var(--color-tinta);
+    background: var(--gota-marca);
+    box-shadow: var(--gota-luz);
+  }
+  @media (hover: hover) {
+    [data-vidrio="terminal"] .terminal-pestanas button[aria-pressed="false"]:hover {
+      color: var(--color-tinta);
+    }
+  }
+
+  /* ---------- Los botones: el principal ahumado, el resto la gota ----------
+     Píldora si es de una línea; con su texto a la izquierda o con una segunda línea, la esquina de tarjeta: en algo tan alto la de 999 px es un
+     estadio. El borde café y el rojo al pasar son del terminal (ver arriba): la gota no los pisa. El secundario de arena pasa al café de control. */
+  [data-vidrio="terminal"] .terminal-gota {
+    border-radius: var(--radius-boton);
+    background: var(--gota-fondo);
+    box-shadow: var(--gota-luz);
+    color: var(--color-tinta);
+    transition: var(--vidrio-boton-transicion);
+  }
+  [data-vidrio="terminal"] .terminal-gota:is(.text-left, :has(> .block)) {
+    border-radius: var(--radius-tarjeta);
+  }
+  [data-vidrio="terminal"] .terminal-gota.border-sand {
+    border-color: var(--color-borde-control);
+  }
+  [data-vidrio="terminal"] .terminal-ahumado {
+    border: 1px solid var(--ahumado-borde);
+    border-radius: var(--radius-boton);
+    background: var(--ahumado-fondo);
+    box-shadow: var(--ahumado-luz);
+    color: var(--color-crema);
+    transition: var(--vidrio-boton-transicion);
+  }
+  @media (hover: hover) {
+    [data-vidrio="terminal"] .terminal-gota:not(:disabled):hover {
+      background: var(--gota-fondo-encima);
+    }
+    [data-vidrio="terminal"] .terminal-ahumado:not(:disabled):hover {
+      background: var(--ahumado-hover);
+      border-color: color-mix(in srgb, var(--color-rojo-profundo) 70%, transparent);
+    }
+  }
+
+  /* ---------- La casilla de cada persona: una placa Serena que se toca ----------
+     Va después de la gota porque la casilla sin estado confirmado lleva las dos clases (la receta `TILE`), y aquí manda la placa.
+     `--anillo` es el fondo de la casilla, para que el círculo del estado parezca recortado de la foto: sobre vidrio, el vidrio mezclado con la
+     página. La encendida desde la píldora toma su color de `--c`, que pone la casilla desde ESTILO_PRESENCIA: el mapa de colores es uno solo. */
+  [data-vidrio="terminal"] .terminal-casilla {
+    --anillo: color-mix(in srgb, var(--color-vidrio) 60%, var(--color-crema));
+    border-radius: var(--radius-tarjeta);
+    background: var(--serena-fondo);
+    box-shadow: var(--serena-sombra);
+    transition: translate 250ms var(--ease-cayla), scale var(--t-resp) var(--ease-cayla), background 200ms var(--ease-cayla),
+      box-shadow 250ms var(--ease-cayla), border-color 200ms var(--ease-cayla), opacity 200ms var(--ease-cayla);
+  }
+  @media (hover: hover) {
+    [data-vidrio="terminal"] .terminal-casilla:hover {
+      translate: 0 -2px;
+      background: var(--serena-fondo-encima);
+      box-shadow: var(--serena-sombra-encima);
+    }
+  }
+  [data-vidrio="terminal"] .terminal-casilla[data-encendida] {
+    --anillo: color-mix(in srgb, var(--c) 14%, color-mix(in srgb, var(--color-vidrio) 70%, var(--color-crema)));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--c) 16%, transparent), color-mix(in srgb, var(--c) 8%, transparent)), var(--serena-fondo-encima);
+    box-shadow: var(--serena-sombra-encima);
+  }
+  /* Las iniciales de quien no subió foto: un hueco en el vidrio, donde iría la foto. */
+  [data-vidrio="terminal"] .terminal-iniciales {
+    background: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+    color: color-mix(in srgb, var(--color-tinta) 72%, transparent);
+  }
+
+  /* ---------- El pozo: lo que espera tu dato (y la pista de la cuenta atrás) ----------
+     El borde sigue siendo el de control (3:1); al escribir sube como la gota, sin volverse sólido. */
+  [data-vidrio="terminal"] .terminal-pozo {
+    background-color: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+  }
+  [data-vidrio="terminal"] :is(input, textarea).terminal-pozo {
+    border-color: var(--color-borde-control);
+    border-radius: var(--radius-campo);
+    transition: background 300ms var(--ease-cayla), box-shadow 300ms var(--ease-cayla), border-color 220ms var(--ease-cayla);
+  }
+  [data-vidrio="terminal"] :is(input, textarea).terminal-pozo:focus {
+    background: var(--pozo-encendido-fondo);
+    box-shadow: var(--pozo-encendido-sombra);
+  }
+  [data-vidrio="terminal"] :is(input, textarea).terminal-pozo::placeholder {
+    color: var(--vidrio-letra-secundaria);
+  }
+
+  /* ---------- La placa: lo que explica (el día de hoy, antes de reabrirlo) ---------- */
+  [data-vidrio="terminal"] .terminal-placa {
+    border-color: var(--placa-borde);
+    border-radius: 18px;
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+  }
+
+  /* ---------- La hoja: cada paso de marcar, sobre la aurora ----------
+     Antes cada paso ocupaba la pantalla entera sin bordes; ahora es una sola hoja de vidrio en el centro, como una ventana de Retail. Lo que no se
+     deshace sigue diciéndolo el texto, y el rojo de un rechazo tiñe la hoja entera, como antes teñía la pantalla. */
+  [data-vidrio="terminal"] .terminal-hoja {
+    flex: 0 1 auto;
+    align-self: center;
+    width: min(100%, 36rem);
+    margin: auto;
+    padding: clamp(24px, 4vw, 40px);
+    border: 1px solid var(--vidrio-hoja-borde);
+    border-radius: var(--radius-hoja);
+    background: var(--vidrio-hoja-fondo);
+    box-shadow: var(--vidrio-hoja-sombra);
+  }
+  /* La fila de «Cancelar · Confirmar ahora» venía a 20 rem: en píldora, «Confirmar ahora» partía en dos líneas y el botón quedaba como un estadio. */
+  [data-vidrio="terminal"] .terminal-hoja > .max-w-xs {
+    max-width: 26rem;
+  }
+  [data-vidrio="terminal"] .terminal-hoja[data-tono="alerta"] {
+    border-color: color-mix(in srgb, var(--color-rojo) 30%, transparent);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--color-rojo) 10%, transparent), color-mix(in srgb, var(--color-rojo) 4%, transparent)), var(--vidrio-hoja-fondo);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-vidrio="terminal"] :is(.terminal-casilla, .terminal-gota, .terminal-ahumado, .terminal-pestanas button) {
+      transition: none;
+    }
+    [data-vidrio="terminal"] .terminal-casilla:hover {
+      translate: none;
+    }
+  }
+}

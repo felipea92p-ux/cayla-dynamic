@@ -75,6 +75,13 @@ Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar ca
 
 **Antes de retirar `/admin/apariencia`:** fijar el terminal en claro y limpiar la copia local del tema en cada Mac mini, o se quedan con el último que les llegó.
 
+**El terminal, desde su módulo (2026-11-09):** con `NEXT_PUBLIC_VIDRIO_TERMINAL=1` deja de seguir a `/admin/apariencia`. Arranca en claro y cada Mac mini
+tiene su botón en la cabecera, igual que un teléfono en el panel. Ya no lee la copia local del tema global (`cayla-tema-global`), así que esa copia
+deja de importar; la única que manda es `cayla-tema`, la misma clave que el panel: una Mac mini donde alguien puso el panel en oscuro arranca el terminal
+en oscuro. Sus piezas viven en `estilos/vidrio/terminal.css`, colgadas de clases `terminal-…`: casilla, gota, ahumado, placa, pozo y hoja. Medido con
+`tema/pixeles.mjs`, en claro y oscuro, a 1440 y a 375 px: los 68 textos de la grilla y de las hojas pasan. Solo quedan bajo 4.5:1 las iniciales de
+quien ya terminó su día, que hoy ya se atenúan a propósito al 50 %, y las casillas atenuadas al iluminar un estado (30 %), como hoy.
+
 **Las recetas de vidrio vienen de `main` de Retail, con su bloque para quien pide menos transparencia o más contraste (#1650).** Sus variables viajan; sus reglas, una lista exacta, las escribe `estilos/vidrio/piezas.css` solo para el panel, porque apuntan a clases de Retail. Si Retail cambia esa lista, la copia se detiene y el vigilante avisa.
 
 **`tema:auditar` no alcanza con vidrio:** casi todo el texto va sobre un degradado, y ahí solo suma colores planos. Se mide también con los píxeles de cada pantalla: se saca una captura sin letras y se compara cada texto contra lo que de verdad tiene detrás. Es `tema/pixeles.mjs`; las fotos de antes y ahora salen de `tema/fotos.mjs`.
@@ -110,7 +117,7 @@ trabajo propio de cada módulo. Documentos va antes que Personas y Pago porque l
 | 8 | **Empresa y Configuración:** Archivo, Áreas, Sedes, Cuentas y Parámetros | 6 | 13 | Casi nada | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 9 | **Entrada:** login, nueva clave y olvidé mi clave | 3 | 4 | Compararlo con «El vuelo vivo» de Retail | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 10 | **Lo mío:** lo que cada integrante ve en su teléfono | 12 | 46 | Casi todo: Retail no tiene un espacio personal así | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
-| 11 | **Terminal de marcaje** | 3 | Exento | Casillas, reloj y marcar sin conexión | | | | | | |
+| 11 | **Terminal de marcaje** | 3 | Exento | Casillas, reloj y marcar sin conexión | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 | | |
 
 Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** cuando tiene las seis.
 

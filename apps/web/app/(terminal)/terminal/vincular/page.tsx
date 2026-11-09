@@ -39,7 +39,7 @@ export default function VincularTerminalPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+    <div className="terminal-hoja flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <Colibri tono="rojo" className="w-16" />
       <div className="text-center">
         <h1 className="font-serif text-2xl">Vincular este dispositivo</h1>
@@ -54,7 +54,7 @@ export default function VincularTerminalPage() {
           placeholder="correo del terminal"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded-control border border-sand bg-crema px-4 py-3 text-tinta placeholder:text-taupe"
+          className="terminal-pozo rounded-control border border-sand bg-crema px-4 py-3 text-tinta placeholder:text-taupe"
           required
         />
         <input
@@ -62,14 +62,14 @@ export default function VincularTerminalPage() {
           placeholder="contraseña"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded-control border border-sand bg-crema px-4 py-3 text-tinta placeholder:text-taupe"
+          className="terminal-pozo rounded-control border border-sand bg-crema px-4 py-3 text-tinta placeholder:text-taupe"
           required
         />
         {error && <p className="text-sm text-rojo">{error}</p>}
         <button
           type="submit"
           disabled={cargando}
-          className="rounded-control bg-rojo px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo disabled:opacity-50"
+          className="terminal-ahumado rounded-control bg-rojo px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo disabled:opacity-50"
         >
           {cargando ? "Vinculando…" : "Vincular"}
         </button>
