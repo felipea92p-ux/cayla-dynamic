@@ -365,12 +365,13 @@
     background: var(--ahumado-denso-fondo);
     box-shadow: var(--ahumado-denso-luz);
   }
-  /* En oscuro, esa misma tarjeta sube en vez de invertirse (`.tarjeta-invertida` en globals.css): el ahumado de la tinta era un bloque casi blanco. Va con la
-     placa de una tarjeta y, encima, la gota de lo que está más arriba. Tiene que ser una receta propia y no el ahumado con la tinta cambiada: las recetas se
+  /* En oscuro, esa misma tarjeta sube en vez de invertirse (`.tarjeta-invertida` en globals.css): el ahumado de la tinta era un bloque casi blanco. Va con el
+     borde y la sombra de una tarjeta y la gota de un botón, que la sube un paso. Con la gota «de encima» subía de más: la etiqueta chica (crema al 70 %)
+     medía 4.30:1 en píxeles reales; con esta pasa (tema/pixeles.mjs, 2026-11-09). Tiene que ser una receta propia y no el ahumado con la tinta cambiada: las recetas se
      calculan en la raíz, así que no ven el cambio de tokens que la tarjeta hace por dentro. */
   :root[data-vidrio="panel"][data-tema="oscuro"] div.tarjeta-invertida:not(.hoja *) {
     border-color: var(--serena-borde);
-    background: var(--gota-fondo-encima);
+    background: var(--gota-fondo);
     box-shadow: var(--serena-sombra);
   }
 
