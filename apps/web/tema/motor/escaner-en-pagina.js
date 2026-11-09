@@ -203,30 +203,52 @@
           /* hoja de otro origen: no se puede leer */
         }
       }
-      const tokens = [...nombres].map((n) => leer(raiz.getPropertyValue(n).trim() || "#000")).filter((c) => c[3] > 0.99);
+      const valorDe = (n) => leer(raiz.getPropertyValue(n).trim() || "#000");
+      const tokens = [...nombres].map(valorDe).filter((c) => c[3] > 0.99);
+      // Los `-fija` (crema y tinta fijas) son los únicos que NO cambian con el tema: un recuadro claro con ellos es una decisión (la firma).
+      const fijos = [...nombres].filter((n) => n.endsWith("-fija")).map(valorDe).filter((c) => c[3] > 0.99);
       const cercano = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 12;
       const esToken = (c) => tokens.some((t) => cercano(c, t));
+      const esFijo = (c) => fijos.some((t) => cercano(c, t));
+      // Una TARJETA invertida (`bg-tinta`): en oscuro la tinta es casi blanca, así que es token y aun así encandila. Un botón o una píldora
+      // invertidos sí son la forma de destacar en oscuro; una tarjeta no (Provisiones, 2026-11-09). Desde este tamaño ya no es un botón.
+      const AREA_DE_TARJETA = 30000;
+      // El vidrio pinta tarjetas y botones con un degradado (`background-image`) y deja el color de fondo transparente: sin leer el degradado,
+      // una tarjeta de vidrio clara era invisible para este detector. Se promedian sus paradas de color, que el navegador ya da resueltas.
+      const PARADA = /color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)(?: \/ ([\d.]+))?\)|rgba?\(([\d.]+),? ([\d.]+),? ([\d.]+)(?:,? \/? ?([\d.]+))?\)/g;
+      const colorDelDegradado = (imagen) => {
+        if (!imagen.startsWith("linear-gradient(") && !imagen.startsWith("radial-gradient(")) return null;
+        const paradas = [...imagen.matchAll(PARADA)].map((m) =>
+          m[1] !== undefined ? [m[1] * 255, m[2] * 255, m[3] * 255, m[4] === undefined ? 1 : +m[4]] : [+m[5], +m[6], +m[7], m[8] === undefined ? 1 : +m[8]],
+        );
+        if (!paradas.length) return null;
+        return [0, 1, 2, 3].map((i) => paradas.reduce((s, p) => s + p[i], 0) / paradas.length);
+      };
       for (const el of document.body.querySelectorAll("*")) {
         if (el.closest("img, canvas, video, svg")) continue;
         const cs = getComputedStyle(el);
         if (cs.visibility === "hidden" || cs.display === "none") continue;
         const caja = el.getBoundingClientRect();
-        const c = leer(cs.backgroundColor);
-        if (c[3] < 0.05) continue;
+        const plano = leer(cs.backgroundColor);
         // Un velo: capa fija que cubre (casi) toda la pantalla. En oscuro debe oscurecer; si queda más claro que la página, aclara.
-        if (cs.position === "fixed" && caja.width >= innerWidth * 0.9 && caja.height >= innerHeight * 0.9) {
+        // Se mide solo con el color plano, como siempre: el fondo del vidrio (la aurora) también es una capa fija con degradado.
+        if (plano[3] >= 0.05 && cs.position === "fixed" && caja.width >= innerWidth * 0.9 && caja.height >= innerHeight * 0.9) {
           if (opacidadHeredada(el) < 0.05) continue; // un velo cerrado (opacidad 0) no se ve: se audita abierto, con su escenario
-          const compuesto = sobre(c, pagina);
+          const compuesto = sobre(plano, pagina);
           if (lum(compuesto) > lum(pagina) + 0.01) velos.push({ tipo: "velo-claro", clave: camino(el), fondo: hex(compuesto), pagina: hex(pagina), donde: camino(el) });
           continue;
         }
+        const degradado = cs.backgroundImage !== "none" && cs.position !== "fixed" ? colorDelDegradado(cs.backgroundImage) : null;
+        const c = degradado ? (plano[3] > 0 ? sobre(degradado, plano) : degradado) : plano;
         if (c[3] < 0.5) continue;
         // Una SUPERFICIE (tarjeta, panel), no una barra de gráfico ni un botón: 100×60 como mínimo y 9.000 px² de área.
         if (caja.width * caja.height < 9000 || caja.width < 100 || caja.height < 60) continue;
         const compuesto = sobre(c, fondoEfectivo(el.parentElement || el).fondo);
-        if (esToken(compuesto)) continue;
         // Un relleno de color (un estado, una insignia) es una mezcla de un token y rara vez pasa de 0.6; un blanco o gris claro escrito a mano, sí.
-        if (lum(compuesto) > 0.6) (el.closest(CLARAS_A_PROPOSITO) ? manchasExentas : manchas).push({ tipo: "mancha-clara", clave: camino(el), fondo: hex(compuesto), tam: `${Math.round(caja.width)}x${Math.round(caja.height)}`, donde: camino(el) });
+        if (lum(compuesto) <= 0.6 || esFijo(compuesto)) continue;
+        const invertida = esToken(compuesto);
+        if (invertida && caja.width * caja.height < AREA_DE_TARJETA) continue;
+        (el.closest(CLARAS_A_PROPOSITO) ? manchasExentas : manchas).push({ tipo: "mancha-clara", clave: camino(el), fondo: hex(compuesto), tam: `${Math.round(caja.width)}x${Math.round(caja.height)}`, ...(invertida && { invertida }), ...(degradado && { degradado: true }), donde: camino(el) });
       }
     }
     abrirPunteros.remove();

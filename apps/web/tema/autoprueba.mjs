@@ -34,12 +34,15 @@ const PAGINA_DE_CONTRASTE = `<!doctype html>
   <kbd aria-hidden="true" style="color:#777">/</kbd>
   <div style="background:linear-gradient(#fff,#000)"><span style="color:var(--color-tinta)">Sobre degradado</span></div>
   <em style="background:linear-gradient(#fff,#eee);-webkit-background-clip:text;background-clip:text;color:transparent">Pintada por un degradado</em>
-  <div id="mancha" style="background:#fff;${SUPERFICIE}"></div>
+  <div id="mancha" class="suelta" style="background:#fff;${SUPERFICIE}"></div>
   <div class="hoja"><div style="background:#fff;${SUPERFICIE}"></div></div>
   <div class="contrato"><div style="background:#fff;${SUPERFICIE}"></div></div>
   <div class="firma-tinta" style="background:#fff;${SUPERFICIE}"></div>
   <div style="background:var(--color-crema-fija);${SUPERFICIE}"></div>
   <div style="background:var(--color-papel);${SUPERFICIE}"></div>
+  <div class="tarjeta-invertida" style="background:var(--color-tinta);${SUPERFICIE}"></div>
+  <div class="vidrio-claro" style="background:linear-gradient(rgba(237,231,219,.84),rgba(237,231,219,.97));${SUPERFICIE}"></div>
+  <div title="elegida: chica, como un botón" style="background:var(--color-tinta);width:250px;height:80px"></div>
   <div style="background:#fff;width:40px;height:40px"></div>
   <div id="velo-malo" style="position:fixed;inset:0;background:rgba(255,255,255,.4);pointer-events:none"></div>
   <div style="position:fixed;inset:0;background:rgba(0,0,0,.4);pointer-events:none"></div>
@@ -89,9 +92,21 @@ try {
   revisar("el contraste encuentra justo el texto ilegible, la tecla y el gráfico por debajo de 3:1", r.contrastes.map((h) => h.texto).sort(), ["No se lee", "·", "/"].sort());
   revisar("el gráfico se mide contra 3 y lo demás contra 4.5", r.contrastes.map((h) => h.umbral).sort(), [3, 4.5, 4.5]);
   revisar("cuenta lo que no puede medir: un texto sobre un degradado y una letra recortada de uno, sin darla por ilegible", r.sobreDegradado, 2);
-  revisar("tres manchas: el blanco suelto y el de dentro de .hoja y .contrato, no el token ni la crema fija ni lo chico", r.manchas.length, 3);
+  revisar(
+    "cinco manchas: el blanco suelto, el de dentro de .hoja y .contrato, la tarjeta de tinta invertida y la de vidrio claro; no el papel, ni la crema fija, ni lo chico",
+    r.manchas.map((m) => m.donde.match(/(hoja|contrato|suelta|tarjeta-invertida|vidrio-claro)/)?.[0] ?? m.donde).sort(),
+    ["suelta", "hoja", "contrato", "tarjeta-invertida", "vidrio-claro"].sort(),
+  );
   revisar("lo claro de .firma-tinta no cuenta, pero se anota", r.manchasExentas.length, 1);
   revisar("un solo velo: el que aclara, no el que oscurece", r.velos.length, 1);
+
+  // El fondo del vidrio (la aurora) es una capa fija, a pantalla completa, pintada con degradados. No es un velo ni una mancha: leer degradados
+  // para las tarjetas no puede volverla una de las dos.
+  await pagina.setContent(`<!doctype html><html data-tema="oscuro"><body style="margin:0;background:#1c1a16">
+    <div style="position:fixed;inset:0;background:radial-gradient(rgba(237,231,219,.9),transparent 70%);pointer-events:none"></div></body></html>`);
+  await pagina.addScriptTag({ content: ESCANER });
+  r = await pagina.evaluate(() => window.__temaEscanear());
+  revisar("la aurora fija con degradado no es velo ni mancha", [r.velos.length, r.manchas.length], [0, 0]);
 
   console.log("Auditoría de contraste, en claro:");
   await pagina.setContent(PAGINA_DE_CONTRASTE.replace('data-tema="oscuro"', 'data-tema="claro"'));

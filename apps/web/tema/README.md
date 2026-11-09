@@ -10,7 +10,7 @@ Lo que encuentra no se arregla en automático ni frena nada: es un medidor que s
 | Detector | Qué es | Por qué importa |
 |---|---|---|
 | **Contraste** | El contraste WCAG de cada texto contra su fondo REAL, compuesto capa por capa con su transparencia: mínimo 4.5:1, 3:1 si es grande. Un símbolo que el código le ocultó al lector (`aria-hidden="true"`) y que no tiene letras ni dígitos («›», «·», «×») es un **gráfico**: se mide contra 3:1 (WCAG 1.4.11). Una tecla (`<kbd>`) sigue siendo texto. Los controles deshabilitados quedan exentos. | Un texto que se pierde en un tema. |
-| **Mancha clara** | Solo en oscuro: una superficie grande y opaca que sigue clara y no es un token del sistema. | Un `bg-white` o un hex que no cambió con el tema. |
+| **Mancha clara** | Solo en oscuro: una superficie grande y opaca que sigue clara y no es un token del sistema. También una **tarjeta invertida** (`bg-tinta`, que en oscuro es casi blanca) desde 30 000 px², y una tarjeta de **vidrio** clara: lee el degradado con que el vidrio la pinta. Un botón invertido no cuenta, y la crema fija (la firma) tampoco. | Un `bg-white` o un hex que no cambió con el tema, o un bloque que encandila aunque sea un token (Provisiones, 2026-11-09). |
 | **Velo claro** | Solo en oscuro: una capa fija que cubre la pantalla y la **aclara** en vez de oscurecerla. | Un `bg-tinta/30` que se volvió crema. |
 
 Cada pantalla se mide en **los dos temas** y el reporte separa lo que falla solo en oscuro, solo en claro o en los dos: lo de un solo tema suele ser un token de ese
