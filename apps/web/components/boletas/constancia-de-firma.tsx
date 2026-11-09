@@ -19,7 +19,8 @@ import { fechaHoraLima } from "@/lib/admin/boletas-pantalla";
  * FONDO CLARO FIJO. Una firma es tinta oscura sobre fondo transparente; sobre el
  * modo oscuro desaparecería. El recuadro usa los tokens `-fija` de `globals.css`
  * (los que NO cambian con el tema), igual que la vista previa de la firma en la
- * ficha de la persona: es un papel, y un papel no se oscurece.
+ * ficha de la persona y que el `--firma-fondo` del contrato (#680): el
+ * documento sí sigue el tema, pero el recuadro de una firma no se oscurece.
  */
 
 export type Constancia = {

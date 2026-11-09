@@ -482,7 +482,11 @@ distintas, no una:
 - La vista previa "Así se verá sobre la línea del memo" de la firma, en
   `admin/personas/[id]/page.tsx`, usa `bg-white` fijo A PROPÓSITO, sin pasar
   por `.hoja` ni por los tokens: es un rectángulo que simula el papel del memo
-  impreso, y ese papel no cambia con el tema de quien lo mira.
+  impreso, y ese papel no cambia con el tema de quien lo mira. **Y por eso lo
+  de adentro también va fijo** (`text-tinta-fija`, `border-tinta-fija/40`): con
+  la letra del tema, en oscuro el nombre de «Escribir» salía casi blanco sobre
+  blanco, a 1.25:1 (2026-11-09). Un fondo fijo con letra del tema es la mitad
+  de un arreglo.
 
 **Política salarial ya NO es esta excepción.** Hasta el 2026-09-05 usaba
 `bg-white`/`slate-*` fijos igual que la firma, pero el commit `ea6286f`

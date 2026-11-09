@@ -348,8 +348,10 @@
     }
   }
 
-  /* Un botón que se mueve y deja ver su luz y su onda adentro. */
-  [data-vidrio="panel"] :is(button, a).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, [aria-pressed], :has(> .absolute), .hoja *) {
+  /* Un botón que se mueve y deja ver su luz y su onda adentro. Menos el que se esconde con `sr-only` («Saltar al contenido»): esta regla le
+     quitaba el `absolute` y quedaba como un hueco invisible de 32×40 px en la página, y al usar Tab no aparecía arriba a la izquierda (`focus:fixed`)
+     sino en ese hueco (medido el 2026-11-09). */
+  [data-vidrio="panel"] :is(button, a).rounded-control:not(.w-full.text-left, .text-left.p-3, .text-left.p-4, .flex-col, [aria-pressed], :has(> .absolute), .sr-only, .hoja *) {
     position: relative;
     overflow: hidden;
   }

@@ -287,7 +287,7 @@ export function HojaConstanciaBoleta({
           <div
             className={`mx-auto flex w-full max-w-sm flex-col items-center rounded-lg px-4 ${enPapel ? "pt-1" : "border border-sand pb-3 pt-4"}`}
             // Tinta oscura sobre fondo transparente: sobre el modo oscuro la firma
-            // desaparecería. Es un papel, y un papel no se oscurece (ver ConstanciaDeFirma).
+            // desaparecería. El recuadro de una firma no se oscurece (ver ConstanciaDeFirma).
             style={enPapel ? undefined : { background: "var(--color-crema-fija)", color: "var(--color-tinta-fija)" }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- la firma viene como data URL de la base */}

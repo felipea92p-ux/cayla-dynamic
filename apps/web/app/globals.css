@@ -205,6 +205,34 @@
   color-scheme: dark;
 }
 
+/* ── La tarjeta invertida (2026-11-09) ───────────────────────────
+   Una tarjeta que destaca con la tinta de fondo y la letra crema («Próximo desembolso» en Provisiones). En claro es un bloque
+   oscuro y se lee como lo más importante de la fila. En oscuro, con solo seguir los tokens, la tinta se vuelve casi blanca y la
+   tarjeta pasaba a ser un bloque claro en medio de la pantalla oscura: el mismo defecto que el papel de la boleta, que Felipe
+   señaló ese día con una captura. En oscuro lo que destaca sube, no se invierte: aquí la tarjeta pasa a ser una superficie un
+   paso más clara que las de al lado, con la letra de toda la pantalla.
+
+   DECIDÍ: intercambiar los dos tokens DENTRO de la tarjeta, así cada `text-crema/70` de adentro sigue funcionando sin tocarlo.
+     El valor de la página se guarda antes en `:root` (`--tinta-de-la-pagina`), porque dentro de la tarjeta `--color-tinta` ya
+     está redefinido y leerlo ahí daría el valor nuevo, no el de la pantalla.
+   DESCARTÉ: cambiar la tarjeta a `bg-papel` en los dos temas, porque cambiaba también el claro, que nadie pidió y está bien.
+   SE ROMPE SI: alguien pone `text-tinta` dentro de una `.tarjeta-invertida`: en oscuro quedaría letra oscura sobre la tarjeta.
+     Adentro se escribe con `crema`, como ya pide el comentario de la tarjeta. */
+:root {
+  --tinta-de-la-pagina: var(--color-tinta);
+  --papel-de-la-pagina: var(--color-papel);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) .tarjeta-invertida {
+    --color-crema: var(--tinta-de-la-pagina);
+    --color-tinta: color-mix(in srgb, var(--tinta-de-la-pagina) 12%, var(--papel-de-la-pagina));
+  }
+}
+:root[data-tema="oscuro"] .tarjeta-invertida {
+  --color-crema: var(--tinta-de-la-pagina);
+  --color-tinta: color-mix(in srgb, var(--tinta-de-la-pagina) 12%, var(--papel-de-la-pagina));
+}
+
 @layer base {
   /* Los controles nativos del navegador (calendario de <input type="date">,
      lista de <select>, scrollbars, resaltado de autocompletado) los pinta el
