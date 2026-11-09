@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-09-apariencia-sale-del-menu",
+    fecha: "2026-11-09",
+    titulo: "«Apariencia» sale del menú: claro u oscuro lo elige cada aparato",
+    queMejoro:
+      "Con el diseño nuevo, el panel y los terminales de marcaje eligen claro u oscuro con su propio botón ☀/🌙: en el " +
+      "panel, en la cabecera; en cada Mac mini, arriba a la derecha. Por eso la pantalla «Apariencia» de Configuración " +
+      "ya no cambiaba nada aunque dijera que sí, y sale del menú.\n\n" +
+      "Si alguna vez se apaga el diseño nuevo, vuelve sola al menú y vuelve a mandar.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-09-jornada-dice-el-nombre-de-cada-sede",
     fecha: "2026-11-09",
     titulo: "La Jornada del Dashboard dice el nombre de cada sede",

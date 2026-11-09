@@ -5,6 +5,13 @@
 // existiendo el tema PERSONAL de cada quien (el selector de la barra de
 // navegación); esto es solo lo que se ve cuando nadie eligió uno a mano.
 //
+// Con el vidrio, la superficie encendida ya NO sigue esta pantalla: cada
+// aparato elige con su botón (lib/vidrio-tema.ts). Desde el 2026-11-09 las dos
+// están encendidas en producción, así que hoy no cambia nada: sale del menú
+// (`requiere: "tema-global"` en nav-items.ts) y, si alguien entra por la
+// dirección, dice exactamente a quién le llega. `quienSigueElTemaGlobal` es la
+// única fuente de esa respuesta; los textos de abajo solo la cuentan.
+//
 // A propósito NO es un selector de color libre: el sistema entero se pinta
 // con los 11 --color-* de globals.css, auditados por contraste — dejar
 // elegir un hex cualquiera por acá rompería exactamente la garantía que se
@@ -13,7 +20,7 @@
 // vetada, se agrega como una opción más, nunca como un color picker.
 
 import { useCallback, useEffect, useState } from "react";
-import { interruptoresVidrio } from "@/lib/vidrio";
+import { interruptoresVidrio, quienSigueElTemaGlobal } from "@/lib/vidrio";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -36,11 +43,48 @@ const OPCIONES: Array<{ valor: TemaGlobal; etiqueta: string; ayuda: string }> = 
   },
 ];
 
+/** Qué decir según quién siga esta configuración. Las cuatro combinaciones existen: cada superficie tiene su interruptor. */
+function textosDeAlcance(sigue: { panel: boolean; terminal: boolean }): { descripcion: string; alGuardar: string; nota: string } {
+  if (sigue.panel && sigue.terminal) {
+    return {
+      descripcion: "El tema por defecto para todo el equipo — panel y terminales de marcaje.",
+      alGuardar: "Se verá así en el panel y en los terminales de las 4 sedes que no tengan un tema personal elegido.",
+      nota:
+        "Quien elija un tema a mano en su propio navegador (el selector ☀/🌙 de la barra de navegación) sigue viendo el suyo — " +
+        "esto solo decide qué ve quien no tocó nada. Los terminales de marcaje no tienen ese selector, así que siempre siguen esta configuración.",
+    };
+  }
+  if (sigue.terminal) {
+    return {
+      descripcion: "El tema de los terminales de marcaje de las 4 sedes.",
+      alGuardar: "Se verá así en los terminales de las 4 sedes. El panel no cambia: ahí cada aparato elige con su botón ☀/🌙.",
+      nota: "En el panel cada computadora y cada teléfono eligen con su botón ☀/🌙, y esto no lo cambia. Los terminales de marcaje sí siguen esta configuración.",
+    };
+  }
+  if (sigue.panel) {
+    return {
+      descripcion: "El tema por defecto del panel.",
+      alGuardar: "Se verá así en el panel para quien no tenga un tema personal elegido. Los terminales no cambian: cada Mac mini elige con su botón ☀/🌙.",
+      nota:
+        "Quien elija un tema a mano en su propio navegador (el selector ☀/🌙 de la barra de navegación) sigue viendo el suyo — " +
+        "esto solo decide qué ve quien no tocó nada. Los terminales de marcaje tienen su propio botón ☀/🌙 y no siguen esta configuración.",
+    };
+  }
+  return {
+    descripcion: "Hoy no cambia nada: cada aparato elige claro u oscuro con su botón ☀/🌙.",
+    alGuardar: "Quedó guardado, pero hoy no cambia lo que se ve: el panel y los terminales eligen con su propio botón ☀/🌙.",
+    nota:
+      "El panel y los terminales de marcaje tienen el diseño nuevo: ahí cada computadora, teléfono y Mac mini elige claro u oscuro " +
+      "con su botón ☀/🌙, y esta pantalla no lo cambia. Lo que elijas aquí solo se vería si se apagara el diseño nuevo. Por eso ya no está en el menú.",
+  };
+}
+
 export default function AparienciaPage() {
   const router = useRouter();
   const rol = useRolActual();
   const puedeGestionar = puedeGestionarCatalogos(rol);
   const { avisar } = useToast();
+  const textos = textosDeAlcance(quienSigueElTemaGlobal());
 
   const [temaActual, setTemaActual] = useState<TemaGlobal | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -83,7 +127,7 @@ export default function AparienciaPage() {
     setTemaActual(valor);
     avisar(
       "ok",
-      `Apariencia global cambiada a "${OPCIONES.find((o) => o.valor === valor)?.etiqueta}". Se verá así en el panel y en los terminales de las 4 sedes que no tengan un tema personal elegido.`,
+      `Apariencia global cambiada a "${OPCIONES.find((o) => o.valor === valor)?.etiqueta}". ${textos.alGuardar}`,
     );
   }
 
@@ -93,7 +137,7 @@ export default function AparienciaPage() {
         <CabeceraPagina
           sobretitulo={interruptoresVidrio().panel ? sobretituloDeHoy("Configuración") : undefined}
           titulo="Apariencia"
-          descripcion="El tema por defecto para todo el equipo — panel y terminales de marcaje."
+          descripcion={textos.descripcion}
         />
 
         {rol === null || cargando ? (
@@ -133,18 +177,7 @@ export default function AparienciaPage() {
               })}
             </div>
 
-            <p className="mt-6 text-xs text-taupe">
-              {interruptoresVidrio().panel ? (
-                <>Esto decide qué ve quien no eligió su tema con ☀/🌙. Los terminales de marcaje siempre siguen esta configuración.</>
-              ) : (
-                <>
-              Quien elija un tema a mano en su propio navegador (el selector ☀/🌙 de la barra de
-              navegación) sigue viendo el suyo — esto solo decide qué ve quien no tocó nada. Los
-              terminales de marcaje no tienen ese selector, así que siempre siguen esta
-              configuración.
-                </>
-              )}
-            </p>
+            <p className="mt-6 text-xs text-taupe">{textos.nota}</p>
           </div>
         )}
       </main>

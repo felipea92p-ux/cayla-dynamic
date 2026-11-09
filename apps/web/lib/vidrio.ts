@@ -59,6 +59,15 @@ export function interruptoresVidrio(): InterruptoresVidrio {
   };
 }
 
+/**
+ * Qué superficies siguen el tema global de /admin/apariencia: las que tienen su vidrio APAGADO. Con el vidrio, el tema es de
+ * cada aparato y lo cambia su botón (lib/vidrio-tema.ts). Es la única respuesta a «¿esa pantalla cambia algo?»: con las dos
+ * encendidas no cambia nada, sale del menú, y vuelve sola si se apaga una (2026-11-09).
+ */
+export function quienSigueElTemaGlobal(interruptores: InterruptoresVidrio = interruptoresVidrio()): Record<Superficie, boolean> {
+  return { panel: !interruptores.panel, terminal: !interruptores.terminal };
+}
+
 export function superficieDeRuta(ruta: string): Superficie {
   return ruta === INICIO_TERMINAL || ruta.startsWith(`${INICIO_TERMINAL}/`) ? "terminal" : "panel";
 }

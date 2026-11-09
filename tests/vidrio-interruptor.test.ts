@@ -11,6 +11,7 @@ import {
   superficieDeRuta,
   valorVidrio,
   type InterruptoresVidrio,
+  quienSigueElTemaGlobal,
 } from "@/lib/vidrio";
 import RootLayout from "@/app/layout";
 
@@ -281,5 +282,18 @@ describe("al navegar sin recargar", () => {
     aplicarVidrio(html, valorVidrio("/", ambas));
     aplicarVidrio(html, valorVidrio("/terminal", ambas));
     expect(html.atributos.get("data-vidrio")).toBe("terminal");
+  });
+});
+
+describe("¿/admin/apariencia cambia algo?", () => {
+  // La sigue solo la superficie con el vidrio APAGADO: con el vidrio, cada aparato elige con su botón. De esto depende que la pantalla
+  // esté en el menú (nav.tsx, `requiere: "tema-global"`) y lo que dice al guardar.
+  it.each([
+    [{ panel: false, terminal: false }, { panel: true, terminal: true }],
+    [{ panel: true, terminal: false }, { panel: false, terminal: true }],
+    [{ panel: false, terminal: true }, { panel: true, terminal: false }],
+    [{ panel: true, terminal: true }, { panel: false, terminal: false }],
+  ])("interruptores %j → la siguen %j", (interruptores, sigue) => {
+    expect(quienSigueElTemaGlobal(interruptores)).toEqual(sigue);
   });
 });
