@@ -8,15 +8,17 @@ módulo por módulo, y el estreno es uno solo. Referencias: [el plan](https://cl
 en local para ir viendo antes de realizar cualquier subida». Se construye en local con commits locales, Felipe lo mira corriendo en su computadora,
 se ajusta, y solo con su aprobación se hace `git push` y se abre el PR. También vale para lo que no se ve, como medidores, contrato y vigilante.
 
-**Dónde está hoy (2026-11-09): el panel ya se estrenó; el terminal no.** `NEXT_PUBLIC_VIDRIO` existe en Vercel, en producción, desde hacia el
-2026-11-07, y el 2026-11-09 se confirmó que está encendido a propósito: el panel y Lo mío se ven con vidrio para todo el equipo. El terminal tiene
-su propio interruptor, `NEXT_PUBLIC_VIDRIO_TERMINAL`, que no existe en Vercel: sigue apagado aunque su módulo ya está en `main` (#722). Para
-comprobarlo sin leer secretos, el guion `(function(){var d=…` del HTML público de producción dice `"panel"` o `null` en cada superficie.
+**Dónde está hoy (2026-11-09): las dos superficies se estrenaron.** El panel y Lo mío, desde hacia el 2026-11-07: `NEXT_PUBLIC_VIDRIO` existe en
+Vercel (Production), y el 2026-11-09 se confirmó que es a propósito. El terminal, el 2026-11-09 hacia las 16:15 (hora de Lima), a pedido expreso:
+se creó `NEXT_PUBLIC_VIDRIO_TERMINAL=1` en Production y se reconstruyó producción con `vercel redeploy`. Para comprobar qué está encendido sin leer
+secretos, el guion `(function(){var d=…` del HTML público dice `"terminal"`, `"panel"` o `null` en cada superficie.
 
-**Lo que eso cambia:** en el panel ya no hay «entra apagado». Fusionar un cambio de vidrio del panel lo publica **encendido**, en menos de un
-minuto, para todo el equipo; por eso la regla de mirarlo en local antes vale más que antes, no menos. En el terminal sigue valiendo lo de siempre:
-lo aprobado entra a `main` en cambios chicos, apagado, hasta su estreno. Una rama larga no sirve: Dynamic recibe unos 49 commits al día. Ver
-«El vidrio» en [`CLAUDE.md`](../../CLAUDE.md).
+**Lo que eso cambia:** ya no hay «entra apagado». Fusionar un cambio de vidrio lo publica **encendido**, en menos de un minuto, para todo el equipo:
+en el panel y en las Mac mini de las cuatro sedes. Por eso la regla de mirarlo en local antes vale más que antes, no menos. Una rama larga sigue sin
+servir: Dynamic recibe unos 49 commits al día. Ver «El vidrio» en [`CLAUDE.md`](../../CLAUDE.md).
+
+**Para apagar una superficie:** quitar su variable en Vercel **y** volver a construir producción. Quitar solo la variable no hace nada hasta el
+siguiente build, y volver al despliegue anterior sin quitarla dura hasta la siguiente fusión de cualquier sesión, que la vuelve a encender.
 
 **Para mirarlo en local:** `node scripts/local/web.mjs`. Las cuentas están en [`scripts/local/LEEME.md`](../../scripts/local/LEEME.md).
 
@@ -123,7 +125,7 @@ trabajo propio de cada módulo. Documentos va antes que Personas y Pago porque l
 | 8 | **Empresa y Configuración:** Archivo, Áreas, Sedes, Cuentas y Parámetros | 6 | 13 | Casi nada | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 9 | **Entrada:** login, nueva clave y olvidé mi clave | 3 | 4 | Compararlo con «El vuelo vivo» de Retail | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 10 | **Lo mío:** lo que cada integrante ve en su teléfono | 12 | 46 | Casi todo: Retail no tiene un espacio personal así | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
-| 11 | **Terminal de marcaje** | 3 | Exento | Casillas, reloj y marcar sin conexión | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 | | |
+| 11 | **Terminal de marcaje** | 3 | Exento | Casillas, reloj y marcar sin conexión | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 |
 
 Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** cuando tiene las seis.
 
@@ -134,7 +136,7 @@ Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** c
 3. **Medir el responsive y el contraste.** En claro y oscuro, a 375, 768, 1024, 1280, 1440 y 1920 px: `tema:auditar` y `responsive:check`. Cómo se corren: `apps/web/tema/README.md` y `apps/web/responsive/README.md`.
 4. **Recorrer como la gente.** Con la cuenta de menor rango y con la de mayor rango, porque suelen fallar cosas distintas.
 5. **Mostrárselo a Felipe.** Capturas de antes y después en el chat, y en vivo en su computadora. Si algo no calza con ninguna pieza de Retail, se le pregunta con imagen, con la pieza más cercana al lado. No se inventa.
-6. **Cerrar.** Se hacen sus ajustes, se marca aquí y, **solo con su aprobación**, se sube. En el panel eso ya es publicarlo encendido; en el terminal, apagado. Antes de eso, nada de `git push` ni de PR.
+6. **Cerrar.** Se hacen sus ajustes, se marca aquí y, **solo con su aprobación**, se sube. Desde el estreno, eso ya es publicarlo encendido, en el panel y en el terminal. Antes de eso, nada de `git push` ni de PR.
 
 ## Cuándo un módulo «se ve bien»
 
@@ -150,8 +152,11 @@ Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** c
 ## Etapa 3: el estreno
 
 **Panel:** encendido en producción hacia el 2026-11-07, a propósito (confirmado el 2026-11-09). De su paso 2 falta la novedad para el equipo
-(`apps/web/lib/novedades.ts` no tiene ninguna sobre el nuevo aspecto), y el paso 4 todavía no: el diseño viejo sigue vivo porque el terminal lo usa.
-**Terminal:** pendiente; su interruptor no existe en Vercel.
+(`apps/web/lib/novedades.ts` no tiene ninguna sobre el nuevo aspecto).
+**Terminal:** encendido en producción el 2026-11-09 hacia las 16:15 (hora de Lima), a pedido expreso; comprobado en el HTML y el CSS publicados. Las
+Mac mini lo toman al recargarse solas con la versión nueva, y arrancan en claro. Falta su paso 3: que alguien marque de verdad en una tienda una
+entrada y una salida y confirme que todo funciona igual.
+**Los dos:** el paso 4 todavía no. El diseño viejo sigue vivo detrás de los interruptores, y es a lo que vuelve una superficie si se apaga.
 
 1. Revisión final en local y pruebas completas.
 2. Se avisa al equipo con su novedad, se enciende el interruptor y se mira en producción con datos reales.
