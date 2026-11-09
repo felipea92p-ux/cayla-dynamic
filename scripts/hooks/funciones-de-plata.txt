@@ -1,0 +1,34 @@
+# Las funciones que `que_falta_pegar.sql` comprueba POR SU CUERPO, no por el registro.
+#
+# Una migración anotada en `migraciones_aplicadas` no prueba que su función siga viva: una pegada posterior pudo
+# pisarla sin dar ningún error. Pasó con `fn_costos_planilla` —medido el 2026-11-09: era la de la 0099 aunque la 0260
+# y la 0323 figuraban aplicadas— y nadie lo vio en cinco semanas, porque esta consulta solo miraba el registro.
+#
+# Entra aquí una función que CALCULA, MUEVE o REPORTA plata: si se queda atrás, alguien cobra mal o alguien decide
+# con un número viejo. Una por línea: el nombre y, después, por qué está. `que-falta-pegar.sh` lee solo la primera
+# palabra. Para sumar una, agrégala y corre ./scripts/que-falta-pegar.sh.
+#
+# El orden es el de la consulta. Una función que una migración retire puede quedarse en la lista: la consulta dice
+# «retirada, como debe» si ya no existe y avisa si sigue viva.
+
+fn_planilla_calcular_nucleo       el cálculo de la planilla desde la 0339 (el envoltorio de abajo ya casi no cambia)
+fn_planilla_calcular              el envoltorio: la línea PLANILLA de siempre
+fn_planilla_calcular_persona      la boleta de una persona
+fn_provisiones                    gratificación, CTS y vacaciones devengadas
+fn_planilla_congelar              la foto del pago
+fn_planilla_congelar_pendientes   la foto de lo que quedó sin congelar
+fn_periodo_pagado                 marcar un grupo como pagado
+fn_revertir_pago                  deshacer un pago
+fn_repagar_periodo                volver a pagar un grupo
+fn_proyeccion_periodo             lo que va a costar el periodo abierto
+fn_costos_planilla                el costo de lo pagado (Costos e Inicio)
+fn_vacaciones_truncas             vacaciones al cese
+fn_cts_trunca                     CTS al cese
+fn_grati_trunca                   gratificación al cese
+fn_grati_trunca_bruta             gratificación al cese, antes de descuentos
+fn_grati_cts_periodo              gratificación y CTS de un periodo
+fn_liquidacion                    la liquidación por cese
+fn_liquidacion_pagar              pagar una liquidación
+fn_liquidacion_diferencias        lo que cambió desde que se calculó una liquidación
+fn_liquidaciones_pendientes       las liquidaciones por pagar
+fn_educacion_monto                la asignación por educación
