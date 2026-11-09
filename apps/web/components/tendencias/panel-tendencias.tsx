@@ -33,7 +33,8 @@ import { nombreDeMotivo } from "@/lib/admin/motivo-falta";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import {
-  BarrasCasos, CalorTardanza, ColumnasCosto, DiasPerdidosGrafico, LineaAsistencia, LlegadaPorSede, PisoYVentaGrafico, pisoDeLinea,
+  AsistenciaCompacta, BarrasCasos, CalorTardanza, ColumnasCosto, CostoCompacto, DiasPerdidosGrafico, LineaAsistencia, LlegadaPorSede,
+  PisoYVentaGrafico, pisoDeLinea,
 } from "./graficos";
 
 type Estado<T> = { cargando: true } | { cargando: false; error: string } | { cargando: false; error: null; datos: T };
@@ -213,6 +214,39 @@ export function PanelTendencias({ rol, sedes }: {
   const filtradas = useMemo(() => (asist.cargando || asist.error !== null ? [] : asist.datos.filter((f) => !sede || f.sede_codigo === sede)), [asist, sede]);
 
   const SIN_DIAS_DE_SEDE = "Esta sede no tiene días medidos en el periodo. No se mide a quien cobra sueldo fijo, por recibo o es personal de dirección, ni a quien no tiene horario cargado.";
+  const vidrio = interruptoresVidrio().panel;
+  const seccionAsistencia = (
+    <Seccion
+      titulo="Asistencia sobre lo esperado"
+      que="De los días que tocaba trabajar, en cuántos hubo marca. Por semana."
+      queCorto="En cuántos de los días que tocaba trabajar hubo marca."
+      nota={<>Cuenta los días que tocaba trabajar, sin vacaciones, descansos, feriados ni días con motivo; no incluye a quien cobra por recibo, tiene sueldo fijo o es personal de dirección. Cada sede cuenta a su gente de hoy. La semana en curso va hueca porque no terminó.{vidrio ? " La cifra grande es la última semana terminada; el promedio pesa cada semana por sus días." : ""}</>}
+    >
+      <Cuerpo estado={asist} reintentar={reintentarAsist}
+        vacio={() => (asistenciaSemanal(filtradas, hoy, sede).every((p) => p.pct === null) ? (sede ? SIN_DIAS_DE_SEDE : "Todavía no hay semanas completas que mostrar en este periodo.") : null)}
+        hijos={() => {
+          const puntos = asistenciaSemanal(filtradas, hoy, sede);
+          const piso = pisoDeLinea(puntos);
+          return (<>
+            {vidrio ? <AsistenciaCompacta puntos={puntos} /> : <LineaAsistencia puntos={puntos} />}
+            {piso !== null && piso > 0 && <p className="mt-1 text-xs text-taupe">{vidrio ? `El eje empieza en ${piso} %, no en 0.` : `El eje empieza en ${piso} %, no en 0: así se ven las diferencias chicas. No es una caída tan grande como parece.`}</p>}
+          </>);
+        }} />
+    </Seccion>
+  );
+  const seccionCosto = verPlanilla ? (
+    <Seccion
+      titulo="Costo de planilla por periodo"
+      que={vidrio ? "Lo que costó cada periodo ya pagado, de toda la empresa: el filtro de sede no lo cambia. Últimos 12 meses." : "Lo que costó cada periodo ya pagado (del 29 al 28). Últimos 12 meses."}
+      queCorto={vidrio ? "Toda la empresa: no cambia con el filtro de sede." : "Cada periodo ya pagado, del 29 al 28."}
+      nota="Solo cuenta periodos marcados como pagados, tal como se pagaron. El que está en curso va rayado y sin monto: todavía no es un hecho. «Retroactivo» = reconstruido después del pago."
+    >
+      <Cuerpo estado={costo} reintentar={reintentarCosto}
+        vacio={(d) => (d.length === 0 ? "Todavía no hay periodos pagados que mostrar." : null)}
+        hijos={(d) => (vidrio ? <CostoCompacto columnas={d} /> : <ColumnasCosto columnas={d} />)} />
+    </Seccion>
+  ) : null;
+
   return (
     <div className="grid gap-4">
       {/* ── Qué periodo y qué sede: lo que se toca, a la vista ── */}
@@ -230,23 +264,11 @@ export function PanelTendencias({ rol, sedes }: {
         <p className="-mt-2 text-xs text-taupe">Sin días medidos en este periodo: {sedesSinDatos.map((s) => s.nombre).join(", ")}.</p>
       )}
 
-      <Seccion
-        titulo="Asistencia sobre lo esperado"
-        que="De los días que tocaba trabajar, en cuántos hubo marca. Por semana."
-        queCorto="En cuántos de los días que tocaba trabajar hubo marca."
-        nota={<>Cuenta los días que tocaba trabajar, sin vacaciones, descansos, feriados ni días con motivo; no incluye a quien cobra por recibo, tiene sueldo fijo o es personal de dirección. Cada sede cuenta a su gente de hoy. La semana en curso va hueca porque no terminó.</>}
-      >
-        <Cuerpo estado={asist} reintentar={reintentarAsist}
-          vacio={() => (asistenciaSemanal(filtradas, hoy, sede).every((p) => p.pct === null) ? (sede ? SIN_DIAS_DE_SEDE : "Todavía no hay semanas completas que mostrar en este periodo.") : null)}
-          hijos={() => {
-            const puntos = asistenciaSemanal(filtradas, hoy, sede);
-            const piso = pisoDeLinea(puntos);
-            return (<>
-              <LineaAsistencia puntos={puntos} />
-              {piso !== null && piso > 0 && <p className="mt-1 text-xs text-taupe">{interruptoresVidrio().panel ? `El eje empieza en ${piso} %, no en 0.` : `El eje empieza en ${piso} %, no en 0: así se ven las diferencias chicas. No es una caída tan grande como parece.`}</p>}
-            </>);
-          }} />
-      </Seccion>
+      {vidrio && seccionCosto ? (
+        // Con el vidrio, Asistencia y Costo van chicos y juntos: con pocas semanas y pocos periodos, un dibujo a
+        // todo el ancho no decía más, solo se veía más grande. Sin permiso de planilla, Asistencia va sola.
+        <div className="grid gap-4 lg:grid-cols-2">{seccionAsistencia}{seccionCosto}</div>
+      ) : seccionAsistencia}
 
       <Seccion
         titulo="Días perdidos, por motivo"
@@ -330,18 +352,7 @@ export function PanelTendencias({ rol, sedes }: {
         </Seccion>
       )}
 
-      {verPlanilla && (
-        <Seccion
-          titulo="Costo de planilla por periodo"
-          que="Lo que costó cada periodo ya pagado (del 29 al 28). Últimos 12 meses."
-          queCorto="Cada periodo ya pagado, del 29 al 28."
-          nota="Solo cuenta periodos marcados como pagados, tal como se pagaron. El que está en curso va rayado y sin monto: todavía no es un hecho. «Retroactivo» = reconstruido después del pago."
-        >
-          <Cuerpo estado={costo} reintentar={reintentarCosto}
-            vacio={(d) => (d.length === 0 ? "Todavía no hay periodos pagados que mostrar." : null)}
-            hijos={(d) => <ColumnasCosto columnas={d} />} />
-        </Seccion>
-      )}
+      {!vidrio && seccionCosto}
     </div>
   );
 }

@@ -12,7 +12,10 @@
 //     (finanzas/GraficoSemanas): en tinta, con el extremo del dato redondeado y ancladas a la línea base.
 
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { MESES_CORTOS, type BarrasCasos, type CeldaCalor, type ColumnaCosto, type DiasPerdidos, type LlegadaSede, type PuntoSemana } from "@/lib/admin/tendencias";
+import {
+  etiquetaCierre, MESES_CORTOS, resumenAsistencia, resumenCosto,
+  type BarrasCasos, type CeldaCalor, type ColumnaCosto, type DiasPerdidos, type LlegadaSede, type PuntoSemana,
+} from "@/lib/admin/tendencias";
 import { faltaSeguido, horaMasCorta, type HoraDePiso } from "@/lib/admin/piso-venta";
 import { MESES_LARGO } from "@/lib/admin/planilla/formato";
 import { soles } from "@/lib/admin/educacion-formato";
@@ -63,6 +66,138 @@ function Encabeza({ valor, detalle }: { valor: ReactNode; detalle: ReactNode }) 
 
 const T = { fontSize: 11, fill: "var(--color-taupe)" } as const;
 const TT = { fontSize: 11, fill: "var(--color-tinta)", fontWeight: 500 } as const;
+
+// ── La fila compacta del vidrio: Asistencia y Costo, uno al lado del otro ────
+// Con 13 semanas que se mueven entre 97 y 100 % y cuatro o cinco periodos pagados, un dibujo a todo el ancho no
+// decía más: solo se veía más grande. Cada uno empieza por la cifra que importa y debajo va un dibujo chico.
+
+/** «2026-10-19» → «19/10», para los bordes del eje. */
+const diaBarraMes = (iso: string) => `${Number(iso.slice(8))}/${Number(iso.slice(5, 7))}`;
+
+export function AsistenciaCompacta({ puntos }: { puntos: PuntoSemana[] }) {
+  const [ref, W] = useAncho<HTMLDivElement>();
+  const r = resumenAsistencia(puntos);
+  const conDato = puntos.filter((p) => p.pct !== null);
+  // El mismo piso que el dibujo grande: el eje no empieza en 0, y se escribe en el eje mismo.
+  const piso = pisoDeLinea(puntos) ?? 0;
+  const H = 96, PL = 34, PR = 10, PT = 10, PB = 20;
+  const n = puntos.length;
+  const x = (i: number) => PL + (n === 1 ? (W - PL - PR) / 2 : ((W - PL - PR) * i) / (n - 1));
+  const y = (v: number) => PT + (H - PT - PB) * (1 - (v - piso) / (100 - piso));
+  const trazo = puntos
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) => p.pct !== null && !p.parcial)
+    .map(({ p, i }, k) => `${k ? "L" : "M"}${x(i)},${y(p.pct as number)}`)
+    .join(" ");
+  const carril = n > 1 ? (W - PL - PR) / (n - 1) : W - PL - PR;
+  // La más baja se nombra solo si hay con qué compararla y no es la misma que encabeza.
+  const minima = r.minima && r.semanas > 1 && r.minima.semana !== r.ultima?.semana ? r.minima : null;
+  const iMin = minima ? puntos.findIndex((p) => p.semana === minima.semana) : -1;
+
+  return (
+    <div>
+      {r.ultima && (
+        <Encabeza
+          valor={`${r.ultima.pct}%`}
+          detalle={<>semana del {etiquetaCierre(r.ultima.semana)} · promedio <strong className="font-medium text-tinta">{r.promedio}%</strong>{minima ? <> · la más baja <strong className="font-medium text-tinta">{minima.pct}%</strong> ({etiquetaCierre(minima.semana)})</> : null}</>}
+        />
+      )}
+      <div ref={ref} className="w-full">
+        {W > 0 && conDato.length > 0 && (
+          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Asistencia sobre lo esperado, por semana" className="block overflow-visible">
+            {[piso, 100].map((t) => (
+              <g key={t}>
+                <line x1={PL} x2={W - PR} y1={y(t)} y2={y(t)} stroke="var(--color-sand)" />
+                <text x={PL - 6} y={y(t) + 4} textAnchor="end" {...T}>{t}%</text>
+              </g>
+            ))}
+            <path d={trazo} fill="none" stroke="var(--color-tinta)" strokeWidth={2} strokeLinejoin="round" />
+            {puntos.map((p, i) => {
+              if (p.pct === null) return null;
+              const destacado = p.semana === r.ultima?.semana || i === iMin || p.parcial;
+              return (
+                <g key={p.semana}>
+                  <title>{`Semana del ${etiquetaCierre(p.semana)}${p.parcial ? " (en curso)" : ""}: ${p.pct}% · ${p.trabajados} de ${p.trabajados + p.faltas} días con marca`}</title>
+                  <rect x={x(i) - carril / 2} y={0} width={carril} height={H} fill="transparent" />
+                  <circle cx={x(i)} cy={y(p.pct)} r={destacado ? 4 : 2.2}
+                    fill={p.parcial ? "var(--color-papel)" : "var(--color-tinta)"} stroke="var(--color-tinta)" strokeWidth={p.parcial ? 1.6 : 0} />
+                </g>
+              );
+            })}
+            {minima && <text x={x(iMin)} y={y(minima.pct) + 16} textAnchor="middle" className="tabular-nums" {...T}>{minima.pct}%</text>}
+            <text x={PL} y={H - 4} {...T}>{diaBarraMes(puntos[0].semana)}</text>
+            <text x={W - PR} y={H - 4} textAnchor="end" {...T}>{diaBarraMes(puntos[n - 1].semana)}{puntos[n - 1].parcial ? " · en curso" : ""}</text>
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function CostoCompacto({ columnas }: { columnas: ColumnaCosto[] }) {
+  const [ref, W] = useAncho<HTMLDivElement>();
+  const rayado = useId().replace(/:/g, "");
+  const r = resumenCosto(columnas);
+  const monto = (n: number) => soles(Math.round(n)).replace(/\.00$/, "");
+  const H = 128, PT = 20, PB = 20, alto = H - PT - PB;
+  const max = Math.max(1, ...columnas.map((c) => c.costo ?? 0));
+  const carril = W / Math.max(columnas.length, 1);
+  const ancho = Math.min(carril * 0.56, 44);
+  // Las marcas de un periodo van en una línea aparte, no debajo de cada columna: con doce no caben, y una
+  // palabra repetida en cada columna deja de decir algo.
+  const repagados = columnas.filter((c) => c.repagado).map((c) => c.etiqueta);
+  const retroactivos = columnas.filter((c) => c.retroactivo).map((c) => c.etiqueta);
+  const signo = (n: number) => (n >= 0 ? "+" : "−");
+
+  return (
+    <div>
+      {r.ultima && (
+        <Encabeza
+          valor={monto(r.ultima.costo)}
+          detalle={<>cerró el {r.ultima.etiqueta}{r.diferencia !== null ? <> · <strong className="font-medium text-tinta">{signo(r.diferencia)}{monto(Math.abs(r.diferencia))}</strong>{r.variacionPct !== null ? ` (${signo(r.variacionPct)}${Math.abs(r.variacionPct)} %)` : ""} frente al anterior</> : null}{r.ultima.personas !== null ? ` · ${r.ultima.personas} personas` : ""}</>}
+        />
+      )}
+      <div ref={ref} className="w-full">
+        {W > 0 && (
+          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Costo de planilla de cada periodo" className="block overflow-visible">
+            <defs>
+              <pattern id={rayado} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-taupe)" strokeWidth="1.6" />
+              </pattern>
+            </defs>
+            <line x1={0} x2={W} y1={PT + alto} y2={PT + alto} stroke="var(--color-sand)" />
+            {columnas.map((c, i) => {
+              const cx0 = carril * i + carril / 2;
+              const h = c.costo !== null ? (c.costo / max) * alto : alto * 0.5;
+              const y0 = PT + alto - h;
+              return (
+                <g key={c.clave}>
+                  <title>{c.enCurso
+                    ? `Periodo en curso, del ${etiquetaCierre(c.fechaIni)} al ${c.etiqueta}: todavía no tiene monto`
+                    : `Del ${etiquetaCierre(c.fechaIni)} al ${c.etiqueta} · ${monto(c.costo ?? 0)}${c.personas !== null ? ` · ${c.personas} personas` : ""}${c.repagado ? " · repagado" : ""}${c.retroactivo ? " · retroactivo" : ""}`}</title>
+                  <rect x={cx0 - carril / 2} y={0} width={carril} height={H} fill="transparent" />
+                  {c.enCurso
+                    ? <rect x={cx0 - ancho / 2} y={y0} width={ancho} height={h} rx={4} fill={`url(#${rayado})`} stroke="var(--color-taupe)" strokeDasharray="3 3" />
+                    : <path d={columna(cx0 - ancho / 2, y0, ancho, h)} fill="var(--color-tinta)" />}
+                  {(c.enCurso || carril >= 64) && (
+                    <text x={cx0} y={y0 - 6} textAnchor="middle" className="tabular-nums" {...(c.enCurso ? T : TT)}>{c.enCurso ? "en curso" : monto(c.costo ?? 0)}</text>
+                  )}
+                  <text x={cx0} y={H - 4} textAnchor="middle" {...T}>{carril >= 48 ? c.etiqueta : c.etiqueta.split(" ")[1]}</text>
+                </g>
+              );
+            })}
+          </svg>
+        )}
+      </div>
+      {(repagados.length > 0 || retroactivos.length > 0) && (
+        <p className="mt-2 text-xs text-taupe">
+          {repagados.length > 0 && <>Se volvió a pagar después del primer pago: {repagados.join(", ")}. </>}
+          {retroactivos.length > 0 && <>Reconstruido después del pago: {retroactivos.join(", ")}.</>}
+        </p>
+      )}
+    </div>
+  );
+}
 
 // ── Días perdidos, por motivo: un panel por motivo, todos con la misma escala ──
 export function DiasPerdidosGrafico({ datos, nombreDe }: { datos: DiasPerdidos; nombreDe: (clave: string) => string }) {
