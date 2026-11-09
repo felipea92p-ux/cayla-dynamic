@@ -357,11 +357,13 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-4">
         {firma ? (
+          // Un trozo de papel: blanco en los dos temas, así que la letra y la línea de adentro van con la tinta fija y no con la del tema.
+          // Con `text-taupe` y `text-tinta`, en oscuro quedaban claras sobre blanco (2026-11-09).
           <div className="w-60 rounded-lg border border-sand bg-white px-4 pb-2 pt-3">
             <div className="flex h-20 items-end justify-center">
               <img src={firma.imagen} alt="Tu firma" className="block h-20 w-auto max-w-full" />
             </div>
-            <div className="border-t border-tinta/40 pt-1 text-[11px] text-taupe">Así se verá sobre la línea del memo</div>
+            <div className="border-t border-tinta-fija/40 pt-1 text-[11px] text-tinta-fija/70">Así se verá sobre la línea del memo</div>
           </div>
         ) : (
           <span className="text-sm text-taupe">Aún no has configurado tu firma.</span>
@@ -478,11 +480,12 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                   </button>
                 ))}
               </div>
+              {/* Tinta fija, como la imagen que se genera (#1a1a18): con `text-tinta`, en oscuro el nombre salía casi blanco sobre blanco. */}
               <div className="rounded-lg border border-sand bg-white px-4 py-6 text-center">
                 {nombreOficial ? (
-                  <span className={`${FUENTES[estilo].className} text-4xl text-tinta`}>{nombreOficial}</span>
+                  <span className={`${FUENTES[estilo].className} text-4xl text-tinta-fija`}>{nombreOficial}</span>
                 ) : (
-                  <span className="text-sm text-taupe">Falta tu nombre en la Ficha personal.</span>
+                  <span className="text-sm text-tinta-fija/70">Falta tu nombre en la Ficha personal.</span>
                 )}
               </div>
               <Boton
