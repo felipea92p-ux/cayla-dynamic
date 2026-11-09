@@ -15,7 +15,8 @@ import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link";
 import {
   etiquetaCierre, MESES_CORTOS, resumenAsistencia, resumenCosto,
-  type AcuseDeDocumento, type Antiguedad, type BarrasCasos, type CeldaCalor, type ColumnaCosto, type DiasPerdidos, type LlegadaSede,
+  type AcuseDeDocumento, type Antiguedad, type BarrasCasos, type CeldaCalor, type ColumnaCosto, type DesgloseCosto, type DiasPerdidos,
+  type LlegadaSede,
   type PuntoSemana,
 } from "@/lib/admin/tendencias";
 import { faltaSeguido, horaMasCorta, type HoraDePiso } from "@/lib/admin/piso-venta";
@@ -624,6 +625,68 @@ export function AntiguedadGrafico({ datos }: { datos: Antiguedad }) {
         ))}
       </ul>
       {datos.sinFecha > 0 && <p className="mt-2 text-xs text-taupe">{datos.sinFecha} sin fecha de ingreso cargada: no entran en ningún tramo.</p>}
+    </div>
+  );
+}
+
+// ── En qué se va la planilla: de qué está hecho el costo, y qué cambió ──────
+export function DesgloseCostoGrafico({ datos }: { datos: DesgloseCosto }) {
+  const monto = (n: number) => soles(Math.round(Math.abs(n))).replace(/\.00$/, "");
+  const conSigno = (n: number) => `${n >= 0 ? "+" : "−"}${monto(n)}`;
+  const max = Math.max(1, ...datos.renglones.map((r) => Math.abs(r.monto)));
+  const cambios = datos.anterior
+    ? datos.renglones.map((r) => ({ ...r, delta: r.monto - (r.anterior ?? 0) })).filter((r) => Math.round(r.delta) !== 0)
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    : [];
+  const maxDelta = Math.max(1, ...cambios.map((r) => Math.abs(r.delta)));
+  const mayor = cambios[0];
+  const fila = "grid grid-cols-[minmax(0,12rem)_1fr_6.5rem] items-center gap-3 text-sm max-sm:grid-cols-[minmax(0,1fr)_6rem]";
+
+  return (
+    <div>
+      <Encabeza
+        valor={monto(datos.costo)}
+        detalle={<>costó el periodo que cerró el {datos.etiqueta}{datos.anterior ? <> · <strong className="font-medium text-tinta">{conSigno(datos.costo - datos.anterior.costo)}</strong> frente al {datos.anterior.etiqueta}</> : null}{mayor ? <> · lo que más cambió: {mayor.texto.toLowerCase()} ({conSigno(mayor.delta)})</> : null}</>}
+      />
+      <p className="mb-2 text-xs font-medium text-tinta">De qué está hecho</p>
+      <ul className="grid gap-2" aria-label="De qué está hecho el costo del periodo">
+        {datos.renglones.map((r) => (
+          <li key={r.clave} className={fila}>
+            <span className="min-w-0 text-tinta">{r.texto}</span>
+            <span className="h-2.5 rounded-full bg-sand max-sm:col-span-2 max-sm:row-start-2" aria-hidden>
+              <span className={cx("block h-2.5 rounded-full", r.monto >= 0 ? "bg-tinta" : "bg-taupe/60")} style={{ width: `${(Math.abs(r.monto) / max) * 100}%` }} />
+            </span>
+            <span className="text-right tabular-nums text-tinta">{r.monto < 0 ? "−" : ""}{monto(r.monto)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 border-t border-sand pt-2 text-right text-sm tabular-nums text-tinta">
+        = {monto(datos.costo)} <span className="text-xs text-taupe">el costo del periodo</span>
+      </p>
+      {Math.abs(datos.diferencia) >= 0.01 && (
+        <p className="mt-1 text-xs text-taupe">Los renglones no suman el costo: faltan {conSigno(datos.diferencia)}. Avisa a DO: es una cifra que no se explicó.</p>
+      )}
+      {datos.anterior && cambios.length > 0 && (
+        <>
+          <p className="mb-2 mt-5 text-xs font-medium text-tinta">Qué cambió frente al {datos.anterior.etiqueta}</p>
+          <ul className="grid gap-2" aria-label="Qué cambió frente al periodo anterior">
+            {cambios.map((r) => (
+              <li key={r.clave} className={fila}>
+                <span className="min-w-0 text-tinta">{r.texto}</span>
+                {/* La barra crece desde el centro: a la derecha sube el costo, a la izquierda baja. */}
+                <span className="relative h-2.5 max-sm:col-span-2 max-sm:row-start-2" aria-hidden>
+                  <span className="absolute inset-y-[-3px] left-1/2 w-px bg-taupe" />
+                  <span
+                    className={cx("absolute inset-y-0 rounded-[3px]", r.delta >= 0 ? "bg-tinta" : "bg-taupe/60")}
+                    style={r.delta >= 0 ? { left: "50%", width: `${(r.delta / maxDelta) * 50}%` } : { right: "50%", width: `${(-r.delta / maxDelta) * 50}%` }}
+                  />
+                </span>
+                <span className="text-right tabular-nums text-tinta">{conSigno(r.delta)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

@@ -244,3 +244,30 @@ describe("acusesDeLaEmpresa — junta las cuentas que ya hacen Política salaria
     expect(acusesDeLaEmpresa(null, [doc({ total_acuses: 30 })])[0]).toMatchObject({ acusaron: 24, deben: 24 });
   });
 });
+
+describe("desgloseDeCosto — explica el costo de al lado, al centavo", () => {
+  const periodo = (ini: string, fin: string, costo: number, provisiones: number, c: Record<string, number> | null) =>
+    ({ periodo_id: ini, fecha_ini: ini, fecha_fin: fin, costo, version: 1, reconstruida: false, provisiones, conceptos: c });
+  const sep = periodo("2026-08-29", "2026-09-28", 1000, 150, { pago_base: 900, sobretiempo: 0, feriados: 0, pension: 50, movilidad: 0 });
+  const oct = periodo("2026-09-29", "2026-10-28", 1200, 170, {
+    pago_base: 1000, sobretiempo: 60, feriados: 30, pension: 60, provision_gratificacion: 100, provision_cts: 40, provision_vacaciones: 31,
+  });
+  it("el último periodo con desglose, frente al anterior; los descuentos restan y todo suma el costo", async () => {
+    const { desgloseDeCosto } = await import("../apps/web/lib/admin/tendencias");
+    const d = desgloseDeCosto([oct, sep])!;
+    expect(d).toMatchObject({ etiqueta: "28 oct", costo: 1200, anterior: { etiqueta: "28 sep", costo: 1000 }, diferencia: 0 });
+    expect(d.renglones.map((r) => [r.clave, r.monto, r.anterior])).toEqual([
+      ["sueldo", 1000, 900], ["sobretiempo", 60, 0], ["feriados", 30, 0], ["provisiones", 170, 150], ["descuentos", -60, -50],
+    ]);
+  });
+  it("las provisiones van con la cifra oficial del periodo, aunque sus partes difieran en un centavo", async () => {
+    const { desgloseDeCosto } = await import("../apps/web/lib/admin/tendencias");
+    // Las partes de octubre suman 171; la cifra del periodo es 170 y es la que cuadra con el costo.
+    expect(desgloseDeCosto([oct])!.renglones.find((r) => r.clave === "provisiones")!.monto).toBe(170);
+  });
+  it("si no cuadra lo dice, y sin la 0609 no hay desglose", async () => {
+    const { desgloseDeCosto } = await import("../apps/web/lib/admin/tendencias");
+    expect(desgloseDeCosto([{ ...oct, costo: 1205 }])!.diferencia).toBe(5);
+    expect(desgloseDeCosto([{ ...oct, conceptos: null }])).toBeNull();
+  });
+});

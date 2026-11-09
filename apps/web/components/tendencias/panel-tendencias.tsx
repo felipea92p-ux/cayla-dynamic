@@ -25,7 +25,7 @@ import { AyudaCabecera } from "@/components/vidrio/ayuda-cabecera";
 import { interruptoresVidrio } from "@/lib/vidrio";
 import { traerResumenCasos } from "@/lib/admin/casos-resumen";
 import {
-  acusesDeLaEmpresa, antiguedadDelEquipo, asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, diasPerdidosPorMes,
+  acusesDeLaEmpresa, antiguedadDelEquipo, asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, desgloseDeCosto, diasPerdidosPorMes,
   llegadaPorSede, MINIMO_CASOS, OTROS_MOTIVOS, SIN_JUSTIFICAR,
   type DocumentoVigente, type FilaAsistencia, type FilaFalta, type PeriodoCosto, type PersonaAntiguedad, type PoliticaConAcuses,
 } from "@/lib/admin/tendencias";
@@ -35,7 +35,7 @@ import { traerTodo } from "@/lib/admin/traer-todo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import {
   AcusesPendientesGrafico, AntiguedadGrafico, AsistenciaCompacta, BarrasCasos, CalorTardanza, ColumnasCosto, CostoCompacto,
-  DiasPerdidosGrafico, LineaAsistencia, LlegadaPorSede, PisoYVentaGrafico, pisoDeLinea,
+  DesgloseCostoGrafico, DiasPerdidosGrafico, LineaAsistencia, LlegadaPorSede, PisoYVentaGrafico, pisoDeLinea,
 } from "./graficos";
 
 type Estado<T> = { cargando: true } | { cargando: false; error: string } | { cargando: false; error: null; datos: T };
@@ -234,7 +234,11 @@ export function PanelTendencias({ rol, sedes }: {
     ]);
     if (error) throw new Error(mensajeDeError(error, "traer el costo de planilla"));
     const por = ((data as unknown as { por_periodo?: PeriodoCosto[] } | null)?.por_periodo) ?? [];
-    return columnasDeCosto(por, (enCurso?.[0] as { fecha_ini: string; fecha_fin: string } | undefined) ?? null);
+    // La misma lectura sirve a «Costo de planilla» y a «En qué se va la planilla»: un solo costo.
+    return {
+      columnas: columnasDeCosto(por, (enCurso?.[0] as { fecha_ini: string; fecha_fin: string } | undefined) ?? null),
+      desglose: desgloseDeCosto(por),
+    };
   });
 
   // Un botón por sede QUE TIENE días medidos; las que no, no son un botón muerto sino una línea que lo dice
@@ -274,8 +278,20 @@ export function PanelTendencias({ rol, sedes }: {
       nota="Solo cuenta periodos marcados como pagados, tal como se pagaron. El que está en curso va rayado y sin monto: todavía no es un hecho. «Retroactivo» = reconstruido después del pago."
     >
       <Cuerpo estado={costo} reintentar={reintentarCosto}
-        vacio={(d) => (d.length === 0 ? "Todavía no hay periodos pagados que mostrar." : null)}
-        hijos={(d) => (vidrio ? <CostoCompacto columnas={d} /> : <ColumnasCosto columnas={d} />)} />
+        vacio={(d) => (d.columnas.length === 0 ? "Todavía no hay periodos pagados que mostrar." : null)}
+        hijos={(d) => (vidrio ? <CostoCompacto columnas={d.columnas} /> : <ColumnasCosto columnas={d.columnas} />)} />
+    </Seccion>
+  ) : null;
+  const seccionDesglose = verPlanilla ? (
+    <Seccion
+      titulo="En qué se va la planilla"
+      que="De qué está hecho el costo del último periodo pagado, y cuánto cambió cada parte frente al anterior. Toda la empresa."
+      queCorto="De qué está hecho el último periodo pagado, y qué cambió."
+      nota="Es el mismo costo que «Costo de planilla», al centavo: lo que recibe cada persona más las provisiones. Por eso la pensión y las retenciones aparecen restando —salen de lo que se le paga a la persona— y el EsSalud de la empresa no aparece. Las provisiones van con la cifra del periodo."
+    >
+      <Cuerpo estado={costo} reintentar={reintentarCosto}
+        vacio={(d) => (d.columnas.length === 0 ? "Todavía no hay periodos pagados que mostrar." : d.desglose === null ? "Este desglose necesita la migración 0609." : null)}
+        hijos={(d) => <DesgloseCostoGrafico datos={d.desglose!} />} />
     </Seccion>
   ) : null;
 
@@ -301,6 +317,7 @@ export function PanelTendencias({ rol, sedes }: {
         // todo el ancho no decía más, solo se veía más grande. Sin permiso de planilla, Asistencia va sola.
         <div className="grid gap-4 lg:grid-cols-2">{seccionAsistencia}{seccionCosto}</div>
       ) : seccionAsistencia}
+      {vidrio && seccionDesglose}
 
       <Seccion
         titulo="Días perdidos, por motivo"
@@ -410,6 +427,7 @@ export function PanelTendencias({ rol, sedes }: {
       )}
 
       {!vidrio && seccionCosto}
+      {!vidrio && seccionDesglose}
     </div>
   );
 }

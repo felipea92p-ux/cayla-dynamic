@@ -59,6 +59,19 @@ export interface PeriodoCosto {
   reconstruida: boolean;
   /** Cuántas personas entraron a ese periodo (0323). Opcional: explica por qué un mes cuesta más que otro. */
   personas?: number;
+  neto?: number;
+  /** La cifra oficial de provisiones del periodo: con ella cuadra el desglose (ver `desgloseDeCosto`). */
+  provisiones?: number;
+  /** El total de cada concepto (0609). Sin la 0609 pegada, no viene. */
+  conceptos?: ConceptosCosto | null;
+}
+
+/** Lo que trae `conceptos` de cada periodo (0609): totales del periodo, nunca de una persona. */
+export interface ConceptosCosto {
+  pago_base?: number; descanso_semanal?: number; sobretiempo?: number; feriados?: number;
+  plus?: number; bonos?: number; asignacion_familiar?: number; movilidad?: number; educacion?: number;
+  descuentos?: number; pension?: number; retencion_4ta?: number;
+  provision_gratificacion?: number; provision_cts?: number; provision_vacaciones?: number; provision_bonif_extraordinaria?: number;
 }
 export interface ColumnaCosto {
   clave: string;
@@ -522,4 +535,81 @@ export function acusesDeLaEmpresa(politica: PoliticaConAcuses | null, documentos
   }
   // Lo más atrasado primero: es lo que hay que ir a recoger.
   return lista.sort((a, b) => (b.deben - b.acusaron) - (a.deben - a.acusaron) || a.titulo.localeCompare(b.titulo, "es"));
+}
+
+// ── En qué se va la planilla ─────────────────────────────────────────────────
+//
+// El costo del último periodo pagado, por renglón, y cuánto cambió cada uno frente al anterior. Explica el
+// «Costo de planilla» de al lado, así que tiene que sumar lo mismo al centavo: es el costo de la 0097 (lo que
+// recibe la persona más las provisiones). Por eso la pensión y las retenciones aparecen RESTANDO —salen de lo
+// que se le paga a la persona— y el EsSalud de la empresa no aparece. Las provisiones van con la cifra oficial
+// del periodo: sus cuatro partes se redondean cada una por su lado y no la suman al centavo (0609).
+
+type ClaveConcepto = keyof ConceptosCosto;
+
+export const RENGLONES_DE_COSTO: readonly { clave: string; texto: string; suma: readonly ClaveConcepto[]; signo: 1 | -1 }[] = [
+  { clave: "sueldo", texto: "Sueldo base", suma: ["pago_base"], signo: 1 },
+  { clave: "descanso", texto: "Descanso semanal trabajado", suma: ["descanso_semanal"], signo: 1 },
+  { clave: "sobretiempo", texto: "Sobretiempo", suma: ["sobretiempo"], signo: 1 },
+  { clave: "feriados", texto: "Feriados trabajados", suma: ["feriados"], signo: 1 },
+  { clave: "bonos", texto: "Bonos, plus y asignación familiar", suma: ["bonos", "plus", "asignacion_familiar"], signo: 1 },
+  { clave: "no_remunerativos", texto: "Movilidad y educación", suma: ["movilidad", "educacion"], signo: 1 },
+  { clave: "descuentos", texto: "Pensión y retenciones que se descuentan", suma: ["pension", "retencion_4ta", "descuentos"], signo: -1 },
+];
+
+export interface RenglonCosto {
+  clave: string;
+  texto: string;
+  /** Con signo: los descuentos son negativos. */
+  monto: number;
+  /** El mismo renglón en el periodo anterior; null si no hay anterior con desglose. */
+  anterior: number | null;
+}
+
+export interface DesgloseCosto {
+  etiqueta: string;
+  costo: number;
+  anterior: { etiqueta: string; costo: number } | null;
+  renglones: RenglonCosto[];
+  /** costo − suma de los renglones. Debe ser 0; si no, el dibujo lo dice en vez de esconderlo. */
+  diferencia: number;
+}
+
+const centavos = (n: number) => Math.round(n * 100) / 100;
+
+function renglonesDe(p: PeriodoCosto): Map<string, number> | null {
+  const c = p.conceptos;
+  if (!c) return null;
+  const m = new Map<string, number>();
+  for (const r of RENGLONES_DE_COSTO) m.set(r.clave, centavos(r.signo * r.suma.reduce((s, k) => s + Number(c[k] ?? 0), 0)));
+  const provisiones = p.provisiones ?? (["provision_gratificacion", "provision_cts", "provision_vacaciones", "provision_bonif_extraordinaria"] as const)
+    .reduce((s, k) => s + Number(c[k] ?? 0), 0);
+  m.set("provisiones", centavos(Number(provisiones)));
+  return m;
+}
+
+/** El último periodo pagado que trae desglose, frente al anterior que también lo trae. null si ninguno lo trae (falta la 0609). */
+export function desgloseDeCosto(porPeriodo: readonly PeriodoCosto[]): DesgloseCosto | null {
+  const conDesglose = [...porPeriodo].filter((p) => p.conceptos).sort((a, b) => (a.fecha_ini < b.fecha_ini ? -1 : 1));
+  const ultimo = conDesglose.at(-1);
+  if (!ultimo) return null;
+  const previo = conDesglose.at(-2) ?? null;
+  const ahora = renglonesDe(ultimo)!, antes = previo ? renglonesDe(previo) : null;
+  const filas = [
+    ...RENGLONES_DE_COSTO.filter((r) => r.signo === 1).map((r) => ({ clave: r.clave, texto: r.texto })),
+    { clave: "provisiones", texto: "Provisiones: gratificación, CTS y vacaciones" },
+    ...RENGLONES_DE_COSTO.filter((r) => r.signo === -1).map((r) => ({ clave: r.clave, texto: r.texto })),
+  ];
+  const renglones = filas
+    .map((f) => ({ ...f, monto: ahora.get(f.clave) ?? 0, anterior: antes ? (antes.get(f.clave) ?? 0) : null }))
+    // Un renglón en cero en los dos periodos no dice nada: no se dibuja.
+    .filter((r) => r.monto !== 0 || (r.anterior ?? 0) !== 0);
+  const costo = Number(ultimo.costo);
+  return {
+    etiqueta: etiquetaCierre(ultimo.fecha_fin),
+    costo,
+    anterior: previo ? { etiqueta: etiquetaCierre(previo.fecha_fin), costo: Number(previo.costo) } : null,
+    renglones,
+    diferencia: centavos(costo - renglones.reduce((s, r) => s + r.monto, 0)),
+  };
 }
