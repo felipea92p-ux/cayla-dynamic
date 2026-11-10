@@ -14,6 +14,7 @@
 // ============================================================================
 import { sinTildes } from "@/lib/sin-tildes";
 import { tipoDeArchivo } from "@/lib/tipos-archivo";
+import { diasEntre } from "@cayla-dynamic/shared";
 
 /** Una fila de `fn_archivo_empresa`. */
 export interface FichaArchivo {
@@ -56,13 +57,6 @@ export const TIPOS_ARCHIVO = "application/pdf,image/jpeg,image/png,image/webp,im
 export const DIAS_AVISO_VENCIMIENTO = 60;
 
 export type EstadoVencimiento = "sin_vencimiento" | "al_dia" | "por_vencer" | "vencido";
-
-/** Días de calendario de `desde` a `hasta` (fechas `AAAA-MM-DD`, sin hora ni huso). */
-function diasEntre(desde: string, hasta: string): number {
-  const a = Date.UTC(+desde.slice(0, 4), +desde.slice(5, 7) - 1, +desde.slice(8, 10));
-  const b = Date.UTC(+hasta.slice(0, 4), +hasta.slice(5, 7) - 1, +hasta.slice(8, 10));
-  return Math.round((b - a) / 86_400_000);
-}
 
 /**
  * Cómo está un papel respecto de su vencimiento, contado en días de Lima.

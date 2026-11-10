@@ -12,7 +12,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { hoyLima, puedeVerDisponibilidadEquipo, puedeVerTodasLasSedes, rangoDelDiaLima } from "@cayla-dynamic/shared";
+import { hoyLima, puedeVerDisponibilidadEquipo, puedeVerTodasLasSedes, rangoDelDiaLima, sumarDias } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Cargando } from "@/components/cargando";
@@ -21,7 +21,6 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
-import { sumarDias } from "@/lib/mi-semana";
 import { TIPOS, type TipoCambio } from "@/lib/historial-horario";
 import { ListaHistorial, useHistorialHorario } from "@/components/historial-horario/historial-horario";
 

@@ -14,6 +14,7 @@
 // ============================================================================
 import { esFuncionInexistente } from "@/lib/puestos-resueltos";
 import { lideresDelDia, mananaTarde, metasPorSedeYFecha, type FilaMeta } from "./metas-cobertura";
+import { sumarDias } from "@cayla-dynamic/shared";
 
 interface Respuesta { data: unknown; error: { code?: string; message: string } | null }
 interface Consulta extends PromiseLike<Respuesta> { eq(k: string, v: string): Consulta; in(k: string, v: string[]): Consulta }
@@ -26,11 +27,6 @@ interface FilaVieja { sede_id: string; dia_semana: number; meta: number | null; 
 
 const CORTE_MIN = 855; // 14:15
 
-const sumarDias = (iso: string, n: number) => {
-  const d = new Date(`${iso}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 /** 0 = domingo … 6 = sábado, como metas_cobertura y la pantalla. */
 const dowDe = (iso: string) => new Date(`${iso}T12:00:00Z`).getUTCDay();
 

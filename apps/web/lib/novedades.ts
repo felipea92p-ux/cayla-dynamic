@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-09-contratos-de-recibo-por-honorarios",
+    fecha: "2026-11-09",
+    titulo: "Contratos tiene una pestaña para quien cobra por recibo por honorarios",
+    queMejoro:
+      "Quien cobra por recibo por honorarios firma un contrato de locación de servicios, no uno de trabajo, y Contratos " +
+      "no lo mostraba. La pestaña nueva «Recibo por honorarios» dice quién no tiene su contrato registrado, a quién se " +
+      "le vence en los próximos 60 días y quién está al día.\n\n" +
+      "Desde el panel de cada persona se sube el contrato firmado, se abre, se anula si se registró mal o se termina " +
+      "antes de tiempo. Si alguien pasa a planilla o cesa con su locación todavía abierta, aparece primero en la " +
+      "pestaña hasta que se termine: con las dos cosas a la vez tendría un vínculo civil y otro laboral.\n\n" +
+      "Y cada persona por honorarios ve el suyo en Lo mío › Contrato, y lo abre desde ahí.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-09-apariencia-sale-del-menu",
     fecha: "2026-11-09",
     titulo: "«Apariencia» sale del menú: claro u oscuro lo elige cada aparato",

@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { hoyLima, mesesRecientesLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { hoyLima, mesesRecientesLima, puedeVerPlanilla, sumarDias } from "@cayla-dynamic/shared";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { Cargando } from "@/components/cargando";
@@ -50,11 +50,6 @@ function useConsulta<T>(activa: boolean, clave: string, pedir: () => Promise<T>)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activa, clave, intento]);
   return [estado, () => setIntento((n) => n + 1)];
-}
-
-function restarDias(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d - n)).toISOString().slice(0, 10);
 }
 
 const PERIODOS = [
@@ -125,7 +120,7 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
   const [sede, setSede] = useState<string | null>(null);
 
   // ── Asistencia y puntualidad (función 0534) ────────────────────────────────
-  const desde = periodo === "anio" ? `${hoy.slice(0, 4)}-01-01` : restarDias(hoy, PERIODOS.find((p) => p.clave === periodo)!.dias);
+  const desde = periodo === "anio" ? `${hoy.slice(0, 4)}-01-01` : sumarDias(hoy, -PERIODOS.find((p) => p.clave === periodo)!.dias);
   const [asist, reintentarAsist] = useConsulta<FilaAsistencia[]>(true, `asist:${desde}`, async () => {
     const { data, error } = await supabase.rpc("fn_asistencia_serie", { p_desde: desde, p_hasta: hoy });
     if (error) throw new Error(mensajeDeError(error, "traer la asistencia"));

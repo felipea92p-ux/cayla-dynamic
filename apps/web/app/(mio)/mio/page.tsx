@@ -68,6 +68,7 @@ import { colorDelDia, MUESTRA } from "@/lib/admin/color-del-dia";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 import { compartirMientrasVuela } from "@/lib/compartir-mientras-vuela";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
+import { locacionDeHoy, type ContratoLocacion } from "@/lib/admin/locaciones";
 import { traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
 import { esMesDeCumpleanos } from "@/lib/saludos-cumpleanos";
@@ -1168,6 +1169,19 @@ export default function MioPage() {
         setContrato((data as MiContrato | null) ?? null);
         setContratoCargado(true);
       });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id, segundaOla]);
+
+  // Quien cobra por honorarios no tiene contrato de trabajo: tiene uno de locación de servicios (0610). La misma
+  // función que usa DO le devuelve a la persona solo los suyos, sin anulados. `undefined` = todavía no se sabe.
+  const [miLocacion, setMiLocacion] = useState<ContratoLocacion | null | undefined>(undefined);
+  useEffect(() => {
+    if (!yo?.id || !segundaOla) return;
+    let vivo = true;
+    void supabase.rpc("fn_locaciones_listar").then(({ data, error }) => {
+      if (!vivo) return;
+      setMiLocacion(error ? null : locacionDeHoy((data as ContratoLocacion[] | null) ?? []));
+    });
     return () => { vivo = false; };
   }, [supabase, yo?.id, segundaOla]);
 
@@ -2901,8 +2915,23 @@ export default function MioPage() {
       {tab === "contrato" && (
         <section data-tour="mio-contrato-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tu contrato</h2>
-          {!contratoCargado ? (
+          {/* Sin contrato de trabajo, se espera también la respuesta de la locación: si no, decía un instante «no
+              tienes contrato» a quien sí lo tiene. */}
+          {!contratoCargado || (!contrato && miLocacion === undefined) ? (
             <p className="text-taupe">Cargando…</p>
+          ) : !contrato && miLocacion ? (
+            <div>
+              <p className="text-verde">
+                Contrato de locación de servicios, del {diaYMes(miLocacion.fecha_inicio)} al{" "}
+                {diaYMes(miLocacion.terminado_el ?? miLocacion.fecha_fin)}. Firmado el {diaYMes(miLocacion.fecha_firma)}.
+              </p>
+              <Link
+                href="/mio/contrato"
+                className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
+              >
+                Ver mi contrato →
+              </Link>
+            </div>
           ) : !contrato ? (
             <p className="text-taupe">
               Todavía no tienes un contrato registrado en el sistema. Si crees que deberías tener uno, avisa

@@ -4,6 +4,7 @@ import {
   puedeGestionarSeguros, puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas, recibeAvisoDeConductaRegistrada,
   recibeAvisoDeLecturaPendiente,
   esTipoDocumento, TIPO_DOCUMENTO_LABEL,
+  sumarDias,
 } from "@cayla-dynamic/shared";
 import { etiquetaDeVia } from "../reportes";
 import { nombreDe, resumenDeCierre, textoDelDia, type CierrePrueba, type FilaPrueba } from "./pruebas";
@@ -15,7 +16,7 @@ import {
   type CamposDelBorrador, type LecturaMemo, type PapelArchivado,
 } from "./disciplina";
 import {
-  compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
+  compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja,
   urgenciaBono, urgenciaCaso, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
   urgenciaCierrePrueba, urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaPrueba, urgenciaRecordVacaciones, urgenciaSeguroCambio, urgenciaSeguroComplementario,
   urgenciaSeguroPapeleo, urgenciaSeguroPorVencer, urgenciaSeguroSinPoliza, urgenciaSinHorario,

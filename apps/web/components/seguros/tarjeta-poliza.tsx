@@ -19,9 +19,9 @@
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
-import { diasEntre } from "@/lib/bandeja-mia";
 import { formatSoles } from "@/lib/rangos";
 import { estadoPrima, fechaDelPaso, PASOS_SEGURO, plural, type PasoSeguro, type Poliza } from "@/lib/admin/seguros";
+import { diasEntre } from "@cayla-dynamic/shared";
 
 const fecha = isoADiaMesAnio;
 

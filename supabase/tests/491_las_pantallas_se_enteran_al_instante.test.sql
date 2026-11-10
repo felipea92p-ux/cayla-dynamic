@@ -72,6 +72,7 @@ insert into decision (tabla, estado, tema) values
   -- PENDIENTES DEL LOTE 3: personas, documentos, educación, seguros y catálogos.
   ('datos_personales', 'lote 3', null), ('derechohabientes', 'lote 3', null),
   ('contratos_generados', 'lote 3', null), ('confirmaciones_firma_contrato', 'lote 3', null),
+  ('contratos_locacion', 'lote 3', null),
   ('contrato_revisiones_pedidas', 'lote 3', null), ('documentos_acuses', 'lote 3', null),
   ('documentos_firmados', 'lote 3', null), ('documentos_institucionales', 'lote 3', null),
   ('documentos_tipos', 'lote 3', null), ('firmas_escaneadas', 'lote 3', null),

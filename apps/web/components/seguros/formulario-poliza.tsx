@@ -41,7 +41,7 @@
 
 import { useState } from "react";
 import type { ClienteCayla } from "@cayla-dynamic/database";
-import { hoyLima } from "@cayla-dynamic/shared";
+import { hoyLima, sumarMeses } from "@cayla-dynamic/shared";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
@@ -52,7 +52,7 @@ import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
-  etiquetaVinculo, fechasSospechosas, numeroDeTexto as numero, personasParaPoliza as personasDe, plural, polizaQueSeCruza, sumarMeses,
+  etiquetaVinculo, fechasSospechosas, numeroDeTexto as numero, personasParaPoliza as personasDe, plural, polizaQueSeCruza,
   type Poliza, type TipoSeguro,
 } from "@/lib/admin/seguros";
 import { formatSoles } from "@/lib/rangos";

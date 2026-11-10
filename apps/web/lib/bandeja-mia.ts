@@ -2,6 +2,7 @@ import type { ClienteCayla } from "@cayla-dynamic/database";
 import {
   MOTIVO_RECHAZO_LABELS, constanciaPideAlgoALaIntegrante, fechaLima, hoyLima,
   type EstadoConstancia, type MotivoRechazo,
+  diasEntre,
 } from "@cayla-dynamic/shared";
 import { loQueNoSePudo } from "./admin/lo-que-no-se-pudo";
 import { esJornadaEnCurso } from "./admin/jornada-esperada";
@@ -455,17 +456,6 @@ function rangoDeFechas(ini: string, fin: string): string {
   // Mismo mes: no se repite el nombre del mes dos veces en la misma frase.
   if (mi === mf) return `del ${Number(ini.split("-")[2])} al ${diaYMes(fin)}`;
   return `del ${diaYMes(ini)} al ${diaYMes(fin)}`;
-}
-
-/**
- * Días entre dos fechas de Lima. Por `Date.UTC` sobre las partes, nunca
- * restando dos `new Date(iso)`: eso mete el huso del navegador en una cuenta
- * que ya está resuelta en fecha de Lima, y se corre un día.
- */
-export function diasEntre(desde: string, hasta: string): number {
-  const [ay, am, ad] = desde.split("-").map(Number);
-  const [by, bm, bd] = hasta.split("-").map(Number);
-  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000);
 }
 
 /** «hoy», «ayer», «hace 6 días» — cómo se cuenta el tiempo en una frase. */

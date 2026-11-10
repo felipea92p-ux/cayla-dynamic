@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { hoyLima } from "@cayla-dynamic/shared";
+import { hoyLima, sumarDias } from "@cayla-dynamic/shared";
 import { Filtro } from "@/components/ui/filtro";
 import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cargando } from "@/components/cargando";
 import { dowDe, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import {
-  armarSemana, cuadreDeSemana, deQue, inclinacionDeSemana, lunesDe, sumarDias, textoHoras,
+  armarSemana, cuadreDeSemana, deQue, inclinacionDeSemana, lunesDe, textoHoras,
   textoRotacion, totalDeSemana, type DiaDeMiSemana, type PuestoFila,
 } from "@/lib/mi-semana";
 import { esPiso, textoPuesto } from "@/lib/admin/almacen";

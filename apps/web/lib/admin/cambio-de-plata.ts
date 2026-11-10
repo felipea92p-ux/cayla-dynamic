@@ -9,6 +9,8 @@
  * Funciones puras: se prueban con vitest sin levantar nada.
  */
 
+import { sumarDias } from "@cayla-dynamic/shared";
+
 export interface PeriodoCiclo {
   fecha_ini: string;
   fecha_fin: string;
@@ -22,11 +24,6 @@ export interface OpcionVigencia {
   fecha: string;
   etiqueta: string;
   detalle: string;
-}
-
-function diaSiguiente(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 }
 
 /** 31/10/2026 */
@@ -44,7 +41,7 @@ export function opcionesDeVigencia(hoy: string, periodos: ReadonlyArray<PeriodoC
   const actual = periodos.find((p) => p.fecha_ini <= hoy && hoy <= p.fecha_fin) ?? null;
   const opciones: OpcionVigencia[] = [];
   if (actual) {
-    const siguiente = diaSiguiente(actual.fecha_fin);
+    const siguiente = sumarDias(actual.fecha_fin, 1);
     opciones.push({
       clave: "inicio_actual",
       fecha: actual.fecha_ini,

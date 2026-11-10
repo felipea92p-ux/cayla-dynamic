@@ -10,17 +10,14 @@
 // alguien no significa que esa persona no deba revisarse en su ficha.
 
 /** Días hacia adelante en que un fin de contrato pasa a ser «próximo». Decidido el 2026-10-19: 60. */
+import { sumarDias } from "@cayla-dynamic/shared";
+
 export const VENTANA_FIN_CONTRATO_DIAS = 60;
 
 /** ¿Esta persona debe tener un tramo de salario? Dirección, honorarios (rxh) y sin vínculo laboral, no. */
 export function debeTenerSalario(p: { tipo_vinculo: string; personal_direccion: boolean }): boolean {
   if (p.personal_direccion) return false;
   return p.tipo_vinculo !== "rxh" && p.tipo_vinculo !== "no_trabajador";
-}
-
-function sumarDias(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
 /**

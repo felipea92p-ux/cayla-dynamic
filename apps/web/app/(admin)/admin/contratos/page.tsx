@@ -32,8 +32,10 @@ import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { useToast } from "@/components/toast";
 import { PanelPrueba } from "@/components/pruebas/panel-prueba";
+import { ContratosHonorarios, useLocacionesTablero } from "@/components/contratos/honorarios";
+import { cuantasParaAtender } from "@/lib/admin/locaciones";
 import { etiquetaDePrueba, nombreDe as nombreDePrueba, puedeHacerContrato, textoDelDia, type FilaPrueba } from "@/lib/admin/pruebas";
-import { hoyLima, maximoSemanalPracticante, puedeEstamparFirmaDeEmpresa, puedeGestionarContratos } from "@cayla-dynamic/shared";
+import { hoyLima, maximoSemanalPracticante, puedeEstamparFirmaDeEmpresa, puedeGestionarContratos, sumarDias } from "@cayla-dynamic/shared";
 import {
   construirContrato,
   formatearFecha,
@@ -83,11 +85,6 @@ const MAX_BYTES = 50 * 1024 * 1024;
 // dentro de una frase: ahí un salto de línea no significa nada y solo estorba.
 function unaLinea(texto: string): string {
   return texto.replace(/\s+/g, " ").trim();
-}
-
-function sumarDias(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
 // "2026-09-04" + 3 meses → "2026-12-03": el día anterior al aniversario, que es
@@ -537,6 +534,9 @@ export default function ContratosPage() {
   // El Dashboard ya hacía lo mismo con `contratosNoRespondio`.
   const [falloTablero, setFalloTablero] = useState(false);
   const [falloHistorial, setFalloHistorial] = useState(false);
+  // Quien cobra por honorarios no entra al tablero de arriba (0491): firma una locación de servicios, no un
+  // contrato de trabajo. Su tablero es otro (0610) y vive en su propia pestaña; se lee aquí para el número rojo.
+  const honorarios = useLocacionesTablero(supabase);
 
   const [personaId, setPersonaId] = useState("");
   // Las pruebas de tres días abiertas (0536). Quien está de prueba NO se contrata todavía:
@@ -3351,6 +3351,7 @@ export default function ContratosPage() {
                 { titulo: "Falta firma o copia", texto: "El contrato existe pero no está firmado (ni escaneado ni confirmado por la persona), o falta entregarle su copia." },
                 { titulo: "Sin contrato registrado", texto: "No hay ni documento ni fecha de fin anotada: no se sabe de ningún contrato." },
                 { titulo: "Al día", texto: "Vigentes, sin vencimiento, y los firmados en papel antes de que existiera el generador (marcados «En papel»): son historia, no urgencia." },
+                { titulo: "Recibo por honorarios", texto: "Quien cobra por recibo por honorarios no tiene contrato de trabajo: firma un contrato de locación de servicios. Va en su propia pestaña porque nada de lo de arriba (art. 77, copia, generador) le aplica." },
                 { titulo: "Quién entra", texto: "Desarrollo Organizacional y dirección; firma por CAYLA quien está configurado como firmante. Una líder de equipo no tiene esta pantalla." },
               ]}
             />
@@ -3423,7 +3424,7 @@ export default function ContratosPage() {
               </BannerAviso>
             )}
 
-            {!falloTablero && tablero.length > 0 && (
+            {!falloTablero && (tablero.length > 0 || honorarios.filas.length > 0) && (
               <>
                 <Pestanas
                   etiqueta="Secciones de Contratos"
@@ -3432,6 +3433,7 @@ export default function ContratosPage() {
                     { clave: "vigentes", texto: "Al día" },
                     { clave: "todos", texto: "Todos" },
                     { clave: "archivados", texto: "Archivados" },
+                    { clave: "honorarios", texto: "Recibo por honorarios", aviso: cuantasParaAtender(honorarios.filas) },
                   ]}
                   activa={filtroEstado === "sin_firmar" ? "pendientes" : filtroEstado}
                   alElegir={(clave) => { setFiltroEstado(clave); setBandaElegida(null); }}
@@ -3451,29 +3453,33 @@ export default function ContratosPage() {
                 )}
 
                 {/* Filtros compactos, sin rótulos y con campos «sm». La sede y el tipo se leen de lo que ya hay en
-                    pantalla, no de una lista escrita a mano. */}
-                <TarjetaInfo className="flex flex-wrap items-center gap-2 p-3 sm:p-3">
-                  <div className="min-w-48 flex-1">
-                    <Campo tamano="sm" aria-label="Buscar por nombre o sede" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar persona" />
-                  </div>
-                  <div className="w-full sm:w-44">
-                    <CampoSelect tamano="sm" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
-                      <option value="">Todas las sedes</option>
-                      {sedesEnTablero.map((sd) => (<option key={sd} value={sd}>{sd}</option>))}
-                    </CampoSelect>
-                  </div>
-                  <div className="w-full sm:w-48">
-                    <CampoSelect tamano="sm" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} aria-label="Filtrar por tipo">
-                      <option value="">Todos los tipos</option>
-                      {tiposEnDatos.map((t) => (<option key={t} value={t}>{TIPO_CONTRATO[t] ?? t}</option>))}
-                    </CampoSelect>
-                  </div>
-                  {(busca || filtroSede || filtroTipo || bandaElegida !== null || filtroEstado === "sin_firmar") && (
-                    <Boton variante="enlace" className="text-xs text-taupe" onClick={limpiarFiltros}>Limpiar</Boton>
-                  )}
-                </TarjetaInfo>
+                    pantalla, no de una lista escrita a mano. La pestaña de honorarios no los usa: su lista es otra. */}
+                {filtroEstado !== "honorarios" && (
+                  <TarjetaInfo className="flex flex-wrap items-center gap-2 p-3 sm:p-3">
+                    <div className="min-w-48 flex-1">
+                      <Campo tamano="sm" aria-label="Buscar por nombre o sede" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar persona" />
+                    </div>
+                    <div className="w-full sm:w-44">
+                      <CampoSelect tamano="sm" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
+                        <option value="">Todas las sedes</option>
+                        {sedesEnTablero.map((sd) => (<option key={sd} value={sd}>{sd}</option>))}
+                      </CampoSelect>
+                    </div>
+                    <div className="w-full sm:w-48">
+                      <CampoSelect tamano="sm" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} aria-label="Filtrar por tipo">
+                        <option value="">Todos los tipos</option>
+                        {tiposEnDatos.map((t) => (<option key={t} value={t}>{TIPO_CONTRATO[t] ?? t}</option>))}
+                      </CampoSelect>
+                    </div>
+                    {(busca || filtroSede || filtroTipo || bandaElegida !== null || filtroEstado === "sin_firmar") && (
+                      <Boton variante="enlace" className="text-xs text-taupe" onClick={limpiarFiltros}>Limpiar</Boton>
+                    )}
+                  </TarjetaInfo>
+                )}
 
-                {filasVista.length === 0 ? (
+                {filtroEstado === "honorarios" ? (
+                  <ContratosHonorarios supabase={supabase} tablero={honorarios} />
+                ) : filasVista.length === 0 ? (
                   <EstadoVacio accion={(busca || filtroSede || filtroTipo || bandaElegida !== null)
                     ? <Boton variante="secundario" tamano="sm" onClick={limpiarFiltros}>Limpiar filtros</Boton>
                     : undefined}>
