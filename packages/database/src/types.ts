@@ -1457,8 +1457,13 @@ export type Database = {
           fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
+          firma_empresa: string | null
           firma_persona: string | null
           firma_persona_confirmada_at: string | null
+          firma_persona_ip: string | null
+          firma_persona_user_agent: string | null
+          firmante_empresa_cargo: string | null
+          firmante_empresa_id: string | null
           generado_at: string
           generado_por: string
           horas_semanales: number | null
@@ -1484,8 +1489,13 @@ export type Database = {
           fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio: string
+          firma_empresa?: string | null
           firma_persona?: string | null
           firma_persona_confirmada_at?: string | null
+          firma_persona_ip?: string | null
+          firma_persona_user_agent?: string | null
+          firmante_empresa_cargo?: string | null
+          firmante_empresa_id?: string | null
           generado_at?: string
           generado_por: string
           horas_semanales?: number | null
@@ -1511,8 +1521,13 @@ export type Database = {
           fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio?: string
+          firma_empresa?: string | null
           firma_persona?: string | null
           firma_persona_confirmada_at?: string | null
+          firma_persona_ip?: string | null
+          firma_persona_user_agent?: string | null
+          firmante_empresa_cargo?: string | null
+          firmante_empresa_id?: string | null
           generado_at?: string
           generado_por?: string
           horas_semanales?: number | null
@@ -2043,10 +2058,12 @@ export type Database = {
           entrega_confirmada_por: string | null
           es_negativa: boolean
           fecha_firma: string
+          firma_empresa: string | null
           firma_persona: string | null
           firma_persona_confirmada_at: string | null
           firma_persona_ip: string | null
           firma_persona_user_agent: string | null
+          firmante_empresa_cargo: string | null
           firmante_empresa_id: string | null
           id: string
           monto_declarado: number | null
@@ -2079,10 +2096,12 @@ export type Database = {
           entrega_confirmada_por?: string | null
           es_negativa?: boolean
           fecha_firma: string
+          firma_empresa?: string | null
           firma_persona?: string | null
           firma_persona_confirmada_at?: string | null
           firma_persona_ip?: string | null
           firma_persona_user_agent?: string | null
+          firmante_empresa_cargo?: string | null
           firmante_empresa_id?: string | null
           id?: string
           monto_declarado?: number | null
@@ -2115,10 +2134,12 @@ export type Database = {
           entrega_confirmada_por?: string | null
           es_negativa?: boolean
           fecha_firma?: string
+          firma_empresa?: string | null
           firma_persona?: string | null
           firma_persona_confirmada_at?: string | null
           firma_persona_ip?: string | null
           firma_persona_user_agent?: string | null
+          firmante_empresa_cargo?: string | null
           firmante_empresa_id?: string | null
           id?: string
           monto_declarado?: number | null
@@ -5164,6 +5185,9 @@ export type Database = {
       politica_salarial: {
         Row: {
           documento: string
+          firma_empresa: string | null
+          firmante_empresa_cargo: string | null
+          firmante_empresa_id: string | null
           huella_cuadro: string
           notas: string | null
           publicada_at: string
@@ -5172,6 +5196,9 @@ export type Database = {
         }
         Insert: {
           documento: string
+          firma_empresa?: string | null
+          firmante_empresa_cargo?: string | null
+          firmante_empresa_id?: string | null
           huella_cuadro: string
           notas?: string | null
           publicada_at?: string
@@ -5180,6 +5207,9 @@ export type Database = {
         }
         Update: {
           documento?: string
+          firma_empresa?: string | null
+          firmante_empresa_cargo?: string | null
+          firmante_empresa_id?: string | null
           huella_cuadro?: string
           notas?: string | null
           publicada_at?: string
@@ -8821,7 +8851,10 @@ export type Database = {
           anulado_motivo: string
           es_negativa: boolean
           fecha_firma: string
+          firma_empresa: string
           firma_persona: string
+          firmante_empresa_cargo: string
+          firmante_empresa_nombre: string
           id: string
           monto_declarado: number
           nota: string

@@ -95,6 +95,11 @@ interface MiDocumento {
   gastoDiario: number | null;
   costoTaxi: number | null;
   frecuenciaTaxi: number | null;
+  // La firma de CAYLA de ESTA declaración, quién y con qué cargo (0616): la de
+  // su día, no la de hoy. Null en una vieja que no se pudo probar.
+  firmaEmpresa: string | null;
+  firmanteNombre: string | null;
+  firmanteCargo: string | null;
 }
 
 interface Yo {
@@ -279,6 +284,7 @@ function MiMovilidadContenido() {
       ruta_medios_ida: number | null; ruta_medios_vuelta: number | null;
       ruta_costo_pasaje: number | null; ruta_gasto_diario: number | null;
       ruta_costo_taxi: number | null; ruta_frecuencia_taxi: number | null;
+      firma_empresa: string | null; firmante_empresa_nombre: string | null; firmante_empresa_cargo: string | null;
     };
     const miRuta = ((docs as FilaDoc[] | null) ?? []).find((d) => d.tipo === "ruta" && d.vigente);
     setMiDocumento(miRuta ? {
@@ -292,6 +298,9 @@ function MiMovilidadContenido() {
       gastoDiario: miRuta.ruta_gasto_diario,
       costoTaxi: miRuta.ruta_costo_taxi,
       frecuenciaTaxi: miRuta.ruta_frecuencia_taxi,
+      firmaEmpresa: miRuta.firma_empresa,
+      firmanteNombre: miRuta.firmante_empresa_nombre,
+      firmanteCargo: miRuta.firmante_empresa_cargo,
     } : null);
   }, [supabase, router]);
 
@@ -583,13 +592,15 @@ function MiMovilidadContenido() {
                     <p className="text-xs text-taupe">DNI {yo?.documento ?? "—————"} · el/la declarante</p>
                   </div>
                   <div className="text-center">
+                    {/* La de CAYLA de cuando firmaste (0616), no la de hoy. Sin ella —una
+                        declaración vieja que no se pudo probar— queda la raya en blanco. */}
                     <div className="flex h-24 items-end justify-center">
-                      {firmaEmpresa && (
-                        <img src={firmaEmpresa} alt="" aria-hidden className="firma-tinta block h-24 w-auto max-w-full" />
+                      {miDocumento.firmaEmpresa && (
+                        <img src={miDocumento.firmaEmpresa} alt="" aria-hidden className="firma-tinta block h-24 w-auto max-w-full" />
                       )}
                     </div>
-                    <div className="mb-1 border-t border-tinta pt-2 text-xs">{firmanteNombre}</div>
-                    <p className="text-xs text-taupe">{firmanteCargo} · {EMPRESA.nombre}</p>
+                    <div className="mb-1 border-t border-tinta pt-2 text-xs">{miDocumento.firmanteNombre ?? firmanteNombre}</div>
+                    <p className="text-xs text-taupe">{miDocumento.firmanteCargo ?? firmanteCargo} · {EMPRESA.nombre}</p>
                   </div>
                 </div>
                 <p className="mt-6 text-center text-xs text-taupe">

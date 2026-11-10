@@ -6,6 +6,35 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-10 — La firma de CAYLA queda la de su día · migración **0616 PEGADA Y VERIFICADA (2026-11-10)** · prueba 501 · rama `claude/firma-cayla-congelada`
+
+**De dónde sale.** `fn_firma_empresa()` (0398) daba la firma de HOY de quien firma HOY, y las pantallas la estampaban al mostrar; el
+nombre del firmante, en cambio, queda congelado en el texto. Cambiar de firmante o redibujar la firma cambiaba la rúbrica de todo lo
+ya firmado. Medido en producción ese día: 17 de 23 contratos vivos se firmaron SOLO en Dynamic (desde la 0430), sin papel detrás.
+**Decidido por Felipe (2026-11-10):** cada documento guarda su copia; lo ya firmado se rellena solo donde se pruebe; y la confirmación
+de un contrato guarda IP y navegador como la declaración de ruta.
+
+**Construido.** 0616: `firma_empresa`, `firmante_empresa_id` y `firmante_empresa_cargo` en `contratos_generados`, `documentos_firmados`
+y `politica_salarial`, que congela un trigger al crear la fila (en `documentos_firmados`, solo lo firmado en Dynamic: un escaneo trae la
+firma en su papel) y que nadie puede reescribir después (salvo un contrato corregido antes de firmarse, que se vuelve a congelar). IP y
+navegador en `confirmaciones_firma_contrato` (append-only), no en el contrato. Reescribe `fn_documentos_listar` (0489),
+`fn_politica_salarial_vigente` (0491) y `fn_confirmar_mi_firma_contrato` (0462). **Su md5 no se pidió antes:** el bloque 0 los mide al
+pegarse y se niega si alguno no es el de main (acepta sin comentarios y CRLF). Pantallas: Contratos (panel y Lo mío), Movilidad, bono
+de cumpleaños, Documentación (los visores de lo firmado; los papeles para firmar a mano siguen con la de hoy) y la política salarial.
+De paso: Lo mío › Contrato mostraba la firma ACTUAL de la persona en un contrato ya confirmado; ahora la de cuando lo confirmó.
+
+**Medido.** Prueba 501, 18/18. Suite entera en base desechable: 402 archivos, 6 150 aserciones, ninguno en rojo (main, el control:
+ninguno). La primera corrida cazó que el trigger le ponía firmante a un escaneo de la política (425 en rojo); corregido. Interfaz:
+4 156 pruebas y typecheck en verde. **No verificado en el navegador:** las pantallas cambian de dónde sale la imagen, no cómo se ven.
+
+**Pegada el 2026-11-10** (el SQL Editor avisó «tabla sin RLS» por `firma_de_hoy`: es temporal y se borra al terminar, se corrió sin
+RLS). Su comprobación: 3 triggers; 22 de 23 contratos vivos con la firma congelada (queda en blanco el firmado en papel antes del
+08-09, como manda la regla); 18 de 18 documentos firmados en Dynamic (15 rutas y 3 constancias); 1 de 5 versiones de la política
+salarial (las 4 anteriores al 08-09, en blanco); la evidencia en `confirmaciones_firma_contrato`; registro `616 ·
+la_firma_de_cayla_queda_la_de_su_dia`. El frontend de main sigue funcionando sobre esto (las funciones solo SUMAN columnas).
+
+**Queda para Felipe.** El OK para el PR: fusionarlo publica las pantallas que leen la firma congelada.
+
 ## 2026-11-09 — Contratos: la pestaña «Recibo por honorarios» · migración **0610 SIN PEGAR (en DOS partes)** · prueba 496 · rama `claude/rxh-contracts-view-9ccdd2` · **solo en local, sin subir**
 
 **De dónde sale.** Felipe preguntó cómo se ven los contratos de los RxH: no se veían. Contratos los dejaba fuera a propósito (el generador
