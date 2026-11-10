@@ -1175,12 +1175,16 @@ export default function MioPage() {
   // Quien cobra por honorarios no tiene contrato de trabajo: tiene uno de locación de servicios (0610). La misma
   // función que usa DO le devuelve a la persona solo los suyos, sin anulados. `undefined` = todavía no se sabe.
   const [miLocacion, setMiLocacion] = useState<ContratoLocacion | null | undefined>(undefined);
+  // Uno generado en Dynamic que espera su firma (0615): es lo que la tarjeta dice primero.
+  const [locacionPorFirmar, setLocacionPorFirmar] = useState(false);
   useEffect(() => {
     if (!yo?.id || !segundaOla) return;
     let vivo = true;
     void supabase.rpc("fn_locaciones_listar").then(({ data, error }) => {
       if (!vivo) return;
-      setMiLocacion(error ? null : locacionDeHoy((data as ContratoLocacion[] | null) ?? []));
+      const lista = (data as ContratoLocacion[] | null) ?? [];
+      setMiLocacion(error ? null : locacionDeHoy(lista));
+      setLocacionPorFirmar(!error && lista.some((c) => c.estado === "sin_firmar"));
     });
     return () => { vivo = false; };
   }, [supabase, yo?.id, segundaOla]);
@@ -2919,6 +2923,16 @@ export default function MioPage() {
               tienes contrato» a quien sí lo tiene. */}
           {!contratoCargado || (!contrato && miLocacion === undefined) ? (
             <p className="text-taupe">Cargando…</p>
+          ) : !contrato && locacionPorFirmar ? (
+            <div>
+              <p className="text-tinta">Tienes un contrato de locación de servicios por leer y firmar.</p>
+              <Link
+                href="/mio/contrato"
+                className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
+              >
+                Leer y firmar →
+              </Link>
+            </div>
           ) : !contrato && miLocacion ? (
             <div>
               <p className="text-verde">

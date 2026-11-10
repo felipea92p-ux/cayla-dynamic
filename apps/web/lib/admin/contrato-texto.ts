@@ -300,7 +300,7 @@ export function formatearFecha(iso: string): string {
   return `${d} de ${meses[m - 1]} de ${y}`;
 }
 
-function soles(n: number): string {
+export function soles(n: number): string {
   return n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
@@ -312,7 +312,7 @@ function soles(n: number): string {
  * un "&" o una dirección con un "<" no debe poder romper la estructura del
  * documento que se va a imprimir y firmar.
  */
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

@@ -255,7 +255,9 @@ function MiContratoContenido() {
             supabase={supabase}
             contratos={locaciones}
             titulo="Tu contrato de locación de servicios"
-            intro="Cobras por recibo por honorarios, así que tu contrato no es de trabajo: es de locación de servicios. Aquí está el que firmaste, tal como lo registró Desarrollo Organizacional."
+            intro="Cobras por recibo por honorarios, así que tu contrato no es de trabajo: es de locación de servicios. Aquí lo lees, y si se generó en Dynamic, lo firmas aquí mismo."
+            nombreOficial={yo.nombreOficial}
+            alFirmar={() => void cargar()}
           />
         </main>
       );
@@ -462,6 +464,8 @@ function MiContratoContenido() {
             contratos={locaciones}
             titulo="Tu contrato de locación de servicios"
             intro="También tienes un contrato de locación de servicios, de cuando cobrabas por recibo por honorarios. Aquí está el que firmaste."
+            nombreOficial={yo.nombreOficial}
+            alFirmar={() => void cargar()}
           />
         </div>
       )}
