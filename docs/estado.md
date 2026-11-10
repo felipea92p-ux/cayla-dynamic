@@ -6,7 +6,31 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-09 — Contratos: la pestaña «Recibo por honorarios» · migración **0610 SIN PEGAR (en DOS partes)** · prueba 496 · rama `claude/rxh-contracts-view-9ccdd2` · **solo en local, sin subir**
+## 2026-11-10 — El contrato de locación se genera y se firma en Dynamic · migración **0612 SIN PEGAR** · pruebas 498 y `tests/locacion-texto.test.ts` · rama `claude/locacion-digital` · **solo en local, esperando al abogado**
+
+**De dónde sale.** Felipe pidió que a los RxH se les genere y firme el contrato en Dynamic, «como a planilla y practicantes», con «cargo,
+horas, sueldo, modalidad». Al ver que esas cuatro cosas son los indicios que desnaturalizan una locación (art. 4 del D.S. 003-97-TR,
+primacía de la realidad), eligió una **locación civil**: servicio, entregables, plazo y honorarios. Después agregó que los S/ 1 500 son la
+base y se pagan en proporción a las horas: así paga hoy la planilla, y el contrato lo dice (`por_horas`).
+
+**Construido.** `lib/admin/locacion-texto.ts` (12 cláusulas; `DatosLocacion` no tiene cargo, horas ni sueldo). 0612: `documento_html`,
+`honorarios`, `periodicidad`, `ruc_locador` y la copia de la firma en `contratos_locacion`; `fn_locacion_generar`,
+`fn_confirmar_mi_firma_locacion`, `fn_locacion_documento`; un contrato sin firmar no cubre (estado `sin_firmar`). Bloque 0: compara el
+md5 de las cuatro funciones de la 0610 que reescribe y para si alguna cambió. Pantalla: «Generar contrato» en el panel de cada RxH, visor
+compartido (`components/contratos/documento-locacion.tsx`), «Leer y firmar» en Lo mío.
+
+**Es un BORRADOR.** Mientras `TEXTO_LOCACION_APROBADO` sea `false`, cada documento dice «BORRADOR — No firmar» y el botón de firmar no
+aparece (la base no lo frena: es la constante y el aviso del propio papel). El Word con las siete preguntas para el abogado se le entregó a
+Felipe el 2026-11-10; la más importante es que hoy marcan en el terminal y se les paga por esas horas.
+
+**Medido.** La 498, 32/32 (rota en dos reglas, se pone en rojo en 3); la 496 sigue 63/63; `tests/locacion-texto.test.ts` y
+`tests/locaciones.test.ts` en verde (el guardián de vocabulario laboral se pone en rojo si se mete «cargo»). En local: el formulario, sus
+valores de partida, la vista previa y los bloqueos (DNI, RUC). **No verificado en pantalla:** generar y firmar de punta a punta.
+
+**Queda para Felipe.** Que el abogado devuelva el texto; con sus cambios se cambia la constante en el mismo PR. Recién ahí: PR, pegar la
+0612 (una pegada) antes de fusionar.
+
+## 2026-11-09 — Contratos: la pestaña «Recibo por honorarios» · migración **0610 PEGADA Y VERIFICADA (2026-11-10)** · prueba 496 · rama `claude/rxh-contracts-view-9ccdd2` · **solo en local, sin subir**
 
 **De dónde sale.** Felipe preguntó cómo se ven los contratos de los RxH: no se veían. Contratos los dejaba fuera a propósito (el generador
 solo hace contratos de trabajo y convenios), y con eso nada avisaba si alguien por honorarios trabajaba sin contrato escrito o con uno vencido.

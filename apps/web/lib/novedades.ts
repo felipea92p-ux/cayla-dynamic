@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-10-contrato-de-locacion-se-genera-y-se-firma",
+    fecha: "2026-11-10",
+    titulo: "El contrato de quien cobra por honorarios se genera y se firma en Dynamic",
+    queMejoro:
+      "En Contratos › Recibo por honorarios, el panel de cada persona tiene «Generar contrato»: arma el contrato de " +
+      "locación de servicios con el servicio, lo que comprende, el plazo y los honorarios, y propone su RUC desde el " +
+      "DNI. La persona lo lee y lo firma en Lo mío › Contrato, como el contrato de trabajo.\n\n" +
+      "No lleva cargo, horario ni sueldo: es un contrato civil. Registrar el escaneo de uno firmado en papel sigue " +
+      "estando, al lado.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-09-contratos-de-recibo-por-honorarios",
     fecha: "2026-11-09",
     titulo: "Contratos tiene una pestaña para quien cobra por recibo por honorarios",
