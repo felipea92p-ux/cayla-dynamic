@@ -36,7 +36,8 @@
 import type { PolizaLeida } from "./leer-poliza";
 import { emparejarPersona } from "./leer-poliza";
 import { isoADiaMesAnio } from "./planilla/formato";
-import { fechasSospechosas, numeroDeTexto, polizaQueSeCruza, sumarMeses, type Poliza, type TipoSeguro } from "./seguros";
+import { fechasSospechosas, numeroDeTexto, polizaQueSeCruza, type Poliza, type TipoSeguro } from "./seguros";
+import { sumarMeses } from "@cayla-dynamic/shared";
 
 /** Lo mínimo que hace falta saber de una persona para proponérsela a un papel. */
 export interface PersonaParaEmparejar { id: string; nombre: string; tipoPrincipal: string | null }

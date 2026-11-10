@@ -76,7 +76,7 @@
 //   nada se registra sin que DO lo mire.
 // ============================================================================
 import { sinTildes } from "../sin-tildes";
-import { diasEntre } from "../bandeja-mia";
+import { diasEntre } from "@cayla-dynamic/shared";
 
 export interface PolizaLeida {
   /** El número tal como lo imprime el papel. */

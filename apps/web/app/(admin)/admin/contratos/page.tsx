@@ -35,7 +35,7 @@ import { PanelPrueba } from "@/components/pruebas/panel-prueba";
 import { ContratosHonorarios, useLocacionesTablero } from "@/components/contratos/honorarios";
 import { cuantasParaAtender } from "@/lib/admin/locaciones";
 import { etiquetaDePrueba, nombreDe as nombreDePrueba, puedeHacerContrato, textoDelDia, type FilaPrueba } from "@/lib/admin/pruebas";
-import { hoyLima, maximoSemanalPracticante, puedeEstamparFirmaDeEmpresa, puedeGestionarContratos } from "@cayla-dynamic/shared";
+import { hoyLima, maximoSemanalPracticante, puedeEstamparFirmaDeEmpresa, puedeGestionarContratos, sumarDias } from "@cayla-dynamic/shared";
 import {
   construirContrato,
   formatearFecha,
@@ -85,11 +85,6 @@ const MAX_BYTES = 50 * 1024 * 1024;
 // dentro de una frase: ahí un salto de línea no significa nada y solo estorba.
 function unaLinea(texto: string): string {
   return texto.replace(/\s+/g, " ").trim();
-}
-
-function sumarDias(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
 // "2026-09-04" + 3 meses → "2026-12-03": el día anterior al aniversario, que es

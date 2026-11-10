@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClienteCayla } from "@cayla-dynamic/database";
-import { hoyLima } from "@cayla-dynamic/shared";
+import { hoyLima, sumarDias } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { BannerAviso } from "@/components/ui/banner-aviso";
@@ -48,7 +48,6 @@ import {
   type FilaTableroLocacion,
 } from "@/lib/admin/locaciones";
 import { registrarContratoLocacion } from "@/lib/admin/locaciones-archivo";
-import { sumarDias } from "@/lib/mi-semana";
 
 /**
  * El tablero de las personas por honorarios. Vive fuera de la pestaña porque la

@@ -23,6 +23,7 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { cx } from "@/components/ui/cx";
 import {
   NIVEL_DISCIPLINARIO_LABELS, fechaLima, hoyLima, nombreDelMesLima, primeroDeMesLima, rangoDelDiaLima,
+  sumarMeses,
 } from "@cayla-dynamic/shared";
 import {
   antecedentesVigentes, esGradual, estadoDeLectura, estadoDeRecepcionCargos, etapaDelBorrador, eventosDeObservacion, explicarPasoTardanza, SIN_FOTO_DEL_HORARIO, UMBRAL_FALTAS,
@@ -30,7 +31,7 @@ import {
 } from "@/lib/admin/disciplina";
 import { evidenciaDeDocumento, evidenciaDeTardanzasDelMes, type Evidencia } from "@/lib/admin/disciplina-evidencia";
 import { citaDeFalta, traspasosDe, type FaltaCatalogo, type Traspaso } from "@/lib/admin/conducta";
-import { fechaConAnio, fechaCorta, selloLima, sumarMeses, ultimoDiaDelMes } from "./formato";
+import { fechaConAnio, fechaCorta, selloLima, ultimoDiaDelMes } from "./formato";
 
 type Cliente = ReturnType<typeof createAdminSupabaseClient>;
 

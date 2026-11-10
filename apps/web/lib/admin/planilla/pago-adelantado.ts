@@ -23,19 +23,20 @@
 //                 El mismo día del cierre se incluyó el 2026-10-22, también por decisión de Felipe: la regla inicial era
 //                 «fecha_fin posterior a hoy» y dejaba sin aviso justo el último día, que sella igual.
 // ============================================================================
-import { diasEntre } from "./formato";
 
 /**
  * La palabra que se escribe para confirmar. No es el mes (la de «Eliminar periodo»): son dos decisiones distintas y
  * una misma palabra, escrita de memoria en la una, se escribiría igual en la otra.
  */
+import { diasDelTramo } from "@cayla-dynamic/shared";
+
 export const PALABRA_PAGO_ADELANTADO = "adelantar";
 
 /** Días que faltan para el cierre, desde mañana: `0` si hoy es el cierre, `null` si el periodo ya terminó. */
 export function diasQueFaltanParaTerminar(fechaFin: string, hoy: string): number | null {
   if (fechaFin < hoy) return null;
   // `diasEntre` cuenta los dos extremos; hoy no es un día que «falte».
-  return diasEntre(hoy, fechaFin) - 1;
+  return diasDelTramo(hoy, fechaFin) - 1;
 }
 
 /** «Faltan 7 días para que termine este periodo» / «Falta 1 día…» / «Hoy es el último día de este periodo». */

@@ -2,14 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { Ban, Check, CircleAlert, Clock, Copy, Plus, X, type LucideIcon } from "lucide-react";
-import { hoyLima } from "@cayla-dynamic/shared";
+import { hoyLima, sumarDias } from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Filtro } from "@/components/ui/filtro";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Rotulo } from "@/components/ui/rotulo";
-import { sumarDias } from "@/lib/mi-semana";
 import {
   ATAJOS, MOTIVOS_A_ELEGIR, NOMBRE_DIA, ORDEN_DIAS, aBloques, aplicarAtajo, copiarDia, avisoDeHoras, hayRestriccion, horasDisponibles, opcionesHora,
   resumenEnPalabras, semanaVacia, vaDiaEntero, validar,

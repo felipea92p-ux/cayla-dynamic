@@ -45,14 +45,3 @@ export function fechaConAnio(iso: string): string {
   return `${String(d).padStart(2, "0")}-${MES_CORTO[m - 1]}-${y}`;
 }
 
-/** Suma meses de CALENDARIO a una fecha plana, sin pasarse de fin de mes
- *  (`2028-02-29` + 12 → `2029-02-28`). Es la cuenta de `interval '12 months'` de
- *  la base: los doce meses del antecedente (RIT 56.1) no son 365 días. */
-export function sumarMeses(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const total = (y * 12 + (m - 1)) + n;
-  const ny = Math.floor(total / 12);
-  const nm = total % 12;
-  const ultimo = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
-  return new Date(Date.UTC(ny, nm, Math.min(d, ultimo))).toISOString().slice(0, 10);
-}

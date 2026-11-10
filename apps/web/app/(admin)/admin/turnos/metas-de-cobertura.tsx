@@ -26,6 +26,7 @@ import { esFuncionInexistente } from "@/lib/puestos-resueltos";
 import {
   compararHoraPorHora, hhmm, problemaDeRangos, rangosDesdeSugerido, rangosParaGuardar, type RangoMeta,
 } from "@/lib/admin/metas-cobertura";
+import { sumarDias } from "@cayla-dynamic/shared";
 
 /** Lunes primero, como se piensa la semana; 0 = domingo, como guarda la base. */
 const DIAS: { dia: number; corto: string; largo: string }[] = [
@@ -46,15 +47,14 @@ type PorDia = Map<number, RangoMeta[]>;
 /** Una copia que se puede editar sin tocar lo leído. */
 const copiar = (pd: PorDia | undefined): PorDia => new Map([...(pd ?? new Map<number, RangoMeta[]>())].map(([d, rs]) => [d, rs.map((r) => ({ ...r }))]));
 
-const sumarDias = (iso: string, n: number) => {
-  const d = new Date(`${iso}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-const sumarMeses = (iso: string, n: number) => {
+// «Un mes» y «Dos meses» de los atajos: el día antes de la misma fecha N meses después, con `setUTCMonth`, como
+// estaba. Desde un 29, 30 o 31 se desborda (31 de enero + 1 mes → 3 de marzo, y el rango termina el 2 de marzo), y
+// por eso NO es `sumarMeses` de shared, que recorta como Postgres y ahí daría el 27 de febrero, dejando fuera el 28.
+// Se dejó igual al unificar la aritmética de fechas (2026-11-10): cambiarlo mueve 21 de cada 1460 rangos.
+const hastaTrasMeses = (iso: string, n: number) => {
   const d = new Date(`${iso}T12:00:00Z`);
   d.setUTCMonth(d.getUTCMonth() + n);
-  return d.toISOString().slice(0, 10);
+  return sumarDias(d.toISOString().slice(0, 10), -1);
 };
 const fechaCorta = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
 const aDecimal = (hm: string) => { const [h, m] = hm.split(":").map(Number); return (h ?? 0) + (m ?? 0) / 60; };
@@ -279,8 +279,8 @@ export function MetasDeCobertura({
                   <Filtro activo={hasta === desde} onClick={() => setHasta(desde)}>Un día</Filtro>
                   <Filtro activo={hasta === sumarDias(desde, 6)} onClick={() => setHasta(sumarDias(desde, 6))}>Una semana</Filtro>
                   <Filtro activo={hasta === sumarDias(desde, 13)} onClick={() => setHasta(sumarDias(desde, 13))}>Dos semanas</Filtro>
-                  <Filtro activo={hasta === sumarDias(sumarMeses(desde, 1), -1)} onClick={() => setHasta(sumarDias(sumarMeses(desde, 1), -1))}>Un mes</Filtro>
-                  <Filtro activo={hasta === sumarDias(sumarMeses(desde, 2), -1)} onClick={() => setHasta(sumarDias(sumarMeses(desde, 2), -1))}>Dos meses</Filtro>
+                  <Filtro activo={hasta === hastaTrasMeses(desde, 1)} onClick={() => setHasta(hastaTrasMeses(desde, 1))}>Un mes</Filtro>
+                  <Filtro activo={hasta === hastaTrasMeses(desde, 2)} onClick={() => setHasta(hastaTrasMeses(desde, 2))}>Dos meses</Filtro>
                   <span className="text-xs text-taupe">del {fechaCorta(desde)} al {fechaCorta(hasta)}. Para otras fechas, elige el «Hasta».</span>
                 </div>
               </div>

@@ -22,8 +22,8 @@
 //   renovación que empieza el día en que termina la anterior no deja hueco. Las fechas
 //   son de calendario de Lima (`AAAA-MM-DD`, sin hora ni huso).
 // ============================================================================
-import { TIPO_VINCULO_LABEL, type TipoVinculo } from "@cayla-dynamic/shared";
-import { diasEntre, diaYMes } from "../bandeja-mia";
+import { TIPO_VINCULO_LABEL, type TipoVinculo, diasEntre } from "@cayla-dynamic/shared";
+import { diaYMes } from "../bandeja-mia";
 import { sinTildes } from "../sin-tildes";
 
 // ── Lo que devuelve la base ─────────────────────────────────────────────────
@@ -186,18 +186,6 @@ export function loVeLaPersona(tipo: string): boolean {
 }
 
 // ── Fechas ──────────────────────────────────────────────────────────────────
-
-/**
- * `2026-10-01` + 3 meses → `2027-01-01`. El día se recorta al último del mes de
- * llegada (31 de enero + 1 mes = 28 de febrero) en vez de saltar al siguiente.
- * Por partes y en UTC: sin el huso del navegador.
- */
-export function sumarMeses(fecha: string, meses: number): string {
-  const [y, m, d] = fecha.split("-").map(Number);
-  const destino = new Date(Date.UTC(y, m - 1 + meses, 1));
-  const ultimo = new Date(Date.UTC(destino.getUTCFullYear(), destino.getUTCMonth() + 1, 0)).getUTCDate();
-  return new Date(Date.UTC(destino.getUTCFullYear(), destino.getUTCMonth(), Math.min(d, ultimo))).toISOString().slice(0, 10);
-}
 
 /** Lo más que dura una póliza, en días: diez años. El mismo número que `fn_seguro_datos_validos` (0528). */
 export const MAX_DIAS_DE_VIGENCIA = 3660;

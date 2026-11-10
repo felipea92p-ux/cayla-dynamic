@@ -14,10 +14,9 @@
 // NO HACE: leer la base ni decidir nada del motor.
 // ============================================================================
 import type { Bloque, Propuesta, Turno } from "./sugerencia-turnos";
+import { sumarDias } from "@cayla-dynamic/shared";
 
 const ms = (fecha: string) => new Date(`${fecha}T12:00:00Z`).getTime();
-const DIA = 86_400_000;
-export const sumarDias = (fecha: string, n: number) => new Date(ms(fecha) + n * DIA).toISOString().slice(0, 10);
 /** 0 = domingo … 6 = sábado, como `extract(dow)` y fn_sede_ventana_semanal. */
 export const diaDeLaSemana = (fecha: string) => new Date(ms(fecha)).getUTCDay();
 

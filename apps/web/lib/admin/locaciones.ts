@@ -18,9 +18,7 @@
 //   honorarios» o «RxH»; «locación de servicios» solo aparece donde se nombra
 //   el contrato, que se llama así.
 // ============================================================================
-import { sumarDias } from "@/lib/mi-semana";
-import { sumarMeses } from "@/lib/admin/seguros";
-import { TIPO_VINCULO_LABEL, type TipoVinculo } from "@cayla-dynamic/shared";
+import { sumarDias, sumarMeses, TIPO_VINCULO_LABEL, type TipoVinculo } from "@cayla-dynamic/shared";
 
 /** El bucket privado de los escaneos firmados (0610). */
 export const BUCKET_LOCACION = "contratos-locacion";

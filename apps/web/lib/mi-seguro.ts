@@ -37,8 +37,8 @@
 //   vencimiento: DO a los 45 días (`DIAS_AVISO_RENOVACION`), la persona a los 15 (`DIAS_AVISO_PERSONA`).
 // ============================================================================
 import type { ClienteCayla } from "@cayla-dynamic/database";
-import { diasEntre } from "./bandeja-mia";
 import { cubiertoHasta, loVeLaPersona, plural, type MotivoHueco } from "./admin/seguros";
+import { diasEntre } from "@cayla-dynamic/shared";
 
 /**
  * Cuántos días antes de que termine la póliza se le avisa a la PERSONA. No es el de DO
