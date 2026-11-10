@@ -32,7 +32,9 @@
 --   27269, art. 2-A). Por eso también la IP y el navegador.
 --
 -- CÓMO SE CONGELA: AL NACER EL DOCUMENTO, CON UN TRIGGER
---   `fn_congelar_firma_empresa()`, BEFORE INSERT en las tres tablas: toma el
+--   `fn_congelar_firma_empresa()`, BEFORE INSERT en las tres tablas (en
+--   `documentos_firmados`, solo lo firmado en Dynamic: un escaneo trae la firma
+--   de CAYLA en su papel): toma el
 --   firmante de `configuracion.firmante_empresa`, su cargo y su firma de
 --   `firmas_escaneadas` en ese instante, y lo escribe en la fila. Se eligió el
 --   trigger y no reescribir las funciones que crean filas (son siete
@@ -239,6 +241,14 @@ begin
   new.firma_empresa := null;
   new.firmante_empresa_id := null;
   new.firmante_empresa_cargo := null;
+  -- El argumento, si lo hay, nombra la columna que dice «este documento se
+  -- firmó EN Dynamic». En `documentos_firmados` es `firma_persona`: un papel
+  -- escaneado trae la firma de CAYLA en el papel, y Dynamic muestra el papel,
+  -- no una firma estampada. Sin argumento (contratos, política salarial), todo
+  -- documento nace en Dynamic.
+  if tg_nargs > 0 and to_jsonb(new) ->> tg_argv[0] is null then
+    return new;
+  end if;
   select p.id, c.valor ->> 'cargo', f.imagen
     into new.firmante_empresa_id, new.firmante_empresa_cargo, new.firma_empresa
     from configuracion c
@@ -254,7 +264,7 @@ create trigger congelar_firma_empresa
   for each row execute function fn_congelar_firma_empresa();
 create trigger congelar_firma_empresa
   before insert or update on documentos_firmados
-  for each row execute function fn_congelar_firma_empresa();
+  for each row execute function fn_congelar_firma_empresa('firma_persona');
 create trigger congelar_firma_empresa
   before insert or update on politica_salarial
   for each row execute function fn_congelar_firma_empresa();
