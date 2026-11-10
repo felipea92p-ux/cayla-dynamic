@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0612_el_contrato_de_locacion_se_genera_y_se_firma_en_dynamic.sql
+-- 0615_el_contrato_de_locacion_se_genera_y_se_firma_en_dynamic.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --   Que el contrato de locación de servicios de quien cobra por recibo por
@@ -99,11 +99,11 @@ declare
     'fn_locaciones_tablero',            'ccdbeb1d432e2ad49dcaec1823396205',
     'fn_locaciones_listar',             'ca1e46790f94b2a52dc4680bc509134f',
     'fn_locacion_terminar',             '48fad6f4c033166dc5a5c1adc64eca77');
-  v_ya_aplicada boolean := exists (select 1 from migraciones_aplicadas where numero = 612);
+  v_ya_aplicada boolean := exists (select 1 from migraciones_aplicadas where numero = 615);
   r record;
 begin
   if v_ya_aplicada then
-    return;  -- repegar la 0612 no vuelve a medir: ya reemplazó estas cuatro.
+    return;  -- repegar la 0615 no vuelve a medir: ya reemplazó estas cuatro.
   end if;
   for r in
     select k.nombre, k.md5_esperado, (
@@ -461,7 +461,7 @@ begin
   if v_c.terminado_el is not null then
     raise exception 'Ese contrato ya se dio por terminado.';
   end if;
-  -- CAMBIO 0612: uno generado que nadie firmó nunca valió; si no va, se anula.
+  -- CAMBIO 0615: uno generado que nadie firmó nunca valió; si no va, se anula.
   if v_c.fecha_firma is null then
     raise exception 'Ese contrato todavía no está firmado: si ya no va, se anula.';
   end if;
@@ -533,7 +533,7 @@ begin
          c.fecha_inicio, c.fecha_fin, c.fecha_firma,
          c.storage_path, c.nombre_archivo, c.mime, c.bytes,
          case when c.anulado_at is not null       then 'anulado'
-              when c.fecha_firma is null          then 'sin_firmar'   -- CAMBIO 0612
+              when c.fecha_firma is null          then 'sin_firmar'   -- CAMBIO 0615
               when c.terminado_el is not null     then 'terminado'
               when c.fecha_inicio > fn_hoy_lima() then 'por_empezar'
               when c.fecha_fin < fn_hoy_lima()    then 'concluido'
@@ -587,7 +587,7 @@ as $fn$
     select c.*, coalesce(c.terminado_el, c.fecha_fin) as fin_real
       from contratos_locacion c
      where c.anulado_at is null
-       and c.fecha_firma is not null   -- CAMBIO 0612
+       and c.fecha_firma is not null   -- CAMBIO 0615
        and coalesce(c.terminado_el, c.fecha_fin) >= c.fecha_inicio
   ),
   ultimo as (
@@ -603,7 +603,7 @@ as $fn$
       from vivos v
      group by v.persona_id
   ),
-  -- CAMBIO 0612: generados que esperan la firma de la persona.
+  -- CAMBIO 0615: generados que esperan la firma de la persona.
   por_firmar as (
     select distinct c.persona_id
       from contratos_locacion c
@@ -673,7 +673,7 @@ revoke execute on function
 from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (612, 'el_contrato_de_locacion_se_genera_y_se_firma_en_dynamic')
+values (615, 'el_contrato_de_locacion_se_genera_y_se_firma_en_dynamic')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
@@ -692,4 +692,4 @@ select
                       'locacion_firma_empresa_congelada', 'locacion_evidencia_al_firmar')) as reglas_de_8,
   (select count(*) from pg_proc where proname in (
      'fn_locacion_generar', 'fn_confirmar_mi_firma_locacion', 'fn_locacion_documento')) as funciones_nuevas_de_3,
-  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 612) as registro;
+  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 615) as registro;

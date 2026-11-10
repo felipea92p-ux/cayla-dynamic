@@ -6,14 +6,14 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-10 — El contrato de locación se genera y se firma en Dynamic · migración **0612 SIN PEGAR** · pruebas 498 y `tests/locacion-texto.test.ts` · rama `claude/locacion-digital` · **solo en local, esperando al abogado**
+## 2026-11-10 — El contrato de locación se genera y se firma en Dynamic · migración **0615 SIN PEGAR** · pruebas 500 y `tests/locacion-texto.test.ts` · rama `claude/locacion-digital` · **solo en local, esperando al abogado**
 
 **De dónde sale.** Felipe pidió que a los RxH se les genere y firme el contrato en Dynamic, «como a planilla y practicantes», con «cargo,
 horas, sueldo, modalidad». Al ver que esas cuatro cosas son los indicios que desnaturalizan una locación (art. 4 del D.S. 003-97-TR,
 primacía de la realidad), eligió una **locación civil**: servicio, entregables, plazo y honorarios. Después agregó que los S/ 1 500 son la
 base y se pagan en proporción a las horas: así paga hoy la planilla, y el contrato lo dice (`por_horas`).
 
-**Construido.** `lib/admin/locacion-texto.ts` (14 cláusulas desde la segunda revisión; `DatosLocacion` no tiene cargo, horas ni sueldo). 0612: `documento_html`,
+**Construido.** `lib/admin/locacion-texto.ts` (14 cláusulas desde la segunda revisión; `DatosLocacion` no tiene cargo, horas ni sueldo). 0615: `documento_html`,
 `honorarios`, `periodicidad`, `ruc_locador` y la copia de la firma en `contratos_locacion`; `fn_locacion_generar`,
 `fn_confirmar_mi_firma_locacion`, `fn_locacion_documento`; un contrato sin firmar no cubre (estado `sin_firmar`). Bloque 0: compara el
 md5 de las cuatro funciones de la 0610 que reescribe y para si alguna cambió. Pantalla: «Generar contrato» en el panel de cada RxH, visor
@@ -30,7 +30,7 @@ precisas (CC 1398 y 1430), la cesión de derechos es expresa (D. Leg. 822, arts.
 datos personales (Ley 29733), comunicaciones, y el acto de firma descrito como lo hace Dynamic (reglamento de la Ley 27269, art. 2-A).
 El detalle y las fuentes están en el encabezado de `locacion-texto.ts`. **Sin tocar, decidido por Felipe el 2026-11-10:** cómo se
 escriben los `por_horas` (se le propuso una tarifa por hora y eligió dejarlo como está).
-`fn_locacion_documento` devuelve además `generado_at` y `firmado_at` (cambio dentro de la 0612, que sigue sin pegar).
+`fn_locacion_documento` devuelve además `generado_at` y `firmado_at` (cambio dentro de la 0615, que sigue sin pegar).
 
 **La firma de CAYLA se congela al generar (decisión de Felipe, 2026-11-10).** `fn_firma_empresa()` da la firma de HOY de quien firma
 HOY, y el nombre del firmante queda congelado en el texto: cambiar de firmante o redibujar la firma cambiaba la rúbrica de todo lo ya
@@ -39,14 +39,14 @@ firmante no tiene firma o si el texto nombra a otro, y al firmar se anotan `firm
 0423). Felipe decidió lo mismo para **todo** documento que firma CAYLA (contratos de trabajo, declaración de ruta, constancia del bono,
 política salarial), con el relleno de lo viejo solo donde se pueda probar: eso espera la consulta de medición en producción.
 
-**Medido.** La 498, 40/40, y la 496, 63/63, en una base desechable con todas las migraciones; `tests/locacion-texto.test.ts` 21/21 (el
+**Medido.** La 500, 40/40, y la 496, 63/63, en una base desechable con todas las migraciones; `tests/locacion-texto.test.ts` 21/21 (el
 guardián de vocabulario laboral sigue en verde con el texto nuevo); typecheck en verde. **Verificado en pantalla, en local y con datos
 inventados:** generar desde el panel y ver el documento con las dos firmas y su fecha y hora de Lima. La firma de la persona se hizo
 por SQL, como ella, porque la pantalla no deja firmar un borrador.
 
 **Queda para Felipe.** Quién revisó la primera versión y cuándo (se anota al aprobar); que el revisor vea los cambios de la segunda
 (Word «versión 2», con cuatro preguntas abiertas); y la consulta de medición de la firma de CAYLA en producción. Con
-el texto aprobado se cambia la constante en el mismo PR. Recién ahí: PR, pegar la 0612 (una pegada) antes de fusionar.
+el texto aprobado se cambia la constante en el mismo PR. Recién ahí: PR, pegar la 0615 (una pegada) antes de fusionar.
 
 ## 2026-11-09 — Contratos: la pestaña «Recibo por honorarios» · migración **0610 PEGADA Y VERIFICADA (2026-11-10)** · prueba 496 · rama `claude/rxh-contracts-view-9ccdd2` · **solo en local, sin subir**
 

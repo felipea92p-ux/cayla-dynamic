@@ -1175,7 +1175,7 @@ export default function MioPage() {
   // Quien cobra por honorarios no tiene contrato de trabajo: tiene uno de locación de servicios (0610). La misma
   // función que usa DO le devuelve a la persona solo los suyos, sin anulados. `undefined` = todavía no se sabe.
   const [miLocacion, setMiLocacion] = useState<ContratoLocacion | null | undefined>(undefined);
-  // Uno generado en Dynamic que espera su firma (0612): es lo que la tarjeta dice primero.
+  // Uno generado en Dynamic que espera su firma (0615): es lo que la tarjeta dice primero.
   const [locacionPorFirmar, setLocacionPorFirmar] = useState(false);
   useEffect(() => {
     if (!yo?.id || !segundaOla) return;

@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// El contrato de locación generado en Dynamic, para leerlo e imprimirlo (0612)
+// El contrato de locación generado en Dynamic, para leerlo e imprimirlo (0615)
 // ============================================================================
 // QUÉ PROMETE
 //   Mostrar el documento congelado con las dos firmas estampadas —la de CAYLA,
@@ -20,7 +20,7 @@
 //   No se pide `fn_firma_empresa()`: esa da la firma ACTUAL de quien firma hoy.
 //   Si cambia el firmante o redibuja su firma, un contrato ya firmado
 //   mostraría otra rúbrica bajo el nombre impreso. Decidido por Felipe el
-//   2026-11-10: cada documento guarda la suya (0612, `firma_empresa`).
+//   2026-11-10: cada documento guarda la suya (0615, `firma_empresa`).
 // ============================================================================
 
 import { useCallback, useEffect, useState } from "react";

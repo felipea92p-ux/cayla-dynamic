@@ -90,7 +90,7 @@ export interface FirmanteCayla {
   nombre: string;
   dni: string;
   cargo: string;
-  /** Si tiene su firma guardada: CAYLA firma al generar, y sin ella el contrato saldría sin firma de CAYLA (0612). */
+  /** Si tiene su firma guardada: CAYLA firma al generar, y sin ella el contrato saldría sin firma de CAYLA (0615). */
   tieneFirma: boolean;
 }
 
@@ -419,7 +419,7 @@ const FORMAS_DE_PAGO: { valor: PeriodicidadHonorarios; texto: string }[] = [
 ];
 
 /**
- * Generar el contrato de locación (0612). Arma el texto con `construirLocacion` y lo guarda congelado; la persona
+ * Generar el contrato de locación (0615). Arma el texto con `construirLocacion` y lo guarda congelado; la persona
  * lo firma después desde «Lo mío». Todo nace con su valor más probable y a la vista: el servicio del contrato
  * anterior, los honorarios vigentes de su ficha, el RUC calculado desde su DNI y la forma de pago con que se le
  * paga hoy (en proporción a las horas). No pide cargo, horas ni sueldo: es una locación civil.

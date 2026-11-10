@@ -11,7 +11,7 @@
 //   anulados ni motivos internos) y la política de Storage que le deja abrir su
 //   escaneo y ningún otro.
 //
-// Y LO FIRMA AQUÍ, si se generó en Dynamic (0612)
+// Y LO FIRMA AQUÍ, si se generó en Dynamic (0615)
 //   Como el contrato de trabajo desde la 0430: confirmar tu firma ES firmar, y
 //   se guarda la copia de tu firma de ese momento. Mientras el texto sea un
 //   borrador sin revisión legal (`TEXTO_LOCACION_APROBADO`), se puede leer pero

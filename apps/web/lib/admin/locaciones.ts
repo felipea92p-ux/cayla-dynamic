@@ -37,7 +37,7 @@ export interface FilaTableroLocacion {
   dias_restantes: number | null;
   n_contratos: number;
   estado: EstadoPersonaLocacion;
-  /** Hay un contrato generado esperando su firma (0612), en cualquier estado. */
+  /** Hay un contrato generado esperando su firma (0615), en cualquier estado. */
   pendiente_firma: boolean;
 }
 
@@ -63,7 +63,7 @@ export interface ContratoLocacion {
   anulado_at: string | null;
   anulado_motivo: string | null;
   anulado_por_nombre: string | null;
-  /** Generado en Dynamic (0612), y no un escaneo de un papel firmado. */
+  /** Generado en Dynamic (0615), y no un escaneo de un papel firmado. */
   es_digital: boolean;
   honorarios: number | null;
   periodicidad: string | null;

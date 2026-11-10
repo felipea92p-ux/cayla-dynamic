@@ -10,7 +10,7 @@ import {
 } from "../apps/web/lib/admin/locacion-texto";
 import { MARCADOR_FIRMA_EMPRESA, MARCADOR_FIRMA_PERSONA } from "../apps/web/lib/admin/contrato-texto";
 
-// El contrato de locación de servicios (0612). Lo que se protege: que sea un contrato CIVIL —sin el vocabulario del
+// El contrato de locación de servicios (0615). Lo que se protege: que sea un contrato CIVIL —sin el vocabulario del
 // contrato de trabajo, que es lo que lo desnaturalizaría (art. 4 del D.S. 003-97-TR)—, que todo dato de la persona
 // se escape antes de volverse HTML, y que un dato que falta se vea en vez de inventarse. Datos inventados.
 

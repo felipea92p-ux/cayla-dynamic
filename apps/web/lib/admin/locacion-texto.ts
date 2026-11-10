@@ -4,7 +4,7 @@
 // QUÉ PROMETE
 //   El texto del contrato que firma quien cobra por recibo por honorarios
 //   (RxH), armado con sus datos y listo para congelarse en
-//   `contratos_locacion.documento_html` (0612). Puro: sin React ni Supabase, se
+//   `contratos_locacion.documento_html` (0615). Puro: sin React ni Supabase, se
 //   prueba con vitest (`tests/locacion-texto.test.ts`).
 //
 // POR QUÉ UN MOLDE APARTE Y NO UNA RAMA MÁS DE `contrato-texto.ts`
