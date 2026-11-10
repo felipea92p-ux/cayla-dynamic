@@ -50,8 +50,14 @@ import {
   type FilaTableroLocacion,
 } from "@/lib/admin/locaciones";
 import { registrarContratoLocacion } from "@/lib/admin/locaciones-archivo";
-import { construirLocacion, TEXTO_LOCACION_APROBADO, type DatosLocacion, type PeriodicidadHonorarios } from "@/lib/admin/locacion-texto";
-import { DocumentoLocacion, estamparFirmas } from "./documento-locacion";
+import {
+  construirLocacion,
+  estamparFirmas,
+  TEXTO_LOCACION_APROBADO,
+  type DatosLocacion,
+  type PeriodicidadHonorarios,
+} from "@/lib/admin/locacion-texto";
+import { DocumentoLocacion } from "./documento-locacion";
 
 /**
  * El tablero de las personas por honorarios. Vive fuera de la pestaña porque la
@@ -596,6 +602,9 @@ function FormGenerar({
       {datos && !datos.ciudad && (
         <p className="text-xs text-taupe">Su sede no tiene ciudad cargada: el contrato lo va a decir. Se carga en Sedes.</p>
       )}
+      {datos && !datos.direccion && (
+        <p className="text-xs text-taupe">Su ficha no tiene domicilio: el contrato lo va a decir. Se carga en Equipo.</p>
+      )}
       {error && <BannerAviso enLinea role="alert">{error}</BannerAviso>}
       {falta && !error && <p className="text-xs text-taupe">{falta}</p>}
       <div className="flex flex-wrap justify-end gap-2">
@@ -610,7 +619,7 @@ function FormGenerar({
       {vistaPrevia && datosLocacion && (
         <div
           className="hoja max-h-[60vh] overflow-y-auto rounded-lg border border-sand p-4 text-sm leading-relaxed"
-          dangerouslySetInnerHTML={{ __html: estamparFirmas(construirLocacion(datosLocacion), null, null) }}
+          dangerouslySetInnerHTML={{ __html: estamparFirmas(construirLocacion(datosLocacion), { empresa: null, persona: null, empresaAt: null, personaAt: null }) }}
         />
       )}
     </TarjetaInfo>

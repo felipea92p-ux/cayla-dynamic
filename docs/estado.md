@@ -13,7 +13,7 @@ horas, sueldo, modalidad». Al ver que esas cuatro cosas son los indicios que de
 primacía de la realidad), eligió una **locación civil**: servicio, entregables, plazo y honorarios. Después agregó que los S/ 1 500 son la
 base y se pagan en proporción a las horas: así paga hoy la planilla, y el contrato lo dice (`por_horas`).
 
-**Construido.** `lib/admin/locacion-texto.ts` (12 cláusulas; `DatosLocacion` no tiene cargo, horas ni sueldo). 0612: `documento_html`,
+**Construido.** `lib/admin/locacion-texto.ts` (14 cláusulas desde la segunda revisión; `DatosLocacion` no tiene cargo, horas ni sueldo). 0612: `documento_html`,
 `honorarios`, `periodicidad`, `ruc_locador` y la copia de la firma en `contratos_locacion`; `fn_locacion_generar`,
 `fn_confirmar_mi_firma_locacion`, `fn_locacion_documento`; un contrato sin firmar no cubre (estado `sin_firmar`). Bloque 0: compara el
 md5 de las cuatro funciones de la 0610 que reescribe y para si alguna cambió. Pantalla: «Generar contrato» en el panel de cada RxH, visor
@@ -21,14 +21,24 @@ compartido (`components/contratos/documento-locacion.tsx`), «Leer y firmar» en
 
 **Es un BORRADOR.** Mientras `TEXTO_LOCACION_APROBADO` sea `false`, cada documento dice «BORRADOR — No firmar» y el botón de firmar no
 aparece (la base no lo frena: es la constante y el aviso del propio papel). El Word con las siete preguntas para el abogado se le entregó a
-Felipe el 2026-11-10; la más importante es que hoy marcan en el terminal y se les paga por esas horas.
+Felipe el 2026-11-10, y Felipe dijo que «se revisó y quedó acorde a la ley».
 
-**Medido.** La 498, 32/32 (rota en dos reglas, se pone en rojo en 3); la 496 sigue 63/63; `tests/locacion-texto.test.ts` y
-`tests/locaciones.test.ts` en verde (el guardián de vocabulario laboral se pone en rojo si se mete «cargo»). En local: el formulario, sus
-valores de partida, la vista previa y los bloqueos (DNI, RUC). **No verificado en pantalla:** generar y firmar de punta a punta.
+**Segunda revisión (2026-11-10), y por eso esa aprobación ya no cubre el texto.** Pedida por Felipe «a profundidad». Ahora son 14
+cláusulas: no se antedata (rige desde el inicio y se celebra cuando firma la persona; la fecha y la hora van bajo cada firma), la
+autonomía obliga a CAYLA (no le fija horario ni turnos, no sanciona, sin exclusividad), la resolución es recíproca y por prestaciones
+precisas (CC 1398 y 1430), la cesión de derechos es expresa (D. Leg. 822, arts. 89 y 90; Decisión 486, art. 114), honorarios brutos,
+datos personales (Ley 29733), comunicaciones, y el acto de firma descrito como lo hace Dynamic (reglamento de la Ley 27269, art. 2-A).
+El detalle y las fuentes están en el encabezado de `locacion-texto.ts`. **Sin tocar, a propósito:** cómo se pagan los `por_horas`.
+`fn_locacion_documento` devuelve además `generado_at` y `firmado_at` (cambio dentro de la 0612, que sigue sin pegar).
 
-**Queda para Felipe.** Que el abogado devuelva el texto; con sus cambios se cambia la constante en el mismo PR. Recién ahí: PR, pegar la
-0612 (una pegada) antes de fusionar.
+**Medido.** La 498, 33/33, y la 496, 63/63, en una base desechable con todas las migraciones; `tests/locacion-texto.test.ts` 21/21 (el
+guardián de vocabulario laboral sigue en verde con el texto nuevo); typecheck en verde. **Verificado en pantalla, en local y con datos
+inventados:** generar desde el panel y ver el documento con las dos firmas y su fecha y hora de Lima. La firma de la persona se hizo
+por SQL, como ella, porque la pantalla no deja firmar un borrador.
+
+**Queda para Felipe.** Quién revisó la primera versión y cuándo (se anota al aprobar); que el revisor vea los cambios de la segunda
+(Word «versión 2», con cuatro preguntas abiertas); decidir cómo se pagan los `por_horas`; y si se guarda más evidencia de la firma. Con
+el texto aprobado se cambia la constante en el mismo PR. Recién ahí: PR, pegar la 0612 (una pegada) antes de fusionar.
 
 ## 2026-11-09 — Contratos: la pestaña «Recibo por honorarios» · migración **0610 PEGADA Y VERIFICADA (2026-11-10)** · prueba 496 · rama `claude/rxh-contracts-view-9ccdd2` · **solo en local, sin subir**
 

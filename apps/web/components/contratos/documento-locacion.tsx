@@ -13,7 +13,8 @@
 // LAS FIRMAS SE ESTAMPAN AL MOSTRAR, NUNCA AL GUARDAR
 //   Igual que el contrato de trabajo: `documento_html` congela el texto
 //   pactado, no cómo se ve. Sin firma de la persona, su línea queda en blanco:
-//   eso es lo que todavía no firmó.
+//   eso es lo que todavía no firmó. Bajo cada firma va cuándo se firmó, que es
+//   lo que dice el contrato que lo hace celebrado (`estamparFirmas`).
 // ============================================================================
 
 import { useCallback, useEffect, useState } from "react";
@@ -22,15 +23,8 @@ import { Cargando } from "@/components/cargando";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { ImprimibleAparte, useImprimirAparte } from "@/components/ui/imprimible-aparte";
-import { MARCADOR_FIRMA_EMPRESA, MARCADOR_FIRMA_PERSONA } from "@/lib/admin/contrato-texto";
+import { estamparFirmas } from "@/lib/admin/locacion-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-
-/** Pone las dos firmas sobre sus marcas. Una firma que falta deja la línea en blanco. */
-export function estamparFirmas(html: string, firmaEmpresa: string | null, firmaPersona: string | null): string {
-  return html
-    .replaceAll(MARCADOR_FIRMA_EMPRESA, firmaEmpresa ? `<img src="${firmaEmpresa}" alt="Firma de CAYLA" />` : "&nbsp;")
-    .replaceAll(MARCADOR_FIRMA_PERSONA, firmaPersona ? `<img src="${firmaPersona}" alt="Firma de quien presta el servicio" />` : "&nbsp;");
-}
 
 export function DocumentoLocacion({
   supabase,
@@ -54,13 +48,23 @@ export function DocumentoLocacion({
       supabase.rpc("fn_locacion_documento", { p_id: contratoId }),
       supabase.rpc("fn_firma_empresa"),
     ]);
-    const fila = ((data ?? []) as { documento_html: string; firma_persona: string | null }[])[0];
+    const fila = ((data ?? []) as {
+      documento_html: string;
+      firma_persona: string | null;
+      generado_at: string | null;
+      firmado_at: string | null;
+    }[])[0];
     if (e || !fila) {
       setError(e ? mensajeDeError(e, "abrir el contrato") : "No se encontró el contrato.");
       setHtml(null);
     } else {
       setError(null);
-      setHtml(estamparFirmas(fila.documento_html, typeof firmaEmpresa === "string" ? firmaEmpresa : null, fila.firma_persona));
+      setHtml(estamparFirmas(fila.documento_html, {
+        empresa: typeof firmaEmpresa === "string" ? firmaEmpresa : null,
+        persona: fila.firma_persona,
+        empresaAt: fila.generado_at,
+        personaAt: fila.firmado_at,
+      }));
     }
     setCargando(false);
   }, [supabase, contratoId]);

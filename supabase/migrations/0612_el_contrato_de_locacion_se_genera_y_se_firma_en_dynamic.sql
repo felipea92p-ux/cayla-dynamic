@@ -327,13 +327,20 @@ $fn$;
 -- Aparte del historial a propósito: el documento pesa, y la lista no lo
 -- necesita. Lo ve DO, o la persona si es suyo y no está anulado (mismo cuidado
 -- que el historial de la 0610: uno anulado puede ser el de otra persona).
-create or replace function fn_locacion_documento(p_id uuid)
-returns table (documento_html text, firma_persona text)
+--
+-- Con el momento en que firmó cada parte: el contrato dice que se celebra
+-- cuando firma la persona y que esa fecha «figura debajo de su firma», así que
+-- la pantalla la estampa ahí. CAYLA firma al generarlo (`registrado_at`).
+-- `drop` + `create` para que repegar no tropiece con una versión anterior de
+-- las columnas (Postgres no deja cambiarlas con `create or replace`).
+drop function if exists fn_locacion_documento(uuid);
+create function fn_locacion_documento(p_id uuid)
+returns table (documento_html text, firma_persona text, generado_at timestamptz, firmado_at timestamptz)
 language plpgsql stable security definer set search_path = public
 as $fn$
 begin
   return query
-  select c.documento_html, c.firma_persona
+  select c.documento_html, c.firma_persona, c.registrado_at, c.firma_persona_confirmada_at
     from contratos_locacion c
    where c.id = p_id
      and c.documento_html is not null

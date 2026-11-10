@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   construirLocacion,
+  estamparFirmas,
   etiquetaLocador,
+  MARCADOR_FECHA_FIRMA_EMPRESA,
+  MARCADOR_FECHA_FIRMA_PERSONA,
   TEXTO_LOCACION_APROBADO,
   type DatosLocacion,
 } from "../apps/web/lib/admin/locacion-texto";
@@ -53,6 +56,83 @@ describe("es un contrato civil, no uno de trabajo", () => {
     expect(t).toContain("autonomía técnica y organizativa");
     expect(t).toContain("no genera relación laboral");
   });
+  it("la autonomía obliga a CAYLA y no hay exclusividad (Sala Plena 014-2024-SUNAFIL/TFL)", () => {
+    const t = sinEtiquetas(texto());
+    expect(t).toContain("LA COMITENTE no le fija horario ni turnos ni le aplica sanciones o amonestaciones");
+    expect(t).toContain("Respetar la autonomía de LA LOCADORA en los términos de la cláusula tercera");
+    expect(t).toContain("puede prestar servicios a terceros sin necesidad de autorización de LA COMITENTE");
+    expect(t).not.toMatch(/exclusividad|no competencia/i);
+  });
+});
+
+describe("lo que la segunda revisión legal corrigió (2026-11-10)", () => {
+  it("no se fecha al día de inicio: rige desde ahí y se celebra cuando firma la persona", () => {
+    const t = sinEtiquetas(texto({ fechaInicio: "2026-08-01" }));
+    expect(t).not.toMatch(/el 1 de agosto de 2026, se celebra/);
+    expect(t).toContain("Conste por el presente documento el Contrato de Locación de Servicios");
+    expect(t).toContain("El presente contrato rige del 1 de agosto de 2026");
+    expect(t).toContain("se entiende celebrado en la fecha y la hora en que firma LA LOCADORA");
+  });
+  it("la resolución es recíproca, por prestaciones precisas (CC 1398 y 1430)", () => {
+    const t = sinEtiquetas(texto());
+    expect(t).toContain("cualquiera de las partes puede resolverlo de pleno derecho, conforme al artículo 1430");
+    expect(t).toContain("LA COMITENTE, el pago de los honorarios dentro de los quince (15) días");
+    expect(t).toContain("rige el artículo 1429");
+    // La de antes era solo a favor de quien redactó el contrato.
+    expect(t).not.toContain("LA COMITENTE puede resolverlo de inmediato");
+  });
+  it("la cesión de derechos dice qué, en exclusiva, dónde y por cuánto (D. Leg. 822, arts. 89 y 90)", () => {
+    const t = sinEtiquetas(texto());
+    expect(t).not.toContain("en la medida que lo permita la ley");
+    for (const parte of [
+      "cede a LA COMITENTE, en exclusiva y desde su creación",
+      "meras fotografías del artículo 144",
+      "para todo el mundo y por todo el plazo de protección",
+      "registrar a su nombre los diseños industriales",
+      "artículo 94",
+      "a tanto alzado",
+    ]) expect(t, `debería decir «${parte}»`).toContain(parte);
+  });
+  it("los honorarios son brutos y la suspensión de retenciones se acredita antes del pago", () => {
+    const t = sinEtiquetas(texto());
+    expect(t).toContain("Los honorarios pactados son montos brutos");
+    expect(t).toContain("antes del pago, la suspensión de retenciones");
+  });
+  it("informa qué datos personales trata, para qué y cómo ejercer los derechos (Ley 29733, art. 18)", () => {
+    const t = sinEtiquetas(texto());
+    expect(t).toContain("UNDÉCIMA. DATOS PERSONALES DE LA LOCADORA");
+    expect(t).toContain("acceso, actualización, inclusión, rectificación, supresión y oposición");
+    expect(t).toContain("pueden estar ubicados fuera del Perú");
+  });
+  it("describe el acto de firma como lo hace Dynamic, y la fecha va bajo cada firma", () => {
+    const html = texto();
+    const t = sinEtiquetas(html);
+    expect(t).toContain("con su cuenta personal e intransferible, con el texto completo del contrato a la vista");
+    expect(html).toContain(MARCADOR_FECHA_FIRMA_EMPRESA);
+    expect(html).toContain(MARCADOR_FECHA_FIRMA_PERSONA);
+  });
+});
+
+describe("las firmas y sus fechas se estampan al mostrar", () => {
+  it("con las dos firmas: las imágenes y cuándo firmó cada parte, en hora de Lima", () => {
+    const html = estamparFirmas(texto(), {
+      empresa: "data:image/png;base64,EMP",
+      persona: "data:image/png;base64,PER",
+      empresaAt: "2026-11-10T14:05:00Z",
+      personaAt: "2026-11-11T04:30:00Z",
+    });
+    expect(html).toContain('<img src="data:image/png;base64,EMP"');
+    expect(html).toContain('<img src="data:image/png;base64,PER"');
+    expect(html).toContain("Firmado electrónicamente el 10 de noviembre de 2026, a las 09:05 (hora de Lima).");
+    // 04:30 en UTC todavía es el día anterior en Lima: la fecha es la de Lima, no la del servidor.
+    expect(html).toContain("Firmado electrónicamente el 10 de noviembre de 2026, a las 23:30 (hora de Lima).");
+    expect(html).not.toContain("<!--");
+  });
+  it("sin firmar: la línea en blanco y «Pendiente de firma»", () => {
+    const html = estamparFirmas(texto(), { empresa: null, persona: null, empresaAt: null, personaAt: null });
+    expect(html).toContain("Pendiente de firma.");
+    expect(html).not.toContain("<img");
+  });
 });
 
 describe("lo que dice el contrato sale de los datos", () => {
@@ -85,10 +165,12 @@ describe("lo que dice el contrato sale de los datos", () => {
 });
 
 describe("lo que falta se ve, y lo que entra se escapa", () => {
-  it("sin RUC ni ciudad, el contrato lo dice en vez de inventarlo", () => {
-    const t = sinEtiquetas(texto({ ruc: null, ciudad: null }));
+  it("sin RUC, ciudad ni domicilio, el contrato lo dice en vez de inventarlo", () => {
+    const t = sinEtiquetas(texto({ ruc: null, ciudad: null, direccion: null }));
     expect(t).toContain("[FALTA EL RUC, NECESARIO PARA EMITIR EL RECIBO POR HONORARIOS]");
     expect(t).toContain("[FALTA LA CIUDAD DE LA SEDE]");
+    // Las comunicaciones van a los domicilios de la cláusula primera: uno que falta tiene que verse.
+    expect(t).toContain("con domicilio en [FALTA EL DOMICILIO]");
   });
   it("sin DNI, también: un contrato sin DNI no identifica a nadie", () => {
     const t = sinEtiquetas(texto({ documento: "  " }));

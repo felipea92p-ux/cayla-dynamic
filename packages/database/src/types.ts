@@ -9858,7 +9858,12 @@ export type Database = {
       }
       fn_locacion_documento: {
         Args: { p_id: string | null }
-        Returns: { documento_html: string; firma_persona: string }[]
+        Returns: {
+          documento_html: string
+          firma_persona: string
+          firmado_at: string
+          generado_at: string
+        }[]
       }
       fn_locacion_es_mia: { Args: { p_path: string | null }; Returns: boolean }
       fn_locacion_generar: {

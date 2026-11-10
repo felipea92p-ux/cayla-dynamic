@@ -22,14 +22,46 @@
 //   cómo se escriben fechas y montos.
 //
 // ⚠️ ES UN BORRADOR
-//   Nadie con criterio legal revisó este texto todavía. Mientras
-//   `TEXTO_LOCACION_APROBADO` sea `false`, cada documento lleva arriba un aviso
-//   visible de borrador, y se imprime con él: un papel sin revisar no puede
-//   pasar por definitivo ni por accidente. Cuando el abogado lo apruebe (con
-//   los cambios que pida), se cambia la constante en el mismo PR que sus
+//   Mientras `TEXTO_LOCACION_APROBADO` sea `false`, cada documento lleva arriba
+//   un aviso visible de borrador, y se imprime con él: un papel sin revisar no
+//   puede pasar por definitivo ni por accidente. Cuando el abogado lo apruebe
+//   (con los cambios que pida), se cambia la constante en el mismo PR que sus
 //   cambios, y se anota quién y cuándo lo aprobó.
+//
+//   2026-11-10: Felipe dice que el primer borrador «se revisó y quedó acorde a
+//   la ley», y pidió una segunda revisión a fondo. Esa segunda revisión cambió
+//   el texto —abajo, cláusula por cláusula—, así que la aprobación del primero
+//   no cubre este: el revisor tiene que ver lo que cambió antes de aprobarlo.
+//
+// LO QUE LA SEGUNDA REVISIÓN CAMBIÓ, Y POR QUÉ
+//   · No se fecha al día de inicio. Decía «En [ciudad], el [inicio], se
+//     celebra…»: un contrato generado hoy para un servicio que empezó en
+//     agosto quedaba antedatado. Ahora rige desde el inicio y se celebra
+//     cuando firma la persona; Dynamic estampa la fecha y la hora bajo cada
+//     firma (`estamparFirmas`).
+//   · Resolución recíproca y con prestaciones precisas. Un contrato que la
+//     persona no puede negociar es por adhesión (CC 1390), y ahí no vale una
+//     facultad de resolver solo a favor de quien lo redactó (CC 1398). Y una
+//     cláusula del art. 1430 que no dice QUÉ incumplimiento la activa no opera.
+//   · Cesión de derechos expresa. «Corresponden a CAYLA en la medida que lo
+//     permita la ley» no cedía casi nada: el D. Leg. 822 exige cada modalidad
+//     por escrito, la exclusividad expresa, el territorio y el plazo (arts. 89
+//     y 90); sin eso rige la presunción del art. 16 —no exclusiva y solo para
+//     lo habitual—. Se cede también el derecho a registrar los diseños
+//     (Decisión 486, art. 114).
+//   · La autonomía pasa de describir a obligar: CAYLA «no le fija horario ni
+//     turnos ni le aplica sanciones». Si en la práctica se los fija, el que
+//     incumple es CAYLA; un contrato que describe algo que el propio sistema
+//     contradice no defiende a nadie (primacía de la realidad).
+//   · Datos personales (Ley 29733, art. 18: informar finalidad, dónde se
+//     guardan y cuánto tiempo), comunicaciones por escrito, y el acto de firma
+//     descrito tal como lo hace Dynamic: si la persona niega haber firmado,
+//     la carga de probarlo es de CAYLA (reglamento de la Ley 27269, art. 2-A).
+//   Lo que NO se cambió, a propósito: la forma de pagar `por_horas`. Es el
+//   indicio más fuerte de relación laboral que tiene el contrato, pero es
+//   plata y lo decide Felipe.
 // ============================================================================
-import { EMPRESA } from "@cayla-dynamic/shared";
+import { EMPRESA, fechaLima, horaLima } from "@cayla-dynamic/shared";
 import {
   escapeHtml,
   formatearFecha,
@@ -92,6 +124,39 @@ function falta(que: string): string {
   return `<strong>[FALTA ${que}]</strong>`;
 }
 
+/**
+ * Dónde va la fecha y la hora en que firmó cada parte. Como las firmas, se estampan al MOSTRAR: el texto congelado
+ * se guarda antes de que la persona firme, así que no puede llevar adentro el momento en que firmó.
+ */
+export const MARCADOR_FECHA_FIRMA_EMPRESA = "<!--FECHA_FIRMA_EMPRESA-->";
+export const MARCADOR_FECHA_FIRMA_PERSONA = "<!--FECHA_FIRMA_PERSONA-->";
+
+/** Lo que dice bajo una firma: cuándo se firmó, en hora de Lima, o que todavía falta. */
+export function textoFechaFirma(cuando: string | null): string {
+  if (!cuando) return "Pendiente de firma.";
+  return `Firmado electrónicamente el ${formatearFecha(fechaLima(cuando))}, a las ${horaLima(cuando)} (hora de Lima).`;
+}
+
+export interface FirmasLocacion {
+  /** La imagen de la firma de quien firma por CAYLA (`fn_firma_empresa`). */
+  empresa: string | null;
+  /** La copia de la firma de la persona, congelada al firmar. */
+  persona: string | null;
+  /** Cuándo se generó el contrato: es cuando firma CAYLA (`registrado_at`). */
+  empresaAt: string | null;
+  /** Cuándo confirmó su firma la persona (`firma_persona_confirmada_at`). */
+  personaAt: string | null;
+}
+
+/** Pone las firmas y sus fechas sobre sus marcas. Una firma que falta deja la línea en blanco. */
+export function estamparFirmas(html: string, f: FirmasLocacion): string {
+  return html
+    .replaceAll(MARCADOR_FIRMA_EMPRESA, f.empresa ? `<img src="${f.empresa}" alt="Firma de CAYLA" />` : "&nbsp;")
+    .replaceAll(MARCADOR_FIRMA_PERSONA, f.persona ? `<img src="${f.persona}" alt="Firma de quien presta el servicio" />` : "&nbsp;")
+    .replaceAll(MARCADOR_FECHA_FIRMA_EMPRESA, textoFechaFirma(f.empresaAt))
+    .replaceAll(MARCADOR_FECHA_FIRMA_PERSONA, textoFechaFirma(f.personaAt));
+}
+
 /** Las líneas de los entregables como lista; si viene vacío, se dice. */
 function listaEntregables(texto: string): string {
   const lineas = texto.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -133,16 +198,16 @@ export function construirLocacion(datos: DatosLocacion): string {
       <p class="norma">(Código Civil, Libro VII, Sección Segunda, Título IX, Capítulo Segundo — artículos 1764 a 1770)</p>
     </header>
 
-    <p>En ${ciudad}, el ${formatearFecha(d.fechaInicio)}, se celebra el presente Contrato de Locación de Servicios entre:</p>
+    <p>Conste por el presente documento el Contrato de Locación de Servicios que celebran las partes identificadas en
+    la cláusula primera, en los términos y condiciones siguientes:</p>
 
     <h3>PRIMERA. LAS PARTES</h3>
     <p>${EMPRESA.nombre}, identificada con R.U.C. N.° ${EMPRESA.ruc}, con domicilio legal en ${EMPRESA.domicilio},
     debidamente representada por ${d.firmanteNombre}, identificado(a) con D.N.I. N.° ${d.firmanteDni}, a quien en
     adelante se denominará ${COMITENTE}; y</p>
     <p>${d.nombreDni}, ${segunGenero(d, "identificado", "identificada")} con D.N.I. N.° ${d.documento.trim() || falta("EL DNI")} y R.U.C.
-    N.° ${d.ruc ?? falta("EL RUC, NECESARIO PARA EMITIR EL RECIBO POR HONORARIOS")}${
-      d.direccion ? `, con domicilio en ${d.direccion}` : ""
-    }, a quien en adelante se denominará ${locador}.</p>
+    N.° ${d.ruc ?? falta("EL RUC, NECESARIO PARA EMITIR EL RECIBO POR HONORARIOS")}, con domicilio en
+    ${d.direccion ?? falta("EL DOMICILIO")}, a quien en adelante se denominará ${locador}.</p>
 
     <h3>SEGUNDA. OBJETO</h3>
     <p>${locador} se obliga a prestar a ${COMITENTE} el servicio de <strong>${d.servicio}</strong>, que comprende:</p>
@@ -150,73 +215,130 @@ export function construirLocacion(datos: DatosLocacion): string {
 
     <h3>TERCERA. NATURALEZA CIVIL Y AUTONOMÍA</h3>
     <p>El presente es un contrato de locación de servicios de naturaleza civil, regido por los artículos 1764 a 1770
-    del Código Civil. ${locador} presta el servicio con autonomía técnica y organizativa, con sus propios medios y
-    bajo su propia dirección, organizando su tiempo como considere conveniente para cumplir con lo encargado, sin
-    sujeción a horarios ni a turnos fijados por ${COMITENTE}. Puede prestar servicios a terceros mientras ello no
-    afecte el cumplimiento de este contrato ni la confidencialidad pactada.</p>
+    del Código Civil. ${locador} presta el servicio sin estar ${segunGenero(d, "subordinado", "subordinada")} a
+    ${COMITENTE}, con autonomía técnica y organizativa y bajo su propia dirección y responsabilidad: decide cómo
+    cumplir lo encargado y responde por su resultado.</p>
+    <p>${COMITENTE} no le fija horario ni turnos ni le aplica sanciones o amonestaciones. Las coordinaciones entre
+    las partes se refieren al resultado encargado y a la información necesaria para lograrlo. Cuando el servicio deba
+    prestarse en un local de ${COMITENTE}, los días y las franjas se acuerdan según la disponibilidad de ${locador},
+    que puede proponer cambiarlos. Ante un incumplimiento, ${COMITENTE} solo puede ejercer los remedios previstos en
+    este contrato y en el Código Civil.</p>
+    <p>${locador} puede prestar servicios a terceros sin necesidad de autorización de ${COMITENTE}, con la sola
+    condición de respetar la confidencialidad de la cláusula octava.</p>
     <p>El presente contrato no genera relación laboral entre las partes. ${locador} declara conocer que, por su
     naturaleza, no le corresponden los derechos y beneficios propios de una relación laboral.</p>
 
     <h3>CUARTA. PLAZO</h3>
-    <p>El servicio se prestará del ${formatearFecha(d.fechaInicio)} al ${formatearFecha(d.fechaFin)}. Puede
+    <p>El presente contrato rige del ${formatearFecha(d.fechaInicio)} al ${formatearFecha(d.fechaFin)}. Puede
     renovarse por acuerdo escrito de las partes, con un nuevo contrato.</p>
 
     <h3>QUINTA. HONORARIOS</h3>
     <p>Por el servicio, ${COMITENTE} pagará a ${locador} honorarios de ${pago}, contra la emisión del recibo por
-    honorarios electrónico correspondiente. ${COMITENTE} efectuará la retención del Impuesto a la Renta de cuarta
-    categoría cuando corresponda conforme a ley, salvo que ${locador} acredite la suspensión de retenciones
-    aprobada por la SUNAT.</p>
+    honorarios electrónico correspondiente. Los honorarios comprenden toda la retribución por el servicio, incluida
+    la cesión de la cláusula novena.</p>
+    <p>Los honorarios pactados son montos brutos. De ellos, ${COMITENTE} retiene el Impuesto a la Renta de cuarta
+    categoría en los casos y por el porcentaje que establece la ley, salvo que ${locador} le haya acreditado, antes
+    del pago, la suspensión de retenciones aprobada por la SUNAT para ese ejercicio.</p>
 
     <h3>SEXTA. OBLIGACIONES DE ${locador}</h3>
     <ol>
       <li>Prestar el servicio de manera personal y diligente, conforme al artículo 1766 del Código Civil.</li>
-      <li>Entregar lo encargado en los plazos acordados con ${COMITENTE} para cada trabajo.</li>
+      <li>Entregar lo encargado en los plazos acordados con ${COMITENTE} para cada encargo.</li>
       <li>Emitir el recibo por honorarios electrónico por cada pago.</li>
       <li>Cumplir por su cuenta con sus obligaciones tributarias y con su propio seguro de salud y sistema de
-      pensiones.</li>
+      pensiones, conforme a la ley que le resulte aplicable.</li>
     </ol>
 
     <h3>SÉPTIMA. OBLIGACIONES DE ${COMITENTE}</h3>
     <ol>
       <li>Pagar los honorarios en la forma y el plazo pactados.</li>
       <li>Brindar a ${locador} la información que necesite para prestar el servicio.</li>
+      <li>Respetar la autonomía de ${locador} en los términos de la cláusula tercera.</li>
     </ol>
 
     <h3>OCTAVA. CONFIDENCIALIDAD</h3>
     <p>${locador} guardará reserva sobre la información de ${COMITENTE} a la que acceda por el servicio —diseños,
-    colecciones no lanzadas, precios, proveedores, clientas y procesos— durante la vigencia del contrato y por dos
-    (2) años después de su término.</p>
+    colecciones no lanzadas, precios, proveedores, clientas y procesos—, no la usará para fines ajenos al servicio y,
+    al término del contrato, devolverá o eliminará la que tenga en su poder. Esta obligación rige durante la vigencia
+    del contrato y por dos (2) años después de su término, sin perjuicio de la protección que la ley da al secreto
+    empresarial mientras conserve ese carácter.</p>
+    <p>Los datos personales de clientas, del equipo y de proveedores de ${COMITENTE} a los que acceda los tratará solo
+    para prestar el servicio, sin copiarlos, conservarlos ni comunicarlos a terceros, conforme a la Ley N.° 29733, Ley
+    de Protección de Datos Personales.</p>
 
-    <h3>NOVENA. RESULTADOS DEL SERVICIO</h3>
-    <p>Los diseños, patrones, fotografías, textos y demás resultados que ${locador} cree en ejecución de este
-    contrato, y sus derechos patrimoniales, corresponden a ${COMITENTE} desde su creación, en la medida que lo
-    permita la ley. Los derechos morales de autor se mantienen conforme al Decreto Legislativo N.° 822.</p>
+    <h3>NOVENA. RESULTADOS DEL SERVICIO Y DERECHOS DE AUTOR</h3>
+    <p>${locador} cede a ${COMITENTE}, en exclusiva y desde su creación, los derechos patrimoniales sobre los diseños,
+    bocetos, patrones, fotografías —incluidas las meras fotografías del artículo 144 del Decreto Legislativo N.° 822—,
+    textos y demás resultados que cree al prestar el servicio descrito en la cláusula segunda. La cesión comprende la
+    reproducción, la distribución, la comunicación pública —incluida la puesta a disposición por internet—, la
+    transformación y la adaptación, también industrial y textil, y la importación, para todo el mundo y por todo el
+    plazo de protección que establece la ley.</p>
+    <p>${locador} cede también a ${COMITENTE} el derecho a registrar a su nombre los diseños industriales que
+    resulten del servicio (Decisión 486 de la Comunidad Andina, artículo 114), y la autoriza a ceder o licenciar a
+    terceros los derechos de esta cláusula sin necesidad de un nuevo consentimiento (Decreto Legislativo N.° 822,
+    artículo 94).</p>
+    <p>La retribución por esta cesión es a tanto alzado y está comprendida en los honorarios de la cláusula quinta
+    (Decreto Legislativo N.° 822, artículo 93, literal e). Los derechos morales de ${locador} se mantienen conforme a
+    ley; ${locador} autoriza las adaptaciones propias de la producción y la venta de las prendas.</p>
 
-    <h3>DÉCIMA. RESOLUCIÓN</h3>
-    <p>Cualquiera de las partes puede resolver el presente contrato con un aviso escrito de ${d.diasAviso}
-    días calendario. ${COMITENTE} puede resolverlo de inmediato si ${locador} incumple la confidencialidad pactada.
-    En ambos casos se pagarán los honorarios por el servicio efectivamente prestado hasta la fecha de término.</p>
+    <h3>DÉCIMA. TÉRMINO ANTICIPADO Y RESOLUCIÓN</h3>
+    <p>Cualquiera de las partes puede poner fin al presente contrato antes de su vencimiento, sin expresión de causa,
+    con un aviso escrito de ${d.diasAviso} días calendario.</p>
+    <p>Además, cualquiera de las partes puede resolverlo de pleno derecho, conforme al artículo 1430 del Código Civil,
+    si la otra incumple alguna de estas prestaciones: ${locador}, la reserva de la información y el cuidado de los
+    datos personales de la cláusula octava; ${COMITENTE}, el pago de los honorarios dentro de los quince (15) días
+    calendario siguientes a su vencimiento. La resolución opera desde que la parte afectada comunica a la otra, por
+    escrito, que se vale de esta cláusula. Para cualquier otro incumplimiento rige el artículo 1429 del Código
+    Civil.</p>
+    <p>En todos los casos, ${COMITENTE} paga los honorarios por el servicio prestado hasta la fecha de término.</p>
 
-    <h3>UNDÉCIMA. FIRMA ELECTRÓNICA</h3>
-    <p>Las partes acuerdan suscribir el presente contrato mediante firma electrónica en el sistema Dynamic de
-    ${COMITENTE}, que registra la fecha y la hora de la aceptación de cada una, conforme al artículo 141-A del
-    Código Civil y a la Ley N.° 27269, Ley de Firmas y Certificados Digitales. Cada parte puede descargar e
-    imprimir el contrato firmado.</p>
+    <h3>UNDÉCIMA. DATOS PERSONALES DE ${locador}</h3>
+    <p>${COMITENTE} trata los datos personales de ${locador} —los de identificación, su R.U.C., su domicilio, su firma
+    y los registros del servicio prestado— para celebrar y ejecutar este contrato, pagar los honorarios y cumplir las
+    obligaciones tributarias y legales que de él se deriven, conforme a la Ley N.° 29733, Ley de Protección de Datos
+    Personales, y su reglamento. Esos datos se guardan en Dynamic, el sistema de ${COMITENTE}, que funciona sobre
+    servicios de proveedores tecnológicos que pueden estar ubicados fuera del Perú, y se conservan mientras dure el
+    contrato y, después, durante el tiempo que exijan esas obligaciones y la defensa de los derechos de las partes.
+    ${COMITENTE} solo los comunica a la SUNAT y a las demás autoridades que la ley indique.</p>
+    <p>${locador} puede ejercer sus derechos de acceso, actualización, inclusión, rectificación, supresión y
+    oposición comunicándolo por escrito a ${COMITENTE}, en la forma de la cláusula duodécima.</p>
 
-    <h3>DUODÉCIMA. LEY APLICABLE Y DOMICILIO</h3>
-    <p>En lo no previsto, se aplica el Código Civil. Las partes señalan como domicilios los indicados en la cláusula
-    primera y se someten a la jurisdicción de los jueces de ${ciudad}.</p>
+    <h3>DUODÉCIMA. COMUNICACIONES</h3>
+    <p>Las comunicaciones entre las partes, incluidos los avisos de término y de resolución, se hacen por escrito y se
+    entregan en los domicilios indicados en la cláusula primera o al correo electrónico que cada parte haya
+    comunicado por escrito a la otra. Un cambio de domicilio o de correo surte efecto desde que se comunica a la otra
+    parte.</p>
 
-    <p>En señal de conformidad, las partes firman el presente contrato en ${ciudad}.</p>
+    <h3>DECIMOTERCERA. FIRMA ELECTRÓNICA</h3>
+    <p>Las partes celebran el presente contrato por medios electrónicos, conforme a los artículos 141 y 141-A del
+    Código Civil y a la Ley N.° 27269, Ley de Firmas y Certificados Digitales, y su reglamento.</p>
+    <p>${COMITENTE} firma con la imagen de la firma de su representante registrada en Dynamic, el sistema de
+    ${COMITENTE}. ${locador} firma ingresando a Dynamic con su cuenta personal e intransferible, con el texto completo
+    del contrato a la vista, y confirmando su firma: con ello se incorpora al documento la imagen de la firma que
+    ${locador} registró en el sistema. Las partes reconocen que esa confirmación expresa su voluntad de obligarse,
+    igual que una firma manuscrita.</p>
+    <p>Dynamic conserva el texto del contrato tal como se generó, sin que ninguna de las partes pueda modificarlo
+    después, y registra la fecha y la hora en que firma cada una, que figuran debajo de su firma. El contrato se
+    entiende celebrado en la fecha y la hora en que firma ${locador}. Cada parte puede descargar e imprimir el
+    contrato firmado.</p>
+
+    <h3>DECIMOCUARTA. LEY APLICABLE Y JURISDICCIÓN</h3>
+    <p>En lo no previsto, se aplica el Código Civil. Las partes se someten a la jurisdicción de los jueces de
+    ${ciudad}.</p>
+
+    <p>En señal de conformidad, las partes firman el presente contrato por medios electrónicos, en las fechas que
+    figuran debajo de sus firmas.</p>
 
     <div class="firmas">
       <div>
         <p class="linea">${MARCADOR_FIRMA_EMPRESA}</p>
         <p><strong>${COMITENTE}</strong><br/>${EMPRESA.nombre}<br/>${d.firmanteNombre} · ${d.firmanteCargo}<br/>DNI N.° ${d.firmanteDni}</p>
+        <p>${MARCADOR_FECHA_FIRMA_EMPRESA}</p>
       </div>
       <div>
         <p class="linea">${MARCADOR_FIRMA_PERSONA}</p>
         <p><strong>${locador}</strong><br/>${d.nombreDni}<br/>DNI N.° ${d.documento.trim() || falta("EL DNI")}</p>
+        <p>${MARCADOR_FECHA_FIRMA_PERSONA}</p>
       </div>
     </div>
     <p class="pie-hoja">${EMPRESA.nombre} · RUC N.° ${EMPRESA.ruc}</p>

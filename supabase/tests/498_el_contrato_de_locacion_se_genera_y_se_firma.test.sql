@@ -15,7 +15,7 @@
 -- Fechas desde `fn_hoy_lima()`: una prueba con fechas fijas se vence sola.
 -- ============================================================================
 begin;
-select plan(32);
+select plan(33);
 
 insert into sedes (id, codigo, nombre, activa, tipo) values
   ('00000000-0000-0000-0000-000006120001', 'ZZG61', 'Sede generar', true, 'tienda');
@@ -131,6 +131,10 @@ select lives_ok($$ select fn_confirmar_mi_firma_locacion(current_setting('t.gen'
 select throws_ok(
   $$ select fn_confirmar_mi_firma_locacion(current_setting('t.gen')::uuid) $$,
   'P0001', 'Ya firmaste este contrato.', 'una sola vez');
+select is(
+  (select row(generado_at is not null, firmado_at is not null)::text
+     from fn_locacion_documento(current_setting('t.gen')::uuid)),
+  row(true, true)::text, 'su documento trae cuándo firmó cada parte, para estamparlo bajo cada firma');
 reset role;
 
 select is(
