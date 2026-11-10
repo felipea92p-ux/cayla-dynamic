@@ -335,6 +335,10 @@ interface DocArchivado {
   monto_declarado: number | null;
   nota: string | null;
   registrado_por: string | null;
+  /** La firma de CAYLA de ESTE documento, quién y con qué cargo (0616): la de su día, no la de hoy. */
+  firma_empresa: string | null;
+  firmante_empresa_nombre: string | null;
+  firmante_empresa_cargo: string | null;
   anulado_at: string | null;
   anulado_motivo: string | null;
   /** Es la fila que hoy cuenta para su tipo y su persona — mismo desempate
@@ -458,6 +462,8 @@ export default function DocumentacionPage() {
     // Pasaje y taxi (0489), con el mismo criterio: null en lo firmado antes.
     costoPasaje: number | null; gastoDiario: number | null;
     costoTaxi: number | null; frecuenciaTaxi: number | null;
+    // La firma de CAYLA de esta declaración (0616): la de su día, no la de hoy.
+    firmaEmpresa: string | null; firmanteNombre: string | null; firmanteCargo: string | null;
   } | null>(null);
   // El nombre con que el navegador propone guardar el PDF, y la copia que se imprime aparte del modal.
   const { copia: copiaFirma, preparando: preparandoFirma, imprimir: imprimirFirma } = useImprimirAparte(
@@ -484,6 +490,8 @@ export default function DocumentacionPage() {
   const [verBono, setVerBono] = useState<{
     persona: string; documento: string | null; monto: number | null;
     fecha: string | null; firma: string | null; practicante: boolean;
+    // La firma de CAYLA de esta constancia (0616): la de su día, no la de hoy.
+    firmaEmpresa: string | null; firmanteNombre: string | null; firmanteCargo: string | null;
   } | null>(null);
   // Las hojas que se imprimen de una vez. `null` = modo normal, una sola hoja:
   // la de la persona elegida arriba. Se llena, se imprime y se vacía; no es un
@@ -751,6 +759,9 @@ export default function DocumentacionPage() {
       gastoDiario: doc?.ruta_gasto_diario ?? null,
       costoTaxi: doc?.ruta_costo_taxi ?? null,
       frecuenciaTaxi: doc?.ruta_frecuencia_taxi ?? null,
+      firmaEmpresa: doc?.firma_empresa ?? null,
+      firmanteNombre: doc?.firmante_empresa_nombre ?? null,
+      firmanteCargo: doc?.firmante_empresa_cargo ?? null,
     });
   }
 
@@ -767,6 +778,9 @@ export default function DocumentacionPage() {
       fecha: doc.fecha_firma ?? f.bono_firmada_el,
       firma: doc.firma_persona,
       practicante: quien?.tipo_vinculo === "practicante",
+      firmaEmpresa: doc.firma_empresa,
+      firmanteNombre: doc.firmante_empresa_nombre,
+      firmanteCargo: doc.firmante_empresa_cargo,
     });
   }
 
@@ -1909,10 +1923,11 @@ export default function DocumentacionPage() {
                           nombre={v.persona}
                           pie={`DNI ${v.documento ?? "—————"} · el/la declarante`}
                         />
+                        {/* La de CAYLA de cuando se firmó (0616); sin ella, la raya en blanco. */}
                         <BloqueFirma
-                          imagen={firmaEmpresaGlobal}
-                          nombre={firmanteNombre}
-                          pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+                          imagen={v.firmaEmpresa}
+                          nombre={v.firmanteNombre ?? firmanteNombre}
+                          pie={`${v.firmanteCargo ?? firmanteCargo} · ${EMPRESA.nombre}`}
                         />
                       </div>
                       <p className="mt-6 text-center text-xs text-taupe">
@@ -2743,9 +2758,9 @@ export default function DocumentacionPage() {
                   nombreOficial={verBono.persona}
                   documento={verBono.documento}
                   firmaPersona={verBono.firma}
-                  firmaEmpresa={firmaEmpresaGlobal}
-                  firmanteNombre={firmanteNombre}
-                  firmanteCargo={firmanteCargo}
+                  firmaEmpresa={verBono.firmaEmpresa}
+                  firmanteNombre={verBono.firmanteNombre ?? firmanteNombre}
+                  firmanteCargo={verBono.firmanteCargo ?? firmanteCargo}
                 />
               </div>
             </div>

@@ -52,6 +52,8 @@ interface Vigente {
   version?: number;
   documento?: string;
   publicada_at?: string;
+  /** La firma de CAYLA congelada al publicar la versión vigente (0616); null si no se pudo probar cuál era. */
+  firma_empresa?: string | null;
   desactualizada: boolean;
   mi_acuse: { acusado_at: string; nombre: string } | null;
   total_personas?: number;
@@ -467,6 +469,10 @@ export default function PoliticaSalarialPage() {
   // vivo. Las secciones de escala/matriz/categorías se re-pintan aparte con
   // el cuadro en vivo (ver comentario arriba del archivo).
   const doc: Documento | null = vigente?.publicada && !desactualizada && publicadoDoc ? publicadoDoc : docVivo;
+  // La firma va con el documento que se muestra: la versión publicada lleva la
+  // de CAYLA de cuando se publicó (0616); el borrador armado con el cuadro de
+  // hoy, la de hoy, que es la que llevaría si se publica ahora.
+  const firmaDelDocumento = doc === publicadoDoc ? (vigente?.firma_empresa ?? null) : firmaUrl;
 
   // "La escala" no tiene ancla propia: su contenido se muestra fusionado bajo
   // el título de la matriz (ver el mapeo de doc.secciones más abajo), así que
@@ -627,9 +633,9 @@ export default function PoliticaSalarialPage() {
             })}
 
             <footer className="mt-10 border-t border-sand pt-6 print:break-inside-avoid">
-              {firmaUrl !== null && puedeEstamparFirmaDeEmpresa(persona?.rol) && (
+              {firmaDelDocumento !== null && puedeEstamparFirmaDeEmpresa(persona?.rol) && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={firmaUrl} alt="" className="firma-tinta mb-1 h-16 object-contain" />
+                <img src={firmaDelDocumento} alt="" className="firma-tinta mb-1 h-16 object-contain" />
               )}
               <p className="text-sm font-medium text-tinta">{doc.empresa.firmante}</p>
               <p className="text-sm text-taupe">{doc.empresa.cargo} — {doc.empresa.nombre}</p>

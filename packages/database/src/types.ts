@@ -8851,7 +8851,10 @@ export type Database = {
           anulado_motivo: string
           es_negativa: boolean
           fecha_firma: string
+          firma_empresa: string
           firma_persona: string
+          firmante_empresa_cargo: string
+          firmante_empresa_nombre: string
           id: string
           monto_declarado: number
           nota: string
