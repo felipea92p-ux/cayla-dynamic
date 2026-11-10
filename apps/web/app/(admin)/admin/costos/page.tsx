@@ -40,6 +40,7 @@ import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Insignia } from "@/components/ui/insignia";
 import { Fila, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { SeccionTabla } from "@/components/costos/seccion-tabla";
+import { TablaPorPersona } from "@/components/costos/tabla-por-persona";
 import { BarrasHorizontales, GraficoPorPeriodo, abreviarSoles } from "@/components/costos/graficos-costos";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
@@ -543,32 +544,7 @@ export default function CostosPage() {
               </tbody>
             </SeccionTabla>
 
-            <SeccionTabla titulo="Por persona">
-              <TablaEncabezado>
-                <Th>Nombre</Th>
-                <Th>Sede</Th>
-                <Th className="text-right">Periodos</Th>
-                <Th className="text-right">Horas</Th>
-                <Th className="text-right">Se transfirió</Th>
-                <Th className="text-right">Provisiones</Th>
-                <Th className="text-right">Costo real</Th>
-                <Th className="text-right">Salió del banco</Th>
-              </TablaEncabezado>
-              <tbody>
-                {data.por_persona.map((p) => (
-                  <Fila key={p.persona_id}>
-                    <td className="px-4 py-2">{p.nombre}</td>
-                    <td className="px-4 py-2 text-taupe">{nombreDeSede.get(p.sede) ?? p.sede}</td>
-                    <td className={NUM}>{p.periodos}</td>
-                    <td className={NUM}>{p.horas.toLocaleString("es-PE", { maximumFractionDigits: 1 })}</td>
-                    <td className={NUM}>{formatSoles(p.neto)}</td>
-                    <td className={NUM}>{formatSoles(p.provisiones)}</td>
-                    <td className={`${NUM} font-medium`}>{formatSoles(p.costo)}</td>
-                    <td className={NUM}>{p.salio_del_banco === undefined ? "—" : formatSoles(p.salio_del_banco)}</td>
-                  </Fila>
-                ))}
-              </tbody>
-            </SeccionTabla>
+            <TablaPorPersona personas={data.por_persona} sedes={data.por_sede} />
           </div>
 
           <aside aria-label="Gráficos" className="space-y-4 @5xl:sticky @5xl:top-4">
