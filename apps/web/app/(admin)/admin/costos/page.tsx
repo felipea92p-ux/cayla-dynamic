@@ -38,7 +38,8 @@ import { CampoSelect } from "@/components/ui/campo";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Insignia } from "@/components/ui/insignia";
-import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { Fila, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { SeccionTabla } from "@/components/costos/seccion-tabla";
 import { BarrasHorizontales, GraficoPorPeriodo, abreviarSoles } from "@/components/costos/graficos-costos";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
@@ -612,19 +613,5 @@ export default function CostosPage() {
         )}
       </main>
     </div>
-  );
-}
-
-// No se llama "Tabla" para no chocar con el primitivo compartido
-// (@/components/ui/tabla): esto solo le agrega el título de sección, y por
-// dentro usa ese mismo <Tabla> — así el envoltorio de esta pantalla queda con
-// la misma superficie elevada (bg-papel, rounded-superficie) que el resto del
-// panel, en vez del bg-crema aislado que tenía antes.
-function SeccionTabla({ titulo, children }: { titulo: string; children: React.ReactNode }) {
-  return (
-    <section className="mb-6">
-      <h2 className="mb-2 font-serif text-lg">{titulo}</h2>
-      <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-ancha" : undefined}>{children}</Tabla>
-    </section>
   );
 }
