@@ -104,7 +104,11 @@ interface PorSede extends PorGrupo {
   // barata. Opcional: sin la 0612 pegada no viene, y la columna dice «—».
   personas_periodo?: number;
   costo_por_persona_periodo?: number | null;
+  // Desde la 0612, el costo de quien marcó dividido entre sus horas. Lo que costó quien no marcó ninguna va en
+  // `costo_sin_horas`: antes entraba arriba sin sus horas abajo, y la hora de Central salía a 1.67 veces la de TRU
+  // cuando, contando a quien marcó, era casi igual. Sin la 0612, `costo_sin_horas` no viene y no se dibuja la nota.
   costo_por_hora: number | null;
+  costo_sin_horas?: number;
 }
 interface PorTipo {
   tipo: "central" | "taller" | "tienda";
@@ -117,6 +121,7 @@ interface PorTipo {
   personas_periodo?: number;
   costo_por_persona_periodo?: number | null;
   costo_por_hora: number | null;
+  costo_sin_horas?: number;
   salio_del_banco?: number;
 }
 interface PorArea extends PorGrupo { area: string | null; operativa: boolean }
@@ -329,6 +334,7 @@ export default function CostosPage() {
               secciones={[
                 { titulo: "Todo el año, todo el equipo", texto: "Salvo «Por periodo», cada tabla suma el año elegido entero. «Personas en el año» cuenta a cada persona que cobró al menos un periodo, también a quien ya cesó, así que no es cuántas hay hoy. Si alguien cambió de sede o de área, cuenta en las dos: cada pago se carga donde estaba ese periodo." },
                 { titulo: "Por persona al mes", texto: "El costo real dividido entre las personas de cada periodo: quien cobró los cuatro periodos del año cuenta cuatro veces, y una plaza que ocuparon tres personas, una tras otra, también cuenta cuatro. Así una sede que rota mucho no parece más barata de lo que es." },
+                { titulo: "Por hora", texto: "Lo que costó quien marcó horas, dividido entre esas horas. Quien cobra sin marcar no entra: su sueldo sin sus horas inflaba la hora de su sede. Lo que costó va aparte, en la nota debajo de «Por sede»." },
                 { titulo: "Costo y proyección", texto: "Lo que todavía está abierto se ve en Planilla, y es una proyección, no un costo. Aquí solo entra lo que ya se pagó." },
                 { titulo: "Un periodo, no un mes", texto: "Los periodos de CAYLA no son meses calendario (van del 29 al 28), así que cada fila es un periodo." },
                 { titulo: "Costo real, transferencia y banco", texto: "«Se transfirió» es lo que se pagó a las personas; el «costo real» suma además las provisiones; «salió del banco» incluye pensión, EsSalud y 4.ª." },
@@ -495,6 +501,17 @@ export default function CostosPage() {
               {interruptoresVidrio().panel
                 ? ". El desglose completo está en el CSV."
                 : ": una sede con nueve personas siempre va a costar más que una con cuatro, y eso no dice nada. El desglose completo (lo que se transfirió y las provisiones por separado) está en el CSV."}
+              {/* Solo las sedes donde alguien cobró sin marcar: el resto no tiene nada que aclarar. */}
+              {data.por_sede.some((s) => (s.costo_sin_horas ?? 0) > 0) && (
+                <>
+                  {" "}«Por hora» cuenta solo a quien marcó; lo que costó quien no marcó va aparte:{" "}
+                  {data.por_sede
+                    .filter((s) => (s.costo_sin_horas ?? 0) > 0)
+                    .map((s) => `${s.nombre} ${formatSoles(s.costo_sin_horas ?? 0)}`)
+                    .join(" · ")}
+                  .
+                </>
+              )}
             </p>
 
             <SeccionTabla titulo="Por área">

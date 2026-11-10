@@ -467,7 +467,8 @@ with repo(numero, nombre, nunca) as (values
     (605, 'la_salida_real_gana_tambien_en_el_panel', false),
     (607, 'el_reglamento_vigente_dice_que_es_la_version_4_0', false),
     (608, 'fn_costos_planilla_vuelve_a_la_version_vigente', false),
-    (610, 'el_contrato_de_locacion_de_quien_cobra_por_honorarios', false)
+    (610, 'el_contrato_de_locacion_de_quien_cobra_por_honorarios', false),
+    (612, 'el_costo_por_persona_no_baja_con_la_rotacion', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -883,11 +884,11 @@ plata(etiqueta, funcion, estado, orden) as (
   union all
   select 'PLATA', 'fn_costos_planilla', coalesce((
            select string_agg(case md5(p.prosrc)
-             when '37d7163186a7f9aff51f9744555a351b' then '✓   al día (0612)'
-             when 'd4434675db2de4b9bb2eae8a90ed7a12' then '✓   al día (0612, pegada sin comentarios)'
-             when '5e8cc85b5abb1ac643c55b19b9954488' then '✓   al día (0612, pegada desde Windows)'
-             when '6841bbc216d9f14a8621121b5c6d4e6a' then '✓   al día (0612, desde Windows y sin comentarios)'
-             when '6e549e7538bd77e6c858a448d125e57b' then '✗   0612 con los acentos rotos — vuelve a pegarla'
+             when '1c34f5f88edaedb62cd99e2f49ed3ff2' then '✓   al día (0612)'
+             when '0c18045192892a1c0c1ed5eeb6bd9010' then '✓   al día (0612, pegada sin comentarios)'
+             when 'ac798011ff4eada74a1b1ee5b6900997' then '✓   al día (0612, pegada desde Windows)'
+             when '27511f3959bee8bd686d60ac22e17ff8' then '✓   al día (0612, desde Windows y sin comentarios)'
+             when '4ab55cff30d1cfda90c7a60406252ad7' then '✗   0612 con los acentos rotos — vuelve a pegarla'
              when 'a25fbbc2a67dcc6b07f1cb2a8647c124' then '❌  se quedó en la 0608 — la vigente es la 0612'
              when '171b0f29312249244e60dff106b73887' then '❌  se quedó en la 0608 — la vigente es la 0612'
              when '939e5ef4840e6ca088b08a17d2084e74' then '❌  se quedó en la 0260 — la vigente es la 0612'
