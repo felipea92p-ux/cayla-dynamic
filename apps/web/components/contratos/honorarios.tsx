@@ -24,7 +24,7 @@ import { useToast } from "@/components/toast";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto } from "@/components/ui/area-texto";
-import { Campo } from "@/components/ui/campo";
+import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Drawer } from "@/components/ui/drawer";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
@@ -41,6 +41,8 @@ import {
   ESTADO_CONTRATO,
   ESTADO_PERSONA,
   fechasSugeridas,
+  rucDePersonaValido,
+  rucDesdeDni,
   textoPlazo,
   textoVinculoActual,
   type BandaLocacion,
@@ -48,6 +50,8 @@ import {
   type FilaTableroLocacion,
 } from "@/lib/admin/locaciones";
 import { registrarContratoLocacion } from "@/lib/admin/locaciones-archivo";
+import { construirLocacion, TEXTO_LOCACION_APROBADO, type DatosLocacion, type PeriodicidadHonorarios } from "@/lib/admin/locacion-texto";
+import { DocumentoLocacion, estamparFirmas } from "./documento-locacion";
 
 /**
  * El tablero de las personas por honorarios. Vive fuera de la pestaña porque la
@@ -75,12 +79,21 @@ export function useLocacionesTablero(supabase: ClienteCayla) {
 
 const fecha = (iso: string | null) => (iso ? isoADiaMesAnio(iso) : "—");
 
+/** Quien firma por CAYLA (`configuracion.firmante_empresa`, 0147): lo resuelve la página de Contratos. */
+export interface FirmanteCayla {
+  nombre: string;
+  dni: string;
+  cargo: string;
+}
+
 export function ContratosHonorarios({
   supabase,
   tablero,
+  firmante,
 }: {
   supabase: ClienteCayla;
   tablero: ReturnType<typeof useLocacionesTablero>;
+  firmante: FirmanteCayla;
 }) {
   const [banda, setBanda] = useState<BandaLocacion | null>(null);
   const [abierta, setAbierta] = useState<FilaTableroLocacion | null>(null);
@@ -99,8 +112,8 @@ export function ContratosHonorarios({
     <div className="space-y-5">
       <p className="max-w-prose text-sm text-taupe">
         Quien cobra por recibo por honorarios no firma un contrato de trabajo: firma un contrato de{" "}
-        <strong className="font-medium text-tinta">locación de servicios</strong>. Aquí se guarda ese contrato
-        firmado y se avisa cuando falta o se vence.
+        <strong className="font-medium text-tinta">locación de servicios</strong>. Aquí se genera y la persona lo
+        firma en «Lo mío», o se guarda el escaneo de uno firmado en papel; y se avisa cuando falta o se vence.
       </p>
 
       {fallo && (
@@ -120,6 +133,7 @@ export function ContratosHonorarios({
             items={[
               { clave: "abierta", texto: `${n("abierta")} con locación abierta`, n: n("abierta"), tono: "ambar" },
               { clave: "sin_cubrir", texto: `${n("sin_cubrir")} sin contrato vigente`, n: n("sin_cubrir"), tono: "ambar" },
+              { clave: "firma", texto: `${n("firma")} falta${n("firma") === 1 ? "" : "n"} su firma`, n: n("firma"), tono: "pizarra" },
               { clave: "pronto", texto: `${n("pronto")} vence${n("pronto") === 1 ? "" : "n"} pronto`, n: n("pronto"), tono: "ambar" },
             ]}
             activa={banda}
@@ -155,6 +169,7 @@ export function ContratosHonorarios({
         abierto={abierta !== null}
         onCerrar={() => { if (!ocupado) setAbierta(null); }}
         bloqueado={ocupado}
+        ancho="amplio"
         titulo={abierta ? `Contratos de locación · ${abierta.persona}` : undefined}
         volverElFocoA={filaQueAbrio}
       >
@@ -163,6 +178,7 @@ export function ContratosHonorarios({
             key={abierta.persona_id}
             supabase={supabase}
             fila={abierta}
+            firmante={firmante}
             alCambiar={() => void tablero.recargar()}
             alOcupar={setOcupado}
           />
@@ -210,10 +226,11 @@ function FilaPersona({ f, alAbrir }: { f: FilaTableroLocacion; alAbrir: (el: HTM
 
 /** Todos los contratos de una persona: los que valen primero, los anulados al final. */
 function Historial({
-  supabase, fila, alCambiar, alOcupar,
+  supabase, fila, firmante, alCambiar, alOcupar,
 }: {
   supabase: ClienteCayla;
   fila: FilaTableroLocacion;
+  firmante: FirmanteCayla;
   /** Avisa que se registró algo, para que el tablero se ponga al día. */
   alCambiar: () => void;
   alOcupar: (ocupado: boolean) => void;
@@ -222,8 +239,11 @@ function Historial({
   const [contratos, setContratos] = useState<ContratoLocacion[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
-  // Quien no tiene ningún contrato llega aquí a registrarlo: el formulario ya está abierto.
-  const [registrando, setRegistrando] = useState(fila.estado === "sin_contrato");
+  // Quien no tiene ningún contrato llega aquí a generarlo: el formulario ya está abierto. La otra vía, registrar
+  // el escaneo de uno firmado en papel (0610), sigue a un clic.
+  const [modo, setModo] = useState<"generar" | "registrar" | null>(fila.estado === "sin_contrato" ? "generar" : null);
+  // Un contrato generado se lee aquí mismo, en el panel.
+  const [viendo, setViendo] = useState<ContratoLocacion | null>(null);
   // Un contrato a la vez: anular o terminar abre su formulario debajo de esa tarjeta.
   const [accion, setAccion] = useState<{ id: string; tipo: "anular" | "terminar" } | null>(null);
   const yaNoEsRxh = fila.estado === "abierta_sin_rxh";
@@ -248,6 +268,26 @@ function Historial({
 
   if (cargando) return <Cargando />;
 
+  if (viendo) {
+    return (
+      <div className="space-y-3">
+        <Boton variante="enlace" className="text-sm" onClick={() => setViendo(null)}>← Volver al historial</Boton>
+        <p className="text-xs text-taupe">
+          {viendo.fecha_firma ? `Firmado el ${fecha(viendo.fecha_firma)}.` : "Todavía sin la firma de la persona: la firma desde «Lo mío › Contrato»."}
+        </p>
+        <DocumentoLocacion supabase={supabase} contratoId={viendo.id} nombreDelPdf={`${fila.persona} — Contrato de locación`} />
+      </div>
+    );
+  }
+
+  const servicioAnterior = contratos.find((c) => c.estado !== "anulado")?.servicio ?? "";
+  const alListo = (texto: string) => {
+    setModo(null);
+    avisar("ok", texto);
+    void cargar();
+    alCambiar();
+  };
+
   return (
     <div className="space-y-4">
       {error && <BannerAviso enLinea role="alert">{error}</BannerAviso>}
@@ -259,25 +299,33 @@ function Historial({
           {fila.persona}: {textoVinculoActual(fila.vinculo_actual).toLowerCase()} y su locación sigue abierta. Con las
           dos cosas a la vez tiene un vínculo civil y otro laboral. Usa «Terminar antes» con el último día en que valió.
         </BannerAviso>
-      )) : registrando ? (
+      )) : modo === "generar" ? (
+        <FormGenerar
+          supabase={supabase}
+          fila={fila}
+          firmante={firmante}
+          servicioAnterior={servicioAnterior}
+          alCancelar={() => setModo(null)}
+          alOcupar={alOcupar}
+          alGenerar={() => alListo("Contrato generado. Falta que la persona lo firme desde «Lo mío».")}
+        />
+      ) : modo === "registrar" ? (
         <FormRegistrar
           supabase={supabase}
           fila={fila}
-          servicioAnterior={contratos.find((c) => c.estado !== "anulado")?.servicio ?? ""}
-          alCancelar={() => setRegistrando(false)}
+          servicioAnterior={servicioAnterior}
+          alCancelar={() => setModo(null)}
           alOcupar={alOcupar}
-          alRegistrar={() => {
-            setRegistrando(false);
-            avisar("ok", "Contrato registrado.");
-            void cargar();
-            alCambiar();
-          }}
+          alRegistrar={() => alListo("Contrato registrado.")}
         />
       ) : (
-        <Boton variante="primario" onClick={() => setRegistrando(true)}>Registrar contrato firmado</Boton>
+        <div className="flex flex-wrap gap-2">
+          <Boton variante="primario" onClick={() => setModo("generar")}>Generar contrato</Boton>
+          <Boton variante="secundario" onClick={() => setModo("registrar")}>Registrar uno firmado en papel</Boton>
+        </div>
       )}
 
-      {!error && contratos.length === 0 && !registrando && (
+      {!error && contratos.length === 0 && modo === null && (
         <EstadoVacio>Todavía no hay ningún contrato de locación registrado para {fila.persona}.</EstadoVacio>
       )}
 
@@ -297,7 +345,8 @@ function Historial({
                     {c.terminado_el && <span className="text-taupe"> (iba hasta el {fecha(c.fecha_fin)})</span>}
                   </p>
                   <p className="text-xs text-taupe">
-                    Firmado el {fecha(c.fecha_firma)} · registrado por {c.registrado_por_nombre ?? "—"}
+                    {c.fecha_firma ? `Firmado el ${fecha(c.fecha_firma)}` : "Sin firmar todavía"}
+                    {" · "}{c.es_digital ? "generado en Dynamic" : "escaneo de un papel"} por {c.registrado_por_nombre ?? "—"}
                   </p>
                   {c.terminado_el && c.terminado_motivo && (
                     <p className="text-xs text-taupe">Terminado: {c.terminado_motivo} ({c.terminado_por_nombre ?? "—"})</p>
@@ -306,7 +355,9 @@ function Historial({
                     <p className="text-xs text-taupe">Anulado: {c.anulado_motivo} ({c.anulado_por_nombre ?? "—"})</p>
                   )}
                   <div className="flex flex-wrap gap-x-4 pt-1">
-                    <Boton variante="enlace" className="text-xs" onClick={() => void ver(c)}>Ver contrato</Boton>
+                    <Boton variante="enlace" className="text-xs" onClick={() => (c.es_digital ? setViendo(c) : void ver(c))}>
+                      Ver contrato
+                    </Boton>
                     {(c.estado === "en_curso" || c.estado === "por_empezar") && (
                       <Boton variante="enlace" className="text-xs" onClick={() => setAccion({ id: c.id, tipo: "terminar" })}>
                         Terminar antes
@@ -340,6 +391,229 @@ function Historial({
         </ul>
       )}
     </div>
+  );
+}
+
+/** Lo que el contrato necesita de la persona, leído de su ficha al abrir el formulario. */
+interface DatosDeLaPersona {
+  nombreDni: string;
+  documento: string | null;
+  direccion: string | null;
+  genero: "masculino" | "femenino" | null;
+  ciudad: string | null;
+  honorarioVigente: number | null;
+}
+
+const FORMAS_DE_PAGO: { valor: PeriodicidadHonorarios; texto: string }[] = [
+  { valor: "por_horas", texto: "En proporción a las horas de servicio" },
+  { valor: "mensual", texto: "Fijos cada mes" },
+  { valor: "total", texto: "Un monto por todo el servicio" },
+];
+
+/**
+ * Generar el contrato de locación (0612). Arma el texto con `construirLocacion` y lo guarda congelado; la persona
+ * lo firma después desde «Lo mío». Todo nace con su valor más probable y a la vista: el servicio del contrato
+ * anterior, los honorarios vigentes de su ficha, el RUC calculado desde su DNI y la forma de pago con que se le
+ * paga hoy (en proporción a las horas). No pide cargo, horas ni sueldo: es una locación civil.
+ */
+function FormGenerar({
+  supabase, fila, firmante, servicioAnterior, alCancelar, alOcupar, alGenerar,
+}: {
+  supabase: ClienteCayla;
+  fila: FilaTableroLocacion;
+  firmante: FirmanteCayla;
+  servicioAnterior: string;
+  alCancelar: () => void;
+  alOcupar: (ocupado: boolean) => void;
+  alGenerar: () => void;
+}) {
+  const hoy = hoyLima();
+  const sugeridas = fechasSugeridas(fila, hoy);
+  const [datos, setDatos] = useState<DatosDeLaPersona | null>(null);
+  const [errorDatos, setErrorDatos] = useState<string | null>(null);
+  const [servicio, setServicio] = useState(servicioAnterior);
+  const [entregables, setEntregables] = useState("");
+  const [inicio, setInicio] = useState(sugeridas.inicio);
+  const [fin, setFin] = useState(sugeridas.fin);
+  const [honorarios, setHonorarios] = useState("");
+  const [periodicidad, setPeriodicidad] = useState<PeriodicidadHonorarios>("por_horas");
+  const [ruc, setRuc] = useState("");
+  const [rucCalculado, setRucCalculado] = useState<string | null>(null);
+  const [vistaPrevia, setVistaPrevia] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      const [{ data: p }, { data: dp }, { data: sal }] = await Promise.all([
+        supabase.from("personas").select("documento, nombres, apellidos, sede_base_id").eq("id", fila.persona_id).maybeSingle(),
+        supabase.from("datos_personales").select("nombre_dni, direccion, genero").eq("persona_id", fila.persona_id).maybeSingle(),
+        supabase.from("asignaciones_salario").select("salario_mensual_soles").eq("persona_id", fila.persona_id)
+          .is("vigente_hasta", null).limit(1),
+      ]);
+      const { data: sede } = p?.sede_base_id
+        ? await supabase.from("sedes").select("ciudad").eq("id", p.sede_base_id).maybeSingle()
+        : { data: null };
+      if (!vivo) return;
+      if (!p) { setErrorDatos("No se pudo leer su ficha. Vuelve a abrir el panel."); return; }
+      const genero = dp?.genero === "masculino" || dp?.genero === "femenino" ? dp.genero : null;
+      const honorarioVigente = Number((sal as { salario_mensual_soles: number }[] | null)?.[0]?.salario_mensual_soles ?? 0) || null;
+      setDatos({
+        nombreDni: dp?.nombre_dni || `${p.nombres} ${p.apellidos}`,
+        documento: p.documento,
+        direccion: dp?.direccion ?? null,
+        genero,
+        ciudad: (sede as { ciudad: string | null } | null)?.ciudad ?? null,
+        honorarioVigente,
+      });
+      if (honorarioVigente) setHonorarios((prev) => (prev === "" ? String(honorarioVigente) : prev));
+      const calculado = rucDesdeDni(p.documento);
+      setRucCalculado(calculado);
+      if (calculado) setRuc((prev) => (prev === "" ? calculado : prev));
+    })();
+    return () => { vivo = false; };
+  }, [supabase, fila.persona_id]);
+
+  const monto = Number(honorarios.replace(",", "."));
+  const falta = !datos
+    ? (errorDatos ?? "Leyendo su ficha…")
+    : !firmante.nombre.trim() || !firmante.dni.trim()
+      ? "Falta configurar quién firma por CAYLA."
+      : !datos.documento?.trim()
+        ? "Su ficha no tiene DNI: cárgalo en Equipo antes de generar el contrato."
+      : servicio.trim().length < 3
+        ? "Escribe qué servicio se contrata."
+        : entregables.trim() === ""
+          ? "Escribe qué comprende el servicio: una línea por cada cosa que entrega."
+          : !inicio || !fin
+            ? "Completa las dos fechas."
+            : fin < inicio
+              ? "El contrato no puede terminar antes de empezar."
+              : !(monto > 0)
+                ? "Escribe los honorarios."
+                : !rucDePersonaValido(ruc)
+                  ? "El RUC no cuadra: 11 dígitos que empiezan con 10, con su dígito verificador."
+                  : null;
+
+  const datosLocacion: DatosLocacion | null = datos
+    ? {
+        nombreDni: datos.nombreDni,
+        documento: datos.documento ?? "",
+        ruc: ruc.trim() || null,
+        direccion: datos.direccion,
+        genero: datos.genero,
+        servicio: servicio.trim(),
+        entregables,
+        fechaInicio: inicio,
+        fechaFin: fin,
+        honorarios: monto > 0 ? monto : 0,
+        periodicidad,
+        ciudad: datos.ciudad,
+        diasAviso: 15,
+        firmanteNombre: firmante.nombre,
+        firmanteCargo: firmante.cargo,
+        firmanteDni: firmante.dni,
+      }
+    : null;
+
+  async function generar() {
+    if (falta || !datosLocacion) return;
+    setError(null);
+    setGuardando(true);
+    alOcupar(true);
+    const { error: e } = await supabase.rpc("fn_locacion_generar", {
+      p_persona_id: fila.persona_id,
+      p_servicio: servicio.trim(),
+      p_fecha_inicio: inicio,
+      p_fecha_fin: fin,
+      p_honorarios: monto,
+      p_periodicidad: periodicidad,
+      p_ruc_locador: ruc.trim(),
+      p_documento_html: construirLocacion(datosLocacion),
+    });
+    setGuardando(false);
+    alOcupar(false);
+    if (e) { setError(mensajeDeError(e, "generar el contrato")); return; }
+    alGenerar();
+  }
+
+  return (
+    <TarjetaInfo className="space-y-3 p-4 sm:p-4">
+      <p className="font-medium text-tinta">Generar contrato de locación de servicios</p>
+      {!TEXTO_LOCACION_APROBADO && (
+        <BannerAviso enLinea variante="advertencia">
+          El texto todavía es un borrador sin revisión legal: lo que generes sale con el aviso «BORRADOR — No firmar»
+          y la persona no lo puede firmar hasta que se apruebe.
+        </BannerAviso>
+      )}
+      <Campo
+        etiqueta="Servicio que se contrata"
+        value={servicio}
+        disabled={guardando}
+        onChange={(e) => setServicio(e.target.value)}
+        placeholder="Ej.: Fotografía de producto para la tienda"
+      />
+      <AreaTexto
+        etiqueta="Qué comprende (una línea por cada cosa que entrega)"
+        rows={3}
+        value={entregables}
+        disabled={guardando}
+        onChange={(e) => setEntregables(e.target.value)}
+        placeholder={"Fotos de cada colección nueva para la tienda en línea.\nRetoque y entrega en 5 días hábiles."}
+      />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Campo etiqueta="Empieza" type="date" value={inicio} disabled={guardando} onChange={(e) => setInicio(e.target.value)} />
+        <Campo etiqueta="Termina" type="date" value={fin} min={inicio} disabled={guardando} onChange={(e) => setFin(e.target.value)} />
+        <Campo
+          etiqueta={periodicidad === "total" ? "Honorarios por todo el servicio (S/)" : "Honorarios por un mes completo (S/)"}
+          type="number"
+          min="0"
+          step="0.01"
+          value={honorarios}
+          disabled={guardando}
+          onChange={(e) => setHonorarios(e.target.value)}
+        />
+        <CampoSelect
+          etiqueta="Cómo se pagan"
+          value={periodicidad}
+          disabled={guardando}
+          onChange={(e) => setPeriodicidad(e.target.value as PeriodicidadHonorarios)}
+        >
+          {FORMAS_DE_PAGO.map((f) => <option key={f.valor} value={f.valor}>{f.texto}</option>)}
+        </CampoSelect>
+      </div>
+      <Campo
+        etiqueta="RUC de quien presta el servicio"
+        value={ruc}
+        inputMode="numeric"
+        disabled={guardando}
+        onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+      />
+      {rucCalculado && ruc === rucCalculado && (
+        <p className="-mt-2 text-xs text-taupe">Calculado desde su DNI: confírmalo con su ficha RUC.</p>
+      )}
+      {datos && !datos.ciudad && (
+        <p className="text-xs text-taupe">Su sede no tiene ciudad cargada: el contrato lo va a decir. Se carga en Sedes.</p>
+      )}
+      {error && <BannerAviso enLinea role="alert">{error}</BannerAviso>}
+      {falta && !error && <p className="text-xs text-taupe">{falta}</p>}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Boton onClick={alCancelar} disabled={guardando}>Cancelar</Boton>
+        <Boton variante="secundario" onClick={() => setVistaPrevia((v) => !v)} disabled={!datosLocacion}>
+          {vistaPrevia ? "Ocultar vista previa" : "Ver cómo queda"}
+        </Boton>
+        <Boton variante="primario" onClick={() => void generar()} disabled={falta !== null || guardando} cargando={guardando}>
+          Generar contrato
+        </Boton>
+      </div>
+      {vistaPrevia && datosLocacion && (
+        <div
+          className="hoja max-h-[60vh] overflow-y-auto rounded-lg border border-sand p-4 text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: estamparFirmas(construirLocacion(datosLocacion), null, null) }}
+        />
+      )}
+    </TarjetaInfo>
   );
 }
 

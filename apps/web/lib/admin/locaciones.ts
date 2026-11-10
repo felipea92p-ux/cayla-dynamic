@@ -37,6 +37,8 @@ export interface FilaTableroLocacion {
   dias_restantes: number | null;
   n_contratos: number;
   estado: EstadoPersonaLocacion;
+  /** Hay un contrato generado esperando su firma (0612), en cualquier estado. */
+  pendiente_firma: boolean;
 }
 
 /** Una fila de `fn_locaciones_listar`: un contrato, con su estado ya resuelto. */
@@ -61,11 +63,15 @@ export interface ContratoLocacion {
   anulado_at: string | null;
   anulado_motivo: string | null;
   anulado_por_nombre: string | null;
+  /** Generado en Dynamic (0612), y no un escaneo de un papel firmado. */
+  es_digital: boolean;
+  honorarios: number | null;
+  periodicidad: string | null;
 }
 
 export type EstadoPersonaLocacion =
-  | "abierta_sin_rxh" | "vencido" | "sin_contrato" | "por_vencer" | "por_empezar" | "vigente";
-export type EstadoContratoLocacion = "en_curso" | "por_empezar" | "concluido" | "terminado" | "anulado";
+  | "abierta_sin_rxh" | "vencido" | "sin_contrato" | "sin_firmar" | "por_vencer" | "por_empezar" | "vigente";
+export type EstadoContratoLocacion = "sin_firmar" | "en_curso" | "por_empezar" | "concluido" | "terminado" | "anulado";
 
 type Variante = "neutral" | "alerta" | "advertencia" | "positivo" | "informativo";
 
@@ -78,12 +84,14 @@ export const ESTADO_PERSONA: Record<EstadoPersonaLocacion, { texto: string; vari
   abierta_sin_rxh: { texto: "Locación abierta", variante: "advertencia" },
   vencido: { texto: "Vencido", variante: "advertencia" },
   sin_contrato: { texto: "Sin contrato", variante: "neutral" },
+  sin_firmar: { texto: "Falta su firma", variante: "informativo" },
   por_vencer: { texto: "Vence pronto", variante: "advertencia" },
   por_empezar: { texto: "Por empezar", variante: "informativo" },
   vigente: { texto: "Vigente", variante: "positivo" },
 };
 
 export const ESTADO_CONTRATO: Record<EstadoContratoLocacion, { texto: string; variante: Variante }> = {
+  sin_firmar: { texto: "Falta firma", variante: "informativo" },
   en_curso: { texto: "En curso", variante: "positivo" },
   por_empezar: { texto: "Por empezar", variante: "informativo" },
   concluido: { texto: "Concluido", variante: "neutral" },
@@ -92,7 +100,7 @@ export const ESTADO_CONTRATO: Record<EstadoContratoLocacion, { texto: string; va
 };
 
 /** Las bandas de la pestaña, en el orden en que se leen: lo que urge primero. */
-export type BandaLocacion = "abierta" | "sin_cubrir" | "pronto" | "al_dia";
+export type BandaLocacion = "abierta" | "sin_cubrir" | "firma" | "pronto" | "al_dia";
 
 export const BANDAS_LOCACION: readonly { clave: BandaLocacion; titulo: string; ayuda: string }[] = [
   {
@@ -104,6 +112,11 @@ export const BANDAS_LOCACION: readonly { clave: BandaLocacion; titulo: string; a
     clave: "sin_cubrir",
     titulo: "Trabaja sin contrato vigente",
     ayuda: "No tiene contrato registrado, o el último ya terminó. Es lo primero que falta resolver.",
+  },
+  {
+    clave: "firma",
+    titulo: "Falta su firma",
+    ayuda: "El contrato ya se generó en Dynamic y espera que la persona lo firme desde «Lo mío».",
   },
   {
     clave: "pronto",
@@ -120,6 +133,7 @@ export const BANDAS_LOCACION: readonly { clave: BandaLocacion; titulo: string; a
 export function bandaLocacion(estado: EstadoPersonaLocacion): BandaLocacion {
   if (estado === "abierta_sin_rxh") return "abierta";
   if (estado === "vencido" || estado === "sin_contrato") return "sin_cubrir";
+  if (estado === "sin_firmar") return "firma";
   if (estado === "por_vencer") return "pronto";
   return "al_dia";
 }
@@ -146,6 +160,31 @@ export function locacionDeHoy<T extends Pick<ContratoLocacion, "estado">>(contra
     ?? contratos.find((c) => c.estado === "por_empezar")
     ?? contratos.find((c) => c.estado !== "anulado")
     ?? null;
+}
+
+/**
+ * El RUC de una persona natural con DNI: «10» + el DNI + el dígito verificador de la SUNAT (módulo 11 con los
+ * pesos 5,4,3,2,7,6,5,4,3,2). Se propone en el formulario para no tipearlo, y se dice de dónde salió: lo que cuenta
+ * es el de su ficha RUC. `null` si el DNI no tiene 8 dígitos.
+ */
+export function rucDesdeDni(dni: string | null | undefined): string | null {
+  const limpio = (dni ?? "").trim();
+  if (!/^[0-9]{8}$/.test(limpio)) return null;
+  return `10${limpio}${digitoVerificadorRuc(`10${limpio}`)}`;
+}
+
+function digitoVerificadorRuc(diez: string): number {
+  const pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  const suma = diez.split("").reduce((s, c, i) => s + Number(c) * pesos[i], 0);
+  const d = 11 - (suma % 11);
+  return d === 10 ? 0 : d === 11 ? 1 : d;
+}
+
+/** ¿Es un RUC de persona natural (10, 15 o 17) con su dígito verificador correcto? */
+export function rucDePersonaValido(ruc: string): boolean {
+  const r = ruc.trim();
+  if (!/^(10|15|17)[0-9]{9}$/.test(r)) return false;
+  return digitoVerificadorRuc(r.slice(0, 10)) === Number(r[10]);
 }
 
 /** Cuántos meses dura, por defecto, un contrato nuevo. Se ve y se cambia en un clic. */

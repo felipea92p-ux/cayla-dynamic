@@ -139,7 +139,7 @@ export function construirLocacion(datos: DatosLocacion): string {
     <p>${EMPRESA.nombre}, identificada con R.U.C. N.° ${EMPRESA.ruc}, con domicilio legal en ${EMPRESA.domicilio},
     debidamente representada por ${d.firmanteNombre}, identificado(a) con D.N.I. N.° ${d.firmanteDni}, a quien en
     adelante se denominará ${COMITENTE}; y</p>
-    <p>${d.nombreDni}, ${segunGenero(d, "identificado", "identificada")} con D.N.I. N.° ${d.documento} y R.U.C.
+    <p>${d.nombreDni}, ${segunGenero(d, "identificado", "identificada")} con D.N.I. N.° ${d.documento.trim() || falta("EL DNI")} y R.U.C.
     N.° ${d.ruc ?? falta("EL RUC, NECESARIO PARA EMITIR EL RECIBO POR HONORARIOS")}${
       d.direccion ? `, con domicilio en ${d.direccion}` : ""
     }, a quien en adelante se denominará ${locador}.</p>
@@ -216,7 +216,7 @@ export function construirLocacion(datos: DatosLocacion): string {
       </div>
       <div>
         <p class="linea">${MARCADOR_FIRMA_PERSONA}</p>
-        <p><strong>${locador}</strong><br/>${d.nombreDni}<br/>DNI N.° ${d.documento}</p>
+        <p><strong>${locador}</strong><br/>${d.nombreDni}<br/>DNI N.° ${d.documento.trim() || falta("EL DNI")}</p>
       </div>
     </div>
     <p class="pie-hoja">${EMPRESA.nombre} · RUC N.° ${EMPRESA.ruc}</p>

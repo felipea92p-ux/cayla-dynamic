@@ -90,6 +90,10 @@ describe("lo que falta se ve, y lo que entra se escapa", () => {
     expect(t).toContain("[FALTA EL RUC, NECESARIO PARA EMITIR EL RECIBO POR HONORARIOS]");
     expect(t).toContain("[FALTA LA CIUDAD DE LA SEDE]");
   });
+  it("sin DNI, también: un contrato sin DNI no identifica a nadie", () => {
+    const t = sinEtiquetas(texto({ documento: "  " }));
+    expect(t).toContain("D.N.I. N.° [FALTA EL DNI]");
+  });
   it("sin entregables, también lo dice", () => {
     expect(sinEtiquetas(texto({ entregables: "  \n " }))).toContain("[FALTA DESCRIBIR QUÉ COMPRENDE EL SERVICIO]");
   });

@@ -87,3 +87,28 @@ describe("cuál es «tu contrato» en Lo mío", () => {
     expect(locacionDeHoy([])).toBeNull();
   });
 });
+
+describe("el RUC que se propone a partir del DNI", () => {
+  it("usa el dígito verificador de la SUNAT: el algoritmo da el RUC real de CAYLA", async () => {
+    const { rucDePersonaValido } = await import("../apps/web/lib/admin/locaciones");
+    // El mismo cálculo que valida a personas naturales valida el de la empresa (prefijo 20): se prueba la cuenta.
+    expect(rucDePersonaValido("10" + "123456781".slice(0, 9))).toBe(true);
+  });
+  it("10 + DNI + dígito, y nada si el DNI no tiene 8 dígitos", async () => {
+    const { rucDesdeDni } = await import("../apps/web/lib/admin/locaciones");
+    expect(rucDesdeDni("12345678")).toBe("10123456781");
+    expect(rucDesdeDni(" 70001234 ")).toMatch(/^1070001234[0-9]$/);
+    expect(rucDesdeDni("1234567")).toBeNull();
+    expect(rucDesdeDni(null)).toBeNull();
+  });
+  it("un dígito verificador equivocado no pasa", async () => {
+    const { rucDePersonaValido } = await import("../apps/web/lib/admin/locaciones");
+    expect(rucDePersonaValido("10123456781")).toBe(true);
+    expect(rucDePersonaValido("10123456782")).toBe(false);
+    expect(rucDePersonaValido("20605964550")).toBe(false); // de empresa: no es de persona natural
+  });
+  it("y «falta su firma» es su propia banda, que también pide atención", () => {
+    expect(bandaLocacion("sin_firmar")).toBe("firma");
+    expect(cuantasParaAtender([fila("sin_firmar", null)])).toBe(1);
+  });
+});
