@@ -34,27 +34,28 @@ export default function VersionHistoricaPage() {
 
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [fila, setFila] = useState<{ version: number; documento: string; publicada_at: string; notas: string | null } | null>(null);
+  const [fila, setFila] = useState<{
+    version: number; documento: string; publicada_at: string; notas: string | null; firma_empresa: string | null;
+  } | null>(null);
   const [esVigente, setEsVigente] = useState(false);
-  const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (persona === null) return;
     (async () => {
       const supabase = createAdminSupabaseClient();
-      const [r, ultima, f] = await Promise.all([
-        supabase.from("politica_salarial").select("version, documento, publicada_at, notas").eq("version", Number(version)).maybeSingle(),
+      // La firma de CAYLA es la que se congeló al publicar ESTA versión (0616),
+      // no la de quien abre la página (así era antes de la 0398) ni la de hoy
+      // (así era hasta la 0616): una versión histórica tiene que mostrar la de
+      // su día. Sin firma congelada —publicada antes de que se pudiera probar
+      // cuál era— sale la raya en blanco.
+      const [r, ultima] = await Promise.all([
+        supabase.from("politica_salarial").select("version, documento, publicada_at, notas, firma_empresa").eq("version", Number(version)).maybeSingle(),
         supabase.from("politica_salarial").select("version").order("version", { ascending: false }).limit(1).maybeSingle(),
-        // La firma de quien firma por CAYLA, no la de quien abre la versión: antes
-        // se estampaba la propia de cualquiera que la abriera, bajo el nombre del
-        // firmante del documento.
-        supabase.rpc("fn_firma_empresa"),
       ]);
       if (r.error !== null) { setError(mensajeDeError(r.error, "cargar esta versión")); setCargando(false); return; }
       if (!r.data) { setError(`No existe la versión ${version}.`); setCargando(false); return; }
       setFila(r.data as typeof fila);
       setEsVigente(ultima.data?.version === Number(version));
-      setFirmaUrl(typeof f.data === "string" && f.data.startsWith("data:image") ? f.data : null);
       setCargando(false);
     })();
   }, [persona, version]);
@@ -95,7 +96,7 @@ export default function VersionHistoricaPage() {
       {fila.notas && <p className="mb-4 text-sm text-taupe print:hidden">Notas: {fila.notas}</p>}
 
       {doc ? (
-        <DocumentoVista doc={doc} firmaUrl={puedeEstamparFirmaDeEmpresa(persona?.rol) ? firmaUrl : null} />
+        <DocumentoVista doc={doc} firmaUrl={puedeEstamparFirmaDeEmpresa(persona?.rol) ? fila.firma_empresa : null} />
       ) : (
         <TarjetaInfo como="article" className="p-6 sm:p-6">
           <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-tinta">{fila.documento}</pre>
