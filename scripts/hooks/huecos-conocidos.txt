@@ -285,3 +285,4 @@
 0599  Reservada por una «rama de licencias» que nunca apareció (ver arriba). Nunca se aplicó en producción.
 0600  Reservada por la misma rama. Fue el primer número de la 0602 de Seguros, renumerada en eab0f841. Nunca se aplicó en producción.
 0601  Reservada por la misma rama. Fue el primer número de la 0603 de Seguros, renumerada en eab0f841. Nunca se aplicó en producción.
+0609  Se escribió el 2026-11-09 (el costo de cada periodo por concepto) sobre la 0608 y nunca se pegó: mientras esperaba, la 0612 reescribió la misma función y se pegó en producción. Copiada tal cual habría borrado la 0612, y con su número un db reset la aplicaría ANTES de la 0612. Se rehízo sobre la 0612 como 0614. No está en producción ni en migraciones_aplicadas.

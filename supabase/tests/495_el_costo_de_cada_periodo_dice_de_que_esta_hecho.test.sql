@@ -1,19 +1,21 @@
 -- ============================================================================
--- 495_el_costo_de_cada_periodo_dice_de_que_esta_hecho.test.sql — migración 0609
+-- 495_el_costo_de_cada_periodo_dice_de_que_esta_hecho.test.sql — migración 0614
 -- ============================================================================
 -- Cada periodo de `fn_costos_planilla` trae ahora sus conceptos. Lo que esta
 -- prueba vigila es que CUADREN: el gráfico «En qué se va la planilla» se pone
 -- al lado del «Costo de planilla», y si los dos no dicen el mismo total al
 -- centavo, hay dos costos.
 --
--- Y que nada más se mueva: la 0609 reescribe la función entera.
+-- Y que nada más se mueva: la 0614 reescribe la función entera, partiendo de
+-- la 0612. Si alguien la copiara de una versión anterior, la 0612 desaparecería
+-- sin que fallara nada más: eso lo vigila el caso 7.
 --
 -- El montaje es el de la 201: un periodo cerrado con una locadora con
 -- retención de 4ta y una trabajadora de planilla con pensión, para que los
 -- tres descuentos tengan algo que restar.
 -- ============================================================================
 begin;
-select plan(6);
+select plan(7);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-000000000495', 'ZZ495', 'Sede de laboratorio 495', true);
@@ -98,6 +100,13 @@ select is(
   (select (p->>'costo')::numeric from _p),
   (select round(sum(costo_total), 2) from _f),
   'El costo del periodo sigue siendo la suma de la foto');
+
+-- ── 7 · Lo de la 0612 sigue ahí ────────────────────────────────────────────
+select ok(
+  (select s ? 'personas_periodo' and s ? 'costo_por_persona_periodo' and s ? 'costo_sin_horas'
+     from jsonb_array_elements((select fn_costos_planilla('2026-07-01', '2026-09-30'))->'por_sede') s
+    where s->>'sede' = 'ZZ495'),
+  'Por sede siguen las cifras de la 0612: personas-periodo, costo por persona al mes y costo sin horas');
 
 select * from finish();
 rollback;
