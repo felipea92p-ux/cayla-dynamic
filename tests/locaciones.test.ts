@@ -5,6 +5,7 @@ import {
   ESTADO_PERSONA,
   fechasSugeridas,
   textoPlazo,
+  textoVinculoActual,
   type FilaTableroLocacion,
 } from "../apps/web/lib/admin/locaciones";
 
@@ -12,7 +13,7 @@ import {
 // solo se prueba cómo se agrupa y cómo se dice.
 
 const fila = (estado: FilaTableroLocacion["estado"], dias: number | null): FilaTableroLocacion => ({
-  persona_id: estado, persona: "Prueba", sede: "TRU", contrato_id: null, servicio: null,
+  persona_id: estado, persona: "Prueba", sede: "TRU", vinculo_actual: "rxh", contrato_id: null, servicio: null,
   fecha_inicio: null, cubierto_hasta: null, dias_restantes: dias, n_contratos: 0, estado,
 });
 
@@ -26,9 +27,17 @@ describe("bandas de la pestaña", () => {
     expect(bandaLocacion("por_empezar")).toBe("al_dia");
     expect(bandaLocacion("vigente")).toBe("al_dia");
   });
+  it("quien ya no es RxH con su locación abierta va en su propia banda, la primera", () => {
+    expect(bandaLocacion("abierta_sin_rxh")).toBe("abierta");
+  });
   it("el número rojo de la pestaña cuenta solo lo que pide algo", () => {
-    const filas = [fila("vencido", -3), fila("sin_contrato", null), fila("por_vencer", 10), fila("vigente", 200), fila("por_empezar", 300)];
-    expect(cuantasParaAtender(filas)).toBe(3);
+    const filas = [fila("abierta_sin_rxh", 90), fila("vencido", -3), fila("sin_contrato", null), fila("por_vencer", 10), fila("vigente", 200), fila("por_empezar", 300)];
+    expect(cuantasParaAtender(filas)).toBe(4);
+  });
+  it("lo que la persona es hoy se dice con las palabras de la pantalla, no con el valor interno", () => {
+    expect(textoVinculoActual("planilla")).toBe("Hoy está en Planilla");
+    expect(textoVinculoActual("prueba")).toBe("Hoy está en Preselección");
+    expect(textoVinculoActual("cesada")).toBe("Ya cesó");
   });
 });
 

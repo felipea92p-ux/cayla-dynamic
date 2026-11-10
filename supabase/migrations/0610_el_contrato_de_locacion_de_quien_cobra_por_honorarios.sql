@@ -47,7 +47,14 @@
 --                                                  Storage
 --   · un escaneo en dos contratos vivos ......... índice único parcial
 --   · una locación vigente para alguien de
---     planilla (dos vínculos a la vez) .......... la función
+--     planilla (dos vínculos a la vez) .......... la función, al registrar.
+--     Y si la persona pasa a planilla DESPUÉS
+--     (eso se hace en Equipo y esta migración
+--     no lo toca), el tablero la muestra como
+--     `abierta_sin_rxh` hasta que DO termine
+--     su locación ............................... el tablero
+--   · terminar antes de la víspera de empezar,
+--     o después de su fin ........................ check + la función
 --   · firmado en el futuro ...................... la función
 --   · un contrato sin servicio .................. check
 --   · uno que termina antes de empezar .......... check
@@ -100,6 +107,7 @@
 -- ── CÓMO SE REVIERTE ─────────────────────────────────────────────────────────
 --   drop function if exists fn_locaciones_tablero(), fn_locaciones_listar(uuid),
 --     fn_locacion_registrar(uuid, text, date, date, date, text, text),
+--     fn_locacion_anular(uuid, text), fn_locacion_terminar(uuid, date, text),
 --     fn_locacion_libre(text);
 --   drop policy contratos_locacion_insert/select/update/delete on storage.objects;
 --   drop table contratos_locacion;   -- se lleva su trigger y sus índices
@@ -153,7 +161,11 @@ create table if not exists contratos_locacion (
   anulado_por      uuid references personas(id),
   anulado_motivo   text,
   constraint locacion_fin_no_antes_del_inicio check (fecha_fin >= fecha_inicio),
-  constraint locacion_termina_dentro_del_plazo check (terminado_el is null or terminado_el <= fecha_fin),
+  -- Se termina, como pronto, la víspera de empezar (nunca entró en vigor) y,
+  -- como tarde, en su fecha de fin.
+  constraint locacion_termina_dentro_del_plazo check (
+    terminado_el is null or (terminado_el <= fecha_fin and terminado_el >= fecha_inicio - 1)
+  ),
   constraint locacion_termino_completo check (
     (terminado_el is null and terminado_motivo is null and terminado_por is null and terminado_at is null)
     or (terminado_el is not null and terminado_por is not null and terminado_at is not null
@@ -247,24 +259,35 @@ create unique index if not exists idx_contratos_locacion_ruta_viva
 -- (0287): quien no tiene ninguno tiene que verse.
 --
 -- Contrato: devuelve a cada RxH activo (sin las cuentas de servicio, 0491) con
--- el contrato que llega más lejos y el estado de su cobertura. Un término
--- anticipado cuenta como el fin real. Los anulados no cuentan. Quien no es DO
--- recibe la lista vacía, como en el tablero hermano.
+-- el contrato que llega más lejos y el estado de su cobertura, y ADEMÁS a quien
+-- ya no es RxH activo pero conserva una locación abierta. Un término anticipado
+-- cuenta como el fin real. Los anulados no cuentan. Quien no es DO recibe la
+-- lista vacía, como en el tablero hermano.
 --
---   vencido ....... su último contrato ya terminó y sigue activa por honorarios
---   sin_contrato .. no hay ninguno registrado
---   por_vencer .... cubierta hoy y hasta dentro de 60 días o menos (la misma
---                   ventana de Contratos y de Equipo)
---   por_empezar ... hoy no está cubierta, pero hay un contrato que empieza después
---   vigente ....... cubierta hoy y por más de 60 días
+--   abierta_sin_rxh  pasó a planilla (o cesó) y su locación sigue abierta: dos
+--                    vínculos a la vez hasta que alguien la termine
+--   vencido ........ su último contrato ya terminó y sigue activa por honorarios
+--   sin_contrato ... no hay ninguno registrado
+--   por_vencer ..... cubierta hoy y hasta dentro de 60 días o menos (la misma
+--                    ventana de Contratos y de Equipo)
+--   por_empezar .... hoy no está cubierta, pero hay un contrato que empieza después
+--   vigente ........ cubierta hoy y por más de 60 días
 --
 -- Un contrato ya firmado que empieza cuando termina el actual cuenta como
 -- cobertura: «vence pronto» no salta si la renovación ya está registrada.
-create or replace function fn_locaciones_tablero()
+--
+-- `vinculo_actual` dice qué es hoy la persona: `rxh`, otro `tipo_vinculo`, o
+-- `cesada`. Solo cambia algo en las filas `abierta_sin_rxh`.
+--
+-- `drop` + `create` y no `create or replace`: Postgres no deja cambiar las
+-- columnas de una función que devuelve TABLE (mismo camino que la 0161).
+drop function if exists fn_locaciones_tablero();
+create function fn_locaciones_tablero()
 returns table (
   persona_id      uuid,
   persona         text,
   sede            text,
+  vinculo_actual  text,
   contrato_id     uuid,
   servicio        text,
   fecha_inicio    date,
@@ -279,6 +302,8 @@ as $fn$
     select c.*, coalesce(c.terminado_el, c.fecha_fin) as fin_real
       from contratos_locacion c
      where c.anulado_at is null
+       -- Uno terminado antes de empezar nunca estuvo en vigor: no cubre nada.
+       and coalesce(c.terminado_el, c.fecha_fin) >= c.fecha_inicio
   ),
   ultimo as (
     -- El que llega más lejos. `registrado_at` y `id` como desempate: dos
@@ -295,14 +320,23 @@ as $fn$
       from vivos v
      group by v.persona_id
   ),
+  -- Quien ya no es RxH activo y tiene una locación sin terminar que todavía
+  -- no llega a su fecha de fin.
+  abiertas as (
+    select distinct c.persona_id
+      from contratos_locacion c
+     where c.anulado_at is null and c.terminado_el is null and c.fecha_fin >= fn_hoy_lima()
+  ),
   filas as (
     select p.id as persona_id,
            p.nombres || ' ' || p.apellidos as persona,
            p.apellidos,
            coalesce(s.codigo, '—') as sede,
+           case when p.estado <> 'activo' then 'cesada' else p.tipo_vinculo end as vinculo_actual,
            u.id as contrato_id, u.servicio, u.fecha_inicio, u.fin_real,
            coalesce(r.n, 0) as n,
            case
+             when not (p.estado = 'activo' and p.tipo_vinculo = 'rxh') then 'abierta_sin_rxh'
              when u.id is null                         then 'sin_contrato'
              when u.fin_real < fn_hoy_lima()           then 'vencido'
              when not r.cubierta_hoy                   then 'por_empezar'
@@ -313,21 +347,22 @@ as $fn$
       left join sedes s   on s.id = p.sede_base_id
       left join ultimo u  on u.persona_id = p.id
       left join resumen r on r.persona_id = p.id
-     where p.estado = 'activo'
-       and not p.cuenta_de_servicio
-       and p.tipo_vinculo = 'rxh'
+     where not p.cuenta_de_servicio
+       and ((p.estado = 'activo' and p.tipo_vinculo = 'rxh')
+            or p.id in (select a.persona_id from abiertas a))
        and fn_es_admin_o_lider() is true
   )
-  select f.persona_id, f.persona, f.sede, f.contrato_id, f.servicio, f.fecha_inicio,
+  select f.persona_id, f.persona, f.sede, f.vinculo_actual, f.contrato_id, f.servicio, f.fecha_inicio,
          f.fin_real, (f.fin_real - fn_hoy_lima())::int, f.n, f.estado
     from filas f
-   -- Lo que urge primero: quien trabaja sin contrato vigente.
+   -- Lo que urge primero: dos vínculos a la vez, y quien trabaja sin contrato vigente.
    order by case f.estado
-              when 'vencido'      then 0
-              when 'sin_contrato' then 1
-              when 'por_vencer'   then 2
-              when 'por_empezar'  then 3
-              else 4
+              when 'abierta_sin_rxh' then 0
+              when 'vencido'         then 1
+              when 'sin_contrato'    then 2
+              when 'por_vencer'      then 3
+              when 'por_empezar'     then 4
+              else 5
             end,
             f.fin_real nulls last, f.apellidos, f.persona_id;
 $fn$;
@@ -495,16 +530,113 @@ end;
 $fn$;
 
 
+-- ── 5c · Anular un registro equivocado ───────────────────────────────────────
+-- Para lo que se registró mal: otra persona, una fecha, el servicio mal
+-- escrito. El contrato anulado no cuenta para nada, pero se queda en el
+-- historial con su motivo, y su escaneo también. Uno ya terminado no se anula:
+-- existió, y su término dice cuándo dejó de valer.
+create or replace function fn_locacion_anular(p_id uuid, p_motivo text)
+returns void
+language plpgsql security definer set search_path = public
+as $fn$
+declare
+  v_quien uuid := fn_persona_actual_id();
+  v_c     contratos_locacion%rowtype;
+begin
+  if fn_es_admin_o_lider() is not true then
+    raise exception 'Solo Desarrollo Organizacional anula contratos de locación.';
+  end if;
+  if v_quien is null then
+    raise exception 'Tu cuenta todavía no está enlazada con tu ficha.';
+  end if;
+  if p_motivo is null or char_length(btrim(p_motivo)) < 5 then
+    raise exception 'Escribe por qué se anula (al menos 5 letras): queda anotado junto al contrato.';
+  end if;
+
+  -- `for update`: dos personas de DO sobre el mismo contrato se ordenan, y la
+  -- segunda recibe «ya está anulado» en vez de pisar el motivo de la primera.
+  select * into v_c from contratos_locacion c where c.id = p_id for update;
+  if not found then
+    raise exception 'Ese contrato no existe.';
+  end if;
+  if v_c.anulado_at is not null then
+    raise exception 'Ese contrato ya está anulado.';
+  end if;
+  if v_c.terminado_el is not null then
+    raise exception 'Ese contrato ya se dio por terminado: no se anula.';
+  end if;
+
+  update contratos_locacion
+     set anulado_at = now(), anulado_por = v_quien, anulado_motivo = btrim(p_motivo)
+   where id = p_id;
+end;
+$fn$;
+
+
+-- ── 5d · Terminar una locación antes de su fecha ─────────────────────────────
+-- Para cuando la persona pasa a planilla, cesa o el contrato se resuelve. La
+-- fecha es el último día en que valió: puede ser futura (se sabe que pasa a
+-- planilla el 1 de diciembre) y, como pronto, la víspera de empezar (nunca
+-- entró en vigor). No toca `personas`: pasar a planilla se hace en Equipo, y
+-- este registro solo cierra el vínculo civil.
+create or replace function fn_locacion_terminar(p_id uuid, p_fecha date, p_motivo text)
+returns void
+language plpgsql security definer set search_path = public
+as $fn$
+declare
+  v_quien uuid := fn_persona_actual_id();
+  v_c     contratos_locacion%rowtype;
+begin
+  if fn_es_admin_o_lider() is not true then
+    raise exception 'Solo Desarrollo Organizacional termina contratos de locación.';
+  end if;
+  if v_quien is null then
+    raise exception 'Tu cuenta todavía no está enlazada con tu ficha.';
+  end if;
+  if p_motivo is null or char_length(btrim(p_motivo)) < 5 then
+    raise exception 'Escribe por qué termina (al menos 5 letras): queda anotado junto al contrato.';
+  end if;
+  if p_fecha is null then
+    raise exception 'Falta el último día en que valió el contrato.';
+  end if;
+
+  select * into v_c from contratos_locacion c where c.id = p_id for update;
+  if not found then
+    raise exception 'Ese contrato no existe.';
+  end if;
+  if v_c.anulado_at is not null then
+    raise exception 'Ese contrato está anulado: no se termina.';
+  end if;
+  if v_c.terminado_el is not null then
+    raise exception 'Ese contrato ya se dio por terminado.';
+  end if;
+  if p_fecha >= v_c.fecha_fin then
+    raise exception 'Esa fecha no es antes del fin del contrato: no hace falta terminarlo.';
+  end if;
+  if p_fecha < v_c.fecha_inicio - 1 then
+    raise exception 'El último día no puede ser anterior a la víspera de su inicio.';
+  end if;
+
+  update contratos_locacion
+     set terminado_el = p_fecha, terminado_motivo = btrim(p_motivo),
+         terminado_por = v_quien, terminado_at = now()
+   where id = p_id;
+end;
+$fn$;
+
+
 -- ── 6 · Quién puede llamar qué ───────────────────────────────────────────────
 -- Desde la 0076 ninguna función nace con EXECUTE para nadie: sin estos grants
 -- la pestaña queda vacía sin dar error (0204).
 grant execute on function
   fn_locaciones_tablero(), fn_locaciones_listar(uuid),
-  fn_locacion_registrar(uuid, text, date, date, date, text, text)
+  fn_locacion_registrar(uuid, text, date, date, date, text, text),
+  fn_locacion_anular(uuid, text), fn_locacion_terminar(uuid, date, text)
 to authenticated;
 revoke execute on function
   fn_locaciones_tablero(), fn_locaciones_listar(uuid),
-  fn_locacion_registrar(uuid, text, date, date, date, text, text)
+  fn_locacion_registrar(uuid, text, date, date, date, text, text),
+  fn_locacion_anular(uuid, text), fn_locacion_terminar(uuid, date, text)
 from public, anon;
 
 
@@ -575,7 +707,7 @@ select
     where table_schema = 'public' and table_name = 'contratos_locacion') as tabla_de_1,
   (select count(*) from pg_proc where proname in (
      'fn_locaciones_tablero', 'fn_locaciones_listar', 'fn_contratos_locacion_inmutables',
-     'fn_locacion_libre', 'fn_locacion_registrar')) as funciones_de_5,
+     'fn_locacion_libre', 'fn_locacion_registrar', 'fn_locacion_anular', 'fn_locacion_terminar')) as funciones_de_7,
   (select count(*) from pg_policies where schemaname = 'storage' and policyname like 'contratos\_locacion\_%') as politicas_storage_de_4,
   (select count(*) from storage.buckets where id = 'contratos-locacion' and public is false) as bucket_privado,
   (select relrowsecurity from pg_class where relname = 'contratos_locacion') as rls_activa,

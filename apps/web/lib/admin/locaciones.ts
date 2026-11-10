@@ -20,6 +20,7 @@
 // ============================================================================
 import { sumarDias } from "@/lib/mi-semana";
 import { sumarMeses } from "@/lib/admin/seguros";
+import { TIPO_VINCULO_LABEL, type TipoVinculo } from "@cayla-dynamic/shared";
 
 /** El bucket privado de los escaneos firmados (0610). */
 export const BUCKET_LOCACION = "contratos-locacion";
@@ -29,6 +30,8 @@ export interface FilaTableroLocacion {
   persona_id: string;
   persona: string;
   sede: string;
+  /** Qué es hoy: `rxh`, otro `tipo_vinculo`, o `cesada`. Solo importa en `abierta_sin_rxh`. */
+  vinculo_actual: string;
   contrato_id: string | null;
   servicio: string | null;
   fecha_inicio: string | null;
@@ -62,7 +65,8 @@ export interface ContratoLocacion {
   anulado_por_nombre: string | null;
 }
 
-export type EstadoPersonaLocacion = "vencido" | "sin_contrato" | "por_vencer" | "por_empezar" | "vigente";
+export type EstadoPersonaLocacion =
+  | "abierta_sin_rxh" | "vencido" | "sin_contrato" | "por_vencer" | "por_empezar" | "vigente";
 export type EstadoContratoLocacion = "en_curso" | "por_empezar" | "concluido" | "terminado" | "anulado";
 
 type Variante = "neutral" | "alerta" | "advertencia" | "positivo" | "informativo";
@@ -73,6 +77,7 @@ type Variante = "neutral" | "alerta" | "advertencia" | "positivo" | "informativo
  * TRABAJO por ley, y aquí no aplica. El color nunca va solo: lleva su palabra.
  */
 export const ESTADO_PERSONA: Record<EstadoPersonaLocacion, { texto: string; variante: Variante }> = {
+  abierta_sin_rxh: { texto: "Locación abierta", variante: "advertencia" },
   vencido: { texto: "Vencido", variante: "advertencia" },
   sin_contrato: { texto: "Sin contrato", variante: "neutral" },
   por_vencer: { texto: "Vence pronto", variante: "advertencia" },
@@ -89,9 +94,14 @@ export const ESTADO_CONTRATO: Record<EstadoContratoLocacion, { texto: string; va
 };
 
 /** Las bandas de la pestaña, en el orden en que se leen: lo que urge primero. */
-export type BandaLocacion = "sin_cubrir" | "pronto" | "al_dia";
+export type BandaLocacion = "abierta" | "sin_cubrir" | "pronto" | "al_dia";
 
 export const BANDAS_LOCACION: readonly { clave: BandaLocacion; titulo: string; ayuda: string }[] = [
+  {
+    clave: "abierta",
+    titulo: "Ya no cobra por honorarios",
+    ayuda: "Pasó a otro vínculo o ya cesó, y su locación sigue abierta: termínala con el último día en que valió.",
+  },
   {
     clave: "sin_cubrir",
     titulo: "Trabaja sin contrato vigente",
@@ -110,6 +120,7 @@ export const BANDAS_LOCACION: readonly { clave: BandaLocacion; titulo: string; a
 ];
 
 export function bandaLocacion(estado: EstadoPersonaLocacion): BandaLocacion {
+  if (estado === "abierta_sin_rxh") return "abierta";
   if (estado === "vencido" || estado === "sin_contrato") return "sin_cubrir";
   if (estado === "por_vencer") return "pronto";
   return "al_dia";
@@ -118,6 +129,13 @@ export function bandaLocacion(estado: EstadoPersonaLocacion): BandaLocacion {
 /** Cuántas personas piden algo hoy: el número rojo de la pestaña. */
 export function cuantasParaAtender(filas: readonly FilaTableroLocacion[]): number {
   return filas.filter((f) => bandaLocacion(f.estado) !== "al_dia").length;
+}
+
+/** «Hoy está en Planilla», «Ya cesó»: lo que la persona es hoy, para la fila que ya no es RxH. */
+export function textoVinculoActual(vinculo: string): string {
+  if (vinculo === "cesada") return "Ya cesó";
+  const etiqueta = TIPO_VINCULO_LABEL[vinculo as TipoVinculo];
+  return etiqueta ? `Hoy está en ${etiqueta}` : "Ya no cobra por honorarios";
 }
 
 /** Cuántos meses dura, por defecto, un contrato nuevo. Se ve y se cambia en un clic. */

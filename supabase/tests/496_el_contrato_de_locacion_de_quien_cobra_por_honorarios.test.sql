@@ -15,7 +15,7 @@
 -- vence sola el día que el calendario la alcanza.
 -- ============================================================================
 begin;
-select plan(38);
+select plan(53);
 
 -- ── Sede y personas ──────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -149,8 +149,12 @@ select is(pg_temp.estado('00000000-0000-0000-0000-00000610c008'), 'vencido', 'un
 select is(
   (select count(*)::int from fn_locaciones_tablero()
     where persona_id in ('00000000-0000-0000-0000-00000610d001', '00000000-0000-0000-0000-00000610d002',
-                         '00000000-0000-0000-0000-00000610d003', '00000000-0000-0000-0000-00000610a001')),
-  0, 'ni la de planilla, ni la cuenta de servicio, ni la que ya cesó salen en el tablero');
+                         '00000000-0000-0000-0000-00000610a001')),
+  0, 'ni la de planilla sin locación, ni la cuenta de servicio, ni DO salen en el tablero');
+select is(
+  (select row(estado, vinculo_actual)::text from fn_locaciones_tablero() where persona_id = '00000000-0000-0000-0000-00000610d003'),
+  row('abierta_sin_rxh', 'cesada')::text,
+  'la que cesó con su locación abierta sí sale: hay que terminarla');
 select is(
   (select string_agg(estado, ',' order by id) from fn_locaciones_listar('00000000-0000-0000-0000-00000610c006')) is not null
     and (select count(*)::int from fn_locaciones_listar('00000000-0000-0000-0000-00000610c006')) = 2
@@ -232,6 +236,81 @@ select throws_ok(
 select is(
   (select row(fn_locacion_libre('61000000-0000-0000-0000-0000000000a2.jpg'), fn_locacion_libre('61000000-0000-0000-0000-0000000000a1.pdf'))::text),
   row(false, true)::text, 'un escaneo registrado no se puede pisar ni borrar; uno huérfano sí');
+reset role;
+
+-- ── E · Anular, terminar, y la locación que quedó abierta ────────────────
+-- Alguien que era RxH con su locación vigente y pasó a planilla (eso se hace en
+-- Equipo): se escribe directo, porque la función de registrar ya no lo dejaría.
+set session_replication_role = replica;
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, fecha_ingreso, tipo_vinculo, cargo) values
+  ('00000000-0000-0000-0000-00000610d004', 'PasoAPlanilla', 'Lab', '00000000-0000-0000-0000-000006100001', 'integrante', 'x', '2025-01-01', 'planilla', 'Vendedora');
+set session_replication_role = origin;
+select pg_temp.loc('00000000-0000-0000-0000-00000610d004', fn_hoy_lima() - 60, fn_hoy_lima() + 120, '61000000-0000-0000-0000-0000000000d4.pdf');
+
+create function pg_temp.contrato_de(p_persona text) returns uuid language sql as $$
+  select id from contratos_locacion where persona_id = p_persona::uuid and anulado_at is null
+   order by registrado_at desc, id desc limit 1 $$;
+grant execute on function pg_temp.contrato_de(text) to authenticated;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000610b002","role":"authenticated"}', true);
+set local role authenticated;
+select throws_ok(
+  $$ select fn_locacion_anular(pg_temp.contrato_de('00000000-0000-0000-0000-00000610c004'), 'Era de otra persona') $$,
+  'P0001', 'Solo Desarrollo Organizacional anula contratos de locación.', 'una integrante no anula');
+select throws_ok(
+  $$ select fn_locacion_terminar(pg_temp.contrato_de('00000000-0000-0000-0000-00000610c004'), fn_hoy_lima(), 'Pasó a planilla') $$,
+  'P0001', 'Solo Desarrollo Organizacional termina contratos de locación.', 'ni termina');
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000610b001","role":"authenticated"}', true);
+set local role authenticated;
+select is(
+  (select row(estado, vinculo_actual)::text from fn_locaciones_tablero() where persona_id = '00000000-0000-0000-0000-00000610d004'),
+  row('abierta_sin_rxh', 'planilla')::text,
+  'quien pasó a planilla con su locación vigente sale avisada: son dos vínculos a la vez');
+
+-- Anular
+select throws_ok(
+  $$ select fn_locacion_anular(pg_temp.contrato_de('00000000-0000-0000-0000-00000610c004'), 'mal') $$,
+  'P0001', 'Escribe por qué se anula (al menos 5 letras): queda anotado junto al contrato.', 'anular pide motivo');
+select set_config('t.vigente', pg_temp.contrato_de('00000000-0000-0000-0000-00000610c004')::text, true);
+select fn_locacion_anular(current_setting('t.vigente')::uuid, 'Se registró con la fecha de fin equivocada');
+select is(pg_temp.estado('00000000-0000-0000-0000-00000610c004'), 'sin_contrato', 'anulado su único contrato, vuelve a «sin contrato»');
+select throws_ok(
+  $$ select fn_locacion_anular(current_setting('t.vigente')::uuid, 'Otra vez el mismo') $$,
+  'P0001', 'Ese contrato ya está anulado.', 'no se anula dos veces');
+
+-- Terminar
+select set_config('t.porvencer', pg_temp.contrato_de('00000000-0000-0000-0000-00000610c003')::text, true);
+select throws_ok(
+  $$ select fn_locacion_terminar(current_setting('t.porvencer')::uuid, fn_hoy_lima() + 60, 'Se resolvió antes') $$,
+  'P0001', 'Esa fecha no es antes del fin del contrato: no hace falta terminarlo.', 'terminar en su propia fecha de fin no tiene sentido');
+select throws_ok(
+  $$ select fn_locacion_terminar(current_setting('t.porvencer')::uuid, fn_hoy_lima() - 102, 'Se resolvió antes') $$,
+  'P0001', 'El último día no puede ser anterior a la víspera de su inicio.', 'ni antes de la víspera de empezar');
+select fn_locacion_terminar(current_setting('t.porvencer')::uuid, fn_hoy_lima() - 1, 'Se resolvió de común acuerdo');
+select is(pg_temp.estado('00000000-0000-0000-0000-00000610c003'), 'vencido', 'terminado ayer, ya no la cubre: «vencido»');
+select throws_ok(
+  $$ select fn_locacion_terminar(current_setting('t.porvencer')::uuid, fn_hoy_lima() - 2, 'Otra fecha') $$,
+  'P0001', 'Ese contrato ya se dio por terminado.', 'no se termina dos veces');
+select throws_ok(
+  $$ select fn_locacion_anular(current_setting('t.porvencer')::uuid, 'Mejor anularlo') $$,
+  'P0001', 'Ese contrato ya se dio por terminado: no se anula.', 'ni se anula uno ya terminado: existió');
+
+-- Uno que se termina la víspera de empezar nunca estuvo en vigor.
+select fn_locacion_terminar(pg_temp.contrato_de('00000000-0000-0000-0000-00000610c005'), fn_hoy_lima() + 4, 'No llegó a empezar');
+select is(pg_temp.estado('00000000-0000-0000-0000-00000610c005'), 'sin_contrato', 'terminado la víspera de empezar: no cubre nada');
+
+-- Terminar la de quien pasó a planilla la saca del tablero.
+select fn_locacion_terminar(pg_temp.contrato_de('00000000-0000-0000-0000-00000610d004'), fn_hoy_lima() - 1, 'Pasó a planilla');
+select is(
+  (select count(*)::int from fn_locaciones_tablero() where persona_id = '00000000-0000-0000-0000-00000610d004'),
+  0, 'terminada su locación, quien pasó a planilla deja de salir');
+select is(
+  (select row(terminado_motivo, terminado_por)::text from contratos_locacion
+    where id = current_setting('t.porvencer')::uuid),
+  row('Se resolvió de común acuerdo', '00000000-0000-0000-0000-00000610a001'::uuid)::text,
+  'el término queda con su motivo y con quién lo hizo');
 reset role;
 
 select * from finish();

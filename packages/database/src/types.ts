@@ -9848,6 +9848,10 @@ export type Database = {
           vencido: boolean
         }[]
       }
+      fn_locacion_anular: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
       fn_locacion_libre: { Args: { p_path: string | null }; Returns: boolean }
       fn_locacion_registrar: {
         Args: {
@@ -9860,6 +9864,10 @@ export type Database = {
           p_storage_path: string | null
         }
         Returns: string
+      }
+      fn_locacion_terminar: {
+        Args: { p_fecha: string | null; p_id: string | null; p_motivo: string | null }
+        Returns: undefined
       }
       fn_locaciones_listar: {
         Args: { p_persona_id?: string | null }
@@ -9899,6 +9907,7 @@ export type Database = {
           persona_id: string
           sede: string
           servicio: string
+          vinculo_actual: string
         }[]
       }
       fn_marca_apartada_reportar: {

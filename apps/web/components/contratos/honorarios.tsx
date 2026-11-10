@@ -23,6 +23,7 @@ import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
+import { AreaTexto } from "@/components/ui/area-texto";
 import { Campo } from "@/components/ui/campo";
 import { Drawer } from "@/components/ui/drawer";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -41,11 +42,13 @@ import {
   ESTADO_PERSONA,
   fechasSugeridas,
   textoPlazo,
+  textoVinculoActual,
   type BandaLocacion,
   type ContratoLocacion,
   type FilaTableroLocacion,
 } from "@/lib/admin/locaciones";
 import { registrarContratoLocacion } from "@/lib/admin/locaciones-archivo";
+import { sumarDias } from "@/lib/mi-semana";
 
 /**
  * El tablero de las personas por honorarios. Vive fuera de la pestaña porque la
@@ -116,6 +119,7 @@ export function ContratosHonorarios({
         <>
           <ParaAtender
             items={[
+              { clave: "abierta", texto: `${n("abierta")} con locación abierta`, n: n("abierta"), tono: "ambar" },
               { clave: "sin_cubrir", texto: `${n("sin_cubrir")} sin contrato vigente`, n: n("sin_cubrir"), tono: "ambar" },
               { clave: "pronto", texto: `${n("pronto")} vence${n("pronto") === 1 ? "" : "n"} pronto`, n: n("pronto"), tono: "ambar" },
             ]}
@@ -171,8 +175,14 @@ export function ContratosHonorarios({
 
 function FilaPersona({ f, alAbrir }: { f: FilaTableroLocacion; alAbrir: (el: HTMLElement) => void }) {
   const estado = ESTADO_PERSONA[f.estado];
-  const plazo = f.estado === "por_empezar" ? `Empieza el ${fecha(f.fecha_inicio)}` : textoPlazo(f);
-  const detalle = [f.servicio, f.sede].filter(Boolean).join(" · ");
+  const plazo = f.estado === "por_empezar" ? `Empieza el ${fecha(f.fecha_inicio)}`
+    : f.estado === "abierta_sin_rxh" ? null
+    : textoPlazo(f);
+  const detalle = [
+    f.estado === "abierta_sin_rxh" ? textoVinculoActual(f.vinculo_actual) : null,
+    f.servicio,
+    f.sede,
+  ].filter(Boolean).join(" · ");
   return (
     <li>
       {/* Un botón y no un `<li onClick>`: así la fila se abre también con el teclado. */}
@@ -215,6 +225,12 @@ function Historial({
   const [cargando, setCargando] = useState(true);
   // Quien no tiene ningún contrato llega aquí a registrarlo: el formulario ya está abierto.
   const [registrando, setRegistrando] = useState(fila.estado === "sin_contrato");
+  // Un contrato a la vez: anular o terminar abre su formulario debajo de esa tarjeta.
+  const [accion, setAccion] = useState<{ id: string; tipo: "anular" | "terminar" } | null>(null);
+  const yaNoEsRxh = fila.estado === "abierta_sin_rxh";
+  // Del historial, no de la fila del tablero: la fila es de cuando se abrió el panel, y después de «Terminar antes»
+  // el aviso de «sigue abierta» seguía ahí sobre una locación ya cerrada.
+  const quedaAbierta = contratos.some((c) => c.estado === "en_curso" || c.estado === "por_empezar");
 
   const cargar = useCallback(async () => {
     const { data, error: e } = await supabase.rpc("fn_locaciones_listar", { p_persona_id: fila.persona_id });
@@ -237,7 +253,14 @@ function Historial({
     <div className="space-y-4">
       {error && <BannerAviso enLinea role="alert">{error}</BannerAviso>}
 
-      {registrando ? (
+      {/* Quien ya no cobra por honorarios no recibe contratos nuevos aquí (la base tampoco lo deja): lo que falta es
+          cerrar el que quedó abierto. */}
+      {yaNoEsRxh ? (quedaAbierta && (
+        <BannerAviso enLinea variante="advertencia">
+          {fila.persona}: {textoVinculoActual(fila.vinculo_actual).toLowerCase()} y su locación sigue abierta. Con las
+          dos cosas a la vez tiene un vínculo civil y otro laboral. Usa «Terminar antes» con el último día en que valió.
+        </BannerAviso>
+      )) : registrando ? (
         <FormRegistrar
           supabase={supabase}
           fila={fila}
@@ -283,9 +306,34 @@ function Historial({
                   {c.anulado_at && c.anulado_motivo && (
                     <p className="text-xs text-taupe">Anulado: {c.anulado_motivo} ({c.anulado_por_nombre ?? "—"})</p>
                   )}
-                  <div className="pt-1">
+                  <div className="flex flex-wrap gap-x-4 pt-1">
                     <Boton variante="enlace" className="text-xs" onClick={() => void ver(c)}>Ver contrato</Boton>
+                    {(c.estado === "en_curso" || c.estado === "por_empezar") && (
+                      <Boton variante="enlace" className="text-xs" onClick={() => setAccion({ id: c.id, tipo: "terminar" })}>
+                        Terminar antes
+                      </Boton>
+                    )}
+                    {c.estado !== "anulado" && c.estado !== "terminado" && (
+                      <Boton variante="enlace" className="text-xs" onClick={() => setAccion({ id: c.id, tipo: "anular" })}>
+                        Anular registro
+                      </Boton>
+                    )}
                   </div>
+                  {accion?.id === c.id && (
+                    <AccionContrato
+                      supabase={supabase}
+                      contrato={c}
+                      tipo={accion.tipo}
+                      alCancelar={() => setAccion(null)}
+                      alOcupar={alOcupar}
+                      alTerminar={(texto) => {
+                        setAccion(null);
+                        avisar("ok", texto);
+                        void cargar();
+                        alCambiar();
+                      }}
+                    />
+                  )}
                 </TarjetaInfo>
               </li>
             );
@@ -391,5 +439,91 @@ function FormRegistrar({
         </Boton>
       </div>
     </TarjetaInfo>
+  );
+}
+
+/**
+ * Anular un registro equivocado, o terminar una locación antes de su fecha. Las dos piden motivo, que queda
+ * junto al contrato; ninguna borra nada. «Terminar» nace con hoy (o con la víspera de empezar, si el contrato
+ * todavía no empieza), visible y editable.
+ */
+function AccionContrato({
+  supabase, contrato, tipo, alCancelar, alOcupar, alTerminar,
+}: {
+  supabase: ClienteCayla;
+  contrato: ContratoLocacion;
+  tipo: "anular" | "terminar";
+  alCancelar: () => void;
+  alOcupar: (ocupado: boolean) => void;
+  alTerminar: (texto: string) => void;
+}) {
+  const hoy = hoyLima();
+  const vispera = sumarDias(contrato.fecha_inicio, -1);
+  const ultimoPosible = sumarDias(contrato.fecha_fin, -1);
+  const [fechaFin, setFechaFin] = useState(hoy < contrato.fecha_inicio ? vispera : hoy > ultimoPosible ? ultimoPosible : hoy);
+  const [motivo, setMotivo] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const falta = motivo.trim().length < 5
+    ? "Escribe el motivo: queda anotado junto al contrato."
+    : tipo === "terminar" && (!fechaFin || fechaFin < vispera || fechaFin > ultimoPosible)
+      ? `El último día va del ${fecha(vispera)} al ${fecha(ultimoPosible)}.`
+      : null;
+
+  async function confirmar() {
+    if (falta) return;
+    setError(null);
+    setGuardando(true);
+    alOcupar(true);
+    const { error: e } = tipo === "anular"
+      ? await supabase.rpc("fn_locacion_anular", { p_id: contrato.id, p_motivo: motivo.trim() })
+      : await supabase.rpc("fn_locacion_terminar", { p_id: contrato.id, p_fecha: fechaFin, p_motivo: motivo.trim() });
+    setGuardando(false);
+    alOcupar(false);
+    if (e) { setError(mensajeDeError(e, tipo === "anular" ? "anular el registro" : "terminar la locación")); return; }
+    alTerminar(tipo === "anular" ? "Registro anulado. Sigue en el historial." : "Locación terminada.");
+  }
+
+  return (
+    <div className="mt-2 space-y-3 border-t border-sand pt-3">
+      <p className="text-xs text-taupe">
+        {tipo === "anular"
+          ? "Anular es para un registro equivocado: otra persona, una fecha o el servicio mal escritos. El contrato deja de contar, pero se queda en el historial con su motivo."
+          : "Terminar es para una locación que dejó de valer antes de su fecha: pasó a planilla, cesó o se resolvió."}
+      </p>
+      {tipo === "terminar" && (
+        <Campo
+          etiqueta="Último día en que valió"
+          type="date"
+          value={fechaFin}
+          min={vispera}
+          max={ultimoPosible}
+          disabled={guardando}
+          onChange={(e) => setFechaFin(e.target.value)}
+        />
+      )}
+      <AreaTexto
+        etiqueta="Motivo"
+        value={motivo}
+        disabled={guardando}
+        onChange={(e) => setMotivo(e.target.value)}
+        placeholder={tipo === "anular" ? "Ej.: se registró con la fecha de fin equivocada" : "Ej.: pasó a planilla el 1 de diciembre"}
+      />
+      {error && <BannerAviso enLinea role="alert">{error}</BannerAviso>}
+      {falta && !error && <p className="text-xs text-taupe">{falta}</p>}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Boton tamano="sm" onClick={alCancelar} disabled={guardando}>Cancelar</Boton>
+        <Boton
+          tamano="sm"
+          variante={tipo === "anular" ? "peligro" : "primario"}
+          onClick={() => void confirmar()}
+          disabled={falta !== null || guardando}
+          cargando={guardando}
+        >
+          {tipo === "anular" ? "Anular registro" : "Terminar locación"}
+        </Boton>
+      </div>
+    </div>
   );
 }
