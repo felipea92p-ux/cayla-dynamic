@@ -57,9 +57,15 @@
 //     guardan y cuánto tiempo), comunicaciones por escrito, y el acto de firma
 //     descrito tal como lo hace Dynamic: si la persona niega haber firmado,
 //     la carga de probarlo es de CAYLA (reglamento de la Ley 27269, art. 2-A).
-//   Lo que NO se cambió, a propósito: la forma de pagar `por_horas`. Es el
-//   indicio más fuerte de relación laboral que tiene el contrato, pero es
-//   plata y lo decide Felipe.
+//   Lo que NO se cambió, a propósito: la forma de pagar `por_horas`
+//   («S/ X por un mes completo, en proporción a las horas»). Se le propuso a
+//   Felipe escribirla como tarifa por hora —S/ 7.59, lo mismo al año que
+//   hoy—, porque «mes completo» no se puede calcular leyendo el contrato (las
+//   horas de ese mes, 6.5 × días del periodo, viven solo en la planilla) y en
+//   un contrato por adhesión lo oscuro se interpreta a favor de la persona
+//   (CC 1401). El 2026-11-10 eligió dejarlo como está, sabiendo que quienes
+//   cobran así «trabajan cuando pueden y solo se registran sus horas». No se
+//   reabre salvo que lo pida él o el abogado.
 // ============================================================================
 import { EMPRESA, fechaLima, horaLima } from "@cayla-dynamic/shared";
 import {

@@ -28,7 +28,8 @@ cláusulas: no se antedata (rige desde el inicio y se celebra cuando firma la pe
 autonomía obliga a CAYLA (no le fija horario ni turnos, no sanciona, sin exclusividad), la resolución es recíproca y por prestaciones
 precisas (CC 1398 y 1430), la cesión de derechos es expresa (D. Leg. 822, arts. 89 y 90; Decisión 486, art. 114), honorarios brutos,
 datos personales (Ley 29733), comunicaciones, y el acto de firma descrito como lo hace Dynamic (reglamento de la Ley 27269, art. 2-A).
-El detalle y las fuentes están en el encabezado de `locacion-texto.ts`. **Sin tocar, a propósito:** cómo se pagan los `por_horas`.
+El detalle y las fuentes están en el encabezado de `locacion-texto.ts`. **Sin tocar, decidido por Felipe el 2026-11-10:** cómo se
+escriben los `por_horas` (se le propuso una tarifa por hora y eligió dejarlo como está).
 `fn_locacion_documento` devuelve además `generado_at` y `firmado_at` (cambio dentro de la 0612, que sigue sin pegar).
 
 **La firma de CAYLA se congela al generar (decisión de Felipe, 2026-11-10).** `fn_firma_empresa()` da la firma de HOY de quien firma
@@ -44,7 +45,7 @@ inventados:** generar desde el panel y ver el documento con las dos firmas y su 
 por SQL, como ella, porque la pantalla no deja firmar un borrador.
 
 **Queda para Felipe.** Quién revisó la primera versión y cuándo (se anota al aprobar); que el revisor vea los cambios de la segunda
-(Word «versión 2», con cuatro preguntas abiertas); decidir cómo se pagan los `por_horas`; y si se guarda más evidencia de la firma. Con
+(Word «versión 2», con cuatro preguntas abiertas); y la consulta de medición de la firma de CAYLA en producción. Con
 el texto aprobado se cambia la constante en el mismo PR. Recién ahí: PR, pegar la 0612 (una pegada) antes de fusionar.
 
 ## 2026-11-09 — Contratos: la pestaña «Recibo por honorarios» · migración **0610 PEGADA Y VERIFICADA (2026-11-10)** · prueba 496 · rama `claude/rxh-contracts-view-9ccdd2` · **solo en local, sin subir**
