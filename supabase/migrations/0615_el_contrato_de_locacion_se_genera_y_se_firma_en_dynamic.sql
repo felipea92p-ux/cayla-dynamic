@@ -99,7 +99,11 @@ declare
     'fn_locaciones_tablero',            'ccdbeb1d432e2ad49dcaec1823396205',
     'fn_locaciones_listar',             'ca1e46790f94b2a52dc4680bc509134f',
     'fn_locacion_terminar',             '48fad6f4c033166dc5a5c1adc64eca77');
-  v_ya_aplicada boolean := exists (select 1 from migraciones_aplicadas where numero = 615);
+  -- Con el nombre, no solo el número: esta migración nació como 0612 y ese
+  -- número ya lo tenía en producción la de costos; un freno que se salta «si el
+  -- número ya está» se habría saltado por la migración de otra.
+  v_ya_aplicada boolean := exists (select 1 from migraciones_aplicadas
+                                    where numero = 615 and nombre = 'el_contrato_de_locacion_se_genera_y_se_firma_en_dynamic');
   r record;
 begin
   if v_ya_aplicada then
