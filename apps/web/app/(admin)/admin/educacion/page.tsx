@@ -251,10 +251,10 @@ function EducacionContenido() {
     setSituaciones(filasSituacion);
     const trayendo = inicial ? null : recargarConstancias(loQueSeMira.current.rangos, loQueSeMira.current.familias);
     if (esperarConstancias && trayendo) await trayendo;
-    setPendientes((pend.data ?? []) as unknown as Pendiente[]);
-    setSolicitudesPendientes((solPend.data ?? []) as unknown as SolicitudPendiente[]);
+    setPendientes((pend.data ?? []) satisfies Pendiente[]);
+    setSolicitudesPendientes((solPend.data ?? []) satisfies SolicitudPendiente[]);
     setAsignaciones(new Map(((lista.data ?? []) as unknown as Asignacion[]).map((a) => [a.id, a])));
-    setCandidatos((cands.data ?? []) as unknown as Candidato[]);
+    setCandidatos((cands.data ?? []) satisfies Candidato[]);
     // Quién ya se liquidó (0421/0422): se ocultan por defecto. Si falla, no se oculta a nadie.
     setLiquidadas(new Set(((pf.data ?? []) as unknown as { persona_id: string; liquidada: boolean }[])
       .filter((f) => f.liquidada).map((f) => f.persona_id)));

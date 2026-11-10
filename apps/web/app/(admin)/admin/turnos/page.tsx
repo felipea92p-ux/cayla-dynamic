@@ -23,7 +23,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Filtro } from "@/components/ui/filtro";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
-import { cuentaEnCobertura, esRolEncargada, fechaLima, horaLima, hoyLima, leCorrespondeHorario, puedeOperarEquipo, puedeVerTodasLasSedes, rangoDelDiaLima, type MarcajeDelDia } from "@cayla-dynamic/shared";
+import { cuentaEnCobertura, esRolEncargada, fechaLima, horaLima, hoyLima, leCorrespondeHorario, puedeOperarEquipo, puedeVerTodasLasSedes, rangoDelDiaLima, type MarcajeDelDia, sumarDias } from "@cayla-dynamic/shared";
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { consecuenciaDeUsarBase as consecuenciaDeUsarBaseLib } from "@/lib/admin/revision-turnos";
@@ -59,20 +59,12 @@ function parseISO(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d));
 }
-function toISO(dt: Date): string {
-  return dt.toISOString().slice(0, 10);
-}
-function addDays(iso: string, n: number): string {
-  const d = parseISO(iso);
-  d.setUTCDate(d.getUTCDate() + n);
-  return toISO(d);
-}
 function diaSemana(iso: string): number {
   return parseISO(iso).getUTCDay(); // 0=domingo … 6=sábado
 }
 function lunesDeLaSemana(iso: string): string {
   const dow = diaSemana(iso);
-  return addDays(iso, dow === 0 ? -6 : 1 - dow);
+  return sumarDias(iso, dow === 0 ? -6 : 1 - dow);
 }
 const DIAS_ABR = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const DIAS_LARGOS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
@@ -256,7 +248,7 @@ function AlertaSobretiempo({ sedeSel, abierto, onConteo }: {
       // 28 días de margen: de sobra para cubrir cualquier racha real sin
       // descanso (la ley exige uno semanal) y encontrar el inicio verdadero
       // del ciclo vigente, no solo su cola.
-      const desde = addDays(hoy, -28);
+      const desde = sumarDias(hoy, -28);
       // `tipo_vinculo = 'practicante'`, no simplemente `not en_planilla`:
       // así un RxH no entra por accidente. Mismo criterio que ya usa el
       // dashboard (7afe8e5): un practicante sí marca y sí acumula horas de
@@ -788,7 +780,7 @@ export default function TurnosPage() {
   // para esta persona, para poder avisar DENTRO del modal antes de guardar.
   const [cicloEdit, setCicloEdit] = useState<ReturnType<typeof cicloVigente>>(null);
 
-  const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(lunes, i)), [lunes]);
+  const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i)), [lunes]);
   const diaAbierto: string | null = diaElegido && (diaElegido.iso === null || dias.includes(diaElegido.iso))
     ? diaElegido.iso
     : (dias.includes(hoyLima()) ? hoyLima() : null);
@@ -855,7 +847,7 @@ export default function TurnosPage() {
     const mi = ++reqId.current;
     if (modo !== "fondo") cargaConMetas.current = mi;
     if (modo === "completa") setCargando(true);
-    const domingo = addDays(lunes, 6);
+    const domingo = sumarDias(lunes, 6);
     const [
       { data: p, error: pErr },
       { data: h, error: hErr },
@@ -911,7 +903,7 @@ export default function TurnosPage() {
       // todavía no está en los tipos generados. Si falla (la 0588 sin pegar), el diálogo no ofrece «siempre».
       supabase.from("puestos_base" as never).select("persona_id, vigente_desde, vigente_hasta"),
       // Lo que pide la venta donde no hay meta: el promedio de las últimas 4 semanas (vacío en una sede que no vende).
-      supabase.rpc("fn_compras_por_hora", { p_sede_id: sedeSel, p_desde: addDays(hoyLima(), -28), p_hasta: addDays(hoyLima(), -1) }),
+      supabase.rpc("fn_compras_por_hora", { p_sede_id: sedeSel, p_desde: sumarDias(hoyLima(), -28), p_hasta: sumarDias(hoyLima(), -1) }),
       // El horario de la tienda, para no juzgar la hora en que abre o cierra a medias. Tampoco frena la semana.
       supabase.rpc("fn_sede_ventana_semanal", { p_sede_id: sedeSel }),
     ]);
@@ -991,7 +983,7 @@ export default function TurnosPage() {
     setCargando(false);
     // Las metas se cambian en su editor (0590), que guarda entera la meta y recarga: el fondo ya puede leerlas.
     setMetasFecha(metasPorFecha((m as FilaMeta[] | null) ?? []));
-    setPromVenta(() => (c4Err ? null : promedioDeCompras((c4 ?? []) as { fecha: string; hora: number; compras: number }[], addDays(hoyLima(), -28), addDays(hoyLima(), -1))));
+    setPromVenta(() => (c4Err ? null : promedioDeCompras((c4 ?? []) as { fecha: string; hora: number; compras: number }[], sumarDias(hoyLima(), -28), sumarDias(hoyLima(), -1))));
     // `recarga` no se lee dentro: está en las dependencias para que pedir una recarga haga correr el efecto que ya llama a cargar().
   }, [supabase, sedeSel, lunes, avisar, recarga]);
 
@@ -1032,8 +1024,8 @@ export default function TurnosPage() {
     let vivo = true;
     void (async () => {
       setCopiarDisponibles(null);
-      const domingoAnterior = addDays(lunes, -1);
-      const lunesAnterior = addDays(lunes, -7);
+      const domingoAnterior = sumarDias(lunes, -1);
+      const lunesAnterior = sumarDias(lunes, -7);
       // `personas!turnos_persona_id_fkey`, no `personas!inner` a secas: turnos
       // tiene DOS llaves foráneas hacia personas (persona_id y creado_por), y
       // sin nombrar cuál, PostgREST responde 300 Multiple Choices en vez de
@@ -1283,8 +1275,8 @@ export default function TurnosPage() {
     if (!(lunes > hoyLima())) return;
     setSugiriendo(true);
     try {
-      const domingoSem = addDays(lunes, 6);
-      const desde4 = addDays(lunes, -28), hasta4 = addDays(lunes, -1);
+      const domingoSem = sumarDias(lunes, 6);
+      const desde4 = sumarDias(lunes, -28), hasta4 = sumarDias(lunes, -1);
       const esTienda = tipoSedeSel === "tienda";
       const [{ data: com, error: comE }, { data: disp, error: dispE }, { data: ven, error: venE }, { data: jor, error: jorE }, { data: aus, error: ausE }, { count: porAprobar }] = await Promise.all([
         esTienda ? supabase.rpc("fn_compras_por_hora", { p_sede_id: sedeSel, p_desde: desde4, p_hasta: hasta4 }) : Promise.resolve({ data: [], error: null }),
@@ -1468,7 +1460,7 @@ export default function TurnosPage() {
     const { error } = await supabase.rpc("fn_turnos_borrador_guardar", {
       p_sede_id: sedeSel, p_lunes: lunes,
       p_dias: filasDelBorradorParaGuardar(semana, dias, hoyLima(), conHorario) as unknown as Json,
-      p_notas: [...notas].filter(([, t]) => t.trim()).map(([persona_id, nota]) => ({ persona_id, nota: nota.trim() })) as unknown as Json,
+      p_notas: [...notas].filter(([, t]) => t.trim()).map(([persona_id, nota]) => ({ persona_id, nota: nota.trim() })) satisfies Json,
       p_origen: origen,
     });
     setGuardandoBorrador(false);
@@ -1646,7 +1638,7 @@ export default function TurnosPage() {
     void (async () => {
       setCicloEdit(null);
       const hoy = hoyLima();
-      const desde = addDays(hoy, -28);
+      const desde = sumarDias(hoy, -28);
       const { data, error } = await supabase.from("jornadas")
         .select("fecha, horas_trabajadas")
         .eq("persona_id", edit.personaId).gte("fecha", desde).lte("fecha", hoy);
@@ -2118,11 +2110,11 @@ export default function TurnosPage() {
               </div>
             )}
             <div className="flex items-center gap-1">
-              <BotonIcono etiqueta="Semana anterior" icono={<ChevronLeft aria-hidden />} disabled={cargando} onClick={() => setLunes(addDays(lunes, -7))} />
+              <BotonIcono etiqueta="Semana anterior" icono={<ChevronLeft aria-hidden />} disabled={cargando} onClick={() => setLunes(sumarDias(lunes, -7))} />
               <span className="min-w-28 text-center text-xs tabular-nums text-taupe">
-                {etiquetaDia(lunes).num} – {etiquetaDia(addDays(lunes, 6)).num}
+                {etiquetaDia(lunes).num} – {etiquetaDia(sumarDias(lunes, 6)).num}
               </span>
-              <BotonIcono etiqueta="Semana siguiente" icono={<ChevronRight aria-hidden />} disabled={cargando} onClick={() => setLunes(addDays(lunes, 7))} />
+              <BotonIcono etiqueta="Semana siguiente" icono={<ChevronRight aria-hidden />} disabled={cargando} onClick={() => setLunes(sumarDias(lunes, 7))} />
               <Boton variante="secundario" tamano="sm" disabled={cargando} onClick={() => setLunes(lunesDeLaSemana(hoyLima()))}>Hoy</Boton>
             </div>
             {/* La meta de cobertura (0590): predeterminada y excepciones, por rangos de hora. La cambian admin y DO; la líder la ve. */}
@@ -2626,8 +2618,8 @@ export default function TurnosPage() {
           // vecinos que ya están en pantalla, sin fetch nuevo) y ciclo de 48h
           // (cicloEdit, traído al abrir el modal). Nunca deshabilita Guardar —
           // la decisión sigue siendo de quien conoce a la persona y el día.
-          const cAntes = celda(edit.personaId, addDays(edit.fecha, -1));
-          const cDespues = celda(edit.personaId, addDays(edit.fecha, 1));
+          const cAntes = celda(edit.personaId, sumarDias(edit.fecha, -1));
+          const cDespues = celda(edit.personaId, sumarDias(edit.fecha, 1));
           const entradaDec = entrada ? horaADecimal(entrada) : null;
           const salidaDec = salida ? horaADecimal(salida) : null;
           const salidaAntes = (cAntes.tipo === "turno" || cAntes.tipo === "default") && cAntes.salida ? horaADecimal(cAntes.salida) : null;

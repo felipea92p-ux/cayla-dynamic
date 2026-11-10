@@ -152,7 +152,7 @@ function MiBoletaContenido() {
       // Supabase no la conocen hasta que la migración esté pegada y se
       // regeneren — mismo recurso que ya usa provisiones/page.tsx con la 0467.
       const { data: sub } = await supabase.rpc("fn_mis_subvenciones_practicante" as never);
-      const filas = (sub as unknown as Array<Record<string, unknown>> | null) ?? [];
+      const filas = (sub satisfies Array<Record<string, unknown>> | null) ?? [];
       const fila0 = filas[0] as
         | {
             sin_subvencion: boolean;

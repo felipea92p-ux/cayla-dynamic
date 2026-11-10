@@ -54,7 +54,7 @@ export async function refrescarInfoTerminal(): Promise<TerminalInfo | null> {
       .abortSignal(topeDeRed())
       .single();
     if (res.error) return null;
-    data = res.data as unknown as Fila;
+    data = res.data satisfies Fila;
   } catch {
     return null;
   }

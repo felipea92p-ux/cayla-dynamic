@@ -10,7 +10,7 @@ Lo que encuentra no se arregla en automático ni frena nada: es un medidor que s
 | Detector | Qué es | Por qué importa |
 |---|---|---|
 | **Contraste** | El contraste WCAG de cada texto contra su fondo REAL, compuesto capa por capa con su transparencia: mínimo 4.5:1, 3:1 si es grande. Un símbolo que el código le ocultó al lector (`aria-hidden="true"`) y que no tiene letras ni dígitos («›», «·», «×») es un **gráfico**: se mide contra 3:1 (WCAG 1.4.11). Una tecla (`<kbd>`) sigue siendo texto. Los controles deshabilitados quedan exentos. | Un texto que se pierde en un tema. |
-| **Mancha clara** | Solo en oscuro: una superficie grande y opaca que sigue clara y no es un token del sistema. | Un `bg-white` o un hex que no cambió con el tema. |
+| **Mancha clara** | Solo en oscuro: una superficie grande y opaca que sigue clara y no es un token del sistema. También una **tarjeta invertida** (`bg-tinta`, que en oscuro es casi blanca) desde 30 000 px², y una tarjeta de **vidrio** clara: lee el degradado con que el vidrio la pinta. Un botón invertido no cuenta, y la crema fija (la firma) tampoco. | Un `bg-white` o un hex que no cambió con el tema, o un bloque que encandila aunque sea un token (Provisiones, 2026-11-09). |
 | **Velo claro** | Solo en oscuro: una capa fija que cubre la pantalla y la **aclara** en vez de oscurecerla. | Un `bg-tinta/30` que se volvió crema. |
 
 Cada pantalla se mide en **los dos temas** y el reporte separa lo que falla solo en oscuro, solo en claro o en los dos: lo de un solo tema suele ser un token de ese
@@ -21,12 +21,16 @@ de color que más fallan**, porque casi siempre se arreglan en un token y no pan
 
 Lo dice `app/globals.css`, y la mancha clara lo respeta:
 
-- Los documentos en pantalla: `.hoja` y `.contrato`.
 - El recuadro de la firma: `.firma-tinta`. La imagen de `.contrato .linea img` ya queda fuera por ser una imagen.
+- Lo que simula papel blanco por sí mismo: `data-papel` (la marca de Retail para lo mismo). Hoy, la vista previa de la firma en `FirmaEditor`.
+  Ojo: un fondo fijo pide letra fija adentro (`text-tinta-fija`); con la letra del tema, en oscuro queda blanca sobre blanco.
 - El recuadro con `--color-crema-fija`: pasa por ser un token del sistema, como cualquier relleno que use uno.
 
-Lo de `.hoja`, `.contrato` y `.firma-tinta` no cuenta como hallazgo, pero **se anota aparte** en el reporte en vez de callarlo: en pantalla un documento sigue el tema
-(CLAUDE.md), así que algo claro dentro de uno merece una mirada aunque no sea un defecto seguro.
+Lo de `.firma-tinta` y `data-papel` no cuenta como hallazgo, pero **se anota aparte** en el reporte en vez de callarlo.
+
+**Los documentos (`.hoja`, `.contrato`) ya no son excepción.** Hasta el 2026-11-09 se anotaban aparte, porque con el vidrio el papel se quedaba claro
+también en oscuro. Ese día Felipe decidió que el papel siga el tema en pantalla, con y sin vidrio (`piezas.css`, «El papel en su bandeja»): una superficie
+clara dentro de un documento es ahora un defecto como cualquier otro.
 
 ### Lo que este escáner NO ve
 

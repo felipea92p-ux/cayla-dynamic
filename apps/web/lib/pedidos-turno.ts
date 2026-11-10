@@ -11,8 +11,8 @@
 //   para pintar sin una ida más al servidor. `tests/pedidos-turno.test.ts`
 //   compara las dos: si alguien cambia una, la prueba se pone en rojo.
 
-import { sumarDias } from "@/lib/mi-semana";
 import { diaMes } from "@/lib/disponibilidad";
+import { sumarDias } from "@cayla-dynamic/shared";
 
 export type MotivoPedido = "estudios" | "hijos" | "salud" | "otro_trabajo" | "otro";
 export type PropuestaPedido = "tarde" | "manana" | "no_puede";

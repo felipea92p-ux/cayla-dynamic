@@ -38,12 +38,14 @@ import { CampoSelect } from "@/components/ui/campo";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Insignia } from "@/components/ui/insignia";
-import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { Fila, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { SeccionTabla } from "@/components/costos/seccion-tabla";
+import { TablaPorPersona } from "@/components/costos/tabla-por-persona";
 import { BarrasHorizontales, GraficoPorPeriodo, abreviarSoles } from "@/components/costos/graficos-costos";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
-import { puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { anioLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -98,8 +100,17 @@ interface PorSede extends PorGrupo {
   sede: string;
   tipo: "central" | "taller" | "tienda";
   horas: number;
-  costo_por_persona: number | null;
+  // Por persona Y POR PERIODO (0612): la persona que cobró cuatro periodos cuenta cuatro, y la plaza que en esos cuatro
+  // periodos ocuparon tres personas también. La base sigue mandando `costo_por_persona` (costo del año ÷ personas
+  // distintas), pero no se dibuja: con rotación bajaba sin que bajara el gasto, y la sede que más rota parecía la más
+  // barata. Opcional: sin la 0612 pegada no viene, y la columna dice «—».
+  personas_periodo?: number;
+  costo_por_persona_periodo?: number | null;
+  // Desde la 0612, el costo de quien marcó dividido entre sus horas. Lo que costó quien no marcó ninguna va en
+  // `costo_sin_horas`: antes entraba arriba sin sus horas abajo, y la hora de Central salía a 1.67 veces la de TRU
+  // cuando, contando a quien marcó, era casi igual. Sin la 0612, `costo_sin_horas` no viene y no se dibuja la nota.
   costo_por_hora: number | null;
+  costo_sin_horas?: number;
 }
 interface PorTipo {
   tipo: "central" | "taller" | "tienda";
@@ -109,8 +120,10 @@ interface PorTipo {
   neto: number;
   provisiones: number;
   costo: number;
-  costo_por_persona: number | null;
+  personas_periodo?: number;
+  costo_por_persona_periodo?: number | null;
   costo_por_hora: number | null;
+  costo_sin_horas?: number;
   salio_del_banco?: number;
 }
 interface PorArea extends PorGrupo { area: string | null; operativa: boolean }
@@ -294,18 +307,36 @@ export default function CostosPage() {
 
   const t = data?.totales;
 
+  // Todo lo que suma esta pantalla es del AÑO elegido, no de hoy: cada pago se
+  // carga a la sede y al área donde estaba la persona ese periodo, y quien ya
+  // cesó sigue contando, porque su sueldo sí le costó a CAYLA. El 2026-11-10 se
+  // leyó «11 personas» en Crecimiento como «cuántas hay hoy» (eran 3): por eso
+  // el año se dice en la cabecera, en la franja y en cada «Personas en el año».
+  // Mientras el año no termina, «en lo que va de»: un año a medias no es un total.
+  const alcance =
+    anio === null ? "en el año" : anio === anioLima() ? `en lo que va de ${anio}` : `en ${anio}`;
+
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Pago")}
           titulo="Costos del equipo"
-          descripcion="Lo que costó el equipo en los periodos ya pagados. Lo que sigue abierto se ve en Planilla."
+          descripcion={`Lo que costó todo el equipo ${alcance}, también quienes ya cesaron, sumando los periodos ya pagados. Lo que sigue abierto se ve en Planilla.`}
+          // Con el vidrio, una descripción de texto se va entera al «?». El alcance no es una frase: es lo que dice qué suman todas
+          // las cifras de abajo, así que se queda a la vista.
+          vidrio={{
+            dato: `Todo el equipo ${alcance}, también quienes ya cesaron`,
+            frase: "Lo que costó el equipo en los periodos ya pagados. Lo que sigue abierto se ve en Planilla.",
+          }}
           ayuda={
             <AyudaPantalla
               titulo="Cómo se leen los costos"
               intro="Solo aparecen los periodos ya marcados como pagados: su desglose quedó congelado y ya no cambia."
               secciones={[
+                { titulo: "Todo el año, todo el equipo", texto: "Salvo «Por periodo», cada tabla suma el año elegido entero. «Personas en el año» cuenta a cada persona que cobró al menos un periodo, también a quien ya cesó, así que no es cuántas hay hoy. Si alguien cambió de sede o de área, cuenta en las dos: cada pago se carga donde estaba ese periodo." },
+                { titulo: "Por persona al mes", texto: "El costo real dividido entre las personas de cada periodo: quien cobró los cuatro periodos del año cuenta cuatro veces, y una plaza que ocuparon tres personas, una tras otra, también cuenta cuatro. Así una sede que rota mucho no parece más barata de lo que es." },
+                { titulo: "Por hora", texto: "Lo que costó quien marcó horas, dividido entre esas horas. Quien cobra sin marcar no entra: su sueldo sin sus horas inflaba la hora de su sede. Lo que costó va aparte, en la nota debajo de «Por sede»." },
                 { titulo: "Costo y proyección", texto: "Lo que todavía está abierto se ve en Planilla, y es una proyección, no un costo. Aquí solo entra lo que ya se pagó." },
                 { titulo: "Un periodo, no un mes", texto: "Los periodos de CAYLA no son meses calendario (van del 29 al 28), así que cada fila es un periodo." },
                 { titulo: "Costo real, transferencia y banco", texto: "«Se transfirió» es lo que se pagó a las personas; el «costo real» suma además las provisiones; «salió del banco» incluye pensión, EsSalud y 4.ª." },
@@ -360,7 +391,7 @@ export default function CostosPage() {
           /* La franja del año: el costo real manda; el resto es el desglose de dónde sale. */
           <TarjetaInfo className="mb-6 flex flex-wrap items-center gap-x-8 gap-y-3">
             <div>
-              <p className="text-xs text-taupe">Costo real del año</p>
+              <p className="text-xs text-taupe">Costo real {alcance}</p>
               <p className="font-serif text-3xl leading-none tabular-nums text-tinta">{formatSoles(t.costo)}</p>
             </div>
             <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
@@ -369,7 +400,8 @@ export default function CostosPage() {
               {t.salio_del_banco !== undefined && (
                 <div><dt className="text-xs text-taupe">Salió del banco <span className="text-taupe/80">(+ pensión, EsSalud y 4.ª)</span></dt><dd className="font-medium tabular-nums">{formatSoles(t.salio_del_banco)}</dd></div>
               )}
-              <div><dt className="text-xs text-taupe">Periodos cerrados</dt><dd className="font-medium tabular-nums">{t.periodos} <span className="text-xs font-normal text-taupe">· {t.personas} personas</span></dd></div>
+              <div><dt className="text-xs text-taupe">Periodos cerrados</dt><dd className="font-medium tabular-nums">{t.periodos}</dd></div>
+              <div><dt className="text-xs text-taupe">Personas en el año</dt><dd className="font-medium tabular-nums">{t.personas}</dd></div>
             </dl>
           </TarjetaInfo>
         )}
@@ -419,10 +451,10 @@ export default function CostosPage() {
               <TablaEncabezado>
                 <Th>Qué es</Th>
                 <Th className="text-right">Sedes</Th>
-                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Personas en el año</Th>
                 <Th className="text-right">Costo real</Th>
                 <Th className="text-right">Salió del banco</Th>
-                <Th className="text-right">Por persona</Th>
+                <Th className="text-right">Por persona al mes</Th>
                 <Th className="text-right">Por hora</Th>
               </TablaEncabezado>
               <tbody>
@@ -433,7 +465,7 @@ export default function CostosPage() {
                     <td className={NUM}>{t.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(t.costo)}</td>
                     <td className={NUM}>{t.salio_del_banco === undefined ? "—" : formatSoles(t.salio_del_banco)}</td>
-                    <td className={NUM}>{t.costo_por_persona === null ? "—" : formatSoles(t.costo_por_persona)}</td>
+                    <td className={NUM}>{t.costo_por_persona_periodo == null ? "—" : formatSoles(t.costo_por_persona_periodo)}</td>
                     <td className={NUM}>{t.costo_por_hora === null ? "—" : formatSoles(t.costo_por_hora)}</td>
                   </Fila>
                 ))}
@@ -444,10 +476,10 @@ export default function CostosPage() {
               <TablaEncabezado>
                 <Th>Sede</Th>
                 <Th>Qué es</Th>
-                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Personas en el año</Th>
                 <Th className="text-right">Costo real</Th>
                 <Th className="text-right">Salió del banco</Th>
-                <Th className="text-right">Por persona</Th>
+                <Th className="text-right">Por persona al mes</Th>
                 <Th className="text-right">Por hora</Th>
               </TablaEncabezado>
               <tbody>
@@ -458,7 +490,7 @@ export default function CostosPage() {
                     <td className={NUM}>{s.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(s.costo)}</td>
                     <td className={NUM}>{s.salio_del_banco === undefined ? "—" : formatSoles(s.salio_del_banco)}</td>
-                    <td className={NUM}>{s.costo_por_persona === null ? "—" : formatSoles(s.costo_por_persona)}</td>
+                    <td className={NUM}>{s.costo_por_persona_periodo == null ? "—" : formatSoles(s.costo_por_persona_periodo)}</td>
                     <td className={NUM}>{s.costo_por_hora === null ? "—" : formatSoles(s.costo_por_hora)}</td>
                   </Fila>
                 ))}
@@ -466,17 +498,28 @@ export default function CostosPage() {
             </SeccionTabla>
 
             <p className="-mt-4 mb-6 max-w-3xl text-xs text-taupe">
-              Compara por <strong className="font-medium">persona</strong> y por{" "}
+              Compara por <strong className="font-medium">persona al mes</strong> y por{" "}
               <strong className="font-medium">hora</strong>, no por el total
               {interruptoresVidrio().panel
                 ? ". El desglose completo está en el CSV."
                 : ": una sede con nueve personas siempre va a costar más que una con cuatro, y eso no dice nada. El desglose completo (lo que se transfirió y las provisiones por separado) está en el CSV."}
+              {/* Solo las sedes donde alguien cobró sin marcar: el resto no tiene nada que aclarar. */}
+              {data.por_sede.some((s) => (s.costo_sin_horas ?? 0) > 0) && (
+                <>
+                  {" "}«Por hora» cuenta solo a quien marcó; lo que costó quien no marcó va aparte:{" "}
+                  {data.por_sede
+                    .filter((s) => (s.costo_sin_horas ?? 0) > 0)
+                    .map((s) => `${s.nombre} ${formatSoles(s.costo_sin_horas ?? 0)}`)
+                    .join(" · ")}
+                  .
+                </>
+              )}
             </p>
 
             <SeccionTabla titulo="Por área">
               <TablaEncabezado>
                 <Th>Área</Th>
-                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Personas en el año</Th>
                 <Th className="text-right">Se transfirió</Th>
                 <Th className="text-right">Provisiones</Th>
                 <Th className="text-right">Costo real</Th>
@@ -501,32 +544,7 @@ export default function CostosPage() {
               </tbody>
             </SeccionTabla>
 
-            <SeccionTabla titulo="Por persona">
-              <TablaEncabezado>
-                <Th>Nombre</Th>
-                <Th>Sede</Th>
-                <Th className="text-right">Periodos</Th>
-                <Th className="text-right">Horas</Th>
-                <Th className="text-right">Se transfirió</Th>
-                <Th className="text-right">Provisiones</Th>
-                <Th className="text-right">Costo real</Th>
-                <Th className="text-right">Salió del banco</Th>
-              </TablaEncabezado>
-              <tbody>
-                {data.por_persona.map((p) => (
-                  <Fila key={p.persona_id}>
-                    <td className="px-4 py-2">{p.nombre}</td>
-                    <td className="px-4 py-2 text-taupe">{nombreDeSede.get(p.sede) ?? p.sede}</td>
-                    <td className={NUM}>{p.periodos}</td>
-                    <td className={NUM}>{p.horas.toLocaleString("es-PE", { maximumFractionDigits: 1 })}</td>
-                    <td className={NUM}>{formatSoles(p.neto)}</td>
-                    <td className={NUM}>{formatSoles(p.provisiones)}</td>
-                    <td className={`${NUM} font-medium`}>{formatSoles(p.costo)}</td>
-                    <td className={NUM}>{p.salio_del_banco === undefined ? "—" : formatSoles(p.salio_del_banco)}</td>
-                  </Fila>
-                ))}
-              </tbody>
-            </SeccionTabla>
+            <TablaPorPersona personas={data.por_persona} sedes={data.por_sede} />
           </div>
 
           <aside aria-label="Gráficos" className="space-y-4 @5xl:sticky @5xl:top-4">
@@ -541,7 +559,7 @@ export default function CostosPage() {
                   etiqueta: ETIQUETA_TIPO[x.tipo] ?? x.tipo,
                   valor: x.costo,
                   texto: abreviarSoles(x.costo),
-                  detalle: `${t && t.costo > 0 ? Math.round((x.costo / t.costo) * 100) : 0} % del costo · ${x.personas} personas`,
+                  detalle: `${t && t.costo > 0 ? Math.round((x.costo / t.costo) * 100) : 0} % del costo · ${x.personas} personas en el año`,
                 }))}
               />
             </TarjetaInfo>
@@ -553,7 +571,7 @@ export default function CostosPage() {
                     etiqueta: s.nombre,
                     valor: s.costo_por_hora ?? 0,
                     texto: formatSoles(s.costo_por_hora ?? 0),
-                    detalle: `${s.personas} personas`,
+                    detalle: `${s.personas} personas en el año`,
                   }))}
                 />
                 <p className="mt-3 text-xs text-taupe">{interruptoresVidrio().panel ? "Se compara por hora, no por el total." : "Se compara por hora, no por el total: una sede con más gente siempre costará más."}</p>
@@ -571,19 +589,5 @@ export default function CostosPage() {
         )}
       </main>
     </div>
-  );
-}
-
-// No se llama "Tabla" para no chocar con el primitivo compartido
-// (@/components/ui/tabla): esto solo le agrega el título de sección, y por
-// dentro usa ese mismo <Tabla> — así el envoltorio de esta pantalla queda con
-// la misma superficie elevada (bg-papel, rounded-superficie) que el resto del
-// panel, en vez del bg-crema aislado que tenía antes.
-function SeccionTabla({ titulo, children }: { titulo: string; children: React.ReactNode }) {
-  return (
-    <section className="mb-6">
-      <h2 className="mb-2 font-serif text-lg">{titulo}</h2>
-      <Tabla className={interruptoresVidrio().panel ? "vidrio-tabla-ancha" : undefined}>{children}</Tabla>
-    </section>
   );
 }

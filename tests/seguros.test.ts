@@ -16,10 +16,11 @@ import { describe, it, expect } from "vitest";
 import {
   coincideSeguro, contarPorTipo, cubiertoHasta, estadoPrima, etiquetaTipoArchivo, etiquetaVinculo, faltanPorRegistrar,
   fechaDelPaso, fechasSospechosas, hermanasDe, numeroDeTexto, origenDelCambio, pasaElFiltro, pasosDelCambio, pasosPendientes, pendientesDeSeguros, personasParaPoliza, pideAlgo, polizaQueSeCruza,
-  resumenDelCambio, resumenDeSeguros, seguroPorPersona, sinNadaQueMostrar, sumarMeses,
+  resumenDelCambio, resumenDeSeguros, seguroPorPersona, sinNadaQueMostrar,
   DIAS_AVISO_PRIMA, DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA,
   type CambioSeguro, type FilaEquipoSeguro, type Poliza,
 } from "@/lib/admin/seguros";
+import { sumarMeses } from "@cayla-dynamic/shared";
 
 const HOY = "2026-10-17";
 

@@ -505,7 +505,7 @@ export default function AusenciasPage() {
     setPersonas((p as Persona[]) ?? []);
     const tt = (t as unknown as Tipo[]) ?? [];
     setTipos(tt);
-    const ausencias = (a as unknown as Ausencia[]) ?? [];
+    const ausencias = (a satisfies Ausencia[]) ?? [];
     setLista(ausencias);
 
     // QUÉ CERTIFICADOS HAY, preguntándoselo al almacén y no a la tabla.

@@ -2,8 +2,7 @@
 
 import { useMemo } from "react";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { hoyLima, rangoDelDiaLima } from "@cayla-dynamic/shared";
-import { sumarDias } from "@/lib/mi-semana";
+import { hoyLima, rangoDelDiaLima, sumarDias } from "@cayla-dynamic/shared";
 import { ListaHistorial, useHistorialHorario } from "@/components/historial-horario/historial-horario";
 import { ListaPaginada } from "@/components/ui/paginas";
 

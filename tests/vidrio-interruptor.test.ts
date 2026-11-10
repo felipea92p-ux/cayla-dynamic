@@ -11,6 +11,7 @@ import {
   superficieDeRuta,
   valorVidrio,
   type InterruptoresVidrio,
+  quienSigueElTemaGlobal,
 } from "@/lib/vidrio";
 import RootLayout from "@/app/layout";
 
@@ -193,7 +194,7 @@ describe("el guion contesta igual que la función", () => {
   });
 });
 
-describe("el tema del panel con el vidrio encendido", () => {
+describe("el tema con el vidrio encendido", () => {
   const encendido = guionVidrioAntesDePintar({ panel: true, terminal: true })!;
 
   it("arranca en claro: nadie se encuentra el sistema distinto, aunque su aparato esté en oscuro", () => {
@@ -212,13 +213,22 @@ describe("el tema del panel con el vidrio encendido", () => {
     expect(correrGuionCompleto(encendido, "/admin/dashboard", "error").tema).toBe("claro");
   });
 
-  it("el terminal no se toca: su tema lo sigue decidiendo /admin/apariencia hasta su módulo", () => {
-    expect(correrGuionCompleto(encendido, "/terminal/marcar", "oscuro")).toEqual({ vidrio: "terminal", tema: null, barra: null });
+  it("el terminal, desde su módulo, sigue la misma regla: arranca en claro y recuerda lo que eligió el botón de esa Mac", () => {
+    expect(correrGuionCompleto(encendido, "/terminal/marcar").tema).toBe("claro");
+    expect(correrGuionCompleto(encendido, "/terminal/marcar", "oscuro")).toEqual({ vidrio: "terminal", tema: "oscuro", barra: "#1c1a17" });
+    expect(correrGuionCompleto(encendido, "/terminal/marcar", "sistema").tema).toBe("claro");
+    expect(correrGuionCompleto(encendido, "/terminal/marcar", "error").tema).toBe("claro");
   });
 
-  it("con el panel apagado, el guion no toca el tema en ninguna parte", () => {
+  it("con el interruptor del terminal apagado, su tema lo sigue decidiendo /admin/apariencia: el guion no lo toca", () => {
+    const soloPanel = guionVidrioAntesDePintar({ panel: true, terminal: false })!;
+    expect(correrGuionCompleto(soloPanel, "/terminal/marcar", "oscuro")).toEqual({ vidrio: null, tema: null, barra: null });
+  });
+
+  it("con el panel apagado, el guion no toca el tema del panel", () => {
     const soloTerminal = guionVidrioAntesDePintar({ panel: false, terminal: true })!;
     expect(correrGuionCompleto(soloTerminal, "/admin/dashboard", "oscuro")).toEqual({ vidrio: null, tema: null, barra: null });
+    expect(correrGuionCompleto(soloTerminal, "/terminal/marcar", "oscuro").tema).toBe("oscuro");
   });
 });
 
@@ -272,5 +282,18 @@ describe("al navegar sin recargar", () => {
     aplicarVidrio(html, valorVidrio("/", ambas));
     aplicarVidrio(html, valorVidrio("/terminal", ambas));
     expect(html.atributos.get("data-vidrio")).toBe("terminal");
+  });
+});
+
+describe("¿/admin/apariencia cambia algo?", () => {
+  // La sigue solo la superficie con el vidrio APAGADO: con el vidrio, cada aparato elige con su botón. De esto depende que la pantalla
+  // esté en el menú (nav.tsx, `requiere: "tema-global"`) y lo que dice al guardar.
+  it.each([
+    [{ panel: false, terminal: false }, { panel: true, terminal: true }],
+    [{ panel: true, terminal: false }, { panel: false, terminal: true }],
+    [{ panel: false, terminal: true }, { panel: true, terminal: false }],
+    [{ panel: true, terminal: true }, { panel: false, terminal: false }],
+  ])("interruptores %j → la siguen %j", (interruptores, sigue) => {
+    expect(quienSigueElTemaGlobal(interruptores)).toEqual(sigue);
   });
 });

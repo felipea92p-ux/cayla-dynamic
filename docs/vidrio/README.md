@@ -8,9 +8,17 @@ módulo por módulo, y el estreno es uno solo. Referencias: [el plan](https://cl
 en local para ir viendo antes de realizar cualquier subida». Se construye en local con commits locales, Felipe lo mira corriendo en su computadora,
 se ajusta, y solo con su aprobación se hace `git push` y se abre el PR. También vale para lo que no se ve, como medidores, contrato y vigilante.
 
-**Cómo entra sin frenar el día a día:** lo aprobado se guarda en `main` en cambios chicos, **apagado**. En su computadora está encendido; en
-producción, apagado. El día del estreno se enciende un interruptor y todos lo ven a la vez. El terminal tiene el suyo. Una rama larga no
-sirve: Dynamic recibe unos 49 commits al día. Ver «El vidrio» en [`CLAUDE.md`](../../CLAUDE.md).
+**Dónde está hoy (2026-11-09): las dos superficies se estrenaron.** El panel y Lo mío, desde hacia el 2026-11-07: `NEXT_PUBLIC_VIDRIO` existe en
+Vercel (Production), y el 2026-11-09 se confirmó que es a propósito. El terminal, el 2026-11-09 hacia las 16:15 (hora de Lima), a pedido expreso:
+se creó `NEXT_PUBLIC_VIDRIO_TERMINAL=1` en Production y se reconstruyó producción con `vercel redeploy`. Para comprobar qué está encendido sin leer
+secretos, el guion `(function(){var d=…` del HTML público dice `"terminal"`, `"panel"` o `null` en cada superficie.
+
+**Lo que eso cambia:** ya no hay «entra apagado». Fusionar un cambio de vidrio lo publica **encendido**, en menos de un minuto, para todo el equipo:
+en el panel y en las Mac mini de las cuatro sedes. Por eso la regla de mirarlo en local antes vale más que antes, no menos. Una rama larga sigue sin
+servir: Dynamic recibe unos 49 commits al día. Ver «El vidrio» en [`CLAUDE.md`](../../CLAUDE.md).
+
+**Para apagar una superficie:** quitar su variable en Vercel **y** volver a construir producción. Quitar solo la variable no hace nada hasta el
+siguiente build, y volver al despliegue anterior sin quitarla dura hasta la siguiente fusión de cualquier sesión, que la vuelve a encender.
 
 **Para mirarlo en local:** `node scripts/local/web.mjs`. Las cuentas están en [`scripts/local/LEEME.md`](../../scripts/local/LEEME.md).
 
@@ -21,7 +29,7 @@ sirve: Dynamic recibe unos 49 commits al día. Ver «El vidrio» en [`CLAUDE.md`
 | Aspecto | El de Retail: vidrio, botones en píldora, pestañas en pozo y gota, su cabecera, letra de lectura desde 14 px y cifras que pueden llevar color. |
 | Modo oscuro | Los colores de Retail. Arranca en claro y cada quien lo cambia con su botón. `/admin/apariencia` se retira, porque el tema pasa a ser de cada aparato. |
 | Lo que no se deshace | Botón negro con el aviso «No se puede deshacer», en una sola hoja de vidrio. También cambia en Retail. Junto a «Guardar», el botón peligroso es gota con letra roja. |
-| Boleta, contrato y memo | Papel en su bandeja, en claro y en oscuro. |
+| Boleta, contrato y memo | Papel en su bandeja. **El papel sigue el tema**: en oscuro es oscuro, y al imprimir o guardar el PDF sale claro. Felipe lo decidió el 2026-11-09 al verlo en el teléfono: el papel claro en una pantalla oscura se leía como un error. Hasta ese día era el `.papel-fijo` de Retail (claro en los dos temas); en esto Dynamic se separa de Retail. |
 | Terminal | Último módulo, con su botón de tema y fuera del loader. Ningún botón cambia lo que hace ni cómo se marca. |
 | Movimiento, espera, listas y desenfoque | Como Retail, también en el teléfono. Lo que Retail no tiene se muestra con imagen antes de decidirlo. |
 | Animaciones encendidas o quietas | Como Retail (ADR-0625 de Retail, 2026-11-07): botón «Animaciones» junto al modo oscuro, del aparato, y el panel arranca quieto. Las señales de espera siguen moviéndose. Felipe lo pidió el 2026-11-07; en local hasta que diga que se sube. |
@@ -75,6 +83,13 @@ Es lo primero que Felipe revisa. Como casi todo usa estas piezas, al terminar ca
 
 **Antes de retirar `/admin/apariencia`:** fijar el terminal en claro y limpiar la copia local del tema en cada Mac mini, o se quedan con el último que les llegó.
 
+**El terminal, desde su módulo (2026-11-09):** con `NEXT_PUBLIC_VIDRIO_TERMINAL=1` deja de seguir a `/admin/apariencia`. Arranca en claro y cada Mac mini
+tiene su botón en la cabecera, igual que un teléfono en el panel. Ya no lee la copia local del tema global (`cayla-tema-global`), así que esa copia
+deja de importar; la única que manda es `cayla-tema`, la misma clave que el panel: una Mac mini donde alguien puso el panel en oscuro arranca el terminal
+en oscuro. Sus piezas viven en `estilos/vidrio/terminal.css`, colgadas de clases `terminal-…`: casilla, gota, ahumado, placa, pozo y hoja. Medido con
+`tema/pixeles.mjs`, en claro y oscuro, a 1440 y a 375 px: los 68 textos de la grilla y de las hojas pasan. Solo quedan bajo 4.5:1 las iniciales de
+quien ya terminó su día, que hoy ya se atenúan a propósito al 50 %, y las casillas atenuadas al iluminar un estado (30 %), como hoy.
+
 **Las recetas de vidrio vienen de `main` de Retail, con su bloque para quien pide menos transparencia o más contraste (#1650).** Sus variables viajan; sus reglas, una lista exacta, las escribe `estilos/vidrio/piezas.css` solo para el panel, porque apuntan a clases de Retail. Si Retail cambia esa lista, la copia se detiene y el vigilante avisa.
 
 **`tema:auditar` no alcanza con vidrio:** casi todo el texto va sobre un degradado, y ahí solo suma colores planos. Se mide también con los píxeles de cada pantalla: se saca una captura sin letras y se compara cada texto contra lo que de verdad tiene detrás. Es `tema/pixeles.mjs`; las fotos de antes y ahora salen de `tema/fotos.mjs`.
@@ -110,7 +125,7 @@ trabajo propio de cada módulo. Documentos va antes que Personas y Pago porque l
 | 8 | **Empresa y Configuración:** Archivo, Áreas, Sedes, Cuentas y Parámetros | 6 | 13 | Casi nada | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 9 | **Entrada:** login, nueva clave y olvidé mi clave | 3 | 4 | Compararlo con «El vuelo vivo» de Retail | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 10 | **Lo mío:** lo que cada integrante ve en su teléfono | 12 | 46 | Casi todo: Retail no tiene un espacio personal así | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
-| 11 | **Terminal de marcaje** | 3 | Exento | Casillas, reloj y marcar sin conexión | | | | | | |
+| 11 | **Terminal de marcaje** | 3 | Exento | Casillas, reloj y marcar sin conexión | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 |
 
 Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** cuando tiene las seis.
 
@@ -121,7 +136,7 @@ Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** c
 3. **Medir el responsive y el contraste.** En claro y oscuro, a 375, 768, 1024, 1280, 1440 y 1920 px: `tema:auditar` y `responsive:check`. Cómo se corren: `apps/web/tema/README.md` y `apps/web/responsive/README.md`.
 4. **Recorrer como la gente.** Con la cuenta de menor rango y con la de mayor rango, porque suelen fallar cosas distintas.
 5. **Mostrárselo a Felipe.** Capturas de antes y después en el chat, y en vivo en su computadora. Si algo no calza con ninguna pieza de Retail, se le pregunta con imagen, con la pieza más cercana al lado. No se inventa.
-6. **Cerrar.** Se hacen sus ajustes, se marca aquí y, **solo con su aprobación**, se sube apagado. Antes de eso, nada de `git push` ni de PR.
+6. **Cerrar.** Se hacen sus ajustes, se marca aquí y, **solo con su aprobación**, se sube. Desde el estreno, eso ya es publicarlo encendido, en el panel y en el terminal. Antes de eso, nada de `git push` ni de PR.
 
 ## Cuándo un módulo «se ve bien»
 
@@ -135,6 +150,13 @@ Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** c
 - **Los textos recortados se muestran:** en cada parada, Felipe los ve antes y después. Si una palabra deja dudas, se le pregunta con la pantalla a la vista.
 
 ## Etapa 3: el estreno
+
+**Panel:** encendido en producción hacia el 2026-11-07, a propósito (confirmado el 2026-11-09). De su paso 2 falta la novedad para el equipo
+(`apps/web/lib/novedades.ts` no tiene ninguna sobre el nuevo aspecto).
+**Terminal:** encendido en producción el 2026-11-09 hacia las 16:15 (hora de Lima), a pedido expreso; comprobado en el HTML y el CSS publicados. Las
+Mac mini lo toman al recargarse solas con la versión nueva, y arrancan en claro. Falta su paso 3: que alguien marque de verdad en una tienda una
+entrada y una salida y confirme que todo funciona igual.
+**Los dos:** el paso 4 todavía no. El diseño viejo sigue vivo detrás de los interruptores, y es a lo que vuelve una superficie si se apaga.
 
 1. Revisión final en local y pruebas completas.
 2. Se avisa al equipo con su novedad, se enciende el interruptor y se mira en producción con datos reales.

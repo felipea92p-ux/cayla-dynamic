@@ -4,6 +4,7 @@ import {
   puedeGestionarSeguros, puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas, recibeAvisoDeConductaRegistrada,
   recibeAvisoDeLecturaPendiente,
   esTipoDocumento, TIPO_DOCUMENTO_LABEL,
+  sumarDias,
 } from "@cayla-dynamic/shared";
 import { etiquetaDeVia } from "../reportes";
 import { nombreDe, resumenDeCierre, textoDelDia, type CierrePrueba, type FilaPrueba } from "./pruebas";
@@ -11,10 +12,11 @@ import { diaYMes } from "../bandeja-mia";
 import { formatSoles } from "../rangos";
 import { pendientesDeSeguros, seguroPorPersona, type CambioSeguro, type FilaEquipoSeguro, type Poliza } from "./seguros";
 import {
-  etapaDelBorrador, lecturaPendienteParaAviso, pendientesDeEntregado, type Adjunto, type DocDisciplina, type LecturaMemo,
+  etapaDelBorrador, lecturaPendienteParaAviso, pendientesDeEntregado, type CamposDeEntregado,
+  type CamposDelBorrador, type LecturaMemo, type PapelArchivado,
 } from "./disciplina";
 import {
-  compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
+  compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja,
   urgenciaBono, urgenciaCaso, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
   urgenciaCierrePrueba, urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaPrueba, urgenciaRecordVacaciones, urgenciaSeguroCambio, urgenciaSeguroComplementario,
   urgenciaSeguroPapeleo, urgenciaSeguroPorVencer, urgenciaSeguroSinPoliza, urgenciaSinHorario,
@@ -258,7 +260,7 @@ export interface ItemDisciplina {
  * No es una regla nueva: son `etapaDelBorrador` y `pendientesDeEntregado`, las
  * mismas que ordenan las pestañas de la pantalla de Disciplina.
  */
-export function pasoDisciplina(d: DocDisciplina, adjuntos: readonly Adjunto[], exigeDescargo: boolean, ahora: Date = new Date()): PasoDisciplina | null {
+export function pasoDisciplina(d: CamposDelBorrador & CamposDeEntregado, adjuntos: readonly PapelArchivado[], exigeDescargo: boolean, ahora: Date = new Date()): PasoDisciplina | null {
   if (d.estado === "borrador") return etapaDelBorrador(d, exigeDescargo, ahora);
   if (d.estado === "firmado") return "entregar";
   if (d.estado === "entregado") {
@@ -545,12 +547,16 @@ async function traerDisciplina(
 ): Promise<ItemDisciplina[]> {
   const [docs, cfg] = await Promise.all([
     supabase.from("expediente_disciplinario")
-      .select("id, persona_id, nivel, estado, creado_at, firmado_at, entregado_at, cargos_comunicados_at, descargo_vence_at, descargo_acogido, resuelto_at")
+      .select("id, persona_id, nivel, estado, creado_at, firmado_at, entregado_at, medio_entrega, cargos_comunicados_at, descargo_vence_at, descargo_acogido, resuelto_at")
       .in("estado", ["borrador", "firmado", "entregado"]),
     supabase.from("configuracion").select("valor").eq("clave", "disciplina_descargo_previo").maybeSingle(),
   ]);
   if (docs.error) { fallo("disciplina", "los documentos disciplinarios", docs.error); return []; }
-  const filas = (docs.data ?? []) as unknown as DocDisciplina[];
+  // Sin conversión forzada, a propósito: el tipo de cada fila sale del `select`
+  // de arriba, y `pasoDisciplina` exige las columnas que lee su regla. Si una
+  // migración le suma una columna a la regla, esta línea deja de compilar en vez
+  // de pasarle un `undefined` (ver `CamposDeEntregado`).
+  const filas = docs.data ?? [];
   if (filas.length === 0) return [];
   // Mismo criterio que la pantalla: solo un `false` explícito apaga el descargo previo.
   const exigeDescargo = (cfg.data?.valor as unknown) !== false;
@@ -566,8 +572,9 @@ async function traerDisciplina(
   ]);
   if (adj.error || per.error) { fallo("disciplina", "los documentos disciplinarios", adj.error ?? per.error); return []; }
 
-  const adjuntosDe = new Map<string, Adjunto[]>();
-  for (const a of (adj.data ?? []) as unknown as Adjunto[]) {
+  // Solo `documento_id` y `tipo`: es lo que pide el select y lo único que mira la regla.
+  const adjuntosDe = new Map<string, PapelArchivado[]>();
+  for (const a of adj.data ?? []) {
     adjuntosDe.set(a.documento_id, [...(adjuntosDe.get(a.documento_id) ?? []), a]);
   }
   const codigoSede = new Map(((sed.data ?? []) as { id: string; codigo: string }[]).map((s) => [s.id, s.codigo] as const));
@@ -708,7 +715,7 @@ async function traerLecturasPendientes(
     .in("nivel", ["verbal", "amonestacion", "suspension"])
     .gte("entregado_at", hace12m.toISOString());
   if (error) { fallo("disciplina", "los documentos sin leer", error); return []; }
-  const filas = (docs ?? []) as unknown as Array<Pick<DocDisciplina, "id" | "persona_id" | "nivel" | "estado" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at">>;
+  const filas = docs ?? [];
   if (filas.length === 0) return [];
 
   const { data: lect, error: eL } = await supabase.from("lecturas_memo")

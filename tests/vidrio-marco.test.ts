@@ -128,8 +128,10 @@ describe("el cajón con el dedo", () => {
 
 // Las hojas de verdad, en el orden en que se cargan. `temasDe` conoce los bloques de Retail: se les quita lo del atributo para que los lea.
 const leer = (ruta: string) => readFileSync(join(__dirname, "..", ruta), "utf8");
+// El terminal comparte los bloques de color del panel (marca.css lo nombra primero en la lista): se le quita para leer el del panel.
 const sinAtributo = (css: string) =>
   css
+    .replace(/:root\[data-vidrio="terminal"\][^,{]*,\s*/g, "")
     .replaceAll(':root[data-vidrio="panel"]:not([data-tema="oscuro"])', ":root")
     .replaceAll(':root[data-vidrio="panel"][data-tema="oscuro"]', ':root[data-tema="oscuro"]')
     .replace(/@media screen and \(prefers-color-scheme: dark\) \{[\s\S]*?\n\}\n/g, "")

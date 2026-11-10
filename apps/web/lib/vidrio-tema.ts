@@ -11,8 +11,8 @@
 // DECIDÍ: seguir a Retail: el tema es de cada aparato, y ni el sistema operativo ni /admin/apariencia mandan sobre el panel.
 // DESCARTÉ: reutilizar `useTema`, porque sus tres estados y su lectura de la configuración global son lo que se está dejando atrás,
 //   y mezclarlos obligaría a un `if` por cada rama. El día del estreno se borra el otro.
-// SE ROMPE SI: alguien espera que /admin/apariencia cambie el panel. Con el vidrio encendido ya no lo hace: sigue mandando solo
-//   sobre el terminal, hasta que el terminal tenga su módulo.
+// SE ROMPE SI: alguien espera que /admin/apariencia cambie el panel o el terminal. Con su vidrio encendido ya no lo hace: desde el
+//   módulo del terminal (2026-11-09), cada Mac mini tiene su botón, igual que cada teléfono. Apagado, el terminal sigue con /admin/apariencia.
 
 import { prefiereQuieto } from "./vidrio-movimiento";
 

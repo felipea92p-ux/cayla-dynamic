@@ -53,7 +53,7 @@ async function restaurarDocumento(
   supabase: ClienteCayla,
   documentoId: string,
 ): Promise<{ data: number | null; error: ErrorBase | null }> {
-  const cliente = supabase as unknown as {
+  const cliente = supabase satisfies {
     rpc(
       fn: "fn_restaurar_documento",
       args: { p_documento_id: string },
@@ -292,7 +292,7 @@ function NormasPageContenido() {
       setCargando(false);
       return;
     }
-    setDocs((data as unknown as Doc[]) ?? []);
+    setDocs((data satisfies Doc[]) ?? []);
     setCargando(false);
   }, [supabase, avisar]);
 
@@ -667,7 +667,10 @@ function NormasPageContenido() {
       avisar("error", mensajeDeError(error, "cargar las constancias"));
       return;
     }
-    const filas = (data as unknown as FilaAcuse[]) ?? [];
+    // `fn_acuses_documento` no devuelve `storage_path`: se completa abajo con
+    // `documentos_acuses`. Por eso la fila de la función no se convierte a
+    // `FilaAcuse` — sería prometer una columna que todavía no llegó.
+    const filas = data ?? [];
     const { data: rutas } = await supabase
       .from("documentos_acuses").select("persona_id, storage_path").eq("documento_id", documentoId);
     const porPersona = new Map((rutas ?? []).map((r) => [r.persona_id as string, r.storage_path as string | null]));
@@ -688,7 +691,7 @@ function NormasPageContenido() {
     if (!anterior) return;
     const { data: acusesAnterior } = await supabase
       .rpc("fn_acuses_documento", { p_documento_id: anterior.id as string });
-    const filasAnterior = (acusesAnterior as unknown as FilaAcuse[]) ?? [];
+    const filasAnterior = acusesAnterior ?? [];
     setCoberturaAnterior({
       version: anterior.version as number,
       etiqueta: anterior.etiqueta_version as string | null,

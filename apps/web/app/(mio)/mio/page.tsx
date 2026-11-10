@@ -64,9 +64,11 @@ import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia, esJornadaEnCurso,
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
+import { colorDelDia, MUESTRA } from "@/lib/admin/color-del-dia";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 import { compartirMientrasVuela } from "@/lib/compartir-mientras-vuela";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
+import { locacionDeHoy, type ContratoLocacion } from "@/lib/admin/locaciones";
 import { traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
 import { esMesDeCumpleanos } from "@/lib/saludos-cumpleanos";
@@ -455,27 +457,13 @@ function corrimiento(n: number): string {
 const haceDias = (n: number) => corrimiento(-n);
 
 
-// Los mismos colores que el panel, con el mismo significado. Que la persona y su
-// encargada vean el mismo día del mismo color no es cosmético: es lo que hace
-// que puedan hablar de él sin traducirse una a la otra.
+// Los mismos colores que el panel, con el mismo significado: la escala es UNA, la
+// de lib/admin/color-del-dia.ts. Que la persona y su líder de equipo vean el mismo
+// día del mismo color no es cosmético: es lo que hace que puedan hablar de él sin
+// traducirse una a la otra. Hasta el 2026-11-09 esto era una copia que se había
+// quedado atrás: en oscuro, la tardanza de dos horas brillaba menos que la de veinte minutos.
 function colorDia(d: Dia): string {
-  switch (d.estado) {
-    case "falta": return "bg-rojo";
-    case "revisar": return "border border-dashed border-taupe bg-crema";
-    case "tarde": {
-      const m = d.jornada?.minutos_tarde ?? 0;
-      if (m >= 60) return "bg-ambar brightness-75";
-      if (m >= 15) return "bg-ambar";
-      return "bg-ambar/45";
-    }
-    case "justificada": return "bg-rojo/20";
-    case "ok": return "bg-verde";
-    case "extra": return "bg-verde/45 ring-1 ring-inset ring-verde";
-    case "sin_marca": return "bg-taupe/25";
-    case "descanso": return "bg-sand";
-    case "sin_horario": return "bg-sand/40";
-    case "futuro": return "border border-sand";
-  }
+  return colorDelDia(d.estado, d.jornada?.minutos_tarde ?? 0);
 }
 
 /**
@@ -1181,6 +1169,19 @@ export default function MioPage() {
         setContrato((data as MiContrato | null) ?? null);
         setContratoCargado(true);
       });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id, segundaOla]);
+
+  // Quien cobra por honorarios no tiene contrato de trabajo: tiene uno de locación de servicios (0610). La misma
+  // función que usa DO le devuelve a la persona solo los suyos, sin anulados. `undefined` = todavía no se sabe.
+  const [miLocacion, setMiLocacion] = useState<ContratoLocacion | null | undefined>(undefined);
+  useEffect(() => {
+    if (!yo?.id || !segundaOla) return;
+    let vivo = true;
+    void supabase.rpc("fn_locaciones_listar").then(({ data, error }) => {
+      if (!vivo) return;
+      setMiLocacion(error ? null : locacionDeHoy((data as ContratoLocacion[] | null) ?? []));
+    });
     return () => { vivo = false; };
   }, [supabase, yo?.id, segundaOla]);
 
@@ -2395,12 +2396,12 @@ export default function MioPage() {
                   })()}
 
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-taupe">
-                    <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde" /> trabajaste</span>
-                    <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-ambar" /> llegaste tarde</span>
-                    <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo" /> no marcaste</span>
-                    <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo/20" /> con motivo</span>
-                    <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border border-dashed border-taupe bg-crema" /> falta una marca</span>
-                    <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-sand" /> descanso</span>
+                    <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("ok")}`} /> trabajaste</span>
+                    <span className="flex items-center gap-1.5">{MUESTRA.tardanza.map((c) => <i key={c} className={`inline-block size-3 rounded-[3px] ${c}`} />)} llegaste tarde (más marcado, más tarde)</span>
+                    <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("falta")}`} /> no marcaste</span>
+                    <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("justificada")}`} /> con motivo</span>
+                    <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("revisar")}`} /> falta una marca</span>
+                    <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("descanso")}`} /> descanso</span>
                   </div>
                   <p className="mt-3 text-xs text-taupe">
                     Si tu líder de equipo justificó una tardanza, deja de contar acá.
@@ -2914,8 +2915,23 @@ export default function MioPage() {
       {tab === "contrato" && (
         <section data-tour="mio-contrato-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tu contrato</h2>
-          {!contratoCargado ? (
+          {/* Sin contrato de trabajo, se espera también la respuesta de la locación: si no, decía un instante «no
+              tienes contrato» a quien sí lo tiene. */}
+          {!contratoCargado || (!contrato && miLocacion === undefined) ? (
             <p className="text-taupe">Cargando…</p>
+          ) : !contrato && miLocacion ? (
+            <div>
+              <p className="text-verde">
+                Contrato de locación de servicios, del {diaYMes(miLocacion.fecha_inicio)} al{" "}
+                {diaYMes(miLocacion.terminado_el ?? miLocacion.fecha_fin)}. Firmado el {diaYMes(miLocacion.fecha_firma)}.
+              </p>
+              <Link
+                href="/mio/contrato"
+                className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
+              >
+                Ver mi contrato →
+              </Link>
+            </div>
           ) : !contrato ? (
             <p className="text-taupe">
               Todavía no tienes un contrato registrado en el sistema. Si crees que deberías tener uno, avisa

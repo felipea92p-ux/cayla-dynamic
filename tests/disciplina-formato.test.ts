@@ -2,7 +2,8 @@
 // que vence lleva su AÑO, y sus doce meses son de calendario (RIT 56.1), no 365 días.
 
 import { describe, it, expect } from "vitest";
-import { fechaConAnio, sumarMeses } from "@/components/disciplina/formato";
+import { fechaConAnio } from "@/components/disciplina/formato";
+import { sumarMeses } from "@cayla-dynamic/shared";
 
 describe("fechaConAnio", () => {
   it("dice el año, para que «vigente hasta el 25-ago-2027» no se lea vencido en setiembre de 2026", () => {

@@ -141,7 +141,7 @@ export function useConstanciasPorMeses(supabase: Cliente, hoy: string) {
       vueloApoyo.current = [...vueloApoyo.current, r];
       const filas = await todasLasPaginas<{ persona_id: string; mes: string; monto: number }>((d, h) =>
         supabase.rpc("fn_educacion_apoyo_pagado", { p_desde: `${r.desde}-01` }, { count: d === 0 ? "exact" : undefined })
-          .lt("mes", `${sumarMeses(r.hasta, 1)}-01`).order("persona_id").order("mes").range(d, h) as unknown as Pagina<{ persona_id: string; mes: string; monto: number }>);
+          .lt("mes", `${sumarMeses(r.hasta, 1)}-01`).order("persona_id").order("mes").range(d, h) satisfies Pagina<{ persona_id: string; mes: string; monto: number }>);
       vueloApoyo.current = vueloApoyo.current.filter((x) => x !== r);
       const montos = new Map(apoyoRef.current.montos);
       for (const x of filas ?? []) montos.set(`${x.persona_id}|${mesDe(x.mes)}`, Number(x.monto));

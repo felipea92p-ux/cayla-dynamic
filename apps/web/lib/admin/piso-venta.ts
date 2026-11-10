@@ -11,7 +11,7 @@
 //
 // Una compra es un ticket completado de Retail (no soles ni prendas): es lo que mide el ritmo de la tienda.
 
-import { cuentaEnCobertura, rangoDelDiaLima, fechaLima, type MarcajeDelDia } from "@cayla-dynamic/shared";
+import { cuentaEnCobertura, rangoDelDiaLima, fechaLima, sumarDias, type MarcajeDelDia } from "@cayla-dynamic/shared";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AREA_DEFAULT, esOperativaEn, parseAreas } from "@/lib/areas";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
@@ -96,11 +96,6 @@ export function faltaSeguido(h: HoraDePiso): boolean {
 // ── La lectura ───────────────────────────────────────────────────────────────
 
 type Cliente = ReturnType<typeof createAdminSupabaseClient>;
-
-function sumarDias(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-}
 
 export interface PisoYVenta {
   dias: DiaDePiso[];

@@ -15,6 +15,8 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { ordenarContratoVigente } from "@/lib/mi-contrato";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 import { hoyLima } from "@cayla-dynamic/shared";
+import type { ContratoLocacion } from "@/lib/admin/locaciones";
+import { MisLocaciones } from "./mis-locaciones";
 
 // Tu contrato, en autoservicio — mismo criterio que /mio/boleta: siempre el
 // propio (`auth_user_id` de la sesión, nunca un id que viaje en la URL), y el
@@ -65,6 +67,10 @@ function MiContratoContenido() {
   const [confirmando, setConfirmando] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Quien cobra por honorarios no tiene contrato de trabajo: tiene uno de locación (0610). Para quien no es DO,
+  // `fn_locaciones_listar` devuelve solo los suyos, sin anulados. Un fallo aquí NO se lee como «no tienes contrato».
+  const [locaciones, setLocaciones] = useState<ContratoLocacion[]>([]);
+  const [falloLocaciones, setFalloLocaciones] = useState(false);
 
   // ── Pedir revisión de este contrato (0427) ──────────────────────────────
   // Mismo mecanismo que ya usa /mio/movilidad para «algo cambió» —una tabla,
@@ -117,7 +123,7 @@ function MiContratoContenido() {
     const yoActual = { id: p.id as string, nombre, nombreOficial: (ficha?.nombre_dni as string | null) || nombre };
     setYo(yoActual);
 
-    const [{ data: c, error: eContrato }, { data: mf }, { data: fe }, { data: revs, error: eRevs }] = await Promise.all([
+    const [{ data: c, error: eContrato }, { data: mf }, { data: fe }, { data: revs, error: eRevs }, { data: locs, error: eLocs }] = await Promise.all([
       // El orden vive en lib/mi-contrato.ts: la Bandeja señala el MISMO papel
       // que abre esta pantalla, y dos `order by` escritos por separado se
       // separan solos con el tiempo.
@@ -135,8 +141,11 @@ function MiContratoContenido() {
       // Sin admin de por medio: para quien no es admin, esta misma RPC ya
       // devuelve solo lo suyo (0427), igual que fn_movilidad_revisiones_pedidas.
       supabase.rpc("fn_contrato_revisiones_pedidas", { p_solo_pendientes: false }),
+      supabase.rpc("fn_locaciones_listar"),
     ]);
     setCargando(false);
+    setLocaciones((locs as ContratoLocacion[] | null) ?? []);
+    setFalloLocaciones(eLocs !== null);
     if (eContrato) {
       setError(eContrato.message);
       return;
@@ -236,11 +245,35 @@ function MiContratoContenido() {
   }
 
   if (!yo || !contrato || !contrato.documento_html) {
+    if (yo && locaciones.length > 0) {
+      return (
+        <main className="mx-auto w-full min-w-0 max-w-2xl px-4 py-6 sm:p-6">
+          <EnlaceVolver href="/mio" className="mb-6 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+            ← Volver a Info
+          </EnlaceVolver>
+          <MisLocaciones
+            supabase={supabase}
+            contratos={locaciones}
+            titulo="Tu contrato de locación de servicios"
+            intro="Cobras por recibo por honorarios, así que tu contrato no es de trabajo: es de locación de servicios. Aquí está el que firmaste, tal como lo registró Desarrollo Organizacional."
+          />
+        </main>
+      );
+    }
     return (
       <main className="p-6">
         <p className="max-w-md rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
-          Todavía no tienes un contrato registrado en el sistema. Si crees que deberías tener uno, avisa a
-          Desarrollo Organizacional.
+          {falloLocaciones ? (
+            <>
+              No se pudo consultar tu contrato.{" "}
+              <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+            </>
+          ) : (
+            <>
+              Todavía no tienes un contrato registrado en el sistema. Si crees que deberías tener uno, avisa a
+              Desarrollo Organizacional.
+            </>
+          )}
         </p>
         <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
@@ -414,6 +447,19 @@ function MiContratoContenido() {
         className="hoja rounded-lg border border-sand p-4 text-sm sm:p-8 leading-relaxed print:rounded-none print:border-0 print:p-0"
         dangerouslySetInnerHTML={{ __html: html }}
       />
+
+      {/* Quien pasó de recibo por honorarios a planilla conserva su locación (0610): se ve aquí, debajo, y no se
+          imprime con el contrato de trabajo. */}
+      {locaciones.length > 0 && (
+        <div className="mt-8">
+          <MisLocaciones
+            supabase={supabase}
+            contratos={locaciones}
+            titulo="Tu contrato de locación de servicios"
+            intro="También tienes un contrato de locación de servicios, de cuando cobrabas por recibo por honorarios. Aquí está el que firmaste."
+          />
+        </div>
+      )}
     </main>
   );
 }

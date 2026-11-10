@@ -123,6 +123,6 @@ export async function traerAcusesPendientes(supabase: ClienteCayla): Promise<Acu
   ]);
   return acusesPendientes(
     pol.data as PoliticaVigente | null,
-    docs.data as unknown as DocVigente[] | null,
+    docs.data satisfies DocVigente[] | null,
   );
 }

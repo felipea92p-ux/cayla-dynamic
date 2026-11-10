@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { hoyLima } from "@cayla-dynamic/shared";
+import { hoyLima, sumarDias } from "@cayla-dynamic/shared";
 import { Filtro } from "@/components/ui/filtro";
 import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cargando } from "@/components/cargando";
 import { dowDe, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import {
-  armarSemana, cuadreDeSemana, deQue, inclinacionDeSemana, lunesDe, sumarDias, textoHoras,
+  armarSemana, cuadreDeSemana, deQue, inclinacionDeSemana, lunesDe, textoHoras,
   textoRotacion, totalDeSemana, type DiaDeMiSemana, type PuestoFila,
 } from "@/lib/mi-semana";
 import { esPiso, textoPuesto } from "@/lib/admin/almacen";
@@ -78,7 +78,7 @@ export function useMiSemana(supabase: Cliente, personaId: string | null): MiSema
       return;
     }
     const tramos = (hs as unknown as HorarioTramo[]) ?? [];
-    const turnos = new Map(((ts as unknown as (TurnoDia & { fecha: string })[]) ?? []).map((t) => [t.fecha, t]));
+    const turnos = new Map(((ts satisfies (TurnoDia & { fecha: string })[]) ?? []).map((t) => [t.fecha, t]));
     const feriados = new Map(((fer as { fecha: string; nombre: string }[] | null) ?? []).map((f) => [f.fecha, f.nombre]));
     const semana = (d: Desfase) => armarSemana({ lunes: sumarDias(lunes, 7 * d), turnos, tramos, feriados, puestos });
     setEstado({

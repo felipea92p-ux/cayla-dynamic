@@ -37,8 +37,8 @@
 //   vencimiento: DO a los 45 días (`DIAS_AVISO_RENOVACION`), la persona a los 15 (`DIAS_AVISO_PERSONA`).
 // ============================================================================
 import type { ClienteCayla } from "@cayla-dynamic/database";
-import { diasEntre } from "./bandeja-mia";
 import { cubiertoHasta, loVeLaPersona, plural, type MotivoHueco } from "./admin/seguros";
+import { diasEntre } from "@cayla-dynamic/shared";
 
 /**
  * Cuántos días antes de que termine la póliza se le avisa a la PERSONA. No es el de DO
@@ -136,10 +136,10 @@ export async function traerMiSeguro(
   if (seguro.error || polizas.error) {
     return { principal: null, polizas: [], error: "No pudimos leer tu seguro. Vuelve a intentarlo en un momento." };
   }
-  const filas = (seguro.data ?? []) as unknown as SeguroPrincipal[];
+  const filas = (seguro.data ?? []) satisfies SeguroPrincipal[];
   return {
     principal: filas[0] ?? null,
-    polizas: leerPolizasMias((polizas.data ?? []) as unknown as FilaMisPolizas[]),
+    polizas: leerPolizasMias((polizas.data ?? []) satisfies FilaMisPolizas[]),
     error: null,
   };
 }
@@ -152,7 +152,7 @@ export async function traerMiSeguro(
 export async function marcarMiSeguroVisto(supabase: ClienteCayla): Promise<void> {
   const { data, error } = await supabase.rpc("fn_mis_polizas_avisos");
   if (error) return;
-  await Promise.all(((data ?? []) as unknown as { poliza_id: string; archivo_id: string | null }[]).map((z) =>
+  await Promise.all(((data ?? []) satisfies { poliza_id: string; archivo_id: string | null }[]).map((z) =>
     supabase.rpc("fn_bandeja_marcar_visto", { p_tipo_item: "poliza_mia", p_item_id: z.archivo_id ?? z.poliza_id }).then(() => {}, () => {}),
   ));
 }

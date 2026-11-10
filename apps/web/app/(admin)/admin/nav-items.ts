@@ -35,11 +35,15 @@ export type Item = {
   roles?: readonly string[];
   contador?: Contador;
   /**
-   * Una condición que el rol no alcanza a decir. Hoy una sola: «casos», que
-   * se ve si `fn_ve_casos` (0488) dice que sí — la Gerencia General es una
-   * MARCA, no un rol, y de los admins solo ella gestiona reportes.
+   * Una condición que el rol no alcanza a decir. Hoy dos:
+   * · «casos», que se ve si `fn_ve_casos` (0488) dice que sí — la Gerencia
+   *   General es una MARCA, no un rol, y de los admins solo ella gestiona reportes.
+   * · «tema-global», que se ve solo si alguna superficie sigue el tema de
+   *   /admin/apariencia (`quienSigueElTemaGlobal`, lib/vidrio.ts). Con el
+   *   vidrio encendido en las dos, cada aparato elige con su botón y esa
+   *   pantalla no cambia nada: un renglón que no hace nada confunde (2026-11-09).
    */
-  requiere?: "casos";
+  requiere?: "casos" | "tema-global";
 };
 
 export type Grupo = {
@@ -237,8 +241,8 @@ export const GRUPOS: Grupo[] = [
     // El tema global (claro/oscuro) de panel Y terminal — no un color libre,
     // ver apps/web/app/(admin)/admin/apariencia/page.tsx. Mismo permiso que
     // el resto de este grupo: es un catálogo del sistema, no un dato de una
-    // persona.
-    { href: "/admin/apariencia", label: "Apariencia", Icon: Palette, roles: DO },
+    // persona. Solo va en el menú mientras alguna superficie lo siga.
+    { href: "/admin/apariencia", label: "Apariencia", Icon: Palette, roles: DO, requiere: "tema-global" },
     // Los números del sistema que DO puede cambiar sin pedir código (0552): días
     // de prueba, horas del auto-cierre, el aviso de descanso médico. Cada cambio
     // deja quién, cuándo y por qué. Va en Configuración y no en Pago aunque a

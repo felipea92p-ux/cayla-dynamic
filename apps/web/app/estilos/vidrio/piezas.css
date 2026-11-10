@@ -12,7 +12,7 @@
 
    LO QUE NO SE TOCA
      Solo en pantalla (`@media screen`): el papel que se imprime no lleva vidrio. Y en pantalla tampoco lo que simula ese papel: `.hoja` (contrato, boleta, memo)
-     se excluye en cada regla, porque lo que se revisa en pantalla tiene que ser lo que va a salir.
+     se excluye en cada regla, porque su forma —letra, esquinas, tablas— tiene que ser la que va a salir. Los colores sí siguen el tema (ver «El papel en su bandeja»).
 
    DECIDÍ: sin `backdrop-filter` en las tarjetas y las tablas.
    DESCARTÉ: copiarlo de `--serena-filtro` como Retail, porque aquí las ventanas viven DENTRO de las pantallas (`Modal` no va en un portal, y hay 50 usos): un
@@ -26,27 +26,16 @@
   }
 
   /* ---------- El papel en su bandeja ----------
-     Un documento no se oscurece: lo que se revisa tiene que ser lo que va a salir. Lleva los mismos trece colores del bloque de impresión de globals.css (lo comprueba
-     tests/vidrio-papel.test.ts) y descansa en un pozo, como en la bandeja de la impresora: la receta de Retail (.papel-fijo, y «A · En su bandeja» en liquidacion.css). La bandeja es una
-     sombra sin desenfoque y no un contenedor: así no hay que tocar las pantallas, y no ocupa lugar ni llega a lo que se imprime. */
+     El papel sigue el tema de la pantalla, como cualquier otra pieza, y descansa en un pozo, como en la bandeja de la impresora: la receta de Retail («A · En su bandeja»
+     en liquidacion.css). La bandeja es una sombra sin desenfoque y no un contenedor: así no hay que tocar las pantallas, y no ocupa lugar ni llega a lo que se imprime.
+
+     DECIDÍ (Felipe, 2026-11-09): en oscuro el papel es oscuro. No redefine ningún color: lee los del tema, y la firma escaneada se apoya en su recuadro crema (#680).
+     DESCARTÉ: el `.papel-fijo` de Retail —el papel claro en los dos temas, con los trece colores del bloque de impresión—, porque en el teléfono era un bloque claro
+       en medio de una pantalla oscura: se leía como un error, y la boleta se lee sobre todo ahí, no en papel. Lo que va a salir lo sigue asegurando el bloque
+       `@media print` de globals.css: al imprimir o guardar el PDF el papel es claro, elija quien elija tema. Dynamic se separa de Retail en esto (docs/vidrio/README.md).
+     SE ROMPE SI: alguien vuelve a poner aquí un `--color-*`: el papel quedaría con un tema distinto al de la pantalla (lo frena tests/vidrio-papel.test.ts). */
   [data-vidrio="panel"] :is(.hoja:not(main), .vidrio-papel) {
-    color-scheme: light;
     color: var(--color-tinta);
-    --color-crema: #f5f0e8;
-    --color-papel: #fbf8f2;
-    --color-tinta: #1a1a18;
-    --color-rojo: #b8412d;
-    --color-rojo-profundo: #8b2a1f;
-    --color-sand: #e8e0d0;
-    --color-taupe: #805c4c;
-    --color-verde: #48603f;
-    --color-ambar: #74501a;
-    --color-hueso: #eae1d2;
-    --color-pizarra: #4c5d6e;
-    --color-azul: #2f5f9e;
-    --color-ceniza: #635f58;
-    --firma-fondo: transparent;
-    --firma-aire: 0;
     margin-block: 12px;
     border-color: var(--color-sand);
     background-color: var(--color-papel);
@@ -130,11 +119,6 @@
   /* Un botón no hereda la letra apagada de su fila o de su vacío: «Editar» en un área inactiva bajaba a 4.26:1 en oscuro. Lo inactivo es el dato; el botón sigue funcionando. */
   [data-vidrio="panel"] :is(button, a).rounded-control.border-borde-control:not(.bg-tinta, .text-taupe, .text-rojo, .text-crema, .text-verde, .text-ambar, :disabled, .hoja *) {
     color: var(--color-tinta);
-  }
-  /* La vista previa de una firma es un trozo de papel: blanca en los dos temas, así que su letra y su línea tampoco cambian con el tema. */
-  [data-vidrio="panel"] .bg-white.bg-white.bg-white :is(.text-taupe, [class*="border-tinta/"]) {
-    color: color-mix(in srgb, var(--color-tinta-fija) 72%, transparent);
-    border-color: color-mix(in srgb, var(--color-tinta-fija) 40%, transparent);
   }
   /* Una etiqueta chica sobre un fondo a medias (el «sin meta» de Turnos). */
   [data-vidrio="panel"] span[class*="bg-papel/"]:not(.hoja *) {

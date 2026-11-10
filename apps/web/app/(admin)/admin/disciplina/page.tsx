@@ -320,8 +320,8 @@ export default function DisciplinaPage() {
     setFalloPersonas(!!eP);
 
     // Doble casteo: `types.ts` es generado y no describe `sin_medir` (ver 0184).
-    setTardanzas(Array.isArray(t) ? (t as unknown as TardanzaRow[]) : []);
-    setFaltas(Array.isArray(f) ? (f as unknown as FaltaRow[]) : []);
+    setTardanzas(Array.isArray(t) ? (t satisfies TardanzaRow[]) : []);
+    setFaltas(Array.isArray(f) ? (f satisfies FaltaRow[]) : []);
     const lista = Array.isArray(d) ? (d as unknown as DocDisciplina[]) : [];
     setDocs(lista);
 
@@ -372,15 +372,15 @@ export default function DisciplinaPage() {
       .select("id, expediente_id, accion, por, motivo, hecho_at").order("hecho_at", { ascending: false });
     setTraspasos(Array.isArray(tr) ? (tr as unknown as Traspaso[]) : []);
     const { data: lect } = await supabase.from("lecturas_memo").select("expediente_id, abierto_at, leido_at");
-    setLecturas(Array.isArray(lect) ? (lect as unknown as LecturaMemo[]) : []);
+    setLecturas(Array.isArray(lect) ? (lect satisfies LecturaMemo[]) : []);
     // Tolerante como las lecturas: si la 0581 todavía no está pegada, las tablas
     // no existen y el panel solo deja de decir si ella abrió los cargos.
     const [{ data: rec }, { data: des }] = await Promise.all([
       supabase.from("recepciones_cargos").select("expediente_id, abierto_at, recibido_at"),
       supabase.from("descargos_presentados").select("id, expediente_id, texto, presentado_at").order("presentado_at"),
     ]);
-    setRecepciones(Array.isArray(rec) ? (rec as unknown as RecepcionCargos[]) : []);
-    setDescargosInfo(Array.isArray(des) ? (des as unknown as DescargoPresentado[]) : []);
+    setRecepciones(Array.isArray(rec) ? (rec satisfies RecepcionCargos[]) : []);
+    setDescargosInfo(Array.isArray(des) ? (des satisfies DescargoPresentado[]) : []);
 
     const borradores = lista.filter((x) => x.estado === "borrador");
     const [pares, evs, { data: cfg }, { data: sc }] = await Promise.all([
@@ -505,7 +505,7 @@ export default function DisciplinaPage() {
     setValoracionTexto("");
     const { data } = await supabase.from("descargos_presentados")
       .select("id, expediente_id, texto, presentado_at").order("presentado_at");
-    if (Array.isArray(data)) setDescargosInfo(data as unknown as DescargoPresentado[]);
+    if (Array.isArray(data)) setDescargosInfo(data satisfies DescargoPresentado[]);
     setValorando({ d, acogido: "" });
   }
 

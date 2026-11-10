@@ -1,5 +1,5 @@
-import { esPagoUnicoAprobadoSinFecha, fechaLima, hoyLima } from "@cayla-dynamic/shared";
-import { diasEntre, diaYMes } from "../bandeja-mia";
+import { esPagoUnicoAprobadoSinFecha, fechaLima, hoyLima, diasEntre, sumarDias } from "@cayla-dynamic/shared";
+import { diaYMes } from "../bandeja-mia";
 import { situacionDe, type CierrePrueba, type FilaPrueba } from "./pruebas";
 
 /**
@@ -331,11 +331,6 @@ export function urgenciaSeguroCambio(paso: "baja" | "alta", dias: number): Urgen
 //    Feriados, Disciplina). Cada una se mide contra SU plazo real, nunca contra
 //    uno inventado para la Bandeja. ─────────────────────────────────────────
 
-/** `2026-09-15` + 30 → `2026-10-15`, por partes y en UTC: sin el huso del navegador. */
-export function sumarDias(fecha: string, dias: number): string {
-  const [y, m, d] = fecha.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + dias)).toISOString().slice(0, 10);
-}
 
 const PLAZO = { futuro: "Plazo vence", pasado: "Plazo venció" };
 

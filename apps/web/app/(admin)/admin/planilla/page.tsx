@@ -29,6 +29,7 @@ import { Check, ChevronDown, ChevronUp, MoreHorizontal, ReceiptText, Search } fr
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
   TIPOS_VINCULO, TIPO_VINCULO_LABEL, hoyLima, puedeMarcarPagoPersona, puedeVerPlanilla, type TipoVinculo,
+  sumarDias,
 } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
@@ -60,7 +61,7 @@ import { RevisionCierre, type AnteriorPendiente } from "@/components/planilla/re
 import { RequiereAtencion } from "@/components/planilla/requiere-atencion";
 import { QueCambio } from "@/components/planilla/que-cambio";
 import { PanelFeriados } from "@/components/planilla/panel-feriados";
-import { MESES_LARGO, fechaCorta, fechaLargaLima, fmtHoras, sumarDias } from "@/lib/admin/planilla/formato";
+import { MESES_LARGO, fechaCorta, fechaLargaLima, fmtHoras } from "@/lib/admin/planilla/formato";
 import {
   agruparHallazgos, agruparPorGrupo, avanceDelPeriodo, ceseRespectoDelPeriodo, claveFila, grupoDe, hallazgosDePersona,
   lecturaDelEstado, periodoInicialSugerido, periodosAnterioresSinPagar, periodosVencidosSinPagar, sumarFilas,
@@ -363,7 +364,7 @@ export default function PlanillaPage() {
     if (!puedeVer || !periodoActual || periodoActual.estado !== "pagado") return { desvios: null, error: null };
     const { data, error } = await supabase.rpc("fn_planilla_foto_diferencias", { p_periodo_id: periodoActual.id });
     // Si falla no se dice «todo cuadra»: se muestra el error.
-    return error ? { desvios: null, error: error.message } : { desvios: (data as unknown as Desvio[]) ?? [], error: null };
+    return error ? { desvios: null, error: error.message } : { desvios: (data satisfies Desvio[]) ?? [], error: null };
   }, [supabase, puedeVer, periodoActual]);
   const refrescarDesvios = useCallback(async () => {
     const r = await cargarDesvios();

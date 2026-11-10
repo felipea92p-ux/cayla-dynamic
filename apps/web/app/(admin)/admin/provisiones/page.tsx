@@ -138,7 +138,7 @@ export default function ProvisionesPage() {
     // se regeneren. Mismo recurso que usa `lib/terminal/reloj-servidor.ts` con
     // `fn_ahora_servidor`; se puede quitar cuando `types.ts` la incluya.
     const { data: subv, error: errorSubv } = await supabase.rpc("fn_subvenciones_practicante" as never);
-    setSubvenciones(errorSubv ? null : (subv as unknown as SubvData));
+    setSubvenciones(errorSubv ? null : (subv satisfies SubvData));
   }, [supabase, puedeVer]);
 
   useEffect(() => {

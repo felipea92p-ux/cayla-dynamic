@@ -23,9 +23,9 @@
 // mientras la base congelaba al grupo completo. Separar «lo que se ve» de «lo
 // que es el periodo» empieza por que ninguna cuenta de acá reciba un filtro.
 
-import { TIPOS_VINCULO, esPrestadorDeServicios, type TipoVinculo } from "@cayla-dynamic/shared";
+import { TIPOS_VINCULO, esPrestadorDeServicios, type TipoVinculo, diasDelTramo } from "@cayla-dynamic/shared";
 import { formatSoles } from "@/lib/rangos";
-import { diasEntre, fechaCorta } from "./formato";
+import { fechaCorta } from "./formato";
 import type { Fila, GrupoPago, Liquidada, PeriodoInfo } from "./tipos";
 
 // ── Grupos ───────────────────────────────────────────────────────────────────
@@ -416,10 +416,10 @@ export type Avance =
   | { estado: "terminado"; dias: number };
 
 export function avanceDelPeriodo(ini: string, fin: string, hoy: string): Avance {
-  const dias = diasEntre(ini, fin);
+  const dias = diasDelTramo(ini, fin);
   if (hoy < ini) return { estado: "por_empezar", dias };
   if (hoy > fin) return { estado: "terminado", dias };
-  return { estado: "en_curso", transcurridos: diasEntre(ini, hoy), dias };
+  return { estado: "en_curso", transcurridos: diasDelTramo(ini, hoy), dias };
 }
 
 /**

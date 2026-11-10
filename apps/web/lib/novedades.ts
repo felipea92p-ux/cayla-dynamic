@@ -115,6 +115,77 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-09-contratos-de-recibo-por-honorarios",
+    fecha: "2026-11-09",
+    titulo: "Contratos tiene una pestaña para quien cobra por recibo por honorarios",
+    queMejoro:
+      "Quien cobra por recibo por honorarios firma un contrato de locación de servicios, no uno de trabajo, y Contratos " +
+      "no lo mostraba. La pestaña nueva «Recibo por honorarios» dice quién no tiene su contrato registrado, a quién se " +
+      "le vence en los próximos 60 días y quién está al día.\n\n" +
+      "Desde el panel de cada persona se sube el contrato firmado, se abre, se anula si se registró mal o se termina " +
+      "antes de tiempo. Si alguien pasa a planilla o cesa con su locación todavía abierta, aparece primero en la " +
+      "pestaña hasta que se termine: con las dos cosas a la vez tendría un vínculo civil y otro laboral.\n\n" +
+      "Y cada persona por honorarios ve el suyo en Lo mío › Contrato, y lo abre desde ahí.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-11-09-apariencia-sale-del-menu",
+    fecha: "2026-11-09",
+    titulo: "«Apariencia» sale del menú: claro u oscuro lo elige cada aparato",
+    queMejoro:
+      "Con el diseño nuevo, el panel y los terminales de marcaje eligen claro u oscuro con su propio botón ☀/🌙: en el " +
+      "panel, en la cabecera; en cada Mac mini, arriba a la derecha. Por eso la pantalla «Apariencia» de Configuración " +
+      "ya no cambiaba nada aunque dijera que sí, y sale del menú.\n\n" +
+      "Si alguna vez se apaga el diseño nuevo, vuelve sola al menú y vuelve a mandar.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-11-09-jornada-dice-el-nombre-de-cada-sede",
+    fecha: "2026-11-09",
+    titulo: "La Jornada del Dashboard dice el nombre de cada sede",
+    queMejoro:
+      "En la pestaña «Jornada» del Dashboard, cada grupo y cada filtro decían solo el código de la sede —«LIM», " +
+      "«TRU»—. Ahora dicen «Taller · Lima», «Tienda · Trujillo», como en «Hoy» y en «Tendencias», con el código " +
+      "al lado en chico. Así el Taller de Lima no se confunde con la Tienda de Lima.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-11-09-mis-dias-con-los-colores-de-tu-lider",
+    fecha: "2026-11-09",
+    titulo: "Mis días usa los mismos colores que ve tu líder, y tu firma escrita se ve en modo oscuro",
+    queMejoro:
+      "En Lo mío › Mis días, cada cuadrito se pinta ahora con los mismos colores que ve tu líder de equipo en el panel, " +
+      "y la explicación de abajo los muestra igual. Los días «con motivo» y los que no tienen marca se distinguen mejor, " +
+      "y en modo oscuro un día en que llegaste muy tarde ya no se ve más suave que uno en que llegaste un poco tarde: " +
+      "lleva un borde rojo, como en el panel.\n\n" +
+      "Y al escribir tu firma (Cambiar firma › Escribir), en modo oscuro tu nombre salía casi blanco sobre blanco y no " +
+      "se veía. Ya se ve.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-11-09-la-bandeja-ya-no-pide-cargo-de-lo-recibido-por-info",
+    fecha: "2026-11-09",
+    titulo: "La Bandeja ya no pide el cargo de un documento que la persona recibió por su Info",
+    queMejoro:
+      "Cuando un documento de Disciplina se entrega por la Info de la persona y ella confirma que lo recibió, esa " +
+      "confirmación es la constancia: no hay papel que subir. Disciplina ya lo pasaba al historial, pero la Bandeja lo " +
+      "seguía mostrando como «entregada, sin cargo firmado» y pedía «Subir cargo». Ya no aparece ahí.\n\n" +
+      "Lo que se entrega en papel sigue pidiendo su cargo firmado, igual que antes.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-11-09-guia-de-como-funciona-la-disciplina",
+    fecha: "2026-11-09",
+    titulo: "Una guía nueva en Disciplina: cómo funciona, paso a paso",
+    queMejoro:
+      "En Info › Disciplina hay un enlace nuevo, «Cómo funciona la disciplina». Explica con ejemplos qué pasa con las " +
+      "tardanzas, las inasistencias y las faltas de conducta, qué es una amonestación o una suspensión, cómo se cuenta tu " +
+      "plazo para dar tu versión, y todas tus garantías. También se abre desde la pantalla de unos cargos.\n\n" +
+      "Es un resumen del Reglamento Interno de Trabajo y dice arriba qué versión resume. Si algo no coincide, vale el " +
+      "Reglamento, que sigue en Publicaciones › Normas.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-09-lo-mio-en-el-telefono-se-lee-mejor",
     fecha: "2026-11-09",
     titulo: "En el teléfono, el menú vuelve a mostrar sus nombres y las listas van de a 5",

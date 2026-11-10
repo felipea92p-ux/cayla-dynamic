@@ -9,7 +9,7 @@
 import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { rangoDelDiaLima } from "@cayla-dynamic/shared";
+import { rangoDelDiaLima, diasDelTramo } from "@cayla-dynamic/shared";
 import { Drawer } from "@/components/ui/drawer";
 import { Insignia } from "@/components/ui/insignia";
 import { Boton } from "@/components/ui/boton";
@@ -79,10 +79,6 @@ function Bloque({ titulo, children }: { titulo: string; children: ReactNode }) {
       {children}
     </section>
   );
-}
-
-function diasEntre(desde: string, hasta: string): number {
-  return Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000) + 1;
 }
 
 export function PanelIncidencia({
@@ -214,7 +210,7 @@ export function PanelIncidencia({
 
   const supabase = createAdminSupabaseClient();
   const vistoBueno = i.aceptable ? VISTO_BUENO[i.aceptable] : null;
-  const diasAusencia = rastro?.ausencia ? diasEntre(rastro.ausencia.fecha_inicio, rastro.ausencia.fecha_fin) : 0;
+  const diasAusencia = rastro?.ausencia ? diasDelTramo(rastro.ausencia.fecha_inicio, rastro.ausencia.fecha_fin) : 0;
   // Mismo candado que fn_anular_ausencia (0442): una vez que DO aprobó un tipo
   // que de verdad exige su aprobación, deshacerlo deja de ser cosa de acá.
   // Sin este chequeo, el botón se mostraba igual y quien lo intentaba se

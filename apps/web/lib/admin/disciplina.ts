@@ -112,6 +112,30 @@ export function esGradual(nivel: string): boolean {
 export type EtapaBorrador = "comunicar" | "esperando" | "valorar" | "firmar";
 
 /**
+ * Las columnas que leen las reglas de «qué le falta a este documento»
+ * (`etapaDelBorrador`, `pendientesDeEntregado`, `pestanaDelDocumento`). Es su
+ * contrato: deciden con esto y con nada más.
+ *
+ * Está escrito como tipo para que quien trae el documento con un `select` propio
+ * no pueda olvidarse una columna sin que TypeScript lo note. Pasó el 2026-11-09:
+ * la 0486 hizo que `pendientesDeEntregado` mirara `medio_entrega`, la Bandeja no
+ * la pedía, y como convertía sus filas con `as unknown as DocDisciplina[]` nadie
+ * lo vio. `undefined` no es `"digital"`, así que cada memo recibido y firmado
+ * por Info siguió pidiendo «Subir cargo» en la Bandeja mientras esta pantalla ya
+ * lo tenía en el historial.
+ *
+ * `estado` va como `string` y no como `EstadoDocumento` porque así llega de la
+ * base (la columna es texto con un CHECK) y las reglas ya tratan cualquier otro
+ * valor como «no pide nada». Exigir la unión obligaría a convertir la fila, y una
+ * conversión forzada es justo lo que escondió el defecto.
+ */
+export type CamposDelBorrador = Pick<DocDisciplina, "nivel" | "cargos_comunicados_at" | "descargo_vence_at" | "descargo_acogido">;
+export type CamposDeEntregado = Pick<DocDisciplina, "nivel" | "medio_entrega" | "resuelto_at"> & { estado: string };
+/** De un adjunto, la regla solo mira qué papel es. Quien lo trae para decidir
+ *  no necesita pedir la ruta ni la nota, y no debe fingir que las tiene. */
+export type PapelArchivado = { tipo: string };
+
+/**
  * El paso que toca en un borrador. Es la misma cascada que exige la base desde
  * la 0212 —comunicar cargos, esperar el plazo, valorar el descargo, firmar—
  * y que la pantalla tenía escrita como un ternario dentro de la fila.
@@ -120,7 +144,7 @@ export type EtapaBorrador = "comunicar" | "esperando" | "valorar" | "firmar";
  * plazo se mira contra el reloj del navegador solo para PINTAR: quien decide
  * es la base, que rechaza la firma mientras el plazo no haya vencido.
  */
-export function etapaDelBorrador(d: DocDisciplina, exigeDescargo: boolean, ahora: Date = new Date()): EtapaBorrador {
+export function etapaDelBorrador(d: CamposDelBorrador, exigeDescargo: boolean, ahora: Date = new Date()): EtapaBorrador {
   if (!exigeDescargo || !esGradual(d.nivel)) return "firmar";
   if (d.cargos_comunicados_at === null) return "comunicar";
   if (d.descargo_vence_at !== null && new Date(d.descargo_vence_at) > ahora) return "esperando";
@@ -144,7 +168,7 @@ export type Pestana = "revision" | "borradores" | "entregar" | "historial";
 
 /** Si el documento tiene archivado el papel que prueba su entrega: el cargo
  *  firmado o el acta de negativa (que produce los mismos efectos, num. 55.4). */
-export function tienePapelDeEntrega(adjuntos: readonly Adjunto[]): boolean {
+export function tienePapelDeEntrega(adjuntos: readonly PapelArchivado[]): boolean {
   return adjuntos.some((a) => a.tipo === "cargo_firmado" || a.tipo === "acta_negativa");
 }
 
@@ -164,7 +188,7 @@ export type PendienteDeEntregado = "cargo" | "resolver";
  * entrega que nunca tuvo papel sería un pendiente que no se puede cumplir, y
  * un aviso que no se puede cumplir enseña a ignorar los que sí.
  */
-export function pendientesDeEntregado(d: DocDisciplina, adjuntos: readonly Adjunto[]): PendienteDeEntregado[] {
+export function pendientesDeEntregado(d: CamposDeEntregado, adjuntos: readonly PapelArchivado[]): PendienteDeEntregado[] {
   if (d.estado !== "entregado") return [];
   const p: PendienteDeEntregado[] = [];
   if (!tienePapelDeEntrega(adjuntos) && d.medio_entrega !== "digital") p.push("cargo");
@@ -172,7 +196,7 @@ export function pendientesDeEntregado(d: DocDisciplina, adjuntos: readonly Adjun
   return p;
 }
 
-export function pestanaDelDocumento(d: DocDisciplina, adjuntos: readonly Adjunto[]): Exclude<Pestana, "revision"> {
+export function pestanaDelDocumento(d: CamposDeEntregado, adjuntos: readonly PapelArchivado[]): Exclude<Pestana, "revision"> {
   switch (d.estado) {
     case "borrador": return "borradores";
     case "firmado": return "entregar";
@@ -523,6 +547,11 @@ export type EstadoLectura =
 
 const NIVELES_QUE_SE_LEEN = ["verbal", "amonestacion", "suspension"];
 
+/** Las columnas que lee la constancia de lectura. Mismo motivo que `CamposDeEntregado`:
+ *  `estado` como llega de la base, para que el cargador no tenga que forzar el tipo. */
+export type CamposDeLectura =
+  Pick<DocDisciplina, "nivel" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at"> & { estado: string };
+
 /**
  * Qué dice la constancia de lectura de un documento. Solo aplica a lo ENTREGADO
  * EN PAPEL de los tres niveles que se leen en pantalla: lo recibido por Info ya
@@ -531,7 +560,7 @@ const NIVELES_QUE_SE_LEEN = ["verbal", "amonestacion", "suspension"];
  * de `fn_mi_disciplina` (0516): la persona y DO ven lo mismo.
  */
 export function estadoDeLectura(
-  d: Pick<DocDisciplina, "estado" | "nivel" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at">,
+  d: CamposDeLectura,
   lectura: LecturaMemo | undefined,
   ahora: Date,
 ): EstadoLectura {
@@ -548,7 +577,7 @@ export function estadoDeLectura(
 
 /** ¿Hay que avisarle a DO? Entregado en papel, sin leer, y con más de `DIAS_SIN_LEER_PARA_AVISO` días. */
 export function lecturaPendienteParaAviso(
-  d: Pick<DocDisciplina, "estado" | "nivel" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at">,
+  d: CamposDeLectura,
   lectura: LecturaMemo | undefined,
   ahora: Date,
 ): boolean {

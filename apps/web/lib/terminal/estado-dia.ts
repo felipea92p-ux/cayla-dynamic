@@ -103,7 +103,7 @@ export async function cargarMarcajesHoyPorPersona(): Promise<EstadoDelDia> {
       // un corte de red. Un array vacío SIN error sí es una respuesta real
       // (nadie marcó nada en el rango) y cuenta como confiable.
       if (!res.error) {
-        data = res.data as unknown as FilaMarcaje[];
+        data = res.data satisfies FilaMarcaje[];
         confiable = true;
       }
     } catch {
@@ -178,7 +178,7 @@ export async function confirmarEstadoPuntual(personaId: string): Promise<Marcaje
       .lte("timestamp_marca", finDia)
       .abortSignal(topeDeRed(3));
     if (res.error) return null;
-    filas = (res.data ?? []) as unknown as typeof filas;
+    filas = (res.data ?? []) satisfies typeof filas;
   } catch {
     return null;
   }

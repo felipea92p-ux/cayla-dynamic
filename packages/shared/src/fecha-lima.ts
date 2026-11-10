@@ -157,3 +157,46 @@ export function mesesRecientesLima(cuantos = 12, fecha: string = hoyLima()): str
     return `${Math.floor(total / 12)}-${p2((total % 12) + 1)}-01`;
   });
 }
+
+// ── Aritmética de fechas planas (`AAAA-MM-DD`) ──────────────────────────────
+//
+// Sumar días o meses a una fecha y contar los días entre dos. Van por partes y en
+// UTC: un `new Date("2026-11-09")` del navegador lee la fecha en SU huso, y en
+// Lima eso es el día anterior a las 19:00.
+//
+// Hasta noviembre de 2026 esto estaba escrito unas veinte veces en `apps/web`, con
+// cinco nombres (`sumarDias`, `addDays`, `restarDias`, `diaSiguiente`,
+// `diasEntre`) y DOS significados distintos bajo el mismo nombre `diasEntre`: en
+// la Bandeja «del 1 al 3» daba 2 y en Planilla daba 3. Por eso aquí son dos
+// funciones con nombres distintos, y no hay una tercera.
+
+/** `2026-11-09` + 30 → `2026-12-09`. `n` puede ser negativo. */
+export function sumarDias(fecha: string, n: number): string {
+  const [y, m, d] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+/**
+ * Suma meses de CALENDARIO, sin pasarse del fin de mes: 31 de enero + 1 → 28 de
+ * febrero, y `2028-02-29` + 12 → `2029-02-28`. Es la misma cuenta que
+ * `fecha + interval 'N months'` en Postgres, así que la pantalla y la base dicen
+ * la misma fecha. `n` puede ser negativo.
+ */
+export function sumarMeses(fecha: string, n: number): string {
+  const [y, m, d] = fecha.split("-").map(Number);
+  const destino = new Date(Date.UTC(y, m - 1 + n, 1));
+  const ultimo = new Date(Date.UTC(destino.getUTCFullYear(), destino.getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(destino.getUTCFullYear(), destino.getUTCMonth(), Math.min(d, ultimo))).toISOString().slice(0, 10);
+}
+
+/** Cuántos días van de `desde` a `hasta`: del 1 al 3 son 2. Negativo si `hasta` es anterior. */
+export function diasEntre(desde: string, hasta: string): number {
+  const [ay, am, ad] = desde.split("-").map(Number);
+  const [by, bm, bd] = hasta.split("-").map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000);
+}
+
+/** Cuántos días tiene el tramo contando los dos extremos: del 1 al 3 son 3. */
+export function diasDelTramo(desde: string, hasta: string): number {
+  return diasEntre(desde, hasta) + 1;
+}

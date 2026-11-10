@@ -15,6 +15,7 @@
 import type { FilaCasoResumen } from "@/lib/admin/casos-resumen";
 import { TIPOS_REPORTE } from "@/lib/reportes";
 import { codigoDeMotivo } from "@/lib/admin/motivo-falta";
+import { sumarDias } from "@cayla-dynamic/shared";
 
 export const MINIMO_CASOS = 5;
 export const MINIMO_LLEGADAS = 20;
@@ -339,11 +340,6 @@ function finDeMes(mes: string): string {
   return sumarDias(`${mesSiguiente(mes)}-01`, -1);
 }
 
-function sumarDias(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const f = new Date(Date.UTC(y, m - 1, d + n));
-  return f.toISOString().slice(0, 10);
-}
 
 /** Percentil con interpolación lineal sobre una lista YA ordenada. */
 export function percentil(ordenada: readonly number[], p: number): number | null {

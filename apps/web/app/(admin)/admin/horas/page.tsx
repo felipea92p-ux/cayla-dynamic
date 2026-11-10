@@ -64,6 +64,7 @@ import {
   esJornadaEnCurso, cuentaEnLoQueLeTocaba,
   type Esperado, type EstadoDia, type HorarioTramo, type JornadaDelDia, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
+import { colorDelDia, colorTardanza, MUESTRA, TARDANZA_SERIA_MIN } from "@/lib/admin/color-del-dia";
 import { Insignia } from "@/components/ui/insignia";
 import { EtiquetaPrueba, usePruebasPorPersona } from "@/components/pruebas/etiqueta-prueba";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
@@ -88,11 +89,6 @@ import { interruptoresVidrio } from "@/lib/vidrio";
 // Por encima de esto la cuadrícula deja de ayudar y empieza a colgar el
 // navegador: 30 personas × 365 días son once mil cuadritos. Se apaga y se dice.
 const MAX_DIAS_CUADRICULA = 62;
-
-// Una tardanza de este tamaño ya no es «llegó justo»: cambia el color del
-// cuadro. No es un umbral legal ni sanciona nada — es cuándo se ve distinto.
-const TARDANZA_SERIA_MIN = 15;
-const TARDANZA_GRAVE_MIN = 60;
 
 const MOTIVOS_FALTA = [
   { valor: "permiso_concedido", label: "Permiso concedido" },
@@ -276,23 +272,8 @@ const porRevisar = (f: Fila) => f.incompletas + f.pendientes;
 const cumplimiento = (f: Fila) => (f.horasEsperadas > 0 ? f.horasConReferencia / f.horasEsperadas : -1);
 const objPct = (f: Fila) => (f.objTotal > 0 ? f.objCumplidos / f.objTotal : -1);
 
-// Colores del cuadrito. Se leen en este orden en la leyenda, y el ámbar tiene
-// tres intensidades porque siete minutos y dos horas no son la misma noticia.
-function colorTardanza(m: number): string {
-  // Antes: "bg-ambar brightness-75" para la grave. Un filtro que siempre
-  // oscurece funciona sobre --color-ambar en claro (#74501a, ya oscuro) y
-  // se INVIERTE en oscuro (#c99a4a, un dorado claro): ahí "más oscuro" se
-  // acerca al fondo en vez de saltar, y la de veinte minutos brilla más
-  // que la de dos horas. El anillo no depende de qué tan claro sea el
-  // token en cada tema, así que apunta igual en los dos.
-  if (m >= TARDANZA_GRAVE_MIN) return "bg-ambar ring-2 ring-inset ring-rojo-profundo";
-  if (m >= TARDANZA_SERIA_MIN) return "bg-ambar";
-  // Era /45: medía 2.09:1 en claro y 2.34:1 en oscuro contra bg-papel,
-  // por debajo del piso de 3:1 para contraste no-textual (WCAG 1.4.11).
-  // /65 llega a ~3.0:1 en los dos temas sin acercarse a "tardanza seria".
-  return "bg-ambar/65";
-}
-
+// Colores del cuadrito: la escala vive en lib/admin/color-del-dia.ts, la misma
+// que pinta «Lo mío». Aquí solo se suma lo que es de esta pantalla: hoy, en curso.
 function colorDia(d: Dia): string {
   // Hoy, en su jornada: un contorno verde, no el punteado de «por revisar» —
   // no falta nada, está trabajando. Si llegó tarde, eso ya es un hecho y se
@@ -300,23 +281,7 @@ function colorDia(d: Dia): string {
   if (d.enCurso) {
     return (d.minutosTarde ?? 0) > 0 && !d.levantada ? colorTardanza(d.minutosTarde!) : "border-2 border-verde bg-papel";
   }
-  switch (d.estado) {
-    case "falta": return "bg-rojo";
-    case "revisar": return "border border-dashed border-taupe bg-papel";
-    case "tarde": return colorTardanza(d.minutosTarde ?? 0);
-    // Era /20: 1.34:1 en claro, 1.29:1 en oscuro. /75 llega a ~3:1 en oscuro
-    // (el más exigente de los dos) sin cambiar el resto de la escala.
-    case "justificada": return "bg-rojo/75";
-    case "ok": return "bg-verde";
-    case "extra": return "bg-verde/45 ring-1 ring-inset ring-verde";
-    // Era /25: 1.42:1 en claro, 1.51:1 en oscuro. /70 llega a ~3:1 en claro
-    // (el más exigente) — auditoría UX/UI del 2026-09-14, medida contra los
-    // hex reales de globals.css con la fórmula de luminancia WCAG 2.x.
-    case "sin_marca": return "bg-taupe/70";
-    case "descanso": return "bg-sand";
-    case "sin_horario": return "bg-sand/40";
-    case "futuro": return "border border-sand";
-  }
+  return colorDelDia(d.estado, d.minutosTarde ?? 0);
 }
 
 function explicarDia(d: Dia, nombre: string): string {
@@ -876,7 +841,7 @@ function DesempenoContenido() {
       horariosPor.set(h.persona_id, l);
     }
     const turnoPor = new Map<string, TurnoDia>();
-    for (const t of ((turnosData as unknown as { persona_id: string; fecha: string; hora_entrada: string | null; hora_salida: string | null; es_descanso: boolean }[] | null) ?? [])) {
+    for (const t of ((turnosData satisfies { persona_id: string; fecha: string; hora_entrada: string | null; hora_salida: string | null; es_descanso: boolean }[] | null) ?? [])) {
       turnoPor.set(`${t.persona_id}|${t.fecha}`, t);
     }
     const jornadaPor = new Map<string, { entrada_ts: string | null; salida_final_ts: string | null; horas_trabajadas: number | null; minutos_tarde: number | null; horas_extra_detectadas: number | null; estado: string }>();
@@ -924,9 +889,9 @@ function DesempenoContenido() {
         personaId: pid,
         nombre: `${p.nombres} ${p.apellidos}`,
         sede: (p as unknown as { sedes?: { codigo: string } }).sedes?.codigo ?? "?",
-        area: (p as unknown as { funcion: string }).funcion ?? "",
-        activa: (p as unknown as { estado: string }).estado === "activo",
-        fechaIngreso: (p as unknown as { fecha_ingreso: string | null }).fecha_ingreso ?? null,
+        area: p.funcion ?? "",
+        activa: p.estado === "activo",
+        fechaIngreso: p.fecha_ingreso ?? null,
         ausenciasDias: ausRes?.dias ?? 0,
         ausenciasDiasPagados: ausRes?.diasPagados ?? 0,
         ausenciasDiasNoPagados: ausRes?.diasNoPagados ?? 0,
@@ -941,7 +906,7 @@ function DesempenoContenido() {
         faltas: 0, faltasJustificadas: 0, incompletas: 0, pendientes: 0,
         objCumplidos: objPor.get(pid)?.cumplidos ?? 0, objTotal: objPor.get(pid)?.total ?? 0,
         objetivos: objPor.get(pid)?.items ?? [], tieneHorario: false,
-        jornada: (() => { const j = (p as unknown as { jornada_semanal_horas: number | null }).jornada_semanal_horas; return j === null || j === undefined ? null : Number(j); })(),
+        jornada: (() => { const j = p.jornada_semanal_horas; return j === null || j === undefined ? null : Number(j); })(),
       };
 
       for (const fecha of listaFechas) {
@@ -1325,15 +1290,15 @@ function DesempenoContenido() {
             <AyudaPantalla titulo="Cómo leer el desempeño" intro="Cada fila es una persona y cada cuadrito, un día: tócalo para ver qué pasó y resolverlo ahí mismo.">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-taupe">
               <span className="font-medium text-tinta">Cada cuadrito, un día:</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde" /> trabajó</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-ambar/65" /><i className="inline-block size-3 rounded-[3px] bg-ambar" /><i className="inline-block size-3 rounded-[3px] bg-ambar ring-2 ring-inset ring-rojo-profundo" /> tardanza (más marcado, más tarde)</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo" /> falta</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo/75" /> no marcó, con motivo</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border border-dashed border-taupe bg-papel" /> marcaje por revisar</span>
+              <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("ok")}`} /> trabajó</span>
+              <span className="flex items-center gap-1.5">{MUESTRA.tardanza.map((c) => <i key={c} className={`inline-block size-3 rounded-[3px] ${c}`} />)} tardanza (más marcado, más tarde)</span>
+              <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("falta")}`} /> falta</span>
+              <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("justificada")}`} /> no marcó, con motivo</span>
+              <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("revisar")}`} /> marcaje por revisar</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border-2 border-verde bg-papel" /> hoy, en su jornada</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde/45 ring-1 ring-inset ring-verde" /> trabajó en su descanso</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-sand" /> descanso</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-taupe/70" /> le tocaba, sin marcaje y sin motivo</span>
+              <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("extra")}`} /> trabajó en su descanso</span>
+              <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("descanso")}`} /> descanso</span>
+              <span className="flex items-center gap-1.5"><i className={`inline-block size-3 rounded-[3px] ${MUESTRA.dia("sin_marca")}`} /> le tocaba, sin marcaje y sin motivo</span>
             </div>
               <p className="mt-4 max-w-3xl text-xs text-taupe">
               Ordenado por lo que necesita atención: faltas, después la <strong>peor</strong> tardanza del periodo

@@ -490,7 +490,11 @@ distintas, no una:
 - La vista previa "Así se verá sobre la línea del memo" de la firma, en
   `admin/personas/[id]/page.tsx`, usa `bg-white` fijo A PROPÓSITO, sin pasar
   por `.hoja` ni por los tokens: es un rectángulo que simula el papel del memo
-  impreso, y ese papel no cambia con el tema de quien lo mira.
+  impreso, y ese papel no cambia con el tema de quien lo mira. **Y por eso lo
+  de adentro también va fijo** (`text-tinta-fija`, `border-tinta-fija/40`): con
+  la letra del tema, en oscuro el nombre de «Escribir» salía casi blanco sobre
+  blanco, a 1.25:1 (2026-11-09). Un fondo fijo con letra del tema es la mitad
+  de un arreglo.
 
 **Política salarial ya NO es esta excepción.** Hasta el 2026-09-05 usaba
 `bg-white`/`slate-*` fijos igual que la firma, pero el commit `ea6286f`
@@ -776,19 +780,24 @@ se ve, como medidores, contrato y vigilante. Por módulo: se construye en local 
 y se abre el PR. Un PR abierto para «dejarlo listo» ya es subirlo. Un arreglo de un defecto que no es parte del rediseño va por su camino normal:
 así fue la firma en oscuro (#680).
 
-**Y lo aprobado entra apagado.** `main` recibe unos 49 commits al día y una rama larga no sirve, así que lo que Felipe aprueba entra a `main` por PR
-chicos, detrás del interruptor. En producción está apagado hasta el estreno, que es uno solo. El terminal tiene su propio interruptor
-(`NEXT_PUBLIC_VIDRIO` y `NEXT_PUBLIC_VIDRIO_TERMINAL`; solo un `1` exacto enciende, ver `apps/web/lib/vidrio.ts`). **Todo CSS nuevo cuelga de
+**El panel y el terminal ya están encendidos en producción** (2026-11-09). `NEXT_PUBLIC_VIDRIO` existe en Vercel desde hacia el 2026-11-07, y
+`NEXT_PUBLIC_VIDRIO_TERMINAL` desde el 2026-11-09 hacia las 16:15 (hora de Lima). Los dos son a propósito: no son un accidente que haya que
+«corregir». Así que **fusionar un cambio de vidrio es publicarlo encendido** para todo el equipo, también en las Mac mini de las sedes, y la regla de
+verlo en local antes pesa más que nunca. Solo un `1` exacto enciende (`apps/web/lib/vidrio.ts`), y qué está encendido se ve sin leer secretos en el
+guion `(function(){var d=…` del HTML público. **Todo CSS nuevo cuelga de
 `[data-vidrio="panel"]` o `[data-vidrio="terminal"]`:** una regla suelta se cuela a producción y al terminal, como ya pasó (ver el comentario en
 `globals.css`), y `tests/vidrio-css.test.ts` falla si eso ocurre. Un `[data-vidrio]` sin valor alcanza a las dos superficies: úsalo solo a propósito.
 **Las animaciones del panel arrancan quietas** (botón «Animaciones» de la cabecera, `lib/vidrio-movimiento.ts`): lo que anima desde JavaScript
 pregunta `prefiereQuieto()`, nunca `matchMedia` por su cuenta, y una señal de espera nueva lleva `data-senal` o se queda quieta (lo vigila
 `tests/vidrio-movimiento.test.ts`). **Y lo que viene de vidrio no se imprime:** esas reglas también aplican al papel, así que van en `@media screen` o excluyen `.hoja`, porque un contrato
 no puede salir con vidrio. La foto de `tests/vidrio-foto-piezas.test.ts` falla si una pieza cambia sus clases sin colgarlas del atributo. Mientras dure,
-siguen valiendo los trece tokens, la regla de `receta-suelta` y lo escrito aquí sobre colores; se reescriben el día del estreno, no antes.
+siguen valiendo los trece tokens, la regla de `receta-suelta` y lo escrito aquí sobre colores; se reescriben cuando se borre el diseño viejo (paso 4
+del estreno en el tablero), no antes: es el aspecto al que vuelve una superficie si se apaga.
 
-**El día del estreno, crear la variable en Vercel y construir van juntos, con las fusiones frenadas.** Una variable creada se publica con la siguiente
-fusión de cualquier sesión: sin ese cuidado, el estreno ocurre sin que nadie lo elija.
+**Encender o apagar una superficie es tocar su variable en Vercel Y volver a construir, con las fusiones frenadas.** Una variable cambiada se
+publica con la siguiente fusión de cualquier sesión: sin ese cuidado, el cambio ocurre sin que nadie elija el momento. Y al revés: volver al
+despliegue anterior sin quitar la variable dura solo hasta esa siguiente fusión. Así se hizo el estreno del terminal: se miró que ningún PR tuviera
+la fusión armada, se creó la variable y se reconstruyó el despliegue vigente con `vercel redeploy`.
 
 **Se revisa con datos inventados, nunca con una copia de producción:** tiene DNI, sueldos y firmas.
 
@@ -800,7 +809,9 @@ se propone primero en Retail. La lista de lo que viaja, el contrato y su prueba 
 - **Quien cambia, avisa.** Al tocar el diseño de Retail, la sesión le dice a Felipe «esto también llega a Dynamic».
 - **Un vigilante revisa cada hora** si los archivos compartidos cambiaron, prepara lo mismo en Dynamic y corre sus pruebas. Hasta el estreno
   **solo avisa**. Después publica solo con tres condiciones: tocó únicamente archivos compartidos, todas las pruebas en verde (contraste incluido) y
-  fuera del horario de tienda. Si no se cumple alguna, no publica y avisa. Tiene un interruptor para apagarlo.
+  fuera del horario de tienda. Si no se cumple alguna, no publica y avisa. Tiene un interruptor para apagarlo. Lo que lo deja publicar no es el
+  estreno sino la variable `FAMILIA_PUBLICAR=si` del repositorio: al 2026-11-09, con las dos superficies ya estrenadas, esa variable no existe y el
+  vigilante sigue solo avisando. Encenderla es decisión de Felipe, y desde el estreno lo que publique llega encendido a todo el equipo.
 - **Lo que no se puede copiar solo:** Retail y Dynamic arman sus piezas con código distinto. Un cambio de aspecto viaja; un cambio de cómo funciona
   una pieza abre una tarea para Dynamic y se le avisa a Felipe.
 

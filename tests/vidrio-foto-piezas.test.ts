@@ -133,7 +133,7 @@ const ICONO = h("svg", { className: "size-4 lucide lucide-info" }, h("path", { d
 variantes("Boton", Boton, { variante: ["primario", "secundario", "peligro", "sutil", "enlace"], tamano: ["sm", "md", "lg"] });
 variantes("Boton", Boton, { cargando: [true] });
 variantes("Boton", Boton, { disabled: [true] });
-variantes("BotonIcono", BotonIcono, { tamano: ["sm", "md"], activo: [undefined, false, true], contador: [undefined, 3] }, { etiqueta: X, icono: ICONO }, null);
+variantes("BotonIcono", BotonIcono, { tamano: ["sm", "md", "lg"], activo: [undefined, false, true], contador: [undefined, 3] }, { etiqueta: X, icono: ICONO }, null);
 variantes("BotonAyuda", BotonAyuda, {}, { etiqueta: X, onClick: nada }, null);
 variantes("AyudaPantalla", AyudaPantalla, {}, { titulo: X, intro: X, secciones: [{ titulo: X, texto: X, referencia: X }] });
 
