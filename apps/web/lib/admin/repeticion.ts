@@ -20,7 +20,8 @@
 // forma de que la repetición y el terminal digan lo mismo de la misma persona.
 // ============================================================================
 import { estadoPresencia, horaLima, type MarcajeDelDia } from "@cayla-dynamic/shared";
-import type { TramoDecimal } from "./almacen";
+import type { CambioUbicacion } from "@/lib/terminal/ubicacion";
+import { aDecimal, almacenConLoReal, tramosEnAlmacen, type PuestoDelDia, type TramoDecimal } from "./almacen";
 
 export type EstadoEnElMomento = "por_llegar" | "piso" | "almacen" | "refrigerio" | "pausa" | "salio";
 
@@ -36,6 +37,49 @@ export interface PersonaRepeticion {
   almacen: readonly TramoDecimal[];
   /** Su turno planificado, en horas decimales; null si ese día no le tocaba. */
   plan: TramoDecimal | null;
+}
+
+/** Hasta dónde llega el día en Turnos (su línea va de 7 a 21): un turno sin hora de salida dura hasta aquí. */
+export const FIN_DE_LA_LINEA = 21;
+
+/** El turno que le tocaba, en horas decimales, como lo dibuja Turnos. null si ese día no le tocaba. */
+export function planDelDia(esperado: { trabaja: boolean; entrada: string | null; salida: string | null }): TramoDecimal | null {
+  if (!esperado.trabaja || !esperado.entrada) return null;
+  return { desde: aDecimal(esperado.entrada), hasta: esperado.salida ? aDecimal(esperado.salida) : FIN_DE_LA_LINEA };
+}
+
+/**
+ * Quiénes estuvieron un día ya cerrado y dónde, como los repite Turnos. Lo usan la repetición del día (Turnos ·
+ * Día) y la tendencia de Inicio «Gente en piso frente a la venta»: así las dos dicen lo mismo de la misma hora.
+ *
+ * El almacén de quien tenía turno es lo marcado en el terminal más su plan, como si hubiera pasado (decisión de
+ * Felipe, 2026-11-03: `almacenConLoReal`); el de quien vino sin turno, solo lo marcado. Quien no tenía turno ni
+ * marcó no está.
+ */
+export function personasDelDiaCerrado(args: {
+  personas: readonly { id: string; nombre: string; cuenta: boolean; lider: boolean }[];
+  medianocheIso: string;
+  ahora: Date;
+  planDe: (personaId: string) => TramoDecimal | null;
+  puestoDe: (personaId: string) => PuestoDelDia;
+  cambiosDe: (personaId: string) => readonly CambioUbicacion[];
+  marcajesDe: (personaId: string) => readonly MarcajeDelDia[];
+}): PersonaRepeticion[] {
+  const { personas, medianocheIso, ahora, planDe, puestoDe, cambiosDe, marcajesDe } = args;
+  return personas.flatMap((p) => {
+    const marcajes = marcajesDe(p.id);
+    const plan = planDe(p.id);
+    if (!plan && marcajes.length === 0) return [];
+    const real = almacenConLoReal({
+      plan: plan ? tramosEnAlmacen(puestoDe(p.id), plan) : [],
+      turno: plan ?? { desde: 0, hasta: 24 },
+      cambios: cambiosDe(p.id),
+      marcajes,
+      medianocheIso,
+      ahora,
+    });
+    return [{ id: p.id, nombre: p.nombre, cuenta: p.cuenta, lider: p.lider, marcajes, almacen: plan ? real.cobertura : real.marcado, plan }];
+  });
 }
 
 const ms = (iso: string) => new Date(iso).getTime();
@@ -144,7 +188,26 @@ export interface HoraDelDiaReal {
   hora: number;
   enPiso: number;
   compras: number | null;
+  /** null si no se sabe cuánto se vendió, o si la hora no se juzga. */
   pedia: number | null;
+  /** ¿Se compara con lo que pedía la venta? Ver `horaDentroDeLaVentana`. */
+  juzgada: boolean;
+}
+
+/** El horario de la tienda un día de la semana, en horas decimales: de la primera entrada a la última salida de su equipo (fn_sede_ventana_semanal, 0584). */
+export interface VentanaDia {
+  abre: number;
+  cierra: number;
+}
+
+/**
+ * Solo se juzgan las horas ENTERAS dentro del horario de la tienda. En la hora en que abre o cierra a medias, el
+ * peor cuarto cae con la tienda cerrada —el equipo llegando antes de abrir, o ya fuera después de cerrar— y diría
+ * que faltó gente sin que faltara nadie. La hora se sigue dibujando: lo que no se hace es compararla con la venta.
+ * Sin horario conocido para ese día, se juzgan todas (como antes del 2026-11-09).
+ */
+export function horaDentroDeLaVentana(hora: number, v: VentanaDia | null | undefined): boolean {
+  return !v || (hora >= v.abre - 1e-9 && hora + 1 <= v.cierra + 1e-9);
 }
 
 /** Las horas que se dibujan: de la primera entrada (o plan) a la última salida (o plan), enteras. */
@@ -164,15 +227,19 @@ export function diaCompletoReal(args: {
   /** Compras por hora entera (8 → de 08:00 a 09:00); null si no se pudieron leer. */
   comprasDe: ((hora: number) => number) | null;
   parametros: { ritmo: number; minimo: number } | null;
+  /** El horario de la tienda ese día; sin él se juzgan todas las horas. */
+  ventana?: VentanaDia | null;
 }): HoraDelDiaReal[] {
-  const { personas, medianocheIso, comprasDe, parametros } = args;
+  const { personas, medianocheIso, comprasDe, parametros, ventana } = args;
   return horasDeLaRepeticion(personas, medianocheIso).map((hora) => {
     const compras = comprasDe ? comprasDe(hora) : null;
+    const juzgada = horaDentroDeLaVentana(hora, ventana);
     return {
       hora,
       enPiso: enPisoEnLaHora(personas, hora, medianocheIso),
       compras,
-      pedia: parametros ? ventaPedia(compras, parametros) : null,
+      pedia: juzgada && parametros ? ventaPedia(compras, parametros) : null,
+      juzgada,
     };
   });
 }
@@ -189,14 +256,16 @@ export function resumenReal(horas: readonly HoraDelDiaReal[]): ResumenReal {
   const conVenta = horas.filter((h) => h.compras !== null);
   const totalCompras = conVenta.length ? conVenta.reduce((a, h) => a + (h.compras ?? 0), 0) : null;
   let masCargada: ResumenReal["masCargada"] = null;
-  for (const h of conVenta) {
+  // La más cargada sale solo de las horas que se juzgan: en la que la tienda cierra a medias, el peor cuarto cae
+  // con la tienda cerrada y la venta de esa media hora parecería repartida entre casi nadie.
+  for (const h of conVenta.filter((x) => x.juzgada)) {
     if (!h.compras) continue;
     const r = h.compras / Math.max(1, h.enPiso);
     if (!masCargada || r > masCargada.comprasPorPersona + 1e-9) masCargada = { hora: h.hora, comprasPorPersona: Math.round(r * 10) / 10 };
   }
   return {
     totalCompras,
-    horasConFalta: horas.filter((h) => h.pedia !== null && h.enPiso < h.pedia).length,
+    horasConFalta: horas.filter((h) => h.juzgada && h.pedia !== null && h.enPiso < h.pedia).length,
     masCargada,
   };
 }

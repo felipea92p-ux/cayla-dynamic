@@ -1,5 +1,5 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
-import { ROLES_DO } from "@cayla-dynamic/shared";
+import { puedeVerConstancias } from "@cayla-dynamic/shared";
 import {
   cuentaDeLaBandeja, pendientesPorPersona, traerFuentesBandeja,
   type CuentaBandeja, type FuentesBandeja,
@@ -32,13 +32,9 @@ import {
  */
 
 /** Solo DO gestiona Normas (publica, ve «Versiones» y «Constancias») — la
- *  encargada de sede no. No hay un `puedeGestionarNormas` en `permisos.ts`
- *  porque la pantalla misma nunca lo necesitó como función: comparaba
- *  `ROLES_DO.includes(rol)` directo. Se repite acá esa misma comparación en
- *  vez de inventar un permiso nuevo para un solo llamador. */
-function rolEsDo(rol: string | null | undefined): boolean {
-  return rol != null && ROLES_DO.includes(rol);
-}
+ *  líder de equipo no. Desde el 2026-11-09 es `puedeVerConstancias` (permisos.ts):
+ *  la tendencia «Acuses pendientes» de Inicio era el segundo lector. */
+const rolEsDo = puedeVerConstancias;
 
 /** Lo que trae `fn_documentos_vigentes`, en lo que a las constancias pendientes importa. */
 interface FilaDocumentoVigenteBandeja {

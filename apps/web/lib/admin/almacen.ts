@@ -36,7 +36,7 @@ export const PISO: PuestoDelDia = { todoElTurno: false, tramos: [] };
 /** Tope de tramos por día: el mismo de fn_set_almacen_del_dia. */
 export const MAX_TRAMOS = 6;
 
-const aDecimal = (hm: string): number => {
+export const aDecimal = (hm: string): number => {
   const [h, m] = hm.split(":").map(Number);
   return (h ?? 0) + (m ?? 0) / 60;
 };

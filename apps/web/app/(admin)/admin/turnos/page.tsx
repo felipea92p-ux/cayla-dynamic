@@ -43,7 +43,7 @@ import { BorradorDeLaSemana, type FilaComparativa } from "./borrador-de-la-seman
 import { TablaSemana, type CasillaSemana, type FilaSemana } from "./tabla-semana";
 import { resumenSemanalDelDia } from "@/lib/admin/semana-por-persona";
 import { comoPropuesta, compararSemanas, cumpleJornada, esTablaInexistente, filasDelBorradorParaGuardar, horasNetas, semanaDesdeBorrador, type FilaDiaBorrador, type SemanaTurnos } from "@/lib/admin/borrador-semana";
-import { ventaPedia, type PersonaRepeticion } from "@/lib/admin/repeticion";
+import { FIN_DE_LA_LINEA, personasDelDiaCerrado, planDelDia, ventaPedia, type VentanaDia } from "@/lib/admin/repeticion";
 import { lideresDelDia, metasPorFecha, pideEn, type MetaDelDia, type FilaMeta } from "@/lib/admin/metas-cobertura";
 import { leerMetasDeCobertura } from "@/lib/admin/leer-metas";
 import { MetasDeCobertura } from "./metas-de-cobertura";
@@ -95,7 +95,7 @@ const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : "");
 
 // ── Línea de tiempo / mapa de calor de cobertura (7h–21h) ───────────────────
 const HORA_INICIO = 7;
-const HORA_FIN = 21;
+const HORA_FIN = FIN_DE_LA_LINEA; // también es hasta dónde dura un turno sin salida (planDelDia)
 const MARCAS_HORA = [7, 9, 11, 13, 15, 17, 19, 21];
 // Vista Semana: franjas de 30 min ancladas a :15/:45 (7:45, 8:15, 8:45…), igual
 // que las horas de entrada reales del equipo — fijo, no automático (decisión
@@ -747,6 +747,9 @@ export default function TurnosPage() {
   const [compras, setCompras] = useState<Map<string, Map<number, number>> | null>(new Map());
   // El ritmo y el mínimo de la tienda (Parámetros, 0585); null = no se pudieron leer.
   const [coberturaVenta, setCoberturaVenta] = useState<{ ritmo: number; minimo: number } | null>(null);
+  // El horario de la tienda por día de la semana (0584): la repetición no juzga la hora en que abre o cierra a medias
+  // (horaDentroDeLaVentana). Vacío si no se pudo leer: entonces se juzgan todas, como antes.
+  const [ventanaSede, setVentanaSede] = useState<Map<number, VentanaDia>>(new Map());
   // La meta de cada fecha de la semana, ya resuelta (0590): la predeterminada o la excepción que rige, por rangos.
   const [metasFecha, setMetasFecha] = useState<Map<string, MetaDelDia>>(new Map());
   // Lo que pide la venta, del promedio de las últimas 4 semanas (0585): manda donde no hay meta. null si no se leyó.
@@ -861,6 +864,7 @@ export default function TurnosPage() {
       { data: cpv, error: cpvErr },
       { data: pba, error: pbaErr },
       { data: c4, error: c4Err },
+      { data: ven, error: venErr },
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
       // igual que cualquiera y cuenta para la meta de cobertura de la sede —
@@ -900,6 +904,8 @@ export default function TurnosPage() {
       supabase.from("puestos_base" as never).select("persona_id, vigente_desde, vigente_hasta"),
       // Lo que pide la venta donde no hay meta: el promedio de las últimas 4 semanas (vacío en una sede que no vende).
       supabase.rpc("fn_compras_por_hora", { p_sede_id: sedeSel, p_desde: sumarDias(hoyLima(), -28), p_hasta: sumarDias(hoyLima(), -1) }),
+      // El horario de la tienda, para no juzgar la hora en que abre o cierra a medias. Tampoco frena la semana.
+      supabase.rpc("fn_sede_ventana_semanal", { p_sede_id: sedeSel }),
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (modo !== "fondo") cargaConMetas.current = 0;
@@ -972,6 +978,8 @@ export default function TurnosPage() {
     }
     const filaCpv = !cpvErr && Array.isArray(cpv) ? (cpv as { ritmo: number; minimo: number }[])[0] : undefined;
     setCoberturaVenta(filaCpv ? { ritmo: Number(filaCpv.ritmo), minimo: Number(filaCpv.minimo) } : null);
+    setVentanaSede(venErr ? new Map() : new Map(((ven as { dia: number; abre: string; cierra: string }[] | null) ?? [])
+      .map((v) => [Number(v.dia), { abre: horaADecimal(v.abre), cierra: horaADecimal(v.cierra) }] as const)));
     setCargando(false);
     // Las metas se cambian en su editor (0590), que guarda entera la meta y recarga: el fondo ya puede leerlas.
     setMetasFecha(metasPorFecha((m as FilaMeta[] | null) ?? []));
@@ -1805,20 +1813,23 @@ export default function TurnosPage() {
             venta. Solo con lo marcado leído; un día que todavía no termina no se repite. */}
         {iso < hoyLima() && reales && (() => {
           const medianocheIso = rangoDelDiaLima(iso).inicio;
-          const personasRep: PersonaRepeticion[] = personas.flatMap((p) => {
-            const c = celda(p.id, iso);
-            const marcajesDia = reales.marcajes.get(`${p.id}|${iso}`) ?? [];
-            const trabaja = c.tipo === "turno" || c.tipo === "default";
-            if (!trabaja && marcajesDia.length === 0) return [];
-            const plan = trabaja ? { desde: horaADecimal(c.entrada), hasta: c.salida ? horaADecimal(c.salida) : HORA_FIN } : null;
-            return [{
+          // Quién estuvo y dónde lo arma personasDelDiaCerrado (lib/admin/repeticion.ts): la misma respuesta que da
+          // la tendencia «Gente en piso frente a la venta» de Inicio.
+          const personasRep = personasDelDiaCerrado({
+            personas: personas.map((p) => ({
               id: p.id,
               nombre: `${p.nombres.split(" ")[0]}${p.apellidos ? ` ${p.apellidos[0]}.` : ""}`,
               cuenta: esOperativa(p), lider: esEncargada(p),
-              marcajes: marcajesDia,
-              almacen: plan ? almacenDe(p.id, iso, plan, true) : marcadoDe(p.id, iso, { desde: 0, hasta: 24 }),
-              plan,
-            }];
+            })),
+            medianocheIso,
+            ahora: new Date(),
+            planDe: (id) => {
+              const c = celda(id, iso);
+              return c.tipo === "turno" || c.tipo === "default" ? planDelDia({ trabaja: true, entrada: c.entrada, salida: c.salida }) : null;
+            },
+            puestoDe: (id) => puestoDe(id, iso),
+            cambiosDe: (id) => reales.cambios.get(`${id}|${iso}`) ?? [],
+            marcajesDe: (id) => reales.marcajes.get(`${id}|${iso}`) ?? [],
           });
           if (personasRep.length === 0) return null;
           const delDia = compras?.get(iso);
@@ -1831,6 +1842,7 @@ export default function TurnosPage() {
               comprasFallo={tipoSedeSel === "tienda" && compras === null}
               comprasDe={tipoSedeSel === "tienda" && compras !== null ? (h) => delDia?.get(h) ?? 0 : null}
               parametros={coberturaVenta}
+              ventana={ventanaSede.get(diaSemana(iso))}
             />
           );
         })()}

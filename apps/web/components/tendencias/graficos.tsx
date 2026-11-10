@@ -11,11 +11,339 @@
 //   · Con el vidrio, en el teléfono se dibuja a su tamaño (`useAngosto`): encoger un dibujo de 640 a 300 px dejaba la letra en 5 px. Y las columnas son las de Retail
 //     (finanzas/GraficoSemanas): en tinta, con el extremo del dato redondeado y ancladas a la línea base.
 
-import type { BarrasCasos, CeldaCalor, ColumnaCosto, LlegadaSede, PuntoSemana } from "@/lib/admin/tendencias";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
+import {
+  etiquetaCierre, MESES_CORTOS, resumenAsistencia, resumenCosto,
+  type AcuseDeDocumento, type Antiguedad, type BarrasCasos, type CeldaCalor, type ColumnaCosto, type DesgloseCosto, type DiasPerdidos,
+  type LlegadaSede,
+  type PuntoSemana,
+} from "@/lib/admin/tendencias";
+import { faltaSeguido, horaMasCorta, type HoraDePiso } from "@/lib/admin/piso-venta";
+import { MESES_LARGO } from "@/lib/admin/planilla/formato";
 import { soles } from "@/lib/admin/educacion-formato";
 import { cx } from "@/components/ui/cx";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { useEsCelular } from "@/lib/use-vidrio-lateral";
 import { interruptoresVidrio } from "@/lib/vidrio";
+
+// ── Piezas comunes de los dibujos que se hacen a su medida ──────────────────
+// «Días perdidos» y «Gente en piso» (2026-11-09) no se estiran con un viewBox: miden su contenedor y dibujan en
+// píxeles. Un viewBox de 640 en una tarjeta de 1 800 px dejaba la letra de 10 px en casi 30.
+
+/** El ancho real del contenedor, que cambia con la ventana. 0 hasta que se monta. */
+function useAncho<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [ancho, setAncho] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const medir = () => setAncho(Math.floor(el.clientWidth));
+    medir();
+    const obs = new ResizeObserver(medir);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return [ref, ancho] as const;
+}
+
+/** Una columna con el extremo del dato redondeado y anclada a la línea base (las de Retail). */
+function columna(x: number, y: number, w: number, h: number): string {
+  const r = Math.min(4, w / 2, h);
+  return `M${x},${y + h} V${y + r} q0,-${r} ${r},-${r} h${w - 2 * r} q${r},0 ${r},${r} V${y + h} Z`;
+}
+
+/** 6 → «6»; 6.4 → «6.4». */
+const numero = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+/** La cifra que encabeza un gráfico y su línea de contexto. */
+function Encabeza({ valor, detalle }: { valor: ReactNode; detalle: ReactNode }) {
+  return (
+    <p className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      {/* receta-propia: es la cifra que encabeza un gráfico dentro de su tarjeta; <Cifra> es una casilla con borde y aquí quedaría una caja dentro de otra */}
+      <span className="font-serif text-3xl leading-none text-tinta">{valor}</span>
+      <span className="text-sm text-taupe">{detalle}</span>
+    </p>
+  );
+}
+
+const T = { fontSize: 11, fill: "var(--color-taupe)" } as const;
+const TT = { fontSize: 11, fill: "var(--color-tinta)", fontWeight: 500 } as const;
+
+// ── La fila compacta del vidrio: Asistencia y Costo, uno al lado del otro ────
+// Con 13 semanas que se mueven entre 97 y 100 % y cuatro o cinco periodos pagados, un dibujo a todo el ancho no
+// decía más: solo se veía más grande. Cada uno empieza por la cifra que importa y debajo va un dibujo chico.
+
+/** «2026-10-19» → «19/10», para los bordes del eje. */
+const diaBarraMes = (iso: string) => `${Number(iso.slice(8))}/${Number(iso.slice(5, 7))}`;
+
+export function AsistenciaCompacta({ puntos }: { puntos: PuntoSemana[] }) {
+  const [ref, W] = useAncho<HTMLDivElement>();
+  const r = resumenAsistencia(puntos);
+  const conDato = puntos.filter((p) => p.pct !== null);
+  // El mismo piso que el dibujo grande: el eje no empieza en 0, y se escribe en el eje mismo.
+  const piso = pisoDeLinea(puntos) ?? 0;
+  const H = 96, PL = 34, PR = 10, PT = 10, PB = 20;
+  const n = puntos.length;
+  const x = (i: number) => PL + (n === 1 ? (W - PL - PR) / 2 : ((W - PL - PR) * i) / (n - 1));
+  const y = (v: number) => PT + (H - PT - PB) * (1 - (v - piso) / (100 - piso));
+  const trazo = puntos
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) => p.pct !== null && !p.parcial)
+    .map(({ p, i }, k) => `${k ? "L" : "M"}${x(i)},${y(p.pct as number)}`)
+    .join(" ");
+  const carril = n > 1 ? (W - PL - PR) / (n - 1) : W - PL - PR;
+  // La más baja se nombra solo si hay con qué compararla y no es la misma que encabeza.
+  const minima = r.minima && r.semanas > 1 && r.minima.semana !== r.ultima?.semana ? r.minima : null;
+  const iMin = minima ? puntos.findIndex((p) => p.semana === minima.semana) : -1;
+
+  return (
+    <div>
+      {r.ultima && (
+        <Encabeza
+          valor={`${r.ultima.pct}%`}
+          detalle={<>semana del {etiquetaCierre(r.ultima.semana)} · promedio <strong className="font-medium text-tinta">{r.promedio}%</strong>{minima ? <> · la más baja <strong className="font-medium text-tinta">{minima.pct}%</strong> ({etiquetaCierre(minima.semana)})</> : null}</>}
+        />
+      )}
+      <div ref={ref} className="w-full">
+        {W > 0 && conDato.length > 0 && (
+          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Asistencia sobre lo esperado, por semana" className="block overflow-visible">
+            {[piso, 100].map((t) => (
+              <g key={t}>
+                <line x1={PL} x2={W - PR} y1={y(t)} y2={y(t)} stroke="var(--color-sand)" />
+                <text x={PL - 6} y={y(t) + 4} textAnchor="end" {...T}>{t}%</text>
+              </g>
+            ))}
+            <path d={trazo} fill="none" stroke="var(--color-tinta)" strokeWidth={2} strokeLinejoin="round" />
+            {puntos.map((p, i) => {
+              if (p.pct === null) return null;
+              const destacado = p.semana === r.ultima?.semana || i === iMin || p.parcial;
+              return (
+                <g key={p.semana}>
+                  <title>{`Semana del ${etiquetaCierre(p.semana)}${p.parcial ? " (en curso)" : ""}: ${p.pct}% · ${p.trabajados} de ${p.trabajados + p.faltas} días con marca`}</title>
+                  <rect x={x(i) - carril / 2} y={0} width={carril} height={H} fill="transparent" />
+                  <circle cx={x(i)} cy={y(p.pct)} r={destacado ? 4 : 2.2}
+                    fill={p.parcial ? "var(--color-papel)" : "var(--color-tinta)"} stroke="var(--color-tinta)" strokeWidth={p.parcial ? 1.6 : 0} />
+                </g>
+              );
+            })}
+            {minima && <text x={x(iMin)} y={y(minima.pct) + 16} textAnchor="middle" className="tabular-nums" {...T}>{minima.pct}%</text>}
+            <text x={PL} y={H - 4} {...T}>{diaBarraMes(puntos[0].semana)}</text>
+            <text x={W - PR} y={H - 4} textAnchor="end" {...T}>{diaBarraMes(puntos[n - 1].semana)}{puntos[n - 1].parcial ? " · en curso" : ""}</text>
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function CostoCompacto({ columnas }: { columnas: ColumnaCosto[] }) {
+  const [ref, W] = useAncho<HTMLDivElement>();
+  const rayado = useId().replace(/:/g, "");
+  const r = resumenCosto(columnas);
+  const monto = (n: number) => soles(Math.round(n)).replace(/\.00$/, "");
+  const H = 128, PT = 20, PB = 20, alto = H - PT - PB;
+  const max = Math.max(1, ...columnas.map((c) => c.costo ?? 0));
+  const carril = W / Math.max(columnas.length, 1);
+  const ancho = Math.min(carril * 0.56, 44);
+  // Las marcas de un periodo van en una línea aparte, no debajo de cada columna: con doce no caben, y una
+  // palabra repetida en cada columna deja de decir algo.
+  const repagados = columnas.filter((c) => c.repagado).map((c) => c.etiqueta);
+  const retroactivos = columnas.filter((c) => c.retroactivo).map((c) => c.etiqueta);
+  const signo = (n: number) => (n >= 0 ? "+" : "−");
+
+  return (
+    <div>
+      {r.ultima && (
+        <Encabeza
+          valor={monto(r.ultima.costo)}
+          detalle={<>cerró el {r.ultima.etiqueta}{r.diferencia !== null ? <> · <strong className="font-medium text-tinta">{signo(r.diferencia)}{monto(Math.abs(r.diferencia))}</strong>{r.variacionPct !== null ? ` (${signo(r.variacionPct)}${Math.abs(r.variacionPct)} %)` : ""} frente al anterior</> : null}{r.ultima.personas !== null ? ` · ${r.ultima.personas} personas` : ""}</>}
+        />
+      )}
+      <div ref={ref} className="w-full">
+        {W > 0 && (
+          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Costo de planilla de cada periodo" className="block overflow-visible">
+            <defs>
+              <pattern id={rayado} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-taupe)" strokeWidth="1.6" />
+              </pattern>
+            </defs>
+            <line x1={0} x2={W} y1={PT + alto} y2={PT + alto} stroke="var(--color-sand)" />
+            {columnas.map((c, i) => {
+              const cx0 = carril * i + carril / 2;
+              const h = c.costo !== null ? (c.costo / max) * alto : alto * 0.5;
+              const y0 = PT + alto - h;
+              return (
+                <g key={c.clave}>
+                  <title>{c.enCurso
+                    ? `Periodo en curso, del ${etiquetaCierre(c.fechaIni)} al ${c.etiqueta}: todavía no tiene monto`
+                    : `Del ${etiquetaCierre(c.fechaIni)} al ${c.etiqueta} · ${monto(c.costo ?? 0)}${c.personas !== null ? ` · ${c.personas} personas` : ""}${c.repagado ? " · repagado" : ""}${c.retroactivo ? " · retroactivo" : ""}`}</title>
+                  <rect x={cx0 - carril / 2} y={0} width={carril} height={H} fill="transparent" />
+                  {c.enCurso
+                    ? <rect x={cx0 - ancho / 2} y={y0} width={ancho} height={h} rx={4} fill={`url(#${rayado})`} stroke="var(--color-taupe)" strokeDasharray="3 3" />
+                    : <path d={columna(cx0 - ancho / 2, y0, ancho, h)} fill="var(--color-tinta)" />}
+                  {(c.enCurso || carril >= 64) && (
+                    <text x={cx0} y={y0 - 6} textAnchor="middle" className="tabular-nums" {...(c.enCurso ? T : TT)}>{c.enCurso ? "en curso" : monto(c.costo ?? 0)}</text>
+                  )}
+                  <text x={cx0} y={H - 4} textAnchor="middle" {...T}>{carril >= 48 ? c.etiqueta : c.etiqueta.split(" ")[1]}</text>
+                </g>
+              );
+            })}
+          </svg>
+        )}
+      </div>
+      {(repagados.length > 0 || retroactivos.length > 0) && (
+        <p className="mt-2 text-xs text-taupe">
+          {repagados.length > 0 && <>Se volvió a pagar después del primer pago: {repagados.join(", ")}. </>}
+          {retroactivos.length > 0 && <>Reconstruido después del pago: {retroactivos.join(", ")}.</>}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Días perdidos, por motivo: un panel por motivo, todos con la misma escala ──
+export function DiasPerdidosGrafico({ datos, nombreDe }: { datos: DiasPerdidos; nombreDe: (clave: string) => string }) {
+  const [ref, W] = useAncho<HTMLDivElement>();
+  const rayado = useId().replace(/:/g, "");
+  const { meses, motivos } = datos;
+  // Encabeza el último mes que terminó; si ninguno terminó todavía, el que hay.
+  const terminado = meses.findLastIndex((m) => !m.parcial && m.pct !== null);
+  const iRef = terminado >= 0 ? terminado : meses.findLastIndex((m) => m.pct !== null);
+  const ref0 = meses[iRef];
+  const mayor = [...motivos].filter((m) => m.dias[iRef] > 0).sort((a, b) => b.dias[iRef] - a.dias[iRef])[0];
+  const nombreMes = (mes: string) => MESES_LARGO[Number(mes.slice(5, 7)) - 1];
+  const corto = (mes: string) => MESES_CORTOS[Number(mes.slice(5, 7)) - 1];
+
+  const cols = W >= 720 ? Math.min(motivos.length, 4) : W >= 400 ? Math.min(motivos.length, 2) : 1;
+  const GAP = 20, PT = 34, PH = 84, PB = 18, ENTRE = 16;
+  // Un panel no pasa de 420 px: con un solo motivo, estirarlo a toda la tarjeta dejaba los meses a un palmo uno de otro.
+  const pw = Math.min(420, cols > 0 ? (W - GAP * (cols - 1)) / cols : W);
+  const filas = Math.ceil(motivos.length / Math.max(cols, 1));
+  const H = filas * (PT + PH + PB) + Math.max(0, filas - 1) * ENTRE;
+  const max = Math.max(1, ...motivos.flatMap((m) => m.dias));
+  const carril = pw / Math.max(meses.length, 1);
+  const ancho = Math.min(carril * 0.55, 28);
+
+  return (
+    <div>
+      {ref0 && ref0.pct !== null && (
+        <Encabeza
+          valor={`${ref0.pct}%`}
+          detalle={<>de los días que tocaba trabajar se perdieron en {nombreMes(ref0.mes)}{ref0.parcial ? " (va en curso)" : ""} · <strong className="font-medium text-tinta">{ref0.perdidos} de {ref0.perdidos + ref0.trabajados}</strong>{mayor ? <> · el motivo más grande: {nombreDe(mayor.clave).toLowerCase()} ({mayor.dias[iRef]})</> : null}</>}
+        />
+      )}
+      <div ref={ref} className="w-full">
+        {W > 0 && (
+          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Días perdidos por mes, un panel por motivo" className="block overflow-visible">
+            <defs>
+              <pattern id={rayado} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-taupe)" strokeWidth="1.6" />
+              </pattern>
+            </defs>
+            {motivos.map((m, k) => {
+              const ox = (k % cols) * (pw + GAP), oy = Math.floor(k / cols) * (PT + PH + PB + ENTRE);
+              const base = oy + PT + PH;
+              return (
+                <g key={m.clave}>
+                  <text x={ox} y={oy + 12} {...TT}>{nombreDe(m.clave)}</text>
+                  <text x={ox} y={oy + 26} {...T}>{m.total} {m.total === 1 ? "día" : "días"} en el periodo</text>
+                  <line x1={ox} x2={ox + pw} y1={base} y2={base} stroke="var(--color-sand)" />
+                  {m.dias.map((d, i) => {
+                    const cx0 = ox + carril * i + carril / 2, h = (d / max) * (PH - 14), y0 = base - h;
+                    const parcial = meses[i].parcial;
+                    return (
+                      <g key={meses[i].mes}>
+                        <title>{`${nombreDe(m.clave)}, ${nombreMes(meses[i].mes)}${parcial ? " (parcial)" : ""}: ${d} ${d === 1 ? "día" : "días"}`}</title>
+                        <rect x={cx0 - carril / 2} y={oy} width={carril} height={PT + PH + PB} fill="transparent" />
+                        {h > 0 && (parcial
+                          ? <rect x={cx0 - ancho / 2} y={y0} width={ancho} height={h} rx={3} fill={`url(#${rayado})`} stroke="var(--color-taupe)" strokeDasharray="3 2" />
+                          : <path d={columna(cx0 - ancho / 2, y0, ancho, h)} fill="var(--color-tinta)" />)}
+                        {d > 0 && carril >= 22 && <text x={cx0} y={y0 - 5} textAnchor="middle" className="tabular-nums" {...(parcial ? T : TT)}>{d}</text>}
+                        {(carril >= 24 || i % 2 === meses.length % 2) && <text x={cx0} y={base + 14} textAnchor="middle" {...T}>{corto(meses[i].mes)}</text>}
+                      </g>
+                    );
+                  })}
+                </g>
+              );
+            })}
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Gente en piso frente a la venta: dos filas que comparten la hora ─────────
+export function PisoYVentaGrafico({ horas, comprasFallo }: { horas: HoraDePiso[]; comprasFallo: boolean }) {
+  const [ref, W] = useAncho<HTMLDivElement>();
+  const peor = comprasFallo ? null : horaMasCorta(horas);
+  // Sin compras no se deja el hueco de su fila: se dice arriba, en una línea, y se dibuja solo la gente.
+  const T1 = comprasFallo ? 0 : 18, H1 = comprasFallo ? 0 : 76, ENTRE = comprasFallo ? 18 : 34, H2 = 64, PB = 18;
+  const base1 = T1 + H1, top2 = base1 + ENTRE, base2 = top2 + H2, H = base2 + PB;
+  const carril = W / Math.max(horas.length, 1);
+  const ancho = Math.min(carril * 0.56, 26);
+  const maxC = Math.max(1, ...horas.map((h) => h.compras ?? 0));
+  const maxP = Math.max(1, ...horas.map((h) => Math.max(h.enPiso, h.pedia ?? 0)));
+  const conEtiqueta = carril >= 30;
+
+  return (
+    <div>
+      {!comprasFallo && (peor ? (
+        <Encabeza
+          valor={`${peor.hora}:00`}
+          detalle={<>es la hora en que más seguido faltó gente: <strong className="font-medium text-tinta">{peor.conFalta} de {peor.dias} días</strong> · en promedio había {numero(peor.enPiso)} en piso y la venta pedía {numero(peor.pedia ?? 0)}</>}
+        />
+      ) : (
+        <Encabeza valor="Sin faltas" detalle="Ninguna hora tuvo menos gente en piso de la que pedía la venta." />
+      ))}
+      {comprasFallo && (
+        <BannerAviso enLinea role="status">
+          No se pudieron leer las compras de retail: se ve la gente en piso, pero no cuánta pedía la venta.
+        </BannerAviso>
+      )}
+      <div ref={ref} className={cx("w-full", comprasFallo && "mt-3")}>
+        {W > 0 && (
+          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Compras y personas en piso por hora del día" className="block overflow-visible">
+            {horas.map((h, i) => faltaSeguido(h) && (
+              <rect key={`b${h.hora}`} x={carril * i + 1} y={0} width={carril - 2} height={base2} rx={8} fill="var(--color-hueso)" />
+            ))}
+            {!comprasFallo && <text x={0} y={11} {...TT}>Compras por hora, en promedio</text>}
+            <text x={0} y={top2 - 8} {...TT}>Personas en piso, en promedio</text>
+            {!comprasFallo && <line x1={0} x2={W} y1={base1} y2={base1} stroke="var(--color-sand)" />}
+            <line x1={0} x2={W} y1={base2} y2={base2} stroke="var(--color-sand)" />
+            {horas.map((h, i) => {
+              const cx0 = carril * i + carril / 2;
+              const hc = h.compras !== null ? (h.compras / maxC) * (H1 - 16) : 0;
+              const hp = (h.enPiso / maxP) * (H2 - 14);
+              const yPedia = h.pedia !== null ? base2 - (h.pedia / maxP) * (H2 - 14) : null;
+              return (
+                <g key={h.hora}>
+                  <title>{[
+                    `${h.hora}:00 a ${h.hora + 1}:00 · ${h.dias} ${h.dias === 1 ? "día" : "días"}`,
+                    h.compras !== null ? `Compras: ${numero(h.compras)} en promedio` : "Compras: sin leer",
+                    `En piso: ${numero(h.enPiso)}${h.pedia !== null ? ` · la venta pedía ${numero(h.pedia)}` : ""}`,
+                    h.pedia !== null ? `Faltó gente ${h.conFalta} de ${h.dias} días` : "",
+                  ].filter(Boolean).join("\n")}</title>
+                  <rect x={cx0 - carril / 2} y={0} width={carril} height={H} fill="transparent" />
+                  {hc > 0 && <path d={columna(cx0 - ancho / 2, base1 - hc, ancho, hc)} fill="var(--color-tinta)" />}
+                  {conEtiqueta && h.compras !== null && h.compras > 0 && <text x={cx0} y={base1 - hc - 5} textAnchor="middle" className="tabular-nums" {...T}>{numero(h.compras)}</text>}
+                  {hp > 0 && <path d={columna(cx0 - ancho / 2, base2 - hp, ancho, hp)} fill="var(--color-taupe)" />}
+                  {yPedia !== null && <line x1={cx0 - ancho / 2 - 3} x2={cx0 + ancho / 2 + 3} y1={yPedia} y2={yPedia} stroke="var(--color-tinta)" strokeWidth={1.5} strokeDasharray="3 2" />}
+                  {conEtiqueta && <text x={cx0} y={Math.min(base2 - hp, yPedia ?? Infinity) - 5} textAnchor="middle" className="tabular-nums" {...T}>{numero(h.enPiso)}</text>}
+                  {(carril >= 22 || i % 2 === 0) && <text x={cx0} y={H - 4} textAnchor="middle" {...T}>{h.hora}</text>}
+                </g>
+              );
+            })}
+          </svg>
+        )}
+      </div>
+      {!comprasFallo && (
+        <p className="mt-2 text-xs text-taupe">La raya es lo que pedía la venta. La franja marca las horas en que faltó gente la mitad de los días o más.</p>
+      )}
+    </div>
+  );
+}
 
 /** ¿Se dibuja para el teléfono? Apagado, nunca: el gráfico sigue siendo el de hoy. */
 function useAngosto(): boolean {
@@ -231,6 +559,134 @@ export function CalorTardanza({ filas, nombreDe }: { filas: { sede: string; celd
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ── Acuses pendientes: un medidor por documento ─────────────────────────────
+export function AcusesPendientesGrafico({ documentos }: { documentos: AcuseDeDocumento[] }) {
+  const faltan = documentos.reduce((s, d) => s + d.deben - d.acusaron, 0);
+  const conPendientes = documentos.filter((d) => d.acusaron < d.deben);
+  const peor = conPendientes[0];
+  return (
+    <div>
+      {faltan > 0 ? (
+        <Encabeza
+          valor={`${faltan} ${faltan === 1 ? "pendiente" : "pendientes"}`}
+          detalle={<>en <strong className="font-medium text-tinta">{conPendientes.length} de {documentos.length}</strong> {documentos.length === 1 ? "documento" : "documentos"}{peor ? <> · el más atrasado: {peor.titulo.toLowerCase()} (faltan {peor.deben - peor.acusaron})</> : null}</>}
+        />
+      ) : (
+        <Encabeza valor="Al día" detalle="Todos acusaron recibo de lo que está vigente." />
+      )}
+      <ul className="grid gap-3" aria-label="Avance de cada acuse">
+        {documentos.map((d) => {
+          const pct = d.deben > 0 ? Math.round((d.acusaron / d.deben) * 100) : 0;
+          const falta = d.deben - d.acusaron;
+          return (
+            <li key={d.clave} className="grid gap-1">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+                <span className="min-w-0 text-tinta">{d.titulo}</span>
+                <span className="text-xs text-taupe tabular-nums">
+                  <strong className="font-medium text-tinta">{d.acusaron} de {d.deben}</strong> acusaron{falta > 0 ? ` · faltan ${falta}` : " · completo"}
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-sand" role="img" aria-label={`${d.acusaron} de ${d.deben} acusaron recibo (${pct} %)`}>
+                <div className={cx("h-full rounded-full", falta > 0 ? "bg-tinta" : "bg-taupe/60")} style={{ width: `${pct}%` }} />
+              </div>
+              {falta > 0 && <Link href={d.href} className="justify-self-start text-xs text-taupe underline underline-offset-2 hover:text-tinta">Ver quién falta</Link>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// ── Antigüedad del equipo: una barra por tramo ──────────────────────────────
+export function AntiguedadGrafico({ datos }: { datos: Antiguedad }) {
+  const max = Math.max(1, ...datos.tramos.map((t) => t.n));
+  const nuevos = datos.tramos[0].n;
+  const menosDeUnAnio = datos.tramos.slice(0, 3).reduce((s, t) => s + t.n, 0);
+  return (
+    <div>
+      <Encabeza
+        valor={`${nuevos} ${nuevos === 1 ? "persona" : "personas"}`}
+        detalle={<>{nuevos === 1 ? "lleva" : "llevan"} menos de tres meses{datos.enPrueba > 0 ? <> · <strong className="font-medium text-tinta">{datos.enPrueba} en planilla</strong>, en su periodo de prueba de ley</> : null} · {menosDeUnAnio} de {datos.total} {menosDeUnAnio === 1 ? "lleva" : "llevan"} menos de un año</>}
+      />
+      <ul className="grid gap-2" aria-label="Personas por tramo de antigüedad">
+        {datos.tramos.map((t, i) => (
+          <li key={t.clave} className="grid grid-cols-[minmax(0,8rem)_1fr_2rem] items-center gap-3 text-sm">
+            <span className="text-tinta">{t.texto}</span>
+            <span className="h-2.5 rounded-full bg-sand" aria-hidden>
+              <span className={cx("block h-2.5 rounded-full", i === 0 ? "bg-tinta" : "bg-taupe/60")} style={{ width: `${(t.n / max) * 100}%` }} />
+            </span>
+            <span className="text-right tabular-nums text-tinta">{t.n}</span>
+          </li>
+        ))}
+      </ul>
+      {datos.sinFecha > 0 && <p className="mt-2 text-xs text-taupe">{datos.sinFecha} sin fecha de ingreso cargada: no entran en ningún tramo.</p>}
+    </div>
+  );
+}
+
+// ── En qué se va la planilla: de qué está hecho el costo, y qué cambió ──────
+export function DesgloseCostoGrafico({ datos }: { datos: DesgloseCosto }) {
+  const monto = (n: number) => soles(Math.round(Math.abs(n))).replace(/\.00$/, "");
+  const conSigno = (n: number) => `${n >= 0 ? "+" : "−"}${monto(n)}`;
+  const max = Math.max(1, ...datos.renglones.map((r) => Math.abs(r.monto)));
+  const cambios = datos.anterior
+    ? datos.renglones.map((r) => ({ ...r, delta: r.monto - (r.anterior ?? 0) })).filter((r) => Math.round(r.delta) !== 0)
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    : [];
+  const maxDelta = Math.max(1, ...cambios.map((r) => Math.abs(r.delta)));
+  const mayor = cambios[0];
+  const fila = "grid grid-cols-[minmax(0,12rem)_1fr_6.5rem] items-center gap-3 text-sm max-sm:grid-cols-[minmax(0,1fr)_6rem]";
+
+  return (
+    <div>
+      <Encabeza
+        valor={monto(datos.costo)}
+        detalle={<>costó el periodo que cerró el {datos.etiqueta}{datos.anterior ? <> · <strong className="font-medium text-tinta">{conSigno(datos.costo - datos.anterior.costo)}</strong> frente al {datos.anterior.etiqueta}</> : null}{mayor ? <> · lo que más cambió: {mayor.texto.toLowerCase()} ({conSigno(mayor.delta)})</> : null}</>}
+      />
+      <p className="mb-2 text-xs font-medium text-tinta">De qué está hecho</p>
+      <ul className="grid gap-2" aria-label="De qué está hecho el costo del periodo">
+        {datos.renglones.map((r) => (
+          <li key={r.clave} className={fila}>
+            <span className="min-w-0 text-tinta">{r.texto}</span>
+            <span className="h-2.5 rounded-full bg-sand max-sm:col-span-2 max-sm:row-start-2" aria-hidden>
+              <span className={cx("block h-2.5 rounded-full", r.monto >= 0 ? "bg-tinta" : "bg-taupe/60")} style={{ width: `${(Math.abs(r.monto) / max) * 100}%` }} />
+            </span>
+            <span className="text-right tabular-nums text-tinta">{r.monto < 0 ? "−" : ""}{monto(r.monto)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 border-t border-sand pt-2 text-right text-sm tabular-nums text-tinta">
+        = {monto(datos.costo)} <span className="text-xs text-taupe">el costo del periodo</span>
+      </p>
+      {Math.abs(datos.diferencia) >= 0.01 && (
+        <p className="mt-1 text-xs text-taupe">Los renglones no suman el costo: faltan {conSigno(datos.diferencia)}. Avisa a DO: es una cifra que no se explicó.</p>
+      )}
+      {datos.anterior && cambios.length > 0 && (
+        <>
+          <p className="mb-2 mt-5 text-xs font-medium text-tinta">Qué cambió frente al {datos.anterior.etiqueta}</p>
+          <ul className="grid gap-2" aria-label="Qué cambió frente al periodo anterior">
+            {cambios.map((r) => (
+              <li key={r.clave} className={fila}>
+                <span className="min-w-0 text-tinta">{r.texto}</span>
+                {/* La barra crece desde el centro: a la derecha sube el costo, a la izquierda baja. */}
+                <span className="relative h-2.5 max-sm:col-span-2 max-sm:row-start-2" aria-hidden>
+                  <span className="absolute inset-y-[-3px] left-1/2 w-px bg-taupe" />
+                  <span
+                    className={cx("absolute inset-y-0 rounded-[3px]", r.delta >= 0 ? "bg-tinta" : "bg-taupe/60")}
+                    style={r.delta >= 0 ? { left: "50%", width: `${(r.delta / maxDelta) * 50}%` } : { right: "50%", width: `${(-r.delta / maxDelta) * 50}%` }}
+                  />
+                </span>
+                <span className="text-right tabular-nums text-tinta">{conSigno(r.delta)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

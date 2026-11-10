@@ -2,18 +2,19 @@
 
 // La pestaña «Tendencias» del Dashboard: la historia, no la foto de hoy.
 //
-// PROMETE: cuatro a cinco gráficos —asistencia sobre lo esperado, hora de llegada por sede, cuándo se llega
-//   tarde, reportes por motivo y costo de planilla— cada uno con su propia carga, su propio error y su propio
-//   vacío. Un gráfico que no respondió dice «no se pudo consultar»; nunca se dibuja como si todo estuviera bien.
+// PROMETE: cinco a siete gráficos —asistencia sobre lo esperado, días perdidos por motivo, hora de llegada por
+//   sede, cuándo se llega tarde, gente en piso frente a la venta (tiendas), reportes por motivo y costo de
+//   planilla— cada uno con su propia carga, su propio error y su propio vacío. Un gráfico que no respondió dice «no se pudo consultar»; nunca se dibuja como si todo estuviera bien.
 // ASUME: se monta SOLO cuando alguien abre la pestaña, y pide su historia UNA vez (más otra si cambia el
 //   periodo). No entra en el refresco de 30 s del Dashboard: la historia no cambia cada medio minuto.
-// QUIÉN VE QUÉ: asistencia y puntualidad, quien llegó al Dashboard (la base ya recorta al líder a su sede);
+// QUIÉN VE QUÉ: asistencia, días perdidos y puntualidad, quien llegó al Dashboard (la base ya recorta al líder a
+//   su sede); gente en piso, las tiendas de su alcance (fn_compras_por_hora también recorta);
 //   Casos, solo quien `fn_ve_casos` deja; costo de planilla, solo quien `puedeVerPlanilla` — y para quien no,
 //   NI SIQUIERA se llama a la RPC (un líder de sede no debe ver sueldos).
 
 import { useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { hoyLima, mesesRecientesLima, puedeVerPlanilla, sumarDias } from "@cayla-dynamic/shared";
+import { hoyLima, mesesRecientesLima, puedeVerConstancias, puedeVerPlanilla, sumarDias } from "@cayla-dynamic/shared";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { Cargando } from "@/components/cargando";
@@ -24,11 +25,18 @@ import { AyudaCabecera } from "@/components/vidrio/ayuda-cabecera";
 import { interruptoresVidrio } from "@/lib/vidrio";
 import { traerResumenCasos } from "@/lib/admin/casos-resumen";
 import {
-  asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, llegadaPorSede, MINIMO_CASOS,
-  type FilaAsistencia, type PeriodoCosto,
+  acusesDeLaEmpresa, antiguedadDelEquipo, asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, desgloseDeCosto, diasPerdidosPorMes,
+  llegadaPorSede, MINIMO_CASOS, OTROS_MOTIVOS, SIN_JUSTIFICAR,
+  type DocumentoVigente, type FilaAsistencia, type FilaFalta, type PeriodoCosto, type PersonaAntiguedad, type PoliticaConAcuses,
 } from "@/lib/admin/tendencias";
+import { DIAS_DE_PISO, pisoPorHora, traerPisoYVenta, type TipoDeDia } from "@/lib/admin/piso-venta";
+import { nombreDeMotivo } from "@/lib/admin/motivo-falta";
+import { traerTodo } from "@/lib/admin/traer-todo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { BarrasCasos, CalorTardanza, ColumnasCosto, LineaAsistencia, LlegadaPorSede, pisoDeLinea } from "./graficos";
+import {
+  AcusesPendientesGrafico, AntiguedadGrafico, AsistenciaCompacta, BarrasCasos, CalorTardanza, ColumnasCosto, CostoCompacto,
+  DesgloseCostoGrafico, DiasPerdidosGrafico, LineaAsistencia, LlegadaPorSede, PisoYVentaGrafico, pisoDeLinea,
+} from "./graficos";
 
 type Estado<T> = { cargando: true } | { cargando: false; error: string } | { cargando: false; error: null; datos: T };
 
@@ -108,7 +116,25 @@ function Cuerpo<T>({ estado, reintentar, vacio, hijos }: {
   return sinDatos ? <EstadoVacio>{sinDatos}</EstadoVacio> : <>{hijos(estado.datos)}</>;
 }
 
-export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { codigo: string; nombre: string }[] }) {
+const TIPOS_DE_DIA: { clave: TipoDeDia; texto: string }[] = [
+  { clave: "todos", texto: "Todos los días" },
+  { clave: "semana", texto: "Lunes a viernes" },
+  { clave: "finde", texto: "Sábado y domingo" },
+];
+
+/** Dos consultas como una: carga si alguna carga, falla si alguna falla. */
+function combinar<A, B>(a: Estado<A>, b: Estado<B>): Estado<[A, B]> {
+  if (a.cargando || b.cargando) return { cargando: true };
+  if (a.error !== null) return a;
+  if (b.error !== null) return b;
+  return { cargando: false, error: null, datos: [a.datos, b.datos] };
+}
+
+export function PanelTendencias({ rol, sedes }: {
+  rol: string | null;
+  /** `id` y `tipo` los usa «Gente en piso»: solo las tiendas tienen venta por hora. */
+  sedes: { id: string; codigo: string; nombre: string; tipo: string | null }[];
+}) {
   // Las sedes salen de la TABLA `sedes` (la que ve quien mira), no de lo que devolvió la función: una sede sin
   // días medidos —por ejemplo Central, si su equipo es de sueldo fijo o de dirección— tiene que seguir
   // en la lista y DECIR por qué está vacía, no desaparecer como si no existiera.
@@ -125,6 +151,61 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
     const { data, error } = await supabase.rpc("fn_asistencia_serie", { p_desde: desde, p_hasta: hoy });
     if (error) throw new Error(mensajeDeError(error, "traer la asistencia"));
     return (data ?? []) as FilaAsistencia[];
+  });
+
+  // ── Días perdidos (fn_faltas, 0414): cada día que tocaba y no se vino, con su motivo ──
+  // Un periodo largo pasa de las 1000 filas que corta PostgREST: se pide todo, en lotes, con un orden único.
+  const [faltas, reintentarFaltas] = useConsulta(true, `faltas:${desde}`, async () => {
+    const [{ data, error }, { data: tipos }] = await Promise.all([
+      traerTodo((a, b) => supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hoy }).order("fecha").order("persona_id").range(a, b)),
+      // Sin el catálogo, el motivo se lee por su código («descanso medico»): no se frena el gráfico por un nombre.
+      supabase.from("tipos_ausencia").select("codigo, nombre"),
+    ]);
+    if (error) throw new Error(mensajeDeError(error, "traer los días perdidos"));
+    return {
+      filas: (data ?? []) as FilaFalta[],
+      nombres: new Map(((tipos as { codigo: string; nombre: string }[] | null) ?? []).map((t) => [t.codigo, t.nombre] as const)),
+    };
+  });
+
+  // ── Gente en piso frente a la venta: una tienda a la vez ───────────────────
+  // La tienda la decide el filtro de sede de arriba si es una tienda; con «Todas las sedes», unos botones propios.
+  const tiendas = sedes.filter((s) => s.tipo === "tienda");
+  const [tiendaPropia, setTiendaPropia] = useState<string | null>(null);
+  const [tipoDeDia, setTipoDeDia] = useState<TipoDeDia>("todos");
+  const sedeArriba = sede ? sedes.find((s) => s.codigo === sede) ?? null : null;
+  const tienda = sedeArriba ? (sedeArriba.tipo === "tienda" ? sedeArriba : null) : (tiendas.find((t) => t.codigo === tiendaPropia) ?? tiendas[0] ?? null);
+  const [piso, reintentarPiso] = useConsulta(tienda !== null, `piso:${tienda?.id ?? ""}`, () => traerPisoYVenta(supabase, tienda!, hoy));
+
+  // ── Antigüedad del equipo: quien está activo en las sedes de su alcance ────
+  const [filasEquipo, reintentarEquipo] = useConsulta(true, "antiguedad", async () => {
+    const { data, error } = await supabase.from("personas").select("fecha_ingreso, tipo_vinculo, sede_base_id")
+      .eq("estado", "activo").eq("cuenta_de_servicio", false);
+    if (error) throw new Error(mensajeDeError(error, "traer la antigüedad del equipo"));
+    return (data ?? []) as { fecha_ingreso: string | null; tipo_vinculo: string | null; sede_base_id: string | null }[];
+  });
+  // Solo las sedes de su alcance (a la líder de equipo, su sede). Se cruza al dibujar: las sedes pueden llegar después.
+  const equipo = useMemo((): Estado<PersonaAntiguedad[]> => {
+    if (filasEquipo.cargando || filasEquipo.error !== null) return filasEquipo;
+    const codigoDe = new Map(sedes.map((x) => [x.id, x.codigo] as const));
+    return {
+      cargando: false, error: null,
+      datos: filasEquipo.datos.flatMap((p) => {
+        const codigo = p.sede_base_id ? codigoDe.get(p.sede_base_id) : undefined;
+        return codigo ? [{ fecha_ingreso: p.fecha_ingreso, tipo_vinculo: p.tipo_vinculo, sede: codigo }] : [];
+      }),
+    };
+  }, [filasEquipo, sedes]);
+
+  // ── Acuses pendientes: las cuentas de Política salarial y de Normas, solo para DO ──
+  const verConstancias = puedeVerConstancias(rol);
+  const [acuses, reintentarAcuses] = useConsulta(verConstancias, "acuses", async () => {
+    const [{ data: pol, error: polErr }, { data: docs, error: docsErr }] = await Promise.all([
+      supabase.rpc("fn_politica_salarial_vigente"),
+      supabase.rpc("fn_documentos_vigentes"),
+    ]);
+    if (polErr || docsErr) throw new Error(mensajeDeError((polErr ?? docsErr)!, "traer los acuses"));
+    return acusesDeLaEmpresa(pol as PoliticaConAcuses | null, docs as DocumentoVigente[] | null);
   });
 
   // ── Casos: solo quien ya los ve ────────────────────────────────────────────
@@ -148,7 +229,11 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
     ]);
     if (error) throw new Error(mensajeDeError(error, "traer el costo de planilla"));
     const por = ((data as unknown as { por_periodo?: PeriodoCosto[] } | null)?.por_periodo) ?? [];
-    return columnasDeCosto(por, (enCurso?.[0] as { fecha_ini: string; fecha_fin: string } | undefined) ?? null);
+    // La misma lectura sirve a «Costo de planilla» y a «En qué se va la planilla»: un solo costo.
+    return {
+      columnas: columnasDeCosto(por, (enCurso?.[0] as { fecha_ini: string; fecha_fin: string } | undefined) ?? null),
+      desglose: desgloseDeCosto(por),
+    };
   });
 
   // Un botón por sede QUE TIENE días medidos; las que no, no son un botón muerto sino una línea que lo dice
@@ -160,6 +245,51 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
   const filtradas = useMemo(() => (asist.cargando || asist.error !== null ? [] : asist.datos.filter((f) => !sede || f.sede_codigo === sede)), [asist, sede]);
 
   const SIN_DIAS_DE_SEDE = "Esta sede no tiene días medidos en el periodo. No se mide a quien cobra sueldo fijo, por recibo o es personal de dirección, ni a quien no tiene horario cargado.";
+  const vidrio = interruptoresVidrio().panel;
+  const seccionAsistencia = (
+    <Seccion
+      titulo="Asistencia sobre lo esperado"
+      que="De los días que tocaba trabajar, en cuántos hubo marca. Por semana."
+      queCorto="En cuántos de los días que tocaba trabajar hubo marca."
+      nota={<>Cuenta los días que tocaba trabajar, sin vacaciones, descansos, feriados ni días con motivo; no incluye a quien cobra por recibo, tiene sueldo fijo o es personal de dirección. Cada sede cuenta a su gente de hoy. La semana en curso va hueca porque no terminó.{vidrio ? " La cifra grande es la última semana terminada; el promedio pesa cada semana por sus días." : ""}</>}
+    >
+      <Cuerpo estado={asist} reintentar={reintentarAsist}
+        vacio={() => (asistenciaSemanal(filtradas, hoy, sede).every((p) => p.pct === null) ? (sede ? SIN_DIAS_DE_SEDE : "Todavía no hay semanas completas que mostrar en este periodo.") : null)}
+        hijos={() => {
+          const puntos = asistenciaSemanal(filtradas, hoy, sede);
+          const piso = pisoDeLinea(puntos);
+          return (<>
+            {vidrio ? <AsistenciaCompacta puntos={puntos} /> : <LineaAsistencia puntos={puntos} />}
+            {piso !== null && piso > 0 && <p className="mt-1 text-xs text-taupe">{vidrio ? `El eje empieza en ${piso} %, no en 0.` : `El eje empieza en ${piso} %, no en 0: así se ven las diferencias chicas. No es una caída tan grande como parece.`}</p>}
+          </>);
+        }} />
+    </Seccion>
+  );
+  const seccionCosto = verPlanilla ? (
+    <Seccion
+      titulo="Costo de planilla por periodo"
+      que={vidrio ? "Lo que costó cada periodo ya pagado, de toda la empresa: el filtro de sede no lo cambia. Últimos 12 meses." : "Lo que costó cada periodo ya pagado (del 29 al 28). Últimos 12 meses."}
+      queCorto={vidrio ? "Toda la empresa: no cambia con el filtro de sede." : "Cada periodo ya pagado, del 29 al 28."}
+      nota="Solo cuenta periodos marcados como pagados, tal como se pagaron. El que está en curso va rayado y sin monto: todavía no es un hecho. «Retroactivo» = reconstruido después del pago."
+    >
+      <Cuerpo estado={costo} reintentar={reintentarCosto}
+        vacio={(d) => (d.columnas.length === 0 ? "Todavía no hay periodos pagados que mostrar." : null)}
+        hijos={(d) => (vidrio ? <CostoCompacto columnas={d.columnas} /> : <ColumnasCosto columnas={d.columnas} />)} />
+    </Seccion>
+  ) : null;
+  const seccionDesglose = verPlanilla ? (
+    <Seccion
+      titulo="En qué se va la planilla"
+      que="De qué está hecho el costo del último periodo pagado, y cuánto cambió cada parte frente al anterior. Toda la empresa."
+      queCorto="De qué está hecho el último periodo pagado, y qué cambió."
+      nota="Es el mismo costo que «Costo de planilla», al centavo: lo que recibe cada persona más las provisiones. Por eso la pensión y las retenciones aparecen restando —salen de lo que se le paga a la persona— y el EsSalud de la empresa no aparece. Las provisiones van con la cifra del periodo."
+    >
+      <Cuerpo estado={costo} reintentar={reintentarCosto}
+        vacio={(d) => (d.columnas.length === 0 ? "Todavía no hay periodos pagados que mostrar." : d.desglose === null ? "Este desglose necesita la migración 0609." : null)}
+        hijos={(d) => <DesgloseCostoGrafico datos={d.desglose!} />} />
+    </Seccion>
+  ) : null;
+
   return (
     <div className="grid gap-4">
       {/* ── Qué periodo y qué sede: lo que se toca, a la vista ── */}
@@ -177,21 +307,30 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
         <p className="-mt-2 text-xs text-taupe">Sin días medidos en este periodo: {sedesSinDatos.map((s) => s.nombre).join(", ")}.</p>
       )}
 
+      {vidrio && seccionCosto ? (
+        // Con el vidrio, Asistencia y Costo van chicos y juntos: con pocas semanas y pocos periodos, un dibujo a
+        // todo el ancho no decía más, solo se veía más grande. Sin permiso de planilla, Asistencia va sola.
+        <div className="grid gap-4 lg:grid-cols-2">{seccionAsistencia}{seccionCosto}</div>
+      ) : seccionAsistencia}
+      {vidrio && seccionDesglose}
+
       <Seccion
-        titulo="Asistencia sobre lo esperado"
-        que="De los días que tocaba trabajar, en cuántos hubo marca. Por semana."
-        queCorto="En cuántos de los días que tocaba trabajar hubo marca."
-        nota={<>Cuenta los días que tocaba trabajar, sin vacaciones, descansos, feriados ni días con motivo; no incluye a quien cobra por recibo, tiene sueldo fijo o es personal de dirección. Cada sede cuenta a su gente de hoy. La semana en curso va hueca porque no terminó.</>}
+        titulo="Días perdidos, por motivo"
+        que="Todo lo que se perdió de los días que tocaba trabajar, separado por qué. Por mes."
+        queCorto="Lo que se perdió de los días que tocaba trabajar, y por qué."
+        nota={<>La asistencia de arriba solo mira los días sin motivo, así que un descanso médico no la baja: aquí sí cuenta. Son días laborables, no de calendario. No cuenta vacaciones, descansos sustitutorios ni suspensiones. Mide a la misma gente que la asistencia, con su equipo de hoy; nunca por persona. Más de cuatro motivos: los tres más grandes van solos y el resto junto. El mes que el periodo o el día de hoy cortan va rayado.</>}
       >
-        <Cuerpo estado={asist} reintentar={reintentarAsist}
-          vacio={() => (asistenciaSemanal(filtradas, hoy, sede).every((p) => p.pct === null) ? (sede ? SIN_DIAS_DE_SEDE : "Todavía no hay semanas completas que mostrar en este periodo.") : null)}
-          hijos={() => {
-            const puntos = asistenciaSemanal(filtradas, hoy, sede);
-            const piso = pisoDeLinea(puntos);
-            return (<>
-              <LineaAsistencia puntos={puntos} />
-              {piso !== null && piso > 0 && <p className="mt-1 text-xs text-taupe">{interruptoresVidrio().panel ? `El eje empieza en ${piso} %, no en 0.` : `El eje empieza en ${piso} %, no en 0: así se ven las diferencias chicas. No es una caída tan grande como parece.`}</p>}
-            </>);
+        <Cuerpo estado={combinar(asist, faltas)} reintentar={() => { reintentarAsist(); reintentarFaltas(); }}
+          vacio={([a, f]) => (diasPerdidosPorMes(f.filas, a, desde, hoy, sede).meses.length === 0 ? (sede ? SIN_DIAS_DE_SEDE : "Todavía no hay días medidos en este periodo.") : null)}
+          hijos={([a, f]) => {
+            const d = diasPerdidosPorMes(f.filas, a, desde, hoy, sede);
+            if (d.motivos.length === 0) return <EstadoVacio>No se perdió ningún día que tocaba trabajar en este periodo.</EstadoVacio>;
+            return (
+              <DiasPerdidosGrafico
+                datos={d}
+                nombreDe={(clave) => (clave === SIN_JUSTIFICAR ? "Faltas sin justificar" : clave === OTROS_MOTIVOS ? "Otros motivos" : nombreDeMotivo(clave, f.nombres))}
+              />
+            );
           }} />
       </Seccion>
 
@@ -217,6 +356,59 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
           hijos={() => <CalorTardanza filas={calorTardanza(filtradas)} nombreDe={nombreDeSede} />} />
       </Seccion>
 
+      {tiendas.length > 0 && (
+        <Seccion
+          titulo="Gente en piso frente a la venta"
+          que={`Hora por hora: cuántas compras hubo, cuánta gente había en piso y cuánta pedía la venta. Últimos ${DIAS_DE_PISO} días.`}
+          queCorto={`Hora por hora, en los últimos ${DIAS_DE_PISO} días.`}
+          nota={<>Una compra es un ticket completado de Retail. En piso es el peor cuarto de cada hora, sin quien está en almacén, en refrigerio o en pausa: la misma cuenta que la repetición del día en Turnos. Lo que pedía la venta son las compras de la hora divididas por el ritmo de la tienda, nunca menos que su mínimo (Parámetros). Solo se miran las horas enteras dentro del horario de la tienda (de la primera entrada a la última salida de su equipo): en la que abre o cierra a medias, el peor cuarto cae con la tienda cerrada. Una hora con menos de cuatro días medidos no se marca. Nunca por persona.</>}
+        >
+          {tienda === null ? (
+            <EstadoVacio>{sedeArriba?.nombre ?? "Esta sede"} no es tienda: este gráfico mira la venta de cada hora.</EstadoVacio>
+          ) : (
+            <>
+              <div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="Tienda y días">
+                {!sedeArriba && tiendas.length > 1 && (
+                  <>
+                    {tiendas.map((t) => <Filtro key={t.codigo} tamano="sm" activo={tienda.codigo === t.codigo} onClick={() => setTiendaPropia(t.codigo)}>{t.nombre}</Filtro>)}
+                    <span aria-hidden className="mx-1 h-4 w-px bg-sand" />
+                  </>
+                )}
+                {TIPOS_DE_DIA.map((t) => <Filtro key={t.clave} tamano="sm" activo={tipoDeDia === t.clave} onClick={() => setTipoDeDia(t.clave)}>{t.texto}</Filtro>)}
+              </div>
+              <Cuerpo estado={piso} reintentar={reintentarPiso}
+                vacio={(d) => (pisoPorHora(d.dias, tipoDeDia).length === 0 ? `Todavía no hay días con marcas en ${tienda.nombre} para mirar.` : null)}
+                hijos={(d) => <PisoYVentaGrafico horas={pisoPorHora(d.dias, tipoDeDia)} comprasFallo={d.comprasFallo} />} />
+            </>
+          )}
+        </Seccion>
+      )}
+
+      <div className={verConstancias ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
+        {verConstancias && (
+          <Seccion
+            titulo="Acuses pendientes"
+            que="Cuánta gente ya acusó recibo de la política salarial y de cada documento que pide constancia. Toda la empresa: el filtro de sede no lo cambia."
+            queCorto="Toda la empresa: no cambia con el filtro de sede."
+            nota="Son las mismas cuentas de Política salarial y de Normas, con su misma gente: quien está activo y debe recibir ese documento. Una política sin acuse no se puede aplicar a quien no la recibió. Aquí solo se cuenta; quién falta se ve en cada pantalla, con su enlace."
+          >
+            <Cuerpo estado={acuses} reintentar={reintentarAcuses}
+              vacio={(d) => (d.length === 0 ? "No hay ninguna política ni documento vigente que pida constancia." : null)}
+              hijos={(d) => <AcusesPendientesGrafico documentos={d} />} />
+          </Seccion>
+        )}
+        <Seccion
+          titulo="Antigüedad del equipo"
+          que="Cuánta gente es nueva y cuánta lleva años, por tramo. Sirve para planear vacaciones ganadas, CTS y quién está en su periodo de prueba."
+          queCorto="Cuánta gente es nueva y cuánta lleva años."
+          nota="Cuenta a quien está activo hoy, sin la preselección. El periodo de prueba de ley son los primeros tres meses de quien está en planilla (art. 10 del D.S. 003-97-TR); para personal de confianza o de dirección puede pactarse más largo, y eso lo dice su contrato."
+        >
+          <Cuerpo estado={equipo} reintentar={reintentarEquipo}
+            vacio={(d) => (antiguedadDelEquipo(d, hoy, sede).total === 0 ? (sede ? "Esta sede no tiene a nadie con fecha de ingreso cargada." : "No hay a nadie con fecha de ingreso cargada.") : null)}
+            hijos={(d) => <AntiguedadGrafico datos={antiguedadDelEquipo(d, hoy, sede)} />} />
+        </Seccion>
+      </div>
+
       {veCasos === true && (
         <Seccion
           titulo="Reportes por motivo"
@@ -229,18 +421,8 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
         </Seccion>
       )}
 
-      {verPlanilla && (
-        <Seccion
-          titulo="Costo de planilla por periodo"
-          que="Lo que costó cada periodo ya pagado (del 29 al 28). Últimos 12 meses."
-          queCorto="Cada periodo ya pagado, del 29 al 28."
-          nota="Solo cuenta periodos marcados como pagados, tal como se pagaron. El que está en curso va rayado y sin monto: todavía no es un hecho. «Retroactivo» = reconstruido después del pago."
-        >
-          <Cuerpo estado={costo} reintentar={reintentarCosto}
-            vacio={(d) => (d.length === 0 ? "Todavía no hay periodos pagados que mostrar." : null)}
-            hijos={(d) => <ColumnasCosto columnas={d} />} />
-        </Seccion>
-      )}
+      {!vidrio && seccionCosto}
+      {!vidrio && seccionDesglose}
     </div>
   );
 }

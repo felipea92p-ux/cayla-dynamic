@@ -1,8 +1,8 @@
 // repeticion.test.ts — la repetición de un día cerrado (Turnos · Día, 0585)
 import { describe, expect, it } from "vitest";
 import {
-  columnasEnElMomento, diaCompletoReal, enPisoEnLaHora, estadoEnElMomento, horasDeLaRepeticion, resumenReal, ventaPedia,
-  type PersonaRepeticion,
+  columnasEnElMomento, diaCompletoReal, enPisoEnLaHora, estadoEnElMomento, FIN_DE_LA_LINEA, horasDeLaRepeticion,
+  personasDelDiaCerrado, planDelDia, resumenReal, ventaPedia, type PersonaRepeticion,
 } from "../apps/web/lib/admin/repeticion";
 
 const medianocheIso = "2026-11-02T00:00:00-05:00";
@@ -99,15 +99,76 @@ describe("el día completo y su resumen", () => {
   });
   it("a las 11 la venta pedía 4 y había 2: es una hora con falta", () => {
     const once = horas.find((h) => h.hora === 11)!;
-    expect(once).toEqual({ hora: 11, enPiso: 2, compras: 6, pedia: 4 });
+    expect(once).toEqual({ hora: 11, enPiso: 2, compras: 6, pedia: 4, juzgada: true });
     const r = resumenReal(horas);
     expect(r.totalCompras).toBe(10);
     expect(r.masCargada).toEqual({ hora: 11, comprasPorPersona: 3 });
     expect(r.horasConFalta).toBeGreaterThanOrEqual(1);
   });
+  it("la hora en que la tienda abre o cierra a medias se dibuja, pero no se compara con la venta", () => {
+    // A las 8 llegan las dos (08:30 y 08:34): el peor cuarto da 0 en piso y, sin horario, eso es «falta».
+    const sinHorario = horas.find((h) => h.hora === 8)!;
+    expect(sinHorario).toMatchObject({ enPiso: 0, pedia: 2, juzgada: true });
+    const conHorario = diaCompletoReal({
+      personas: [ana, bea], medianocheIso, comprasDe: (h) => compras[h] ?? 0, parametros: { ritmo: 1.5, minimo: 2 },
+      ventana: { abre: 9, cierra: 16.5 },
+    });
+    expect(conHorario.map((h) => h.hora)).toEqual(horas.map((h) => h.hora)); // se siguen dibujando todas
+    expect(conHorario.find((h) => h.hora === 8)).toMatchObject({ enPiso: 0, pedia: null, juzgada: false });
+    expect(conHorario.find((h) => h.hora === 16)).toMatchObject({ pedia: null, juzgada: false });
+    expect(conHorario.find((h) => h.hora === 11)).toMatchObject({ pedia: 4, juzgada: true });
+    // Dejan de contar como falta las 8 (el equipo llegando) y las 17 (ya se fueron): ninguna era gente que faltó.
+    expect(conHorario.find((h) => h.hora === 17)).toMatchObject({ enPiso: 0, juzgada: false });
+    expect(resumenReal(conHorario).horasConFalta).toBe(resumenReal(horas).horasConFalta - 2);
+    expect(resumenReal(conHorario).masCargada).toEqual({ hora: 11, comprasPorPersona: 3 });
+  });
   it("sin la venta no hay total ni falta que contar", () => {
     const sin = diaCompletoReal({ personas: [ana], medianocheIso, comprasDe: null, parametros: { ritmo: 1.5, minimo: 2 } });
     expect(sin.every((h) => h.compras === null && h.pedia === null)).toBe(true);
     expect(resumenReal(sin)).toEqual({ totalCompras: null, horasConFalta: 0, masCargada: null });
+  });
+});
+
+describe("personasDelDiaCerrado — Turnos e Inicio arman el día con la misma regla", () => {
+  const manana = new Date("2026-11-03T12:00:00-05:00");
+  const marcasDe = (entrada: string, salida: string) => [
+    { tipo: "entrada" as const, timestamp: iso(entrada) },
+    { tipo: "salida_final" as const, timestamp: iso(salida) },
+  ];
+  const base = {
+    medianocheIso, ahora: manana,
+    puestoDe: () => ({ todoElTurno: false, tramos: [] }),
+    cambiosDe: () => [],
+  };
+
+  it("quien no tenía turno ni marcó no está; quien vino sin turno sí", () => {
+    const r = personasDelDiaCerrado({
+      ...base,
+      personas: [{ id: "A", nombre: "A", cuenta: true, lider: false }, { id: "B", nombre: "B", cuenta: true, lider: false }],
+      planDe: () => null,
+      marcajesDe: (id) => (id === "B" ? marcasDe("10:00", "18:00") : []),
+    });
+    expect(r.map((p) => p.id)).toEqual(["B"]);
+    expect(r[0]).toMatchObject({ plan: null, almacen: [] });
+  });
+
+  it("el almacén planificado cuenta como si hubiera pasado, aunque no se marcó en el terminal", () => {
+    const r = personasDelDiaCerrado({
+      ...base,
+      personas: [{ id: "A", nombre: "A", cuenta: true, lider: false }],
+      planDe: () => ({ desde: 9, hasta: 18 }),
+      puestoDe: () => ({ todoElTurno: false, tramos: [{ desde: 15, hasta: 16 }] }),
+      marcajesDe: () => marcasDe("09:00", "18:00"),
+    });
+    expect(r[0].almacen).toEqual([{ desde: 15, hasta: 16 }]);
+    expect(estadoEnElMomento(r[0], 15.5, medianocheIso)).toBe("almacen");
+    expect(enPisoEnLaHora(r, 15, medianocheIso)).toBe(0);
+    expect(enPisoEnLaHora(r, 14, medianocheIso)).toBe(1);
+  });
+
+  it("planDelDia: un turno sin salida dura hasta el fin de la línea de Turnos", () => {
+    expect(planDelDia({ trabaja: true, entrada: "08:30", salida: null })).toEqual({ desde: 8.5, hasta: FIN_DE_LA_LINEA });
+    expect(planDelDia({ trabaja: true, entrada: "08:30:00", salida: "17:15:00" })).toEqual({ desde: 8.5, hasta: 17.25 });
+    expect(planDelDia({ trabaja: false, entrada: null, salida: null })).toBeNull();
   });
 });

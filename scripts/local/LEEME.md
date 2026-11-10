@@ -53,7 +53,10 @@ Ni el Dashboard, ni la Bandeja, ni Provisiones cambian. Si el cese de Filomena s
 ./scripts/local/tiempo-real.sh           # enciende solo el tiempo real, si el resto ya está encendido
 ./scripts/local/crear-base.sh --de-cero  # borra y rehace la base con todas las migraciones de este worktree
 node scripts/local/sembrar.mjs --solo-ceses  # agrega a las dos cesadas a una base que ya existe; no borra nada y se puede repetir
+(source scripts/local/comun.sh && psql -f scripts/local/datos-compras.sql)  # compras inventadas por hora en las tiendas
 ```
+
+Sin `datos-compras.sql`, Turnos e Inicio dicen «no se pudieron leer las compras de retail»: `fn_compras_por_hora` lee la forma de `retail.ventas` que tiene producción, no la del repo. El script se la da a la base local, siembra los últimos 40 días de TRU y AQP y se puede repetir. No corre solo al arrancar porque cambia la forma de una tabla de la base que comparten todos los worktrees.
 
 `arrancar.sh` ya corre `--solo-ceses`, así que normalmente no hace falta pedirlo.
 

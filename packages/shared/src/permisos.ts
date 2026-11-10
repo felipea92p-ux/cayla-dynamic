@@ -196,6 +196,16 @@ export function puedeGestionarBoletas(rol: RolPosible): boolean {
 }
 
 /**
+ * ¿Ve cuántas constancias faltan en toda la empresa —la política salarial, el
+ * reglamento y las normas—? DO, lo mismo que «Constancias» en Normas y la señal
+ * de Normas en la Bandeja. La líder de equipo no gestiona Normas. Se nombra
+ * aparte porque hasta el 2026-11-09 cada lector comparaba `ROLES_DO` a mano.
+ */
+export function puedeVerConstancias(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * Ver, subir, reemplazar y retirar los papeles del Archivo de la empresa
  * (`/admin/archivo`, migración 0503): lo que CAYLA presenta o recibe de una
  * autoridad — inscripciones de bancos de datos, REMYPE, licencias. Solo DO: la

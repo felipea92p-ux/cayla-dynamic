@@ -28,6 +28,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { nombreDeMotivo } from "@/lib/admin/motivo-falta";
 import Link from "next/link";
 import { ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -89,14 +90,6 @@ const CATEGORIAS: { clave: Categoria; etiqueta: string }[] = [
   { clave: "otros", etiqueta: "Otros" },
 ];
 type FiltroEstado = "por_revisar" | "resueltas" | "todas";
-
-// Motivos que devuelve fn_faltas y que NO son filas de tipos_ausencia: la
-// suspensión (0079) y el descanso sustitutorio (0070). Todo lo demás se nombra
-// desde la tabla.
-const MOTIVOS_FUERA_DE_AUSENCIAS: Record<string, string> = {
-  suspension: "Suspensión",
-  descanso_sustitutorio: "Descanso sustitutorio",
-};
 
 interface RevisionPedida {
   id: string; persona_id: string; nombre: string; sede: string;
@@ -166,12 +159,7 @@ function IncidenciasContenido() {
   const [abierta, setAbierta] = useState<string | null>(null);
   const volverFoco = useRef<HTMLElement | null>(null);
 
-  const etiquetaMotivo = useCallback((m: string | null) => {
-    if (!m) return "Sin motivo";
-    // `permiso_concedido` es el nombre viejo; en tipos_ausencia es `permiso_personal` (0101).
-    const codigo = m === "permiso_concedido" ? "permiso_personal" : m;
-    return nombreTipoAusencia.get(codigo) ?? MOTIVOS_FUERA_DE_AUSENCIAS[m] ?? m.replaceAll("_", " ");
-  }, [nombreTipoAusencia]);
+  const etiquetaMotivo = useCallback((m: string | null) => (m ? nombreDeMotivo(m, nombreTipoAusencia) : "Sin motivo"), [nombreTipoAusencia]);
 
   const cargasVigentes = useRef(crearCargaVigente());
 
@@ -307,11 +295,7 @@ function IncidenciasContenido() {
 
     const aceptadasRows = (aceptadasData as unknown as AceptadaRow[] | null) ?? [];
     const tipos = new Map(((tiposData as { codigo: string; nombre: string }[] | null) ?? []).map((t) => [t.codigo, t.nombre]));
-    const etiqueta = (m: string | null) => {
-      if (!m) return "Sin motivo";
-      const codigo = m === "permiso_concedido" ? "permiso_personal" : m;
-      return tipos.get(codigo) ?? MOTIVOS_FUERA_DE_AUSENCIAS[m] ?? m.replaceAll("_", " ");
-    };
+    const etiqueta = (m: string | null) => (m ? nombreDeMotivo(m, tipos) : "Sin motivo");
     const sedesRows = (sedesData as Sede[] | null) ?? [];
 
     setIncidencias(detectarIncidencias({
