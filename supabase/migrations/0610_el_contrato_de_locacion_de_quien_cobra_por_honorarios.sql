@@ -16,6 +16,9 @@
 --   · `fn_es_admin_o_lider()` es DO y dirección (0078). La líder de equipo no
 --     tiene la pantalla de Contratos y tampoco ve esto.
 --   · `fn_hoy_lima()` es «hoy» (0091).
+--   · Que el navegador sube el escaneo al bucket `contratos-locacion` ANTES de
+--     llamar a `fn_locacion_registrar`, y que Storage guarda su peso y su tipo
+--     en `storage.objects.metadata` (molde de la 0482 y la 0503).
 --
 -- ── POR QUÉ UNA TABLA PROPIA Y NO `contratos_generados` ─────────────────────
 --
@@ -39,6 +42,13 @@
 --
 -- ── ESTADOS QUE NUNCA DEBEN EXISTIR (y qué los hace imposibles) ──────────────
 --
+--   · un contrato sin escaneo ................... not null + la función exige
+--                                                  que el archivo exista en
+--                                                  Storage
+--   · un escaneo en dos contratos vivos ......... índice único parcial
+--   · una locación vigente para alguien de
+--     planilla (dos vínculos a la vez) .......... la función
+--   · firmado en el futuro ...................... la función
 --   · un contrato sin servicio .................. check
 --   · uno que termina antes de empezar .......... check
 --   · una ruta con nombres o DNI ................ check de forma `<uuid>.<ext>`
@@ -49,7 +59,17 @@
 --                                                  solo se escribe su término
 --                                                  o su anulación, una vez y
 --                                                  desde el sistema
---   · alguien fuera de DO leyéndolo ............. RLS
+--   · alguien fuera de DO leyéndolo ............. RLS + política de Storage
+--   · pisar o borrar un escaneo registrado ...... la política de update y
+--                                                  delete de Storage exige que
+--                                                  ningún contrato lo use
+--
+-- ── CONCURRENCIA ─────────────────────────────────────────────────────────────
+--
+--   Dos personas de DO registran el MISMO escaneo a la vez: el índice único
+--   parcial deja entrar a una y la otra recibe el error. Dos escaneos distintos
+--   de la misma persona a la vez entran los dos, y está bien: puede tener dos
+--   contratos.
 --
 -- ── NÚMEROS ─────────────────────────────────────────────────────────────────
 --
@@ -64,10 +84,28 @@
 --   el otro solo se ve en su historial: si el que se muestra vence después,
 --   el que vence antes no avisa.
 --
+-- ── CÓMO SE PEGA — EN DOS PARTES, UNA POR UNA ───────────────────────────────
+--
+--   Toca dos tablas en uso: `personas` (la llave foránea toma un candado sobre
+--   ella) y `storage.objects` (crear una política toma uno exclusivo). Pegadas
+--   juntas, el SQL Editor las retiene a las dos hasta el final, y es la forma
+--   del deadlock de la 0591. Así que cada parte toca una sola:
+--     PARTE 1 · la tabla y sus funciones   (solo `personas`)
+--     PARTE 2 · el almacén y el registro   (solo `storage.objects`)
+--   Cada una empieza con `set local lock_timeout = '3s'`: si no consigue el
+--   candado en 3 segundos falla en vez de quedarse en cola, y se repega. La
+--   parte 2 se niega a correr si falta la 1. Las dos son idempotentes. Entera,
+--   en un solo bloque, sigue valiendo en una base sin tráfico (las pruebas).
+--
 -- ── CÓMO SE REVIERTE ─────────────────────────────────────────────────────────
---   drop function if exists fn_locaciones_tablero(), fn_locaciones_listar();
---   drop table contratos_locacion;   -- se lleva su trigger
+--   drop function if exists fn_locaciones_tablero(), fn_locaciones_listar(uuid),
+--     fn_locacion_registrar(uuid, text, date, date, date, text, text),
+--     fn_locacion_libre(text);
+--   drop policy contratos_locacion_insert/select/update/delete on storage.objects;
+--   drop table contratos_locacion;   -- se lleva su trigger y sus índices
 --   drop function if exists fn_contratos_locacion_inmutables();
+--   delete from storage.objects where bucket_id = 'contratos-locacion';  -- vaciar antes
+--   delete from storage.buckets where id = 'contratos-locacion';
 --   Nada de planilla, asistencia ni pago lee esta tabla: revertir solo quita
 --   la pestaña. Ojo: borrarla destruye el registro de quién subió cada
 --   contrato y cuándo.
@@ -77,8 +115,9 @@
 --   resultado de la última.
 -- ============================================================================
 
--- Si una tabla está ocupada, mejor fallar a los 3 s y repegar que dejar en
--- cola a todo el que llegue detrás (la FK toma un candado sobre `personas`).
+-- ═══ PARTE 1 · La tabla y sus funciones (solo `personas`, por la llave) ═════
+-- Se pega primero y sola.
+
 set local lock_timeout = '3s';
 
 
@@ -181,6 +220,26 @@ create policy contratos_locacion_select_do on contratos_locacion
 
 revoke all on contratos_locacion from anon, authenticated, public;
 grant select on contratos_locacion to authenticated;
+
+
+-- ── 3b · El escaneo de cada contrato ─────────────────────────────────────────
+-- Un archivo está «libre» si ningún contrato lo usa: solo entonces se puede
+-- pisar o borrar (limpiar un huérfano). Es lo que vuelve inmutable lo ya
+-- registrado, también del lado del archivo.
+create or replace function fn_locacion_libre(p_path text)
+returns boolean
+language sql stable security definer set search_path = public
+as $fn$
+  select not exists (select 1 from contratos_locacion c where c.storage_path = p_path);
+$fn$;
+
+grant execute on function fn_locacion_libre(text) to authenticated;
+revoke execute on function fn_locacion_libre(text) from public, anon;
+
+-- Un mismo escaneo no sostiene dos contratos vivos: sería registrar dos veces
+-- el mismo papel. Uno anulado sí deja su archivo libre para registrarlo bien.
+create unique index if not exists idx_contratos_locacion_ruta_viva
+  on contratos_locacion (storage_path) where anulado_at is null;
 
 
 -- ── 4 · El tablero: una fila por cada persona activa por honorarios ─────────
@@ -339,11 +398,170 @@ end;
 $fn$;
 
 
+-- ── 5b · Registrar un contrato firmado ───────────────────────────────────────
+-- Contrato:
+--   p_storage_path  `<uuid>.<ext>` ya subido al bucket `contratos-locacion`.
+--                   EL ARCHIVO VA PRIMERO (molde de la 0503): si Storage no
+--                   responde, la subida falla entera y no queda ninguna fila;
+--                   un archivo subido y nunca registrado es inofensivo, y la
+--                   política de delete permite limpiarlo porque nadie lo usa.
+--   Devuelve el id del contrato. Todo en una transacción.
+--
+-- A quién: a quien cobra hoy por honorarios. A una persona de planilla solo
+-- se le puede archivar una locación que YA terminó (la que tuvo antes de
+-- pasar a planilla): registrarle una vigente dejaría a la misma persona con un
+-- vínculo civil y uno laboral a la vez. Una persona que ya cesó sí puede
+-- recibir el suyo: el papel de quien ya no está es justo el que hay que poder
+-- archivar (lección de la 0287).
+--
+-- Se degrada así: sin Storage, DO no puede registrar ni abrir contratos; el
+-- tablero sigue viéndose porque vive en Postgres. No se pierde ningún dato.
+create or replace function fn_locacion_registrar(
+  p_persona_id     uuid,
+  p_servicio       text,
+  p_fecha_inicio   date,
+  p_fecha_fin      date,
+  p_fecha_firma    date,
+  p_storage_path   text,
+  p_nombre_archivo text
+)
+returns uuid
+language plpgsql security definer set search_path = public
+as $fn$
+declare
+  v_quien uuid := fn_persona_actual_id();
+  v_p     personas%rowtype;
+  v_obj   storage.objects%rowtype;
+  v_id    uuid;
+begin
+  if fn_es_admin_o_lider() is not true then
+    raise exception 'Solo Desarrollo Organizacional registra contratos de locación.';
+  end if;
+  if v_quien is null then
+    raise exception 'Tu cuenta todavía no está enlazada con tu ficha.';
+  end if;
+
+  select * into v_p from personas p where p.id = p_persona_id;
+  if not found or v_p.cuenta_de_servicio then
+    raise exception 'Esa persona no existe.';
+  end if;
+
+  if p_servicio is null or char_length(btrim(p_servicio)) < 3 then
+    raise exception 'Escribe qué servicio se contrata (al menos 3 letras), con las palabras del contrato.';
+  end if;
+  if p_fecha_inicio is null or p_fecha_fin is null then
+    raise exception 'Faltan las fechas de inicio y de fin del contrato.';
+  end if;
+  if p_fecha_fin < p_fecha_inicio then
+    raise exception 'El contrato no puede terminar antes de empezar.';
+  end if;
+  if p_fecha_firma is null then
+    raise exception 'Falta la fecha de firma.';
+  end if;
+  if p_fecha_firma > fn_hoy_lima() then
+    raise exception 'La fecha de firma no puede ser posterior a hoy.';
+  end if;
+  if v_p.tipo_vinculo <> 'rxh' and p_fecha_fin >= fn_hoy_lima() then
+    raise exception 'Esa persona no cobra por honorarios: solo se le puede archivar una locación que ya terminó.';
+  end if;
+
+  if p_nombre_archivo is null or btrim(p_nombre_archivo) = '' then
+    raise exception 'Falta el nombre del archivo.';
+  end if;
+  if p_storage_path is null or p_storage_path !~ '^[0-9a-f-]{36}\.[a-z0-9]{2,5}$' then
+    raise exception 'La ruta del archivo no tiene la forma esperada.';
+  end if;
+  -- El peso y el tipo salen de Storage, no de lo que diga el navegador.
+  select * into v_obj from storage.objects o
+   where o.bucket_id = 'contratos-locacion' and o.name = p_storage_path;
+  if not found then
+    raise exception 'El archivo no llegó al almacén. Vuelve a subirlo.';
+  end if;
+  if exists (select 1 from contratos_locacion c where c.storage_path = p_storage_path and c.anulado_at is null) then
+    raise exception 'Ese archivo ya está registrado en otro contrato.';
+  end if;
+
+  insert into contratos_locacion
+    (persona_id, servicio, fecha_inicio, fecha_fin, fecha_firma,
+     storage_path, nombre_archivo, mime, bytes, registrado_por)
+  values
+    (p_persona_id, btrim(p_servicio), p_fecha_inicio, p_fecha_fin, p_fecha_firma,
+     p_storage_path, btrim(p_nombre_archivo),
+     v_obj.metadata->>'mimetype', (v_obj.metadata->>'size')::bigint, v_quien)
+  returning id into v_id;
+
+  return v_id;
+end;
+$fn$;
+
+
 -- ── 6 · Quién puede llamar qué ───────────────────────────────────────────────
 -- Desde la 0076 ninguna función nace con EXECUTE para nadie: sin estos grants
 -- la pestaña queda vacía sin dar error (0204).
-grant execute on function fn_locaciones_tablero(), fn_locaciones_listar(uuid) to authenticated;
-revoke execute on function fn_locaciones_tablero(), fn_locaciones_listar(uuid) from public, anon;
+grant execute on function
+  fn_locaciones_tablero(), fn_locaciones_listar(uuid),
+  fn_locacion_registrar(uuid, text, date, date, date, text, text)
+to authenticated;
+revoke execute on function
+  fn_locaciones_tablero(), fn_locaciones_listar(uuid),
+  fn_locacion_registrar(uuid, text, date, date, date, text, text)
+from public, anon;
+
+
+-- ═══ PARTE 2 · El almacén de los escaneos (solo `storage.objects`) ══════════
+-- Se pega DESPUÉS de la parte 1 y sola. Lleva el registro: así nunca dice
+-- «aplicada» sin estarlo.
+
+set local lock_timeout = '3s';
+
+do $$
+begin
+  if to_regclass('public.contratos_locacion') is null
+     or to_regprocedure('public.fn_locacion_libre(text)') is null then
+    raise exception 'Falta la PARTE 1 (la tabla y sus funciones): pégala primero y sola, y después esta.';
+  end if;
+end;
+$$;
+
+-- Privado. Un contrato firmado llega casi siempre en PDF; las fotos se admiten
+-- para el que solo existe impreso. HEIC porque así guarda un iPhone sus fotos
+-- (0170). 50 MB, el tope de los demás buckets de papeles.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('contratos-locacion', 'contratos-locacion', false, 52428800,
+        array['application/pdf','image/jpeg','image/png','image/webp','image/heic','image/heif'])
+on conflict (id) do update set
+  public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+-- Las CUATRO políticas, no una: Supabase Storage escribe con
+-- `INSERT … ON CONFLICT DO UPDATE … RETURNING *` y necesita insert, select y
+-- update para subir (0172, 0175, 0197 costaron medio día por faltar una).
+drop policy if exists contratos_locacion_insert on storage.objects;
+drop policy if exists contratos_locacion_select on storage.objects;
+drop policy if exists contratos_locacion_update on storage.objects;
+drop policy if exists contratos_locacion_delete on storage.objects;
+
+create policy contratos_locacion_insert on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'contratos-locacion'
+    and fn_es_admin_o_lider() is true
+    and name ~ '^[0-9a-f-]{36}\.[a-z0-9]{2,5}$'
+  );
+
+create policy contratos_locacion_select on storage.objects
+  for select to authenticated
+  using (bucket_id = 'contratos-locacion' and fn_es_admin_o_lider() is true);
+
+create policy contratos_locacion_update on storage.objects
+  for update to authenticated
+  using      (bucket_id = 'contratos-locacion' and fn_es_admin_o_lider() is true and fn_locacion_libre(name))
+  with check (bucket_id = 'contratos-locacion' and fn_es_admin_o_lider() is true and fn_locacion_libre(name));
+
+create policy contratos_locacion_delete on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'contratos-locacion' and fn_es_admin_o_lider() is true and fn_locacion_libre(name));
 
 insert into migraciones_aplicadas (numero, nombre)
 values (610, 'el_contrato_de_locacion_de_quien_cobra_por_honorarios')
@@ -356,6 +574,9 @@ select
   (select count(*) from information_schema.tables
     where table_schema = 'public' and table_name = 'contratos_locacion') as tabla_de_1,
   (select count(*) from pg_proc where proname in (
-     'fn_locaciones_tablero', 'fn_locaciones_listar', 'fn_contratos_locacion_inmutables')) as funciones_de_3,
+     'fn_locaciones_tablero', 'fn_locaciones_listar', 'fn_contratos_locacion_inmutables',
+     'fn_locacion_libre', 'fn_locacion_registrar')) as funciones_de_5,
+  (select count(*) from pg_policies where schemaname = 'storage' and policyname like 'contratos\_locacion\_%') as politicas_storage_de_4,
+  (select count(*) from storage.buckets where id = 'contratos-locacion' and public is false) as bucket_privado,
   (select relrowsecurity from pg_class where relname = 'contratos_locacion') as rls_activa,
   (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 610) as registro;

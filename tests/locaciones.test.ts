@@ -3,6 +3,7 @@ import {
   bandaLocacion,
   cuantasParaAtender,
   ESTADO_PERSONA,
+  fechasSugeridas,
   textoPlazo,
   type FilaTableroLocacion,
 } from "../apps/web/lib/admin/locaciones";
@@ -44,5 +45,21 @@ describe("cómo se dice el plazo", () => {
   });
   it("ningún estado va en rojo: en Contratos el rojo es solo del art. 77", () => {
     for (const e of Object.values(ESTADO_PERSONA)) expect(e.variante).not.toBe("alerta");
+  });
+});
+
+describe("las fechas con que nace el formulario de registrar", () => {
+  it("sin contrato, o con uno ya vencido: empieza hoy, dura seis meses y se firma hoy", () => {
+    expect(fechasSugeridas({ cubierto_hasta: null }, "2026-11-09")).toEqual({ inicio: "2026-11-09", fin: "2027-05-08", firma: "2026-11-09" });
+    expect(fechasSugeridas({ cubierto_hasta: "2026-10-28" }, "2026-11-09").inicio).toBe("2026-11-09");
+  });
+  it("cubierta hasta una fecha futura: lo probable es la renovación, que empieza al día siguiente", () => {
+    expect(fechasSugeridas({ cubierto_hasta: "2026-12-04" }, "2026-11-09")).toEqual({ inicio: "2026-12-05", fin: "2027-06-04", firma: "2026-11-09" });
+  });
+  it("si vence hoy, la siguiente empieza mañana", () => {
+    expect(fechasSugeridas({ cubierto_hasta: "2026-11-09" }, "2026-11-09").inicio).toBe("2026-11-10");
+  });
+  it("el fin de mes no se desborda: del 31 de agosto, seis meses llegan al 28 de febrero", () => {
+    expect(fechasSugeridas({ cubierto_hasta: null }, "2026-08-31").fin).toBe("2027-02-27");
   });
 });

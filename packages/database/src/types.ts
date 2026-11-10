@@ -9848,6 +9848,19 @@ export type Database = {
           vencido: boolean
         }[]
       }
+      fn_locacion_libre: { Args: { p_path: string | null }; Returns: boolean }
+      fn_locacion_registrar: {
+        Args: {
+          p_fecha_fin: string | null
+          p_fecha_firma: string | null
+          p_fecha_inicio: string | null
+          p_nombre_archivo: string | null
+          p_persona_id: string | null
+          p_servicio: string | null
+          p_storage_path: string | null
+        }
+        Returns: string
+      }
       fn_locaciones_listar: {
         Args: { p_persona_id?: string | null }
         Returns: {

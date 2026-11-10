@@ -15,7 +15,7 @@
 -- vence sola el día que el calendario la alcanza.
 -- ============================================================================
 begin;
-select plan(23);
+select plan(38);
 
 -- ── Sede y personas ──────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -157,6 +157,81 @@ select is(
     and (select string_agg(estado, ',') from fn_locaciones_listar('00000000-0000-0000-0000-00000610c007')) = 'anulado'
     and (select string_agg(estado, ',') from fn_locaciones_listar('00000000-0000-0000-0000-00000610c008')) = 'terminado',
   true, 'el historial trae los anulados y los terminados, con su estado');
+reset role;
+
+-- ── D · Registrar un contrato firmado ────────────────────────────────────
+select is(
+  (select count(*)::int from storage.buckets where id = 'contratos-locacion' and public is false and file_size_limit = 52428800),
+  1, 'el bucket de los escaneos existe, es privado y limita a 50 MB');
+select is(
+  (select count(*)::int from pg_policies where schemaname = 'storage' and policyname like 'contratos\_locacion\_%'),
+  4, 'el almacén tiene sus cuatro políticas (insert, select, update, delete)');
+select is(
+  (select has_function_privilege('authenticated', 'fn_locacion_registrar(uuid,text,date,date,date,text,text)', 'EXECUTE')
+      and not has_function_privilege('anon', 'fn_locacion_registrar(uuid,text,date,date,date,text,text)', 'EXECUTE')),
+  true, 'registrar lo puede llamar quien inició sesión, y nadie sin sesión');
+
+-- Lo que Storage guardaría al recibir cada archivo (el peso y el tipo salen de acá).
+insert into storage.objects (bucket_id, name, metadata) values
+  ('contratos-locacion', '61000000-0000-0000-0000-0000000000a1.pdf', '{"size": 182000, "mimetype": "application/pdf"}'),
+  ('contratos-locacion', '61000000-0000-0000-0000-0000000000a2.jpg', '{"size": 900000, "mimetype": "image/jpeg"}'),
+  ('contratos-locacion', '61000000-0000-0000-0000-0000000000a3.pdf', '{"size": 1000, "mimetype": "application/pdf"}');
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000610b002","role":"authenticated"}', true);
+set local role authenticated;
+select throws_ok(
+  $$ select fn_locacion_registrar('00000000-0000-0000-0000-00000610c001', 'Diseño', fn_hoy_lima(), fn_hoy_lima() + 180,
+       fn_hoy_lima(), '61000000-0000-0000-0000-0000000000a1.pdf', 'contrato.pdf') $$,
+  'P0001', 'Solo Desarrollo Organizacional registra contratos de locación.', 'una integrante no registra contratos');
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000610b001","role":"authenticated"}', true);
+set local role authenticated;
+select throws_ok(
+  $$ select fn_locacion_registrar('00000000-0000-0000-0000-00000610c001', 'Diseño', fn_hoy_lima(), fn_hoy_lima() + 180,
+       fn_hoy_lima(), '61000000-0000-0000-0000-0000000000ff.pdf', 'contrato.pdf') $$,
+  'P0001', 'El archivo no llegó al almacén. Vuelve a subirlo.', 'una ruta que no está en el almacén no entra (el archivo va primero)');
+select throws_ok(
+  $$ select fn_locacion_registrar('00000000-0000-0000-0000-00000610c001', 'Diseño', fn_hoy_lima(), fn_hoy_lima() + 180,
+       fn_hoy_lima(), 'Sin Contrato Rxh DNI.pdf', 'contrato.pdf') $$,
+  'P0001', 'La ruta del archivo no tiene la forma esperada.', 'una ruta con nombres no entra');
+select throws_ok(
+  $$ select fn_locacion_registrar('00000000-0000-0000-0000-00000610c001', '  ', fn_hoy_lima(), fn_hoy_lima() + 180,
+       fn_hoy_lima(), '61000000-0000-0000-0000-0000000000a1.pdf', 'contrato.pdf') $$,
+  'P0001', 'Escribe qué servicio se contrata (al menos 3 letras), con las palabras del contrato.', 'ni uno sin servicio');
+select throws_ok(
+  $$ select fn_locacion_registrar('00000000-0000-0000-0000-00000610c001', 'Diseño', fn_hoy_lima(), fn_hoy_lima() - 1,
+       fn_hoy_lima(), '61000000-0000-0000-0000-0000000000a1.pdf', 'contrato.pdf') $$,
+  'P0001', 'El contrato no puede terminar antes de empezar.', 'ni uno que termina antes de empezar');
+select throws_ok(
+  $$ select fn_locacion_registrar('00000000-0000-0000-0000-00000610c001', 'Diseño', fn_hoy_lima(), fn_hoy_lima() + 180,
+       fn_hoy_lima() + 1, '61000000-0000-0000-0000-0000000000a1.pdf', 'contrato.pdf') $$,
+  'P0001', 'La fecha de firma no puede ser posterior a hoy.', 'ni uno firmado mañana');
+select throws_ok(
+  $$ select fn_locacion_registrar('00000000-0000-0000-0000-00000610d001', 'Diseño', fn_hoy_lima() - 30, fn_hoy_lima() + 180,
+       fn_hoy_lima() - 30, '61000000-0000-0000-0000-0000000000a1.pdf', 'contrato.pdf') $$,
+  'P0001', 'Esa persona no cobra por honorarios: solo se le puede archivar una locación que ya terminó.',
+  'a alguien de planilla no se le registra una locación vigente: serían dos vínculos a la vez');
+select is(
+  fn_locacion_registrar('00000000-0000-0000-0000-00000610d001', 'Fotografía de producto', fn_hoy_lima() - 300, fn_hoy_lima() - 100,
+    fn_hoy_lima() - 300, '61000000-0000-0000-0000-0000000000a3.pdf', 'locacion-anterior.pdf') is not null,
+  true, 'pero sí se le archiva la que ya terminó, la de antes de pasar a planilla');
+
+select set_config('t.nuevo',
+  fn_locacion_registrar('00000000-0000-0000-0000-00000610c001', '  Diseño de la colección de invierno ', fn_hoy_lima() - 5,
+    fn_hoy_lima() + 180, fn_hoy_lima() - 6, '61000000-0000-0000-0000-0000000000a2.jpg', 'Contrato SinContrato.jpg')::text, true);
+select is(
+  (select row(servicio, mime, bytes, registrado_por)::text from contratos_locacion where id = current_setting('t.nuevo')::uuid),
+  row('Diseño de la colección de invierno', 'image/jpeg', 900000::bigint, '00000000-0000-0000-0000-00000610a001'::uuid)::text,
+  'el servicio se recorta, el tipo y el peso salen del almacén y queda quién lo registró');
+select is(pg_temp.estado('00000000-0000-0000-0000-00000610c001'), 'vigente', 'y quien no tenía contrato pasa a «vigente»');
+select throws_ok(
+  $$ select fn_locacion_registrar('00000000-0000-0000-0000-00000610c002', 'Otra cosa', fn_hoy_lima(), fn_hoy_lima() + 180,
+       fn_hoy_lima(), '61000000-0000-0000-0000-0000000000a2.jpg', 'el-mismo.jpg') $$,
+  'P0001', 'Ese archivo ya está registrado en otro contrato.', 'un mismo escaneo no sostiene dos contratos');
+select is(
+  (select row(fn_locacion_libre('61000000-0000-0000-0000-0000000000a2.jpg'), fn_locacion_libre('61000000-0000-0000-0000-0000000000a1.pdf'))::text),
+  row(false, true)::text, 'un escaneo registrado no se puede pisar ni borrar; uno huérfano sí');
 reset role;
 
 select * from finish();

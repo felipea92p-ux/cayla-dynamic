@@ -18,6 +18,8 @@
 //   honorarios» o «RxH»; «locación de servicios» solo aparece donde se nombra
 //   el contrato, que se llama así.
 // ============================================================================
+import { sumarDias } from "@/lib/mi-semana";
+import { sumarMeses } from "@/lib/admin/seguros";
 
 /** El bucket privado de los escaneos firmados (0610). */
 export const BUCKET_LOCACION = "contratos-locacion";
@@ -116,6 +118,23 @@ export function bandaLocacion(estado: EstadoPersonaLocacion): BandaLocacion {
 /** Cuántas personas piden algo hoy: el número rojo de la pestaña. */
 export function cuantasParaAtender(filas: readonly FilaTableroLocacion[]): number {
   return filas.filter((f) => bandaLocacion(f.estado) !== "al_dia").length;
+}
+
+/** Cuántos meses dura, por defecto, un contrato nuevo. Se ve y se cambia en un clic. */
+export const MESES_POR_DEFECTO = 6;
+
+/**
+ * Las fechas con que NACE el formulario de registrar (regla de la casa: una
+ * fecha cuyo vacío bloquea el envío no arranca en blanco). Si la persona está
+ * cubierta hasta una fecha futura, lo más probable es la renovación: empieza
+ * al día siguiente. Si no, empieza hoy. Se firma hoy.
+ */
+export function fechasSugeridas(
+  f: Pick<FilaTableroLocacion, "cubierto_hasta">,
+  hoy: string,
+): { inicio: string; fin: string; firma: string } {
+  const inicio = f.cubierto_hasta && f.cubierto_hasta >= hoy ? sumarDias(f.cubierto_hasta, 1) : hoy;
+  return { inicio, fin: sumarDias(sumarMeses(inicio, MESES_POR_DEFECTO), -1), firma: hoy };
 }
 
 /** «Venció hace 3 días», «Vence en 12 días», «Vence hoy». `null` cuando no hay contrato. */
