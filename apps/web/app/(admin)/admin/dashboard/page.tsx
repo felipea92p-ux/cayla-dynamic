@@ -1207,7 +1207,7 @@ export default function DashboardPage() {
         />
 
         {vistaDash === "tendencias" ? (
-          <PanelTendencias rol={yo?.rol ?? null} sedes={sedesDeAlcance.map((s) => ({ codigo: s.codigo, nombre: s.etiqueta.texto }))} />
+          <PanelTendencias rol={yo?.rol ?? null} sedes={sedesDeAlcance.map((s) => ({ id: s.sedeId, codigo: s.codigo, nombre: s.etiqueta.texto, tipo: s.tipo ?? null }))} />
         ) : vistaDash === "jornada" ? (
           <PanelJornada sedes={sedesDeAlcance.map((s) => ({ codigo: s.codigo, nombre: s.etiqueta.texto, titulo: s.etiqueta.titulo }))} />
         ) : (

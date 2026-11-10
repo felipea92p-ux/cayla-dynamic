@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   asistenciaSemanal, barrasDeCasos, calorTardanza, columnasDeCosto, etiquetaCierre, llegadaPorSede, percentil,
-  type FilaAsistencia,
+  resumenAsistencia, resumenCosto, diasPerdidosPorMes, fechaDeSemana, OTROS_MOTIVOS, SIN_JUSTIFICAR,
+  type FilaAsistencia, type FilaFalta, type PuntoSemana,
 } from "../apps/web/lib/admin/tendencias";
 import type { FilaCasoResumen } from "../apps/web/lib/admin/casos-resumen";
 
@@ -50,6 +51,29 @@ describe("columnasDeCosto", () => {
     expect(c[0].enCurso).toBe(false);
   });
   it("etiquetaCierre nombra el día de cierre", () => expect(etiquetaCierre("2026-12-28")).toBe("28 dic"));
+  it("lleva las fechas reales y cuántas personas entraron, para explicar la diferencia entre meses", () => {
+    const c = columnasDeCosto([p("2026-08-29", "2026-09-27", 100, { personas: 23 })], null);
+    expect(c[0]).toMatchObject({ fechaIni: "2026-08-29", fechaFin: "2026-09-27", personas: 23, etiqueta: "27 sep" });
+    expect(columnasDeCosto([p("2026-08-29", "2026-09-28", 100)], null)[0].personas).toBeNull();
+  });
+});
+
+describe("resumenCosto — la cifra grande es siempre un periodo pagado", () => {
+  const p = (ini: string, fin: string, costo: number) => ({ periodo_id: ini, fecha_ini: ini, fecha_fin: fin, costo, version: 1, reconstruida: false });
+  it("el último pagado frente al anterior, en soles y en %", () => {
+    const c = columnasDeCosto([p("2026-08-29", "2026-09-27", 33405), p("2026-09-28", "2026-10-28", 40131)], { fecha_ini: "2026-10-29", fecha_fin: "2026-11-28" });
+    const r = resumenCosto(c);
+    expect(r.ultima?.etiqueta).toBe("28 oct"); // el en curso NO encabeza: no tiene monto
+    expect(r).toMatchObject({ diferencia: 6726, variacionPct: 20 });
+  });
+  it("con un solo periodo pagado no inventa una comparación", () => {
+    const r = resumenCosto(columnasDeCosto([p("2026-09-28", "2026-10-28", 40131)], null));
+    expect(r).toMatchObject({ diferencia: null, variacionPct: null, anterior: null });
+    expect(r.ultima?.costo).toBe(40131);
+  });
+  it("sin periodos pagados no hay cifra", () => {
+    expect(resumenCosto(columnasDeCosto([], { fecha_ini: "2026-10-29", fecha_fin: "2026-11-28" })).ultima).toBeNull();
+  });
 });
 
 const fila = (sede: string, semana: string, dia: number, trab: number, faltas: number, offsets: number[]): FilaAsistencia =>
@@ -68,6 +92,29 @@ describe("asistenciaSemanal", () => {
     const r = asistenciaSemanal(filas, "2026-10-14", "LIM");
     expect(r).toHaveLength(1);
     expect(r[0]).toMatchObject({ pct: 90, parcial: true });
+  });
+});
+
+describe("resumenAsistencia — la cifra grande es la última semana completa", () => {
+  const s = (semana: string, trabajados: number, faltas: number, parcial = false): PuntoSemana =>
+    ({ semana, trabajados, faltas, pct: trabajados + faltas > 0 ? Math.round((trabajados / (trabajados + faltas)) * 1000) / 10 : null, parcial });
+  it("la semana parcial no encabeza aunque sea la última", () => {
+    const r = resumenAsistencia([s("2026-10-26", 99, 1), s("2026-11-02", 4, 1, true)]);
+    expect(r.ultima?.semana).toBe("2026-10-26");
+    expect(r.semanas).toBe(1);
+  });
+  it("el promedio pondera por días, no promedia porcentajes", () => {
+    // 50 % de 4 días y 100 % de 96: el promedio de porcentajes diría 75 %; lo que pasó es 98 %.
+    const r = resumenAsistencia([s("2026-10-19", 2, 2), s("2026-10-26", 96, 0)]);
+    expect(r.promedio).toBe(98);
+  });
+  it("la más baja, y entre empatadas la más reciente; una semana sin dato no cuenta", () => {
+    const r = resumenAsistencia([s("2026-10-05", 9, 1), s("2026-10-12", 0, 0), s("2026-10-19", 9, 1), s("2026-10-26", 10, 0)]);
+    expect(r.minima?.semana).toBe("2026-10-19");
+    expect(r.semanas).toBe(3);
+  });
+  it("sin semanas completas no hay cifra", () => {
+    expect(resumenAsistencia([s("2026-11-02", 4, 1, true)])).toEqual({ ultima: null, promedio: null, minima: null, semanas: 0 });
   });
 });
 
@@ -94,5 +141,133 @@ describe("llegadaPorSede y calorTardanza — nunca con pocos datos", () => {
     expect(lunes).toMatchObject({ dia: 1, pctTarde: 20, llegadas: 25 });
     expect(martes).toMatchObject({ pctTarde: null, llegadas: 3, sinTrabajo: false });
     expect(domingo).toMatchObject({ dia: 0, sinTrabajo: true, pctTarde: null });
+  });
+});
+
+describe("diasPerdidosPorMes — todo lo que se perdió, separado por qué", () => {
+  const falta = (fecha: string, motivo: string | null, sede = "TRU"): FilaFalta =>
+    ({ persona_id: "p", sede, fecha, justificada: motivo !== null, motivo });
+  // 2026-10-05 es lunes: con dia_semana 1..6 son los días 5 al 10 de octubre.
+  const semana = (lunes: string, trab: number, sede = "TRU") =>
+    [1, 2, 3, 4, 5, 6].map((d) => fila(sede, lunes, d, trab, 0, []));
+
+  it("fechaDeSemana: el lunes más el día de la semana, con el domingo al final", () => {
+    expect(fechaDeSemana("2026-10-05", 1)).toBe("2026-10-05");
+    expect(fechaDeSemana("2026-10-05", 0)).toBe("2026-10-11");
+  });
+
+  it("no cuenta vacaciones, descanso sustitutorio ni suspensión; sin motivo es «sin justificar»", () => {
+    const r = diasPerdidosPorMes(
+      [falta("2026-10-06", "vacaciones"), falta("2026-10-07", "descanso_sustitutorio"), falta("2026-10-08", "suspension"),
+       falta("2026-10-09", null), falta("2026-10-12", "descanso_medico"), falta("2026-10-13", "permiso_concedido")],
+      semana("2026-10-05", 3), "2026-10-01", "2026-11-01", null,
+    );
+    expect(r.motivos.map((m) => [m.clave, m.total])).toEqual([["descanso_medico", 1], ["permiso_personal", 1], [SIN_JUSTIFICAR, 1]]);
+    // 18 trabajados + 3 perdidos: 3 / 21
+    expect(r.meses).toEqual([{ mes: "2026-10", parcial: false, perdidos: 3, trabajados: 18, pct: 14.3 }]);
+  });
+
+  it("con más de cuatro motivos, los tres más grandes van solos y el resto junto", () => {
+    const f = [
+      ...Array.from({ length: 5 }, () => falta("2026-10-06", "descanso_medico")),
+      ...Array.from({ length: 4 }, () => falta("2026-10-06", null)),
+      ...Array.from({ length: 3 }, () => falta("2026-10-06", "salud")),
+      falta("2026-10-06", "duelo"), falta("2026-10-07", "otro"),
+    ];
+    const r = diasPerdidosPorMes(f, [], "2026-10-01", "2026-11-01", null);
+    expect(r.motivos.map((m) => [m.clave, m.total])).toEqual([["descanso_medico", 5], [SIN_JUSTIFICAR, 4], ["salud", 3], [OTROS_MOTIVOS, 2]]);
+    const cuatro = diasPerdidosPorMes(f.slice(0, 13), [], "2026-10-01", "2026-11-01", null);
+    expect(cuatro.motivos.map((m) => m.clave)).toEqual(["descanso_medico", SIN_JUSTIFICAR, "salud", "duelo"]);
+  });
+
+  it("marca parcial el mes que el periodo o el día de hoy cortan, y no dibuja meses sin medir", () => {
+    const r = diasPerdidosPorMes(
+      [falta("2026-09-20", null), falta("2026-11-03", null)],
+      [...semana("2026-09-14", 2), ...semana("2026-10-05", 2), ...semana("2026-11-02", 2)],
+      "2026-06-10", "2026-11-05", null,
+    );
+    expect(r.meses.map((m) => [m.mes, m.parcial])).toEqual([["2026-09", false], ["2026-10", false], ["2026-11", true]]);
+    expect(r.motivos[0].dias).toEqual([1, 0, 1]); // los días de cada motivo siguen alineados con sus meses
+  });
+
+  it("lo de hoy no cuenta todavía, y el filtro de sede vale para las faltas y para los días trabajados", () => {
+    const r = diasPerdidosPorMes(
+      [falta("2026-10-09", null), falta("2026-10-10", null), falta("2026-10-09", null, "AQP")],
+      [...semana("2026-10-05", 1), ...semana("2026-10-05", 5, "AQP")],
+      "2026-10-01", "2026-10-10", "TRU",
+    );
+    // el 10 es hoy: solo cuenta la falta del 9; trabajados de TRU del 5 al 9 = 5
+    expect(r.meses).toEqual([{ mes: "2026-10", parcial: true, perdidos: 1, trabajados: 5, pct: 16.7 }]);
+  });
+});
+
+describe("antiguedadDelEquipo — cuánta gente es nueva y cuánta lleva años", () => {
+  // Las funciones nuevas se importan aquí para no tocar el import de arriba.
+  it("meses completos, nunca negativos", async () => {
+    const { mesesCumplidos } = await import("../apps/web/lib/admin/tendencias");
+    expect(mesesCumplidos("2026-01-15", "2026-04-14")).toBe(2);
+    expect(mesesCumplidos("2026-01-15", "2026-04-15")).toBe(3);
+    expect(mesesCumplidos("2026-12-01", "2026-11-09")).toBe(0);
+  });
+  it("reparte por tramo, deja fuera la preselección y dice aparte quién no tiene fecha", async () => {
+    const { antiguedadDelEquipo } = await import("../apps/web/lib/admin/tendencias");
+    const p = (fecha_ingreso: string | null, tipo_vinculo = "planilla", sede = "TRU") => ({ fecha_ingreso, tipo_vinculo, sede });
+    const r = antiguedadDelEquipo([
+      p("2026-09-01"), p("2026-10-01", "practicante"), p("2026-10-20", "prueba"), p("2026-06-15"),
+      p("2025-06-01"), p("2023-01-01"), p("2019-01-01", "planilla", "AQP"), p(null),
+    ], "2026-11-09", null);
+    expect(r.tramos.map((t) => t.n)).toEqual([2, 1, 0, 1, 1, 1]);
+    expect(r).toMatchObject({ total: 6, enPrueba: 1, sinFecha: 1 }); // la practicante no tiene periodo de prueba de ley
+    expect(antiguedadDelEquipo([p("2019-01-01", "planilla", "AQP"), p("2026-09-01")], "2026-11-09", "AQP").total).toBe(1);
+  });
+});
+
+describe("acusesDeLaEmpresa — junta las cuentas que ya hacen Política salarial y Normas", () => {
+  const doc = (over: Record<string, unknown>) => ({
+    documento_id: "d1", tipo_nombre: "Reglamento interno de trabajo", titulo: "RIT", version: 4, etiqueta_version: "4.0",
+    requiere_acuse: true, total_acuses: 20, poblacion: 24, ...over,
+  });
+  it("la política y cada documento que pide constancia, lo más atrasado primero", async () => {
+    const { acusesDeLaEmpresa } = await import("../apps/web/lib/admin/tendencias");
+    const r = acusesDeLaEmpresa(
+      { publicada: true, version: 2, total_personas: 24, total_acuses: 23 },
+      [doc({}), doc({ documento_id: "d2", tipo_nombre: "Norma de uniformes", requiere_acuse: false })],
+    );
+    expect(r.map((x) => [x.titulo, x.acusaron, x.deben, x.href])).toEqual([
+      ["Reglamento interno de trabajo, versión 4.0", 20, 24, "/admin/normas"],
+      ["Política salarial, versión 2", 23, 24, "/admin/politica-salarial"],
+    ]);
+  });
+  it("sin política publicada ni población no inventa un medidor, y nunca más acuses que gente", async () => {
+    const { acusesDeLaEmpresa } = await import("../apps/web/lib/admin/tendencias");
+    expect(acusesDeLaEmpresa({ publicada: false }, [doc({ poblacion: 0 })])).toEqual([]);
+    expect(acusesDeLaEmpresa(null, [doc({ total_acuses: 30 })])[0]).toMatchObject({ acusaron: 24, deben: 24 });
+  });
+});
+
+describe("desgloseDeCosto — explica el costo de al lado, al centavo", () => {
+  const periodo = (ini: string, fin: string, costo: number, provisiones: number, c: Record<string, number> | null) =>
+    ({ periodo_id: ini, fecha_ini: ini, fecha_fin: fin, costo, version: 1, reconstruida: false, provisiones, conceptos: c });
+  const sep = periodo("2026-08-29", "2026-09-28", 1000, 150, { pago_base: 900, sobretiempo: 0, feriados: 0, pension: 50, movilidad: 0 });
+  const oct = periodo("2026-09-29", "2026-10-28", 1200, 170, {
+    pago_base: 1000, sobretiempo: 60, feriados: 30, pension: 60, provision_gratificacion: 100, provision_cts: 40, provision_vacaciones: 31,
+  });
+  it("el último periodo con desglose, frente al anterior; los descuentos restan y todo suma el costo", async () => {
+    const { desgloseDeCosto } = await import("../apps/web/lib/admin/tendencias");
+    const d = desgloseDeCosto([oct, sep])!;
+    expect(d).toMatchObject({ etiqueta: "28 oct", costo: 1200, anterior: { etiqueta: "28 sep", costo: 1000 }, diferencia: 0 });
+    expect(d.renglones.map((r) => [r.clave, r.monto, r.anterior])).toEqual([
+      ["sueldo", 1000, 900], ["sobretiempo", 60, 0], ["feriados", 30, 0], ["provisiones", 170, 150], ["descuentos", -60, -50],
+    ]);
+  });
+  it("las provisiones van con la cifra oficial del periodo, aunque sus partes difieran en un centavo", async () => {
+    const { desgloseDeCosto } = await import("../apps/web/lib/admin/tendencias");
+    // Las partes de octubre suman 171; la cifra del periodo es 170 y es la que cuadra con el costo.
+    expect(desgloseDeCosto([oct])!.renglones.find((r) => r.clave === "provisiones")!.monto).toBe(170);
+  });
+  it("si no cuadra lo dice, y sin la 0609 no hay desglose", async () => {
+    const { desgloseDeCosto } = await import("../apps/web/lib/admin/tendencias");
+    expect(desgloseDeCosto([{ ...oct, costo: 1205 }])!.diferencia).toBe(5);
+    expect(desgloseDeCosto([{ ...oct, conceptos: null }])).toBeNull();
   });
 });
