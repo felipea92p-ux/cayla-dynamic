@@ -468,7 +468,8 @@ with repo(numero, nombre, nunca) as (values
     (607, 'el_reglamento_vigente_dice_que_es_la_version_4_0', false),
     (608, 'fn_costos_planilla_vuelve_a_la_version_vigente', false),
     (610, 'el_contrato_de_locacion_de_quien_cobra_por_honorarios', false),
-    (612, 'costos_que_se_pueden_comparar_entre_sedes', false)
+    (612, 'costos_que_se_pueden_comparar_entre_sedes', false),
+    (614, 'el_costo_de_cada_periodo_dice_de_que_esta_hecho', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -884,19 +885,21 @@ plata(etiqueta, funcion, estado, orden) as (
   union all
   select 'PLATA', 'fn_costos_planilla', coalesce((
            select string_agg(case md5(p.prosrc)
-             when '1c34f5f88edaedb62cd99e2f49ed3ff2' then '✓   al día (0612)'
-             when '0c18045192892a1c0c1ed5eeb6bd9010' then '✓   al día (0612, pegada sin comentarios)'
-             when 'ac798011ff4eada74a1b1ee5b6900997' then '✓   al día (0612, pegada desde Windows)'
-             when '27511f3959bee8bd686d60ac22e17ff8' then '✓   al día (0612, desde Windows y sin comentarios)'
-             when '4ab55cff30d1cfda90c7a60406252ad7' then '✗   0612 con los acentos rotos — vuelve a pegarla'
-             when 'a25fbbc2a67dcc6b07f1cb2a8647c124' then '❌  se quedó en la 0608 — la vigente es la 0612'
-             when '171b0f29312249244e60dff106b73887' then '❌  se quedó en la 0608 — la vigente es la 0612'
-             when '939e5ef4840e6ca088b08a17d2084e74' then '❌  se quedó en la 0260 — la vigente es la 0612'
-             when '32beb6a3c1bd9790cfa0f49b2b41be53' then '❌  se quedó en la 0260 — la vigente es la 0612'
-             when '2e960fc4db713c4fc4dad10f6c42a67b' then '❌  se quedó en la 0099 — la vigente es la 0612'
-             when '85ed93683f4deeaaf1bab2367862c195' then '❌  se quedó en la 0099 — la vigente es la 0612'
-             when '6c15090ca01d6d581ed579e3d17efbb8' then '❌  se quedó en la 0097 — la vigente es la 0612'
-             when '3b28c16970dac901fff93637d6c20df0' then '❌  se quedó en la 0097 — la vigente es la 0612'
+             when 'f499f51db8c698ae8b52324f4333ed7d' then '✓   al día (0614)'
+             when '51ef818d24fcba824ee2ca7734fd5de4' then '✓   al día (0614, pegada sin comentarios)'
+             when 'c329b24c9ce93b6e3679ed33b691b656' then '✓   al día (0614, pegada desde Windows)'
+             when '8e37abd92ca741922695c51305887ba8' then '✓   al día (0614, desde Windows y sin comentarios)'
+             when 'f2fdf20cbf0550607cf8fa49eb372ad8' then '✗   0614 con los acentos rotos — vuelve a pegarla'
+             when '1c34f5f88edaedb62cd99e2f49ed3ff2' then '❌  se quedó en la 0612 — la vigente es la 0614'
+             when '0c18045192892a1c0c1ed5eeb6bd9010' then '❌  se quedó en la 0612 — la vigente es la 0614'
+             when 'a25fbbc2a67dcc6b07f1cb2a8647c124' then '❌  se quedó en la 0608 — la vigente es la 0614'
+             when '171b0f29312249244e60dff106b73887' then '❌  se quedó en la 0608 — la vigente es la 0614'
+             when '939e5ef4840e6ca088b08a17d2084e74' then '❌  se quedó en la 0260 — la vigente es la 0614'
+             when '32beb6a3c1bd9790cfa0f49b2b41be53' then '❌  se quedó en la 0260 — la vigente es la 0614'
+             when '2e960fc4db713c4fc4dad10f6c42a67b' then '❌  se quedó en la 0099 — la vigente es la 0614'
+             when '85ed93683f4deeaaf1bab2367862c195' then '❌  se quedó en la 0099 — la vigente es la 0614'
+             when '6c15090ca01d6d581ed579e3d17efbb8' then '❌  se quedó en la 0097 — la vigente es la 0614'
+             when '3b28c16970dac901fff93637d6c20df0' then '❌  se quedó en la 0097 — la vigente es la 0614'
              else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_costos_planilla'
            end, ' · ')
            from pg_proc p join pg_namespace n on n.oid = p.pronamespace
