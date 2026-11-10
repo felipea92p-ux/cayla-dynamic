@@ -8455,6 +8455,10 @@ export type Database = {
         }
         Returns: string
       }
+      fn_confirmar_mi_firma_locacion: {
+        Args: { p_id: string | null }
+        Returns: undefined
+      }
       fn_confirmar_mi_firma_contrato: {
         Args: { p_contrato_id: string | null }
         Returns: undefined
@@ -9852,7 +9856,24 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_locacion_documento: {
+        Args: { p_id: string | null }
+        Returns: { documento_html: string; firma_persona: string }[]
+      }
       fn_locacion_es_mia: { Args: { p_path: string | null }; Returns: boolean }
+      fn_locacion_generar: {
+        Args: {
+          p_documento_html: string | null
+          p_fecha_fin: string | null
+          p_fecha_inicio: string | null
+          p_honorarios: number | null
+          p_periodicidad: string | null
+          p_persona_id: string | null
+          p_ruc_locador: string | null
+          p_servicio: string | null
+        }
+        Returns: string
+      }
       fn_locacion_libre: { Args: { p_path: string | null }; Returns: boolean }
       fn_locacion_registrar: {
         Args: {
@@ -9877,13 +9898,16 @@ export type Database = {
           anulado_motivo: string
           anulado_por_nombre: string
           bytes: number
+          es_digital: boolean
           estado: string
           fecha_fin: string
           fecha_firma: string
           fecha_inicio: string
+          honorarios: number
           id: string
           mime: string
           nombre_archivo: string
+          periodicidad: string
           persona: string
           persona_id: string
           registrado_at: string
@@ -9904,6 +9928,7 @@ export type Database = {
           estado: string
           fecha_inicio: string
           n_contratos: number
+          pendiente_firma: boolean
           persona: string
           persona_id: string
           sede: string
