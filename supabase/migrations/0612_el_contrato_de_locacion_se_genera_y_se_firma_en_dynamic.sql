@@ -36,8 +36,16 @@
 --   Como el contrato de trabajo desde la 0430: confirmar tu firma ES firmar. Se
 --   guarda una COPIA de la imagen de la firma en ese momento (molde de la
 --   0402): si la persona cambia su firma general después, el contrato sigue
---   mostrando la que firmó. La de CAYLA no se guarda: se estampa al mostrar con
---   la del firmante configurado, igual que en el contrato de trabajo.
+--   mostrando la que firmó. Y desde el 2026-11-10, la de CAYLA también se
+--   COPIA, al generar (`firma_empresa`, `firmante_empresa_id`), como la 0531
+--   con la política de movilidad. Antes se estampaba al mostrar con
+--   `fn_firma_empresa()`, que da la firma de HOY de quien firma HOY: el nombre
+--   quedaba congelado en el texto y la rúbrica no, así que cambiar de firmante
+--   o redibujar la firma cambiaba la de cada contrato ya firmado. Decisión de
+--   Felipe ese día, para todo documento que firma CAYLA; la locación es el
+--   primero porque es el único que todavía no está en producción.
+--   Al firmar se anotan además la IP y el navegador (molde 0423/0425): aquí,
+--   como en la declaración de ruta, la firma en Dynamic es el original.
 --
 --   Un contrato generado y sin firmar NO cubre a nadie: el tablero lo cuenta
 --   aparte («falta firma») y no como contrato vigente.
@@ -119,7 +127,15 @@ alter table contratos_locacion
   add column if not exists periodicidad text,
   add column if not exists ruc_locador text,
   add column if not exists firma_persona text,
-  add column if not exists firma_persona_confirmada_at timestamptz;
+  add column if not exists firma_persona_confirmada_at timestamptz,
+  -- La firma de CAYLA, congelada al generar (decisión de Felipe, 2026-11-10):
+  -- quién firmaba por CAYLA y su firma de ESE momento, no la de hoy.
+  add column if not exists firma_empresa text,
+  add column if not exists firmante_empresa_id uuid references personas(id),
+  -- La evidencia de la firma de la persona, como la declaración de ruta (0423):
+  -- aquí la firma en Dynamic ES el original, no hay papel detrás.
+  add column if not exists firma_persona_ip text,
+  add column if not exists firma_persona_user_agent text;
 
 -- Lo que antes era obligatorio porque todo contrato era un escaneo.
 alter table contratos_locacion
@@ -135,7 +151,9 @@ alter table contratos_locacion
   drop constraint if exists locacion_generado_completo,
   drop constraint if exists locacion_ruc_de_persona,
   drop constraint if exists locacion_periodicidad_valida,
-  drop constraint if exists locacion_firma_coherente;
+  drop constraint if exists locacion_firma_coherente,
+  drop constraint if exists locacion_firma_empresa_congelada,
+  drop constraint if exists locacion_evidencia_al_firmar;
 
 alter table contratos_locacion
   add constraint locacion_tiene_papel check (storage_path is not null or documento_html is not null),
@@ -158,12 +176,28 @@ alter table contratos_locacion
           (fecha_firma is null and firma_persona is null and firma_persona_confirmada_at is null)
           or (fecha_firma is not null and firma_persona ~ '^data:image/(png|jpeg);base64,'
               and firma_persona_confirmada_at is not null)))
+  ),
+  -- Uno generado nace con la firma de CAYLA y quién la puso; un escaneo trae
+  -- la suya en el papel.
+  add constraint locacion_firma_empresa_congelada check (
+    (documento_html is null and firma_empresa is null and firmante_empresa_id is null)
+    or (documento_html is not null and firma_empresa ~ '^data:image/(png|jpeg);base64,'
+        and firmante_empresa_id is not null)
+  ),
+  -- La IP y el navegador se anotan al firmar, y solo entonces.
+  add constraint locacion_evidencia_al_firmar check (
+    firma_persona_confirmada_at is not null
+    or (firma_persona_ip is null and firma_persona_user_agent is null)
   );
 
 comment on column contratos_locacion.documento_html is
   'El contrato generado en Dynamic, congelado (lib/admin/locacion-texto.ts). Null = se registró como escaneo de un papel firmado (0610). Las dos firmas no viajan aquí: se estampan al mostrar.';
 comment on column contratos_locacion.firma_persona is
   'Copia de la firma de la persona al momento de firmar (molde 0402). No cambia si después cambia su firma general.';
+comment on column contratos_locacion.firma_empresa is
+  'Copia de la firma de quien firmaba por CAYLA al generar el contrato (firmante_empresa_id). No cambia si después cambia el firmante o su firma: fn_firma_empresa() da la de HOY, y un contrato firmado tiene que mostrar la de su día.';
+comment on column contratos_locacion.firma_persona_ip is
+  'IP desde la que la persona confirmó su firma (cabecera x-forwarded-for, como la 0423). Evidencia: si niega haber firmado, la prueba es de CAYLA (reglamento de la Ley 27269, art. 2-A).';
 
 
 -- ── 2 · Lo que no se edita: ahora también la firma, una vez ──────────────────
@@ -187,16 +221,20 @@ begin
   end if;
   if (new.id, new.persona_id, new.servicio, new.fecha_inicio, new.fecha_fin,
       new.storage_path, new.nombre_archivo, new.mime, new.bytes, new.registrado_por, new.registrado_at,
-      new.documento_html, new.honorarios, new.periodicidad, new.ruc_locador)
+      new.documento_html, new.honorarios, new.periodicidad, new.ruc_locador,
+      new.firma_empresa, new.firmante_empresa_id)
      is distinct from
      (old.id, old.persona_id, old.servicio, old.fecha_inicio, old.fecha_fin,
       old.storage_path, old.nombre_archivo, old.mime, old.bytes, old.registrado_por, old.registrado_at,
-      old.documento_html, old.honorarios, old.periodicidad, old.ruc_locador) then
+      old.documento_html, old.honorarios, old.periodicidad, old.ruc_locador,
+      old.firma_empresa, old.firmante_empresa_id) then
     raise exception 'Un contrato de locación no se edita: si tiene un dato mal, se anula y se registra de nuevo.';
   end if;
   if old.fecha_firma is not null
-     and (new.fecha_firma, new.firma_persona, new.firma_persona_confirmada_at)
-         is distinct from (old.fecha_firma, old.firma_persona, old.firma_persona_confirmada_at) then
+     and (new.fecha_firma, new.firma_persona, new.firma_persona_confirmada_at,
+          new.firma_persona_ip, new.firma_persona_user_agent)
+         is distinct from (old.fecha_firma, old.firma_persona, old.firma_persona_confirmada_at,
+          old.firma_persona_ip, old.firma_persona_user_agent) then
     raise exception 'Ese contrato ya está firmado.';
   end if;
   return new;
@@ -222,9 +260,12 @@ returns uuid
 language plpgsql security definer set search_path = public
 as $fn$
 declare
-  v_quien uuid := fn_persona_actual_id();
-  v_p     personas%rowtype;
-  v_id    uuid;
+  v_quien     uuid := fn_persona_actual_id();
+  v_p         personas%rowtype;
+  v_id        uuid;
+  v_firmante  uuid;
+  v_dni       text;
+  v_firma     text;
 begin
   if fn_es_admin_o_lider() is not true then
     raise exception 'Solo Desarrollo Organizacional genera contratos de locación.';
@@ -266,12 +307,32 @@ begin
     raise exception 'El documento no tiene dónde llevar las firmas. Vuelve a generarlo.';
   end if;
 
+  -- CAYLA firma AHORA: se congela quién firma por ella y su firma de este
+  -- momento (el mismo join que fn_firma_empresa, 0398, y que la 0531). Y el
+  -- texto tiene que nombrar a ESA persona: si alguien cambió el firmante
+  -- mientras la pantalla armaba el documento, la firma de una caería bajo el
+  -- nombre de otra.
+  select p.id, p.documento, f.imagen into v_firmante, v_dni, v_firma
+    from configuracion c
+    join personas p on p.id = (c.valor ->> 'persona_id')::uuid
+    left join firmas_escaneadas f on f.persona_id = p.id
+   where c.clave = 'firmante_empresa';
+  if v_firmante is null then
+    raise exception 'Falta configurar quién firma por CAYLA.';
+  end if;
+  if v_firma is null then
+    raise exception 'Quien firma por CAYLA todavía no tiene su firma guardada en «Mi firma»: sin ella, el contrato saldría sin la firma de CAYLA.';
+  end if;
+  if v_dni is null or position(btrim(v_dni) in p_documento_html) = 0 then
+    raise exception 'Cambió quién firma por CAYLA mientras se armaba el contrato. Cierra el formulario y vuelve a generarlo.';
+  end if;
+
   insert into contratos_locacion
     (persona_id, servicio, fecha_inicio, fecha_fin, honorarios, periodicidad, ruc_locador,
-     documento_html, registrado_por)
+     documento_html, registrado_por, firma_empresa, firmante_empresa_id)
   values
     (p_persona_id, btrim(p_servicio), p_fecha_inicio, p_fecha_fin, round(p_honorarios, 2), p_periodicidad,
-     btrim(p_ruc_locador), p_documento_html, v_quien)
+     btrim(p_ruc_locador), p_documento_html, v_quien, v_firma, v_firmante)
   returning id into v_id;
 
   return v_id;
@@ -291,6 +352,8 @@ declare
   v_yo     uuid := fn_persona_actual_id();
   v_c      contratos_locacion%rowtype;
   v_imagen text;
+  v_ip     text;
+  v_ua     text;
 begin
   if v_yo is null then
     raise exception 'Tu cuenta todavía no está enlazada con tu ficha.';
@@ -316,8 +379,22 @@ begin
     raise exception 'Todavía no configuraste tu firma. Hazlo aquí mismo, arriba, antes de firmar.';
   end if;
 
+  -- La evidencia, igual que la declaración de ruta (0425): la IP y el
+  -- navegador vienen en las cabeceras que PostgREST deja ver. Sin cabeceras
+  -- (SQL Editor, pruebas) quedan en null: la firma vale igual.
+  begin
+    v_ip := nullif(split_part(
+      coalesce(nullif(current_setting('request.headers', true), ''), '{}')::json ->> 'x-forwarded-for',
+      ',', 1), '');
+    v_ua := coalesce(nullif(current_setting('request.headers', true), ''), '{}')::json ->> 'user-agent';
+  exception when others then
+    v_ip := null;
+    v_ua := null;
+  end;
+
   update contratos_locacion
-     set firma_persona = v_imagen, firma_persona_confirmada_at = now(), fecha_firma = fn_hoy_lima()
+     set firma_persona = v_imagen, firma_persona_confirmada_at = now(), fecha_firma = fn_hoy_lima(),
+         firma_persona_ip = btrim(v_ip), firma_persona_user_agent = v_ua
    where id = p_id;
 end;
 $fn$;
@@ -335,12 +412,13 @@ $fn$;
 -- las columnas (Postgres no deja cambiarlas con `create or replace`).
 drop function if exists fn_locacion_documento(uuid);
 create function fn_locacion_documento(p_id uuid)
-returns table (documento_html text, firma_persona text, generado_at timestamptz, firmado_at timestamptz)
+returns table (documento_html text, firma_persona text, firma_empresa text,
+               generado_at timestamptz, firmado_at timestamptz)
 language plpgsql stable security definer set search_path = public
 as $fn$
 begin
   return query
-  select c.documento_html, c.firma_persona, c.registrado_at, c.firma_persona_confirmada_at
+  select c.documento_html, c.firma_persona, c.firma_empresa, c.registrado_at, c.firma_persona_confirmada_at
     from contratos_locacion c
    where c.id = p_id
      and c.documento_html is not null
@@ -605,11 +683,13 @@ select
   (select count(*) from information_schema.columns
     where table_schema = 'public' and table_name = 'contratos_locacion'
       and column_name in ('documento_html', 'honorarios', 'periodicidad', 'ruc_locador',
-                          'firma_persona', 'firma_persona_confirmada_at')) as columnas_de_6,
+                          'firma_persona', 'firma_persona_confirmada_at', 'firma_empresa', 'firmante_empresa_id',
+                          'firma_persona_ip', 'firma_persona_user_agent')) as columnas_de_10,
   (select count(*) from pg_constraint
     where conrelid = 'public.contratos_locacion'::regclass
       and conname in ('locacion_tiene_papel', 'locacion_escaneo_completo', 'locacion_generado_completo',
-                      'locacion_ruc_de_persona', 'locacion_periodicidad_valida', 'locacion_firma_coherente')) as reglas_de_6,
+                      'locacion_ruc_de_persona', 'locacion_periodicidad_valida', 'locacion_firma_coherente',
+                      'locacion_firma_empresa_congelada', 'locacion_evidencia_al_firmar')) as reglas_de_8,
   (select count(*) from pg_proc where proname in (
      'fn_locacion_generar', 'fn_confirmar_mi_firma_locacion', 'fn_locacion_documento')) as funciones_nuevas_de_3,
   (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 612) as registro;

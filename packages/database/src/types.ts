@@ -9860,6 +9860,7 @@ export type Database = {
         Args: { p_id: string | null }
         Returns: {
           documento_html: string
+          firma_empresa: string
           firma_persona: string
           firmado_at: string
           generado_at: string

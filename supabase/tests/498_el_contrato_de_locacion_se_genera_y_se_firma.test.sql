@@ -11,11 +11,13 @@
 -- (c) que cada persona firme solo el SUYO, una vez, con la copia de su firma de
 --     ese momento, y que después nadie pueda cambiar esa firma;
 -- (d) que el documento lo vea DO o su dueña, y nadie más;
+-- (d2) que la firma de CAYLA se congele al generar, con quién la puso, y que
+--      cambiar después el firmante o su firma no toque la del contrato;
 -- (e) que lo que ya existía (los escaneos de la 0610) siga valiendo.
 -- Fechas desde `fn_hoy_lima()`: una prueba con fechas fijas se vence sola.
 -- ============================================================================
 begin;
-select plan(33);
+select plan(40);
 
 insert into sedes (id, codigo, nombre, activa, tipo) values
   ('00000000-0000-0000-0000-000006120001', 'ZZG61', 'Sede generar', true, 'tienda');
@@ -23,17 +25,25 @@ insert into sedes (id, codigo, nombre, activa, tipo) values
 set session_replication_role = replica;
 insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, tipo_vinculo, cargo) values
   ('00000000-0000-0000-0000-00000612a001', 'DoGen',   'Lab', '00000000-0000-0000-0000-000006120001', 'admin',      'x', '00000000-0000-0000-0000-00000612b001', '2023-01-01', 'planilla', 'DO'),
+  ('00000000-0000-0000-0000-00000612a005', 'Firma',   'Cayla', '00000000-0000-0000-0000-000006120001', 'admin',    'x', null,                                  '2020-01-01', 'planilla', 'Gerencia'),
   ('00000000-0000-0000-0000-00000612a002', 'Rosa',    'Rxh', '00000000-0000-0000-0000-000006120001', 'integrante', 'x', '00000000-0000-0000-0000-00000612b002', '2025-01-01', 'rxh',      null),
   ('00000000-0000-0000-0000-00000612a003', 'Otra',    'Rxh', '00000000-0000-0000-0000-000006120001', 'integrante', 'x', '00000000-0000-0000-0000-00000612b003', '2025-01-01', 'rxh',      null),
   ('00000000-0000-0000-0000-00000612a004', 'Plani',   'Lab', '00000000-0000-0000-0000-000006120001', 'integrante', 'x', '00000000-0000-0000-0000-00000612b004', '2023-01-01', 'planilla', 'Vendedora');
+update personas set tipo_documento = 'dni', documento = '40006125' where id = '00000000-0000-0000-0000-00000612a005';
 set session_replication_role = origin;
+
+-- Quien firma por CAYLA en esta prueba. Su firma se guarda más abajo: primero
+-- se comprueba que sin ella no se genera.
+insert into configuracion (clave, valor, descripcion)
+values ('firmante_empresa', jsonb_build_object('persona_id', '00000000-0000-0000-0000-00000612a005', 'cargo', 'Gerencia General'), 'prueba 498')
+on conflict (clave) do update set valor = excluded.valor;
 
 -- La firma de Rosa (la de Otra no está configurada).
 insert into firmas_escaneadas (persona_id, imagen) values
   ('00000000-0000-0000-0000-00000612a002', 'data:image/png;base64,ROSA1');
 
 create function pg_temp.doc() returns text language sql as $$
-  select '<article>Contrato de prueba <!--FIRMA_EMPRESA--> <!--FIRMA_PERSONA--></article>' $$;
+  select '<article>Contrato de prueba · por CAYLA, DNI N.° 40006125 <!--FIRMA_EMPRESA--> <!--FIRMA_PERSONA--></article>' $$;
 create function pg_temp.estado(p text) returns text language sql as $$
   select estado from fn_locaciones_tablero() where persona_id = p::uuid $$;
 grant execute on function pg_temp.doc(), pg_temp.estado(text) to authenticated;
@@ -42,8 +52,9 @@ grant execute on function pg_temp.doc(), pg_temp.estado(text) to authenticated;
 select is(
   (select count(*)::int from information_schema.columns
     where table_schema = 'public' and table_name = 'contratos_locacion'
-      and column_name in ('documento_html','honorarios','periodicidad','ruc_locador','firma_persona','firma_persona_confirmada_at')),
-  6, 'la tabla suma las seis columnas del contrato generado');
+      and column_name in ('documento_html','honorarios','periodicidad','ruc_locador','firma_persona','firma_persona_confirmada_at',
+                          'firma_empresa','firmante_empresa_id','firma_persona_ip','firma_persona_user_agent')),
+  10, 'la tabla suma las diez columnas del contrato generado, con la firma de CAYLA y la evidencia de la firma');
 select is(
   (select count(*)::int from information_schema.columns
     where table_schema = 'public' and table_name = 'contratos_locacion'
@@ -87,6 +98,21 @@ select throws_ok(
   $$ select fn_locacion_generar('00000000-0000-0000-0000-00000612a002', 'Fotografía', fn_hoy_lima(), fn_hoy_lima() + 180,
        1500, 'mensual', '10700012345', '<article>sin marcas</article>') $$,
   'P0001', 'El documento no tiene dónde llevar las firmas. Vuelve a generarlo.', 'un documento sin las marcas de firma no entra');
+select throws_ok(
+  $$ select fn_locacion_generar('00000000-0000-0000-0000-00000612a002', 'Fotografía', fn_hoy_lima(), fn_hoy_lima() + 180,
+       1500, 'mensual', '10700012345', pg_temp.doc()) $$,
+  'P0001', 'Quien firma por CAYLA todavía no tiene su firma guardada en «Mi firma»: sin ella, el contrato saldría sin la firma de CAYLA.',
+  'sin la firma de quien firma por CAYLA no se genera: saldría sin firma de CAYLA para siempre');
+reset role;
+insert into firmas_escaneadas (persona_id, imagen) values
+  ('00000000-0000-0000-0000-00000612a005', 'data:image/png;base64,CAYLA1');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000612b001","role":"authenticated"}', true);
+set local role authenticated;
+select throws_ok(
+  $$ select fn_locacion_generar('00000000-0000-0000-0000-00000612a002', 'Fotografía', fn_hoy_lima(), fn_hoy_lima() + 180,
+       1500, 'mensual', '10700012345', '<article>Otro firmante, DNI N.° 49999999 <!--FIRMA_EMPRESA--> <!--FIRMA_PERSONA--></article>') $$,
+  'P0001', 'Cambió quién firma por CAYLA mientras se armaba el contrato. Cierra el formulario y vuelve a generarlo.',
+  'un texto que nombra a otro firmante no entra: su firma caería bajo el nombre de otra persona');
 
 select set_config('t.gen',
   fn_locacion_generar('00000000-0000-0000-0000-00000612a002', '  Fotografía de producto ', fn_hoy_lima(), fn_hoy_lima() + 180,
@@ -96,6 +122,10 @@ select is(
     where id = current_setting('t.gen')::uuid),
   row('Fotografía de producto', 1500.00::numeric(10,2), 'por_horas', '10700012345', null::date, null::text)::text,
   'se guarda sin firmar y sin escaneo, con el servicio y el RUC recortados, los honorarios en céntimos y en proporción a las horas');
+select is(
+  (select row(firma_empresa, firmante_empresa_id)::text from contratos_locacion where id = current_setting('t.gen')::uuid),
+  row('data:image/png;base64,CAYLA1', '00000000-0000-0000-0000-00000612a005'::uuid)::text,
+  'CAYLA firma al generar: se congela su firma de ese momento y quién la puso');
 
 -- ── C · Sin firmar no cubre ─────────────────────────────────────────────
 select is(pg_temp.estado('00000000-0000-0000-0000-00000612a002'), 'sin_firmar',
@@ -127,6 +157,7 @@ set local role authenticated;
 select is(
   (select position('<!--FIRMA_PERSONA-->' in documento_html) > 0 from fn_locacion_documento(current_setting('t.gen')::uuid)),
   true, 'su dueña lee su documento, con el lugar de su firma');
+select set_config('request.headers', '{"x-forwarded-for":"203.0.113.7, 10.0.0.1","user-agent":"Prueba/498"}', true);
 select lives_ok($$ select fn_confirmar_mi_firma_locacion(current_setting('t.gen')::uuid) $$, 'y lo firma');
 select throws_ok(
   $$ select fn_confirmar_mi_firma_locacion(current_setting('t.gen')::uuid) $$,
@@ -135,6 +166,9 @@ select is(
   (select row(generado_at is not null, firmado_at is not null)::text
      from fn_locacion_documento(current_setting('t.gen')::uuid)),
   row(true, true)::text, 'su documento trae cuándo firmó cada parte, para estamparlo bajo cada firma');
+select is(
+  (select firma_empresa from fn_locacion_documento(current_setting('t.gen')::uuid)),
+  'data:image/png;base64,CAYLA1', 'y la firma de CAYLA congelada, no la de hoy');
 reset role;
 
 select is(
@@ -142,14 +176,33 @@ select is(
      from contratos_locacion where id = current_setting('t.gen')::uuid),
   row(true, 'data:image/png;base64,ROSA1', true)::text,
   'firmar le pone la fecha de hoy y la copia de su firma de ese momento');
+select is(
+  (select row(firma_persona_ip, firma_persona_user_agent)::text from contratos_locacion where id = current_setting('t.gen')::uuid),
+  row('203.0.113.7', 'Prueba/498')::text,
+  'y anota desde qué IP y con qué navegador firmó: la primera IP de la cadena, como la declaración de ruta');
 
 -- Cambiar después la firma general no cambia la del contrato.
 update firmas_escaneadas set imagen = 'data:image/png;base64,ROSA2' where persona_id = '00000000-0000-0000-0000-00000612a002';
 select is((select firma_persona from contratos_locacion where id = current_setting('t.gen')::uuid),
   'data:image/png;base64,ROSA1', 'cambiar después su firma general no toca la del contrato ya firmado');
+-- Lo mismo del lado de CAYLA: otra firma del firmante, y después otro firmante.
+update firmas_escaneadas set imagen = 'data:image/png;base64,CAYLA2' where persona_id = '00000000-0000-0000-0000-00000612a005';
+update configuracion set valor = jsonb_build_object('persona_id', '00000000-0000-0000-0000-00000612a001', 'cargo', 'DO')
+ where clave = 'firmante_empresa';
+select is(
+  (select row(firma_empresa, firmante_empresa_id)::text from contratos_locacion where id = current_setting('t.gen')::uuid),
+  row('data:image/png;base64,CAYLA1', '00000000-0000-0000-0000-00000612a005'::uuid)::text,
+  'redibujar la firma de CAYLA o cambiar de firmante no toca la de un contrato ya generado');
+-- Vuelve el firmante de la prueba, para lo que sigue.
+update configuracion set valor = jsonb_build_object('persona_id', '00000000-0000-0000-0000-00000612a005', 'cargo', 'Gerencia General')
+ where clave = 'firmante_empresa';
 select throws_ok(
   $$ update contratos_locacion set firma_persona = 'data:image/png;base64,OTRA' where id = current_setting('t.gen')::uuid $$,
   'P0001', 'Ese contrato ya está firmado.', 'ni siquiera el sistema reescribe la firma de un contrato firmado');
+select throws_ok(
+  $$ update contratos_locacion set firma_empresa = 'data:image/png;base64,OTRA' where id = current_setting('t.gen')::uuid $$,
+  'P0001', 'Un contrato de locación no se edita: si tiene un dato mal, se anula y se registra de nuevo.',
+  'ni el sistema reescribe la firma de CAYLA');
 select throws_ok(
   $$ update contratos_locacion set documento_html = documento_html || ' ' where id = current_setting('t.gen')::uuid $$,
   'P0001', 'Un contrato de locación no se edita: si tiene un dato mal, se anula y se registra de nuevo.',

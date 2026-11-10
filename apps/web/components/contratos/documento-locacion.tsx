@@ -5,8 +5,8 @@
 // ============================================================================
 // QUÉ PROMETE
 //   Mostrar el documento congelado con las dos firmas estampadas —la de CAYLA,
-//   la del firmante configurado (`fn_firma_empresa`), y la de la persona, la
-//   copia que se guardó al firmar— y dejar imprimirlo o guardarlo como PDF con
+//   la copia que se guardó al generarlo, y la de la persona, la copia que se
+//   guardó al firmar— y dejar imprimirlo o guardarlo como PDF con
 //   su nombre. Lo usan DO (en el panel de cada persona) y la propia persona (en
 //   «Lo mío»): una sola pieza para que las dos vean lo mismo.
 //
@@ -15,6 +15,12 @@
 //   pactado, no cómo se ve. Sin firma de la persona, su línea queda en blanco:
 //   eso es lo que todavía no firmó. Bajo cada firma va cuándo se firmó, que es
 //   lo que dice el contrato que lo hace celebrado (`estamparFirmas`).
+//
+// LA DE CAYLA ES LA DE SU DÍA, NO LA DE HOY
+//   No se pide `fn_firma_empresa()`: esa da la firma ACTUAL de quien firma hoy.
+//   Si cambia el firmante o redibuja su firma, un contrato ya firmado
+//   mostraría otra rúbrica bajo el nombre impreso. Decidido por Felipe el
+//   2026-11-10: cada documento guarda la suya (0612, `firma_empresa`).
 // ============================================================================
 
 import { useCallback, useEffect, useState } from "react";
@@ -44,13 +50,11 @@ export function DocumentoLocacion({
   const { copia, preparando, imprimir } = useImprimirAparte(html ? nombreDelPdf : null);
 
   const cargar = useCallback(async () => {
-    const [{ data, error: e }, { data: firmaEmpresa }] = await Promise.all([
-      supabase.rpc("fn_locacion_documento", { p_id: contratoId }),
-      supabase.rpc("fn_firma_empresa"),
-    ]);
+    const { data, error: e } = await supabase.rpc("fn_locacion_documento", { p_id: contratoId });
     const fila = ((data ?? []) as {
       documento_html: string;
       firma_persona: string | null;
+      firma_empresa: string | null;
       generado_at: string | null;
       firmado_at: string | null;
     }[])[0];
@@ -60,7 +64,7 @@ export function DocumentoLocacion({
     } else {
       setError(null);
       setHtml(estamparFirmas(fila.documento_html, {
-        empresa: typeof firmaEmpresa === "string" ? firmaEmpresa : null,
+        empresa: fila.firma_empresa,
         persona: fila.firma_persona,
         empresaAt: fila.generado_at,
         personaAt: fila.firmado_at,

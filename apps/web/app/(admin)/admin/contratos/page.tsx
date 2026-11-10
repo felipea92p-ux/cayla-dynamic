@@ -3478,7 +3478,7 @@ export default function ContratosPage() {
                 )}
 
                 {filtroEstado === "honorarios" ? (
-                  <ContratosHonorarios supabase={supabase} tablero={honorarios} firmante={firmante} />
+                  <ContratosHonorarios supabase={supabase} tablero={honorarios} firmante={{ ...firmante, tieneFirma: firmaUrl !== null }} />
                 ) : filasVista.length === 0 ? (
                   <EstadoVacio accion={(busca || filtroSede || filtroTipo || bandaElegida !== null)
                     ? <Boton variante="secundario" tamano="sm" onClick={limpiarFiltros}>Limpiar filtros</Boton>

@@ -31,7 +31,14 @@ datos personales (Ley 29733), comunicaciones, y el acto de firma descrito como l
 El detalle y las fuentes están en el encabezado de `locacion-texto.ts`. **Sin tocar, a propósito:** cómo se pagan los `por_horas`.
 `fn_locacion_documento` devuelve además `generado_at` y `firmado_at` (cambio dentro de la 0612, que sigue sin pegar).
 
-**Medido.** La 498, 33/33, y la 496, 63/63, en una base desechable con todas las migraciones; `tests/locacion-texto.test.ts` 21/21 (el
+**La firma de CAYLA se congela al generar (decisión de Felipe, 2026-11-10).** `fn_firma_empresa()` da la firma de HOY de quien firma
+HOY, y el nombre del firmante queda congelado en el texto: cambiar de firmante o redibujar la firma cambiaba la rúbrica de todo lo ya
+firmado. Ahora `contratos_locacion` guarda `firma_empresa` y `firmante_empresa_id` al generar (como la 0531), no se genera si el
+firmante no tiene firma o si el texto nombra a otro, y al firmar se anotan `firma_persona_ip` y `firma_persona_user_agent` (como la
+0423). Felipe decidió lo mismo para **todo** documento que firma CAYLA (contratos de trabajo, declaración de ruta, constancia del bono,
+política salarial), con el relleno de lo viejo solo donde se pueda probar: eso espera la consulta de medición en producción.
+
+**Medido.** La 498, 40/40, y la 496, 63/63, en una base desechable con todas las migraciones; `tests/locacion-texto.test.ts` 21/21 (el
 guardián de vocabulario laboral sigue en verde con el texto nuevo); typecheck en verde. **Verificado en pantalla, en local y con datos
 inventados:** generar desde el panel y ver el documento con las dos firmas y su fecha y hora de Lima. La firma de la persona se hizo
 por SQL, como ella, porque la pantalla no deja firmar un borrador.

@@ -90,6 +90,8 @@ export interface FirmanteCayla {
   nombre: string;
   dni: string;
   cargo: string;
+  /** Si tiene su firma guardada: CAYLA firma al generar, y sin ella el contrato saldría sin firma de CAYLA (0612). */
+  tieneFirma: boolean;
 }
 
 export function ContratosHonorarios({
@@ -486,6 +488,8 @@ function FormGenerar({
     ? (errorDatos ?? "Leyendo su ficha…")
     : !firmante.nombre.trim() || !firmante.dni.trim()
       ? "Falta configurar quién firma por CAYLA."
+      : !firmante.tieneFirma
+        ? `${firmante.nombre} todavía no tiene su firma guardada en «Mi firma»: CAYLA firma al generar el contrato.`
       : !datos.documento?.trim()
         ? "Su ficha no tiene DNI: cárgalo en Equipo antes de generar el contrato."
       : servicio.trim().length < 3
