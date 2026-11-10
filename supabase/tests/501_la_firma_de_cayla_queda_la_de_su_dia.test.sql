@@ -10,28 +10,32 @@
 -- (c) que nadie la reescriba después, salvo un contrato que se corrige antes
 --     de firmarse (su texto nuevo nombra al firmante de hoy);
 -- (d) que sin firma guardada el documento igual nazca (con la línea en blanco)
---     en vez de frenar a quien firma su declaración.
+--     en vez de frenar a quien firma su declaración;
+-- (e) que las pantallas la reciban (fn_documentos_listar, fn_politica_salarial_vigente)
+--     y que cada confirmación de un contrato guarde su IP y su navegador.
 -- Datos inventados.
 -- ============================================================================
 begin;
-select plan(15);
+select plan(18);
 
 insert into sedes (id, codigo, nombre, activa, tipo) values
   ('00000000-0000-0000-0000-00000616f000', 'ZZF616', 'Sede firma', true, 'tienda');
 
 set session_replication_role = replica;
-insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, fecha_ingreso, tipo_vinculo, cargo) values
-  ('00000000-0000-0000-0000-00000616f0a1', 'Ana',   'Firmante', '00000000-0000-0000-0000-00000616f000', 'admin',      'x', '2020-01-01', 'planilla', 'Gerencia'),
-  ('00000000-0000-0000-0000-00000616f0b1', 'Bruno', 'Firmante', '00000000-0000-0000-0000-00000616f000', 'admin',      'x', '2020-01-01', 'planilla', 'Gerencia'),
-  ('00000000-0000-0000-0000-00000616f0c1', 'Cris',  'SinFirma', '00000000-0000-0000-0000-00000616f000', 'admin',      'x', '2020-01-01', 'planilla', 'Gerencia'),
-  ('00000000-0000-0000-0000-00000616f0d1', 'Dora',  'Equipo',   '00000000-0000-0000-0000-00000616f000', 'integrante', 'x', '2025-01-01', 'planilla', 'Vendedora');
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, fecha_ingreso, tipo_vinculo, cargo, auth_user_id) values
+  ('00000000-0000-0000-0000-00000616f0a1', 'Ana',   'Firmante', '00000000-0000-0000-0000-00000616f000', 'admin',      'x', '2020-01-01', 'planilla', 'Gerencia', null),
+  ('00000000-0000-0000-0000-00000616f0b1', 'Bruno', 'Firmante', '00000000-0000-0000-0000-00000616f000', 'admin',      'x', '2020-01-01', 'planilla', 'Gerencia', null),
+  ('00000000-0000-0000-0000-00000616f0c1', 'Cris',  'SinFirma', '00000000-0000-0000-0000-00000616f000', 'admin',      'x', '2020-01-01', 'planilla', 'Gerencia', null),
+  ('00000000-0000-0000-0000-00000616f0d1', 'Dora',  'Equipo',   '00000000-0000-0000-0000-00000616f000', 'integrante', 'x', '2025-01-01', 'planilla', 'Vendedora',
+   '00000000-0000-0000-0000-00000616f0d2');
 update personas set tipo_documento = 'dni', documento = '40616001' where id = '00000000-0000-0000-0000-00000616f0a1';
 update personas set tipo_documento = 'dni', documento = '40616002' where id = '00000000-0000-0000-0000-00000616f0b1';
 set session_replication_role = origin;
 
 insert into firmas_escaneadas (persona_id, imagen) values
   ('00000000-0000-0000-0000-00000616f0a1', 'data:image/png;base64,ANA1'),
-  ('00000000-0000-0000-0000-00000616f0b1', 'data:image/png;base64,BRUNO1');
+  ('00000000-0000-0000-0000-00000616f0b1', 'data:image/png;base64,BRUNO1'),
+  ('00000000-0000-0000-0000-00000616f0d1', 'data:image/png;base64,DORA');
 
 insert into configuracion (clave, valor, descripcion)
 values ('firmante_empresa', jsonb_build_object('persona_id', '00000000-0000-0000-0000-00000616f0a1', 'cargo', 'Gerencia General'), 'prueba 501')
@@ -150,12 +154,27 @@ select is(
   row(null::text, '00000000-0000-0000-0000-00000616f0c1'::uuid)::text,
   'y queda con quién firmaba y la línea en blanco, no con la firma de otra persona');
 
--- ── F · La evidencia de la firma del contrato ──────────────────────────
+-- ── F · Lo que reciben las pantallas, y la evidencia de cada confirmación ──
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000616f0d2","role":"authenticated"}', true);
+select set_config('request.headers', '{"x-forwarded-for":" 198.51.100.4 , 10.0.0.9","user-agent":"Prueba/501"}', true);
+set local role authenticated;
 select is(
-  (select count(*)::int from information_schema.columns
-    where table_schema = 'public' and table_name = 'contratos_generados'
-      and column_name in ('firma_persona_ip', 'firma_persona_user_agent')),
-  2, 'el contrato de trabajo tiene dónde anotar la IP y el navegador de quien firma');
+  (select row(firma_empresa, firmante_empresa_nombre, firmante_empresa_cargo)::text
+     from fn_documentos_listar() where id = '00000000-0000-0000-0000-00000616fd01'),
+  row('data:image/png;base64,BRUNO1', 'Bruno Firmante', 'Gerencia')::text,
+  'Lo mío › Movilidad recibe la firma de CAYLA de su declaración, con el nombre y el cargo de ese día');
+select is(
+  fn_politica_salarial_vigente() ->> 'firma_empresa', 'data:image/png;base64,BRUNO1',
+  'la política vigente trae la firma con que se publicó');
+select lives_ok(
+  $$ select fn_confirmar_mi_firma_contrato('00000000-0000-0000-0000-00000616fc01') $$,
+  'la persona vuelve a confirmar su contrato');
+reset role;
+select is(
+  (select row(ip, user_agent)::text from confirmaciones_firma_contrato
+    where contrato_id = '00000000-0000-0000-0000-00000616fc01' order by confirmada_at desc, id desc limit 1),
+  row('198.51.100.4', 'Prueba/501')::text,
+  'y esa confirmación guarda la IP (la primera de la cadena, sin espacios) y el navegador');
 
 select * from finish();
 rollback;
