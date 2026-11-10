@@ -66,7 +66,10 @@
 --                                                  solo se escribe su término
 --                                                  o su anulación, una vez y
 --                                                  desde el sistema
---   · alguien fuera de DO leyéndolo ............. RLS + política de Storage
+--   · alguien fuera de DO leyendo un contrato
+--     AJENO, o uno anulado propio ............... la función del historial +
+--                                                  política de Storage (cada
+--                                                  persona lee solo lo suyo)
 --   · pisar o borrar un escaneo registrado ...... la política de update y
 --                                                  delete de Storage exige que
 --                                                  ningún contrato lo use
@@ -108,8 +111,8 @@
 --   drop function if exists fn_locaciones_tablero(), fn_locaciones_listar(uuid),
 --     fn_locacion_registrar(uuid, text, date, date, date, text, text),
 --     fn_locacion_anular(uuid, text), fn_locacion_terminar(uuid, date, text),
---     fn_locacion_libre(text);
---   drop policy contratos_locacion_insert/select/update/delete on storage.objects;
+--     fn_locacion_libre(text), fn_locacion_es_mia(text);
+--   drop policy contratos_locacion_insert/select/select_propio/update/delete on storage.objects;
 --   drop table contratos_locacion;   -- se lleva su trigger y sus índices
 --   drop function if exists fn_contratos_locacion_inmutables();
 --   delete from storage.objects where bucket_id = 'contratos-locacion';  -- vaciar antes
@@ -248,6 +251,23 @@ $fn$;
 grant execute on function fn_locacion_libre(text) to authenticated;
 revoke execute on function fn_locacion_libre(text) from public, anon;
 
+-- ¿Este escaneo es de un contrato MÍO que vale? Para que cada persona abra el
+-- suyo desde «Lo mío» y ninguno más. Uno anulado no cuenta (ver el historial).
+create or replace function fn_locacion_es_mia(p_path text)
+returns boolean
+language sql stable security definer set search_path = public
+as $fn$
+  select exists (
+    select 1 from contratos_locacion c
+     where c.storage_path = p_path
+       and c.anulado_at is null
+       and c.persona_id = fn_persona_actual_id()
+  );
+$fn$;
+
+grant execute on function fn_locacion_es_mia(text) to authenticated;
+revoke execute on function fn_locacion_es_mia(text) from public, anon;
+
 -- Un mismo escaneo no sostiene dos contratos vivos: sería registrar dos veces
 -- el mismo papel. Uno anulado sí deja su archivo libre para registrarlo bien.
 create unique index if not exists idx_contratos_locacion_ruta_viva
@@ -373,6 +393,18 @@ $fn$;
 -- de qué es «en curso» vive aquí y en ningún otro sitio. Con `p_persona_id`
 -- nulo devuelve los de todos.
 --
+-- Y la persona ve LOS SUYOS, en «Lo mío › Contrato» (pedido por Felipe el
+-- 2026-11-10: que quien cobra por honorarios vea su contrato en Dynamic, como
+-- quien está en planilla ve el suyo). Para quien no es DO esta misma función
+-- devuelve solo sus propios contratos, con tres cuidados:
+--   · sin los anulados: uno anulado puede ser «era de otra persona», y su
+--     escaneo, el contrato de otra persona con su DNI;
+--   · sin los motivos de término y de anulación: DO los escribe para DO;
+--   · pedir los de otra persona da error, no una lista vacía que parezca «no
+--     tiene».
+-- Una sola función y no una segunda «los míos»: así «en curso» se decide en un
+-- solo lugar para las dos pantallas.
+--
 --   anulado ...... se registró por error; no cuenta
 --   terminado .... terminó antes de su fecha (`terminado_el`)
 --   por_empezar .. empieza después de hoy
@@ -403,9 +435,17 @@ returns table (
 )
 language plpgsql stable security definer set search_path = public
 as $fn$
+declare
+  v_do boolean := fn_es_admin_o_lider() is true;
+  v_yo uuid    := fn_persona_actual_id();
 begin
-  if fn_es_admin_o_lider() is not true then
-    raise exception 'Solo Desarrollo Organizacional ve los contratos de locación.';
+  if not v_do then
+    if v_yo is null then
+      raise exception 'Tu cuenta todavía no está enlazada con tu ficha.';
+    end if;
+    if p_persona_id is not null and p_persona_id <> v_yo then
+      raise exception 'Solo Desarrollo Organizacional ve los contratos de locación de otra persona.';
+    end if;
   end if;
 
   return query
@@ -418,14 +458,17 @@ begin
               when c.fecha_fin < fn_hoy_lima()    then 'concluido'
               else 'en_curso' end,
          btrim(pr.nombres || ' ' || pr.apellidos), c.registrado_at,
-         c.terminado_el, c.terminado_motivo, btrim(pt.nombres || ' ' || pt.apellidos),
+         c.terminado_el,
+         case when v_do then c.terminado_motivo end,
+         case when v_do then btrim(pt.nombres || ' ' || pt.apellidos) end,
          c.anulado_at, c.anulado_motivo, btrim(pa.nombres || ' ' || pa.apellidos)
     from contratos_locacion c
     join personas p       on p.id  = c.persona_id
     left join personas pr on pr.id = c.registrado_por
     left join personas pt on pt.id = c.terminado_por
     left join personas pa on pa.id = c.anulado_por
-   where p_persona_id is null or c.persona_id = p_persona_id
+   where (v_do and (p_persona_id is null or c.persona_id = p_persona_id))
+      or (not v_do and c.persona_id = v_yo and c.anulado_at is null)
    -- Los que valen primero, del más reciente al más viejo; los anulados al
    -- final, porque no cuentan. `id` como ancla del empate (0312, 0389).
    order by (c.anulado_at is not null), c.fecha_inicio desc, c.registrado_at desc, c.id desc;
@@ -649,7 +692,8 @@ set local lock_timeout = '3s';
 do $$
 begin
   if to_regclass('public.contratos_locacion') is null
-     or to_regprocedure('public.fn_locacion_libre(text)') is null then
+     or to_regprocedure('public.fn_locacion_libre(text)') is null
+     or to_regprocedure('public.fn_locacion_es_mia(text)') is null then
     raise exception 'Falta la PARTE 1 (la tabla y sus funciones): pégala primero y sola, y después esta.';
   end if;
 end;
@@ -666,7 +710,7 @@ on conflict (id) do update set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
--- Las CUATRO políticas, no una: Supabase Storage escribe con
+-- Las CUATRO políticas de DO, no una: Supabase Storage escribe con
 -- `INSERT … ON CONFLICT DO UPDATE … RETURNING *` y necesita insert, select y
 -- update para subir (0172, 0175, 0197 costaron medio día por faltar una).
 drop policy if exists contratos_locacion_insert on storage.objects;
@@ -685,6 +729,12 @@ create policy contratos_locacion_insert on storage.objects
 create policy contratos_locacion_select on storage.objects
   for select to authenticated
   using (bucket_id = 'contratos-locacion' and fn_es_admin_o_lider() is true);
+
+-- La quinta: cada persona LEE su propio escaneo, y nada más (ni sube ni borra).
+drop policy if exists contratos_locacion_select_propio on storage.objects;
+create policy contratos_locacion_select_propio on storage.objects
+  for select to authenticated
+  using (bucket_id = 'contratos-locacion' and fn_locacion_es_mia(name));
 
 create policy contratos_locacion_update on storage.objects
   for update to authenticated
@@ -707,8 +757,8 @@ select
     where table_schema = 'public' and table_name = 'contratos_locacion') as tabla_de_1,
   (select count(*) from pg_proc where proname in (
      'fn_locaciones_tablero', 'fn_locaciones_listar', 'fn_contratos_locacion_inmutables',
-     'fn_locacion_libre', 'fn_locacion_registrar', 'fn_locacion_anular', 'fn_locacion_terminar')) as funciones_de_7,
-  (select count(*) from pg_policies where schemaname = 'storage' and policyname like 'contratos\_locacion\_%') as politicas_storage_de_4,
+     'fn_locacion_libre', 'fn_locacion_es_mia', 'fn_locacion_registrar', 'fn_locacion_anular', 'fn_locacion_terminar')) as funciones_de_8,
+  (select count(*) from pg_policies where schemaname = 'storage' and policyname like 'contratos\_locacion\_%') as politicas_storage_de_5,
   (select count(*) from storage.buckets where id = 'contratos-locacion' and public is false) as bucket_privado,
   (select relrowsecurity from pg_class where relname = 'contratos_locacion') as rls_activa,
   (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 610) as registro;

@@ -9852,6 +9852,7 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_locacion_es_mia: { Args: { p_path: string | null }; Returns: boolean }
       fn_locacion_libre: { Args: { p_path: string | null }; Returns: boolean }
       fn_locacion_registrar: {
         Args: {

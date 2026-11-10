@@ -4,6 +4,7 @@ import {
   cuantasParaAtender,
   ESTADO_PERSONA,
   fechasSugeridas,
+  locacionDeHoy,
   textoPlazo,
   textoVinculoActual,
   type FilaTableroLocacion,
@@ -70,5 +71,19 @@ describe("las fechas con que nace el formulario de registrar", () => {
   });
   it("el fin de mes no se desborda: del 31 de agosto, seis meses llegan al 28 de febrero", () => {
     expect(fechasSugeridas({ cubierto_hasta: null }, "2026-08-31").fin).toBe("2027-02-27");
+  });
+});
+
+describe("cuál es «tu contrato» en Lo mío", () => {
+  const c = (id: string, estado: "en_curso" | "por_empezar" | "concluido" | "terminado" | "anulado") => ({ id, estado });
+  it("el que está en curso gana, aunque haya uno más nuevo por empezar", () => {
+    expect(locacionDeHoy([c("renovacion", "por_empezar"), c("actual", "en_curso"), c("vieja", "concluido")])?.id).toBe("actual");
+  });
+  it("sin uno en curso, el que está por empezar; sin ninguno de los dos, el último que tuvo", () => {
+    expect(locacionDeHoy([c("siguiente", "por_empezar"), c("vieja", "concluido")])?.id).toBe("siguiente");
+    expect(locacionDeHoy([c("ultima", "terminado"), c("vieja", "concluido")])?.id).toBe("ultima");
+  });
+  it("sin contratos no hay nada que mostrar", () => {
+    expect(locacionDeHoy([])).toBeNull();
   });
 });

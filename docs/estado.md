@@ -22,10 +22,16 @@ avisaría a quién le falta). Aprobó los cuatro pasos: ver, registrar, anular/t
 `fn_locacion_anular`, `fn_locacion_terminar`. Pantalla: `components/contratos/honorarios.tsx`, pestaña con número rojo, historial en el panel
 lateral. Novedad para DO.
 
-**Medido.** Banco nativo: la 496, 53/53; la 491 (tiempo real: `contratos_locacion` queda pendiente del lote 3, como `contratos_generados`) y la
+**Y cada RxH ve el suyo (pedido por Felipe el 2026-11-10).** En «Lo mío › Contrato» (`app/(mio)/mio/contrato/mis-locaciones.tsx`) y en la
+tarjeta «Tu contrato» de Lo mío. `fn_locaciones_listar` le devuelve a quien no es DO solo lo propio, **sin anulados** (uno anulado puede ser el
+contrato de otra persona registrado por error, con su DNI) y sin los motivos que DO escribe para DO; pedir lo de otra persona da error. Una quinta
+política de Storage le deja abrir su escaneo y ninguno más (`fn_locacion_es_mia`). **No se firma en Dynamic**: para eso hace falta el texto de
+locación aprobado por el abogado y redactarlo dentro del sistema, como el contrato de trabajo.
+
+**Medido.** Banco nativo: la 496, 63/63 (rota a propósito en lo de «ver lo propio», se pone en rojo en 4); la 491 (tiempo real: `contratos_locacion` queda pendiente del lote 3, como `contratos_generados`) y la
 397 siguen en verde. Control: rota en tres puntos (anulado que cuenta, locación vigente para planilla, término antes de la víspera), la 496 se
 pone en rojo en los tres. Las dos partes se pegaron por separado en una base local: la 2 se niega sin la 1, y repegar no rompe nada. En local con
-datos inventados: tablero, formulario, terminar y la banda de «ya no cobra por honorarios»; el registro por PostgREST con la sesión de DO (200).
+datos inventados: tablero, formulario, terminar y la banda de «ya no cobra por honorarios»; el registro por PostgREST con la sesión de DO (200). Y como una persona RxH de prueba con cuenta: la tarjeta de Lo mío, sus dos contratos y no el anulado.
 
 **Lo que NO se verificó.** La subida real del escaneo y «Ver contrato» de punta a punta: el entorno local no tiene almacenamiento de archivos.
 Se prueba la primera vez en producción, después de pegar la 0610.

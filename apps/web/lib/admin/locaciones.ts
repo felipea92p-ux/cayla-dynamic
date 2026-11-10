@@ -136,6 +136,18 @@ export function textoVinculoActual(vinculo: string): string {
   return etiqueta ? `Hoy está en ${etiqueta}` : "Ya no cobra por honorarios";
 }
 
+/**
+ * Cuál es «tu contrato» para «Lo mío» entre los que devuelve `fn_locaciones_listar` para la propia persona (que ya
+ * vienen sin anulados y del más reciente al más viejo): el que está en curso; si no, el que está por empezar; si
+ * no, el último que tuvo. `null` si no tiene ninguno.
+ */
+export function locacionDeHoy<T extends Pick<ContratoLocacion, "estado">>(contratos: readonly T[]): T | null {
+  return contratos.find((c) => c.estado === "en_curso")
+    ?? contratos.find((c) => c.estado === "por_empezar")
+    ?? contratos.find((c) => c.estado !== "anulado")
+    ?? null;
+}
+
 /** Cuántos meses dura, por defecto, un contrato nuevo. Se ve y se cambia en un clic. */
 export const MESES_POR_DEFECTO = 6;
 

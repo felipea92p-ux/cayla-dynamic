@@ -124,7 +124,8 @@ export const NOVEDADES: readonly Novedad[] = [
       "le vence en los próximos 60 días y quién está al día.\n\n" +
       "Desde el panel de cada persona se sube el contrato firmado, se abre, se anula si se registró mal o se termina " +
       "antes de tiempo. Si alguien pasa a planilla o cesa con su locación todavía abierta, aparece primero en la " +
-      "pestaña hasta que se termine: con las dos cosas a la vez tendría un vínculo civil y otro laboral.",
+      "pestaña hasta que se termine: con las dos cosas a la vez tendría un vínculo civil y otro laboral.\n\n" +
+      "Y cada persona por honorarios ve el suyo en Lo mío › Contrato, y lo abre desde ahí.",
     audiencia: "do",
   },
   {

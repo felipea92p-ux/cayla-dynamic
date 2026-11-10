@@ -15,7 +15,7 @@
 -- vence sola el día que el calendario la alcanza.
 -- ============================================================================
 begin;
-select plan(53);
+select plan(63);
 
 -- ── Sede y personas ──────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -31,8 +31,8 @@ insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_
   ('00000000-0000-0000-0000-00000610c003', 'PorVencer',   'Rxh', '00000000-0000-0000-0000-000006100001', 'integrante', 'x', null, '2025-01-01', 'rxh', null),
   ('00000000-0000-0000-0000-00000610c004', 'Vigente',     'Rxh', '00000000-0000-0000-0000-000006100001', 'integrante', 'x', null, '2025-01-01', 'rxh', null),
   ('00000000-0000-0000-0000-00000610c005', 'PorEmpezar',  'Rxh', '00000000-0000-0000-0000-000006100001', 'integrante', 'x', null, '2025-01-01', 'rxh', null),
-  ('00000000-0000-0000-0000-00000610c006', 'Renovada',    'Rxh', '00000000-0000-0000-0000-000006100001', 'integrante', 'x', null, '2025-01-01', 'rxh', null),
-  ('00000000-0000-0000-0000-00000610c007', 'SoloAnulado', 'Rxh', '00000000-0000-0000-0000-000006100001', 'integrante', 'x', null, '2025-01-01', 'rxh', null),
+  ('00000000-0000-0000-0000-00000610c006', 'Renovada',    'Rxh', '00000000-0000-0000-0000-000006100001', 'integrante', 'x', '00000000-0000-0000-0000-00000610b006', '2025-01-01', 'rxh', null),
+  ('00000000-0000-0000-0000-00000610c007', 'SoloAnulado', 'Rxh', '00000000-0000-0000-0000-000006100001', 'integrante', 'x', '00000000-0000-0000-0000-00000610b007', '2025-01-01', 'rxh', null),
   ('00000000-0000-0000-0000-00000610c008', 'Terminada',   'Rxh', '00000000-0000-0000-0000-000006100001', 'integrante', 'x', null, '2025-01-01', 'rxh', null);
 -- Quien NO tiene que aparecer: una de planilla y una cuenta de servicio con vínculo rxh.
 insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, fecha_ingreso, tipo_vinculo, cargo, cuenta_de_servicio) values
@@ -113,8 +113,11 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000061
 set local role authenticated;
 select is((select count(*)::int from contratos_locacion), 0, 'una integrante no lee ningún contrato de locación');
 select is((select count(*)::int from fn_locaciones_tablero()), 0, 'ni ve el tablero');
-select throws_ok($$ select * from fn_locaciones_listar() $$,
-  'P0001', 'Solo Desarrollo Organizacional ve los contratos de locación.', 'ni el historial');
+select is((select count(*)::int from fn_locaciones_listar()), 0,
+  'en el historial solo vería los suyos, y no tiene ninguno');
+select throws_ok($$ select * from fn_locaciones_listar('00000000-0000-0000-0000-00000610c006') $$,
+  'P0001', 'Solo Desarrollo Organizacional ve los contratos de locación de otra persona.',
+  'pedir los de otra persona da error, no una lista vacía que parezca «no tiene»');
 reset role;
 
 -- ── B · Lo que no se edita ni se borra (aun como superusuario) ───────────
@@ -169,7 +172,7 @@ select is(
   1, 'el bucket de los escaneos existe, es privado y limita a 50 MB');
 select is(
   (select count(*)::int from pg_policies where schemaname = 'storage' and policyname like 'contratos\_locacion\_%'),
-  4, 'el almacén tiene sus cuatro políticas (insert, select, update, delete)');
+  5, 'el almacén tiene sus cinco políticas (las cuatro de DO y la de leer lo propio)');
 select is(
   (select has_function_privilege('authenticated', 'fn_locacion_registrar(uuid,text,date,date,date,text,text)', 'EXECUTE')
       and not has_function_privilege('anon', 'fn_locacion_registrar(uuid,text,date,date,date,text,text)', 'EXECUTE')),
@@ -311,6 +314,51 @@ select is(
     where id = current_setting('t.porvencer')::uuid),
   row('Se resolvió de común acuerdo', '00000000-0000-0000-0000-00000610a001'::uuid)::text,
   'el término queda con su motivo y con quién lo hizo');
+reset role;
+
+-- ── F · Cada persona ve SU contrato en «Lo mío» ─────────────────────────
+-- Renovada (c006) tiene dos contratos vivos; SoloAnulado (c007), uno anulado.
+-- Para el escaneo: el almacén guardaría así los dos archivos de Renovada.
+insert into storage.objects (bucket_id, name, metadata) values
+  ('contratos-locacion', '61000000-0000-0000-0000-000000000061.pdf', '{"size": 1000, "mimetype": "application/pdf"}'),
+  ('contratos-locacion', '61000000-0000-0000-0000-000000000007.pdf', '{"size": 1000, "mimetype": "application/pdf"}'),
+  ('contratos-locacion', '61000000-0000-0000-0000-000000000004.pdf', '{"size": 1000, "mimetype": "application/pdf"}');
+
+select is(
+  (select has_function_privilege('authenticated', 'fn_locacion_es_mia(text)', 'EXECUTE')
+      and not has_function_privilege('anon', 'fn_locacion_es_mia(text)', 'EXECUTE')),
+  true, 'la comprobación de «es mío» la usa quien inició sesión, y nadie sin sesión');
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000610b006","role":"authenticated"}', true);
+set local role authenticated;
+select is((select count(*)::int from fn_locaciones_listar()), 2, 'quien cobra por honorarios ve sus dos contratos');
+select is(
+  (select count(*)::int from fn_locaciones_listar() where persona_id <> '00000000-0000-0000-0000-00000610c006'),
+  0, 'y ninguno de otra persona');
+select is((select count(*)::int from fn_locaciones_tablero()), 0, 'el tablero sigue siendo solo de DO');
+select is(
+  (select row(fn_locacion_es_mia('61000000-0000-0000-0000-000000000061.pdf'),
+              fn_locacion_es_mia('61000000-0000-0000-0000-000000000004.pdf'))::text),
+  row(true, false)::text, 'abre su propio escaneo, y no el de otra persona');
+select is(
+  (select count(*)::int from storage.objects where bucket_id = 'contratos-locacion'
+      and name in ('61000000-0000-0000-0000-000000000061.pdf', '61000000-0000-0000-0000-000000000004.pdf')),
+  1, 'el almacén le deja leer su archivo y no el ajeno');
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000610b007","role":"authenticated"}', true);
+set local role authenticated;
+select is((select count(*)::int from fn_locaciones_listar()), 0,
+  'un contrato anulado no se le muestra: puede ser el de otra persona registrado por error');
+select is(fn_locacion_es_mia('61000000-0000-0000-0000-000000000007.pdf'), false, 'ni puede abrir su escaneo');
+reset role;
+
+-- Los motivos que DO escribe para DO no viajan a la persona.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000610b006","role":"authenticated"}', true);
+set local role authenticated;
+select is(
+  (select bool_and(terminado_motivo is null and terminado_por_nombre is null) from fn_locaciones_listar()),
+  true, 'la persona no ve los motivos internos de DO');
 reset role;
 
 select * from finish();
