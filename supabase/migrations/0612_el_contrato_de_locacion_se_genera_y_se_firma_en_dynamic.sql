@@ -26,7 +26,9 @@
 --   una locación era en realidad un trabajo (art. 4 del D.S. 003-97-TR,
 --   primacía de la realidad), y firmadas en el propio sistema serían la prueba.
 --   Lo vio y eligió una locación CIVIL: servicio, entregables, plazo y
---   HONORARIOS. Por eso las columnas nuevas son `honorarios` y `periodicidad`,
+--   HONORARIOS. Por eso las columnas nuevas son `honorarios` y `periodicidad`
+--   (fijos al mes, por todo el servicio, o un monto de referencia por mes
+--   completo pagado en proporción a las horas: así se paga hoy a los RxH),
 --   y no hay cargo, jornada ni remuneración en ningún lado de la tabla.
 --
 -- ── CÓMO SE FIRMA ────────────────────────────────────────────────────────────
@@ -147,7 +149,7 @@ alter table contratos_locacion
   ),
   -- RUC de persona natural: 10 + 9 dígitos (15 y 17 son los de quien no tiene DNI).
   add constraint locacion_ruc_de_persona check (ruc_locador is null or ruc_locador ~ '^(10|15|17)[0-9]{9}$'),
-  add constraint locacion_periodicidad_valida check (periodicidad is null or periodicidad in ('mensual', 'total')),
+  add constraint locacion_periodicidad_valida check (periodicidad is null or periodicidad in ('mensual', 'total', 'por_horas')),
   -- Un escaneo llega firmado. Uno generado tiene las tres cosas de la firma juntas, o ninguna.
   add constraint locacion_firma_coherente check (
     (documento_html is null and fecha_firma is not null
@@ -251,8 +253,8 @@ begin
   if p_honorarios is null or p_honorarios <= 0 then
     raise exception 'Faltan los honorarios.';
   end if;
-  if p_periodicidad is null or p_periodicidad not in ('mensual', 'total') then
-    raise exception 'Elige si los honorarios son mensuales o por todo el servicio.';
+  if p_periodicidad is null or p_periodicidad not in ('mensual', 'total', 'por_horas') then
+    raise exception 'Elige cómo se pagan los honorarios: fijos al mes, por todo el servicio o en proporción a las horas.';
   end if;
   if p_ruc_locador is null or btrim(p_ruc_locador) !~ '^(10|15|17)[0-9]{9}$' then
     raise exception 'El RUC tiene que ser el de una persona natural: 11 dígitos que empiezan con 10.';

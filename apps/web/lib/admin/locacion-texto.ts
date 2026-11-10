@@ -42,8 +42,13 @@ import {
 /** `false` hasta que el abogado apruebe el texto. Ver el encabezado. */
 export const TEXTO_LOCACION_APROBADO = false;
 
-/** Cómo se pagan los honorarios: una cuota al mes, o un monto por todo el servicio. */
-export type PeriodicidadHonorarios = "mensual" | "total";
+/**
+ * Cómo se pagan los honorarios: una cuota fija al mes, un monto por todo el servicio, o un monto de referencia
+ * por un mes completo que se paga en proporción a las horas de servicio prestadas. La tercera es como se paga hoy
+ * a quien cobra por honorarios en CAYLA (dicho por Felipe el 2026-11-10: «los 1500 es la base, pero en base a las
+ * horas que trabajen se les pagará»), y el contrato tiene que decir lo que de verdad pasa.
+ */
+export type PeriodicidadHonorarios = "mensual" | "total" | "por_horas";
 
 export interface DatosLocacion {
   /** El nombre como figura en el DNI (`datos_personales.nombre_dni`). */
@@ -113,7 +118,10 @@ export function construirLocacion(datos: DatosLocacion): string {
   const monto = `S/ ${soles(d.honorarios)} (${numeroALetras(d.honorarios)} soles)`;
   const pago = d.periodicidad === "mensual"
     ? `${monto} por cada mes de servicio, pagaderos dentro de los primeros cinco (5) días hábiles del mes siguiente`
-    : `${monto} por la totalidad del servicio, pagaderos a su conclusión`;
+    : d.periodicidad === "por_horas"
+      ? `${monto} por un mes completo de servicio, que se pagan en proporción a las horas de servicio efectivamente
+    prestadas en cada periodo de pago, dentro de los primeros cinco (5) días hábiles del periodo siguiente`
+      : `${monto} por la totalidad del servicio, pagaderos a su conclusión`;
 
   return `
   <article class="contrato">

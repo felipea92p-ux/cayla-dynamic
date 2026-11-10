@@ -65,6 +65,10 @@ describe("lo que dice el contrato sale de los datos", () => {
     expect(t).toContain("del 10 de noviembre de 2026 al 9 de mayo de 2027");
     expect(t).toContain("S/ 1,500.00 (Mil quinientos y 00/100 soles) por cada mes de servicio");
   });
+  it("en proporción a las horas se dice así, sin volverse un sueldo", () => {
+    const t = sinEtiquetas(texto({ periodicidad: "por_horas" }));
+    expect(t).toContain("por un mes completo de servicio, que se pagan en proporción a las horas de servicio efectivamente prestadas");
+  });
   it("un pago único se dice como pago único", () => {
     expect(sinEtiquetas(texto({ periodicidad: "total" }))).toContain("por la totalidad del servicio");
   });

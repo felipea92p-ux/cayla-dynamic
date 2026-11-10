@@ -80,8 +80,9 @@ select throws_ok(
   'P0001', 'Faltan los honorarios.', 'sin honorarios no entra');
 select throws_ok(
   $$ select fn_locacion_generar('00000000-0000-0000-0000-00000612a002', 'Fotografía', fn_hoy_lima(), fn_hoy_lima() + 180,
-       1500, 'por_hora', '10700012345', pg_temp.doc()) $$,
-  'P0001', 'Elige si los honorarios son mensuales o por todo el servicio.', 'los honorarios son mensuales o por todo el servicio');
+       1500, 'semanal', '10700012345', pg_temp.doc()) $$,
+  'P0001', 'Elige cómo se pagan los honorarios: fijos al mes, por todo el servicio o en proporción a las horas.',
+  'los honorarios son fijos al mes, por todo el servicio o en proporción a las horas');
 select throws_ok(
   $$ select fn_locacion_generar('00000000-0000-0000-0000-00000612a002', 'Fotografía', fn_hoy_lima(), fn_hoy_lima() + 180,
        1500, 'mensual', '10700012345', '<article>sin marcas</article>') $$,
@@ -89,12 +90,12 @@ select throws_ok(
 
 select set_config('t.gen',
   fn_locacion_generar('00000000-0000-0000-0000-00000612a002', '  Fotografía de producto ', fn_hoy_lima(), fn_hoy_lima() + 180,
-    1500.004, 'mensual', ' 10700012345 ', pg_temp.doc())::text, true);
+    1500.004, 'por_horas', ' 10700012345 ', pg_temp.doc())::text, true);
 select is(
-  (select row(servicio, honorarios, ruc_locador, fecha_firma, storage_path)::text from contratos_locacion
+  (select row(servicio, honorarios, periodicidad, ruc_locador, fecha_firma, storage_path)::text from contratos_locacion
     where id = current_setting('t.gen')::uuid),
-  row('Fotografía de producto', 1500.00::numeric(10,2), '10700012345', null::date, null::text)::text,
-  'se guarda sin firmar y sin escaneo, con el servicio y el RUC recortados y los honorarios en céntimos');
+  row('Fotografía de producto', 1500.00::numeric(10,2), 'por_horas', '10700012345', null::date, null::text)::text,
+  'se guarda sin firmar y sin escaneo, con el servicio y el RUC recortados, los honorarios en céntimos y en proporción a las horas');
 
 -- ── C · Sin firmar no cubre ─────────────────────────────────────────────
 select is(pg_temp.estado('00000000-0000-0000-0000-00000612a002'), 'sin_firmar',
