@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-10 — La firma de CAYLA queda la de su día · migración **0616 SIN PEGAR (una pegada)** · prueba 501 · rama `claude/firma-cayla-congelada`
+## 2026-11-10 — La firma de CAYLA queda la de su día · migración **0616 PEGADA Y VERIFICADA (2026-11-10)** · prueba 501 · rama `claude/firma-cayla-congelada`
 
 **De dónde sale.** `fn_firma_empresa()` (0398) daba la firma de HOY de quien firma HOY, y las pantallas la estampaban al mostrar; el
 nombre del firmante, en cambio, queda congelado en el texto. Cambiar de firmante o redibujar la firma cambiaba la rúbrica de todo lo
@@ -27,8 +27,13 @@ De paso: Lo mío › Contrato mostraba la firma ACTUAL de la persona en un contr
 ninguno). La primera corrida cazó que el trigger le ponía firmante a un escaneo de la política (425 en rojo); corregido. Interfaz:
 4 156 pruebas y typecheck en verde. **No verificado en el navegador:** las pantallas cambian de dónde sale la imagen, no cómo se ven.
 
-**Queda para Felipe.** Pegar la 0616 (una pegada; si el bloque 0 dice PARAR, no seguir) y mirar su fila de comprobación; recién ahí,
-PR y fusión.
+**Pegada el 2026-11-10** (el SQL Editor avisó «tabla sin RLS» por `firma_de_hoy`: es temporal y se borra al terminar, se corrió sin
+RLS). Su comprobación: 3 triggers; 22 de 23 contratos vivos con la firma congelada (queda en blanco el firmado en papel antes del
+08-09, como manda la regla); 18 de 18 documentos firmados en Dynamic (15 rutas y 3 constancias); 1 de 5 versiones de la política
+salarial (las 4 anteriores al 08-09, en blanco); la evidencia en `confirmaciones_firma_contrato`; registro `616 ·
+la_firma_de_cayla_queda_la_de_su_dia`. El frontend de main sigue funcionando sobre esto (las funciones solo SUMAN columnas).
+
+**Queda para Felipe.** El OK para el PR: fusionarlo publica las pantallas que leen la firma congelada.
 
 ## 2026-11-09 — Contratos: la pestaña «Recibo por honorarios» · migración **0610 SIN PEGAR (en DOS partes)** · prueba 496 · rama `claude/rxh-contracts-view-9ccdd2` · **solo en local, sin subir**
 
