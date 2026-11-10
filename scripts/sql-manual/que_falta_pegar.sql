@@ -883,17 +883,19 @@ plata(etiqueta, funcion, estado, orden) as (
   union all
   select 'PLATA', 'fn_costos_planilla', coalesce((
            select string_agg(case md5(p.prosrc)
-             when 'a25fbbc2a67dcc6b07f1cb2a8647c124' then '✓   al día (0608)'
-             when '171b0f29312249244e60dff106b73887' then '✓   al día (0608, pegada sin comentarios)'
-             when '5431bd4f16d008a90612a6ab564a2764' then '✓   al día (0608, pegada desde Windows)'
-             when '0e9fbcdce8ab6f53a6ffff6c8fa2f829' then '✓   al día (0608, desde Windows y sin comentarios)'
-             when 'd23ea98ef93328615caaeb37286f0f55' then '✗   0608 con los acentos rotos — vuelve a pegarla'
-             when '939e5ef4840e6ca088b08a17d2084e74' then '❌  se quedó en la 0260 — la vigente es la 0608'
-             when '32beb6a3c1bd9790cfa0f49b2b41be53' then '❌  se quedó en la 0260 — la vigente es la 0608'
-             when '2e960fc4db713c4fc4dad10f6c42a67b' then '❌  se quedó en la 0099 — la vigente es la 0608'
-             when '85ed93683f4deeaaf1bab2367862c195' then '❌  se quedó en la 0099 — la vigente es la 0608'
-             when '6c15090ca01d6d581ed579e3d17efbb8' then '❌  se quedó en la 0097 — la vigente es la 0608'
-             when '3b28c16970dac901fff93637d6c20df0' then '❌  se quedó en la 0097 — la vigente es la 0608'
+             when '37d7163186a7f9aff51f9744555a351b' then '✓   al día (0612)'
+             when 'd4434675db2de4b9bb2eae8a90ed7a12' then '✓   al día (0612, pegada sin comentarios)'
+             when '5e8cc85b5abb1ac643c55b19b9954488' then '✓   al día (0612, pegada desde Windows)'
+             when '6841bbc216d9f14a8621121b5c6d4e6a' then '✓   al día (0612, desde Windows y sin comentarios)'
+             when '6e549e7538bd77e6c858a448d125e57b' then '✗   0612 con los acentos rotos — vuelve a pegarla'
+             when 'a25fbbc2a67dcc6b07f1cb2a8647c124' then '❌  se quedó en la 0608 — la vigente es la 0612'
+             when '171b0f29312249244e60dff106b73887' then '❌  se quedó en la 0608 — la vigente es la 0612'
+             when '939e5ef4840e6ca088b08a17d2084e74' then '❌  se quedó en la 0260 — la vigente es la 0612'
+             when '32beb6a3c1bd9790cfa0f49b2b41be53' then '❌  se quedó en la 0260 — la vigente es la 0612'
+             when '2e960fc4db713c4fc4dad10f6c42a67b' then '❌  se quedó en la 0099 — la vigente es la 0612'
+             when '85ed93683f4deeaaf1bab2367862c195' then '❌  se quedó en la 0099 — la vigente es la 0612'
+             when '6c15090ca01d6d581ed579e3d17efbb8' then '❌  se quedó en la 0097 — la vigente es la 0612'
+             when '3b28c16970dac901fff93637d6c20df0' then '❌  se quedó en la 0097 — la vigente es la 0612'
              else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_costos_planilla'
            end, ' · ')
            from pg_proc p join pg_namespace n on n.oid = p.pronamespace

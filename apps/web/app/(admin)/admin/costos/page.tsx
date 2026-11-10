@@ -98,7 +98,12 @@ interface PorSede extends PorGrupo {
   sede: string;
   tipo: "central" | "taller" | "tienda";
   horas: number;
-  costo_por_persona: number | null;
+  // Por persona Y POR PERIODO (0612): la persona que cobró cuatro periodos cuenta cuatro, y la plaza que en esos cuatro
+  // periodos ocuparon tres personas también. La base sigue mandando `costo_por_persona` (costo del año ÷ personas
+  // distintas), pero no se dibuja: con rotación bajaba sin que bajara el gasto, y la sede que más rota parecía la más
+  // barata. Opcional: sin la 0612 pegada no viene, y la columna dice «—».
+  personas_periodo?: number;
+  costo_por_persona_periodo?: number | null;
   costo_por_hora: number | null;
 }
 interface PorTipo {
@@ -109,7 +114,8 @@ interface PorTipo {
   neto: number;
   provisiones: number;
   costo: number;
-  costo_por_persona: number | null;
+  personas_periodo?: number;
+  costo_por_persona_periodo?: number | null;
   costo_por_hora: number | null;
   salio_del_banco?: number;
 }
@@ -322,6 +328,7 @@ export default function CostosPage() {
               intro="Solo aparecen los periodos ya marcados como pagados: su desglose quedó congelado y ya no cambia."
               secciones={[
                 { titulo: "Todo el año, todo el equipo", texto: "Salvo «Por periodo», cada tabla suma el año elegido entero. «Personas en el año» cuenta a cada persona que cobró al menos un periodo, también a quien ya cesó, así que no es cuántas hay hoy. Si alguien cambió de sede o de área, cuenta en las dos: cada pago se carga donde estaba ese periodo." },
+                { titulo: "Por persona al mes", texto: "El costo real dividido entre las personas de cada periodo: quien cobró los cuatro periodos del año cuenta cuatro veces, y una plaza que ocuparon tres personas, una tras otra, también cuenta cuatro. Así una sede que rota mucho no parece más barata de lo que es." },
                 { titulo: "Costo y proyección", texto: "Lo que todavía está abierto se ve en Planilla, y es una proyección, no un costo. Aquí solo entra lo que ya se pagó." },
                 { titulo: "Un periodo, no un mes", texto: "Los periodos de CAYLA no son meses calendario (van del 29 al 28), así que cada fila es un periodo." },
                 { titulo: "Costo real, transferencia y banco", texto: "«Se transfirió» es lo que se pagó a las personas; el «costo real» suma además las provisiones; «salió del banco» incluye pensión, EsSalud y 4.ª." },
@@ -439,7 +446,7 @@ export default function CostosPage() {
                 <Th className="text-right">Personas en el año</Th>
                 <Th className="text-right">Costo real</Th>
                 <Th className="text-right">Salió del banco</Th>
-                <Th className="text-right">Por persona</Th>
+                <Th className="text-right">Por persona al mes</Th>
                 <Th className="text-right">Por hora</Th>
               </TablaEncabezado>
               <tbody>
@@ -450,7 +457,7 @@ export default function CostosPage() {
                     <td className={NUM}>{t.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(t.costo)}</td>
                     <td className={NUM}>{t.salio_del_banco === undefined ? "—" : formatSoles(t.salio_del_banco)}</td>
-                    <td className={NUM}>{t.costo_por_persona === null ? "—" : formatSoles(t.costo_por_persona)}</td>
+                    <td className={NUM}>{t.costo_por_persona_periodo == null ? "—" : formatSoles(t.costo_por_persona_periodo)}</td>
                     <td className={NUM}>{t.costo_por_hora === null ? "—" : formatSoles(t.costo_por_hora)}</td>
                   </Fila>
                 ))}
@@ -464,7 +471,7 @@ export default function CostosPage() {
                 <Th className="text-right">Personas en el año</Th>
                 <Th className="text-right">Costo real</Th>
                 <Th className="text-right">Salió del banco</Th>
-                <Th className="text-right">Por persona</Th>
+                <Th className="text-right">Por persona al mes</Th>
                 <Th className="text-right">Por hora</Th>
               </TablaEncabezado>
               <tbody>
@@ -475,7 +482,7 @@ export default function CostosPage() {
                     <td className={NUM}>{s.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(s.costo)}</td>
                     <td className={NUM}>{s.salio_del_banco === undefined ? "—" : formatSoles(s.salio_del_banco)}</td>
-                    <td className={NUM}>{s.costo_por_persona === null ? "—" : formatSoles(s.costo_por_persona)}</td>
+                    <td className={NUM}>{s.costo_por_persona_periodo == null ? "—" : formatSoles(s.costo_por_persona_periodo)}</td>
                     <td className={NUM}>{s.costo_por_hora === null ? "—" : formatSoles(s.costo_por_hora)}</td>
                   </Fila>
                 ))}
@@ -483,7 +490,7 @@ export default function CostosPage() {
             </SeccionTabla>
 
             <p className="-mt-4 mb-6 max-w-3xl text-xs text-taupe">
-              Compara por <strong className="font-medium">persona</strong> y por{" "}
+              Compara por <strong className="font-medium">persona al mes</strong> y por{" "}
               <strong className="font-medium">hora</strong>, no por el total
               {interruptoresVidrio().panel
                 ? ". El desglose completo está en el CSV."
