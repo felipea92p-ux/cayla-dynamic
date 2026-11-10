@@ -9848,6 +9848,46 @@ export type Database = {
           vencido: boolean
         }[]
       }
+      fn_locaciones_listar: {
+        Args: { p_persona_id?: string | null }
+        Returns: {
+          anulado_at: string
+          anulado_motivo: string
+          anulado_por_nombre: string
+          bytes: number
+          estado: string
+          fecha_fin: string
+          fecha_firma: string
+          fecha_inicio: string
+          id: string
+          mime: string
+          nombre_archivo: string
+          persona: string
+          persona_id: string
+          registrado_at: string
+          registrado_por_nombre: string
+          servicio: string
+          storage_path: string
+          terminado_el: string
+          terminado_motivo: string
+          terminado_por_nombre: string
+        }[]
+      }
+      fn_locaciones_tablero: {
+        Args: never
+        Returns: {
+          contrato_id: string
+          cubierto_hasta: string
+          dias_restantes: number
+          estado: string
+          fecha_inicio: string
+          n_contratos: number
+          persona: string
+          persona_id: string
+          sede: string
+          servicio: string
+        }[]
+      }
       fn_marca_apartada_reportar: {
         Args: {
           p_client_uuid: string | null
