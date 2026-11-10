@@ -115,6 +115,30 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-10-tendencias-graficos-nuevos",
+    fecha: "2026-11-10",
+    titulo: "Tendencias tiene cinco gráficos nuevos",
+    queMejoro:
+      "En Dashboard › Tendencias, «Asistencia sobre lo esperado» y «Costo de planilla» van ahora chicos y en una sola " +
+      "fila, con su cifra arriba: con pocos meses medidos, un gráfico grande no decía más.\n\n" +
+      "Y se suman cinco. «Días perdidos, por motivo»: todo lo que se perdió de los días que tocaba trabajar, y por qué " +
+      "(la asistencia solo mira las faltas sin motivo). «Gente en piso frente a la venta»: hora por hora, en cada " +
+      "tienda. «Antigüedad del equipo»: cuánta gente es nueva y cuánta lleva años. Y, para DO, «Acuses pendientes» y " +
+      "«En qué se va la planilla», que dice de qué está hecho el costo del último periodo pagado y qué cambió frente " +
+      "al anterior.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-11-10-turnos-no-juzga-la-hora-a-medias",
+    fecha: "2026-11-10",
+    titulo: "Turnos deja de decir «faltó gente» en la hora en que la tienda abre o cierra",
+    queMejoro:
+      "La repetición del día comparaba cada hora con la gente que pedía la venta, también la hora en que la tienda " +
+      "abre o cierra a medias. En esa hora siempre parecía faltar gente, porque la tienda solo estaba abierta un rato. " +
+      "Ahora esas horas se muestran sin juzgar, y la pantalla lo dice.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-09-contratos-de-recibo-por-honorarios",
     fecha: "2026-11-09",
     titulo: "Contratos tiene una pestaña para quien cobra por recibo por honorarios",
