@@ -467,7 +467,10 @@ with repo(numero, nombre, nunca) as (values
     (605, 'la_salida_real_gana_tambien_en_el_panel', false),
     (607, 'el_reglamento_vigente_dice_que_es_la_version_4_0', false),
     (608, 'fn_costos_planilla_vuelve_a_la_version_vigente', false),
-    (610, 'el_contrato_de_locacion_de_quien_cobra_por_honorarios', false)
+    (610, 'el_contrato_de_locacion_de_quien_cobra_por_honorarios', false),
+    (612, 'costos_que_se_pueden_comparar_entre_sedes', false),
+    (614, 'el_costo_de_cada_periodo_dice_de_que_esta_hecho', false),
+    (615, 'el_contrato_de_locacion_se_genera_y_se_firma_en_dynamic', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
