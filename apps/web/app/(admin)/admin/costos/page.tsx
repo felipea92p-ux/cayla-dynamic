@@ -43,7 +43,7 @@ import { BarrasHorizontales, GraficoPorPeriodo, abreviarSoles } from "@/componen
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
-import { puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { anioLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -294,18 +294,34 @@ export default function CostosPage() {
 
   const t = data?.totales;
 
+  // Todo lo que suma esta pantalla es del AÑO elegido, no de hoy: cada pago se
+  // carga a la sede y al área donde estaba la persona ese periodo, y quien ya
+  // cesó sigue contando, porque su sueldo sí le costó a CAYLA. El 2026-11-10 se
+  // leyó «11 personas» en Crecimiento como «cuántas hay hoy» (eran 3): por eso
+  // el año se dice en la cabecera, en la franja y en cada «Personas en el año».
+  // Mientras el año no termina, «en lo que va de»: un año a medias no es un total.
+  const alcance =
+    anio === null ? "en el año" : anio === anioLima() ? `en lo que va de ${anio}` : `en ${anio}`;
+
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Pago")}
           titulo="Costos del equipo"
-          descripcion="Lo que costó el equipo en los periodos ya pagados. Lo que sigue abierto se ve en Planilla."
+          descripcion={`Lo que costó todo el equipo ${alcance}, también quienes ya cesaron, sumando los periodos ya pagados. Lo que sigue abierto se ve en Planilla.`}
+          // Con el vidrio, una descripción de texto se va entera al «?». El alcance no es una frase: es lo que dice qué suman todas
+          // las cifras de abajo, así que se queda a la vista.
+          vidrio={{
+            dato: `Todo el equipo ${alcance}, también quienes ya cesaron`,
+            frase: "Lo que costó el equipo en los periodos ya pagados. Lo que sigue abierto se ve en Planilla.",
+          }}
           ayuda={
             <AyudaPantalla
               titulo="Cómo se leen los costos"
               intro="Solo aparecen los periodos ya marcados como pagados: su desglose quedó congelado y ya no cambia."
               secciones={[
+                { titulo: "Todo el año, todo el equipo", texto: "Salvo «Por periodo», cada tabla suma el año elegido entero. «Personas en el año» cuenta a cada persona que cobró al menos un periodo, también a quien ya cesó, así que no es cuántas hay hoy. Si alguien cambió de sede o de área, cuenta en las dos: cada pago se carga donde estaba ese periodo." },
                 { titulo: "Costo y proyección", texto: "Lo que todavía está abierto se ve en Planilla, y es una proyección, no un costo. Aquí solo entra lo que ya se pagó." },
                 { titulo: "Un periodo, no un mes", texto: "Los periodos de CAYLA no son meses calendario (van del 29 al 28), así que cada fila es un periodo." },
                 { titulo: "Costo real, transferencia y banco", texto: "«Se transfirió» es lo que se pagó a las personas; el «costo real» suma además las provisiones; «salió del banco» incluye pensión, EsSalud y 4.ª." },
@@ -360,7 +376,7 @@ export default function CostosPage() {
           /* La franja del año: el costo real manda; el resto es el desglose de dónde sale. */
           <TarjetaInfo className="mb-6 flex flex-wrap items-center gap-x-8 gap-y-3">
             <div>
-              <p className="text-xs text-taupe">Costo real del año</p>
+              <p className="text-xs text-taupe">Costo real {alcance}</p>
               <p className="font-serif text-3xl leading-none tabular-nums text-tinta">{formatSoles(t.costo)}</p>
             </div>
             <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
@@ -369,7 +385,8 @@ export default function CostosPage() {
               {t.salio_del_banco !== undefined && (
                 <div><dt className="text-xs text-taupe">Salió del banco <span className="text-taupe/80">(+ pensión, EsSalud y 4.ª)</span></dt><dd className="font-medium tabular-nums">{formatSoles(t.salio_del_banco)}</dd></div>
               )}
-              <div><dt className="text-xs text-taupe">Periodos cerrados</dt><dd className="font-medium tabular-nums">{t.periodos} <span className="text-xs font-normal text-taupe">· {t.personas} personas</span></dd></div>
+              <div><dt className="text-xs text-taupe">Periodos cerrados</dt><dd className="font-medium tabular-nums">{t.periodos}</dd></div>
+              <div><dt className="text-xs text-taupe">Personas en el año</dt><dd className="font-medium tabular-nums">{t.personas}</dd></div>
             </dl>
           </TarjetaInfo>
         )}
@@ -419,7 +436,7 @@ export default function CostosPage() {
               <TablaEncabezado>
                 <Th>Qué es</Th>
                 <Th className="text-right">Sedes</Th>
-                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Personas en el año</Th>
                 <Th className="text-right">Costo real</Th>
                 <Th className="text-right">Salió del banco</Th>
                 <Th className="text-right">Por persona</Th>
@@ -444,7 +461,7 @@ export default function CostosPage() {
               <TablaEncabezado>
                 <Th>Sede</Th>
                 <Th>Qué es</Th>
-                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Personas en el año</Th>
                 <Th className="text-right">Costo real</Th>
                 <Th className="text-right">Salió del banco</Th>
                 <Th className="text-right">Por persona</Th>
@@ -476,7 +493,7 @@ export default function CostosPage() {
             <SeccionTabla titulo="Por área">
               <TablaEncabezado>
                 <Th>Área</Th>
-                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Personas en el año</Th>
                 <Th className="text-right">Se transfirió</Th>
                 <Th className="text-right">Provisiones</Th>
                 <Th className="text-right">Costo real</Th>
@@ -541,7 +558,7 @@ export default function CostosPage() {
                   etiqueta: ETIQUETA_TIPO[x.tipo] ?? x.tipo,
                   valor: x.costo,
                   texto: abreviarSoles(x.costo),
-                  detalle: `${t && t.costo > 0 ? Math.round((x.costo / t.costo) * 100) : 0} % del costo · ${x.personas} personas`,
+                  detalle: `${t && t.costo > 0 ? Math.round((x.costo / t.costo) * 100) : 0} % del costo · ${x.personas} personas en el año`,
                 }))}
               />
             </TarjetaInfo>
@@ -553,7 +570,7 @@ export default function CostosPage() {
                     etiqueta: s.nombre,
                     valor: s.costo_por_hora ?? 0,
                     texto: formatSoles(s.costo_por_hora ?? 0),
-                    detalle: `${s.personas} personas`,
+                    detalle: `${s.personas} personas en el año`,
                   }))}
                 />
                 <p className="mt-3 text-xs text-taupe">{interruptoresVidrio().panel ? "Se compara por hora, no por el total." : "Se compara por hora, no por el total: una sede con más gente siempre costará más."}</p>
