@@ -37,6 +37,7 @@ import {
   type Esperado, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { esPiso, puestoDesdeFilas, textoPuesto, type PuestoDelDia } from "@/lib/admin/almacen";
+import { sumarDias } from "@cayla-dynamic/shared";
 
 /** Una fila de `puestos_planificados` de esta persona. */
 export interface PuestoFila {
@@ -67,12 +68,6 @@ export interface TotalDeSemana {
 }
 
 // ── Fechas ───────────────────────────────────────────────────────────────────
-
-/** Suma (o resta) días a una fecha ISO, sin pasar por la hora local del navegador. */
-export function sumarDias(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-}
 
 /** El lunes de la semana de esa fecha. La semana va de lunes a domingo. */
 export function lunesDe(iso: string): string {

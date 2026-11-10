@@ -34,19 +34,6 @@ export function fechaDiaMes(iso: string): string {
   return `${d}/${m}`;
 }
 
-/** "2026-07-28" + 1 → "2026-07-29" */
-export function sumarDias(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-}
-
-/** Días entre dos fechas AAAA-MM-DD, contando los dos extremos. */
-export function diasEntre(desde: string, hasta: string): number {
-  const [y1, m1, d1] = desde.split("-").map(Number);
-  const [y2, m2, d2] = hasta.split("-").map(Number);
-  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000) + 1;
-}
-
 /** timestamptz → "13 jul 2026" en Lima. */
 export function fechaLargaLima(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", {

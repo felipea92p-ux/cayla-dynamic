@@ -22,7 +22,7 @@
  * qué cambia y qué no.
  */
 
-import { etiquetaDePrueba, situacionDePrueba, type ClaseParametro } from "@cayla-dynamic/shared";
+import { etiquetaDePrueba, situacionDePrueba, type ClaseParametro, sumarDias } from "@cayla-dynamic/shared";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 
 /** Una fila de `fn_parametros_listar` (0552), con los numéricos ya como número. */
@@ -237,12 +237,6 @@ export function notaDeEfecto(parametro: string): string | null {
 // Los parámetros que rigen POR FECHAS (clase plata, 0574)
 // ============================================================================
 
-/** Un día más a una fecha ISO (aaaa-mm-dd), sin pasar por la hora local. */
-function diaSiguiente(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d + 1));
-  return t.toISOString().slice(0, 10);
-}
 
 /**
  * La fecha con la que NACE el campo «Rige desde»: hoy, salvo que la última
@@ -252,7 +246,7 @@ function diaSiguiente(iso: string): string {
  */
 export function fechaInicialDeVigencia(hoy: string, ultimaDesde: string | null): string {
   if (!ultimaDesde || ultimaDesde < hoy) return hoy;
-  return diaSiguiente(ultimaDesde);
+  return sumarDias(ultimaDesde, 1);
 }
 
 /**
@@ -261,7 +255,7 @@ export function fechaInicialDeVigencia(hoy: string, ultimaDesde: string | null):
  * fecha no caiga en un periodo ya pagado, y eso lo dice la vista previa).
  */
 export function fechaMinimaDeVigencia(ultimaDesde: string | null): string | null {
-  return ultimaDesde ? diaSiguiente(ultimaDesde) : null;
+  return ultimaDesde ? sumarDias(ultimaDesde, 1) : null;
 }
 
 /**

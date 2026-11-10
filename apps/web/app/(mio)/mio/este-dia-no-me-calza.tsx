@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { rangoDelDiaLima } from "@cayla-dynamic/shared";
-import { sumarDias } from "@/lib/mi-semana";
+import { rangoDelDiaLima, sumarDias } from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Filtro } from "@/components/ui/filtro";
 import { AreaTexto } from "@/components/ui/area-texto";

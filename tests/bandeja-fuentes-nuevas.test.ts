@@ -19,10 +19,11 @@ import {
   traerFuentesBandeja, type FuentesBandeja,
 } from "../apps/web/lib/admin/bandeja-fuentes";
 import {
-  ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias, urgenciaBono, urgenciaContrato,
+  ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, urgenciaBono, urgenciaContrato,
   urgenciaCaso, urgenciaDiaPorRevisar, urgenciaFeriado,
 } from "../apps/web/lib/admin/bandeja-urgencia";
 import type { DocDisciplina } from "../apps/web/lib/admin/disciplina";
+import { sumarDias } from "@cayla-dynamic/shared";
 
 const HOY = "2026-09-15";
 const PERIODO = { fecha_ini: "2026-08-29", fecha_fin: "2026-09-28" };

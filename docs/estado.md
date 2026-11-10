@@ -6,6 +6,41 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-09 — Contratos: la pestaña «Recibo por honorarios» · migración **0610 SIN PEGAR (en DOS partes)** · prueba 496 · rama `claude/rxh-contracts-view-9ccdd2` · **solo en local, sin subir**
+
+**De dónde sale.** Felipe preguntó cómo se ven los contratos de los RxH: no se veían. Contratos los dejaba fuera a propósito (el generador
+solo hace contratos de trabajo y convenios), y con eso nada avisaba si alguien por honorarios trabajaba sin contrato escrito o con uno vencido.
+
+**Decidido por Felipe (2026-11-09), entre tres opciones.** «Registrar el firmado» (no generarlo: no hay un texto de locación aprobado por el
+abogado) dentro de Contratos, con tabla propia. Descartadas: meterlo en `contratos_generados` (exige cargo, remuneración y horas, y su fecha de
+fin alimenta el art. 77 y el corte de faltas: indicios laborales sobre un vínculo civil) y el Archivo de la empresa (no sabe de personas, no
+avisaría a quién le falta). Aprobó los cuatro pasos: ver, registrar, anular/terminar y avisar.
+
+**Construido.** `contratos_locacion` (ninguna fila se edita ni se borra; no escribe en `personas`), bucket privado `contratos-locacion`,
+`fn_locaciones_tablero` (estados: abierta_sin_rxh, vencido, sin_contrato, por_vencer —60 días, la ventana de Contratos—, por_empezar, vigente),
+`fn_locaciones_listar`, `fn_locacion_registrar` (el archivo va primero; a alguien de planilla solo se le archiva una locación ya terminada),
+`fn_locacion_anular`, `fn_locacion_terminar`. Pantalla: `components/contratos/honorarios.tsx`, pestaña con número rojo, historial en el panel
+lateral. Novedad para DO.
+
+**Y cada RxH ve el suyo (pedido por Felipe el 2026-11-10).** En «Lo mío › Contrato» (`app/(mio)/mio/contrato/mis-locaciones.tsx`) y en la
+tarjeta «Tu contrato» de Lo mío. `fn_locaciones_listar` le devuelve a quien no es DO solo lo propio, **sin anulados** (uno anulado puede ser el
+contrato de otra persona registrado por error, con su DNI) y sin los motivos que DO escribe para DO; pedir lo de otra persona da error. Una quinta
+política de Storage le deja abrir su escaneo y ninguno más (`fn_locacion_es_mia`). **No se firma en Dynamic**: para eso hace falta el texto de
+locación aprobado por el abogado y redactarlo dentro del sistema, como el contrato de trabajo.
+
+**Medido.** Banco nativo: la 496, 63/63 (rota a propósito en lo de «ver lo propio», se pone en rojo en 4); la 491 (tiempo real: `contratos_locacion` queda pendiente del lote 3, como `contratos_generados`) y la
+397 siguen en verde. Control: rota en tres puntos (anulado que cuenta, locación vigente para planilla, término antes de la víspera), la 496 se
+pone en rojo en los tres. Las dos partes se pegaron por separado en una base local: la 2 se niega sin la 1, y repegar no rompe nada. En local con
+datos inventados: tablero, formulario, terminar y la banda de «ya no cobra por honorarios»; el registro por PostgREST con la sesión de DO (200). Y como una persona RxH de prueba con cuenta: la tarjeta de Lo mío, sus dos contratos y no el anulado.
+
+**Lo que NO se verificó.** La subida real del escaneo y «Ver contrato» de punta a punta: el entorno local no tiene almacenamiento de archivos.
+Se prueba la primera vez en producción, después de pegar la 0610.
+
+**Queda para Felipe.** Mirarlo en local; pegar la 0610 en DOS partes (cada una sola, en orden) ANTES de fusionar; la fecha de la novedad es la
+del día en que se fusione.
+
+---
+
 ## 2026-11-09 — El Reglamento vigente dice que es la versión 4.0 · migración **0607 SIN PEGAR** · prueba 494 · rama `claude/rit-etiqueta-4-0`
 
 **De dónde sale.** Medido por Felipe en producción el 2026-11-09: el Reglamento vigente en Normas es la publicación 1 con `etiqueta_version`
