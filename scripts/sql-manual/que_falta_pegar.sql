@@ -468,7 +468,7 @@ with repo(numero, nombre, nunca) as (values
     (607, 'el_reglamento_vigente_dice_que_es_la_version_4_0', false),
     (608, 'fn_costos_planilla_vuelve_a_la_version_vigente', false),
     (610, 'el_contrato_de_locacion_de_quien_cobra_por_honorarios', false),
-    (612, 'el_costo_por_persona_no_baja_con_la_rotacion', false)
+    (612, 'costos_que_se_pueden_comparar_entre_sedes', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
