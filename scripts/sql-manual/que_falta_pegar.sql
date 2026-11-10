@@ -470,7 +470,8 @@ with repo(numero, nombre, nunca) as (values
     (610, 'el_contrato_de_locacion_de_quien_cobra_por_honorarios', false),
     (612, 'costos_que_se_pueden_comparar_entre_sedes', false),
     (614, 'el_costo_de_cada_periodo_dice_de_que_esta_hecho', false),
-    (615, 'el_contrato_de_locacion_se_genera_y_se_firma_en_dynamic', false)
+    (615, 'el_contrato_de_locacion_se_genera_y_se_firma_en_dynamic', false),
+    (616, 'la_firma_de_cayla_queda_la_de_su_dia', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

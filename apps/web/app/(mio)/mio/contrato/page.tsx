@@ -35,12 +35,12 @@ import { MisLocaciones } from "./mis-locaciones";
 //
 // LAS DOS FIRMAS SE ESTAMPAN AL MOSTRAR, NUNCA AL GUARDAR — igual que en
 // admin/contratos: `documento_html` congela el texto PACTADO, no cómo se ve.
-// La de la empresa (0397, `fn_firma_empresa`) ya no depende de que quien mire
-// SEA la firmante: es la del cargo, no la de la sesión, así que puede
-// mostrarse aquí, donde quien mira es la propia colaboradora. La suya propia
-// (`fn_mi_firma`, sin cambios) sale de la misma tabla y función que ya usa el
-// editor de admin/personas/[id] — 0397 solo le abrió el guardado a cualquier
-// persona, no solo a admin/líder.
+// Desde la 0616 las dos son las de SU día: la de la empresa se congeló al
+// generar el contrato (`firma_empresa`), y la tuya al confirmarlo
+// (`firma_persona`). Antes salían las de hoy (`fn_firma_empresa`, `fn_mi_firma`),
+// así que cambiar de firmante o redibujar una firma cambiaba un contrato ya
+// firmado. `fn_mi_firma` queda solo para lo que todavía no confirmaste: es la
+// firma con la que lo firmarías.
 function MiContratoContenido() {
   const router = useRouter();
   const supabase = createAdminSupabaseClient();
@@ -60,9 +60,11 @@ function MiContratoContenido() {
     // este contrato sigue mostrando la que confirmaste hasta que vuelvas a
     // confirmar.
     firma_persona_confirmada_at: string | null;
+    // Las firmas de su día (0616): la tuya al confirmar, la de CAYLA al generarlo.
+    firma_persona: string | null;
+    firma_empresa: string | null;
   } | null>(null);
   const [miFirma, setMiFirma] = useState<string | null>(null);
-  const [firmaEmpresa, setFirmaEmpresa] = useState<string | null>(null);
   const [avisoFirma, setAvisoFirma] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [cargando, setCargando] = useState(true);
@@ -123,21 +125,20 @@ function MiContratoContenido() {
     const yoActual = { id: p.id as string, nombre, nombreOficial: (ficha?.nombre_dni as string | null) || nombre };
     setYo(yoActual);
 
-    const [{ data: c, error: eContrato }, { data: mf }, { data: fe }, { data: revs, error: eRevs }, { data: locs, error: eLocs }] = await Promise.all([
+    const [{ data: c, error: eContrato }, { data: mf }, { data: revs, error: eRevs }, { data: locs, error: eLocs }] = await Promise.all([
       // El orden vive en lib/mi-contrato.ts: la Bandeja señala el MISMO papel
       // que abre esta pantalla, y dos `order by` escritos por separado se
       // separan solos con el tiempo.
       ordenarContratoVigente(
         supabase
           .from("contratos_generados")
-          .select("id, tipo, fecha_inicio, fecha_fin, fecha_firma, storage_path, documento_html, firma_persona_confirmada_at")
+          .select("id, tipo, fecha_inicio, fecha_fin, fecha_firma, storage_path, documento_html, firma_persona_confirmada_at, firma_persona, firma_empresa")
           .eq("persona_id", yoActual.id)
           .is("anulado_at", null),
       )
         .limit(1)
         .maybeSingle(),
       supabase.rpc("fn_mi_firma"),
-      supabase.rpc("fn_firma_empresa"),
       // Sin admin de por medio: para quien no es admin, esta misma RPC ya
       // devuelve solo lo suyo (0427), igual que fn_movilidad_revisiones_pedidas.
       supabase.rpc("fn_contrato_revisiones_pedidas", { p_solo_pendientes: false }),
@@ -152,7 +153,6 @@ function MiContratoContenido() {
     }
     setContrato(c as typeof contrato);
     setMiFirma((mf as string | null) ?? null);
-    setFirmaEmpresa((fe as string | null) ?? null);
     // La más reciente primero (fn_contrato_revisiones_pedidas ya ordena por
     // pedida_at desc); si no falló, aunque venga vacía, es una respuesta real.
     type Revision = { motivo: string; pedida_at: string; atendida_at: string | null; respuesta: string | null };
@@ -284,9 +284,14 @@ function MiContratoContenido() {
     );
   }
 
+  // Las dos firmas, las de SU día (0616): la de CAYLA se congeló al generar el
+  // contrato y la tuya al confirmarlo. Antes salían las de hoy —redibujar tu
+  // firma cambiaba la de un contrato ya firmado—. Mientras no lo confirmes, en
+  // tu línea se ve la firma con la que lo firmarías.
+  const firmaTuya = contrato.firma_persona ?? miFirma;
   const html = contrato.documento_html
-    .replaceAll(MARCADOR_FIRMA_EMPRESA, firmaEmpresa ? `<img src="${firmaEmpresa}" alt="Firma de la empresa" />` : "&nbsp;")
-    .replaceAll(MARCADOR_FIRMA_PERSONA, miFirma ? `<img src="${miFirma}" alt="Tu firma" />` : "&nbsp;");
+    .replaceAll(MARCADOR_FIRMA_EMPRESA, contrato.firma_empresa ? `<img src="${contrato.firma_empresa}" alt="Firma de la empresa" />` : "&nbsp;")
+    .replaceAll(MARCADOR_FIRMA_PERSONA, firmaTuya ? `<img src="${firmaTuya}" alt="Tu firma" />` : "&nbsp;");
 
   return (
     <main className="mx-auto w-full min-w-0 max-w-2xl px-4 py-6 sm:p-6 print:p-0">

@@ -617,6 +617,12 @@ export default function ContratosPage() {
   // `abrirGenerado` siempre escribe los dos juntos — no hace falta limpiarlo
   // por separado en cada cierre del visor.
   const [firmaPersonaAbierta, setFirmaPersonaAbierta] = useState<string | null>(null);
+  // La firma de CAYLA del contrato abierto desde el archivo: la que se congeló al
+  // generarlo (0616), no la de hoy —si cambia el firmante o redibuja su firma, un
+  // contrato ya firmado tiene que seguir mostrando la de su día—. `null` cuando
+  // el visor muestra un borrador recién generado o corregido: nació con la firma
+  // de este momento, que es la de `firmaUrl`.
+  const [firmaEmpresaAbierta, setFirmaEmpresaAbierta] = useState<{ imagen: string | null } | null>(null);
 
   const [subiendoPara, setSubiendoPara] = useState<string | null>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -1766,6 +1772,7 @@ export default function ContratosPage() {
     // ve un contrato. Sin firma del colaborador: acaba de nacer, nadie la ha
     // confirmado todavía.
     setFirmaPersonaAbierta(null);
+    setFirmaEmpresaAbierta(null);
     setDocumentoAbierto(html);
     setBorrador({ id: id as string, html });
     await cargar();
@@ -1876,6 +1883,7 @@ export default function ContratosPage() {
     // archivo. Sin firma del colaborador: si alguna vez la confirmó, ese
     // contrato ya no sería un borrador y no se estaría corrigiendo.
     setFirmaPersonaAbierta(null);
+    setFirmaEmpresaAbierta(null);
     setDocumentoAbierto(html);
     await cargar();
     avisar("ok", "Borrador corregido. Vuelve a imprimirlo antes de firmarlo — el anterior ya no vale.");
@@ -2016,16 +2024,17 @@ export default function ContratosPage() {
   async function abrirGenerado(id: string) {
     const { data, error } = await supabase
       .from("contratos_generados")
-      .select("documento_html, firma_persona")
+      .select("documento_html, firma_persona, firma_empresa")
       .eq("id", id)
       .maybeSingle();
     if (error || !data) {
       avisar("error", mensajeDeError(error, "abrir el contrato"));
       return;
     }
-    const fila = data as { documento_html: string; firma_persona: string | null };
+    const fila = data as { documento_html: string; firma_persona: string | null; firma_empresa: string | null };
     setDocumentoAbierto(fila.documento_html);
     setFirmaPersonaAbierta(fila.firma_persona);
+    setFirmaEmpresaAbierta({ imagen: fila.firma_empresa });
   }
 
   /**
@@ -2461,18 +2470,25 @@ export default function ContratosPage() {
   // borrador en algo que parece un documento ya firmado. Acá solo se reemplaza
   // el marcador para la vista y la impresión.
   //
-  // Y siempre la del firmante configurado, no la de quien mira: `fn_firma_empresa`
-  // no recibe parámetros, así que no hay forma —ni la debe haber— de estampar la
-  // de otra persona. Se estampa por defecto a quien abre el panel con el rol que
-  // corresponde (Gerencia, DO, líder de equipo).
+  // Y nunca la de quien mira: la de un contrato del archivo es la que se congeló
+  // al generarlo (0616, `firmaEmpresaAbierta`); la de un borrador recién nacido,
+  // la del firmante configurado hoy (`fn_firma_empresa`, sin parámetros, así que
+  // no hay forma —ni la debe haber— de estampar la de otra persona). Se estampa
+  // a quien abre el panel con el rol que corresponde (Gerencia, DO, líder de
+  // equipo). Un contrato viejo sin firma congelada sale con la raya en blanco:
+  // no se le pone la de hoy (decisión de Felipe, 2026-11-10).
+  // `puedeEstampar` sigue diciendo en el generador si un contrato NUEVO saldrá firmado.
   const puedeEstampar = puedeEstamparFirmaDeEmpresa(rol) && Boolean(firmaUrl);
+  const firmaEmpresaVisor = puedeEstamparFirmaDeEmpresa(rol)
+    ? (firmaEmpresaAbierta ? firmaEmpresaAbierta.imagen : firmaUrl)
+    : null;
   // La del colaborador (0402) es distinta: no depende de quién mira el panel,
   // sino de si ESE contrato puntual ya tiene una firma confirmada congelada.
   // Por eso recibe la imagen como parámetro en vez de leerla de un estado
   // global como `firmaUrl` — cada contrato trae la suya, o ninguna.
   const estampar = (html: string, firmaPersona?: string | null) =>
     html
-      .replaceAll(MARCADOR_FIRMA_EMPRESA, puedeEstampar ? `<img src="${firmaUrl}" alt="Firma" />` : "&nbsp;")
+      .replaceAll(MARCADOR_FIRMA_EMPRESA, firmaEmpresaVisor ? `<img src="${firmaEmpresaVisor}" alt="Firma" />` : "&nbsp;")
       .replaceAll(MARCADOR_FIRMA_PERSONA, firmaPersona ? `<img src="${firmaPersona}" alt="Firma del colaborador" />` : "&nbsp;");
   // Un borrador recién generado o recién corregido llega acá con
   // `firmaPersonaAbierta` en null: todavía no tiene fila de la que leer una
@@ -3299,6 +3315,7 @@ export default function ContratosPage() {
                           variante="secundario"
                           onClick={() => {
                             setFirmaPersonaAbierta(null);
+                            setFirmaEmpresaAbierta(null);
                             setDocumentoAbierto(borrador.html);
                           }}
                         >

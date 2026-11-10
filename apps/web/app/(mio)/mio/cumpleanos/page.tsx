@@ -55,6 +55,11 @@ interface MiDocumento {
   fecha_firma: string | null;
   firma: string | null;
   monto_declarado: number | null;
+  // La firma de CAYLA de ESTA constancia, quién y con qué cargo (0616): la de
+  // su día, no la de hoy. Null en una vieja que no se pudo probar.
+  firmaEmpresa: string | null;
+  firmanteNombre: string | null;
+  firmanteCargo: string | null;
 }
 
 interface Yo {
@@ -160,7 +165,10 @@ function MiCumpleanosContenido() {
 
     // La constancia es la que dice la base, por su id — no «la de este año»
     // según el reloj del navegador, que en año nuevo puede ir por delante.
-    type FilaDoc = { id: string; fecha_firma: string | null; firma_persona: string | null; monto_declarado: number | null };
+    type FilaDoc = {
+      id: string; fecha_firma: string | null; firma_persona: string | null; monto_declarado: number | null;
+      firma_empresa: string | null; firmante_empresa_nombre: string | null; firmante_empresa_cargo: string | null;
+    };
     const doc = miBono?.documento_id
       ? ((docs as FilaDoc[] | null) ?? []).find((d) => d.id === miBono.documento_id)
       : undefined;
@@ -168,6 +176,9 @@ function MiCumpleanosContenido() {
       fecha_firma: doc.fecha_firma,
       firma: doc.firma_persona,
       monto_declarado: doc.monto_declarado,
+      firmaEmpresa: doc.firma_empresa,
+      firmanteNombre: doc.firmante_empresa_nombre,
+      firmanteCargo: doc.firmante_empresa_cargo,
     } : null);
   }, [supabase, router]);
 
@@ -320,9 +331,9 @@ function MiCumpleanosContenido() {
             nombreOficial={yo?.nombreOficial ?? null}
             documento={yo?.documento ?? null}
             firmaPersona={miDocumento.firma}
-            firmaEmpresa={firmaEmpresa}
-            firmanteNombre={firmanteNombre}
-            firmanteCargo={firmanteCargo}
+            firmaEmpresa={miDocumento.firmaEmpresa}
+            firmanteNombre={miDocumento.firmanteNombre ?? firmanteNombre}
+            firmanteCargo={miDocumento.firmanteCargo ?? firmanteCargo}
           />
         </div>
       )}
