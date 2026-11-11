@@ -6,7 +6,24 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-10 — El contrato de locación se genera y se firma en Dynamic · migración **0615 SIN PEGAR** · pruebas 500 y `tests/locacion-texto.test.ts` · rama `claude/locacion-digital` · **solo en local, esperando al abogado**
+## 2026-11-11 — Producción al día con main: la 0615 y la 0614 pegadas y verificadas · sin código · rama `claude/estado-0614-0615-pegadas`
+
+**Qué pasó.** El #732 (contrato de locación de RxH) se fusionó el 2026-11-10 a las 17:04 (hora de Lima) desde la cuenta `Danytristee`,
+sin la 0615 pegada antes: unas 16 horas la pestaña de RxH, «Generar contrato» y Lo mío › Contrato de quien cobra por honorarios llamaron
+funciones que no existían. No había ningún contrato de locación registrado, así que no quedó nada a medias. La 0614 (los conceptos de
+`fn_costos_planilla`, del #730) también estaba fusionada y sin pegar: el gráfico «En qué se va la planilla» no se dibujaba y lo decía.
+
+**Cómo se arregló.** El 2026-11-11, a pedido explícito de Felipe («pega las migraciones faltantes en producción»), Claude las aplicó por
+el MCP de Supabase con el texto exacto de main —la regla sigue siendo que las pega Felipe; esta vez la pidió él—. Antes se midió que
+producción tuviera las versiones de partida (las cuatro de la 0610 y la `fn_costos_planilla` de la 0612) y se calcularon en una base
+desechable los md5 de llegada. Después: la 0615 dio `10 | 8 | 3 | 615` y sus siete funciones llegaron byte por byte (sin `\r`); la 0614 dio
+`al_dia = true`, `con_conceptos = true` (`f499f51d…`, 11 097). Comparado el registro contra main: solo faltan la 0213 y la 0519, que
+`que_falta_pegar.sql` marca como «nunca».
+
+**Lo que enseña.** La migración se pega ANTES de fusionar, también cuando fusiona alguien del equipo desde GitHub: el freno de las
+sesiones (`comentar-antes-de-fusionar.sh`) no ve una fusión hecha desde la web.
+
+## 2026-11-10 — El contrato de locación se genera y se firma en Dynamic · migración **0615 PEGADA Y VERIFICADA (2026-11-11)** · pruebas 500 y `tests/locacion-texto.test.ts` · FUSIONADO Y PUBLICADO ([#732](https://github.com/felipea92p-ux/cayla-dynamic/pull/732), 2026-11-10) · **el texto sigue en BORRADOR, esperando al abogado**
 
 **De dónde sale.** Felipe pidió que a los RxH se les genere y firme el contrato en Dynamic, «como a planilla y practicantes», con «cargo,
 horas, sueldo, modalidad». Al ver que esas cuatro cosas son los indicios que desnaturalizan una locación (art. 4 del D.S. 003-97-TR,
@@ -30,25 +47,25 @@ precisas (CC 1398 y 1430), la cesión de derechos es expresa (D. Leg. 822, arts.
 datos personales (Ley 29733), comunicaciones, y el acto de firma descrito como lo hace Dynamic (reglamento de la Ley 27269, art. 2-A).
 El detalle y las fuentes están en el encabezado de `locacion-texto.ts`. **Sin tocar, decidido por Felipe el 2026-11-10:** cómo se
 escriben los `por_horas` (se le propuso una tarifa por hora y eligió dejarlo como está).
-`fn_locacion_documento` devuelve además `generado_at` y `firmado_at` (cambio dentro de la 0615, que sigue sin pegar).
+`fn_locacion_documento` devuelve además `generado_at` y `firmado_at`.
 
 **La firma de CAYLA se congela al generar (decisión de Felipe, 2026-11-10).** `fn_firma_empresa()` da la firma de HOY de quien firma
 HOY, y el nombre del firmante queda congelado en el texto: cambiar de firmante o redibujar la firma cambiaba la rúbrica de todo lo ya
 firmado. Ahora `contratos_locacion` guarda `firma_empresa` y `firmante_empresa_id` al generar (como la 0531), no se genera si el
 firmante no tiene firma o si el texto nombra a otro, y al firmar se anotan `firma_persona_ip` y `firma_persona_user_agent` (como la
 0423). Felipe decidió lo mismo para **todo** documento que firma CAYLA (contratos de trabajo, declaración de ruta, constancia del bono,
-política salarial), con el relleno de lo viejo solo donde se pueda probar: eso espera la consulta de medición en producción.
+política salarial), con el relleno de lo viejo solo donde se pueda probar: hecho en la 0616 (ver abajo).
 
 **Medido.** La 500, 40/40, y la 496, 63/63, en una base desechable con todas las migraciones; `tests/locacion-texto.test.ts` 21/21 (el
 guardián de vocabulario laboral sigue en verde con el texto nuevo); typecheck en verde. **Verificado en pantalla, en local y con datos
 inventados:** generar desde el panel y ver el documento con las dos firmas y su fecha y hora de Lima. La firma de la persona se hizo
 por SQL, como ella, porque la pantalla no deja firmar un borrador.
 
-**Queda para Felipe.** Quién revisó la primera versión y cuándo (se anota al aprobar); que el revisor vea los cambios de la segunda
-(Word «versión 2», con cuatro preguntas abiertas); y la consulta de medición de la firma de CAYLA en producción. Con
-el texto aprobado se cambia la constante en el mismo PR. Recién ahí: PR, pegar la 0615 (una pegada) antes de fusionar.
+**Queda para Felipe.** Quién revisó la primera versión y cuándo (se anota al aprobar), y que el revisor vea los cambios de la segunda
+(Word «versión 2», con cuatro preguntas abiertas). Mientras `TEXTO_LOCACION_APROBADO` sea `false`, DO genera el contrato con «BORRADOR —
+No firmar» y la persona no lo puede firmar; aprobarlo es cambiar esa constante en un PR, anotando quién y cuándo.
 
-## 2026-11-10 — La firma de CAYLA queda la de su día · migración **0616 PEGADA Y VERIFICADA (2026-11-10)** · prueba 501 · rama `claude/firma-cayla-congelada`
+## 2026-11-10 — La firma de CAYLA queda la de su día · migración **0616 PEGADA Y VERIFICADA (2026-11-10)** · prueba 501 · FUSIONADO Y PUBLICADO ([#731](https://github.com/felipea92p-ux/cayla-dynamic/pull/731), 2026-11-10)
 
 **De dónde sale.** `fn_firma_empresa()` (0398) daba la firma de HOY de quien firma HOY, y las pantallas la estampaban al mostrar; el
 nombre del firmante, en cambio, queda congelado en el texto. Cambiar de firmante o redibujar la firma cambiaba la rúbrica de todo lo
@@ -77,7 +94,7 @@ la_firma_de_cayla_queda_la_de_su_dia`. El frontend de main sigue funcionando sob
 
 **Publicado.** PR #731 fusionado el 2026-11-10 (pedido por Felipe: «fusiona todos los cambios»), con db-tests y ui-tests en verde.
 
-## 2026-11-09 — Contratos: la pestaña «Recibo por honorarios» · migración **0610 PEGADA Y VERIFICADA (2026-11-10)** · prueba 496 · rama `claude/rxh-contracts-view-9ccdd2` · **solo en local, sin subir**
+## 2026-11-09 — Contratos: la pestaña «Recibo por honorarios» · migración **0610 PEGADA Y VERIFICADA (2026-11-10)** · prueba 496 · FUSIONADO Y PUBLICADO ([#728](https://github.com/felipea92p-ux/cayla-dynamic/pull/728))
 
 **De dónde sale.** Felipe preguntó cómo se ven los contratos de los RxH: no se veían. Contratos los dejaba fuera a propósito (el generador
 solo hace contratos de trabajo y convenios), y con eso nada avisaba si alguien por honorarios trabajaba sin contrato escrito o con uno vencido.
@@ -112,7 +129,7 @@ del día en que se fusione.
 
 ---
 
-## 2026-11-09 — El Reglamento vigente dice que es la versión 4.0 · migración **0607 SIN PEGAR** · prueba 494 · rama `claude/rit-etiqueta-4-0`
+## 2026-11-09 — El Reglamento vigente dice que es la versión 4.0 · migración **0607 REGISTRADA EN PRODUCCIÓN (2026-11-10, visto el 2026-11-11)** · prueba 494 · rama `claude/rit-etiqueta-4-0`
 
 **De dónde sale.** Medido por Felipe en producción el 2026-11-09: el Reglamento vigente en Normas es la publicación 1 con `etiqueta_version`
 vacía y `vigente_desde` 2026-08-11. La etiqueta existe desde la 0265 para cruzar el cargo en papel («4.0») con la base. Se notó por la guía de
