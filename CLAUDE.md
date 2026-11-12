@@ -205,7 +205,9 @@ el aire ya era esa misma web. En el panel de Vercel ese salto se ve como
 despliegue «Canceled» con el motivo en el log: no es un error. Ojo al tocarlo:
 Vercel corre el filtro DESPUÉS de aplicar el `.vercelignore` (medido en el log
 del #734), y ese archivo borra `scripts/`. Por eso el filtro vive en
-`apps/web/ci/`, y una prueba falla si una línea del `.vercelignore` lo alcanza.
+`apps/web/ci/`, y `.git` ya NO está en el `.vercelignore`: con él, el filtro no
+tenía con qué comparar y compilaba siempre. Una prueba falla si una línea del
+`.vercelignore` vuelve a alcanzar cualquiera de los dos.
 
 Lo que eso significa, y hay que tenerlo presente al pedir permiso:
 
