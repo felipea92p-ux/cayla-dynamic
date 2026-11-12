@@ -77,10 +77,12 @@ export function decidir({ entorno, cambiadas, desde = "la última versión compi
   const deLaWeb = cambiadas.find((a) => tocaLaWeb([a]));
   if (deLaWeb) return { compilar: true, motivo: `${donde}: «${deLaWeb}» cambia lo que compila la web` };
   const n = cambiadas.length;
-  return {
-    compilar: false,
-    motivo: `${donde}: ninguno de los ${n} archivo${n === 1 ? "" : "s"} que cambiaron desde ${desde} es de la web (${cambiadas.slice(0, 3).join(", ")}${n > 3 ? ", …" : ""})`,
-  };
+  const lista = `${cambiadas.slice(0, 3).join(", ")}${n > 3 ? ", …" : ""}`;
+  const motivo =
+    n === 1
+      ? `el único archivo que cambió desde ${desde} no es de la web (${lista})`
+      : `ninguno de los ${n} archivos que cambiaron desde ${desde} es de la web (${lista})`;
+  return { compilar: false, motivo: `${donde}: ${motivo}` };
 }
 
 /**
