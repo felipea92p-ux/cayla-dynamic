@@ -1,4 +1,6 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "ignoreCommand": "node ci/vercel-ignorar.mjs",
   "crons": [
     {
       "path": "/api/alertas-encargadas",

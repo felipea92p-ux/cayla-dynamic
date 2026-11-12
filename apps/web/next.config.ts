@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_VERSION_DESPLIEGUE: process.env.VERCEL_DEPLOYMENT_ID ?? "",
   },
+
+  // Solo en Vercel, `next build` no vuelve a revisar los tipos (2026-11-12). Vercel cobra la compilación por minuto y
+  // por núcleo —US$ 84 de una factura de 102— y esa revisión ya la hace el CI ANTES de fusionar: `pnpm typecheck` en el
+  // job `ui-tests`, obligatorio para entrar a `main`. Ese typecheck corre `next typegen` antes de `tsc`, así que revisa
+  // también el validador de rutas que genera Next (`.next/types/validator.ts`), que era lo único que `next build`
+  // revisaba y `tsc` solo no. Fuera de Vercel —el CI, la máquina de cada uno— `next build` los sigue revisando.
+  // Cuánto ahorra, medido: ~4 s por compilación en Vercel cuando trae la caché incremental de la anterior, ~30 s
+  // cuando no (local en frío: 32.6 de 49 s de `next build`).
+  typescript: { ignoreBuildErrors: process.env.VERCEL === "1" },
 };
 
 export default withSentryConfig(nextConfig, {

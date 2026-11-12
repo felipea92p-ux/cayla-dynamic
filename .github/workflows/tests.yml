@@ -74,8 +74,16 @@ jobs:
       # --no-verify y no existe en un clon donde nadie configuró core.hooksPath.
       # Acá no se salta: es el único freno que no depende de la máquina de quien
       # empuja.
+      # Incluye `next typegen`, así que revisa también el validador de rutas de Next. Por eso Vercel ya no repite esta
+      # revisión al compilar (`typescript.ignoreBuildErrors` con VERCEL=1 en apps/web/next.config.ts): si este paso
+      # dejara de correr antes de fusionar, un error de tipos llegaría a producción sin que nadie lo viera.
       - name: Verificar tipos
         run: pnpm typecheck
 
       - name: Correr pruebas de interfaz (Vitest)
         run: pnpm test
+
+      # El «Ignored Build Step» de Vercel (apps/web/ci/vercel-ignorar.mjs) decide si producción se compila. Sin
+      # dependencias: solo Node y git.
+      - name: Probar el filtro de compilación de Vercel
+        run: node --test apps/web/ci/vercel-ignorar.test.mjs

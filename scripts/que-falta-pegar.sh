@@ -180,6 +180,21 @@ md5de() {
   if command -v md5 >/dev/null 2>&1; then md5 -q; else md5sum | cut -d' ' -f1; fi
 }
 
+# Lo que hace `pbcopy` con LC_CTYPE=C (0185): leer UTF-8 como Mac OS Roman. En la
+# Mac es el `iconv` de siempre. Fuera de la Mac NO: el `iconv -f MAC` de glibc
+# (Linux, las sesiones en la nube) traduce algún byte distinto que el de Apple
+# —el 0xF0 es la manzana U+F8FF en Apple—, y el 2026-11-12 eso dio otro md5 para
+# la 0476 (b04fd8e2… contra el 93e3ea7d… de main) y el hook de pre-push
+# «arregló» el archivo bueno con el valor malo. El `mac_roman` de Python es el
+# mapeo de Apple: con él, Linux da el mismo md5 que la Mac (medido con la 0476).
+mac_roman_a_utf8() {
+  if [ "$(uname)" != Darwin ] && command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import sys; sys.stdout.buffer.write(sys.stdin.buffer.read().decode("mac_roman").encode())'
+  else
+    iconv -f MAC -t UTF-8
+  fi
+}
+
 # ── DE UNA FUNCIÓN A SU md5, como lo guardaría Postgres ─────────────────────
 #
 # Hasta el 2026-11-09 esto servía solo a `fn_planilla_calcular`, solo con los
@@ -312,7 +327,7 @@ catalogo() {
           esac
           echo "             when '$h' then '✓   al día ($NUM_ULTIMO$como)'"
         done
-    ROTO=$(iconv -f MAC -t UTF-8 < "$D/$NUM_ULTIMO.tal" 2>/dev/null | md5de)
+    ROTO=$(mac_roman_a_utf8 < "$D/$NUM_ULTIMO.tal" 2>/dev/null | md5de)
     [ -n "$ROTO" ] && echo "             when '$ROTO' then '✗   $NUM_ULTIMO con los acentos rotos — vuelve a pegarla'"
     VIEJAS=$(ls "$D" | sed -E 's/\..*//' | sort -un | grep -v -x "$NUM_ULTIMO" | sort -rn)
     for NUM in $VIEJAS; do
