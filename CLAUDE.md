@@ -202,7 +202,10 @@ la compilación era US$ 84 de 102, y 7 de cada 30 fusiones no tocaban la web.
 Ante la duda compila. **No cambia la regla**: una fusión que toca la web
 publica igual, y una de solo docs/SQL no publica *nada nuevo* — lo que está en
 el aire ya era esa misma web. En el panel de Vercel ese salto se ve como
-despliegue «Canceled» con el motivo en el log: no es un error.
+despliegue «Canceled» con el motivo en el log: no es un error. Ojo al tocarlo:
+Vercel corre el filtro DESPUÉS de aplicar el `.vercelignore` (medido en el log
+del #734), y ese archivo borra `scripts/`. Por eso el filtro vive en
+`apps/web/ci/`, y una prueba falla si una línea del `.vercelignore` lo alcanza.
 
 Lo que eso significa, y hay que tenerlo presente al pedir permiso:
 
