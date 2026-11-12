@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "tema:auditar": "node tema/cli.mjs",
     "tema:colores": "node tema/colores-sueltos.mjs",
     "responsive:check": "node responsive/cli.mjs",

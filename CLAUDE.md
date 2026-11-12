@@ -190,8 +190,19 @@ Vista previa sin permiso: `npx vercel --yes`.
 ⚠️ **PERO OJO: `main` se publica SOLA. Fusionar un PR ES desplegar a
 producción.** Medido el 2026-09-10 y decidido por Felipe ese día: se queda así.
 La integración de Git de Vercel tiene `main` como rama de producción, así que
-**cualquier push a `main` publica** — se comprobó con un commit que solo cambia
-un `.md` y aun así redesplegó en menos de un minuto.
+**cualquier push a `main` que toque la web publica** — se comprobó con un commit
+que solo cambia un `.md` y aun así redesplegó en menos de un minuto.
+
+Desde el 2026-11-12 ese `.md` ya no redespliega: el «Ignored Build Step»
+(`apps/web/ci/vercel-ignorar.mjs`, `ignoreCommand` de `apps/web/vercel.json`)
+salta la compilación cuando nada de lo que cambió desde la última versión
+compilada es de la web (`apps/web`, `packages/`, el lockfile y lo que arma la
+instalación; la lista es `RUTAS_QUE_COMPILA_LA_WEB`). Se hizo por la factura:
+la compilación era US$ 84 de 102, y 7 de cada 30 fusiones no tocaban la web.
+Ante la duda compila. **No cambia la regla**: una fusión que toca la web
+publica igual, y una de solo docs/SQL no publica *nada nuevo* — lo que está en
+el aire ya era esa misma web. En el panel de Vercel ese salto se ve como
+despliegue «Canceled» con el motivo en el log: no es un error.
 
 Lo que eso significa, y hay que tenerlo presente al pedir permiso:
 
@@ -795,7 +806,7 @@ siguen valiendo los trece tokens, la regla de `receta-suelta` y lo escrito aquí
 del estreno en el tablero), no antes: es el aspecto al que vuelve una superficie si se apaga.
 
 **Encender o apagar una superficie es tocar su variable en Vercel Y volver a construir, con las fusiones frenadas.** Una variable cambiada se
-publica con la siguiente fusión de cualquier sesión: sin ese cuidado, el cambio ocurre sin que nadie elija el momento. Y al revés: volver al
+publica con la siguiente fusión de cualquier sesión que toque la web (las de solo docs o SQL ya no compilan): sin ese cuidado, el cambio ocurre sin que nadie elija el momento. Y al revés: volver al
 despliegue anterior sin quitar la variable dura solo hasta esa siguiente fusión. Así se hizo el estreno del terminal: se miró que ningún PR tuviera
 la fusión armada, se creó la variable y se reconstruyó el despliegue vigente con `vercel redeploy`.
 
