@@ -26,8 +26,10 @@
  * dependencias, así que solo usa Node y `git`. Entiende 0 = no compilar, 1 = compilar. `git diff --name-only` da las
  * rutas desde la raíz del repositorio aunque se corra en `apps/web`.
  *
- * POR QUÉ VIVE EN `apps/web/ci/` Y NO EN `scripts/`. El `.vercelignore` de la raíz borra `scripts/` (y cualquier carpeta
- * que se llame `scripts`) del clon de Vercel antes de compilar. Aquí no lo alcanza.
+ * POR QUÉ VIVE EN `apps/web/ci/` Y NO EN `scripts/`. Vercel aplica el `.vercelignore` de la raíz ANTES de correr este
+ * filtro (medido en el log de la vista previa del #734), y ese archivo borra `scripts/` (y cualquier carpeta que se
+ * llame `scripts`). Aquí no lo alcanza. Por lo mismo, `.git` ya no está en el `.vercelignore`: sin él, git no responde
+ * y el filtro compila siempre. Las dos cosas las vigila una prueba.
  */
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
@@ -89,6 +91,13 @@ export function decidir({ entorno, cambiadas, desde = "la última versión compi
 export function cambiadasDesde(anterior, cwd = process.cwd()) {
   if (!anterior) return { cambiadas: null, error: "no hay versión anterior compilada en esta rama" };
   try {
+    // Primero, que haya repositorio y que el commit esté en el clon. Sin esto, fuera de un repositorio `git diff A HEAD`
+    // compara ARCHIVOS llamados así (modo --no-index): pasó en Vercel el 2026-11-12, cuando el `.vercelignore` borraba
+    // `.git` antes del filtro, y el log decía «Could not access '3e546e8…'».
+    execFileSync("git", ["rev-parse", "--verify", "--quiet", `${anterior}^{commit}`], {
+      cwd,
+      stdio: ["ignore", "ignore", "pipe"],
+    });
     const salida = execFileSync("git", ["diff", "--name-only", anterior, "HEAD"], {
       cwd,
       encoding: "utf8",
@@ -96,7 +105,7 @@ export function cambiadasDesde(anterior, cwd = process.cwd()) {
     });
     return { cambiadas: salida.split("\n").filter(Boolean), error: null };
   } catch (e) {
-    const detalle = String(e.stderr || e.message || e).trim().split("\n")[0];
+    const detalle = String(e.stderr || "").trim().split("\n")[0] || `no está en el clon (${e.message.split("\n")[0]})`;
     return { cambiadas: null, error: `git no pudo comparar con ${anterior.slice(0, 7)}: ${detalle}` };
   }
 }

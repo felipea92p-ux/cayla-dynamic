@@ -32,7 +32,13 @@ tests
 **/*.test.sql
 
 # Control de versiones
-.git
+#
+# `.git` NO va en esta lista (2026-11-12). Vercel aplica este archivo ANTES de
+# correr el «Ignored Build Step» (apps/web/ci/vercel-ignorar.mjs), y ese filtro
+# necesita git para saber qué cambió: con `.git` aquí, el log de la vista previa
+# del #734 dio «git no pudo comparar… Could not access» y compilaba siempre.
+# Subirlo tampoco es un riesgo: el CLI de Vercel ya excluye `.git` por defecto, y
+# en un despliegue desde GitHub el clon no se sube a ningún lado.
 .github
 
 # Material de trabajo con datos del equipo que aparece suelto en la raíz. Un

@@ -161,14 +161,16 @@ test("sin .git (si Vercel lo borrara antes del filtro), se compila", (t) => {
   assert.match(sinGit.stdout, /^Se compila: .*\[git no pudo comparar/);
 });
 
-test("el .vercelignore de la raíz no borra el filtro", () => {
-  // Si una línea del .vercelignore alcanzara apps/web/ci, Vercel correría `node ci/vercel-ignorar.mjs` sobre un archivo
-  // borrado: node sale con 1 y se compilaría siempre, en silencio. Se revisa con las reglas simples que usa ese archivo.
+test("el .vercelignore de la raíz no borra el filtro ni .git", () => {
+  // Vercel aplica el .vercelignore ANTES de correr el filtro (log de la vista previa del #734). Si una línea alcanzara
+  // apps/web/ci, Vercel correría `node ci/vercel-ignorar.mjs` sobre un archivo borrado; si alcanzara `.git`, el filtro no
+  // tendría con qué comparar. En los dos casos compilaría siempre, en silencio. Se revisa con las reglas simples que usa
+  // ese archivo.
   const lineas = readFileSync(join(RAIZ, ".vercelignore"), "utf8")
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith("#") && !l.startsWith("!"));
-  const tramos = ["apps", "web", "ci", "vercel-ignorar.mjs"];
+  const tramos = ["apps", "web", "ci", "vercel-ignorar.mjs", ".git"];
   for (const patron of lineas) {
     const limpio = patron.replace(/^\*\*\//, "").replace(/^\//, "").replace(/\/$/, "");
     const re = new RegExp(`^${limpio.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*")}$`);
