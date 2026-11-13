@@ -5,6 +5,10 @@ import {
   atrasadoDelProximo,
   calendario,
   cuandoSePaga,
+  deposito,
+  fechaHabilDeDeposito,
+  filasCsvDeposito,
+  COLUMNAS_CSV_DEPOSITO,
   diaYMes,
   estadoVentana,
   estadosFila,
@@ -393,5 +397,43 @@ describe("cuandoSePaga — la segunda línea de cada tarjeta del resumen", () =>
     const otro = { ...d, grati_s2_pago: "2026-12-20", cts_may_pago: "2026-05-16" };
     expect(cuandoSePaga(otro, "Gratificación")).toBe("Se paga el 15 jul y el 20 dic");
     expect(cuandoSePaga(otro, "CTS")).toBe("Se deposita el 16 may y el 15 nov");
+  });
+});
+
+describe("la lista del depósito — lo que sale del banco en la próxima fecha", () => {
+  const dep = deposito(d, equipo)!;
+  const fila = (id: string) => dep.filas.find((f) => f.persona_id === id);
+
+  it("una fila por persona con derecho, sin practicantes, por nombre", () => {
+    expect(dep.filas.map((f) => f.persona_id)).toEqual(["a", "c", "d", "b", "f"]);
+    expect(fila("e")).toBeUndefined();
+  });
+  it("a depositar es lo acumulado de la ventana que vence (CTS de noviembre)", () => {
+    expect(fila("c")).toMatchObject({ aDepositar: 266.11, pendienteAnterior: 256.4, pagadoDeMas: 0 });
+  });
+  it("lo de mayo va aparte y NO entra en el total a depositar", () => {
+    expect(dep.total).toBe(276.7 + 250.18 + 266.11 + 132.91 + 118);
+    expect(dep.totalPendienteAnterior).toBe(totalAtrasadoDelProximo(equipo, d));
+  });
+  it("un pago de más de otra ventana no resta nada del depósito de nadie", () => {
+    expect(fila("d")).toMatchObject({ aDepositar: 132.91, pagadoDeMas: 0, pendienteAnterior: 0 });
+  });
+  it("si la ventana que vence ya se pagó de más, se deposita cero y se dice cuánto", () => {
+    const sobra = persona({ persona_id: "h", nombre: "Ana", cts_nov: -20, cts_nov_pagada: true, cts_nov_monto_pagado: 300 });
+    expect(deposito(datos([sobra]), [sobra])!.filas[0]).toMatchObject({ aDepositar: 0, pagadoDeMas: 20 });
+  });
+  it("si el 15 cae domingo se deposita el lunes; otro día, el mismo", () => {
+    expect(fechaHabilDeDeposito("2026-11-15")).toBe("2026-11-16");
+    expect(fechaHabilDeDeposito("2026-12-15")).toBe("2026-12-15");
+    expect(dep.fechaDeposito).toBe("2026-11-16");
+  });
+  it("del 16 al 31 de diciembre no hay lista: no se inventa un monto", () => {
+    const fin = datos(equipo, "2026-12-20", { fecha: "2027-05-15", tipo: "CTS", ref: "cts_may" });
+    expect(deposito(fin, equipo)).toBeNull();
+  });
+  it("el Excel lleva las columnas que promete", () => {
+    const filas = filasCsvDeposito(dep);
+    expect(Object.keys(filas[0])).toEqual([...COLUMNAS_CSV_DEPOSITO]);
+    expect(filas.find((f) => f.persona === "Lucía Flores")).toMatchObject({ a_depositar: "266.11", pendiente_anterior_por_decidir: "256.40" });
   });
 });

@@ -485,6 +485,101 @@ export function totalConAtrasado(personas: ProvPersona[], d: ProvData): number |
   return redondear(prox + atrasado);
 }
 
+// ── Lista del depósito ───────────────────────────────────────────────────────
+//
+// Pedido por Felipe el 2026-11-13: que el contador sepa cuánto depositarle a
+// cada persona sin tener que leer la tabla de nueve columnas. La tabla responde
+// «qué se le debe a cada quien»; esta lista responde «qué sale del banco en la
+// próxima fecha, y a quién».
+//
+// Lo atrasado de la ventana anterior (para la CTS de noviembre, lo que quedó de
+// mayo) va en su PROPIA columna y su propio total. No se suma a «a depositar»:
+// ese día se midió que el sistema calcula por horas reales y el contador sobre
+// el mes completo, así que parte de lo «atrasado» es solo diferencia de método
+// (Janis y Sandra) y parte es deuda real (Chiara). Sumarlo pondría plata en el
+// depósito que nadie decidió pagar; separarlo deja la decisión a quien cierra.
+
+export interface FilaDeposito {
+  persona_id: string;
+  nombre: string;
+  sede: string;
+  /** Lo acumulado de la ventana que vence; nunca negativo. */
+  aDepositar: number;
+  /** Si a la persona ya se le pagó de más en esta ventana, cuánto. */
+  pagadoDeMas: number;
+  /** Saldo positivo de ventanas pasadas del mismo beneficio, sin decidir. */
+  pendienteAnterior: number;
+}
+
+export interface Deposito {
+  beneficio: ProximoDesembolso["beneficio"];
+  /** La fecha legal (15 de mayo, julio, noviembre o diciembre). */
+  fechaLegal: string;
+  /** El día que de verdad sale la plata: el lunes si el 15 cae domingo. */
+  fechaDeposito: string;
+  filas: FilaDeposito[];
+  total: number;
+  totalPendienteAnterior: number;
+}
+
+/**
+ * Si la fecha legal cae domingo, el depósito se corre al lunes. Solo mira el
+ * domingo: los feriados no viven en este archivo y no se adivinan. Por texto y
+ * en UTC, para que el huso de la máquina no mueva el día.
+ */
+export function fechaHabilDeDeposito(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const t = Date.UTC(y, m - 1, d);
+  const dia = new Date(t).getUTCDay();
+  if (dia !== 0) return iso;
+  return new Date(t + 86_400_000).toISOString().slice(0, 10);
+}
+
+export function deposito(d: ProvData, personas: ProvPersona[]): Deposito | null {
+  const prox = proximoDesembolso(d);
+  if (!prox || !prox.fiable) return null;
+  const filas: FilaDeposito[] = personas
+    .filter((p) => !esPracticante(p))
+    .map((p) => {
+      const mp = montoProximo(p, d) ?? 0;
+      return {
+        persona_id: p.persona_id,
+        nombre: p.nombre,
+        sede: p.sede,
+        aDepositar: redondear(Math.max(mp, 0)),
+        pagadoDeMas: redondear(Math.max(-mp, 0)),
+        pendienteAnterior: redondear(Math.max(atrasadoDelProximo(p, d) ?? 0, 0)),
+      };
+    })
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  return {
+    beneficio: prox.beneficio,
+    fechaLegal: prox.fecha,
+    fechaDeposito: fechaHabilDeDeposito(prox.fecha),
+    filas,
+    total: redondear(filas.reduce((a, f) => a + f.aDepositar, 0)),
+    totalPendienteAnterior: redondear(filas.reduce((a, f) => a + f.pendienteAnterior, 0)),
+  };
+}
+
+export const COLUMNAS_CSV_DEPOSITO = [
+  "persona",
+  "sede",
+  "a_depositar",
+  "pagado_de_mas",
+  "pendiente_anterior_por_decidir",
+] as const;
+
+export function filasCsvDeposito(dep: Deposito): Record<string, unknown>[] {
+  return dep.filas.map((f) => ({
+    persona: f.nombre,
+    sede: f.sede,
+    a_depositar: f.aDepositar.toFixed(2),
+    pagado_de_mas: f.pagadoDeMas ? f.pagadoDeMas.toFixed(2) : "",
+    pendiente_anterior_por_decidir: f.pendienteAnterior ? f.pendienteAnterior.toFixed(2) : "",
+  }));
+}
+
 // ── Resumen y calendario ─────────────────────────────────────────────────────
 
 export interface ResumenProvisiones {
