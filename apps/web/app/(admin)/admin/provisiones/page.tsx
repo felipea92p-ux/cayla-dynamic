@@ -41,6 +41,8 @@ import { Drawer } from "@/components/ui/drawer";
 import { cx } from "@/components/ui/cx";
 import {
   COLUMNAS_CSV,
+  deposito,
+  diaYMes,
   ETIQUETA_ESTADO_FILA,
   FILTROS_VACIOS,
   esPracticante,
@@ -59,8 +61,9 @@ import {
 import { CalendarioPagos, ResumenProvisiones } from "./ResumenYCalendario";
 import { TablaProvisiones } from "./TablaProvisiones";
 import { DetallePersona } from "./DetallePersona";
+import { ListaDeposito } from "./Deposito";
 
-type Vista = "personas" | "calendario";
+type Vista = "personas" | "deposito" | "calendario";
 const ESTADOS_FILTRO: EstadoFila[] = ["vencido", "pagado_de_mas", "sin_tramo", "al_dia"];
 
 export default function ProvisionesPage() {
@@ -158,6 +161,8 @@ export default function ProvisionesPage() {
   // calendario: ésos son de gratificación, CTS y vacaciones, y meter ahí a
   // quien no devenga ninguno de los tres inflaría el conteo con ceros.
   const conDerecho = useMemo(() => filtradas.filter((p) => !esPracticante(p)), [filtradas]);
+  // Sigue los filtros como las otras dos vistas: con «TRU» elegido, el total es el de TRU.
+  const depositoVisible = useMemo(() => (data ? deposito(data, conDerecho) : null), [data, conDerecho]);
   const filtrado = hayFiltros(filtros);
 
   // CAMBIO 0365 — quienes hoy SÍ tienen tramo pero tuvieron un hueco dentro del
@@ -308,6 +313,8 @@ export default function ProvisionesPage() {
                 {(
                   [
                     ["personas", "Por persona"],
+                    // El nombre dice qué y cuándo: «Depósito CTS · 16 nov».
+                    ["deposito", depositoVisible ? `Depósito ${depositoVisible.beneficio} · ${diaYMes(depositoVisible.fechaDeposito)}` : "Depósito"],
                     ["calendario", "Calendario de pagos"],
                   ] as const
                 ).map(([clave, etiqueta]) => (
@@ -375,7 +382,9 @@ export default function ProvisionesPage() {
               </span>
             </div>
 
-            {vista === "personas" ? (
+            {vista === "deposito" ? (
+              <ListaDeposito deposito={depositoVisible} />
+            ) : vista === "personas" ? (
               <TablaProvisiones
                 data={data}
                 personas={filtradas}
