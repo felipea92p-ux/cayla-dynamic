@@ -21,6 +21,12 @@
 //   Si cambia el firmante o redibuja su firma, un contrato ya firmado
 //   mostraría otra rúbrica bajo el nombre impreso. Decidido por Felipe el
 //   2026-11-10: cada documento guarda la suya (0615, `firma_empresa`).
+//
+// Y DICE SI LO QUE LEYÓ ES UN BORRADOR
+//   Un contrato generado antes de aprobar el texto lleva «BORRADOR — No
+//   firmar» congelado adentro. Quien dibuja lo de alrededor —la tarjeta de
+//   firmar en «Lo mío», el aviso a DO en el panel— lo necesita saber, y el
+//   documento solo se lee aquí: `alLeer` se lo cuenta (`esBorradorLocacion`).
 // ============================================================================
 
 import { useCallback, useEffect, useState } from "react";
@@ -29,7 +35,7 @@ import { Cargando } from "@/components/cargando";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { ImprimibleAparte, useImprimirAparte } from "@/components/ui/imprimible-aparte";
-import { estamparFirmas } from "@/lib/admin/locacion-texto";
+import { esBorradorLocacion, estamparFirmas } from "@/lib/admin/locacion-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 export function DocumentoLocacion({
@@ -38,11 +44,14 @@ export function DocumentoLocacion({
   nombreDelPdf,
   /** Cambia cuando la persona acaba de firmar: vuelve a leer para mostrar su firma. */
   version = 0,
+  alLeer,
 }: {
   supabase: ClienteCayla;
   contratoId: string;
   nombreDelPdf: string;
   version?: number;
+  /** Se llama cada vez que el documento se lee. Tiene que ser estable (un `useCallback` o un `setState`). */
+  alLeer?: (documento: { esBorrador: boolean }) => void;
 }) {
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +72,7 @@ export function DocumentoLocacion({
       setHtml(null);
     } else {
       setError(null);
+      alLeer?.({ esBorrador: esBorradorLocacion(fila.documento_html) });
       setHtml(estamparFirmas(fila.documento_html, {
         empresa: fila.firma_empresa,
         persona: fila.firma_persona,
@@ -71,7 +81,7 @@ export function DocumentoLocacion({
       }));
     }
     setCargando(false);
-  }, [supabase, contratoId]);
+  }, [supabase, contratoId, alLeer]);
 
   // `version` vuelve a pedir el documento después de firmar.
   // eslint-disable-next-line react-hooks/set-state-in-effect
