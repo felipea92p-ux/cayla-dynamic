@@ -14,8 +14,8 @@ Provisiones y la pestaña Depósito (#735) mostraban solo el día por día: **S/
 Y la tarjeta «CTS» restaba los 409.06 pagados de más a una persona de lo que se les debía a las demás.
 
 **Construido.** (1) Provisiones, Depósito y CSV toman por persona y ventana el mayor de los dos cálculos, igual que la planilla
-(`aplicarPisoLegal`, sin SQL); el panel de la persona dice cuándo el monto salió del sueldo al cierre. (2) Las tarjetas suman solo lo que se
-debe; lo pagado de más va aparte. (3) La 0617 pone los cuatro factores de `planilla_provisiones` en Parámetros, en solo lectura: todo
+(`aplicarPisoLegal`, sin SQL); el panel de la persona dice cuándo el monto salió del sueldo al cierre. (2) Lo de las tarjetas que restaban
+lo pagado de más lo resolvió antes el #736 (`porPagar`); esta rama lo había hecho distinto y se quedó con el de main. (3) La 0617 pone los cuatro factores de `planilla_provisiones` en Parámetros, en solo lectura: todo
 cambio queda en el historial y el navegador ya no puede escribirlos (antes una admin podía, sin rastro). No cambia ningún valor.
 
 **Verificado.** Vitest de Provisiones 64/64 y typecheck. En local con un aumento de prueba (deshecho): el monto sube de 281.31 a 301.53 y el
