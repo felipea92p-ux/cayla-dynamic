@@ -995,11 +995,11 @@ plata(etiqueta, funcion, estado, orden) as (
   union all
   select 'PLATA', 'fn_grati_cts_periodo', coalesce((
            select string_agg(case md5(p.prosrc)
-             when '44993de4ede5ee79cf4e48f32a04d1e2' then '✓   al día (0619)'
-             when 'f370072be43a9ddb98738a5b9ae37600' then '✓   al día (0619, pegada sin comentarios)'
-             when '24d05b749098ea84060cbc656a257b4b' then '✓   al día (0619, pegada desde Windows)'
-             when '451e2e547189e388c98cbbd79a1d103d' then '✓   al día (0619, desde Windows y sin comentarios)'
-             when 'a0af765aacfd46e9baa3d05046b60338' then '✗   0619 con los acentos rotos — vuelve a pegarla'
+             when '7dd160467dd28ef4a6cd922c506e04d1' then '✓   al día (0619)'
+             when '0aa5ac491cc26c40f3e6ef764c171a6a' then '✓   al día (0619, pegada sin comentarios)'
+             when 'f7fc7c7c741d355b6ab9395d3a20bd81' then '✓   al día (0619, pegada desde Windows)'
+             when 'f317f2d927fd30f3ea1e1c8c8bb1ed47' then '✓   al día (0619, desde Windows y sin comentarios)'
+             when 'af4a525b4abbad640f7349ee33cdf499' then '✗   0619 con los acentos rotos — vuelve a pegarla'
              when '029c534ff79b6e60d7a5a760be659053' then '❌  se quedó en la 0346 — la vigente es la 0619'
              when '6fa0ce305883c9d3216161998cee43bc' then '❌  se quedó en la 0346 — la vigente es la 0619'
              when '2051d2fc838ca0514a75f32791aef614' then '❌  se quedó en la 0338 — la vigente es la 0619'
