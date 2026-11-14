@@ -353,8 +353,8 @@ function BloqueVentana({
       {usaPisoLegal(p, v.clave) && (
         <p className="text-xs text-taupe">
           {v.cierre < data.as_of
-            ? `Calculado con el sueldo vigente al ${fechaCorta(v.cierre)} para todo el periodo: su sueldo subió y la ley manda usar el del cierre.`
-            : "Calculado con su sueldo de hoy para todo el periodo: su sueldo subió y la ley usa el del cierre, que hasta entonces es el de hoy."}
+            ? `Calculado con el sueldo vigente al ${fechaCorta(v.cierre)} para todo el periodo: su sueldo cambió dentro del periodo y la ley manda usar el del cierre.`
+            : "Calculado con su sueldo de hoy para todo el periodo: su sueldo cambió y la ley usa el del cierre, que hasta entonces es el de hoy."}
         </p>
       )}
       {estado === "pagado_de_mas" && <Origen />}

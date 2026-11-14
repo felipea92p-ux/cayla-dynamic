@@ -269,8 +269,15 @@ duda sobre qué dice la norma: la duda que queda es aritmética.
   cumplimiento). La liquidación por cese (`fn_remuneracion_computable`) sí usa
   el sueldo vigente a una fecha de referencia, como manda la norma — el hueco
   es solo en el pago semestral regular de quien sigue activo. Investigado y
-  verificado contra texto oficial el 2026-08-31. **Sin resolver, pendiente de
-  auditar contra un caso real antes de decidir si se corrige.**
+  verificado contra texto oficial el 2026-08-31. ~~Sin resolver~~ **Resuelto en
+  dos pasos:** la 0338 hizo que el pago tomara el MAYOR entre el día por día y
+  el sueldo del cierre (arregló el aumento), y la **0619 (2026-11-14)** dejó
+  solo el sueldo del cierre: con una bajada ya no se paga de más. Auditado ese
+  día contra la CTS de noviembre de 2026 en producción: siete personas tenían
+  S/ 142.24 por encima de lo legal (S/ 4,251.42), porque mayo–julio seguía con
+  el rango anterior al 29/07. El día por día queda solo como respaldo de quien
+  no tiene tramo de salario a la fecha de cierre. La pantalla de Provisiones
+  (`aplicarPisoLegal`) sigue la misma regla.
   - *Nota de vigencia normativa:* el D.S. 013-2013-PRODUCE está formalmente
     derogado por la Ley 32353 (may-2025), pero esa ley no entra en vigor hasta
     que se publique su reglamento — a la fecha de esta nota no se había

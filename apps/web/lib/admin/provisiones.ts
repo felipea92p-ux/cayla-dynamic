@@ -303,10 +303,20 @@ export function devengadoVentana(p: ProvPersona, clave: VentanaClave): number {
 // de la ley: el 2026-11-13, con la RMV en 1,230 desde el 1-oct, la pantalla
 // decía S/ 4,182.80 para el depósito de noviembre y la ley mandaba 4,393.66.
 //
-// QUÉ HACE. Lo mismo que `fn_grati_cts_periodo` (0338/0346) al PAGAR: lee la
-// base dos veces y, por persona y ventana, se queda con el MAYOR. Ningún monto
-// nuevo nace acá: los dos son de la base. Nunca el promedio ni la suma: si el
-// sueldo bajó, el día por día ya da más y no se le quita nada a nadie.
+// QUÉ HACE. Lo mismo que `fn_grati_cts_periodo` (0619) al PAGAR: lee la base
+// dos veces y, por persona y ventana, se queda con la del SUELDO DEL CIERRE.
+// Ningún monto nuevo nace acá: los dos son de la base.
+//
+// Hasta el 2026-11-14 se quedaba con el MAYOR de los dos (0338), «para no
+// quitarle nada a nadie» cuando el sueldo bajaba. Eso pagaba de más: el tramo
+// de salario guardó el rango completo hasta el 28/07/2026, y para la CTS de
+// noviembre el día por día le ganaba a la lectura legal en siete personas
+// (S/ 142.24 sobre 4,251.42). Felipe decidió ese día pagar lo que manda la ley.
+//
+// EL DÍA POR DÍA QUEDA SOLO COMO RESPALDO: a quien no tiene tramo de salario a
+// la fecha de cierre, la lectura del cierre le devenga cero por falta de dato,
+// no porque no le toque. Se mira lo DEVENGADO (celda + ya cobrado), no el
+// saldo: un saldo en cero porque ya se pagó no es falta de dato.
 //
 // SE ROMPE SI `fn_grati_cts_periodo` cambia su criterio y esto no. Las dos
 // tienen que contestar igual a «cuánto le toca»: si divergen, la pantalla
@@ -320,7 +330,7 @@ export function cortesDelPiso(d: ProvData): { clave: VentanaClave; salarioAl: st
   return ventanasDe(d).map((v) => ({ clave: v.clave, salarioAl: v.cierre < d.as_of ? v.cierre : d.as_of }));
 }
 
-/** Una fila con las ventanas que salieron del piso legal y no del día por día. */
+/** Una fila con las ventanas cuyo monto cambió al usar el sueldo del cierre. */
 export type ConPiso = ProvPersona & { piso_legal?: VentanaClave[] };
 
 /**
@@ -340,11 +350,13 @@ export function aplicarPisoLegal(d: ProvData, pisos: Partial<Record<VentanaClave
     const ganadas: VentanaClave[] = [];
     for (const [clave, indice] of indices) {
       const piso = indice.get(p.persona_id);
-      if (!piso || saldoVentana(piso, clave) <= saldoVentana(p, clave) + EPS) continue;
+      // Sin lectura, o sin nada devengado al cierre (falta el tramo): día por día.
+      if (!piso || devengadoVentana(piso, clave) <= EPS) continue;
+      const cambia = Math.abs(saldoVentana(piso, clave) - saldoVentana(p, clave)) > EPS;
       q[clave] = piso[clave];
       if (clave === "grati_s1") q.be_s1 = piso.be_s1;
       if (clave === "grati_s2") q.be_s2 = piso.be_s2;
-      ganadas.push(clave);
+      if (cambia) ganadas.push(clave);
     }
     if (!ganadas.length) return q;
     q.piso_legal = ganadas;
@@ -357,7 +369,7 @@ export function aplicarPisoLegal(d: ProvData, pisos: Partial<Record<VentanaClave
   return { ...d, personas };
 }
 
-/** true si el monto de esa ventana salió del sueldo al cierre (para decirlo en pantalla). */
+/** true si el sueldo del cierre cambió el monto de esa ventana frente al día por día (para decirlo en pantalla). */
 export function usaPisoLegal(p: ProvPersona, clave: VentanaClave): boolean {
   return (p as ConPiso).piso_legal?.includes(clave) ?? false;
 }

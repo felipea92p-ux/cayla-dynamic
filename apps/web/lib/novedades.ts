@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-14-provisiones-sueldo-del-cierre",
+    fecha: "2026-11-14",
+    titulo: "Provisiones calcula la CTS y la gratificación solo con el sueldo del cierre",
+    queMejoro:
+      "En Pago › Provisiones, la CTS y la gratificación se calculan con el sueldo vigente al cierre del semestre, " +
+      "aplicado a todo el semestre, que es lo que manda la ley. Antes se hacían dos cuentas y se mostraba la mayor.\n\n" +
+      "A quien le cambió el sueldo dentro del semestre le puede cambiar el monto. El panel de cada persona lo dice.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-14-contrato-de-locacion-ya-se-firma",
     fecha: "2026-11-14",
     titulo: "El contrato de quien cobra por honorarios ya se puede firmar",
