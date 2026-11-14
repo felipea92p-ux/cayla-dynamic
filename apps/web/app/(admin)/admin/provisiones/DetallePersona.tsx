@@ -20,6 +20,7 @@ import {
   pagosDe,
   proximoDesembolso,
   subvencionDe,
+  usaPisoLegal,
   ventanasDe,
   type DesembolsoLibro,
   type EstadoVentana,
@@ -319,6 +320,13 @@ function BloqueVentana({ p, v, data, libro, anio }: { p: ProvPersona; v: Ventana
           {fechaCorta(v.pago)}
         </Dato>
       </dl>
+      {usaPisoLegal(p, v.clave) && (
+        <p className="text-xs text-taupe">
+          {v.cierre < data.as_of
+            ? `Calculado con el sueldo vigente al ${fechaCorta(v.cierre)} para todo el periodo: su sueldo subió y la ley manda usar el del cierre.`
+            : "Calculado con su sueldo de hoy para todo el periodo: su sueldo subió y la ley usa el del cierre, que hasta entonces es el de hoy."}
+        </p>
+      )}
       {estado === "pagado_de_mas" && <Origen />}
     </div>
   );

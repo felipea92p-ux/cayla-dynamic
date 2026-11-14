@@ -5,7 +5,10 @@
  *   Traduce el jsonb de la base a lo que la pantalla tiene que decir: el estado
  *   de cada ventana, el próximo desembolso, el calendario, los filtros y las
  *   filas del CSV. NO recalcula ningún monto que la base ya calcula: los saldos,
- *   los totales por beneficio y `gran_total` se leen, nunca se rehacen.
+ *   los totales por beneficio y `gran_total` se leen, nunca se rehacen. La única
+ *   excepción es `aplicarPisoLegal`: elige, por ventana, la mayor de DOS
+ *   lecturas de la base (día por día y sueldo al cierre, como fn_grati_cts_periodo)
+ *   y vuelve a sumar los totales con la fórmula de la base.
  *
  * QUÉ ASUME
  *   La forma del jsonb desde la 0428 (con `be_s1`/`be_s2` de la 0372 y los
@@ -289,6 +292,74 @@ export function pagadoVentana(p: ProvPersona, clave: VentanaClave): number {
  */
 export function devengadoVentana(p: ProvPersona, clave: VentanaClave): number {
   return redondear(p[clave] + pagadoVentana(p, clave));
+}
+
+// ── El piso legal: el sueldo del cierre aplicado a todo el periodo ───────────
+//
+// POR QUÉ. La remuneración computable de la CTS y de la gratificación es la
+// vigente al CIERRE del periodo (D.S. 001-97-TR; D.S. 013-2013-PRODUCE art. 50),
+// aplicada a todo el semestre. `fn_provisiones` sin segundo argumento suma el
+// sueldo DÍA POR DÍA, y con un aumento a mitad de periodo eso sale por debajo
+// de la ley: el 2026-11-13, con la RMV en 1,230 desde el 1-oct, la pantalla
+// decía S/ 4,182.80 para el depósito de noviembre y la ley mandaba 4,393.66.
+//
+// QUÉ HACE. Lo mismo que `fn_grati_cts_periodo` (0338/0346) al PAGAR: lee la
+// base dos veces y, por persona y ventana, se queda con el MAYOR. Ningún monto
+// nuevo nace acá: los dos son de la base. Nunca el promedio ni la suma: si el
+// sueldo bajó, el día por día ya da más y no se le quita nada a nadie.
+//
+// SE ROMPE SI `fn_grati_cts_periodo` cambia su criterio y esto no. Las dos
+// tienen que contestar igual a «cuánto le toca»: si divergen, la pantalla
+// promete un monto y la planilla paga otro.
+
+/**
+ * La fecha del sueldo que fija cada ventana: su cierre, o hoy si todavía no
+ * cerró (el sueldo del cierre aún no existe; el de hoy es el mejor dato).
+ */
+export function cortesDelPiso(d: ProvData): { clave: VentanaClave; salarioAl: string }[] {
+  return ventanasDe(d).map((v) => ({ clave: v.clave, salarioAl: v.cierre < d.as_of ? v.cierre : d.as_of }));
+}
+
+/** Una fila con las ventanas que salieron del piso legal y no del día por día. */
+export type ConPiso = ProvPersona & { piso_legal?: VentanaClave[] };
+
+/**
+ * Junta la lectura día por día con las lecturas «sueldo al cierre» de cada
+ * ventana. `pisos` trae, por ventana, el jsonb de
+ * `fn_provisiones(as_of, salarioAl)`; una ventana sin lectura se queda con el
+ * día por día. Los totales se vuelven a sumar con la MISMA fórmula de la base
+ * (`gran_total = grati + 9 % + CTS + vacaciones`, ya redondeados).
+ */
+export function aplicarPisoLegal(d: ProvData, pisos: Partial<Record<VentanaClave, ProvData | null>>): ProvData {
+  const indices = new Map<VentanaClave, Map<string, ProvPersona>>();
+  for (const [clave, piso] of Object.entries(pisos) as [VentanaClave, ProvData | null][]) {
+    if (piso) indices.set(clave, new Map(piso.personas.map((p) => [p.persona_id, p])));
+  }
+  const personas = d.personas.map((p): ConPiso => {
+    const q: ConPiso = { ...p };
+    const ganadas: VentanaClave[] = [];
+    for (const [clave, indice] of indices) {
+      const piso = indice.get(p.persona_id);
+      if (!piso || saldoVentana(piso, clave) <= saldoVentana(p, clave) + EPS) continue;
+      q[clave] = piso[clave];
+      if (clave === "grati_s1") q.be_s1 = piso.be_s1;
+      if (clave === "grati_s2") q.be_s2 = piso.be_s2;
+      ganadas.push(clave);
+    }
+    if (!ganadas.length) return q;
+    q.piso_legal = ganadas;
+    q.grati_total = redondear(q.grati_s1 + q.grati_s2);
+    if (q.be_s1 !== undefined && q.be_s2 !== undefined) q.be_total = redondear(q.be_s1 + q.be_s2);
+    q.cts_total = redondear(q.cts_may + q.cts_nov);
+    q.gran_total = redondear(q.grati_total + q.be_total + q.cts_total + q.vac);
+    return q;
+  });
+  return { ...d, personas };
+}
+
+/** true si el monto de esa ventana salió del sueldo al cierre (para decirlo en pantalla). */
+export function usaPisoLegal(p: ProvPersona, clave: VentanaClave): boolean {
+  return (p as ConPiso).piso_legal?.includes(clave) ?? false;
 }
 
 /**

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  aplicarPisoLegal,
+  cortesDelPiso,
+  usaPisoLegal,
   COLUMNAS_CSV,
   COLUMNAS_CSV_ANTERIORES,
   atrasadoDelProximo,
@@ -467,5 +470,64 @@ describe("la lista del depósito — lo que sale del banco en la próxima fecha"
     const filas = filasCsvDeposito(dep);
     expect(Object.keys(filas[0])).toEqual([...COLUMNAS_CSV_DEPOSITO]);
     expect(filas.find((f) => f.persona === "Lucía Flores")).toMatchObject({ a_depositar: "266.11", pendiente_anterior_por_decidir: "256.40" });
+  });
+});
+
+// ── El piso legal (0338): el mayor entre día por día y sueldo al cierre ─────
+//
+// Casos con la forma del 2026-11-13: la RMV subió el 1-oct y a quien ganaba el
+// mínimo el sueldo del cierre le da más; a quien le bajó el sueldo en el periodo,
+// el día por día le da más y se queda con ese. Nunca el promedio.
+describe("aplicarPisoLegal", () => {
+  const subio = persona({ persona_id: "s", nombre: "Sube", cts_nov: 212.83, grati_s2: 300, be_s2: 27, vac: 50 });
+  const bajo = persona({ persona_id: "b", nombre: "Baja", cts_nov: 408.89, cts_may: 85.12 });
+  const dia = datos([subio, bajo], "2026-11-13");
+  const pisoNov = datos([
+    persona({ persona_id: "s", nombre: "Sube", cts_nov: 217.95, grati_s2: 310, be_s2: 27.9, vac: 50 }),
+    persona({ persona_id: "b", nombre: "Baja", cts_nov: 382.89, cts_may: 85.12 }),
+  ], "2026-11-13");
+
+  it("las fechas del sueldo son el cierre de cada ventana, u hoy si no cerró", () => {
+    expect(cortesDelPiso(dia)).toEqual([
+      { clave: "cts_may", salarioAl: "2026-04-30" },
+      { clave: "grati_s1", salarioAl: "2026-06-30" },
+      { clave: "cts_nov", salarioAl: "2026-10-31" },
+      { clave: "grati_s2", salarioAl: "2026-11-13" },
+    ]);
+  });
+
+  it("si el sueldo subió, manda el sueldo del cierre y los totales lo siguen", () => {
+    const d = aplicarPisoLegal(dia, { cts_nov: pisoNov });
+    const p = d.personas.find((x) => x.persona_id === "s")!;
+    expect(p.cts_nov).toBe(217.95);
+    expect(p.cts_total).toBe(217.95);
+    expect(p.gran_total).toBe(Math.round((p.grati_total + p.be_total + 217.95 + 50) * 100) / 100);
+    expect(usaPisoLegal(p, "cts_nov")).toBe(true);
+    // Solo se tocó la ventana pedida: la grati sigue con su día por día.
+    expect(p.grati_s2).toBe(300);
+  });
+
+  it("si el sueldo bajó, se queda el día por día: nunca se le quita nada a nadie", () => {
+    const d = aplicarPisoLegal(dia, { cts_nov: pisoNov });
+    const p = d.personas.find((x) => x.persona_id === "b")!;
+    expect(p.cts_nov).toBe(408.89);
+    expect(p.gran_total).toBe(bajo.gran_total);
+    expect(usaPisoLegal(p, "cts_nov")).toBe(false);
+  });
+
+  it("en la gratificación, el 9 % viaja con el monto que gana", () => {
+    const d = aplicarPisoLegal(dia, { grati_s2: pisoNov });
+    const p = d.personas.find((x) => x.persona_id === "s")!;
+    expect([p.grati_s2, p.be_s2, p.be_total]).toEqual([310, 27.9, 27.9]);
+  });
+
+  it("una lectura que falló deja esa ventana como estaba", () => {
+    const d = aplicarPisoLegal(dia, { cts_nov: null });
+    expect(d.personas).toEqual(dia.personas);
+  });
+
+  it("el depósito del 15 suma lo que manda la ley", () => {
+    const d = aplicarPisoLegal(dia, { cts_nov: pisoNov });
+    expect(totalProximo(d.personas, d)).toBe(Math.round((217.95 + 408.89) * 100) / 100);
   });
 });
