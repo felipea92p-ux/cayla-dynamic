@@ -40,7 +40,9 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Drawer } from "@/components/ui/drawer";
 import { cx } from "@/components/ui/cx";
 import {
+  aplicarPisoLegal,
   COLUMNAS_CSV,
+  cortesDelPiso,
   deposito,
   diaYMes,
   ETIQUETA_ESTADO_FILA,
@@ -83,6 +85,8 @@ export default function ProvisionesPage() {
   // CAMBIO 0467 — lo que devenga una practicante vive en otra función; misma
   // convención de tres estados que el libro.
   const [subvenciones, setSubvenciones] = useState<Subvenciones>(undefined);
+  // true = alguna lectura del piso legal falló y esa ventana muestra el día por día.
+  const [pisoIncompleto, setPisoIncompleto] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosProvisiones>(FILTROS_VACIOS);
   const [vista, setVista] = useState<Vista>("personas");
   const [persona, setPersona] = useState<ProvPersona | null>(null);
@@ -113,7 +117,23 @@ export default function ProvisionesPage() {
       setError(error.message);
       return;
     }
-    const d = data as unknown as ProvData;
+    const dia = data as unknown as ProvData;
+
+    // EL PISO LEGAL (0338): por cada ventana, la base otra vez con el sueldo del
+    // cierre fijo, y por persona se queda el MAYOR — lo mismo que hace
+    // fn_grati_cts_periodo al pagar. Si una lectura falla, esa ventana se queda
+    // con el día por día y la pantalla lo dice: nunca se cae por esto.
+    const cortes = cortesDelPiso(dia);
+    const lecturas = await Promise.all(
+      cortes.map(({ salarioAl }) =>
+        supabase.rpc("fn_provisiones", { p_as_of: dia.as_of, p_salario_asof: salarioAl }),
+      ),
+    );
+    const pisos = Object.fromEntries(
+      cortes.map(({ clave }, i) => [clave, lecturas[i].error ? null : (lecturas[i].data as unknown as ProvData)]),
+    );
+    setPisoIncompleto(lecturas.some((l) => l.error));
+    const d = aplicarPisoLegal(dia, pisos);
     setError(null);
     setData(d);
 
@@ -304,6 +324,17 @@ export default function ProvisionesPage() {
                     no cuentan.
                   </span>
                 )}
+              </BannerAviso>
+            )}
+
+            {/* EL PISO LEGAL NO SE PUDO LEER ENTERO (0338). Los montos de esa
+                ventana quedan con el sueldo día por día, que puede ser MENOR que
+                lo que manda la ley si hubo un aumento: no se deposita con esto. */}
+            {pisoIncompleto && (
+              <BannerAviso variante="alerta" className="mb-6 max-w-3xl">
+                <strong className="font-medium">Los montos pueden estar cortos.</strong> No se pudo calcular la
+                gratificación o la CTS con el sueldo vigente al cierre, que es lo que manda la ley cuando hubo un
+                aumento. Recarga la página antes de depositar.
               </BannerAviso>
             )}
 
