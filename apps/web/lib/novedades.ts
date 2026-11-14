@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-13-provisiones-lista-del-deposito",
+    fecha: "2026-11-13",
+    titulo: "Provisiones tiene la lista de lo que se deposita en la próxima fecha",
+    queMejoro:
+      "En Pago › Provisiones, la pestaña «Depósito» dice cuánto va a la cuenta de cada persona en el próximo pago " +
+      "de CTS o gratificación, y cuánto sale del banco en total. Se descarga en Excel.\n\n" +
+      "Lo que quedó de la fecha anterior va en su propia columna y no entra al total: se deposita solo lo que el " +
+      "contador confirme. Y si el 15 cae domingo, dice el lunes.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-10-contrato-de-locacion-se-genera-y-se-firma",
     fecha: "2026-11-10",
     titulo: "El contrato de quien cobra por honorarios se genera y se firma en Dynamic",
