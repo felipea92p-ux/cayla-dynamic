@@ -125,8 +125,8 @@ export default function ProvisionesPage() {
     }
     const dia = data as unknown as ProvData;
 
-    // EL PISO LEGAL (0338): por cada ventana, la base otra vez con el sueldo del
-    // cierre fijo, y por persona se queda el MAYOR — lo mismo que hace
+    // EL SUELDO DEL CIERRE (0338, y desde la 0619 ya no «el mayor»): por cada ventana, la base otra vez con el sueldo del
+    // cierre fijo, y por persona se queda ESA — lo mismo que hace
     // fn_grati_cts_periodo al pagar. Si una lectura falla, esa ventana se queda
     // con el día por día y la pantalla lo dice: nunca se cae por esto.
     const cortes = cortesDelPiso(dia);
@@ -374,7 +374,7 @@ export default function ProvisionesPage() {
             )}
 
             {/* EL PISO LEGAL NO SE PUDO LEER ENTERO (0338). Los montos de esa
-                ventana quedan con el sueldo día por día, que puede ser MENOR que
+                ventana quedan con el sueldo día por día, que puede ser menor O MAYOR que
                 lo que manda la ley si hubo un aumento: no se deposita con esto. */}
             {decisionesSinLeer && (
               <BannerAviso variante="alerta" className="mb-6 max-w-3xl">
@@ -385,9 +385,9 @@ export default function ProvisionesPage() {
             )}
             {pisoIncompleto && (
               <BannerAviso variante="alerta" className="mb-6 max-w-3xl">
-                <strong className="font-medium">Los montos pueden estar cortos.</strong> No se pudo calcular la
-                gratificación o la CTS con el sueldo vigente al cierre, que es lo que manda la ley cuando hubo un
-                aumento. Recarga la página antes de depositar.
+                <strong className="font-medium">Los montos pueden no ser los legales.</strong> No se pudo calcular la
+                gratificación o la CTS con el sueldo vigente al cierre, que es lo que manda la ley. A quien le cambió
+                el sueldo en el periodo le puede salir de más o de menos. Recarga la página antes de depositar.
               </BannerAviso>
             )}
 

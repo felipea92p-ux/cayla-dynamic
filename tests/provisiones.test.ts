@@ -477,11 +477,12 @@ describe("la lista del depósito — lo que sale del banco en la próxima fecha"
   });
 });
 
-// ── El piso legal (0338): el mayor entre día por día y sueldo al cierre ─────
+// ── El sueldo del cierre (0338 → 0619): manda siempre, ya no «el mayor» ─────
 //
 // Casos con la forma del 2026-11-13: la RMV subió el 1-oct y a quien ganaba el
 // mínimo el sueldo del cierre le da más; a quien le bajó el sueldo en el periodo,
-// el día por día le da más y se queda con ese. Nunca el promedio.
+// el día por día le daba más y hasta la 0619 se quedaba con ese. Ahora los dos
+// cobran lo del cierre, que es lo que manda la ley.
 describe("aplicarPisoLegal", () => {
   const subio = persona({ persona_id: "s", nombre: "Sube", cts_nov: 212.83, grati_s2: 300, be_s2: 27, vac: 50 });
   const bajo = persona({ persona_id: "b", nombre: "Baja", cts_nov: 408.89, cts_may: 85.12 });
@@ -511,11 +512,37 @@ describe("aplicarPisoLegal", () => {
     expect(p.grati_s2).toBe(300);
   });
 
-  it("si el sueldo bajó, se queda el día por día: nunca se le quita nada a nadie", () => {
+  it("si el sueldo bajó, también manda el del cierre: no se paga la mayor de las dos cuentas", () => {
     const d = aplicarPisoLegal(dia, { cts_nov: pisoNov });
     const p = d.personas.find((x) => x.persona_id === "b")!;
+    expect(p.cts_nov).toBe(382.89);
+    expect(p.cts_total).toBe(Math.round((382.89 + 85.12) * 100) / 100);
+    expect(p.gran_total).toBe(p.cts_total);
+    expect(usaPisoLegal(p, "cts_nov")).toBe(true);
+  });
+
+  it("sin tramo de salario al cierre la lectura legal da cero por falta de dato: se queda el día por día", () => {
+    const sinTramoAlCierre = datos([
+      persona({ persona_id: "s", nombre: "Sube", cts_nov: 0 }),
+      persona({ persona_id: "b", nombre: "Baja", cts_nov: 382.89, cts_may: 85.12 }),
+    ], "2026-11-13");
+    const p = aplicarPisoLegal(dia, { cts_nov: sinTramoAlCierre }).personas.find((x) => x.persona_id === "s")!;
+    expect(p.cts_nov).toBe(212.83);
+    expect(usaPisoLegal(p, "cts_nov")).toBe(false);
+  });
+
+  it("un saldo en cero porque ya se depositó no es falta de dato: manda el del cierre", () => {
+    const yaPagada = datos([
+      persona({ persona_id: "s", nombre: "Sube", cts_nov: 0, cts_nov_pagada: true, cts_nov_monto_pagado: 217.95 }),
+      persona({ persona_id: "b", nombre: "Baja", cts_nov: 382.89, cts_may: 85.12 }),
+    ], "2026-11-13");
+    const p = aplicarPisoLegal(dia, { cts_nov: yaPagada }).personas.find((x) => x.persona_id === "s")!;
+    expect(p.cts_nov).toBe(0);
+  });
+
+  it("si las dos lecturas coinciden no se marca nada", () => {
+    const p = aplicarPisoLegal(dia, { cts_nov: dia }).personas.find((x) => x.persona_id === "b")!;
     expect(p.cts_nov).toBe(408.89);
-    expect(p.gran_total).toBe(bajo.gran_total);
     expect(usaPisoLegal(p, "cts_nov")).toBe(false);
   });
 
@@ -532,7 +559,7 @@ describe("aplicarPisoLegal", () => {
 
   it("el depósito del 15 suma lo que manda la ley", () => {
     const d = aplicarPisoLegal(dia, { cts_nov: pisoNov });
-    expect(totalProximo(d.personas, d)).toBe(Math.round((217.95 + 408.89) * 100) / 100);
+    expect(totalProximo(d.personas, d)).toBe(Math.round((217.95 + 382.89) * 100) / 100);
   });
 });
 
