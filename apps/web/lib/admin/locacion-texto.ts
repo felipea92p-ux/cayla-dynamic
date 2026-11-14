@@ -21,17 +21,29 @@
 //   de firma (las dos firmas se estampan al MOSTRAR, nunca al guardar), y
 //   cómo se escriben fechas y montos.
 //
-// ⚠️ ES UN BORRADOR
-//   Mientras `TEXTO_LOCACION_APROBADO` sea `false`, cada documento lleva arriba
-//   un aviso visible de borrador, y se imprime con él: un papel sin revisar no
-//   puede pasar por definitivo ni por accidente. Cuando el abogado lo apruebe
-//   (con los cambios que pida), se cambia la constante en el mismo PR que sus
-//   cambios, y se anota quién y cuándo lo aprobó.
+// APROBADO PARA FIRMAR DESDE EL 2026-11-14
+//   Lo aprobó Felipe Alvarez ese día, con estas palabras: «el contrato ya se
+//   realizó y se revisó correctamente así que pueda la persona firmar». Desde
+//   entonces `TEXTO_LOCACION_APROBADO` es `true`: lo que se genera ya no lleva
+//   el aviso de borrador y la persona lo firma en «Lo mío».
 //
-//   2026-11-10: Felipe dice que el primer borrador «se revisó y quedó acorde a
-//   la ley», y pidió una segunda revisión a fondo. Esa segunda revisión cambió
-//   el texto —abajo, cláusula por cláusula—, así que la aprobación del primero
-//   no cubre este: el revisor tiene que ver lo que cambió antes de aprobarlo.
+//   Cómo se llegó: el 2026-11-10 Felipe dijo que el primer borrador «se revisó
+//   y quedó acorde a la ley», y pidió una segunda revisión a fondo, que cambió
+//   el texto —abajo, cláusula por cláusula—. Por eso aquella aprobación no
+//   cubría este texto y la constante siguió en `false` hasta la del día 14.
+//
+//   SI EL TEXTO VUELVE A CAMBIAR, LA CONSTANTE VUELVE A `false` en el mismo PR,
+//   hasta que quien lo revise lo apruebe de nuevo. Un papel sin revisar no
+//   puede pasar por definitivo ni por accidente: mientras sea `false`, cada
+//   documento lleva arriba un aviso visible de borrador y se imprime con él.
+//
+// LO QUE SE GENERÓ COMO BORRADOR NO SE FIRMA, NI DESPUÉS DE APROBAR
+//   El texto se congela al generar (`documento_html`), con su aviso «BORRADOR
+//   — No firmar» adentro, y un contrato no se edita (0615). Aprobar el molde
+//   no cambia esos papeles: firmar uno sería firmar un documento que dice «No
+//   firmar». `esBorradorLocacion` los reconoce; la pantalla no ofrece la firma
+//   y le dice a DO que lo anule y lo genere de nuevo. La base no lo frena: es
+//   el mismo límite que ya tenía la constante.
 //
 // LO QUE LA SEGUNDA REVISIÓN CAMBIÓ, Y POR QUÉ
 //   · No se fecha al día de inicio. Decía «En [ciudad], el [inicio], se
@@ -77,8 +89,20 @@ import {
   soles,
 } from "./contrato-texto";
 
-/** `false` hasta que el abogado apruebe el texto. Ver el encabezado. */
-export const TEXTO_LOCACION_APROBADO = false;
+/** `true` desde el 2026-11-14 (aprobado por Felipe). Vuelve a `false` si el texto cambia. Ver el encabezado. */
+export const TEXTO_LOCACION_APROBADO: boolean = true;
+
+/** El aviso que encabeza lo que se genera sin aprobar. Queda congelado dentro del documento. */
+const PARRAFO_BORRADOR = `<p class="borrador"><strong>BORRADOR — pendiente de revisión legal. No firmar.</strong></p>`;
+
+/**
+ * ¿Este documento congelado se generó como borrador? Lo dice el propio papel, no la constante de hoy: uno generado
+ * antes de aprobar el texto sigue diciendo «No firmar» para siempre. Los datos de la persona entran escapados, así
+ * que nadie puede escribir esa etiqueta desde un campo del formulario.
+ */
+export function esBorradorLocacion(documentoHtml: string): boolean {
+  return documentoHtml.includes('<p class="borrador">');
+}
 
 /**
  * Cómo se pagan los honorarios: una cuota fija al mes, un monto por todo el servicio, o un monto de referencia
@@ -196,7 +220,7 @@ export function construirLocacion(datos: DatosLocacion): string {
 
   return `
   <article class="contrato">
-    ${TEXTO_LOCACION_APROBADO ? "" : `<p class="borrador"><strong>BORRADOR — pendiente de revisión legal. No firmar.</strong></p>`}
+    ${TEXTO_LOCACION_APROBADO ? "" : PARRAFO_BORRADOR}
     <header>
       <p class="empresa">${EMPRESA.nombre}</p>
       <p class="ruc">RUC N.° ${EMPRESA.ruc}</p>

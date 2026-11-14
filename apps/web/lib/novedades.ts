@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-14-contrato-de-locacion-ya-se-firma",
+    fecha: "2026-11-14",
+    titulo: "El contrato de quien cobra por honorarios ya se puede firmar",
+    queMejoro:
+      "El texto del contrato de locación de servicios quedó aprobado: lo que generes desde hoy en Contratos › Recibo " +
+      "por honorarios ya no dice «BORRADOR», y la persona lo firma en Lo mío › Contrato.\n\n" +
+      "Los que se generaron antes siguen diciendo «BORRADOR — No firmar» y no se pueden firmar: anúlalos y genéralos " +
+      "de nuevo. Al abrir uno, la pantalla te lo avisa.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-14-provisiones-decision-de-lo-que-quedo",
     fecha: "2026-11-14",
     titulo: "Lo que quedó de una fecha de pago anterior ya se puede decidir en Provisiones",

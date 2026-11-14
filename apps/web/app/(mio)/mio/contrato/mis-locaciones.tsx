@@ -13,13 +13,18 @@
 //
 // Y LO FIRMA AQUÍ, si se generó en Dynamic (0615)
 //   Como el contrato de trabajo desde la 0430: confirmar tu firma ES firmar, y
-//   se guarda la copia de tu firma de ese momento. Mientras el texto sea un
-//   borrador sin revisión legal (`TEXTO_LOCACION_APROBADO`), se puede leer pero
-//   no firmar: el documento mismo dice «No firmar».
+//   se guarda la copia de tu firma de ese momento. El texto está aprobado
+//   desde el 2026-11-14 (`TEXTO_LOCACION_APROBADO`).
+//
+// LO QUE SE GENERÓ COMO BORRADOR SE LEE, NO SE FIRMA
+//   Un contrato generado antes de esa aprobación lleva «BORRADOR — No firmar»
+//   congelado en su texto, y un contrato no se edita. Ofrecerle la firma sería
+//   pedirle que firme un papel que dice que no se firma: se le dice que DO lo
+//   va a generar de nuevo. Lo decide el documento que se leyó, no la constante.
 //   Un contrato que llegó como escaneo de un papel ya está firmado: se abre.
 // ============================================================================
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
@@ -57,6 +62,15 @@ export function MisLocaciones({
   const [aviso, setAviso] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   // Sube después de firmar, para que el documento vuelva a leerse con la firma puesta.
   const [version, setVersion] = useState(0);
+  // Si el contrato abierto se generó como borrador. `null` mientras no se ha leído: no se ofrece nada todavía.
+  const [esBorrador, setEsBorrador] = useState<boolean | null>(null);
+  const alLeer = useCallback((documento: { esBorrador: boolean }) => setEsBorrador(documento.esBorrador), []);
+
+  function alternar(id: string) {
+    setEsBorrador(null);
+    setAviso(null);
+    setAbierto(abierto === id ? null : id);
+  }
 
   async function firmar(c: ContratoLocacion) {
     setFirmando(true);
@@ -99,7 +113,7 @@ export function MisLocaciones({
                 </p>
                 <div className="pt-1">
                   {c.es_digital ? (
-                    <Boton variante="enlace" className="text-sm" onClick={() => setAbierto(abierto === c.id ? null : c.id)}>
+                    <Boton variante="enlace" className="text-sm" onClick={() => alternar(c.id)}>
                       {abierto === c.id ? "Cerrar" : c.estado === "sin_firmar" ? "Leer y firmar" : "Ver el contrato"}
                     </Boton>
                   ) : (
@@ -113,9 +127,10 @@ export function MisLocaciones({
                       contratoId={c.id}
                       nombreDelPdf={`${nombreOficial} — Contrato de locación`}
                       version={version}
+                      alLeer={alLeer}
                     />
-                    {c.estado === "sin_firmar" && (
-                      TEXTO_LOCACION_APROBADO ? (
+                    {c.estado === "sin_firmar" && esBorrador !== null && (
+                      TEXTO_LOCACION_APROBADO && !esBorrador ? (
                         <TarjetaInfo titulo="Tu firma" className="space-y-3">
                           <p className="text-xs text-taupe">
                             Al firmar, tu firma queda en el contrato junto a la de CAYLA, con la fecha de hoy. No hace
@@ -136,8 +151,8 @@ export function MisLocaciones({
                         </TarjetaInfo>
                       ) : (
                         <BannerAviso enLinea variante="advertencia">
-                          Este contrato todavía es un borrador en revisión: todavía no se firma. Desarrollo
-                          Organizacional te avisa cuando esté listo.
+                          Este contrato se generó como borrador y no se firma. Desarrollo Organizacional lo va a
+                          generar de nuevo: cuando esté, aparece aquí para que lo firmes.
                         </BannerAviso>
                       )
                     )}
