@@ -20,6 +20,7 @@ import {
   montoConAtrasado,
   montoProximo,
   pagosDe,
+  porPagar,
   proximoDesembolso,
   resumen,
   saldoDeFila,
@@ -167,6 +168,37 @@ describe("los totales se leen de la base, no se rehacen", () => {
     const r = resumen(equipo);
     expect(r.total).toBe(Math.round(equipo.reduce((a, p) => a + p.gran_total, 0) * 100) / 100);
     expect(r.ajustes).toBe(-409.06);
+  });
+});
+
+describe("porPagar — las tarjetas no restan el pago de más de una persona a las demás", () => {
+  const pp = porPagar(equipo);
+  const r = resumen(equipo);
+  it("la CTS suma solo lo que falta, ventana por ventana", () => {
+    // 276.70 + 67.05 + 250.18 + 256.40 + 266.11 + 132.91 + 118: los 409.06 de mayo de
+    // Marco no se restan, ni siquiera de su propia CTS de noviembre.
+    expect(pp.cts).toBe(1367.35);
+  });
+  it("lo pagado de más se devuelve aparte, con cuántas personas", () => {
+    expect(pp.deMas).toEqual({ gratificacion: 0, cts: 409.06, vacaciones: 0, total: 409.06, personas: 1 });
+  });
+  it("lo que falta menos lo pagado de más es la suma de la columna", () => {
+    expect(Math.round((pp.cts - pp.deMas.cts) * 100) / 100).toBe(r.cts);
+    expect(Math.round((pp.total - pp.deMas.total) * 100) / 100).toBe(r.total);
+  });
+  it("la gratificación lleva su 9 %, igual que la columna", () => {
+    expect(pp.gratificacion).toBe(r.gratificacion);
+  });
+  it("vacaciones pagadas de más tampoco se restan", () => {
+    const vac = persona({ persona_id: "h", nombre: "Diego Torres", vac: -396.24, vac_monto_pagado: 700 });
+    const otra = persona({ persona_id: "i", nombre: "Ana Paz", vac: 100 });
+    const x = porPagar([vac, otra]);
+    expect(x.vacaciones).toBe(100);
+    expect(x.deMas.vacaciones).toBe(396.24);
+  });
+  it("una practicante no suma, aunque su fila traiga algo", () => {
+    const rara = persona({ persona_id: "j", nombre: "Sofía", tipo_vinculo: "practicante", cts_nov: 50 });
+    expect(porPagar([rara]).cts).toBe(0);
   });
 });
 

@@ -5,8 +5,8 @@ import {
   calendario,
   cuandoSePaga,
   fechaCorta,
+  porPagar,
   proximoDesembolso,
-  resumen,
   totalAtrasadoDelProximo,
   totalConAtrasado,
   totalProximo,
@@ -45,7 +45,9 @@ export function ResumenProvisiones({
   filtrado: boolean;
   onVerCalendario: () => void;
 }) {
-  const r = resumen(personas);
+  // Las tarjetas suman lo que FALTA pagar, persona por persona; un pago de más
+  // se dice aparte y no se resta (ver `porPagar`).
+  const r = porPagar(personas);
   const prox = proximoDesembolso(data);
   const montoProx = totalProximo(personas, data);
   const atrasado = totalAtrasadoDelProximo(personas, data);
@@ -58,18 +60,21 @@ export function ResumenProvisiones({
         <Tarjeta
           etiqueta="Gratificación + 9 %"
           valor={r.gratificacion}
+          deMas={r.deMas.gratificacion}
           detalle="Acumulado a hoy, aún sin pagar"
           cuando={cuandoSePaga(data, "Gratificación")}
         />
         <Tarjeta
           etiqueta="CTS"
           valor={r.cts}
+          deMas={r.deMas.cts}
           detalle="Acumulado a hoy, aún sin depositar"
           cuando={cuandoSePaga(data, "CTS")}
         />
         <Tarjeta
           etiqueta="Vacaciones"
           valor={r.vacaciones}
+          deMas={r.deMas.vacaciones}
           detalle="Acumulado a hoy, aún sin pagar"
           cuando="Se paga cuando cada persona las goza"
         />
@@ -121,7 +126,12 @@ export function ResumenProvisiones({
           Total acumulado, aún sin pagar{filtrado ? " (con estos filtros)" : ""}:{" "}
           <strong className="font-medium text-tinta">{formatSoles(r.total)}</strong>
         </span>
-        {r.ajustes < 0 && <span>ya restados {formatSoles(-r.ajustes)} pagados de más</span>}
+        {r.deMas.total > 0 && (
+          <span>
+            aparte, {formatSoles(r.deMas.total)} pagados de más a{" "}
+            {r.deMas.personas === 1 ? "una persona" : `${r.deMas.personas} personas`}: no se restan de lo que se les debe a las demás
+          </span>
+        )}
         {vencidos > 0 && (
           <span className="text-ambar">
             {vencidos} {vencidos === 1 ? "pago por saldar" : "pagos por saldar"} (según lo registrado)
@@ -139,19 +149,23 @@ export function ResumenProvisiones({
 function Tarjeta({
   etiqueta,
   valor,
+  deMas,
   detalle,
   cuando,
 }: {
   etiqueta: string;
   valor: number;
+  /** Pagado de más en este beneficio, en positivo. No está restado de `valor`. */
+  deMas: number;
   detalle: string;
   cuando: string;
 }) {
   return (
     <div className="flex flex-col gap-0.5 rounded-superficie border border-sand bg-papel p-4">
       <span className="text-xs tracking-wide text-taupe uppercase">{etiqueta}</span>
-      <span className={cx("text-xl font-medium", valor < 0 && "text-pizarra")}>{formatSoles(valor)}</span>
+      <span className="text-xl font-medium">{formatSoles(valor)}</span>
       <span className="text-xs text-taupe">{detalle}</span>
+      {deMas > 0 && <span className="text-xs text-pizarra">Aparte, {formatSoles(deMas)} pagados de más</span>}
       <span className="mt-2 text-xs text-taupe">{cuando}</span>
     </div>
   );
