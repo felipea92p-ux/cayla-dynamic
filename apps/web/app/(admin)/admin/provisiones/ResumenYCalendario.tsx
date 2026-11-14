@@ -121,7 +121,9 @@ export function ResumenProvisiones({
           Total acumulado, aún sin pagar{filtrado ? " (con estos filtros)" : ""}:{" "}
           <strong className="font-medium text-tinta">{formatSoles(r.total)}</strong>
         </span>
-        {r.ajustes < 0 && <span>ya restados {formatSoles(-r.ajustes)} pagados de más</span>}
+        {r.ajustes < 0 && (
+          <span>aparte, {formatSoles(-r.ajustes)} pagados de más (no se restan de lo que se debe a otras personas)</span>
+        )}
         {vencidos > 0 && (
           <span className="text-ambar">
             {vencidos} {vencidos === 1 ? "pago por saldar" : "pagos por saldar"} (según lo registrado)

@@ -166,9 +166,19 @@ describe("los totales se leen de la base, no se rehacen", () => {
       expect(suma).toBe(p.gran_total);
     }
   });
-  it("el resumen suma gran_total fila por fila y cuenta aparte los pagos de más", () => {
+  it("el resumen suma lo que se debe y deja aparte los pagos de más, sin restarlos", () => {
     const r = resumen(equipo);
-    expect(r.total).toBe(Math.round(equipo.reduce((a, p) => a + p.gran_total, 0) * 100) / 100);
+    // Lo neto de la base, más lo pagado de más que ya no se resta.
+    expect(r.total).toBe(Math.round((equipo.reduce((a, p) => a + p.gran_total, 0) - r.ajustes) * 100) / 100);
+    expect(r.ajustes).toBe(-409.06);
+    expect(r.total).toBe(Math.round((r.gratificacion + r.cts + r.vacaciones) * 100) / 100);
+  });
+  it("la tarjeta CTS no le resta a nadie lo que se le pagó de más a otra persona", () => {
+    // El caso del 2026-11-13: 409.06 depositados de más a una persona.
+    const debe = persona({ persona_id: "x1", nombre: "Debe", cts_nov: 300 });
+    const demas = persona({ persona_id: "x2", nombre: "De más", cts_may: -409.06, cts_may_monto_pagado: 409.06 });
+    const r = resumen([debe, demas]);
+    expect(r.cts).toBe(300);
     expect(r.ajustes).toBe(-409.06);
   });
 });

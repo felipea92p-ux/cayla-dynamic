@@ -654,32 +654,41 @@ export function filasCsvDeposito(dep: Deposito): Record<string, unknown>[] {
 // ── Resumen y calendario ─────────────────────────────────────────────────────
 
 export interface ResumenProvisiones {
+  /** Lo que se le debe al equipo, por beneficio: solo saldos a favor de la persona. */
   gratificacion: number;
   cts: number;
   vacaciones: number;
-  /** Suma de `gran_total` de cada fila, tal como lo entrega la base. */
+  /** La suma de los tres. */
   total: number;
-  /** Cuánto de ese total son pagos de más (negativo o cero). */
+  /** Lo pagado de más, aparte (negativo o cero). NO se resta de lo de arriba. */
   ajustes: number;
 }
 
+/**
+ * Las tarjetas del resumen. Suman solo lo que se DEBE, ventana por ventana, y
+ * los pagos de más van aparte en `ajustes`, por la misma razón que
+ * `totalProximo`: lo que se le pagó de más a una persona no achica lo que se
+ * le debe a otra. Hasta el 2026-11-13 la tarjeta «CTS» sumaba `cts_total` y
+ * restaba los 409.06 pagados de más a una persona de lo que se les debía a las
+ * demás: decía 4,208.02 cuando del banco tenían que salir 4,617.08.
+ */
 export function resumen(personas: ProvPersona[]): ResumenProvisiones {
-  let gratificacion = 0, cts = 0, vacaciones = 0, total = 0, ajustes = 0;
+  let gratificacion = 0, cts = 0, vacaciones = 0, ajustes = 0;
   for (const p of personas) {
-    gratificacion += gratiConBonificacion(p);
-    cts += p.cts_total;
-    vacaciones += p.vac;
-    total += p.gran_total;
     for (const clave of ["grati_s1", "grati_s2", "cts_may", "cts_nov"] as const) {
-      ajustes += Math.min(saldoVentana(p, clave), 0);
+      const s = saldoVentana(p, clave);
+      if (s < 0) ajustes += s;
+      else if (clave.startsWith("grati")) gratificacion += s;
+      else cts += s;
     }
-    ajustes += Math.min(p.vac, 0);
+    if (p.vac < 0) ajustes += p.vac;
+    else vacaciones += p.vac;
   }
   return {
     gratificacion: redondear(gratificacion),
     cts: redondear(cts),
     vacaciones: redondear(vacaciones),
-    total: redondear(total),
+    total: redondear(gratificacion + cts + vacaciones),
     ajustes: redondear(ajustes),
   };
 }
