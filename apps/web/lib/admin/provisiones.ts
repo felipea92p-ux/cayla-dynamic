@@ -407,6 +407,20 @@ export interface DecisionAplicada {
 
 export type ConDecision = ProvPersona & { decisiones?: Partial<Record<VentanaClave, DecisionAplicada>> };
 
+/**
+ * Lee un monto escrito a mano. «1,130» y «1,130.50» son mil ciento treinta (la
+ * coma separa miles, como se escribe en el Perú); «306,04» y «306.04» son
+ * trescientos seis con cuatro. Lo que no se puede leer sin adivinar —«1,13,0»,
+ * «12.345», letras, negativos— devuelve null: en una decisión de plata, un
+ * monto mal leído se guarda sin que nadie lo note.
+ */
+export function leerMonto(texto: string): number | null {
+  const t = texto.replace(/S\/\.?/i, "").replace(/\s/g, "");
+  if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(t)) return Number(t.replace(/,/g, ""));
+  if (/^\d+([.,]\d{1,2})?$/.test(t)) return Number(t.replace(",", "."));
+  return null;
+}
+
 /** La decisión que rige esa ventana para esa persona, si hay. */
 export function decisionDe(p: ProvPersona, clave: VentanaClave): DecisionAplicada | null {
   return (p as ConDecision).decisiones?.[clave] ?? null;

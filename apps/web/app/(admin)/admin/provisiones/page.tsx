@@ -92,6 +92,7 @@ export default function ProvisionesPage() {
   const [pisoIncompleto, setPisoIncompleto] = useState(false);
   // false = la 0618 no está pegada o la lectura falló: no se ofrece decidir.
   const [decisionesDisponibles, setDecisionesDisponibles] = useState(false);
+  const [decisionesSinLeer, setDecisionesSinLeer] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosProvisiones>(FILTROS_VACIOS);
   const [vista, setVista] = useState<Vista>("personas");
   const [persona, setPersona] = useState<ProvPersona | null>(null);
@@ -150,6 +151,10 @@ export default function ProvisionesPage() {
       p_anio: Number(dia.as_of.slice(0, 4)),
     } as never);
     setDecisionesDisponibles(!errorDec);
+    // PGRST202 = la función no existe: la 0618 no está pegada y no hay nada que
+    // avisar. Cualquier otro fallo sí se dice: puede haber decisiones escritas
+    // que la pantalla no está aplicando.
+    setDecisionesSinLeer(!!errorDec && errorDec.code !== "PGRST202");
     const decisiones = errorDec
       ? []
       : ((dec ?? []) as unknown as DecisionBeneficio[]).map((x) => ({ ...x, monto_reconocido: Number(x.monto_reconocido) }));
@@ -371,6 +376,13 @@ export default function ProvisionesPage() {
             {/* EL PISO LEGAL NO SE PUDO LEER ENTERO (0338). Los montos de esa
                 ventana quedan con el sueldo día por día, que puede ser MENOR que
                 lo que manda la ley si hubo un aumento: no se deposita con esto. */}
+            {decisionesSinLeer && (
+              <BannerAviso variante="alerta" className="mb-6 max-w-3xl">
+                <strong className="font-medium">No se pudieron leer las decisiones registradas.</strong> Lo que quedó
+                de fechas anteriores se está mostrando con el cálculo del sistema, no con lo que decidió la dirección.
+                Recarga la página antes de depositar.
+              </BannerAviso>
+            )}
             {pisoIncompleto && (
               <BannerAviso variante="alerta" className="mb-6 max-w-3xl">
                 <strong className="font-medium">Los montos pueden estar cortos.</strong> No se pudo calcular la

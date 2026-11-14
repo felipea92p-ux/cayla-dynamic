@@ -5,7 +5,8 @@ import { formatSoles } from "@/lib/rangos";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
-import { fechaCorta, type DecisionAplicada } from "@/lib/admin/provisiones";
+import { fechaLima } from "@cayla-dynamic/shared";
+import { fechaCorta, leerMonto, type DecisionAplicada } from "@/lib/admin/provisiones";
 
 // La decisión sobre una ventana ya vencida (0618), dentro del panel de la persona.
 //
@@ -38,28 +39,34 @@ export function DecisionVentana({
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
-  const valor = Number(monto.replace(",", "."));
-  const montoValido = monto.trim() !== "" && Number.isFinite(valor) && valor >= 0;
-  const falta = montoValido ? Math.max(Math.round((valor - depositado) * 100) / 100, 0) : null;
+  const valor = leerMonto(monto);
+  const falta = valor !== null ? Math.max(Math.round((valor - depositado) * 100) / 100, 0) : null;
+
+  function cerrar() {
+    setAbierto(false);
+    setMonto("");
+    setMotivo("");
+    setError(null);
+  }
 
   async function guardar() {
-    if (!montoValido) return setError("Escribe el monto total que se reconoce para esta fecha (puede ser 0).");
+    if (guardando) return;
+    if (valor === null)
+      return setError("Escribe el monto total que se reconoce para esta fecha, por ejemplo 306.04 (puede ser 0).");
     if (motivo.trim().length < 10) return setError("Escribe el motivo de la decisión (al menos 10 letras).");
     setGuardando(true);
     setError(null);
     const fallo = await onDecidir(valor, motivo.trim());
     setGuardando(false);
     if (fallo) return setError(fallo);
-    setAbierto(false);
-    setMonto("");
-    setMotivo("");
+    cerrar();
   }
 
   return (
     <div className="grid gap-2 border-t border-sand pt-3 text-sm">
       {decision && (
         <p className="text-taupe">
-          <strong className="font-medium text-tinta">Decidido el {fechaCorta(decision.fecha.slice(0, 10))}:</strong> se
+          <strong className="font-medium text-tinta">Decidido el {fechaCorta(fechaLima(decision.fecha))}:</strong> se
           reconocen {formatSoles(decision.reconocido)} para esta fecha. {conPunto(decision.motivo)}{" "}
           {decision.exceso > 0 && `Se depositaron ${formatSoles(decision.exceso)} más de lo reconocido; no se reclaman. `}
           El sistema calculaba un saldo de {formatSoles(decision.saldoDelSistema)}.
@@ -81,7 +88,9 @@ export function DecisionVentana({
           />
           <p className="text-xs text-taupe">
             Ya se depositaron {formatSoles(depositado)}.
-            {falta !== null && ` Con este monto, faltaría depositar ${formatSoles(falta)}.`}
+            {valor !== null &&
+              falta !== null &&
+              ` Se reconocerían ${formatSoles(valor)}: faltaría depositar ${formatSoles(falta)}.`}
           </p>
           <AreaTexto
             etiqueta="Motivo (queda escrito con tu nombre y la fecha)"
@@ -94,7 +103,7 @@ export function DecisionVentana({
             <Boton variante="primario" tamano="sm" onClick={guardar} disabled={guardando}>
               {guardando ? "Guardando…" : "Registrar la decisión"}
             </Boton>
-            <Boton variante="secundario" tamano="sm" onClick={() => setAbierto(false)} disabled={guardando}>
+            <Boton variante="secundario" tamano="sm" onClick={cerrar} disabled={guardando}>
               Cancelar
             </Boton>
           </div>

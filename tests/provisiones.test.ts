@@ -7,6 +7,7 @@ import {
   COLUMNAS_CSV_ANTERIORES,
   aplicarDecisiones,
   decisionDe,
+  leerMonto,
   atrasadoDelProximo,
   calendario,
   cuandoSePaga,
@@ -590,5 +591,23 @@ describe("aplicarDecisiones — lo que quedó de una ventana vencida, según lo 
     expect(dep.totalPendienteAnterior).toBe(67.05);
     const soloNoviembre = Math.round(dep.filas.reduce((a, f) => a + f.aDepositar, 0) * 100) / 100;
     expect(dep.total).toBe(Math.round((soloNoviembre + 164.79) * 100) / 100);
+  });
+});
+
+describe("leerMonto — un monto escrito a mano no se adivina", () => {
+  it("la coma de miles no se lee como decimal", () => {
+    expect(leerMonto("1,130")).toBe(1130);
+    expect(leerMonto("1,130.50")).toBe(1130.5);
+    expect(leerMonto("12,345,678.9")).toBe(12345678.9);
+  });
+  it("coma o punto como decimal, con uno o dos dígitos", () => {
+    expect(leerMonto("306,04")).toBe(306.04);
+    expect(leerMonto("306.04")).toBe(306.04);
+    expect(leerMonto("164.8")).toBe(164.8);
+    expect(leerMonto("0")).toBe(0);
+    expect(leerMonto(" S/ 306.04 ")).toBe(306.04);
+  });
+  it("lo ambiguo o inválido no se guarda", () => {
+    for (const t of ["", "abc", "-5", "12.345", "1,13,0", "1.130,50", "306.045", "1e3"]) expect(leerMonto(t)).toBeNull();
   });
 });
