@@ -4,11 +4,10 @@ import { cx } from "@/components/ui/cx";
 import {
   calendario,
   cuandoSePaga,
+  deposito,
   fechaCorta,
   porPagar,
   proximoDesembolso,
-  totalAtrasadoDelProximo,
-  totalConAtrasado,
   totalProximo,
   type ProvData,
   type ProvPersona,
@@ -50,8 +49,8 @@ export function ResumenProvisiones({
   const r = porPagar(personas);
   const prox = proximoDesembolso(data);
   const montoProx = totalProximo(personas, data);
-  const atrasado = totalAtrasadoDelProximo(personas, data);
-  const todoJunto = totalConAtrasado(personas, data);
+  // La misma partición que la pestaña Depósito: lo decidido entra, lo demás no.
+  const dep = deposito(data, personas);
   const vencidos = calendario(data, personas).vencidos.reduce((a, v) => a + v.personas.length, 0);
 
   return (
@@ -101,10 +100,15 @@ export function ResumenProvisiones({
               {/* Si lo atrasado de una fecha ya pasada se paga con este depósito,
                   esto es lo que sale del banco ese día. Es el número para decidir
                   entre pagar ya o juntarlo con el próximo. */}
-              {atrasado !== null && atrasado > 0 && todoJunto !== null && (
+              {dep && dep.totalRegularizacion > 0 && (
                 <span className="text-sm text-crema/80">
-                  Más {formatSoles(atrasado)} de {prox.beneficio === "CTS" ? "CTS" : "gratificación"} atrasada ·
-                  todo junto, a hoy: <strong className="font-medium text-crema">{formatSoles(todoJunto)}</strong>
+                  Más {formatSoles(dep.totalRegularizacion)} de regularización ya decidida · sale del banco:{" "}
+                  <strong className="font-medium text-crema">{formatSoles(dep.total)}</strong>
+                </span>
+              )}
+              {dep && dep.totalPendienteAnterior > 0 && (
+                <span className="text-sm text-crema/80">
+                  Quedan {formatSoles(dep.totalPendienteAnterior)} de la fecha anterior por decidir; no están sumados.
                 </span>
               )}
             </>
