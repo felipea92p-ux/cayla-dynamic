@@ -114,6 +114,7 @@ export function ListaDeposito({ deposito: dep }: { deposito: Deposito | null }) 
               <td className="px-4 py-3 text-right text-taupe">{formatSoles(dep.totalPendienteAnterior)}</td>
             )}
           </tr>
+          {/* receta-propia: es la fila de total del pie (<tfoot>), no una fila de datos; <Fila> le pondría el resalte al pasar el cursor */}
           {hayRegularizacion && (
             <tr className="border-t border-sand">
               <td className="px-4 py-3 font-medium" colSpan={2}>
