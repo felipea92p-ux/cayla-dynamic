@@ -27,7 +27,7 @@ import { GotaDePestanas } from "@/components/vidrio/gota-de-pestanas";
 import { interruptoresVidrio } from "@/lib/vidrio";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { puedeDecidirBeneficioVencido, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -40,6 +40,7 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Drawer } from "@/components/ui/drawer";
 import { cx } from "@/components/ui/cx";
 import {
+  aplicarDecisiones,
   aplicarPisoLegal,
   COLUMNAS_CSV,
   cortesDelPiso,
@@ -52,12 +53,14 @@ import {
   filasCsv,
   filtrar,
   hayFiltros,
+  type DecisionBeneficio,
   type DesembolsoLibro,
   type EstadoFila,
   type FiltrosProvisiones,
   type ProvData,
   type ProvPersona,
   type SubvData,
+  type VentanaClave,
   type Subvenciones,
 } from "@/lib/admin/provisiones";
 import { CalendarioPagos, ResumenProvisiones } from "./ResumenYCalendario";
@@ -87,6 +90,8 @@ export default function ProvisionesPage() {
   const [subvenciones, setSubvenciones] = useState<Subvenciones>(undefined);
   // true = alguna lectura del piso legal falló y esa ventana muestra el día por día.
   const [pisoIncompleto, setPisoIncompleto] = useState(false);
+  // false = la 0618 no está pegada o la lectura falló: no se ofrece decidir.
+  const [decisionesDisponibles, setDecisionesDisponibles] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosProvisiones>(FILTROS_VACIOS);
   const [vista, setVista] = useState<Vista>("personas");
   const [persona, setPersona] = useState<ProvPersona | null>(null);
@@ -133,9 +138,26 @@ export default function ProvisionesPage() {
       cortes.map(({ clave }, i) => [clave, lecturas[i].error ? null : (lecturas[i].data as unknown as ProvData)]),
     );
     setPisoIncompleto(lecturas.some((l) => l.error));
-    const d = aplicarPisoLegal(dia, pisos);
+    const conPiso = aplicarPisoLegal(dia, pisos);
+
+    // LAS DECISIONES SOBRE VENTANAS YA VENCIDAS (0618). Si la lectura falla —o
+    // la migración todavía no está pegada— no se aplica ninguna y la pantalla
+    // sigue mostrando el cálculo del sistema como «por decidir»: nunca se cae
+    // por esto, y nunca da por decidido algo que no pudo leer.
+    // `as never`: la función nace con la 0618 y los tipos generados no la
+    // conocen hasta que esté pegada (mismo recurso que fn_subvenciones_practicante).
+    const { data: dec, error: errorDec } = await supabase.rpc("fn_beneficio_decision_vigente" as never, {
+      p_anio: Number(dia.as_of.slice(0, 4)),
+    } as never);
+    setDecisionesDisponibles(!errorDec);
+    const decisiones = errorDec
+      ? []
+      : ((dec ?? []) as unknown as DecisionBeneficio[]).map((x) => ({ ...x, monto_reconocido: Number(x.monto_reconocido) }));
+    const d = aplicarDecisiones(conPiso, decisiones);
     setError(null);
     setData(d);
+    // El panel abierto muestra a la persona con sus montos de antes: se refresca.
+    setPersona((actual) => (actual ? (d.personas.find((x) => x.persona_id === actual.persona_id) ?? actual) : actual));
 
     // EL LIBRO SE LEE APARTE, Y SU FALLA NO TUMBA LA PANTALLA. De él salen solo
     // la fecha y la vía de cada pago; los montos ya vienen en fn_provisiones.
@@ -163,6 +185,25 @@ export default function ProvisionesPage() {
     const { data: subv, error: errorSubv } = await supabase.rpc("fn_subvenciones_practicante" as never);
     setSubvenciones(errorSubv ? null : (subv satisfies SubvData));
   }, [supabase, puedeVer]);
+
+  // Registrar la decisión de una ventana vencida (0618) y releer. Devuelve el
+  // mensaje de error para que el formulario lo muestre donde se escribió.
+  const decidir = useCallback(
+    async (ventana: VentanaClave, monto: number, motivo: string): Promise<string | null> => {
+      if (!persona || !data) return "No hay una persona abierta.";
+      const { error } = await supabase.rpc("fn_beneficio_decidir" as never, {
+        p_persona_id: persona.persona_id,
+        p_ventana: ventana,
+        p_anio: Number(data.as_of.slice(0, 4)),
+        p_monto: monto,
+        p_motivo: motivo,
+      } as never);
+      if (error) return error.message;
+      await cargar();
+      return null;
+    },
+    [supabase, persona, data, cargar],
+  );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel (disciplina, educación, bandeja).
@@ -439,7 +480,14 @@ export default function ProvisionesPage() {
               volverElFocoA={focoAlAbrir}
             >
               {persona && (
-                <DetallePersona data={data} persona={persona} libro={libro} subvenciones={subvenciones} />
+                <DetallePersona
+                  data={data}
+                  persona={persona}
+                  libro={libro}
+                  subvenciones={subvenciones}
+                  puedeDecidir={decisionesDisponibles && puedeDecidirBeneficioVencido(rol)}
+                  onDecidir={decidir}
+                />
               )}
             </Drawer>
           </>

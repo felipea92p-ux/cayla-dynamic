@@ -3,6 +3,7 @@ import { formatSoles } from "@/lib/rangos";
 import { cx } from "@/components/ui/cx";
 import { Insignia } from "@/components/ui/insignia";
 import { Estados } from "./TablaProvisiones";
+import { DecisionVentana } from "./DecisionVentana";
 import {
   ETIQUETA_ESTADO_VENTANA,
   ETIQUETA_ORIGEN,
@@ -30,6 +31,7 @@ import {
   type Ventana,
   type VentanaClave,
   type VentanaLibro,
+  decisionDe,
 } from "@/lib/admin/provisiones";
 
 // El detalle de una persona: qué ya se pagó, qué se está acumulando, qué falta
@@ -60,12 +62,17 @@ export function DetallePersona({
   persona: p,
   libro,
   subvenciones,
+  puedeDecidir,
+  onDecidir,
 }: {
   data: ProvData;
   persona: ProvPersona;
   libro: Libro;
   /** Lo que devenga una practicante (0467). Viene de otra función. */
   subvenciones: Subvenciones;
+  /** La dirección, con la 0618 pegada: puede registrar la decisión de una ventana vencida. */
+  puedeDecidir: boolean;
+  onDecidir: (ventana: VentanaClave, monto: number, motivo: string) => Promise<string | null>;
 }) {
   const anio = Number(data.as_of.slice(0, 4));
   const vinculo = esPracticante(p) ? "Practicante" : "Planilla";
@@ -206,14 +213,15 @@ export function DetallePersona({
   const mp = montoProximo(p, data);
   const atrasado = atrasadoDelProximo(p, data);
   const todoJunto = montoConAtrasado(p, data);
+  const decidir = { puedeDecidir, onDecidir };
 
   return (
     <div className="grid gap-7 [font-variant-numeric:tabular-nums]">
       {cabecera}
 
       <Seccion titulo="Gratificación" total={gratiConBonificacion(p)} nota="Incluye el 9 % de cada ventana.">
-        <BloqueVentana p={p} v={ventana("grati_s1")} data={data} libro={libro} anio={anio} />
-        <BloqueVentana p={p} v={ventana("grati_s2")} data={data} libro={libro} anio={anio} />
+        <BloqueVentana p={p} v={ventana("grati_s1")} data={data} libro={libro} anio={anio} {...decidir} />
+        <BloqueVentana p={p} v={ventana("grati_s2")} data={data} libro={libro} anio={anio} {...decidir} />
       </Seccion>
 
       <Seccion titulo="Bonificación extraordinaria" total={p.be_total} nota="Ya está sumada en la gratificación de arriba.">
@@ -228,8 +236,8 @@ export function DetallePersona({
       </Seccion>
 
       <Seccion titulo="CTS" total={p.cts_total} nota="Se deposita en la cuenta CTS del banco, no en efectivo.">
-        <BloqueVentana p={p} v={ventana("cts_may")} data={data} libro={libro} anio={anio} />
-        <BloqueVentana p={p} v={ventana("cts_nov")} data={data} libro={libro} anio={anio} />
+        <BloqueVentana p={p} v={ventana("cts_may")} data={data} libro={libro} anio={anio} {...decidir} />
+        <BloqueVentana p={p} v={ventana("cts_nov")} data={data} libro={libro} anio={anio} {...decidir} />
       </Seccion>
 
       <Seccion titulo="Vacaciones" total={p.vac}>
@@ -292,8 +300,27 @@ function Dato({ etiqueta, children, className }: { etiqueta: string; children: R
   );
 }
 
-function BloqueVentana({ p, v, data, libro, anio }: { p: ProvPersona; v: Ventana; data: ProvData; libro: Libro; anio: number }) {
+function BloqueVentana({
+  p,
+  v,
+  data,
+  libro,
+  anio,
+  puedeDecidir,
+  onDecidir,
+}: {
+  p: ProvPersona;
+  v: Ventana;
+  data: ProvData;
+  libro: Libro;
+  anio: number;
+  puedeDecidir: boolean;
+  onDecidir: (ventana: VentanaClave, monto: number, motivo: string) => Promise<string | null>;
+}) {
   const estado = estadoVentana(p, v, data.as_of);
+  const decision = decisionDe(p, v.clave);
+  // Solo una ventana cuya fecha ya pasó se decide: antes, se sigue acumulando.
+  const vencida = data.as_of > v.pago;
   const saldo = p[v.clave];
   const nueve = bonificacionDe(p, v.clave);
   const esGrati = v.beneficio === "Gratificación";
@@ -308,7 +335,9 @@ function BloqueVentana({ p, v, data, libro, anio }: { p: ProvPersona; v: Ventana
         </Insignia>
       </div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
-        <Dato etiqueta="Devengado">{formatSoles(devengadoVentana(p, v.clave))}</Dato>
+        <Dato etiqueta={decision ? "Reconocido" : "Devengado"}>
+          {formatSoles(decision ? decision.reconocido : devengadoVentana(p, v.clave))}
+        </Dato>
         <Dato etiqueta="Pagado">
           <Pagos p={p} ventana={v.clave} anio={anio} libro={libro} />
         </Dato>
@@ -328,6 +357,14 @@ function BloqueVentana({ p, v, data, libro, anio }: { p: ProvPersona; v: Ventana
         </p>
       )}
       {estado === "pagado_de_mas" && <Origen />}
+      {vencida && (decision || (puedeDecidir && (estado === "vencido" || estado === "pago_parcial"))) && (
+        <DecisionVentana
+          decision={decision}
+          depositado={pagadoVentana(p, v.clave)}
+          puedeDecidir={puedeDecidir}
+          onDecidir={(monto, motivo) => onDecidir(v.clave, monto, motivo)}
+        />
+      )}
     </div>
   );
 }

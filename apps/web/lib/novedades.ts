@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-14-provisiones-decision-de-lo-que-quedo",
+    fecha: "2026-11-14",
+    titulo: "Lo que quedó de una fecha de pago anterior ya se puede decidir en Provisiones",
+    queMejoro:
+      "En Pago › Provisiones, cuando una fecha de CTS o gratificación ya pasó y todavía figura con saldo, la dirección " +
+      "puede registrar cuánto se reconoce para esa fecha y por qué, desde el panel de cada persona. Queda escrito con " +
+      "autor y fecha.\n\n" +
+      "En la pestaña «Depósito», lo decidido aparece como «Regularización» y entra al total que sale del banco. Lo que " +
+      "nadie decidió sigue aparte, como «por decidir».",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-13-correcciones-hora-incompleta",
     fecha: "2026-11-13",
     titulo: "Correcciones avisa en español cuando la hora no está completa",

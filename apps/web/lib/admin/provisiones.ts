@@ -362,6 +362,93 @@ export function usaPisoLegal(p: ProvPersona, clave: VentanaClave): boolean {
   return (p as ConPiso).piso_legal?.includes(clave) ?? false;
 }
 
+// ── La decisión sobre una ventana ya vencida (0618) ──────────────────────────
+//
+// POR QUÉ EXISTE. Una ventana anterior al sistema —la CTS de mayo de 2026— se
+// depositó por fuera, con el criterio del contador (la remuneración declarada
+// de entonces). La base la reconstruye con la fórmula de hoy y le ve un saldo
+// que nadie decidió pagar. La dirección registra cuánto RECONOCE que
+// correspondía en esa ventana (`fn_beneficio_decidir`) y, desde ahí, lo que
+// falta es reconocido − depositado, no el cálculo del sistema.
+//
+// QUÉ HACE. Reemplaza la celda de esa ventana por lo que falta según la
+// decisión, y vuelve a sumar los totales igual que `aplicarPisoLegal`. Guarda
+// al lado lo que calculaba el sistema, para poder mostrarlo.
+//
+// QUÉ NO HACE. No toca una ventana que todavía no vence (ahí no hay nada que
+// decidir: se acumula), ni una decisión de otro año, ni a una practicante. Y
+// nunca deja un saldo negativo: si se depositó más de lo reconocido, la ventana
+// queda saldada y el exceso se dice en el detalle — una decisión cierra la
+// cuenta, no abre un «pagado de más» nuevo.
+//
+// SE ROMPE SI otra lectura del pendiente de una ventana vencida (un reporte,
+// una liquidación) no pasa por aquí: verá el cálculo del sistema, no lo decidido.
+
+export interface DecisionBeneficio {
+  persona_id: string;
+  ventana: VentanaClave;
+  anio: number;
+  monto_reconocido: number;
+  motivo: string;
+  created_at: string;
+}
+
+export interface DecisionAplicada {
+  /** Lo que la dirección reconoce que correspondía en toda la ventana. */
+  reconocido: number;
+  motivo: string;
+  /** Cuándo se registró (ISO). */
+  fecha: string;
+  /** El saldo que calculaba el sistema antes de aplicar la decisión. */
+  saldoDelSistema: number;
+  /** Lo depositado por encima de lo reconocido (0 si no hay). */
+  exceso: number;
+}
+
+export type ConDecision = ProvPersona & { decisiones?: Partial<Record<VentanaClave, DecisionAplicada>> };
+
+/** La decisión que rige esa ventana para esa persona, si hay. */
+export function decisionDe(p: ProvPersona, clave: VentanaClave): DecisionAplicada | null {
+  return (p as ConDecision).decisiones?.[clave] ?? null;
+}
+
+export function aplicarDecisiones(d: ProvData, decisiones: DecisionBeneficio[]): ProvData {
+  const anio = Number(anioDe(d.as_of));
+  const vencidas = new Set(ventanasDe(d).filter((v) => d.as_of > v.pago).map((v) => v.clave));
+  const porPersona = new Map<string, DecisionBeneficio[]>();
+  for (const x of decisiones) {
+    if (x.anio !== anio || !vencidas.has(x.ventana)) continue;
+    porPersona.set(x.persona_id, [...(porPersona.get(x.persona_id) ?? []), x]);
+  }
+  if (!porPersona.size) return d;
+  const personas = d.personas.map((p): ProvPersona => {
+    const suyas = porPersona.get(p.persona_id);
+    if (!suyas || esPracticante(p)) return p;
+    const q: ConDecision = { ...p, decisiones: { ...(p as ConDecision).decisiones } };
+    for (const x of suyas) {
+      const pagado = pagadoVentana(p, x.ventana);
+      const falta = redondear(x.monto_reconocido - pagado);
+      q.decisiones![x.ventana] = {
+        reconocido: x.monto_reconocido,
+        motivo: x.motivo,
+        fecha: x.created_at,
+        saldoDelSistema: saldoVentana(p, x.ventana),
+        exceso: redondear(Math.max(-falta, 0)),
+      };
+      q[x.ventana] = Math.max(falta, 0);
+      // En gratificación lo reconocido ya incluye su 9 %: no queda 9 % aparte.
+      if (x.ventana === "grati_s1") q.be_s1 = 0;
+      if (x.ventana === "grati_s2") q.be_s2 = 0;
+    }
+    q.grati_total = redondear(q.grati_s1 + q.grati_s2);
+    if (q.be_s1 !== undefined && q.be_s2 !== undefined) q.be_total = redondear(q.be_s1 + q.be_s2);
+    q.cts_total = redondear(q.cts_may + q.cts_nov);
+    q.gran_total = redondear(q.grati_total + q.be_total + q.cts_total + q.vac);
+    return q;
+  });
+  return { ...d, personas };
+}
+
 /**
  * La columna «Gratificación» de la tabla: la gratificación y su 9 % juntos.
  * Con ella, Gratificación + CTS + Vacaciones es exactamente `gran_total`, y el
@@ -578,6 +665,8 @@ export interface FilaDeposito {
   aDepositar: number;
   /** Si a la persona ya se le pagó de más en esta ventana, cuánto. */
   pagadoDeMas: number;
+  /** Lo que la dirección decidió pagar de ventanas ya vencidas (0618). Entra al total. */
+  regularizacion: number;
   /** Saldo positivo de ventanas pasadas del mismo beneficio, sin decidir. */
   pendienteAnterior: number;
 }
@@ -589,7 +678,9 @@ export interface Deposito {
   /** El día que de verdad sale la plata: el lunes si el 15 cae domingo. */
   fechaDeposito: string;
   filas: FilaDeposito[];
+  /** Lo de la próxima fecha MÁS la regularización ya decidida de ventanas vencidas. */
   total: number;
+  totalRegularizacion: number;
   totalPendienteAnterior: number;
 }
 
@@ -619,7 +710,7 @@ export function deposito(d: ProvData, personas: ProvPersona[]): Deposito | null 
         sede: p.sede,
         aDepositar: redondear(Math.max(mp, 0)),
         pagadoDeMas: redondear(Math.max(-mp, 0)),
-        pendienteAnterior: redondear(Math.max(atrasadoDelProximo(p, d) ?? 0, 0)),
+        ...pendienteAnteriorDe(p, d),
       };
     })
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
@@ -628,15 +719,39 @@ export function deposito(d: ProvData, personas: ProvPersona[]): Deposito | null 
     fechaLegal: prox.fecha,
     fechaDeposito: fechaHabilDeDeposito(prox.fecha),
     filas,
-    total: redondear(filas.reduce((a, f) => a + f.aDepositar, 0)),
+    total: redondear(filas.reduce((a, f) => a + f.aDepositar + f.regularizacion, 0)),
+    totalRegularizacion: redondear(filas.reduce((a, f) => a + f.regularizacion, 0)),
     totalPendienteAnterior: redondear(filas.reduce((a, f) => a + f.pendienteAnterior, 0)),
   };
+}
+
+/**
+ * Lo que quedó de las ventanas ya vencidas del mismo beneficio, partido en dos:
+ * `regularizacion` es lo que la dirección YA decidió pagar (0618) y por eso
+ * entra al total del depósito; `pendienteAnterior` es lo que el sistema calcula
+ * y nadie decidió todavía, que sigue fuera del total.
+ */
+function pendienteAnteriorDe(p: ProvPersona, d: ProvData): { regularizacion: number; pendienteAnterior: number } {
+  const prox = proximoDesembolso(d);
+  let regularizacion = 0, pendienteAnterior = 0;
+  if (prox && prox.fiable && !esPracticante(p)) {
+    for (const v of ventanasDe(d)) {
+      if (v.beneficio !== prox.beneficio || v.clave === prox.clave) continue;
+      const e = estadoVentana(p, v, d.as_of);
+      if (e !== "vencido" && e !== "pago_parcial") continue;
+      const saldo = Math.max(saldoVentana(p, v.clave), 0);
+      if (decisionDe(p, v.clave)) regularizacion += saldo;
+      else pendienteAnterior += saldo;
+    }
+  }
+  return { regularizacion: redondear(regularizacion), pendienteAnterior: redondear(pendienteAnterior) };
 }
 
 export const COLUMNAS_CSV_DEPOSITO = [
   "persona",
   "sede",
   "a_depositar",
+  "regularizacion_decidida",
   "pagado_de_mas",
   "pendiente_anterior_por_decidir",
 ] as const;
@@ -646,6 +761,7 @@ export function filasCsvDeposito(dep: Deposito): Record<string, unknown>[] {
     persona: f.nombre,
     sede: f.sede,
     a_depositar: f.aDepositar.toFixed(2),
+    regularizacion_decidida: f.regularizacion ? f.regularizacion.toFixed(2) : "",
     pagado_de_mas: f.pagadoDeMas ? f.pagadoDeMas.toFixed(2) : "",
     pendiente_anterior_por_decidir: f.pendienteAnterior ? f.pendienteAnterior.toFixed(2) : "",
   }));

@@ -79,6 +79,16 @@ export function puedeMarcarPagoPersona(rol: RolPosible): boolean {
 }
 
 /**
+ * Decidir cuánto reconoce la empresa en una ventana de beneficio ya vencida
+ * (0618): la CTS o la gratificación de una fecha que pasó y a la que el sistema
+ * todavía le ve saldo. Solo la dirección — es decidir plata que ya debió salir,
+ * y `fn_beneficio_decidir` niega a quien no sea admin exacto.
+ */
+export function puedeDecidirBeneficioVencido(rol: RolPosible): boolean {
+  return tiene(SOLO_DIRECCION, rol);
+}
+
+/**
  * Identidad: DNI, cuenta bancaria, dirección, derechohabientes.
  * Solo DO — es el dato con el que se abre una cuenta a nombre de otra persona.
  */

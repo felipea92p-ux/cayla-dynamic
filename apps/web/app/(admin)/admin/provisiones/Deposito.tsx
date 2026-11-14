@@ -38,6 +38,7 @@ export function ListaDeposito({ deposito: dep }: { deposito: Deposito | null }) 
   const queEs = dep.beneficio === "CTS" ? `CTS de ${mes(dep.fechaLegal)}` : `gratificación de ${mes(dep.fechaLegal)}`;
   const corrida = dep.fechaDeposito !== dep.fechaLegal;
   const hayPendiente = dep.totalPendienteAnterior > 0;
+  const hayRegularizacion = dep.totalRegularizacion > 0;
   const hayDeMas = dep.filas.some((f) => f.pagadoDeMas > 0);
 
   const bajar = () =>
@@ -71,6 +72,7 @@ export function ListaDeposito({ deposito: dep }: { deposito: Deposito | null }) 
           <Th>Persona</Th>
           <Th>Sede</Th>
           <Th className="text-right">A depositar</Th>
+          {hayRegularizacion && <Th className="text-right">Regularización de {anterior(dep)}</Th>}
           {hayPendiente && <Th className="text-right">Quedó de {anterior(dep)} · por decidir</Th>}
         </TablaEncabezado>
         <tbody>
@@ -84,6 +86,11 @@ export function ListaDeposito({ deposito: dep }: { deposito: Deposito | null }) 
                   <span className="block text-xs text-pizarra">ya cobró {formatSoles(f.pagadoDeMas)} de más</span>
                 )}
               </td>
+              {hayRegularizacion && (
+                <td className="px-4 py-2 text-right font-medium">
+                  {f.regularizacion > 0 ? formatSoles(f.regularizacion) : "—"}
+                </td>
+              )}
               {hayPendiente && (
                 <td className="px-4 py-2 text-right text-taupe">
                   {f.pendienteAnterior > 0 ? formatSoles(f.pendienteAnterior) : "—"}
@@ -97,7 +104,17 @@ export function ListaDeposito({ deposito: dep }: { deposito: Deposito | null }) 
             <td className="px-4 py-3 font-medium" colSpan={2}>
               Total que sale del banco
             </td>
-            <td className="px-4 py-3 text-right text-lg font-semibold">{formatSoles(dep.total)}</td>
+            <td className="px-4 py-3 text-right text-lg font-semibold">
+              {formatSoles(dep.total)}
+              {hayRegularizacion && (
+                <span className="block text-xs font-normal text-taupe">
+                  incluye {formatSoles(dep.totalRegularizacion)} de regularización
+                </span>
+              )}
+            </td>
+            {hayRegularizacion && (
+              <td className="px-4 py-3 text-right font-medium">{formatSoles(dep.totalRegularizacion)}</td>
+            )}
             {hayPendiente && (
               <td className="px-4 py-3 text-right text-taupe">{formatSoles(dep.totalPendienteAnterior)}</td>
             )}
@@ -105,8 +122,15 @@ export function ListaDeposito({ deposito: dep }: { deposito: Deposito | null }) 
         </tfoot>
       </Tabla>
 
-      {(hayPendiente || hayDeMas) && (
+      {(hayPendiente || hayDeMas || hayRegularizacion) && (
         <BannerAviso variante="informativo" className="max-w-3xl">
+          {hayRegularizacion && (
+            <>
+              <strong className="font-medium">«Regularización de {anterior(dep)}» sí está en el total.</strong> Es lo
+              que la dirección decidió pagar de la fecha anterior; va a la misma cuenta, pero se declara aparte, como
+              regularización de {anterior(dep)}.{" "}
+            </>
+          )}
           {hayPendiente && (
             <>
               <strong className="font-medium">«Quedó de {anterior(dep)}» no está en el total.</strong> Es lo que el

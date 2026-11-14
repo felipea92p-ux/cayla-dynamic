@@ -5,6 +5,8 @@ import {
   usaPisoLegal,
   COLUMNAS_CSV,
   COLUMNAS_CSV_ANTERIORES,
+  aplicarDecisiones,
+  decisionDe,
   atrasadoDelProximo,
   calendario,
   cuandoSePaga,
@@ -529,5 +531,64 @@ describe("aplicarPisoLegal", () => {
   it("el depósito del 15 suma lo que manda la ley", () => {
     const d = aplicarPisoLegal(dia, { cts_nov: pisoNov });
     expect(totalProximo(d.personas, d)).toBe(Math.round((217.95 + 408.89) * 100) / 100);
+  });
+});
+
+describe("aplicarDecisiones — lo que quedó de una ventana vencida, según lo que decidió la dirección (0618)", () => {
+  // `parcial` es el caso real: el sistema le ve 256.40 pendientes de mayo y se le depositaron 141.25.
+  const dec = (o: { persona_id: string; monto_reconocido: number; ventana?: "cts_may" | "cts_nov" | "grati_s1"; anio?: number }) => ({
+    ventana: "cts_may" as const, anio: 2026, motivo: "Se regulariza sobre lo declarado", created_at: "2026-11-14T15:00:00Z", ...o,
+  });
+  const hoy = datos(equipo, "2026-11-14");
+
+  it("la celda pasa a ser lo reconocido menos lo ya depositado", () => {
+    const r = aplicarDecisiones(hoy, [dec({ persona_id: "c", monto_reconocido: 306.04 })]);
+    const p = r.personas.find((x) => x.persona_id === "c")!;
+    expect(p.cts_may).toBe(164.79);
+    expect(p.cts_total).toBe(Math.round((164.79 + 266.11) * 100) / 100);
+    expect(p.gran_total).toBe(p.cts_total);
+    expect(decisionDe(p, "cts_may")).toMatchObject({ reconocido: 306.04, saldoDelSistema: 256.4, exceso: 0 });
+  });
+  it("si se depositó más de lo reconocido, la ventana queda saldada y no nace un «pagado de más»", () => {
+    const r = aplicarDecisiones(hoy, [dec({ persona_id: "a", monto_reconocido: 306.04 })]);
+    const p = r.personas.find((x) => x.persona_id === "a")!;
+    expect(p.cts_may).toBe(0);
+    expect(decisionDe(p, "cts_may")!.exceso).toBe(2.12);
+    expect(estadoVentana(p, v("cts_may"), hoy.as_of)).toBe("pagado");
+  });
+  it("reconocer cero cierra la ventana aunque no se haya depositado nada", () => {
+    const r = aplicarDecisiones(hoy, [dec({ persona_id: "b", monto_reconocido: 0 })]);
+    const p = r.personas.find((x) => x.persona_id === "b")!;
+    expect(p.cts_may).toBe(0);
+    expect(estadoVentana(p, v("cts_may"), hoy.as_of)).toBe("sin_monto");
+  });
+  it("no toca una ventana que todavía no vence, ni una decisión de otro año", () => {
+    const antes = datos(equipo, "2026-11-14");
+    const r = aplicarDecisiones(antes, [
+      dec({ persona_id: "c", monto_reconocido: 1, ventana: "cts_nov" }), // vence el 15: el 14 todavía acumula
+      dec({ persona_id: "c", monto_reconocido: 1, anio: 2025 }),
+    ]);
+    expect(r).toBe(antes);
+  });
+  it("sin decisiones devuelve lo mismo que recibió", () => {
+    expect(aplicarDecisiones(hoy, [])).toBe(hoy);
+  });
+  it("una practicante no recibe decisiones", () => {
+    const r = aplicarDecisiones(hoy, [dec({ persona_id: "e", monto_reconocido: 100 })]);
+    expect(decisionDe(r.personas.find((x) => x.persona_id === "e")!, "cts_may")).toBeNull();
+  });
+  it("en el depósito, lo decidido entra al total y lo sin decidir sigue fuera", () => {
+    const r = aplicarDecisiones(hoy, [dec({ persona_id: "c", monto_reconocido: 306.04 })]);
+    const dep = deposito(r, r.personas)!;
+    const lucia = dep.filas.find((f) => f.persona_id === "c")!;
+    const rosa = dep.filas.find((f) => f.persona_id === "b")!;
+    expect(lucia.regularizacion).toBe(164.79);
+    expect(lucia.pendienteAnterior).toBe(0);
+    expect(rosa.regularizacion).toBe(0);
+    expect(rosa.pendienteAnterior).toBe(67.05);
+    expect(dep.totalRegularizacion).toBe(164.79);
+    expect(dep.totalPendienteAnterior).toBe(67.05);
+    const soloNoviembre = Math.round(dep.filas.reduce((a, f) => a + f.aDepositar, 0) * 100) / 100;
+    expect(dep.total).toBe(Math.round((soloNoviembre + 164.79) * 100) / 100);
   });
 });
