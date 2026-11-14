@@ -96,6 +96,7 @@ insert into decision (tabla, estado, tema) values
   ('periodos_planilla', 'lote 4', null), ('periodo_grupo_pago', 'lote 4', null), ('periodos_eliminados', 'lote 4', null),
   ('movimientos_planilla', 'lote 4', null), ('liquidacion_constancias', 'lote 4', null), ('liquidacion_pagada', 'lote 4', null),
   ('desembolsos_beneficios', 'lote 4', null), ('reversas_pago', 'lote 4', null),
+  ('beneficios_decisiones', 'lote 4', null),
   ('asignaciones_salario', 'lote 4', null), ('asignaciones_regimen_pension', 'lote 4', null),
   ('tarifas_hora', 'lote 4', null), ('tasas_pension', 'lote 4', null), ('bonos_umbral_permitido', 'lote 4', null),
   ('etiquetas_complemento', 'lote 4', null), ('factores_categoria', 'lote 4', null), ('categorias_laborales', 'lote 4', null),
