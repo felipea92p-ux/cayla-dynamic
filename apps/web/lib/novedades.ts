@@ -122,6 +122,14 @@ export const NOVEDADES: readonly Novedad[] = [
       "En Pago › Provisiones, la CTS y la gratificación se calculan con el sueldo vigente al cierre del semestre, " +
       "aplicado a todo el semestre, que es lo que manda la ley. Antes se hacían dos cuentas y se mostraba la mayor.\n\n" +
       "A quien le cambió el sueldo dentro del semestre le puede cambiar el monto. El panel de cada persona lo dice.",
+    id: "2026-11-14-contrato-de-locacion-ya-se-firma",
+    fecha: "2026-11-14",
+    titulo: "El contrato de quien cobra por honorarios ya se puede firmar",
+    queMejoro:
+      "El texto del contrato de locación de servicios quedó aprobado: lo que generes desde hoy en Contratos › Recibo " +
+      "por honorarios ya no dice «BORRADOR», y la persona lo firma en Lo mío › Contrato.\n\n" +
+      "Los que se generaron antes siguen diciendo «BORRADOR — No firmar» y no se pueden firmar: anúlalos y genéralos " +
+      "de nuevo. Al abrir uno, la pantalla te lo avisa.",
     audiencia: "do",
   },
   {

@@ -6,6 +6,28 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-14 — El contrato de locación ya se firma: el texto queda aprobado · sin SQL · rama `claude/tender-faraday-1pykwo`
+
+**De dónde sale.** Felipe abrió el contrato de una persona por honorarios, vio «BORRADOR — pendiente de revisión legal. No firmar.» y
+preguntó si por eso no podía firmar. Sí: el botón de firmar dependía de `TEXTO_LOCACION_APROBADO`, que seguía en `false`. Sus palabras:
+«el contrato ya se realizó y se revisó correctamente así que pueda la persona firmar».
+
+**Construido.** `TEXTO_LOCACION_APROBADO = true` (`lib/admin/locacion-texto.ts`, con quién y cuándo en el encabezado). Y un cuidado que
+la constante sola no daba: lo que se generó ANTES lleva «No firmar» congelado en `documento_html` y un contrato no se edita, así que
+aprobar el molde no cambia esos papeles. `esBorradorLocacion` los reconoce leyendo el propio documento: en «Lo mío» no se ofrece la firma
+y se dice que DO lo va a generar de nuevo; en el panel de DO, al abrir uno, el aviso dice que se anule y se genere otra vez. La base no
+lo frena (como tampoco frenaba antes): es la pantalla. Novedad para DO en `novedades.ts`.
+
+**Verificado.** Typecheck, ESLint de los archivos tocados y vitest 4 222/4 222; `tests/locacion-texto.test.ts` con sus dos controles (con
+el detector roto falla; con la constante en `false` pasa y el aviso vuelve). **No visto en pantalla:** en esta sesión no había Supabase
+local.
+
+**Queda para Felipe.** (1) Después de publicar, DO anula y vuelve a generar cada contrato que hoy está en «Falta su firma»: todos se
+generaron como borrador. (2) Decir quién hizo la revisión legal y si vio la segunda versión (14 cláusulas), para anotarlo en el
+encabezado de `locacion-texto.ts`: hoy solo consta la aprobación de Felipe. (3) El molde es civil, pero lo que se escriba en «Servicio»
+y «Qué comprende» también cuenta: un nombre de puesto y funciones permanentes de tienda son los indicios que la cláusula tercera niega
+(primacía de la realidad). Eso no lo arregla el texto.
+
 ## 2026-11-13 — Provisiones dice lo que manda la ley · migración **0617 SIN PEGAR** · prueba 502 · rama `claude/vibrant-gates-395923`, sin subir
 
 **El hallazgo.** Revisando la CTS de noviembre: la RMV subió a 1,230 el 1-oct y la ley calcula con el sueldo **al cierre**, aplicado a
@@ -42,7 +64,7 @@ desechable los md5 de llegada. Después: la 0615 dio `10 | 8 | 3 | 615` y sus si
 **Lo que enseña.** La migración se pega ANTES de fusionar, también cuando fusiona alguien del equipo desde GitHub: el freno de las
 sesiones (`comentar-antes-de-fusionar.sh`) no ve una fusión hecha desde la web.
 
-## 2026-11-10 — El contrato de locación se genera y se firma en Dynamic · migración **0615 PEGADA Y VERIFICADA (2026-11-11)** · pruebas 500 y `tests/locacion-texto.test.ts` · FUSIONADO Y PUBLICADO ([#732](https://github.com/felipea92p-ux/cayla-dynamic/pull/732), 2026-11-10) · **el texto sigue en BORRADOR, esperando al abogado**
+## 2026-11-10 — El contrato de locación se genera y se firma en Dynamic · migración **0615 PEGADA Y VERIFICADA (2026-11-11)** · pruebas 500 y `tests/locacion-texto.test.ts` · FUSIONADO Y PUBLICADO ([#732](https://github.com/felipea92p-ux/cayla-dynamic/pull/732), 2026-11-10) · **el texto se aprobó el 2026-11-14 (ver arriba)**
 
 **De dónde sale.** Felipe pidió que a los RxH se les genere y firme el contrato en Dynamic, «como a planilla y practicantes», con «cargo,
 horas, sueldo, modalidad». Al ver que esas cuatro cosas son los indicios que desnaturalizan una locación (art. 4 del D.S. 003-97-TR,
@@ -55,8 +77,8 @@ base y se pagan en proporción a las horas: así paga hoy la planilla, y el cont
 md5 de las cuatro funciones de la 0610 que reescribe y para si alguna cambió. Pantalla: «Generar contrato» en el panel de cada RxH, visor
 compartido (`components/contratos/documento-locacion.tsx`), «Leer y firmar» en Lo mío.
 
-**Es un BORRADOR.** Mientras `TEXTO_LOCACION_APROBADO` sea `false`, cada documento dice «BORRADOR — No firmar» y el botón de firmar no
-aparece (la base no lo frena: es la constante y el aviso del propio papel). El Word con las siete preguntas para el abogado se le entregó a
+**Nació como BORRADOR (aprobado el 2026-11-14, ver arriba).** Mientras `TEXTO_LOCACION_APROBADO` fue `false`, cada documento decía «BORRADOR — No firmar» y el botón de firmar no
+aparecía (la base no lo frena: es la constante y el aviso del propio papel). El Word con las siete preguntas para el abogado se le entregó a
 Felipe el 2026-11-10, y Felipe dijo que «se revisó y quedó acorde a la ley».
 
 **Segunda revisión (2026-11-10), y por eso esa aprobación ya no cubre el texto.** Pedida por Felipe «a profundidad». Ahora son 14
@@ -81,8 +103,8 @@ inventados:** generar desde el panel y ver el documento con las dos firmas y su 
 por SQL, como ella, porque la pantalla no deja firmar un borrador.
 
 **Queda para Felipe.** Quién revisó la primera versión y cuándo (se anota al aprobar), y que el revisor vea los cambios de la segunda
-(Word «versión 2», con cuatro preguntas abiertas). Mientras `TEXTO_LOCACION_APROBADO` sea `false`, DO genera el contrato con «BORRADOR —
-No firmar» y la persona no lo puede firmar; aprobarlo es cambiar esa constante en un PR, anotando quién y cuándo.
+(Word «versión 2», con cuatro preguntas abiertas). **Aprobado por Felipe el 2026-11-14** (entrada de arriba); quién revisó sigue sin
+anotarse.
 
 ## 2026-11-10 — La firma de CAYLA queda la de su día · migración **0616 PEGADA Y VERIFICADA (2026-11-10)** · prueba 501 · FUSIONADO Y PUBLICADO ([#731](https://github.com/felipea92p-ux/cayla-dynamic/pull/731), 2026-11-10)
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   construirLocacion,
+  esBorradorLocacion,
   estamparFirmas,
   etiquetaLocador,
   MARCADOR_FECHA_FIRMA_EMPRESA,
@@ -188,9 +189,28 @@ describe("lo que falta se ve, y lo que entra se escapa", () => {
   });
 });
 
-describe("mientras el abogado no lo apruebe, es un borrador y lo dice", () => {
-  it("cada documento lleva el aviso de borrador arriba", () => {
-    if (TEXTO_LOCACION_APROBADO) return;
-    expect(sinEtiquetas(texto())).toContain("BORRADOR — pendiente de revisión legal. No firmar.");
+// El texto se aprobó el 2026-11-14. Lo que se protege desde entonces: que lo generado ANTES —con «No firmar»
+// congelado adentro— se siga reconociendo como borrador, porque aprobar el molde no cambia esos papeles.
+describe("un borrador lo dice, y se reconoce aunque el texto ya esté aprobado", () => {
+  // Tal como quedó congelado en `documento_html` lo que se generó antes de aprobar.
+  const generadoComoBorrador =
+    `<article class="contrato"><p class="borrador"><strong>BORRADOR — pendiente de revisión legal. No firmar.</strong></p>` +
+    `<header><h1>CONTRATO DE LOCACIÓN DE SERVICIOS</h1></header></article>`;
+
+  it("lo que se genera lleva el aviso de borrador si y solo si el texto no está aprobado", () => {
+    const html = texto();
+    expect(sinEtiquetas(html).includes("BORRADOR — pendiente de revisión legal. No firmar.")).toBe(!TEXTO_LOCACION_APROBADO);
+    expect(esBorradorLocacion(html)).toBe(!TEXTO_LOCACION_APROBADO);
+  });
+  it("un documento generado como borrador se reconoce como tal", () => {
+    expect(esBorradorLocacion(generadoComoBorrador)).toBe(true);
+  });
+  it("escribir «BORRADOR» en un campo no vuelve borrador a un contrato, ni metiendo la etiqueta", () => {
+    const html = texto({
+      servicio: `<p class="borrador">BORRADOR — pendiente de revisión legal. No firmar.</p>`,
+      entregables: `<p class="borrador">No firmar</p>`,
+      nombreDni: `<p class="borrador">X</p>`,
+    });
+    expect(esBorradorLocacion(html)).toBe(!TEXTO_LOCACION_APROBADO);
   });
 });

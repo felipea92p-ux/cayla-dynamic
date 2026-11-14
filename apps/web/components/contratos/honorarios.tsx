@@ -252,6 +252,9 @@ function Historial({
   const [modo, setModo] = useState<"generar" | "registrar" | null>(fila.estado === "sin_contrato" ? "generar" : null);
   // Un contrato generado se lee aquí mismo, en el panel.
   const [viendo, setViendo] = useState<ContratoLocacion | null>(null);
+  // El que se está viendo se generó antes de aprobar el texto: dice «No firmar» y la persona no lo puede firmar.
+  const [viendoBorrador, setViendoBorrador] = useState(false);
+  const alLeer = useCallback((documento: { esBorrador: boolean }) => setViendoBorrador(documento.esBorrador), []);
   // Un contrato a la vez: anular o terminar abre su formulario debajo de esa tarjeta.
   const [accion, setAccion] = useState<{ id: string; tipo: "anular" | "terminar" } | null>(null);
   const yaNoEsRxh = fila.estado === "abierta_sin_rxh";
@@ -279,11 +282,23 @@ function Historial({
   if (viendo) {
     return (
       <div className="space-y-3">
-        <Boton variante="enlace" className="text-sm" onClick={() => setViendo(null)}>← Volver al historial</Boton>
-        <p className="text-xs text-taupe">
-          {viendo.fecha_firma ? `Firmado el ${fecha(viendo.fecha_firma)}.` : "Todavía sin la firma de la persona: la firma desde «Lo mío › Contrato»."}
-        </p>
-        <DocumentoLocacion supabase={supabase} contratoId={viendo.id} nombreDelPdf={`${fila.persona} — Contrato de locación`} />
+        <Boton variante="enlace" className="text-sm" onClick={() => { setViendo(null); setViendoBorrador(false); }}>← Volver al historial</Boton>
+        {viendoBorrador && !viendo.fecha_firma ? (
+          <BannerAviso enLinea variante="advertencia">
+            Este contrato se generó como borrador y dice «No firmar»: la persona no lo puede firmar. Vuelve al
+            historial, anúlalo y genéralo de nuevo.
+          </BannerAviso>
+        ) : (
+          <p className="text-xs text-taupe">
+            {viendo.fecha_firma ? `Firmado el ${fecha(viendo.fecha_firma)}.` : "Todavía sin la firma de la persona: la firma desde «Lo mío › Contrato»."}
+          </p>
+        )}
+        <DocumentoLocacion
+          supabase={supabase}
+          contratoId={viendo.id}
+          nombreDelPdf={`${fila.persona} — Contrato de locación`}
+          alLeer={alLeer}
+        />
       </div>
     );
   }

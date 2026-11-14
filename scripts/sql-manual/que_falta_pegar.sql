@@ -473,7 +473,8 @@ with repo(numero, nombre, nunca) as (values
     (615, 'el_contrato_de_locacion_se_genera_y_se_firma_en_dynamic', false),
     (616, 'la_firma_de_cayla_queda_la_de_su_dia', false),
     (617, 'los_factores_de_provisiones_dejan_rastro', false),
-    (618, 'lo_que_quedo_de_un_beneficio_se_decide_y_queda_escrito', false)
+    (618, 'lo_que_quedo_de_un_beneficio_se_decide_y_queda_escrito', false),
+    (619, 'grati_y_cts_se_pagan_con_el_sueldo_del_cierre', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -994,19 +995,21 @@ plata(etiqueta, funcion, estado, orden) as (
   union all
   select 'PLATA', 'fn_grati_cts_periodo', coalesce((
            select string_agg(case md5(p.prosrc)
-             when '029c534ff79b6e60d7a5a760be659053' then '✓   al día (0346)'
-             when '6fa0ce305883c9d3216161998cee43bc' then '✓   al día (0346, pegada sin comentarios)'
-             when 'ba3842ca25d44d0c33eaae589ad8831e' then '✓   al día (0346, pegada desde Windows)'
-             when 'ab45ed033f142e0a9dadee1c8d35a813' then '✓   al día (0346, desde Windows y sin comentarios)'
-             when '8167a3ba9914f22c1fe4debb025df8bc' then '✗   0346 con los acentos rotos — vuelve a pegarla'
-             when '2051d2fc838ca0514a75f32791aef614' then '❌  se quedó en la 0338 — la vigente es la 0346'
-             when '1737f40c452fe240db07ea2a4a2320d3' then '❌  se quedó en la 0338 — la vigente es la 0346'
-             when '0bc70f11dd23ede89441e11486d58d70' then '❌  se quedó en la 0088 — la vigente es la 0346'
-             when '1c01cf1afcedd57358d9c7cd4f65346c' then '❌  se quedó en la 0088 — la vigente es la 0346'
-             when 'b9739b9367b2e32bf250dc6455d9e30f' then '❌  se quedó en la 0050 — la vigente es la 0346'
-             when 'c9f611aa3eb2e7efff0c9c8b6451aa3a' then '❌  se quedó en la 0050 — la vigente es la 0346'
-             when '8357793976dc7db790fb443c067d4cac' then '❌  se quedó en la 0049 — la vigente es la 0346'
-             when '9ea7afb55c21135c7370e946eb3e4020' then '❌  se quedó en la 0049 — la vigente es la 0346'
+             when '44993de4ede5ee79cf4e48f32a04d1e2' then '✓   al día (0619)'
+             when 'f370072be43a9ddb98738a5b9ae37600' then '✓   al día (0619, pegada sin comentarios)'
+             when '24d05b749098ea84060cbc656a257b4b' then '✓   al día (0619, pegada desde Windows)'
+             when '451e2e547189e388c98cbbd79a1d103d' then '✓   al día (0619, desde Windows y sin comentarios)'
+             when 'a0af765aacfd46e9baa3d05046b60338' then '✗   0619 con los acentos rotos — vuelve a pegarla'
+             when '029c534ff79b6e60d7a5a760be659053' then '❌  se quedó en la 0346 — la vigente es la 0619'
+             when '6fa0ce305883c9d3216161998cee43bc' then '❌  se quedó en la 0346 — la vigente es la 0619'
+             when '2051d2fc838ca0514a75f32791aef614' then '❌  se quedó en la 0338 — la vigente es la 0619'
+             when '1737f40c452fe240db07ea2a4a2320d3' then '❌  se quedó en la 0338 — la vigente es la 0619'
+             when '0bc70f11dd23ede89441e11486d58d70' then '❌  se quedó en la 0088 — la vigente es la 0619'
+             when '1c01cf1afcedd57358d9c7cd4f65346c' then '❌  se quedó en la 0088 — la vigente es la 0619'
+             when 'b9739b9367b2e32bf250dc6455d9e30f' then '❌  se quedó en la 0050 — la vigente es la 0619'
+             when 'c9f611aa3eb2e7efff0c9c8b6451aa3a' then '❌  se quedó en la 0050 — la vigente es la 0619'
+             when '8357793976dc7db790fb443c067d4cac' then '❌  se quedó en la 0049 — la vigente es la 0619'
+             when '9ea7afb55c21135c7370e946eb3e4020' then '❌  se quedó en la 0049 — la vigente es la 0619'
              else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_grati_cts_periodo'
            end, ' · ')
            from pg_proc p join pg_namespace n on n.oid = p.pronamespace
