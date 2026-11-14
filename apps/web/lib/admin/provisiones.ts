@@ -613,6 +613,57 @@ export function resumen(personas: ProvPersona[]): ResumenProvisiones {
   };
 }
 
+/**
+ * Lo que de verdad falta pagar, por beneficio: las tarjetas del resumen.
+ *
+ * `resumen` suma las columnas de la tabla tal como vienen, y en una columna el
+ * pago de más de una persona resta. Para el pie de la tabla eso es correcto: es
+ * la suma de lo que se ve. Para una tarjeta, no. El 2026-11-13 la tarjeta «CTS»
+ * decía S/ 4,208.02 mientras al banco tenían que salir S/ 4,617.08: los
+ * S/ 409.06 depositados de más a UNA persona se restaban de lo que se les debía
+ * a otras dieciséis. Un exceso no achica la deuda con otra persona, y ni
+ * siquiera la propia de otra ventana (la CTS de noviembre no se paga con lo que
+ * sobró en mayo sin un acuerdo de por medio). Es la regla que ya seguían
+ * `totalProximo` y `totalConAtrasado`; aquí faltaba.
+ *
+ * Así que se suma ventana por ventana y persona por persona, solo lo positivo,
+ * y lo negativo se devuelve aparte para decirlo, nunca para restarlo.
+ * Las practicantes no entran: su saldo es de otra función (`totalesSubvenciones`).
+ */
+export interface PorPagar {
+  gratificacion: number;
+  cts: number;
+  vacaciones: number;
+  total: number;
+  /** Pagado de más, en positivo, por beneficio. Se muestra; no se resta. */
+  deMas: { gratificacion: number; cts: number; vacaciones: number; total: number; personas: number };
+}
+
+export function porPagar(personas: ProvPersona[]): PorPagar {
+  const falta = { gratificacion: 0, cts: 0, vacaciones: 0 };
+  const sobra = { gratificacion: 0, cts: 0, vacaciones: 0 };
+  let conExceso = 0;
+  for (const p of personas) {
+    if (esPracticante(p)) continue;
+    let tieneExceso = false;
+    const sumar = (b: keyof typeof falta, saldo: number) => {
+      if (saldo > 0) falta[b] += saldo;
+      else if (saldo < 0) { sobra[b] += -saldo; tieneExceso = true; }
+    };
+    for (const v of ["grati_s1", "grati_s2"] as const) sumar("gratificacion", saldoVentana(p, v));
+    for (const v of ["cts_may", "cts_nov"] as const) sumar("cts", saldoVentana(p, v));
+    sumar("vacaciones", p.vac);
+    if (tieneExceso) conExceso++;
+  }
+  const r = (o: typeof falta) => ({
+    gratificacion: redondear(o.gratificacion),
+    cts: redondear(o.cts),
+    vacaciones: redondear(o.vacaciones),
+    total: redondear(o.gratificacion + o.cts + o.vacaciones),
+  });
+  return { ...r(falta), deMas: { ...r(sobra), personas: conExceso } };
+}
+
 export interface EntradaCalendario {
   ventana: Ventana | null;
   fecha: string;

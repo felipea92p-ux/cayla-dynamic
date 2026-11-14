@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-13-provisiones-tarjetas-sin-restar-pagos-de-mas",
+    fecha: "2026-11-13",
+    titulo: "Las tarjetas de Provisiones ya no restan lo pagado de más",
+    queMejoro:
+      "En Pago › Provisiones, cada tarjeta (Gratificación, CTS, Vacaciones) suma lo que falta pagar a cada persona. " +
+      "Antes, si a alguien se le había pagado de más, ese monto se restaba de lo que se les debía a las demás, y la " +
+      "tarjeta mostraba menos de lo que tenía que salir del banco.\n\n" +
+      "Lo pagado de más se ve ahora debajo de la tarjeta, aparte. La tabla no cambia.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-13-provisiones-lista-del-deposito",
     fecha: "2026-11-13",
     titulo: "Provisiones tiene la lista de lo que se deposita en la próxima fecha",
