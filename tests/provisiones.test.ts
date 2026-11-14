@@ -36,6 +36,7 @@ import {
   totalProximo,
   totalesSubvenciones,
   ventanasDe,
+  yaVencio,
   type DesembolsoLibro,
   type ProvData,
   type ProvPersona,
@@ -609,5 +610,31 @@ describe("leerMonto — un monto escrito a mano no se adivina", () => {
   });
   it("lo ambiguo o inválido no se guarda", () => {
     for (const t of ["", "abc", "-5", "12.345", "1,13,0", "1.130,50", "306.045", "1e3"]) expect(leerMonto(t)).toBeNull();
+  });
+});
+
+describe("el 15 cae domingo: el lunes 16 todavía es día de depósito", () => {
+  // 2026-11-15 es domingo. La base, al pasar el 15, ya apunta a la gratificación de diciembre.
+  const lunes = datos(equipo, "2026-11-16", { fecha: "2026-12-15", tipo: "Gratificacion", ref: "grati_s2" });
+  const martes = datos(equipo, "2026-11-17", { fecha: "2026-12-15", tipo: "Gratificacion", ref: "grati_s2" });
+  it("el lunes la CTS de noviembre sigue siendo el próximo desembolso y no figura vencida", () => {
+    expect(proximoDesembolso(lunes)).toMatchObject({ clave: "cts_nov", beneficio: "CTS", fiable: true });
+    expect(yaVencio(v("cts_nov"), "2026-11-16")).toBe(false);
+    expect(estadoVentana(ctsVencida, v("cts_nov"), "2026-11-16")).toBe("acumulando");
+    expect(deposito(lunes, equipo)!.beneficio).toBe("CTS");
+  });
+  it("el martes ya venció y el próximo es la gratificación", () => {
+    expect(proximoDesembolso(martes)!.clave).toBe("grati_s2");
+    expect(yaVencio(v("cts_nov"), "2026-11-17")).toBe(true);
+  });
+  it("una fecha que no cae domingo vence al día siguiente, como siempre", () => {
+    expect(yaVencio(v("cts_may"), "2026-05-15")).toBe(false);
+    expect(yaVencio(v("cts_may"), "2026-05-16")).toBe(true);
+  });
+  it("una decisión sobre gratificación no se aplica: solo CTS", () => {
+    const r = aplicarDecisiones(martes, [
+      { persona_id: "d", ventana: "grati_s1", anio: 2026, monto_reconocido: 0, motivo: "No corresponde por ahora", created_at: "2026-11-17T15:00:00Z" },
+    ]);
+    expect(r).toBe(martes);
   });
 });

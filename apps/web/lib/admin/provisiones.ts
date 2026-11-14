@@ -428,7 +428,11 @@ export function decisionDe(p: ProvPersona, clave: VentanaClave): DecisionAplicad
 
 export function aplicarDecisiones(d: ProvData, decisiones: DecisionBeneficio[]): ProvData {
   const anio = Number(anioDe(d.as_of));
-  const vencidas = new Set(ventanasDe(d).filter((v) => d.as_of > v.pago).map((v) => v.clave));
+  // Solo CTS: en gratificación lo ya pagado no trae su 9 % como monto, y restar
+  // «reconocido − pagado» ahí daría de más. Se abre cuando haga falta, con su cuenta.
+  const vencidas = new Set(
+    ventanasDe(d).filter((v) => v.beneficio === "CTS" && yaVencio(v, d.as_of)).map((v) => v.clave),
+  );
   const porPersona = new Map<string, DecisionBeneficio[]>();
   for (const x of decisiones) {
     if (x.anio !== anio || !vencidas.has(x.ventana)) continue;
@@ -450,12 +454,7 @@ export function aplicarDecisiones(d: ProvData, decisiones: DecisionBeneficio[]):
         exceso: redondear(Math.max(-falta, 0)),
       };
       q[x.ventana] = Math.max(falta, 0);
-      // En gratificación lo reconocido ya incluye su 9 %: no queda 9 % aparte.
-      if (x.ventana === "grati_s1") q.be_s1 = 0;
-      if (x.ventana === "grati_s2") q.be_s2 = 0;
     }
-    q.grati_total = redondear(q.grati_s1 + q.grati_s2);
-    if (q.be_s1 !== undefined && q.be_s2 !== undefined) q.be_total = redondear(q.be_s1 + q.be_s2);
     q.cts_total = redondear(q.cts_may + q.cts_nov);
     q.gran_total = redondear(q.grati_total + q.be_total + q.cts_total + q.vac);
     return q;
@@ -513,7 +512,7 @@ export function estadoVentana(p: ProvPersona, v: Ventana, asOf: string): EstadoV
   const saldo = saldoVentana(p, v.clave);
   const pagado = pagadoVentana(p, v.clave);
   if (saldo < -EPS) return "pagado_de_mas";
-  if (asOf > v.pago) {
+  if (yaVencio(v, asOf)) {
     if (saldo > EPS) return pagado > EPS ? "pago_parcial" : "vencido";
     return pagado > EPS ? "pagado" : "sin_monto";
   }
@@ -574,7 +573,22 @@ export interface ProximoDesembolso {
   fiable: boolean;
 }
 
+/**
+ * Una ventana vence cuando pasa el día en que de verdad se deposita, no su
+ * fecha legal: si el 15 cae domingo, el lunes 16 todavía es día de depósito.
+ * Sin esto, ese lunes —el día en que la plata sale— la CTS de noviembre
+ * figuraba «vencida» y la pestaña Depósito ya mostraba la gratificación de
+ * diciembre (medido el 2026-11-14, a dos días de ese lunes).
+ */
+export function yaVencio(v: Ventana, asOf: string): boolean {
+  return asOf > fechaHabilDeDeposito(v.pago);
+}
+
 export function proximoDesembolso(d: ProvData): ProximoDesembolso | null {
+  // La base suelta la ventana al pasar la fecha legal. Si hoy es el día hábil al
+  // que se corrió el depósito, la ventana que se deposita HOY sigue siendo la próxima.
+  const deHoy = ventanasDe(d).find((v) => v.pago < d.as_of && !yaVencio(v, d.as_of));
+  if (deHoy) return { fecha: deHoy.pago, clave: deHoy.clave, beneficio: deHoy.beneficio, cierre: deHoy.cierre, fiable: true };
   const { fecha, ref } = d.proximo ?? {};
   if (!fecha || !ref) return null;
   const fiable = anioDe(fecha) === anioDe(d.as_of);
@@ -692,6 +706,8 @@ export interface Deposito {
   /** El día que de verdad sale la plata: el lunes si el 15 cae domingo. */
   fechaDeposito: string;
   filas: FilaDeposito[];
+  /** Lo de la próxima fecha, sin regularización. */
+  totalProximaFecha: number;
   /** Lo de la próxima fecha MÁS la regularización ya decidida de ventanas vencidas. */
   total: number;
   totalRegularizacion: number;
@@ -733,6 +749,7 @@ export function deposito(d: ProvData, personas: ProvPersona[]): Deposito | null 
     fechaLegal: prox.fecha,
     fechaDeposito: fechaHabilDeDeposito(prox.fecha),
     filas,
+    totalProximaFecha: redondear(filas.reduce((a, f) => a + f.aDepositar, 0)),
     total: redondear(filas.reduce((a, f) => a + f.aDepositar + f.regularizacion, 0)),
     totalRegularizacion: redondear(filas.reduce((a, f) => a + f.regularizacion, 0)),
     totalPendienteAnterior: redondear(filas.reduce((a, f) => a + f.pendienteAnterior, 0)),
@@ -889,7 +906,7 @@ export function calendario(d: ProvData, personas: ProvPersona[]): Calendario {
   const proximos: EntradaCalendario[] = [];
 
   for (const v of ventanasDe(d)) {
-    if (d.as_of > v.pago) {
+    if (yaVencio(v, d.as_of)) {
       const debe = conDerecho
         .filter((p) => {
           const e = estadoVentana(p, v, d.as_of);

@@ -5,7 +5,7 @@
 -- decisión más nueva aunque dos se escriban en la misma transacción (empate de
 -- created_at: por eso se ordena por secuencia).
 begin;
-select plan(11);
+select plan(16);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-000000503a01', 'ZZ503', 'Sede de laboratorio 503', true);
@@ -29,7 +29,7 @@ begin
   perform set_config('request.jwt.claim.sub', p_uid, true);
 end $$;
 
--- ── La líder de DO lee, pero no decide ───────────────────────────────────────
+-- ── La líder de DO no decide (que sí lee se prueba más abajo, cuando ya hay qué leer) ───────────────────────────────────────
 select pg_temp.entrar('00000000-0000-0000-0000-000000503a2d');
 set local role authenticated;
 select throws_ok(
@@ -53,14 +53,18 @@ select throws_ok(
   'Un monto negativo se rechaza');
 
 select throws_like(
-  $$select fn_beneficio_decidir('00000000-0000-0000-0000-000000503b34', 'grati_s2', 2099, 100, 'Se regulariza sobre lo declarado')$$,
+  $$select fn_beneficio_decidir('00000000-0000-0000-0000-000000503b34', 'cts_nov', 2099, 100, 'Se regulariza sobre lo declarado')$$,
   'Esa ventana todavía no vence%',
   'Una ventana que todavía no vence no se decide');
 
 select throws_ok(
   $$select fn_beneficio_decidir('00000000-0000-0000-0000-000000503b34', 'vacaciones', 2025, 100, 'Se regulariza sobre lo declarado')$$,
-  'P0001', 'Ventana desconocida: vacaciones.',
+  'P0001', 'Solo se decide la CTS de mayo o de noviembre; «vacaciones» no entra.',
   'Vacaciones no tiene fecha común: no entra');
+select throws_ok(
+  $$select fn_beneficio_decidir('00000000-0000-0000-0000-000000503b34', 'grati_s1', 2025, 100, 'Se regulariza sobre lo declarado')$$,
+  'P0001', 'Solo se decide la CTS de mayo o de noviembre; «grati_s1» no entra.',
+  'La gratificación tampoco: su 9 % no se puede restar bien');
 
 select lives_ok(
   $$select fn_beneficio_decidir('00000000-0000-0000-0000-000000503b34', 'cts_may', 2025, 306.04, 'Se regulariza sobre lo declarado')$$,
@@ -86,6 +90,10 @@ select throws_ok(
   $$update beneficios_decisiones set monto_reconocido = 1 where anio = 2025$$,
   'P0001', 'Una decisión sobre un beneficio no se edita ni se borra: se registra otra con su motivo.',
   'Ni la base edita una decisión ya escrita');
+select throws_ok(
+  $$delete from beneficios_decisiones where anio = 2025$$,
+  'P0001', 'Una decisión sobre un beneficio no se edita ni se borra: se registra otra con su motivo.',
+  'Ni la base borra una decisión ya escrita');
 
 -- ── Una integrante no ve decisiones de nadie ─────────────────────────────────
 select pg_temp.entrar('00000000-0000-0000-0000-000000503a3d');
@@ -93,6 +101,21 @@ set local role authenticated;
 select is(
   (select count(*)::int from fn_beneficio_decision_vigente(2025)), 0,
   'Una integrante no ve ninguna decisión');
+select is(
+  (select count(*)::int from beneficios_decisiones), 0,
+  'Tampoco leyendo la tabla directamente: la política la deja en cero');
+reset role;
+
+-- ── La líder de DO sí lee lo decidido ────────────────────────────────────────
+select pg_temp.entrar('00000000-0000-0000-0000-000000503a2d');
+set local role authenticated;
+select is(
+  (select count(*)::int from fn_beneficio_decision_vigente(2025)), 1,
+  'La líder de DO ve la decisión vigente');
+select throws_ok(
+  $$select fn_beneficio_decidir('00000000-0000-0000-0000-000000503b34', 'grati_s1', 2025, 100, 'Se regulariza sobre lo declarado')$$,
+  '42501', 'Solo la dirección puede decidir sobre un beneficio vencido.',
+  'Y sigue sin poder decidir');
 reset role;
 
 select * from finish();

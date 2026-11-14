@@ -102,15 +102,10 @@ export function ListaDeposito({ deposito: dep }: { deposito: Deposito | null }) 
         <tfoot>
           <tr className="border-t-2 border-tinta/30">
             <td className="px-4 py-3 font-medium" colSpan={2}>
-              Total que sale del banco
+              {hayRegularizacion ? "Subtotal" : "Total que sale del banco"}
             </td>
-            <td className="px-4 py-3 text-right text-lg font-semibold">
-              {formatSoles(dep.total)}
-              {hayRegularizacion && (
-                <span className="block text-xs font-normal text-taupe">
-                  incluye {formatSoles(dep.totalRegularizacion)} de regularización
-                </span>
-              )}
+            <td className={hayRegularizacion ? "px-4 py-3 text-right font-medium" : "px-4 py-3 text-right text-lg font-semibold"}>
+              {formatSoles(dep.totalProximaFecha)}
             </td>
             {hayRegularizacion && (
               <td className="px-4 py-3 text-right font-medium">{formatSoles(dep.totalRegularizacion)}</td>
@@ -119,6 +114,17 @@ export function ListaDeposito({ deposito: dep }: { deposito: Deposito | null }) 
               <td className="px-4 py-3 text-right text-taupe">{formatSoles(dep.totalPendienteAnterior)}</td>
             )}
           </tr>
+          {hayRegularizacion && (
+            <tr className="border-t border-sand">
+              <td className="px-4 py-3 font-medium" colSpan={2}>
+                Total que sale del banco
+              </td>
+              <td className="px-4 py-3 text-right text-lg font-semibold" colSpan={2}>
+                {formatSoles(dep.total)}
+              </td>
+              {hayPendiente && <td />}
+            </tr>
+          )}
         </tfoot>
       </Tabla>
 

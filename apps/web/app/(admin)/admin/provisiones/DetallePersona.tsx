@@ -32,6 +32,7 @@ import {
   type VentanaClave,
   type VentanaLibro,
   decisionDe,
+  yaVencio,
 } from "@/lib/admin/provisiones";
 
 // El detalle de una persona: qué ya se pagó, qué se está acumulando, qué falta
@@ -320,7 +321,7 @@ function BloqueVentana({
   const estado = estadoVentana(p, v, data.as_of);
   const decision = decisionDe(p, v.clave);
   // Solo una ventana cuya fecha ya pasó se decide: antes, se sigue acumulando.
-  const vencida = data.as_of > v.pago;
+  const vencida = v.beneficio === "CTS" && yaVencio(v, data.as_of);
   const saldo = p[v.clave];
   const nueve = bonificacionDe(p, v.clave);
   const esGrati = v.beneficio === "Gratificación";

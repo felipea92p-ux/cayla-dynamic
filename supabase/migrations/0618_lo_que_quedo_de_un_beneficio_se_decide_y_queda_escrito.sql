@@ -51,6 +51,9 @@
 --   · Una decisión sin motivo → check de longitud.
 --   · Una decisión sobre una ventana que todavía no vence → la función la
 --     rechaza (antes de la fecha de pago no hay nada que «decidir»: se acumula).
+--   · Una decisión sobre una gratificación → no entra (check y función). En
+--     gratificación lo ya pagado no trae su 9 % como monto, y «reconocido −
+--     pagado» daría de más; se abre el día que haga falta, con su propia cuenta.
 --   · Una decisión escrita o corregida por debajo → sin insert/update/delete
 --     para `authenticated`; la única puerta es `fn_beneficio_decidir`, y un
 --     trigger rechaza update y delete incluso desde esa puerta.
@@ -71,7 +74,7 @@ create table if not exists beneficios_decisiones (
   id               uuid primary key default gen_random_uuid(),
   secuencia        bigint generated always as identity,
   persona_id       uuid not null references personas(id),
-  ventana          text not null check (ventana = any (array['grati_s1','grati_s2','cts_may','cts_nov'])),
+  ventana          text not null check (ventana = any (array['cts_may','cts_nov'])),
   anio             integer not null check (anio >= 2020 and anio <= 2100),
   monto_reconocido numeric(10,2) not null check (monto_reconocido >= 0),
   motivo           text not null check (length(trim(motivo)) >= 10),
@@ -143,13 +146,16 @@ begin
 
   -- La fecha legal de cada ventana, la misma que usa fn_provisiones.
   v_pago := case p_ventana
-    when 'cts_may'  then make_date(p_anio, 5, 15)
-    when 'grati_s1' then make_date(p_anio, 7, 15)
-    when 'cts_nov'  then make_date(p_anio, 11, 15)
-    when 'grati_s2' then make_date(p_anio, 12, 15)
+    when 'cts_may' then make_date(p_anio, 5, 15)
+    when 'cts_nov' then make_date(p_anio, 11, 15)
   end;
   if v_pago is null then
-    raise exception 'Ventana desconocida: %.', p_ventana using errcode = 'P0001';
+    raise exception 'Solo se decide la CTS de mayo o de noviembre; «%» no entra.', p_ventana using errcode = 'P0001';
+  end if;
+  -- Si el 15 cae domingo, el depósito es el lunes: ese lunes todavía no venció
+  -- (la pantalla usa la misma regla, `yaVencio`).
+  if extract(dow from v_pago) = 0 then
+    v_pago := v_pago + 1;
   end if;
   if fn_hoy_lima() <= v_pago then
     raise exception 'Esa ventana todavía no vence (%): se sigue acumulando, no hay nada que decidir.', v_pago
