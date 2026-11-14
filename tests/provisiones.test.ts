@@ -540,6 +540,31 @@ describe("aplicarPisoLegal", () => {
     expect(p.cts_nov).toBe(0);
   });
 
+  it("sin tramo al cierre pero con hijos: la asignación familiar devenga algo y aun así se queda el día por día", () => {
+    const conHijos = datos([
+      persona({ persona_id: "s", nombre: "Sube", cts_nov: 30.5, sin_salario_vigente: true }),
+      persona({ persona_id: "b", nombre: "Baja", cts_nov: 382.89, cts_may: 85.12 }),
+    ], "2026-11-13");
+    const p = aplicarPisoLegal(dia, { cts_nov: conHijos }).personas.find((x) => x.persona_id === "s")!;
+    expect(p.cts_nov).toBe(212.83);
+  });
+
+  it("lo ya cobrado viaja con la celda: «devengado» es el del cierre", () => {
+    const diaPagado = datos([
+      persona({ persona_id: "s", nombre: "Sube", cts_nov: 0, cts_nov_pagada: true, cts_nov_monto_pagado: 212.83 }),
+    ], "2026-11-13");
+    const cierrePagado = datos([
+      persona({ persona_id: "s", nombre: "Sube", cts_nov: 0, cts_nov_pagada: true, cts_nov_monto_pagado: 217.95 }),
+    ], "2026-11-13");
+    const p = aplicarPisoLegal(diaPagado, { cts_nov: cierrePagado }).personas[0];
+    expect(p.cts_nov_monto_pagado).toBe(217.95);
+  });
+
+  it("el sueldo de la gratificación de diciembre es el del 30 de noviembre, no el del 31 de diciembre", () => {
+    const enDiciembre = datos([subio], "2026-12-20");
+    expect(cortesDelPiso(enDiciembre).find((c) => c.clave === "grati_s2")!.salarioAl).toBe("2026-11-30");
+  });
+
   it("si las dos lecturas coinciden no se marca nada", () => {
     const p = aplicarPisoLegal(dia, { cts_nov: dia }).personas.find((x) => x.persona_id === "b")!;
     expect(p.cts_nov).toBe(408.89);

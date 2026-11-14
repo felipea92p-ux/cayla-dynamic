@@ -6,9 +6,10 @@
  *   de cada ventana, el próximo desembolso, el calendario, los filtros y las
  *   filas del CSV. NO recalcula ningún monto que la base ya calcula: los saldos,
  *   los totales por beneficio y `gran_total` se leen, nunca se rehacen. La única
- *   excepción es `aplicarPisoLegal`: elige, por ventana, la mayor de DOS
- *   lecturas de la base (día por día y sueldo al cierre, como fn_grati_cts_periodo)
- *   y vuelve a sumar los totales con la fórmula de la base.
+ *   excepción es `aplicarPisoLegal`: de DOS lecturas de la base se queda, por
+ *   ventana, con la del sueldo al cierre (como fn_grati_cts_periodo, 0619); el
+ *   día por día queda de respaldo solo si falta el tramo de salario al cierre.
+ *   Y vuelve a sumar los totales con la fórmula de la base.
  *
  * QUÉ ASUME
  *   La forma del jsonb desde la 0428 (con `be_s1`/`be_s2` de la 0372 y los
@@ -314,9 +315,11 @@ export function devengadoVentana(p: ProvPersona, clave: VentanaClave): number {
 // (S/ 142.24 sobre 4,251.42). Felipe decidió ese día pagar lo que manda la ley.
 //
 // EL DÍA POR DÍA QUEDA SOLO COMO RESPALDO: a quien no tiene tramo de salario a
-// la fecha de cierre, la lectura del cierre le devenga cero por falta de dato,
-// no porque no le toque. Se mira lo DEVENGADO (celda + ya cobrado), no el
-// saldo: un saldo en cero porque ya se pagó no es falta de dato.
+// la fecha de cierre, la lectura del cierre le devenga de menos por falta de
+// dato, no porque no le toque. Se pregunta con `sin_salario_vigente` de esa
+// lectura; y, por si no devenga nada por otro motivo, se mira lo DEVENGADO
+// (celda + ya cobrado), no el saldo: un saldo en cero por estar pagado no es
+// falta de dato.
 //
 // SE ROMPE SI `fn_grati_cts_periodo` cambia su criterio y esto no. Las dos
 // tienen que contestar igual a «cuánto le toca»: si divergen, la pantalla
@@ -327,7 +330,20 @@ export function devengadoVentana(p: ProvPersona, clave: VentanaClave): number {
  * cerró (el sueldo del cierre aún no existe; el de hoy es el mejor dato).
  */
 export function cortesDelPiso(d: ProvData): { clave: VentanaClave; salarioAl: string }[] {
-  return ventanasDe(d).map((v) => ({ clave: v.clave, salarioAl: v.cierre < d.as_of ? v.cierre : d.as_of }));
+  return ventanasDe(d).map((v) => {
+    const sueldoAl = fechaDelSueldo(v);
+    return { clave: v.clave, salarioAl: sueldoAl < d.as_of ? sueldoAl : d.as_of };
+  });
+}
+
+/**
+ * La fecha del SUELDO que manda en cada ventana. Coincide con el cierre salvo
+ * en la gratificación de diciembre: se devenga hasta el 31/12, pero su
+ * remuneración es la del 30 de noviembre (D.S. 005-2002-TR art. 3.2). Misma
+ * fecha que usa `fn_grati_cts_periodo` desde la 0619.
+ */
+export function fechaDelSueldo(v: Ventana): string {
+  return v.clave === "grati_s2" ? `${v.cierre.slice(0, 4)}-11-30` : v.cierre;
 }
 
 /** Una fila con las ventanas cuyo monto cambió al usar el sueldo del cierre. */
@@ -350,10 +366,17 @@ export function aplicarPisoLegal(d: ProvData, pisos: Partial<Record<VentanaClave
     const ganadas: VentanaClave[] = [];
     for (const [clave, indice] of indices) {
       const piso = indice.get(p.persona_id);
-      // Sin lectura, o sin nada devengado al cierre (falta el tramo): día por día.
-      if (!piso || devengadoVentana(piso, clave) <= EPS) continue;
+      // Sin lectura, sin tramo de salario al cierre, o sin nada devengado: día por día.
+      // La bandera se pregunta directo (misma condición que la 0619): quien tiene
+      // hijos devenga su asignación familiar aun sin tramo, y «devengado > 0» lo
+      // habría dejado cobrando solo eso.
+      if (!piso || piso.sin_salario_vigente || devengadoVentana(piso, clave) <= EPS) continue;
       const cambia = Math.abs(saldoVentana(piso, clave) - saldoVentana(p, clave)) > EPS;
       q[clave] = piso[clave];
+      // Lo ya cobrado viaja con la celda: así «devengado» (celda + cobrado) es el
+      // del cierre, que es lo que se paga, y no el del día por día.
+      q[`${clave}_monto_pagado`] = piso[`${clave}_monto_pagado`];
+      q[`${clave}_pagada`] = piso[`${clave}_pagada`];
       if (clave === "grati_s1") q.be_s1 = piso.be_s1;
       if (clave === "grati_s2") q.be_s2 = piso.be_s2;
       if (cambia) ganadas.push(clave);

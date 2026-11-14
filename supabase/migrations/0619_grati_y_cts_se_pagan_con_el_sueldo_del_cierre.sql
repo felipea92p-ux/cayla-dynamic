@@ -37,7 +37,10 @@
 -- POR QUÉ ASÍ
 --   DECIDÍ: cambiar solo la elección entre las dos lecturas, dentro de la misma
 --     función, y dejar el día por día como respaldo de quien no tiene tramo de
---     salario al cierre.
+--     salario al cierre (se pregunta con la bandera `sin_salario_vigente`).
+--     Y de paso, que el sueldo de la gratificación de diciembre sea el del
+--     30/11 y no el del fin del periodo de planilla (28/12): sin «la mayor»,
+--     esa fecha equivocada ya no la tapaba nada.
 --   DESCARTÉ: quitar la lectura día por día del todo, porque a quien le falta el
 --     tramo a la fecha de cierre la lectura legal le devenga cero por falta de
 --     dato, y el pago le saldría en cero sin que nadie lo note. Y descarté
@@ -70,6 +73,7 @@ declare
   v_gkey text; v_ckey text; v_gtxt text; v_ctxt text;
   v_g_anio int; v_c_anio int;
   v_asof_g date; v_asof_c date;
+  v_sal_g date;   -- CAMBIO 0619: la fecha del SUELDO de la gratificación (30/06 o 30/11)
   v_prov_g jsonb; v_prov_c jsonb;
   v_prov_g_piso jsonb; v_prov_c_piso jsonb;
   v_f_be numeric;   -- CAMBIO 0346: tasa de la bonificacion extraordinaria
@@ -89,6 +93,7 @@ begin
     v_gkey := 'grati_s1';
     v_gtxt := 'Bono Gratitud ene–jun ' || v_g_anio;
     v_asof_g := least(v_fin, make_date(v_g_anio, 6, 30));
+    v_sal_g  := v_asof_g;
   else
     select y into v_g_anio
     from generate_series(extract(year from v_ini)::int, extract(year from v_fin)::int) y
@@ -98,6 +103,11 @@ begin
       v_gkey := 'grati_s2';
       v_gtxt := 'Bono Gratitud jul–dic ' || v_g_anio;
       v_asof_g := least(v_fin, make_date(v_g_anio, 12, 31));
+      -- CAMBIO 0619 — los días se devengan hasta el fin del periodo, pero el
+      -- SUELDO de la gratificación de diciembre es el del 30 de noviembre
+      -- (D.S. 005-2002-TR art. 3.2). Antes se tomaba el de v_asof_g (28/12): un
+      -- cambio de sueldo fechado en diciembre movía todo el semestre.
+      v_sal_g  := least(v_fin, make_date(v_g_anio, 11, 30));
     end if;
   end if;
 
@@ -123,13 +133,15 @@ begin
   end if;
 
   v_asof_g := coalesce(v_asof_g, v_fin);
+  v_sal_g  := coalesce(v_sal_g, v_asof_g);
   v_asof_c := coalesce(v_asof_c, v_fin);
 
   v_prov_g := fn_provisiones(v_asof_g);
   v_prov_c := case when v_asof_c = v_asof_g then v_prov_g else fn_provisiones(v_asof_c) end;
 
-  v_prov_g_piso := fn_provisiones(v_asof_g, v_asof_g);
-  v_prov_c_piso := case when v_asof_c = v_asof_g then v_prov_g_piso else fn_provisiones(v_asof_c, v_asof_c) end;
+  v_prov_g_piso := fn_provisiones(v_asof_g, v_sal_g);
+  v_prov_c_piso := case when v_asof_c = v_asof_g and v_sal_g = v_asof_c then v_prov_g_piso
+                        else fn_provisiones(v_asof_c, v_asof_c) end;
 
   -- ⇩⇩⇩ CAMBIO 0346 ⇩⇩⇩ LA TASA DE LA BONIFICACIÓN EXTRAORDINARIA.
   --
@@ -171,18 +183,27 @@ begin
         --     greatest( día por día , sueldo del cierre )
         -- Ahora manda la lectura con el sueldo del cierre. La del día por día
         -- queda solo como respaldo para quien NO tiene tramo de salario a la
-        -- fecha de cierre: ahí la lectura del cierre devenga cero por falta de
-        -- dato, no porque no le toque, y pagarle cero sería pagar de menos.
-        -- Se compara lo DEVENGADO (celda + lo ya cobrado), no el saldo: un saldo
-        -- en cero porque ya se pagó no es «falta de dato».
+        -- fecha de cierre: ahí la lectura del cierre devenga de menos por falta
+        -- de dato, no porque no le toque. Se pregunta DIRECTO con la bandera
+        -- `sin_salario_vigente` de esa lectura (0365), no deduciéndolo de un
+        -- monto en cero: quien tiene hijos devenga su asignación familiar aun
+        -- sin tramo, y con «devengado > 0» se le habría pagado solo eso.
+        -- La segunda condición (algo DEVENGADO: celda + lo ya cobrado) cubre a
+        -- quien no devenga nada al cierre por otro motivo; se mira lo devengado
+        -- y no el saldo, porque un saldo en cero por estar pagado no es falta
+        -- de dato.
         select g.pid,
                case when v_gkey is null then 0
+                    when coalesce((gp.fila->>'sin_salario_vigente')::boolean, false)
+                      then coalesce((g.fila->>v_gkey)::numeric, 0)
                     when coalesce((gp.fila->>v_gkey)::numeric, 0)
                        + coalesce((gp.fila->>(v_gkey || '_monto_pagado'))::numeric, 0) > 0
                       then coalesce((gp.fila->>v_gkey)::numeric, 0)
                     else coalesce((g.fila->>v_gkey)::numeric, 0)
                end as grati,
                case when v_ckey is null then 0
+                    when coalesce((cp.fila->>'sin_salario_vigente')::boolean, false)
+                      then coalesce((c.fila->>v_ckey)::numeric, 0)
                     when coalesce((cp.fila->>v_ckey)::numeric, 0)
                        + coalesce((cp.fila->>(v_ckey || '_monto_pagado'))::numeric, 0) > 0
                       then coalesce((cp.fila->>v_ckey)::numeric, 0)
