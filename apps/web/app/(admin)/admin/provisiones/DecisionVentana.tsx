@@ -15,6 +15,9 @@ import { fechaCorta, type DecisionAplicada } from "@/lib/admin/provisiones";
 // ventana, no «lo que falta»: lo que falta lo saca la pantalla restando lo ya
 // depositado, así un depósito posterior no obliga a volver acá.
 
+/** El motivo lo escribe una persona: si no cerró la frase, se cierra aquí para que no se pegue a la siguiente. */
+const conPunto = (t: string) => (/[.!?…]$/.test(t.trim()) ? t.trim() : `${t.trim()}.`);
+
 export type Decidir = (monto: number, motivo: string) => Promise<string | null>;
 
 export function DecisionVentana({
@@ -57,7 +60,7 @@ export function DecisionVentana({
       {decision && (
         <p className="text-taupe">
           <strong className="font-medium text-tinta">Decidido el {fechaCorta(decision.fecha.slice(0, 10))}:</strong> se
-          reconocen {formatSoles(decision.reconocido)} para esta fecha. {decision.motivo}{" "}
+          reconocen {formatSoles(decision.reconocido)} para esta fecha. {conPunto(decision.motivo)}{" "}
           {decision.exceso > 0 && `Se depositaron ${formatSoles(decision.exceso)} más de lo reconocido; no se reclaman. `}
           El sistema calculaba un saldo de {formatSoles(decision.saldoDelSistema)}.
         </p>
