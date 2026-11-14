@@ -6,6 +6,26 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-14 — Gratificación y CTS se pagan con el sueldo del cierre, no con la mayor de dos cuentas · migración **0619 SIN PEGAR** · prueba 504 · PR #741 (fusionado) y `claude/cts-cierre-ajustes`
+
+**De dónde sale.** Al preparar el depósito de CTS de noviembre, la pantalla decía S/ 4,393.66 y lo legal era S/ 4,251.42: siete personas
+tenían S/ 142.24 de más porque el pago tomaba la MAYOR entre el día por día y el sueldo del cierre (0338), y mayo–julio seguía con el
+rango anterior al 29/07. Felipe: «no regales dinero, CAYLA ya es demasiado generosa, paga lo legal».
+
+**Construido.** `fn_grati_cts_periodo` (0619, desde la 0346) y la pantalla (`aplicarPisoLegal`) usan solo la lectura con el sueldo del
+cierre. El día por día queda de respaldo para quien no tiene tramo de salario a esa fecha (bandera `sin_salario_vigente`). El sueldo de
+la gratificación de diciembre es el del 30/11, no el del fin del periodo de planilla. La pantalla se publicó con el #741 **antes** de
+pegar la 0619: hasta que se pegue, Provisiones muestra lo legal y un pago autocompletado en Planilla seguiría tomando la mayor.
+
+**Verificado.** Suite pgTAP entera en base desechable, prueba 504 con su control, vitest y typecheck. Auditado en producción (solo
+lectura) el depósito de noviembre, persona por persona.
+
+**Queda para Felipe.** Pegar la 0619 (la versión de `claude/cts-cierre-ajustes`, que trae los arreglos de la revisión) antes de
+autocompletar cualquier gratificación o CTS en Planilla. Avisar a DO que la gratificación de diciembre baja un poco para quien tenía
+el sueldo anterior del 1 al 28 de julio. Las vacaciones siguen reservándose día por día: no se tocaron.
+
+---
+
 ## 2026-11-14 — El contrato de locación ya se firma: el texto queda aprobado · sin SQL · rama `claude/tender-faraday-1pykwo`
 
 **De dónde sale.** Felipe abrió el contrato de una persona por honorarios, vio «BORRADOR — pendiente de revisión legal. No firmar.» y

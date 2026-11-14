@@ -347,8 +347,10 @@ no haya que descubrirlos otra vez.
   ventana (`pag.gX` solo sabe que se pagó, no cuánto), así que
   `devengado - cobrado` da cero y el piso nunca se compara contra nada para
   una ventana ya cerrada. Solo puede pasar en ventanas cerradas ANTES del
-  2026-09-01 (después, `fn_grati_cts_periodo` ya compara bien al momento de
-  proponer el pago). Corrido
+  2026-09-01 (del 2026-09-01 a la 0619, `fn_grati_cts_periodo` proponía el mayor
+  entre día por día y cierre; desde la 0619, 2026-11-14, propone solo el
+  sueldo del cierre). Por lo mismo, en una ventana ya pagada por planilla
+  tampoco se ve si quedó pagada de MÁS respecto de lo legal. Corrido
   [`a_quien_le_pega_el_piso_grati_cts.sql`](../scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql)
   en producción el 2026-09-05: **0 filas** — nadie tuvo un cambio de sueldo
   dentro de una ventana ya cerrada antes de esa fecha. Volver a correrla si
