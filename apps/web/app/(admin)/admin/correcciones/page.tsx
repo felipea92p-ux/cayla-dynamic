@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ChevronRight, ChevronLeft, Calendar, ArrowUpRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import {
@@ -16,6 +16,7 @@ import { describirCambio, horaTextoLima, type Auditoria } from "@/lib/admin/hist
 import { avisoAlAgregar, dosSalidasFinales, sePuedeConfirmar } from "@/lib/admin/salida-del-sistema";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 import { horaDelHorario, tipoQueFalta } from "@/lib/admin/marcaje-faltante";
+import { AVISO_HORA_INCOMPLETA, horaCompleta, instanteDeMarca } from "@/lib/admin/hora-de-marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
@@ -41,10 +42,6 @@ import { SemanaDePersona } from "./semana-persona";
 // "HH:MM" en hora Lima para el input de tipo time
 function horaInput(tsISO: string) {
   return new Intl.DateTimeFormat("en-GB", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(tsISO));
-}
-// fecha (YYYY-MM-DD) + "HH:MM" -> ISO con offset fijo de Perú (-05:00)
-function construirTs(fecha: string, horaHHMM: string) {
-  return `${fecha}T${horaHHMM}:00-05:00`;
 }
 // Sello de auditoría: cuándo se hizo el cambio (fecha corta + hora Lima).
 //
@@ -302,6 +299,7 @@ export default function CorreccionesPage() {
   // la persona del panel ELIGIÓ encima. Va atado a persona y fecha (`clave`): al
   // cambiar de día vuelve a la sugerencia sin un efecto que lo resetee.
   const [agregarElegido, setAgregarElegido] = useState<{ clave: string; tipo?: TipoMarca; hora?: string }>({ clave: "" });
+  const horaAgregarRef = useRef<HTMLInputElement>(null);
   const [agregarMotivoOtro, setAgregarMotivoOtro] = useState("");
 
   // Todo lo que se pide al abrir la pantalla. Es una función y no el cuerpo de
@@ -595,6 +593,13 @@ export default function CorreccionesPage() {
   async function ejecutar() {
     if (!accion) return;
     if (motivo.trim().length < 3) { avisar("error", "Escribe un motivo (mínimo 3 caracteres)."); return; }
+    // Una hora a medio escribir no sale de la pantalla: se nombra acá, no en
+    // inglés desde Postgres (hora-de-marca.ts dice por qué).
+    const horaQueViaja = accion.modo === "agregar" ? accion.hora : accion.modo === "editar" ? accion.nuevaHora : null;
+    if (horaQueViaja !== null && instanteDeMarca(fecha, horaQueViaja) === null) {
+      avisar("error", AVISO_HORA_INCOMPLETA);
+      return;
+    }
     setProcesando(true);
     const supabase = createAdminSupabaseClient();
     let error = null;
@@ -605,7 +610,7 @@ export default function CorreccionesPage() {
       ({ error } = await supabase.rpc("fn_corregir_marca", {
         p_marcaje_id: accion.marcaje.id,
         p_nuevo_tipo: cambiaTipo ? accion.nuevoTipo : undefined,
-        p_nuevo_ts: cambiaHora ? construirTs(fecha, accion.nuevaHora) : undefined,
+        p_nuevo_ts: cambiaHora ? (instanteDeMarca(fecha, accion.nuevaHora) ?? undefined) : undefined,
         p_motivo: motivo.trim(),
       }));
     } else if (accion.modo === "anular") {
@@ -625,7 +630,7 @@ export default function CorreccionesPage() {
       ({ error } = await supabase.rpc("fn_agregar_marcaje", {
         p_persona_id: personaId,
         p_tipo: accion.tipo,
-        p_ts: construirTs(fecha, accion.hora),
+        p_ts: instanteDeMarca(fecha, accion.hora)!,
         p_motivo: motivo.trim(),
         p_motivo_otro: accion.tipo === "salida_otro" ? (accion.motivoOtro || undefined) : undefined,
       }));
@@ -691,6 +696,7 @@ export default function CorreccionesPage() {
   const avisoAgregar = avisoAlAgregar(agregarTipo, marcajes);
   const dosSalidas = dosSalidasFinales(marcajes);
   const agregarHora = agregarYaElegido.hora ?? agregarHoraDelHorario ?? "08:00";
+  const agregarHoraIncompleta = horaCompleta(agregarHora) === null;
   // Nombre de quién hizo cada corrección, resuelto desde la lista ya cargada
   // (evita depender de un embed de PostgREST que el schema cache puede no exponer).
   const nombrePorId = useMemo(() => new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos}`])), [personas]);
@@ -1450,6 +1456,7 @@ export default function CorreccionesPage() {
                                     // Mismo motivo que el select de arriba: se deja como input a mano.
                                     <input type="time" value={horaLocal}
                                       onChange={(e) => setHorasEditadas({ ...horasEditadas, [m.id]: e.target.value })}
+                                      onBlur={(e) => setHorasEditadas({ ...horasEditadas, [m.id]: e.currentTarget.value })}
                                       className="rounded-control border border-sand bg-hueso px-2 py-1 text-sm text-tinta" />
                                   )}
                                 </td>
@@ -1469,7 +1476,8 @@ export default function CorreccionesPage() {
                                           variante="secundario" tamano="sm" className="min-h-11 md:min-h-0"
                                           disabled={!cambiada}
                                           onClick={() => {
-                                            const nuevoTs = construirTs(fecha, horaLocal);
+                                            const nuevoTs = instanteDeMarca(fecha, horaLocal);
+                                            if (!nuevoTs) { avisar("error", AVISO_HORA_INCOMPLETA); return; }
                                             const posteriores = tipoLocal === "salida_final"
                                               ? marcajes.filter((x) => x.id !== m.id && x.anulada_at === null
                                                   && new Date(x.timestamp_marca) > new Date(nuevoTs))
@@ -1520,8 +1528,10 @@ export default function CorreccionesPage() {
                           haya tocado: un valor que llega solo tiene que decirlo. */}
                       <Campo
                         etiqueta={agregarYaElegido.hora === undefined && agregarHoraDelHorario ? "Hora · según su horario" : "Hora"}
-                        type="time" value={agregarHora}
-                        onChange={(e) => setAgregarElegido({ ...agregarYaElegido, hora: e.target.value })} />
+                        type="time" value={agregarHora} ref={horaAgregarRef}
+                        error={agregarHoraIncompleta ? "Falta completar la hora" : undefined}
+                        onChange={(e) => setAgregarElegido({ ...agregarYaElegido, hora: e.target.value })}
+                        onBlur={(e) => setAgregarElegido({ ...agregarYaElegido, hora: e.currentTarget.value })} />
                       {agregarTipo === "salida_otro" && (
                         <Campo
                           etiqueta="Motivo de la salida"
@@ -1533,7 +1543,13 @@ export default function CorreccionesPage() {
                       <Boton
                         variante="primario"
                         disabled={avisoAgregar?.clase === "confirmada"}
-                        onClick={() => { setAccion({ modo: "agregar", tipo: agregarTipo, hora: agregarHora, motivoOtro: agregarMotivoOtro }); setMotivo(""); }}>
+                        onClick={() => {
+                          // Lo que el campo tiene AHORA, no lo último que avisó: el
+                          // navegador puede completar la hora sin disparar el evento.
+                          const hora = horaCompleta(horaAgregarRef.current?.value) ?? horaCompleta(agregarHora);
+                          if (!hora) { avisar("error", AVISO_HORA_INCOMPLETA); return; }
+                          setAccion({ modo: "agregar", tipo: agregarTipo, hora, motivoOtro: agregarMotivoOtro }); setMotivo("");
+                        }}>
                         Agregar
                       </Boton>
                     </div>

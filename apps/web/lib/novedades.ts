@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-13-correcciones-hora-incompleta",
+    fecha: "2026-11-13",
+    titulo: "Correcciones avisa en español cuando la hora no está completa",
+    queMejoro:
+      "En Asistencia › Correcciones, al agregar o corregir un marcaje con la hora a medio escribir, salía un error " +
+      "en inglés («invalid input syntax…») y no se guardaba nada. Ahora la pantalla lee la hora tal como está en el " +
+      "campo al apretar el botón y, si le falta la hora, los minutos o el a. m./p. m., lo dice antes de enviar.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-13-provisiones-tarjetas-sin-restar-pagos-de-mas",
     fecha: "2026-11-13",
     titulo: "Las tarjetas de Provisiones ya no restan lo pagado de más",

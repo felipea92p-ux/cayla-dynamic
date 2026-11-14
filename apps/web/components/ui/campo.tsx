@@ -30,7 +30,7 @@
 //   umbral. Arreglarlo acá cuesta una línea; después del Día 2 cuesta 232
 //   sitios.
 
-import type { InputHTMLAttributes, SelectHTMLAttributes, ReactNode } from "react";
+import type { InputHTMLAttributes, SelectHTMLAttributes, ReactNode, Ref } from "react";
 import { cx } from "./cx";
 
 // Dos tamaños, con el mismo vocabulario que <Boton> y <Filtro> (2026-10-19): «md» es el de siempre;
@@ -56,7 +56,7 @@ export function Campo({
   id,
   className,
   ...props
-}: BaseProps & InputHTMLAttributes<HTMLInputElement>) {
+}: BaseProps & InputHTMLAttributes<HTMLInputElement> & { ref?: Ref<HTMLInputElement> }) {
   return (
     <label className="flex flex-col gap-1">
       {etiqueta && <span className="text-sm text-taupe">{etiqueta}</span>}
