@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-16 — Al practicante se le puede volver a pagar lo que pasa del máximo legal · migración **0620 SIN PEGAR** · prueba 505 · rama `claude/peaceful-allen-y42335`
+## 2026-11-16 — Al practicante se le puede volver a pagar lo que pasa del máximo legal · migración **0620 PEGADA (2026-11-16)** · **falta abrir el tope en Parámetros** · prueba 505 · rama `claude/peaceful-allen-y42335`
 
 **De dónde sale.** Desde el periodo 29-oct → 28-nov (0576/0577) el practicante tiene tope semanal: lo marcado por encima de 30 h
 (preprofesional) o 48 h (egresado) no se paga. Antes no había tope: se pagaba cada hora marcada, a la tarifa normal y sin recargo.
@@ -23,12 +23,15 @@ partida. La base (30 h y 45 h) no cambia, y sigue sin haber sobretiempo para el 
 168 se rechaza; con ella, 36 h/sem → 1 476.00 y 50 h/sem → 1 366.67, y el periodo anterior al cambio sigue con tope). También pasan
 las 396, 444, 451, 461, 463 a 467, 491 y 502. Se puede volver a pegar sin efecto.
 
+**0620 PEGADA por Felipe el 2026-11-16.** Se entregó con `dame-el-sql.sh` (idéntica a GitHub; `main` sin migraciones nuevas y
+ninguna otra rama con el 0620). La fila final devolvió exactamente la esperada: `168 · 168 · 30 · 48 · 0 · null · null · «620 ·
+lo_que_pasa_del_maximo_legal_se_puede_pagar_al_practicante»`. Ningún tope tenía versiones y ningún periodo desde el 29-oct está
+pagado para los dos grupos, así que el 29/10/2026 se puede usar como «Rige desde».
+
 **Queda para Felipe.**
-1. Pegar la 0620. Su fila final debe dar `168 · 168 · 30 · 48 · 0 · (vacío) · (vacío) · «620 · lo_que_pasa_…»`. Si `pagado_pre` o
-   `pagado_egr` traen una fecha, el 29/10 ya no se puede usar en el paso 2.
-2. En Parámetros: «Tope semanal del practicante preprofesional» → 168, rige desde el 29/10/2026, con su motivo. Lo mismo con
-   «Tope semanal del practicante egresado».
-3. Abierto para el laboralista: el preprofesional tiene 30 h como máximo (Ley 28518, art. 44). Pagar lo que pasa de ahí no crea ese
+1. En Parámetros: «Tope semanal del practicante preprofesional» → 168, rige desde el 29/10/2026, con su motivo. Lo mismo con
+   «Tope semanal del practicante egresado». Hasta entonces los topes siguen en 30 y 48 y la planilla sigue cortando.
+2. Abierto para el laboralista: el preprofesional tiene 30 h como máximo (Ley 28518, art. 44). Pagar lo que pasa de ahí no crea ese
    exceso, que ya está en las marcas, ni lo arregla.
 
 ---
