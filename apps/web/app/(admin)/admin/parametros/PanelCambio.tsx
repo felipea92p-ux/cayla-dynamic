@@ -19,6 +19,10 @@
 // y su paso 2 lo da `fn_parametro_vista_previa`, que también se niega si la fecha
 // cae en un periodo ya pagado: el aviso llega antes de confirmar, no después.
 // Se guarda con `fn_parametro_cambiar_vigencia`.
+//
+// «Rige desde» es SIEMPRE el inicio de un ciclo (`opcionesPorCiclo`): la planilla lee
+// estos valores con el del primer día del periodo, así que «desde hoy» o una fecha
+// suelta a mitad de ciclo prometían algo que no pasaba (2026-11-16).
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -35,14 +39,19 @@ import { AreaTexto } from "@/components/ui/area-texto";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Rotulo } from "@/components/ui/rotulo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
-import { avisoDeCambioDePlata, opcionesDeVigencia, type PeriodoCiclo } from "@/lib/admin/cambio-de-plata";
 import {
-  fechaInicialDeVigencia,
-  fechaMinimaDeVigencia,
+  avisoDeCambioDePlata,
+  avisoDeCiclos,
+  opcionesPorCiclo,
+  type ClaveVigencia,
+  type PeriodoCiclo,
+} from "@/lib/admin/cambio-de-plata";
+import {
   fuenteDeImpacto,
   impactoDeVistaPrevia,
   valorAntesDelCambio,
@@ -83,16 +92,16 @@ export function PanelCambio({
   const [errorImpacto, setErrorImpacto] = useState<string | null>(null);
   const [valorNuevo, setValorNuevo] = useState<number | null>(null);
 
-  // Solo para los que rigen por fechas. La fecha NACE con un valor (CLAUDE.md:
-  // un campo de fecha que bloquea el envío no arranca vacío) y lo que se ve es
-  // exactamente lo que se manda.
+  // Solo para los que rigen por fechas. Se elige un CICLO, no una fecha: lo que se
+  // manda (`desde`) se deriva de la opción elegida, así que lo que se ve es
+  // exactamente lo que se manda y nunca arranca vacío (CLAUDE.md, regla quinta).
+  // Nace en el ciclo siguiente: el que no toca lo que ya está corriendo.
   const conFechas = fila.rige_por_fechas;
   const ultimaVersion = fila.proximo_desde ?? fila.vigente_desde;
-  const minimo = fechaMinimaDeVigencia(ultimaVersion);
-  const [desde, setDesde] = useState(() => fechaInicialDeVigencia(hoyLima(), ultimaVersion));
+  const [clave, setClave] = useState<ClaveVigencia>("inicio_siguiente");
   const [errorDesde, setErrorDesde] = useState<string | undefined>();
-  // 0578 · los cambios de plata: atajos de fecha por ciclo, doble confirmación y comunicado en borrador.
-  const [periodos, setPeriodos] = useState<PeriodoCiclo[]>([]);
+  // 0578 · los cambios de plata: fecha por ciclo, doble confirmación y comunicado en borrador.
+  const [periodos, setPeriodos] = useState<PeriodoCiclo[] | null>(null);
   const [seguro, setSeguro] = useState(false);
   const [comunicado, setComunicado] = useState<string | null>(null);
   useEffect(() => {
@@ -104,8 +113,14 @@ export function PanelCambio({
       .limit(6)
       .then(({ data }) => setPeriodos((data ?? []) as PeriodoCiclo[]));
   }, [conFechas]);
-  const opciones = useMemo(() => opcionesDeVigencia(hoyLima(), periodos), [periodos]);
-  const opcionElegida = opciones.find((o) => o.fecha === desde) ?? null;
+  const opciones = useMemo(
+    () => opcionesPorCiclo(hoyLima(), periodos ?? [], ultimaVersion),
+    [periodos, ultimaVersion],
+  );
+  const avisoCiclos = periodos === null ? null : avisoDeCiclos(hoyLima(), periodos, ultimaVersion);
+  const opcionElegida = opciones.find((o) => o.clave === clave) ?? opciones[0] ?? null;
+  const desde = opcionElegida?.fecha ?? null;
+  const desdeTexto = desde ? isoADiaMesAnio(desde) : "";
   // Contra qué se compara: el valor que regiría ese día sin el cambio.
   const base = conFechas ? valorAntesDelCambio(fila) : fila.valor_actual;
 
@@ -122,10 +137,9 @@ export function PanelCambio({
     let fechaOk = true;
     if (conFechas) {
       if (!desde) {
-        setErrorDesde("Elige desde qué fecha rige el valor nuevo.");
-        fechaOk = false;
-      } else if (minimo && desde < minimo) {
-        setErrorDesde(`Ya hay un cambio que rige desde el ${isoADiaMesAnio(ultimaVersion ?? minimo)}: la fecha tiene que ser desde el ${isoADiaMesAnio(minimo)}.`);
+        setErrorDesde(
+          periodos === null ? "Todavía estoy leyendo los ciclos de pago: espera un momento." : (avisoCiclos ?? "No hay un ciclo desde el que pueda regir."),
+        );
         fechaOk = false;
       } else {
         setErrorDesde(undefined);
@@ -145,7 +159,7 @@ export function PanelCambio({
     setErrorImpacto(null);
     setImpacto(null);
     const supabase = createAdminSupabaseClient();
-    if (conFechas) {
+    if (conFechas && desde) {
       const { data, error } = await supabase.rpc("fn_parametro_vista_previa", {
         p_parametro: fila.parametro,
         p_valor: v.valor,
@@ -193,9 +207,10 @@ export function PanelCambio({
 
   async function confirmar() {
     if (valorNuevo === null) return;
+    if (conFechas && !desde) return;
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
-    const { error } = conFechas
+    const { error } = conFechas && desde
       ? await supabase.rpc("fn_parametro_cambiar_vigencia", {
           p_parametro: fila.parametro,
           p_valor: valorNuevo,
@@ -212,10 +227,10 @@ export function PanelCambio({
       avisar("error", mensajeDeError(error, "cambiar el parámetro"));
       return;
     }
-    const cuando = conFechas ? ` desde el ${isoADiaMesAnio(desde)}` : "";
+    const cuando = conFechas ? ` desde el ${desdeTexto}` : "";
     avisar("ok", `${fila.nombre}: ${describirCambioDeParametro(base, valorNuevo, fila.unidad)}${cuando}. Quedó escrito en el historial.`);
     onGuardado();
-    if (conFechas) {
+    if (conFechas && desde) {
       // El comunicado en borrador para el grupo afectado; si falla, el cambio ya está hecho.
       const r = await supabase.rpc("fn_parametro_comunicado", {
         p_parametro: fila.parametro,
@@ -258,38 +273,39 @@ export function PanelCambio({
             {rango}
           </p>
           {conFechas && (
-            <>
-              <Campo
-                etiqueta="Rige desde"
-                type="date"
-                value={desde}
-                min={minimo ?? undefined}
-                onChange={(e) => {
-                  setDesde(e.target.value);
-                  setErrorDesde(undefined);
-                }}
-                error={errorDesde}
-              />
-              <div className="-mt-2 flex flex-wrap gap-2">
-                {opciones.map((o) => (
-                  <Boton
-                    key={o.clave}
-                    tamano="sm"
-                    variante={o.fecha === desde ? "primario" : "secundario"}
-                    onClick={() => {
-                      setDesde(o.fecha);
-                      setErrorDesde(undefined);
-                    }}
-                  >
-                    {o.etiqueta}
-                  </Boton>
-                ))}
-              </div>
-              <p className="text-xs text-taupe">
-                Lo ya pagado no se toca: la fecha tiene que caer en un periodo sin pagar
-                {minimo ? ` y ser desde el ${isoADiaMesAnio(minimo)}` : ""}. Antes de esa fecha sigue rigiendo el valor de hoy.
-              </p>
-            </>
+            <div className="flex flex-col gap-2" role="group" aria-label="Rige desde">
+              <span className="text-sm text-taupe">Rige desde</span>
+              {periodos === null ? (
+                <Cargando texto="Leyendo los ciclos de pago…" compacto />
+              ) : (
+                <>
+                  {opciones.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {opciones.map((o) => (
+                        <Boton
+                          key={o.clave}
+                          tamano="sm"
+                          variante={o.clave === opcionElegida?.clave ? "primario" : "secundario"}
+                          onClick={() => {
+                            setClave(o.clave);
+                            setErrorDesde(undefined);
+                          }}
+                        >
+                          {o.etiqueta}
+                        </Boton>
+                      ))}
+                    </div>
+                  )}
+                  {avisoCiclos && <p className="text-xs text-taupe">{avisoCiclos}</p>}
+                  {opcionElegida && <p className="text-xs text-taupe">{opcionElegida.detalle}</p>}
+                  <p className="text-xs text-taupe">
+                    La planilla toma el valor que rige el primer día de cada ciclo, por eso el cambio empieza siempre al
+                    inicio de uno. Lo ya pagado no se toca.
+                  </p>
+                </>
+              )}
+              {errorDesde && <span className="text-xs text-rojo-profundo">{errorDesde}</span>}
+            </div>
           )}
           <AreaTexto
             etiqueta="Motivo del cambio"
@@ -313,7 +329,7 @@ export function PanelCambio({
         <>
           <BannerAviso
             variante="informativo"
-            titulo={`${describirCambioDeParametro(base, valorNuevo ?? 0, fila.unidad)}${conFechas ? ` desde el ${isoADiaMesAnio(desde)}` : ""}`}
+            titulo={`${describirCambioDeParametro(base, valorNuevo ?? 0, fila.unidad)}${conFechas ? ` desde el ${desdeTexto}` : ""}`}
           >
             «{motivo.trim()}»
           </BannerAviso>
@@ -333,9 +349,7 @@ export function PanelCambio({
           {conFechas && (
             <BannerAviso variante="advertencia" titulo="Antes de confirmar">
               <ul className="list-disc pl-5">
-                {avisoDeCambioDePlata(
-                  opcionElegida ?? { clave: "hoy", fecha: desde, etiqueta: `Desde el ${isoADiaMesAnio(desde)}`, detalle: "" },
-                ).map((r) => (
+                {avisoDeCambioDePlata(opcionElegida, { porCiclo: true }).map((r) => (
                   <li key={r}>{r}</li>
                 ))}
               </ul>
@@ -344,7 +358,7 @@ export function PanelCambio({
 
           {conFechas && seguro && (
             <BannerAviso variante="alerta" titulo="Segunda confirmación">
-              ¿Seguro? Este valor cambia el pago desde el {isoADiaMesAnio(desde)}.
+              ¿Seguro? Este valor cambia el pago desde el {desdeTexto}.
             </BannerAviso>
           )}
 

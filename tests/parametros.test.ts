@@ -14,6 +14,8 @@
 // solo ella puede decir (el candado, el historial, los límites por cualquier camino).
 // ============================================================================
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import {
   CLASES_PARAMETRO,
   ETIQUETA_CLASE_PARAMETRO,
@@ -26,8 +28,6 @@ import {
   type LimitesParametro,
 } from "@cayla-dynamic/shared";
 import {
-  fechaInicialDeVigencia,
-  fechaMinimaDeVigencia,
   fuenteDeImpacto,
   impactoAvisoDescansoMedico,
   impactoDeVistaPrevia,
@@ -39,8 +39,9 @@ import {
   repartirParametros,
 } from "@/lib/admin/parametros";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
-import { avisoDeCambioDePlata, opcionesDeVigencia } from "@/lib/admin/cambio-de-plata";
+import { avisoDeCambioDePlata, avisoDeCiclos, opcionesDeVigencia, opcionesPorCiclo } from "@/lib/admin/cambio-de-plata";
 
+const RAIZ_REPO = path.resolve(import.meta.dirname, "..");
 const ROLES = ["admin", "lider_do", "supervisor_sede", "integrante"] as const;
 
 describe("quién ve y quién cambia", () => {
@@ -273,25 +274,6 @@ describe("qué parámetros tienen personas detrás", () => {
 });
 
 describe("los parámetros que rigen por fechas (0574)", () => {
-  it("la fecha nace en hoy si la última versión ya pasó, o el día siguiente a ella si no", () => {
-    expect(fechaInicialDeVigencia("2026-11-10", null)).toBe("2026-11-10");
-    expect(fechaInicialDeVigencia("2026-11-10", "2026-10-01")).toBe("2026-11-10");
-    expect(fechaInicialDeVigencia("2026-11-10", "2026-11-10")).toBe("2026-11-11");
-    expect(fechaInicialDeVigencia("2026-11-10", "2026-12-31")).toBe("2027-01-01");
-    expect(fechaInicialDeVigencia("2028-02-28", "2028-02-28")).toBe("2028-02-29");
-  });
-
-  it("nunca nace vacía: un campo de fecha que bloquea el envío no arranca en blanco", () => {
-    for (const ultima of [null, "2020-01-01", "2026-11-10", "2030-06-15"]) {
-      expect(fechaInicialDeVigencia("2026-11-10", ultima)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    }
-  });
-
-  it("la fecha mínima es el día después de la última versión; sin versiones, no hay mínimo", () => {
-    expect(fechaMinimaDeVigencia(null)).toBeNull();
-    expect(fechaMinimaDeVigencia("2026-11-30")).toBe("2026-12-01");
-  });
-
   it("se compara contra lo programado si hay un cambio programado, y si no contra lo de hoy", () => {
     expect(valorAntesDelCambio({ valor_actual: 30, proximo_valor: null })).toBe(30);
     expect(valorAntesDelCambio({ valor_actual: 30, proximo_valor: 24 })).toBe(24);
@@ -403,5 +385,73 @@ describe("el aviso y las fechas de un cambio de plata (0578)", () => {
     expect(a).toMatch(/tardan un momento/);
     expect(a).toMatch(/BORRADOR/);
     expect(a).toMatch(/ciclo siguiente/);
+  });
+});
+
+describe("un parámetro con fechas rige por ciclo, nunca «desde hoy» (2026-11-16)", () => {
+  // La planilla lee la base y el tope del practicante con el valor del PRIMER día del
+  // periodo (0577). «Desde hoy» a mitad de ciclo prometía algo que no pasaba: medido,
+  // un tope cambiado el día 12 de un ciclo dejó ese ciclo entero con el tope viejo.
+  const periodos = [
+    { fecha_ini: "2026-10-29", fecha_fin: "2026-11-28" },
+    { fecha_ini: "2026-09-29", fecha_fin: "2026-10-28" },
+  ];
+  const claves = (o: { clave: string; fecha: string }[]) => o.map((x) => `${x.clave}:${x.fecha}`);
+
+  it("sin cambios anteriores, ofrece el inicio del ciclo actual y el del siguiente, y nada más", () => {
+    expect(claves(opcionesPorCiclo("2026-11-16", periodos, null))).toEqual([
+      "inicio_actual:2026-10-29",
+      "inicio_siguiente:2026-11-29",
+    ]);
+    expect(avisoDeCiclos("2026-11-16", periodos, null)).toBeNull();
+  });
+
+  it("si este ciclo ya tiene un cambio (el tope de 60 desde el 29/10), solo queda el siguiente, y lo dice", () => {
+    expect(claves(opcionesPorCiclo("2026-11-16", periodos, "2026-10-29"))).toEqual(["inicio_siguiente:2026-11-29"]);
+    expect(avisoDeCiclos("2026-11-16", periodos, "2026-10-29")).toMatch(/Este ciclo ya tiene un cambio desde el 29\/10\/2026/);
+  });
+
+  it("una versión vieja de otro ciclo no quita ninguna opción", () => {
+    expect(claves(opcionesPorCiclo("2026-11-16", periodos, "2026-09-29"))).toHaveLength(2);
+    expect(avisoDeCiclos("2026-11-16", periodos, "2026-09-29")).toBeNull();
+  });
+
+  it("si ya hay un cambio programado para el ciclo siguiente, no queda ninguna, y dice por qué", () => {
+    expect(opcionesPorCiclo("2026-11-16", periodos, "2026-11-29")).toEqual([]);
+    expect(avisoDeCiclos("2026-11-16", periodos, "2026-11-29")).toMatch(/programado desde el 29\/11\/2026/);
+  });
+
+  it("si hoy no cae en ningún ciclo cargado, no inventa uno: pide crear el periodo", () => {
+    expect(opcionesPorCiclo("2027-05-01", periodos, null)).toEqual([]);
+    expect(avisoDeCiclos("2027-05-01", periodos, null)).toMatch(/Crea el periodo en Planilla/);
+  });
+
+  it("nunca ofrece una fecha que no sea el inicio de un ciclo", () => {
+    const inicios = new Set(["2026-09-29", "2026-10-29", "2026-11-29"]);
+    for (const hoy of ["2026-10-01", "2026-10-28", "2026-10-29", "2026-11-16", "2026-11-28"]) {
+      for (const ultima of [null, "2026-09-29", "2026-10-29", "2026-11-05", "2026-11-29"]) {
+        for (const o of opcionesPorCiclo(hoy, periodos, ultima)) {
+          expect(o.clave).not.toBe("hoy");
+          expect(inicios.has(o.fecha)).toBe(true);
+          if (ultima) expect(o.fecha > ultima).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("el aviso de un parámetro dice que el ciclo elegido ya no se corrige desde la pantalla", () => {
+    const [siguiente] = opcionesPorCiclo("2026-11-16", periodos, "2026-10-29");
+    const a = avisoDeCambioDePlata(siguiente, { porCiclo: true }).join(" ");
+    expect(a).toMatch(/primer día de cada ciclo/);
+    expect(a).toMatch(/el ciclo que empieza el 29\/11\/2026 queda con este valor/);
+    // El sueldo por grupo se paga día por día: ahí no va esa línea.
+    expect(avisoDeCambioDePlata(siguiente).join(" ")).not.toMatch(/primer día de cada ciclo/);
+  });
+
+  it("el panel de un parámetro no vuelve a ofrecer «desde hoy» ni una fecha suelta", () => {
+    const panel = readFileSync(path.join(RAIZ_REPO, "apps/web/app/(admin)/admin/parametros/PanelCambio.tsx"), "utf8");
+    expect(panel).toMatch(/opcionesPorCiclo\(/);
+    expect(panel).not.toMatch(/opcionesDeVigencia/);
+    expect(panel).not.toMatch(/type="date"/);
   });
 });
