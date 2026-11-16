@@ -305,6 +305,38 @@ que la pila entera esté arriba (`npx supabase start`), no solo Postgres:
 `npx supabase db start` levanta la base pero **no la API**, y sin API el
 navegador no tiene con quién hablar.
 
+**El Supabase local cambia SOLO por migración, nunca a mano.** Ningún
+`create`, `alter` ni `drop` (de tablas, funciones, políticas o triggers) se corre
+contra 127.0.0.1 por fuera de un archivo en `supabase/migrations/`: ni con
+`psql`, ni en el SQL Editor del Studio local, ni con una herramienta de SQL «para
+probar rápido». Para probar una función, se escribe la migración y se aplica con
+`npx supabase migration up --local`. Para deshacer, otra migración o
+`npx supabase db reset --local`.
+
+Se aprendió el 2026-11-16. La base local tenía 380 migraciones aplicadas de 589
+y no se podía poner al día: la 0395 fallaba con «function fn_set_mi_firma already
+exists», porque alguna sesión había creado esa función a mano antes de que
+existiera su migración. Un `create` a mano es un cambio que
+`supabase_migrations.schema_migrations` no conoce. Desde ese momento la base
+local deja de ser lo que dice main, nada avisa, y `migration up` choca con lo que
+ya está. Hubo que reconstruirla con `db reset --local`, y se perdieron cuatro
+cuentas de prueba que también se habían creado a mano.
+
+**Lo mismo vale para los datos de prueba.** Una cuenta, sede o persona que hace
+falta para probar se agrega en `scripts/seed-dev.mjs`, no se crea a mano: el
+próximo `db reset` la borra sin avisar. Después de un reset:
+
+```bash
+eval "$(npx supabase status -o env | grep -E '^(API_URL|SERVICE_ROLE_KEY)=' \
+  | sed 's/^API_URL=/export SUPABASE_URL=/; s/^SERVICE_ROLE_KEY=/export SUPABASE_SERVICE_ROLE_KEY=/')"
+pnpm seed:dev
+```
+
+**Si `migration up` falla con «already exists», la base local se desvió.** No se
+parcha borrando a mano lo que estorba (eso es otro cambio a mano): se hace
+`db reset --local` + `pnpm seed:dev`. `npx supabase migration list --local`
+muestra cuántas faltan: toda fila con LOCAL y sin REMOTE está pendiente.
+
 **Desplegar desde un worktree crea un proyecto de Vercel NUEVO.** `.vercel` está
 en `.gitignore`, así que un worktree no hereda el enlace y el CLI se inventa un
 proyecto con el nombre de la carpeta. El 2026-08-10 eso mandó un despliegue a un
