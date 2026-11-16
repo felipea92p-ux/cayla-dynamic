@@ -22,7 +22,7 @@
  * qué cambia y qué no.
  */
 
-import { etiquetaDePrueba, situacionDePrueba, type ClaseParametro, sumarDias } from "@cayla-dynamic/shared";
+import { etiquetaDePrueba, situacionDePrueba, type ClaseParametro } from "@cayla-dynamic/shared";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 
 /** Una fila de `fn_parametros_listar` (0552), con los numéricos ya como número. */
@@ -237,26 +237,6 @@ export function notaDeEfecto(parametro: string): string | null {
 // Los parámetros que rigen POR FECHAS (clase plata, 0574)
 // ============================================================================
 
-
-/**
- * La fecha con la que NACE el campo «Rige desde»: hoy, salvo que la última
- * versión ya empiece hoy o después; entonces, el día siguiente a esa. La base
- * exige una fecha posterior a la última versión, y un campo de fecha que bloquea
- * el envío no arranca vacío (CLAUDE.md): nace con la fecha más probable.
- */
-export function fechaInicialDeVigencia(hoy: string, ultimaDesde: string | null): string {
-  if (!ultimaDesde || ultimaDesde < hoy) return hoy;
-  return sumarDias(ultimaDesde, 1);
-}
-
-/**
- * La fecha más temprana que acepta la base: el día siguiente a la última
- * versión. null = no hay ninguna versión todavía (la base solo exige que la
- * fecha no caiga en un periodo ya pagado, y eso lo dice la vista previa).
- */
-export function fechaMinimaDeVigencia(ultimaDesde: string | null): string | null {
-  return ultimaDesde ? sumarDias(ultimaDesde, 1) : null;
-}
 
 /**
  * El valor que regiría el día del cambio, sin el nuevo: si ya hay un cambio

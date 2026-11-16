@@ -474,7 +474,8 @@ with repo(numero, nombre, nunca) as (values
     (616, 'la_firma_de_cayla_queda_la_de_su_dia', false),
     (617, 'los_factores_de_provisiones_dejan_rastro', false),
     (618, 'lo_que_quedo_de_un_beneficio_se_decide_y_queda_escrito', false),
-    (619, 'grati_y_cts_se_pagan_con_el_sueldo_del_cierre', false)
+    (619, 'grati_y_cts_se_pagan_con_el_sueldo_del_cierre', false),
+    (620, 'lo_que_pasa_del_maximo_legal_se_puede_pagar_al_practicante', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

@@ -6,6 +6,62 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-16 — En Parámetros, «Rige desde» es el inicio de un ciclo, nunca «desde hoy» · sin SQL · rama `claude/peaceful-allen-y42335`
+
+**De dónde sale.** Al cambiar la base o el tope del practicante, la pantalla ofrecía «Desde hoy» y una fecha libre, y prometía «desde
+hoy, con el valor nuevo». La planilla lee esos valores con el que regía **el primer día del periodo** (`fn_parametro_valor_en(…,
+p_ini)`, 0577). Medido en una base desechable: con el tope cambiado a mitad de ciclo, ese ciclo se pagó entero con el tope viejo. Y
+como la base exige que cada versión sea posterior a la anterior, quien elegía «Desde hoy» ya no podía corregir el ciclo en curso.
+Felipe eligió (2026-11-16) arreglarlo solo en la pantalla, por ciclo.
+
+**Construido.** `opcionesPorCiclo` y `avisoDeCiclos` (`apps/web/lib/admin/cambio-de-plata.ts`): el panel de un parámetro con fechas
+ofrece solo «inicio del ciclo actual» y «inicio del ciclo siguiente» (nace en el siguiente). Explica por qué falta una opción (este
+ciclo ya tiene un cambio, hay uno programado o no hay periodo cargado). El aviso antes de confirmar dice que el ciclo elegido ya no se
+corrige desde la pantalla. Se quitaron la fecha libre y las dos funciones que la armaban. **Sueldo por grupo conserva «Desde hoy»**:
+ahí es verdad, porque el sueldo se paga día por día (medido: subir de 1 230 a 1 500 a mitad de periodo paga 773.50 y no 697.00).
+
+**Verificado.** `tests/parametros.test.ts` (51; las 8 nuevas incluyen una que falla si el panel vuelve a usar `opcionesDeVigencia` o
+un `type="date"`) y typecheck. No se miró en el navegador.
+
+**Límite que queda.** Un cambio confirmado para un ciclo no se puede reemplazar por otro del mismo ciclo, ni siquiera antes de que
+empiece. Ahora la pantalla lo avisa; permitirlo exigiría cambiar `fn_parametro_cambiar_vigencia`.
+
+---
+
+## 2026-11-16 — Al practicante se le puede volver a pagar lo que pasa del máximo legal · migración **0620 PEGADA (2026-11-16)** · **falta abrir el tope en Parámetros** · prueba 505 · rama `claude/peaceful-allen-y42335`
+
+**De dónde sale.** Desde el periodo 29-oct → 28-nov (0576/0577) el practicante tiene tope semanal: lo marcado por encima de 30 h
+(preprofesional) o 48 h (egresado) no se paga. Antes no había tope: se pagaba cada hora marcada, a la tarifa normal y sin recargo.
+Felipe: «que se pague lo que pasa del máximo legal … así como antes».
+
+**Construido.** La 0620 solo sube el máximo del catálogo de los dos parámetros del tope (`practicante_tope_preprofesional` y
+`practicante_tope_egresado`) de 30 y 48 a **168 h**, las horas de una semana. Con el tope en 168 la planilla nunca corta: es el pago
+sin tope, al céntimo. **No reescribe ninguna función** (la 0577 ya lee el tope de Parámetros con su fecha), así que no hay md5 de
+partida. La base (30 h y 45 h) no cambia, y sigue sin haber sobretiempo para el practicante (no está en planilla, 0185).
+
+**Por sí sola no mueve plata.** Los topes siguen en 30 y 48 hasta cambiarlos en `/admin/parametros`.
+
+**Verificado.** En una base desechable (Postgres 16, las 589 migraciones hasta la 0619): la prueba 505 con su control (sin la 0620 el
+168 se rechaza; con ella, 36 h/sem → 1 476.00 y 50 h/sem → 1 366.67, y el periodo anterior al cambio sigue con tope). También pasan
+las 396, 444, 451, 461, 463 a 467, 491 y 502. Se puede volver a pegar sin efecto.
+
+**0620 PEGADA por Felipe el 2026-11-16.** Se entregó con `dame-el-sql.sh` (idéntica a GitHub; `main` sin migraciones nuevas y
+ninguna otra rama con el 0620). La fila final devolvió exactamente la esperada: `168 · 168 · 30 · 48 · 0 · null · null · «620 ·
+lo_que_pasa_del_maximo_legal_se_puede_pagar_al_practicante»`. Ningún tope tenía versiones y ningún periodo desde el 29-oct está
+pagado para los dos grupos, así que el 29/10/2026 se puede usar como «Rige desde».
+
+**Lo que eligió Felipe (2026-11-16).** Tope del **egresado en 60 h** desde el 29/10/2026 (no 168): en este periodo los dos egresados
+cobran S/ 240.89 más en total, y lo que pase de 60 h en una semana sigue sin pagarse. El del **preprofesional sigue en 30**, sin
+versiones; ninguna preprofesional pasó de 25 h en una semana. Se midió con una consulta de solo lectura que reconstruye el pago con el
+tope anterior; cuadró con la planilla en las cinco filas.
+
+**Queda.**
+1. Si se quiere abrir también el del preprofesional: «Tope semanal del practicante preprofesional», desde el inicio de un ciclo.
+2. Abierto para el laboralista: el preprofesional tiene 30 h como máximo (Ley 28518, art. 44). Pagar lo que pasa de ahí no crea ese
+   exceso, que ya está en las marcas, ni lo arregla.
+
+---
+
 ## 2026-11-14 — Gratificación y CTS se pagan con el sueldo del cierre, no con la mayor de dos cuentas · migración **0619 SIN PEGAR** · prueba 504 · PR #741 (fusionado) y `claude/cts-cierre-ajustes`
 
 **De dónde sale.** Al preparar el depósito de CTS de noviembre, la pantalla decía S/ 4,393.66 y lo legal era S/ 4,251.42: siete personas
