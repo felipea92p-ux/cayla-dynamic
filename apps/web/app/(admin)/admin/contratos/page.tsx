@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
+import { nombreDelPdfDeContrato } from "@/lib/admin/contrato-nombre-pdf";
 import { Cargando } from "@/components/cargando";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
@@ -605,11 +606,17 @@ export default function ContratosPage() {
   const [fechaFin, setFechaFin] = useState("");
 
   const [generando, setGenerando] = useState(false);
-  const [borrador, setBorrador] = useState<{ id: string; html: string } | null>(null);
+  const [borrador, setBorrador] = useState<{ id: string; html: string; titulo: string | null } | null>(null);
   // El texto congelado de un contrato del historial, al abrirlo para
   // reimprimirlo. Estado propio y no `borrador`: el efecto que descarta el
   // borrador al editar el formulario no debe cerrar lo que se está mirando.
-  const [documentoAbierto, setDocumentoAbierto] = useState<string | null>(null);
+  //
+  // El TÍTULO viaja pegado al texto (2026-11-17): es el nombre con el que se
+  // guarda el PDF, y tiene que ser el de la persona de ESTE documento. Antes se
+  // sacaba de la persona elegida en el generador, que no cambia al abrir un
+  // contrato del archivo: todos los que se bajaban de ahí salían con el nombre
+  // de quien había quedado elegida. Ver `lib/admin/contrato-nombre-pdf.ts`.
+  const [documentoAbierto, setDocumentoAbierto] = useState<{ html: string; titulo: string | null } | null>(null);
   // La firma que el colaborador confirmó en ESTE contrato (0402), congelada al
   // momento de confirmar — no la firma general de la persona, que puede haber
   // cambiado después. Un valor viejo acá no se ve nunca solo: `htmlFinalModal`
@@ -1705,6 +1712,18 @@ export default function ContratosPage() {
     }
   }
 
+  /**
+   * El nombre del PDF de lo que sale del GENERADOR (recién generado o recién
+   * corregido). Solo ahí la persona y el tipo del formulario son los del
+   * documento; un contrato abierto desde el archivo trae los suyos
+   * (`abrirGenerado`).
+   */
+  function tituloDelGenerador(tipoDocumento: string): string | null {
+    return persona
+      ? nombreDelPdfDeContrato({ persona: `${persona.nombres} ${persona.apellidos}`, tipo: tipoDocumento, fechaInicio })
+      : null;
+  }
+
   async function generarBorrador() {
     if (!datosParaGenerar || !persona) {
       avisar(
@@ -1773,8 +1792,9 @@ export default function ContratosPage() {
     // confirmado todavía.
     setFirmaPersonaAbierta(null);
     setFirmaEmpresaAbierta(null);
-    setDocumentoAbierto(html);
-    setBorrador({ id: id as string, html });
+    const titulo = tituloDelGenerador(datosParaGenerar.tipo);
+    setDocumentoAbierto({ html, titulo });
+    setBorrador({ id: id as string, html, titulo });
     await cargar();
     avisar(
       "ok",
@@ -1884,7 +1904,7 @@ export default function ContratosPage() {
     // contrato ya no sería un borrador y no se estaría corrigiendo.
     setFirmaPersonaAbierta(null);
     setFirmaEmpresaAbierta(null);
-    setDocumentoAbierto(html);
+    setDocumentoAbierto({ html, titulo: tituloDelGenerador(datosParaGenerar.tipo) });
     await cargar();
     avisar("ok", "Borrador corregido. Vuelve a imprimirlo antes de firmarlo — el anterior ya no vale.");
   }
@@ -2021,18 +2041,23 @@ export default function ContratosPage() {
    * datos de hoy daría otro documento —el sueldo o el cargo pueden haber
    * cambiado— y el que vale es el que se imprimió y se firmó.
    */
-  async function abrirGenerado(id: string) {
+  async function abrirGenerado(c: ContratoFila) {
     const { data, error } = await supabase
       .from("contratos_generados")
       .select("documento_html, firma_persona, firma_empresa")
-      .eq("id", id)
+      .eq("id", c.id)
       .maybeSingle();
     if (error || !data) {
       avisar("error", mensajeDeError(error, "abrir el contrato"));
       return;
     }
     const fila = data as { documento_html: string; firma_persona: string | null; firma_empresa: string | null };
-    setDocumentoAbierto(fila.documento_html);
+    // El nombre del PDF sale de la fila de ESTE contrato, nunca del generador:
+    // abrir el de Pepe con Carla elegida allá lo guardaba como «Carla …».
+    setDocumentoAbierto({
+      html: fila.documento_html,
+      titulo: nombreDelPdfDeContrato({ persona: c.persona, tipo: c.tipo, fechaInicio: c.fecha_inicio }),
+    });
     setFirmaPersonaAbierta(fila.firma_persona);
     setFirmaEmpresaAbierta({ imagen: fila.firma_empresa });
   }
@@ -2098,7 +2123,7 @@ export default function ContratosPage() {
           </button>
         )}
       >
-        <MenuItem onClick={() => abrirGenerado(c.id)}>Ver / imprimir</MenuItem>
+        <MenuItem onClick={() => abrirGenerado(c)}>Ver / imprimir</MenuItem>
         {!anulado && !c.fecha_firma && <MenuItem onClick={() => empezarEdicion(c)}>Editar</MenuItem>}
         {!anulado && c.storage_path && (
           <MenuItem onClick={() => verDocumento(c.storage_path!)}>Descargar</MenuItem>
@@ -2166,7 +2191,10 @@ export default function ContratosPage() {
     return () => document.removeEventListener("keydown", alPulsar);
   }, [documentoAbierto]);
 
-  useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — ${soloPrueba ? "Preselección de tres días" : "Contrato de trabajo"}` : null);
+  // El PDF se nombra por el documento ABIERTO en el visor —el único que se
+  // imprime—, no por la persona elegida en el generador. Sin visor abierto no
+  // hay nada que imprimir y el título queda el del sitio.
+  useTituloDocumento(documentoAbierto?.titulo ?? null);
 
   if (rol === null || cargando) {
     return (
@@ -2493,7 +2521,7 @@ export default function ContratosPage() {
   // Un borrador recién generado o recién corregido llega acá con
   // `firmaPersonaAbierta` en null: todavía no tiene fila de la que leer una
   // confirmación del colaborador, así que solo se estampa la de la empresa.
-  const htmlFinalModal = documentoAbierto ? estampar(documentoAbierto, firmaPersonaAbierta) : null;
+  const htmlFinalModal = documentoAbierto ? estampar(documentoAbierto.html, firmaPersonaAbierta) : null;
 
   return (
     <main className="p-6">
@@ -3316,7 +3344,7 @@ export default function ContratosPage() {
                           onClick={() => {
                             setFirmaPersonaAbierta(null);
                             setFirmaEmpresaAbierta(null);
-                            setDocumentoAbierto(borrador.html);
+                            setDocumentoAbierto({ html: borrador.html, titulo: borrador.titulo });
                           }}
                         >
                           Ver / imprimir
@@ -3773,7 +3801,7 @@ export default function ContratosPage() {
                         className="w-full bg-papel"
                         onClick={() => {
                           setDetalleId(null);
-                          void abrirGenerado(c.id);
+                          void abrirGenerado(c);
                         }}
                       >
                         Ver / imprimir

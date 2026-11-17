@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-17-contrato-pdf-con-su-nombre",
+    fecha: "2026-11-17",
+    titulo: "El PDF de un contrato se guarda con el nombre de su persona",
+    queMejoro:
+      "En Contratos, al abrir un contrato del archivo y guardarlo como PDF, el archivo salía con el nombre de quien " +
+      "estuviera elegida en el generador, no con el de la persona del contrato. Ahora lleva su nombre, el tipo de " +
+      "documento y desde cuándo rige.\n\n" +
+      "Si guardaste contratos antes de este cambio, revisa el nombre de esos archivos: pueden tener el de otra persona.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-14-provisiones-sueldo-del-cierre",
     fecha: "2026-11-14",
     titulo: "Provisiones calcula la CTS y la gratificación solo con el sueldo del cierre",
