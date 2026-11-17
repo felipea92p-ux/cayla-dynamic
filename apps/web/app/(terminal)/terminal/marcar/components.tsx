@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Store, Warehouse } from "lucide-react";
+import { Check, Store, Warehouse } from "lucide-react";
 import { etiquetaDePrueba, type TipoMarca } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
@@ -691,10 +691,23 @@ export function ConfirmacionToast({
   // el navegador nunca llega a pintar el punto de partida y no hay nada que
   // animar.
   const [vaciando, setVaciando] = useState(false);
+  // Desde que la marca sale —se acabó la cuenta o se tocó «Confirmar ahora»—
+  // hasta que la base contesta. Dura lo que tarde la red: casi nada con buena
+  // conexión, hasta el tope de 8 s (`enviar-marcaje.ts`) con una mala.
+  //
+  // En ese rato la pantalla seguía diciendo «Confirmando en 0s…» con «Cancelar»
+  // encendido, y cancelar ya no cancelaba nada: la marca estaba guardada y
+  // saliendo, la pantalla volvía a la lista como si no, y segundos después
+  // aparecía un «Listo» que nadie esperaba. Una marca que la persona cree
+  // haber cancelado y que igual cuenta para su pago es justo lo que este
+  // terminal no puede hacer. Ahora dice lo que pasa y no ofrece lo que no puede
+  // cumplir.
+  const [enviando, setEnviando] = useState(false);
   const yaConfirmoRef = useRef(false);
   const confirmarUnaVez = () => {
     if (yaConfirmoRef.current) return;
     yaConfirmoRef.current = true;
+    setEnviando(true);
     onConfirmar();
   };
 
@@ -730,13 +743,13 @@ export function ConfirmacionToast({
           <div
             className="h-full rounded-pildora bg-rojo"
             style={{
-              width: vaciando ? "0%" : "100%",
-              transition: vaciando ? `width ${segundosTotal}s linear` : "none",
+              width: vaciando || enviando ? "0%" : "100%",
+              transition: vaciando && !enviando ? `width ${segundosTotal}s linear` : "none",
             }}
           />
         </div>
         <p className="mt-2 text-sm text-taupe" aria-live="polite">
-          Confirmando en {segundosRestantes}s…
+          {enviando ? "Enviando…" : `Confirmando en ${segundosRestantes}s…`}
         </p>
       </div>
       {/* Cancelar con el mismo ancho, relleno y peso de letra que Confirmar:
@@ -746,12 +759,68 @@ export function ConfirmacionToast({
           contorno — la única diferencia que debería quedar es esa, de
           color, no de tamaño. */}
       <div className="flex w-full max-w-xs gap-3">
-        <button onClick={onCancelar} className={`${BTN_SECUNDARIO} flex-1 py-4 text-lg font-medium`}>
+        <button
+          onClick={onCancelar}
+          disabled={enviando}
+          className={`${BTN_SECUNDARIO} flex-1 py-4 text-lg font-medium disabled:cursor-default disabled:opacity-50`}
+        >
           Cancelar
         </button>
-        <button onClick={confirmarUnaVez} className={`${BTN_PRIMARIO} flex-1 py-4 text-lg`}>
+        <button
+          onClick={confirmarUnaVez}
+          disabled={enviando}
+          className={`${BTN_PRIMARIO} flex-1 py-4 text-lg disabled:cursor-default disabled:opacity-50`}
+        >
           Confirmar ahora
         </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * La buena noticia, sobre la cabecera y sin detener a nadie (lib/terminal/ritmo.ts).
+ *
+ * Hasta el 2026-11-17 el «Listo» ocupaba la pantalla entera 2,5 s después de
+ * cada marca: quien marcó ya se había dado la vuelta y quien venía detrás no
+ * podía tocar su nombre. Ahora la lista vuelve en cuanto la base contesta y
+ * esto queda arriba unos segundos.
+ *
+ * Tres cosas que no son adorno:
+ *   · No ocupa lugar en la página (`fixed`): si empujara la grilla, las
+ *     casillas se moverían bajo el dedo de la persona siguiente justo al
+ *     aparecer y al irse, y un toque caería en el nombre de al lado.
+ *   · Va sobre la cabecera, en su centro vacío, y no sobre la grilla: no tapa
+ *     ningún nombre. Y no recibe toques (`pointer-events-none`): si en una
+ *     pantalla angosta llega a tapar algo, el toque pasa a lo de abajo.
+ *   · Nombra siempre a la persona: puede seguir a la vista mientras la
+ *     siguiente ya está marcando, y no debe leerse como suyo.
+ *
+ * La mala noticia NO pasa por aquí: sigue siendo `PantallaMensaje`, entera.
+ */
+export function AvisoListo({ texto, detalle = null }: { texto: string; detalle?: string | null }) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-3 z-40 flex justify-center px-4">
+      <div
+        role="status"
+        aria-live="polite"
+        className="terminal-listo flex max-w-3xl flex-col items-center gap-0.5 rounded-superficie border border-verde bg-papel px-5 py-2.5 text-center"
+      >
+        <p className="flex items-center gap-3 font-serif text-2xl text-tinta">
+          <span
+            aria-hidden
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-verde text-crema"
+          >
+            <Check size={18} strokeWidth={2.5} aria-hidden />
+          </span>
+          {texto}
+        </p>
+        {detalle && (
+          <p className="flex items-center gap-2 text-lg text-azul">
+            <span aria-hidden>▣</span>
+            {detalle}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -860,7 +929,11 @@ export function MotivoReentrada({
 }
 
 /**
- * El cartel que ve la persona antes de darse la vuelta.
+ * El cartel a pantalla completa. Desde el 2026-11-17 solo lo usa la MALA
+ * noticia —un rechazo, una Mac sin vínculo—: la buena es `AvisoListo`, que no
+ * detiene la fila (lib/terminal/ritmo.ts). El tono «ok» se conserva porque es
+ * el aspecto al que vuelve esto si un día la buena noticia tiene que volver a
+ * ocupar la pantalla.
  *
  * `tono` existe porque hasta el 2026-08-10 un rechazo del servidor se pintaba
  * EXACTAMENTE igual que un «Listo»: mismo tamaño, mismo color, mismos dos
