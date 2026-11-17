@@ -6,6 +6,64 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-17 — Reactividad de Dynamic, paso 1: la Bandeja se lee una vez por pestaña · sin SQL · **SIN FUSIONAR, espera a Felipe** · rama `claude/modest-fermi-4pwns6`
+
+**De dónde sale.** Felipe (2026-11-17): «mejorar la reactividad de todo el sistema». Eligió «las dos cosas» (primero la espera al
+tocar, después que las pantallas se pongan al día solas) y «Dynamic primero».
+
+**Lo medido en producción** (solo lectura, `pg_stat_statements`, 12 al 17 de noviembre; nombres de función y tiempos, ningún dato de
+personas):
+- El terminal no espera a la base: `fn_registrar_marcaje` 26 ms de media (109 la peor) y la lista 9 ms.
+- Las ~28 consultas de la Bandeja son el **72 %** del tiempo de base de Dynamic (3 156 de 4 376 s). El menú las relanza al navegar,
+  con cada aviso de tiempo real (o sea, cada vez que alguien marca) y cada 5 min; la pantalla Bandeja, el indicador del Dashboard y
+  Equipo las volvían a pedir por su cuenta.
+- `fn_liquidaciones_vencidas_bandeja` sola es el **24 %**: 886 ms de media y 4,5 s la peor, para devolver 1 fila. Corre el motor de
+  planilla por cada cesada sin liquidación pagada (ese día, 2). La pantalla Bandeja de admin y DO esperaba a esa consulta para pintar.
+- La base no está saturada (Dynamic usa cerca del 1 % de un núcleo): la espera está en el camino del clic, no en la máquina.
+- Provisiones 1,3 s, `fn_grati_cts_periodo` 1,8 s y `fn_planilla_variacion` 1,0 s: pantallas de plata, de uso puntual.
+
+**Construido.** `apps/web/lib/lector-compartido.ts` (sin React ni Supabase) y `apps/web/lib/admin/bandeja-compartida.ts`: un solo
+lector por persona y rol, que comparten el menú, `/admin/bandeja`, el indicador del Dashboard y Equipo.
+- Dos que piden a la vez comparten una ronda. Nunca hay dos rondas en vuelo.
+- La pantalla Bandeja pinta con lo que el menú ya leyó (hasta 5 min de edad) y se confirma con la base detrás.
+- Quien acaba de guardar nunca recibe una lectura que salió antes de su guardado (`umbral` en la pantalla).
+- El número del menú y la lista salen de la misma lectura. La lista se pone al día sola con cada lectura nueva, y marca «visto» lo
+  que llega después de entrar, una vez por visita.
+- La llave lleva a la persona, no solo el rol: dos líderes de equipo ven sedes distintas. Al cerrar sesión se olvida.
+- El enlace de Normas de la Bandeja sale de la misma lectura (antes pedía `fn_documentos_vigentes` otra vez).
+
+**Verificado.** `tests/lector-compartido.test.ts` (8) y `tests/bandeja-compartida.test.ts` (5); las 4 266 de vitest, typecheck y el
+linter sobre los archivos tocados. En un navegador (Chromium), con el ingreso de verdad y **la API de datos simulada en el propio
+navegador** con datos inventados, la consulta lenta puesta en 3 s y el mismo guion sobre el código de antes como control:
+
+| | Antes | Después |
+|---|---|---|
+| Abrir la Bandeja desde otra pantalla | 3 380 ms | 239 ms |
+| Algo cambia fuera de la pantalla | el menú dice 2 y la lista sigue en 3 | los dos dicen 2 |
+| Recargar estando en la Bandeja | 3 rondas de consultas | 2 |
+
+**No verificado.** Contra una base de verdad: en el contenedor de la sesión no hay PostgREST ni Docker, y ejecutar el binario
+descargado fue denegado por el control de permisos de la sesión. Por lo mismo **no se pudo medir pantalla por pantalla** (peticiones y
+esperas en cadena), que era la otra mitad del encargo. Tampoco en Safari, ni el flujo de resolver una fila con el botón (se probó el
+aviso que ese botón dispara).
+
+**Lo que NO arregla.** Entrar en frío a la Bandeja (recargar, o con una lectura de más de 5 min) sigue esperando a
+`fn_liquidaciones_vencidas_bandeja`. Eso se arregla en la base, y toca plata: es decisión de Felipe.
+
+**Sigue, en este orden** (cada uno espera el OK de Felipe):
+1. La consulta de liquidaciones vencidas deja de correr el motor de planilla en cada vuelta (SQL, la pega Felipe).
+2. Esperas en cadena leídas en el código, sin medir: `/admin/equipo` (5 rondas, 4 de ellas independientes), `cargarDisciplina` del
+   Dashboard (3 rondas con 5 lecturas independientes), `traerCasosTraspasados` de la Bandeja (5 rondas, 2 sobran), «Lo mío» y Turnos.
+3. Un cronómetro del clic para Dynamic, como el de Retail (ADR-0654 de allá): hoy no hay forma de saber cuánto espera cada pantalla.
+4. Tiempo real, lotes 2 a 5 del ADR 0006 (migraciones que pega Felipe).
+
+**Roto en el entorno local, visto de paso.** En una base nueva `crear-base.sh` falla al sembrar: `sembrar.mjs` corre `datos-pago.sql`
+antes de pagar los periodos anteriores y `fn_boleta_marcar_papel` rechaza («Ese periodo todavía no está pagado…»). `arrancar.sh` dice
+«Entorno local encendido» aunque PostgREST no haya arrancado. Y `next dev`/`next build` (Next 16.4.1) se detienen una vez para avisar
+de una vulnerabilidad conocida y recomendar actualizar; no se actualizó nada.
+
+---
+
 ## 2026-11-17 — En el terminal, marcar ya no deja la pantalla quieta casi seis segundos · sin SQL · **Felipe pidió publicarlo el 2026-11-17** · rama `claude/pensive-albattani-fch9dr`
 
 **De dónde sale.** Felipe (2026-11-17): «cuando le doy a salir a refrigerio o cualquier otro siento que tarda mucho, sería ideal bajar
