@@ -32,7 +32,7 @@
 //     fila ya dice si se resuelve aquí.
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -59,13 +59,16 @@ import {
 } from "@/lib/admin/bandeja-urgencia";
 import {
   alertasConProblema, armarPendientes, diaLima, ETIQUETA_MODULO, FUENTES_VACIAS, modulosDeLaBandeja,
-  resumenValorPerfil, traerFuentesBandeja, type FuentesBandeja, type ModuloBandeja, type Pendiente, type TipoItemVisto,
+  resumenValorPerfil, type FuentesBandeja, type ModuloBandeja, type Pendiente, type TipoItemVisto,
 } from "@/lib/admin/bandeja-fuentes";
 import { hoyLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla, puedeVerSaludDeAlertas, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { TarjetaSistema } from "@/components/bandeja/tarjeta-sistema";
 import { PanelPrueba } from "@/components/pruebas/panel-prueba";
 import { textoDeHoras } from "@/lib/admin/pruebas";
-import { resumenNormasPendientes, type ResumenNormas } from "@/lib/admin/bandeja-equipo";
+import { resumenDeNormas, type ResumenNormas } from "@/lib/admin/bandeja-equipo";
+import {
+  EDAD_PARA_PINTAR_MS, HOLGURA_MISMA_ENTRADA_MS, lectorDeLaBandeja, type LecturaBandeja,
+} from "@/lib/admin/bandeja-compartida";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Filtro } from "@/components/ui/filtro";
 import { interruptoresVidrio } from "@/lib/vidrio";
@@ -239,15 +242,49 @@ export default function BandejaPage() {
     } catch { /* preferencia de UI, no un dato de negocio: si no se guarda, no pasa nada. */ }
   }
 
-  const cargar = useCallback(async () => {
+  // Las fuentes salen del lector que esta pantalla comparte con el menú (`lib/admin/bandeja-compartida.ts`), no de
+  // una ronda propia de consultas. Hasta el 2026-11-17 la pantalla pedía las ~28 por su cuenta y esperaba a la más
+  // lenta (0,9 s de media y 4,5 s la peor, medido en producción) aunque el menú acababa de traer lo mismo.
+  const lector = useMemo(() => lectorDeLaBandeja(persona?.id, rol), [persona?.id, rol]);
+  // Desde cuándo tiene que haber SALIDO una lectura para que esta pantalla la tome. Sube cada vez que algo cambia
+  // aquí (resolver una fila, cerrar un diálogo que guardó): una lectura que salió antes traería de vuelta la fila
+  // que la persona acaba de resolver.
+  const umbral = useRef(0);
+  const avisada = useRef<LecturaBandeja | null>(null);
+  /** Lo que salió hacia la base antes de este instante ya no se toma: ver `umbral`. */
+  const anotarCambioLocal = useCallback(() => { umbral.current = Date.now(); }, []);
+
+  const adoptar = useCallback((l: LecturaBandeja) => {
+    if (l.pedidaEn < umbral.current) return;
+    setFuentes(l.valor.fuentes);
+    setNormas(resumenDeNormas(l.valor.constanciasNormas, rol));
+    // Lo que falló se dice una vez por lectura, no una por cada pieza que la recibe.
+    if (avisada.current === l) return;
+    avisada.current = l;
+    for (const { que, error } of l.valor.fallos) {
+      avisar("error", mensajeDeError(error as Parameters<typeof mensajeDeError>[0], `cargar ${que}`));
+    }
+  }, [avisar, rol]);
+
+  // Cada lectura nueva llega aquí, la haya pedido esta pantalla, el menú o un aviso de la base.
+  useEffect(() => {
+    if (!lector) return;
+    return lector.escuchar(adoptar);
+  }, [lector, adoptar]);
+
+  /**
+   * `frescaDesde`: desde cuándo tiene que haber salido la lectura. Sin argumento es «ahora» —acabo de cambiar algo
+   * y quiero verlo—, que es lo que piden los diálogos al cerrarse.
+   */
+  const cargar = useCallback(async (frescaDesde: number = Date.now()) => {
     const supabase = createAdminSupabaseClient();
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    if (!rol) return;
+    if (!rol || !lector) return;
+    umbral.current = Math.max(umbral.current, frescaDesde);
 
-    const [f] = await Promise.all([
-      traerFuentesBandeja(supabase, rol, (que, error) =>
-        avisar("error", mensajeDeError(error as Parameters<typeof mensajeDeError>[0], `cargar ${que}`))),
+    const [l] = await Promise.all([
+      lector.pedir(frescaDesde),
       // bandeja_vistos (0436). Falla suave — sin ella, todo se ve sin «Nuevo».
       supabase.from("bandeja_vistos").select("tipo_item,item_id").then(({ data }) => {
         setVistosIniciales(new Set<string>((data ?? []).map((v) => `${v.tipo_item}:${v.item_id}`)));
@@ -266,27 +303,25 @@ export default function BandejaPage() {
           })
         : Promise.resolve(),
     ]);
-    setFuentes(f);
+    adoptar(l);
     setCargando(false);
-  }, [router, rol, puedeTodasLasSedes, avisar]);
+  }, [router, rol, puedeTodasLasSedes, lector, adoptar]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel.
-  useEffect(() => { void cargar(); }, [cargar]);
-
-  // El enlace compacto de Normas (0460) se carga aparte de `cargar()`: no es
-  // una fuente de `traerFuentesBandeja` (no encaja en la forma `Pendiente`),
-  // así que no tiene sentido bloquear la carga principal por él.
+  // Al entrar se piden dos cosas a la vez. Una lectura de este instante, que se une a la del menú si ya salió y
+  // llega por `escuchar`. Y, para pintar, la que ya haya: si el menú leyó hace menos de `EDAD_PARA_PINTAR_MS`, la
+  // lista sale con eso sin esperar a la base y la lectura nueva la reemplaza al llegar. Si no hay ninguna que
+  // sirva, las dos peticiones son la misma lectura y la pantalla espera como antes.
   useEffect(() => {
-    if (!rol) return;
-    void (async () => {
-      const supabase = createAdminSupabaseClient();
-      const r = await resumenNormasPendientes(supabase, rol);
-      setNormas(r);
-    })();
-  }, [rol]);
+    if (!lector) return;
+    const alEntrar = Date.now();
+    void lector.pedir(alEntrar - HOLGURA_MISMA_ENTRADA_MS);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel.
+    void cargar(alEntrar - EDAD_PARA_PINTAR_MS);
+  }, [lector, cargar]);
 
   // Marcar visto lo que lleva «Nuevo», una vez que terminó de cargar — la
   // insignia de esta visita ya se calculó con vistosIniciales.
+  const yaMarcados = useRef(new Set<string>());
   useEffect(() => {
     if (cargando) return;
     const supabase = createAdminSupabaseClient();
@@ -300,7 +335,9 @@ export default function BandejaPage() {
       ...fuentes.avisosFinEducacion.map((a): [TipoItemVisto, string] => ["aviso_fin_educacion", a.id]),
     ];
     for (const [tipo, id] of items) {
-      if (!vistosIniciales.has(`${tipo}:${id}`)) {
+      const clave = `${tipo}:${id}`;
+      if (!vistosIniciales.has(clave) && !yaMarcados.current.has(clave)) {
+        yaMarcados.current.add(clave);
         // `supabase.rpc(...)` sola NO dispara nada: postgrest-js solo hace el
         // fetch dentro de `.then()` (PostgrestBuilder#then). Sin ese `.then()`
         // —o un `await`— esto arma la petición y la descarta en silencio: ni
@@ -310,9 +347,10 @@ export default function BandejaPage() {
           .then(() => {}, () => {});
       }
     }
-    // Solo cuando termina de cargar: una vez por visita.
+    // Al terminar de cargar y con cada lectura que llegue después (la pantalla se pone al día sola): cada fila se
+    // marca una sola vez por visita (`yaMarcados`).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cargando]);
+  }, [cargando, fuentes]);
 
   const hoy = hoyLima();
   const pendientes = useMemo(
@@ -364,6 +402,7 @@ export default function BandejaPage() {
     setAbierta(null);
     const quedaEnModulo = pendientes.some((x) => x.modulo === p.modulo && x.clave !== p.clave);
     avisar("ok", quedaEnModulo ? mensaje : `${mensaje} ${ETIQUETA_MODULO[p.modulo]} quedó al día.`);
+    anotarCambioLocal();
     avisarCambioEnBandeja();
     window.setTimeout(() => {
       setFuentes((f) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import bcrypt from "bcryptjs";
@@ -27,14 +27,15 @@ import { PanelPrueba } from "@/components/pruebas/panel-prueba";
 import { EtiquetaPrueba } from "@/components/pruebas/etiqueta-prueba";
 import type { FilaPrueba } from "@/lib/admin/pruebas";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
-import { useRolActual } from "@/lib/admin/use-rol";
+import { usePersonaActual, useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { pedirInvitacionesAutomaticas, textoInvitacionesEnviadas } from "@/lib/admin/invitacion-automatica";
 import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
-import { listarPendientesPorPersona } from "@/lib/admin/bandeja-equipo";
+import { pendientesPorPersona } from "@/lib/admin/bandeja-fuentes";
+import { EDAD_PARA_CONTAR_MS, lectorDeLaBandeja, useLecturaBandeja } from "@/lib/admin/bandeja-compartida";
 import {
   hoyLima, primeroDeMesLima, rangoDelMesLima, puedeAdministrarEquipo, puedeVerPlanilla, etiquetaDeSede,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
@@ -467,7 +468,15 @@ export default function EquipoPage() {
   // vez de un total. Se pide una vez, no por fila — nunca 30 llamadas.
   // Falla silencioso, igual que el resto de esta pantalla: sin esto, la fila
   // simplemente no muestra el aviso, no se cae la tabla.
-  const [pendientes, setPendientes] = useState<Map<string, string[]>>(new Map());
+  // Sale del lector que comparte con el menú y la Bandeja (`lib/admin/bandeja-compartida.ts`): el menú ya trajo estas
+  // fuentes para su número, así que Equipo no las vuelve a pedir, y el aviso se mueve con cada lectura nueva.
+  const yoEnEquipo = usePersonaActual();
+  const lectorBandeja = useMemo(() => lectorDeLaBandeja(yoEnEquipo?.id, rol), [yoEnEquipo?.id, rol]);
+  const lecturaBandeja = useLecturaBandeja(lectorBandeja);
+  const pendientes = useMemo(
+    () => (lecturaBandeja ? pendientesPorPersona(lecturaBandeja.valor.fuentes) : new Map<string, string[]>()),
+    [lecturaBandeja],
+  );
   // Quién está de prueba y en qué día va (0536). Lo ve quien abre Equipo según su alcance: DO todo,
   // la líder de equipo su sede. Sin esto, «dar de baja» a alguien de prueba es el cese de siempre
   // y no dice si no fue apto o se retiró —que es lo que decide si se le paga lo trabajado.
@@ -484,13 +493,9 @@ export default function EquipoPage() {
     return () => { vigente = false; };
   }, [versionPruebas]);
   useEffect(() => {
-    if (rol === null) return;
-    let vigente = true;
-    void listarPendientesPorPersona(createAdminSupabaseClient(), rol).then((mapa) => {
-      if (vigente) setPendientes(mapa);
-    });
-    return () => { vigente = false; };
-  }, [rol]);
+    if (!lectorBandeja) return;
+    void lectorBandeja.pedir(Date.now() - EDAD_PARA_CONTAR_MS);
+  }, [lectorBandeja]);
 
   // Se compara sin tildes ni mayúsculas: buscar "nunez" tiene que encontrar a
   // "Núñez". Escribir el apellido con la tilde exacta no puede ser un requisito.
