@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-17-marcar-en-el-terminal-toma-menos-tiempo",
+    fecha: "2026-11-17",
+    titulo: "Marcar en el terminal toma menos tiempo",
+    queMejoro:
+      "En el terminal de la sede, después de elegir qué marcar (el refrigerio, una salida, un regreso), la pantalla " +
+      "ya no se queda quieta casi seis segundos. La cuenta para cancelar dura 2 segundos y, apenas la marca queda " +
+      "registrada, vuelve la lista de nombres para quien viene detrás.\n\n" +
+      "El «Listo» ahora aparece arriba, con tu nombre, sin tapar la lista. Si una marca no se pudo registrar, el " +
+      "aviso rojo sigue ocupando toda la pantalla, igual que antes: ese no cambió.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-17-contrato-pdf-con-su-nombre",
     fecha: "2026-11-17",
     titulo: "El PDF de un contrato se guarda con el nombre de su persona",

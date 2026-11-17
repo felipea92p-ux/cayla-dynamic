@@ -35,6 +35,7 @@ import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
 import { puedeRecargar } from "@/lib/terminal/recarga-version";
+import { SEGUNDOS_CONFIRMACION, planDeMensaje, type TonoMensaje } from "@/lib/terminal/ritmo";
 import { CADA_CUANTO_MS, VERSION_DE_ESTA_PAGINA, hayVersionNueva } from "@/lib/version-despliegue";
 import {
   DURACIONES_ALMACEN,
@@ -67,6 +68,7 @@ import { interruptoresVidrio } from "@/lib/vidrio";
 import { Insignia } from "@/components/ui/insignia";
 import { Cargando } from "@/components/cargando";
 import {
+  AvisoListo,
   ConfirmacionToast,
   ConfirmarRefrigerio,
   ElegirTiempoAlmacen,
@@ -149,12 +151,8 @@ function configDeAccionIncierta(): SalidaConfig {
   };
 }
 
-const SEGUNDOS_CONFIRMACION = 3;
-const SEGUNDOS_MENSAJE = 2.5;
-// Un rechazo se queda MÁS TIEMPO en pantalla. Dos segundos y medio bastan
-// para leer «Listo»; no bastan para leer que no quedó registrada, entenderlo
-// y decidir ir a buscar a la encargada. El que trae mala noticia espera.
-const SEGUNDOS_MENSAJE_ALERTA = 8;
+// Cuánto espera el terminal después de cada toque —la cuenta atrás, el «Listo»,
+// el rechazo— vive en `lib/terminal/ritmo.ts`, con lo que se midió.
 // Cuánto dura un estado iluminado. Iluminar atenúa a los demás —no los oculta—, así
 // que dejarlo puesto ya no le quita a nadie su nombre; pero una pantalla que se
 // queda a medias atenuada, por la tarde, mientras otra persona viene a marcar,
@@ -266,7 +264,12 @@ export default function MarcarPage() {
     tipo: TipoMarca; motivoOtro?: string; clientUuid?: string; confirmoSinRefrigerio?: boolean;
   } | null>(null);
   const [mensaje, setMensaje] = useState("");
-  const [tonoMensaje, setTonoMensaje] = useState<"ok" | "alerta">("ok");
+  const [tonoMensaje, setTonoMensaje] = useState<TonoMensaje>("ok");
+  // La buena noticia («Listo — …») ya no ocupa la pantalla: queda sobre la lista,
+  // que vuelve en el acto (ver `mostrarMensaje` y lib/terminal/ritmo.ts). Cada
+  // aviso es un objeto nuevo, así que el que llega reemplaza al anterior y
+  // arranca su propio reloj.
+  const [avisoListo, setAvisoListo] = useState<{ texto: string; detalle: string | null; segundos: number } | null>(null);
   // Una segunda línea bajo el mensaje (hoy: «Hoy te toca almacén de … a …» al
   // marcar la entrada). No alarga el tiempo en pantalla: lo cabe en los mismos.
   const [detalleMensaje, setDetalleMensaje] = useState<string | null>(null);
@@ -292,6 +295,12 @@ export default function MarcarPage() {
     const t = window.setTimeout(() => setResaltado(null), SEGUNDOS_RESALTADO * 1000);
     return () => window.clearTimeout(t);
   }, [resaltado]);
+
+  useEffect(() => {
+    if (!avisoListo) return;
+    const t = window.setTimeout(() => setAvisoListo(null), avisoListo.segundos * 1000);
+    return () => window.clearTimeout(t);
+  }, [avisoListo]);
 
   const cargarTodo = useCallback(async () => {
     try {
@@ -599,14 +608,28 @@ export default function MarcarPage() {
   // volvió a pasar en los dos caminos de mala noticia que nadie había tocado
   // desde entonces: la ficha del terminal sin configurar y el reabrir-día que
   // falla. Los dos ponían texto de alerta con el tono y los 2,5 s de un
-  // "Listo". Que esta función sea el único lugar donde se arma la pantalla de
-  // mensaje es lo que evita que se vuelva a desarmar un tercer camino.
-  function mostrarMensaje(texto: string, tono: "ok" | "alerta", detalle: string | null = null) {
+  // "Listo". Que esta función sea el único lugar donde se arma el mensaje es lo
+  // que evita que se vuelva a desarmar un tercer camino.
+  //
+  // Y DÓNDE SE VE lo decide el tono, no quien llama (2026-11-17, `planDeMensaje`):
+  // la buena noticia devuelve la lista en el acto y queda encima como un aviso
+  // que no detiene a la persona siguiente; la mala ocupa la pantalla entera sus
+  // ocho segundos, como siempre. Antes las dos la ocupaban, y cada marca le
+  // costaba 2,5 s de pantalla quieta a quien venía detrás.
+  function mostrarMensaje(texto: string, tono: TonoMensaje, detalle: string | null = null) {
+    const plan = planDeMensaje(tono, detalle !== null);
+    if (!plan.ocupaLaPantalla) {
+      setAvisoListo({ texto, detalle, segundos: plan.segundos });
+      volverALista();
+      return;
+    }
+    // Un «Listo» de la persona anterior no se queda flotando sobre un rechazo.
+    setAvisoListo(null);
     setMensaje(texto);
     setDetalleMensaje(detalle);
     setTonoMensaje(tono);
     setPantalla("mensaje");
-    setTimeout(volverALista, (tono === "alerta" ? SEGUNDOS_MENSAJE_ALERTA : SEGUNDOS_MENSAJE) * 1000);
+    setTimeout(volverALista, plan.segundos * 1000);
   }
 
   // Ilumina a quienes comparten un estado, o lo apaga si ya estaba iluminado. Lo
@@ -766,9 +789,11 @@ export default function MarcarPage() {
     } catch {
       ok = false;
     }
-    // El servidor acaba de quitar la salida final: se vuelve a leer el día, o la
-    // casilla seguiría diciendo «Turno terminado» hasta el refresco de 2 min.
-    if (ok) void cargarTodo();
+    // El servidor acaba de quitar la salida final: se vuelve a leer el día ANTES
+    // de devolver la lista, o la casilla diría «Turno terminado» debajo de un
+    // «tu día está abierto de nuevo». Ya no hay un cartel de 2,5 s que tape esa
+    // lectura (lib/terminal/ritmo.ts), y `cargarTodo` nunca lanza y trae su tope.
+    if (ok) await cargarTodo();
     mostrarMensaje(
       ok
         ? `Listo, ${personaActual.nombres} — tu día está abierto de nuevo.`
@@ -1299,6 +1324,9 @@ export default function MarcarPage() {
 
         {pantalla === "mensaje" && <PantallaMensaje mensaje={mensaje} tono={tonoMensaje} detalle={detalleMensaje} />}
       </main>
+
+      {/* El «Listo» de la última marca: flota sobre la cabecera, fuera del flujo, y la lista de abajo ya está libre. */}
+      {avisoListo && <AvisoListo texto={avisoListo.texto} detalle={avisoListo.detalle} />}
     </div>
   );
 }

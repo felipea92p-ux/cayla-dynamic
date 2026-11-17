@@ -84,6 +84,19 @@
     margin: 0;
   }
 
+  /* ---------- El «Listo»: lo único del terminal que flota sobre otra cosa ----------
+     Queda unos segundos sobre la cabecera después de cada marca (marcar/components.tsx, `AvisoListo`). Detrás tiene la cabecera y, si el texto es
+     largo o la pantalla angosta, lo que pase por debajo: por eso lleva el vidrio de lo que flota, con su desenfoque. Es una sola pieza y dura
+     segundos. El filo es del verde de «presente»; la letra va en tinta, que es la que se lee a un metro. */
+  [data-vidrio="terminal"] .terminal-listo {
+    border-color: color-mix(in srgb, var(--color-verde) 45%, transparent);
+    border-radius: 22px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--color-verde) 10%, transparent), color-mix(in srgb, var(--color-verde) 4%, transparent)), var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: var(--vidrio-flota-filtro);
+    backdrop-filter: var(--vidrio-flota-filtro);
+    box-shadow: var(--vidrio-flota-sombra);
+  }
+
   /* ---------- El reloj: una lente redonda ---------- */
   [data-vidrio="terminal"] .terminal-reloj {
     border-radius: 999px;
