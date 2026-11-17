@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-17 — Reactividad de Dynamic, paso 1: la Bandeja se lee una vez por pestaña · sin SQL · **SIN FUSIONAR, espera a Felipe** · rama `claude/modest-fermi-4pwns6`
+## 2026-11-17 — Reactividad de Dynamic, paso 1: la Bandeja se lee una vez por pestaña (y la siembra local, arreglada) · sin SQL · **SIN FUSIONAR, espera a Felipe** · rama `claude/modest-fermi-4pwns6`
 
 **De dónde sale.** Felipe (2026-11-17): «mejorar la reactividad de todo el sistema». Eligió «las dos cosas» (primero la espera al
 tocar, después que las pantallas se pongan al día solas) y «Dynamic primero».
@@ -57,10 +57,20 @@ aviso que ese botón dispara).
 3. Un cronómetro del clic para Dynamic, como el de Retail (ADR-0654 de allá): hoy no hay forma de saber cuánto espera cada pantalla.
 4. Tiempo real, lotes 2 a 5 del ADR 0006 (migraciones que pega Felipe).
 
-**Roto en el entorno local, visto de paso.** En una base nueva `crear-base.sh` falla al sembrar: `sembrar.mjs` corre `datos-pago.sql`
-antes de pagar los periodos anteriores y `fn_boleta_marcar_papel` rechaza («Ese periodo todavía no está pagado…»). `arrancar.sh` dice
-«Entorno local encendido» aunque PostgREST no haya arrancado. Y `next dev`/`next build` (Next 16.4.1) se detienen una vez para avisar
-de una vulnerabilidad conocida y recomendar actualizar; no se actualizó nada.
+**El entorno local, arreglado el mismo día** (a pedido de Felipe: «Arreglar la siembra de la base local en una base nueva»).
+- **La siembra en una base nueva.** `sembrar.mjs` corría `datos-pago.sql` (Boletas y Educación) dentro de `sembrarFirmados`, antes de
+  `pagarPeriodosAnteriores()`: `fn_boleta_marcar_papel` rechazaba («Ese periodo todavía no está pagado…») y la siembra se cortaba ahí.
+  La base quedaba con los 5 periodos abiertos, sin boletas, sin apoyos y sin las dos cesadas, y el siguiente `arrancar.sh` la daba por
+  buena porque la carpeta ya existía. Ahora `datos-pago.sql` va después de pagar, y dice de dónde viene si le falta el periodo pagado.
+  Medido en una base aparte, desde cero, antes y después: de `abierto=5`, 0 boletas, 0 apoyos y 1 cese, a `pagado=2, abierto=3`,
+  4 boletas, 2 apoyos y 3 ceses, que es lo que promete el `LEEME`. Repetir `datos-pago.sql` no duplica nada.
+- **`arrancar.sh` ya no dice «encendido» sin la API de datos.** Si falta PostgREST lo dice antes de encender lo demás, y antes de
+  terminar espera a que conteste (hasta 10 s; un 503 no vale). Probado en cinco casos: sin PostgREST (antes salía con 0 y «Entorno local
+  encendido»; ahora con 1 y el motivo), uno que arranca y muere, uno que contesta 503, uno que contesta bien y uno que ya estaba
+  escuchando. **Con un doble de PostgREST, no con el de verdad:** en el contenedor de la sesión no se puede ejecutar.
+- **Sigue igual:** los guiones asumen Mac (Postgres 17 de Homebrew en `comun.sh`, `initdb --locale-provider=builtin`). En Linux hizo
+  falta un envoltorio fuera del repo. Y `next dev`/`next build` (Next 16.4.1) se detienen una vez para avisar de una vulnerabilidad
+  conocida y recomendar actualizar; no se actualizó nada.
 
 ---
 
