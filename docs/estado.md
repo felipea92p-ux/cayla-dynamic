@@ -6,6 +6,44 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-17 — En el terminal, marcar ya no deja la pantalla quieta casi seis segundos · sin SQL · **sin fusionar: falta que Felipe lo vea** · rama `claude/pensive-albattani-fch9dr`
+
+**De dónde sale.** Felipe (2026-11-17): «cuando le doy a salir a refrigerio o cualquier otro siento que tarda mucho, sería ideal bajar
+esa espera a 2 segundos quizás». Medido en un navegador contra una base desechable (Postgres 16, las 590 migraciones, datos
+inventados): desde que se toca la opción hasta que la lista vuelve pasaban **5,8 s**, y 2,9 s tocando «Confirmar ahora». El envío a la
+base era 0,1 s de eso. La espera eran dos relojes escritos a mano, uno detrás del otro: 3 s de cuenta atrás y 2,5 s de «Listo» a
+pantalla completa.
+
+**Construido.** `apps/web/lib/terminal/ritmo.ts` tiene los relojes y la regla (`planDeMensaje`): la buena noticia no detiene la fila;
+la mala sí, y más tiempo.
+- La cuenta atrás baja de 3 s a **2 s**. Sigue siendo la ventana para cancelar un toque en el nombre equivocado.
+- El «Listo» ya no ocupa la pantalla: la lista vuelve en cuanto la base contesta y la confirmación queda sobre la cabecera
+  (`AvisoListo`), 4 s (6 s si trae «Hoy te toca almacén…»). No mueve la grilla ni recibe toques. Vale también para «Voy a almacén» y
+  para reabrir el día, porque los tres pasan por `mostrarMensaje`.
+- Un rechazo, una Mac sin vínculo o un equipo sin configurar **no cambian**: pantalla entera, 8 s.
+- Mientras la marca sale, la pantalla dice «Enviando…» y apaga los dos botones. Antes decía «Confirmando en 0s…» con «Cancelar»
+  encendido, y cancelar ahí devolvía a la lista con la marca ya guardada y saliendo: la persona creía haber cancelado.
+- Una regla de vidrio nueva en `estilos/vidrio/terminal.css` (`.terminal-listo`), colgada de `[data-vidrio="terminal"]`.
+
+**Verificado.** En el navegador, con el mismo guion antes y después: la lista vuelve a los **2,4 s** (antes 5,8) y a los 0,2 s con
+«Confirmar ahora» (antes 2,9). 19 comprobaciones de los caminos que no son el feliz, todas contra la base: cancelar a tiempo no deja
+marca; con la red lenta no dice «Listo» antes de que la base conteste y deja una sola marca; la persona siguiente marca con el aviso
+anterior todavía a la vista; un rechazo ocupa la pantalla 8 s y no muestra «Listo»; sin internet dice «se sincronizará» y la marca sube
+sola al volver la red; con la red colgada suelta a los 8 s. `tests/terminal-ritmo.test.ts` (15; sin el cambio fallan 7) y typecheck.
+Mirado en claro, en oscuro, a 1024 px, con el nombre más largo, con segunda línea y con el vidrio del terminal apagado.
+
+**No verificado.** En una Mac mini de sede, con Safari y con la red de la sede: ahí se suma lo que tarde la base (aquí 0,1 s). Todo
+lo medido fue en Chromium.
+
+**Lo que se decidió y lo que se descartó.** Está en el encabezado de `ritmo.ts`: no se quitó la cuenta atrás al elegir del menú (un
+toque equivocado entre «refrigerio» y «salida final» quedaría marcado) ni se puso un «Deshacer» (exige anular una marca desde el
+terminal: una función nueva sobre lo que alimenta el pago).
+
+**Queda.** Que Felipe lo mire corriendo antes de fusionar: fusionar lo publica en las Mac mini de las cuatro sedes. Si 2 s de cuenta
+atrás se sienten largos o cortos, es una sola constante (`SEGUNDOS_CONFIRMACION`).
+
+---
+
 ## 2026-11-16 — En Parámetros, «Rige desde» es el inicio de un ciclo, nunca «desde hoy» · sin SQL · rama `claude/peaceful-allen-y42335`
 
 **De dónde sale.** Al cambiar la base o el tope del practicante, la pantalla ofrecía «Desde hoy» y una fecha libre, y prometía «desde
