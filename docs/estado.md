@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-17 — En el terminal, marcar ya no deja la pantalla quieta casi seis segundos · sin SQL · **sin fusionar: falta que Felipe lo vea** · rama `claude/pensive-albattani-fch9dr`
+## 2026-11-17 — En el terminal, marcar ya no deja la pantalla quieta casi seis segundos · sin SQL · **Felipe pidió publicarlo el 2026-11-17** · rama `claude/pensive-albattani-fch9dr`
 
 **De dónde sale.** Felipe (2026-11-17): «cuando le doy a salir a refrigerio o cualquier otro siento que tarda mucho, sería ideal bajar
 esa espera a 2 segundos quizás». Medido en un navegador contra una base desechable (Postgres 16, las 590 migraciones, datos
@@ -39,8 +39,12 @@ lo medido fue en Chromium.
 toque equivocado entre «refrigerio» y «salida final» quedaría marcado) ni se puso un «Deshacer» (exige anular una marca desde el
 terminal: una función nueva sobre lo que alimenta el pago).
 
-**Queda.** Que Felipe lo mire corriendo antes de fusionar: fusionar lo publica en las Mac mini de las cuatro sedes. Si 2 s de cuenta
-atrás se sienten largos o cortos, es una sola constante (`SEGUNDOS_CONFIRMACION`).
+**Publicación.** Felipe vio la lámina de antes y después (capturas del navegador, no el terminal corriendo) y pidió publicarlo ese
+mismo día: «Súbelo a producción». Llega a las Mac mini de las cuatro sedes cuando cada una se recarga sola, con la pantalla quieta
+un minuto.
+
+**Queda.** Marcar una vez en un terminal de sede después de la recarga, que es lo que no se pudo probar aquí (Safari y la red de la
+sede). Si 2 s de cuenta atrás se sienten largos o cortos, es una sola constante (`SEGUNDOS_CONFIRMACION`).
 
 ---
 
