@@ -18,6 +18,10 @@ begin
   if exists (select 1 from asignaciones_educacion) then
     return;
   end if;
+  -- Sin un periodo pagado, las boletas de abajo fallan con un mensaje que no dice de dónde viene. Se dice aquí.
+  if periodo is null then
+    raise exception 'datos-pago.sql necesita un periodo ya pagado: va después de pagarPeriodosAnteriores() en sembrar.mjs';
+  end if;
 
   perform set_config('request.jwt.claims', json_build_object('sub', dana, 'role', 'authenticated')::text, true);
 

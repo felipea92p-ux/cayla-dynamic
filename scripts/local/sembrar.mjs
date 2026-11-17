@@ -238,6 +238,11 @@ async function sembrarTodo() {
 
   await sembrarFirmados(yo, ALMA);
   console.log(`Periodos pagados: ${pagarPeriodosAnteriores()}`);
+  // Boletas y Educación, DESPUÉS de pagar y después de los memos firmados. Las boletas son del último periodo pagado
+  // (`fn_boleta_marcar_papel` rechaza uno que no lo esté) y la boleta firmada toma su firma del memo MEM-2026-0001.
+  // Hasta el 2026-11-17 corría dentro de `sembrarFirmados`, antes de pagar: en una base nueva reventaba con «Ese
+  // periodo todavía no está pagado…» y la siembra se cortaba ahí, sin periodos pagados, sin boletas y sin las cesadas.
+  psql(readFileSync(new URL("./datos-pago.sql", import.meta.url), "utf8"));
   console.log(`Cesadas agregadas: ${sembrarCeses()}`);
 
   console.log(`Datos inventados listos: ${PERSONAS.length} personas, ${terminales.length} terminales.`);
@@ -344,7 +349,8 @@ async function sembrarFirmados(yo, ALMA) {
 
   // Seguros, Objetivos y Casos con contenido, por las funciones reales.
   psql(readFileSync(new URL("./datos-personas.sql", import.meta.url), "utf8"));
-  psql(readFileSync(new URL("./datos-pago.sql", import.meta.url), "utf8"));
+  // `datos-pago.sql` (Boletas y Educación) NO va aquí: necesita un periodo ya pagado, y los periodos se pagan después
+  // de esta función. Lo corre `sembrar()` justo después de `pagarPeriodosAnteriores()`.
   psql(readFileSync(new URL("./datos-publicaciones.sql", import.meta.url), "utf8"));
   psql(readFileSync(new URL("./datos-empresa.sql", import.meta.url), "utf8"));
 }

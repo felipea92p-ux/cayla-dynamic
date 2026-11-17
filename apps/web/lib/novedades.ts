@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-17-la-bandeja-abre-al-instante",
+    fecha: "2026-11-17",
+    titulo: "La Bandeja abre al instante",
+    queMejoro:
+      "Al entrar a la Bandeja desde otra pantalla del panel, la lista ya no espera: sale con lo que el menú había " +
+      "leído para su número y se confirma con la base enseguida, sin que tengas que hacer nada.\n\n" +
+      "Además, el número del menú y la lista ahora salen de la misma lectura. Si algo se resuelve o llega algo " +
+      "nuevo mientras tienes la Bandeja abierta, la lista se pone al día sola junto con el número.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-17-marcar-en-el-terminal-toma-menos-tiempo",
     fecha: "2026-11-17",
     titulo: "Marcar en el terminal toma menos tiempo",

@@ -495,7 +495,7 @@ export default function DashboardPage() {
   const [prefsCrudas, setPrefsCrudas] = useFiltroGuardado<unknown>("dashboard.tablero", null);
   const prefs = useMemo(() => normalizarPreferencias(prefsCrudas), [prefsCrudas]);
   const [personalizando, setPersonalizando] = useState(false);
-  const pendientesBandeja = usePendientesBandeja(prefs.kpisExtra.pendientes === true, yo?.rol);
+  const pendientesBandeja = usePendientesBandeja(prefs.kpisExtra.pendientes === true, yo?.id, yo?.rol);
   const casosResumen = useCasosResumen(prefs.kpisExtra.casos === true);
   // La categoría con más casos, para escalar las barras de «Por categoría» — se
   // saca aquí y no dentro del `.map()` de la lista para que TS no pierda el
