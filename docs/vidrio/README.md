@@ -90,6 +90,19 @@ en oscuro. Sus piezas viven en `estilos/vidrio/terminal.css`, colgadas de clases
 `tema/pixeles.mjs`, en claro y oscuro, a 1440 y a 375 px: los 68 textos de la grilla y de las hojas pasan. Solo quedan bajo 4.5:1 las iniciales de
 quien ya terminó su día, que hoy ya se atenúan a propósito al 50 %, y las casillas atenuadas al iluminar un estado (30 %), como hoy.
 
+**El terminal en retratos (2026-11-21):** Felipe eligió, mirando maquetas, otra pantalla de nombres para el terminal. Con el interruptor
+encendido ya no se dibujan las casillas: arriba va una isla (hora, fecha y sede, que se cambia ahí mismo), debajo «Encuentra tu nombre» con la
+leyenda de estados y una grilla de retratos que se acomoda sola al equipo de la sede (`lib/terminal/acomodo.ts`, con sus pruebas). Al tocar un
+retrato: la hoja «Tu momento», la cuenta atrás como un anillo alrededor de la foto y el «Listo» dentro de la isla. Si se está viendo otra sede,
+un aviso lo dice y ofrece volver. Sus piezas viven en `estilos/vidrio/terminal-retratos.css`, colgadas de clases `tr-…`; `terminal.css` sigue
+vistiendo las hojas que no se rediseñaron (motivo, refrigerio, almacén, reabrir el día) y el aviso de mala noticia. **Ningún botón cambia lo que
+hace ni cuántos toques cuesta marcar**, y con el interruptor apagado se dibuja la pantalla de casillas de siempre. Medido en un navegador con datos
+inventados, a 1920×1080, 1440×900 y 1366×768, en claro y en oscuro: a 1080p entran hasta 33 personas sin cortarse ni deslizar (a 1366×768, hasta
+16; con más la grilla se desliza y lo dice), nada que se toque en las piezas nuevas mide menos de 48 px, y de 1 490 textos medidos contra sus
+píxeles (el método de `tema/pixeles.mjs`) solo quedan bajo 4.5:1 los de las casillas atenuadas al iluminar un estado, como hoy. Y probado con la
+pantalla real contra una base desechable (las 590 migraciones, datos inventados): cada marca se comprobó en `marcajes`. Lo que falta medir está en
+`docs/estado.md`.
+
 **Las recetas de vidrio vienen de `main` de Retail, con su bloque para quien pide menos transparencia o más contraste (#1650).** Sus variables viajan; sus reglas, una lista exacta, las escribe `estilos/vidrio/piezas.css` solo para el panel, porque apuntan a clases de Retail. Si Retail cambia esa lista, la copia se detiene y el vigilante avisa.
 
 **`tema:auditar` no alcanza con vidrio:** casi todo el texto va sobre un degradado, y ahí solo suma colores planos. Se mide también con los píxeles de cada pantalla: se saca una captura sin letras y se compara cada texto contra lo que de verdad tiene detrás. Es `tema/pixeles.mjs`; las fotos de antes y ahora salen de `tema/fotos.mjs`.
@@ -125,7 +138,7 @@ trabajo propio de cada módulo. Documentos va antes que Personas y Pago porque l
 | 8 | **Empresa y Configuración:** Archivo, Áreas, Sedes, Cuentas y Parámetros | 6 | 13 | Casi nada | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 9 | **Entrada:** login, nueva clave y olvidé mi clave | 3 | 4 | Compararlo con «El vuelo vivo» de Retail | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
 | 10 | **Lo mío:** lo que cada integrante ve en su teléfono | 12 | 46 | Casi todo: Retail no tiene un espacio personal así | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | 2026-11-07 | |
-| 11 | **Terminal de marcaje** | 3 | Exento | Casillas, reloj y marcar sin conexión | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 |
+| 11 | **Terminal de marcaje** (en retratos desde el 2026-11-21, ver arriba) | 3 | Exento | Retratos, isla, anillo y marcar sin conexión | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 | 2026-11-09 |
 
 Se marca cada casilla con la fecha en que quedó. Un módulo está **Cerrado** cuando tiene las seis.
 
