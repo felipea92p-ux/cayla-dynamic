@@ -1356,6 +1356,10 @@ export default function MarcarPage() {
                   onCambiar={cambiarDeSede}
                 />
               }
+              // El «Listo» de la última marca sale DENTRO de la isla: no ocupa lugar, así que ningún retrato se mueve
+              // bajo el dedo de quien sigue, y la lista de abajo ya está libre.
+              listo={avisoListo}
+              onCerrarListo={() => setAvisoListo(null)}
             />
             <div className="tr-acciones">
               {pendientesSinEnviar > 0 && (
@@ -1363,6 +1367,8 @@ export default function MarcarPage() {
                   ⟳ {pendientesSinEnviar} sin enviar
                 </Insignia>
               )}
+              {/* El tema es de esta Mac y nada más (lib/vidrio-tema.ts): no cambia nada de lo que se marca, y arranca
+                  en claro aunque alguien lo haya dejado en oscuro en otra Mac. */}
               <BotonTema />
             </div>
           </header>
@@ -1397,9 +1403,6 @@ export default function MarcarPage() {
         </div>
 
         {hayHoja && <div className="tr-capa">{hojas}</div>}
-
-        {/* El «Listo» de la última marca: flota arriba, fuera del flujo, y la lista de abajo ya está libre. */}
-        {avisoListo && <AvisoListo texto={avisoListo.texto} detalle={avisoListo.detalle} />}
       </div>
     );
   }
@@ -1415,9 +1418,6 @@ export default function MarcarPage() {
             </Insignia>
           )}
           <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
-          {/* El botón del tema solo existe con el vidrio del terminal: es de esta Mac y nada más (lib/vidrio-tema.ts). No
-              cambia nada de lo que se marca, y arranca en claro aunque alguien lo haya dejado en oscuro en otra Mac. */}
-          {conRetratos ? <BotonTema /> : null}
         </div>
       </header>
 

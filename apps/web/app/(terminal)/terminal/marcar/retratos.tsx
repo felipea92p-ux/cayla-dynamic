@@ -73,16 +73,63 @@ function RelojDeIsla() {
 /**
  * La isla: hora, fecha y sede. Es lo único de la pantalla de nombres que flota, y por eso lo único con desenfoque.
  * `sede` es lo que va en el tercer tramo: el selector, o el nombre a secas si el terminal solo ve una sede.
+ *
+ * Y es donde sale el «Listo» de una marca que quedó bien (`listo`): la isla entera pasa a decirlo unos segundos y
+ * vuelve sola a la hora. Tocarla lo quita antes (`onCerrarListo`), para quien venía a cambiar de sede.
  */
-export function IslaTerminal({ sede }: { sede: ReactNode }) {
+export function IslaTerminal({
+  sede,
+  listo = null,
+  onCerrarListo,
+}: {
+  sede: ReactNode;
+  listo?: { texto: string; detalle: string | null } | null;
+  onCerrarListo?: () => void;
+}) {
   return (
-    <div className="tr-isla">
+    <div className="tr-isla" data-listo={listo ? "" : undefined} onPointerDown={listo ? onCerrarListo : undefined}>
       <RelojDeIsla />
       <span className="tr-isla-raya" aria-hidden />
       <div className="tr-isla-sede">
         <MapPin size={21} strokeWidth={1.8} aria-hidden />
         {sede}
       </div>
+      <ListoDeIsla listo={listo} />
+    </div>
+  );
+}
+
+/**
+ * La buena noticia de una marca, dentro de la isla. Es el `AvisoListo` de la pantalla de casillas con otro dibujo, y
+ * guarda sus tres cuidados, que no son adorno:
+ *   · No ocupa lugar: va ENCIMA de la isla, que no cambia de tamaño. Si empujara algo, los retratos se moverían bajo
+ *     el dedo de la persona siguiente justo al aparecer y al irse, y un toque caería en el nombre de al lado.
+ *   · No tapa ningún nombre ni recibe toques: la isla está sobre la grilla, no en ella. Lo único que cubre es el
+ *     selector de sede, que mientras tanto no se ve ni se puede tocar; un toque en la isla quita el aviso.
+ *   · Nombra siempre a la persona, y sigue a la vista —por encima del velo— aunque la siguiente ya esté marcando.
+ *
+ * La región que lo anuncia existe siempre, vacía: un lector de pantalla solo anuncia lo que cambia dentro de una
+ * región que ya conocía. La mala noticia NO pasa por aquí: sigue ocupando la pantalla entera.
+ */
+function ListoDeIsla({ listo }: { listo: { texto: string; detalle: string | null } | null }) {
+  return (
+    <div className="tr-listo" role="status" aria-live="polite">
+      {listo && (
+        <>
+          <span className="tr-listo-visto" aria-hidden>
+            <Check size={22} strokeWidth={2.6} />
+          </span>
+          <div className="tr-listo-texto">
+            <p className="tr-listo-frase font-serif">{listo.texto}</p>
+            {listo.detalle && (
+              <p className="tr-listo-detalle">
+                <Warehouse size={16} strokeWidth={2} aria-hidden />
+                {listo.detalle}
+              </p>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

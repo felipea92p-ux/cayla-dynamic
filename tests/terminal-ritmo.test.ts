@@ -72,6 +72,8 @@ const MARCAR = path.resolve(import.meta.dirname, "../apps/web/app/(terminal)/ter
 const pagina = readFileSync(path.join(MARCAR, "page.tsx"), "utf8");
 const componentes = readFileSync(path.join(MARCAR, "components.tsx"), "utf8");
 const hojasRetratos = readFileSync(path.join(MARCAR, "hojas-retratos.tsx"), "utf8");
+const retratos = readFileSync(path.join(MARCAR, "retratos.tsx"), "utf8");
+const estilosRetratos = readFileSync(path.resolve(MARCAR, "../../../estilos/vidrio/terminal-retratos.css"), "utf8");
 
 /** El cuerpo de una función exportada o interna, hasta la siguiente del mismo nivel. */
 function cuerpoDe(fuente: string, firma: string): string {
@@ -119,6 +121,41 @@ describe("el aviso «Listo»", () => {
 
   it("lo anuncia un lector de pantalla sin interrumpir", () => {
     expect(aviso()).toContain('role="status"');
+  });
+});
+
+// En la pantalla de retratos el «Listo» sale dentro de la isla. Otro dibujo, los mismos cuidados.
+describe("el «Listo» de la isla, en la pantalla de retratos", () => {
+  /** El bloque de una regla del CSS, por su selector exacto. */
+  const regla = (selector: string) => {
+    const desde = estilosRetratos.indexOf(`[data-vidrio="terminal"] ${selector} {`);
+    expect(desde, `no encontré la regla «${selector}»`).toBeGreaterThanOrEqual(0);
+    return estilosRetratos.slice(desde, estilosRetratos.indexOf("}", desde));
+  };
+
+  it("no ocupa lugar ni recibe toques: la isla mide lo mismo y ningún retrato se mueve bajo el dedo de quien sigue", () => {
+    expect(regla(".tr-listo")).toContain("position: absolute;");
+    expect(regla(".tr-listo")).toContain("pointer-events: none;");
+    // Lo de siempre se esconde SIN dejar de ocupar su lugar: con `display: none` la isla cambiaría de tamaño.
+    expect(regla(".tr-isla[data-listo] > :not(.tr-listo)")).toContain("visibility: hidden;");
+  });
+
+  it("sigue a la vista aunque la persona siguiente ya haya abierto su hoja", () => {
+    const z = (bloque: string) => Number(/z-index: (\d+);/.exec(bloque)?.[1]);
+    expect(z(regla(".tr-isla[data-listo]"))).toBeGreaterThan(z(regla(".tr-capa")));
+  });
+
+  it("lo anuncia un lector de pantalla sin interrumpir, desde una región que ya existía", () => {
+    const cuerpo = cuerpoDe(retratos, "function ListoDeIsla(");
+    expect(cuerpo).toContain('role="status"');
+    expect(cuerpo).toContain('aria-live="polite"');
+    // La región se dibuja siempre y es su contenido el que aparece: no `{listo && <div role="status">`.
+    expect(cuerpo.indexOf('role="status"')).toBeLessThan(cuerpo.indexOf("{listo && ("));
+  });
+
+  it("es el mismo aviso con el mismo reloj: la pantalla le pasa el de siempre y no lo dibuja dos veces", () => {
+    expect(pagina).toContain("listo={avisoListo}");
+    expect(pagina.match(/<AvisoListo /g)).toHaveLength(1);
   });
 });
 

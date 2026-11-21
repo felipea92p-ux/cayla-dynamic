@@ -38,8 +38,6 @@
   /* Tres columnas: la marca, la isla y el tema. Las de los lados miden lo mismo, así la isla queda al centro y nunca se
      monta sobre la marca en un monitor angosto (a 1366 px se montaba cuando la marca iba suelta). */
   [data-vidrio="terminal"] .tr-cima {
-    position: relative;
-    z-index: 5;
     display: grid;
     flex: none;
     grid-template-columns: minmax(max-content, 1fr) minmax(0, 940px) minmax(max-content, 1fr);
@@ -80,7 +78,10 @@
   }
 
   /* ---------- La isla: lo único de la pantalla de nombres que flota, y por eso lleva desenfoque ---------- */
+  /* La isla va por encima de lo que sigue (su lista de sedes cae sobre el título), y sola: la marca y el tema no. */
   [data-vidrio="terminal"] .tr-isla {
+    position: relative;
+    z-index: 5;
     display: grid;
     grid-template-columns: minmax(170px, 1.05fr) 1px minmax(170px, 1fr) 1px minmax(230px, 1.3fr);
     align-items: center;
@@ -99,6 +100,69 @@
     width: 1px;
     height: 52px;
     background: color-mix(in srgb, var(--color-taupe) 30%, transparent);
+  }
+
+  /* ---------- El «Listo»: la isla entera lo dice unos segundos, y no se mueve nada ---------- */
+  /* Por encima del velo de las hojas (40): quien marcó lo sigue viendo aunque la persona siguiente ya abrió la suya. */
+  [data-vidrio="terminal"] .tr-isla[data-listo] {
+    z-index: 45;
+  }
+  /* Lo de siempre se esconde sin dejar de ocupar su lugar: la isla mide lo mismo con el aviso que sin él. */
+  [data-vidrio="terminal"] .tr-isla[data-listo] > :not(.tr-listo) {
+    visibility: hidden;
+  }
+  [data-vidrio="terminal"] .tr-listo {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    left: -1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    min-height: calc(100% + 2px);
+    padding: 8px 34px;
+    border: 1px solid color-mix(in srgb, var(--color-verde) 45%, transparent);
+    border-radius: 999px;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--color-verde) 12%, transparent), color-mix(in srgb, var(--color-verde) 5%, transparent)),
+      var(--vidrio-flota-fondo);
+    pointer-events: none;
+    animation: vidrio-tr-listo var(--t-hoja) var(--ease-cayla) backwards;
+  }
+  [data-vidrio="terminal"] .tr-listo:empty {
+    display: none;
+  }
+  [data-vidrio="terminal"] .tr-listo-visto {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--color-verde);
+    color: var(--color-crema);
+  }
+  [data-vidrio="terminal"] .tr-listo-texto {
+    min-width: 0;
+  }
+  [data-vidrio="terminal"] .tr-listo-frase {
+    margin: 0;
+    font-size: clamp(20px, 1.4vw, 26px);
+    line-height: 1.14;
+    text-wrap: balance;
+  }
+  [data-vidrio="terminal"] .tr-listo-detalle {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 3px 0 0;
+    font-size: 15px;
+    line-height: 1.3;
+    color: var(--color-azul);
+  }
+  [data-vidrio="terminal"] .tr-listo-detalle > svg {
+    flex: none;
   }
   [data-vidrio="terminal"] .tr-reloj {
     display: flex;
@@ -1006,6 +1070,18 @@
     [data-vidrio="terminal"] .tr-isla-raya {
       height: 42px;
     }
+    [data-vidrio="terminal"] .tr-listo {
+      gap: 12px;
+      padding: 5px 26px;
+    }
+    [data-vidrio="terminal"] .tr-listo-visto {
+      width: 36px;
+      height: 36px;
+    }
+    [data-vidrio="terminal"] .tr-listo-detalle {
+      margin-top: 1px;
+      font-size: 14px;
+    }
     [data-vidrio="terminal"] .tr-segundos {
       height: 44px;
     }
@@ -1033,7 +1109,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    [data-vidrio="terminal"] :is(.tr-casilla, .tr-chip, .tr-capa, .tr-sede-lista, .tr-sede-boton, .tr-aviso-sede-boton, .tr-hoja, .tr-opcion, .tr-cancelar, .tr-cerrar, .tr-boton) {
+    [data-vidrio="terminal"] :is(.tr-casilla, .tr-chip, .tr-capa, .tr-sede-lista, .tr-sede-boton, .tr-aviso-sede-boton, .tr-hoja, .tr-opcion, .tr-cancelar, .tr-cerrar, .tr-boton, .tr-listo) {
       animation: none;
       transition: none;
     }
@@ -1050,6 +1126,12 @@
   from {
     opacity: 0;
     translate: 0 18px;
+    scale: 0.985;
+  }
+}
+@keyframes vidrio-tr-listo {
+  from {
+    opacity: 0;
     scale: 0.985;
   }
 }
