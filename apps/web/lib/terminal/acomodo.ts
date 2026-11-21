@@ -27,19 +27,29 @@
 //   La casilla cambia de anatomía (otro relleno, otra línea de texto) y no se
 //   actualiza `altoDelTexto`: los retratos se calcularían para una casilla que
 //   ya no mide eso y la última fila se cortaría. Las medidas de aquí son las
-//   de `.tr-casilla` en estilos/vidrio/terminal-retratos.css.
+//   de `.tr-casilla` en estilos/vidrio/terminal-retratos.css: relleno de 8 px,
+//   borde de 1 px, y el estado a 20 px el primer renglón y 18 cada uno más.
 // ============================================================================
 
 /** El relleno de la casilla alrededor del retrato, en px (`.tr-casilla`). */
 export const RELLENO_CASILLA = 8;
+/** Lo que la casilla suma al retrato y al texto: su relleno y su borde de 1 px, arriba y abajo (o a los lados). */
+export const MARCO_CASILLA = 2 * RELLENO_CASILLA + 2;
 /** Por debajo de este ancho un nombre de pila ya no se lee a un metro. */
 export const ANCHO_MINIMO = 148;
 /** Con tres personas el retrato no crece hasta llenar la pantalla. */
 export const ANCHO_MAXIMO = 380;
 export const FOTO_MAXIMA = 320;
 /** Entre qué proporciones (alto ÷ ancho) el retrato sigue viéndose como una foto. */
-const PROPORCION_MINIMA = 0.6;
+const PROPORCION_MINIMA = 0.55;
 const PROPORCION_MAXIMA = 1.25;
+/**
+ * El ancho interior desde el que el estado entra en un solo renglón. Medido en el navegador el 2026-11-21: el texto
+ * más largo que puede llevar una casilla, «En almacén · vuelve 13:32», ocupa 164,6 px a 14 px; con su ícono (15), el
+ * espacio (5) y los márgenes del renglón (4) son 188,6. Por debajo se le reserva un renglón más: una hora cortada
+ * con «…» no sirve.
+ */
+export const ANCHO_DE_UNA_LINEA = 190;
 
 export interface Acomodo {
   columnas: number;
@@ -52,6 +62,11 @@ export interface Acomodo {
   letraNombre: number;
   /** Alto que ocupa el texto bajo el retrato, en px. */
   texto: number;
+  /**
+   * Cuántos renglones tiene reservados el estado. Uno; uno más si alguien salió y volvió («salió 13:00 · volvió
+   * 13:45»); y uno más si la casilla es tan angosta que esos textos no entran en un renglón.
+   */
+  renglones: number;
   /** Espacio entre casillas, en px. */
   separacion: number;
   /** No entran a un tamaño que se lea: la grilla se desliza y lo avisa. */
@@ -65,16 +80,21 @@ export function letraDelNombre(ancho: number): number {
 
 /**
  * Lo que mide el texto bajo el retrato: nombre de pila, apellidos y la línea del
- * estado. `segundaLinea` reserva un renglón más para «salió 13:00 · volvió 13:45»,
- * y se reserva en TODAS las casillas para que las filas no bailen.
+ * estado. Cada renglón de más del estado suma 18 px, y se reserva en TODAS las
+ * casillas para que las filas no bailen.
  */
-export function altoDelTexto(ancho: number, segundaLinea: boolean): number {
-  return 10 + Math.ceil(letraDelNombre(ancho) * 1.15) + 20 + 6 + 20 + (segundaLinea ? 18 : 0) + 4;
+export function altoDelTexto(ancho: number, renglones: number): number {
+  return 10 + Math.ceil(letraDelNombre(ancho) * 1.15) + 20 + 6 + 20 + 18 * (Math.max(1, renglones) - 1) + 4;
 }
 
 /** El alto de una casilla completa. */
 export function altoDeCasilla(a: Pick<Acomodo, "foto" | "texto">): number {
-  return a.foto + 2 * RELLENO_CASILLA + a.texto;
+  return a.foto + MARCO_CASILLA + a.texto;
+}
+
+/** Los renglones del estado: uno, más el de quien salió y volvió, más el que pide una casilla angosta. */
+function renglonesPara(interior: number, segundaLinea: boolean): number {
+  return 1 + (segundaLinea ? 1 : 0) + (interior < ANCHO_DE_UNA_LINEA ? 1 : 0);
 }
 
 function separacionPara(personas: number, ancho: number): number {
@@ -92,39 +112,41 @@ export function acomodarRetratos(
   const segundaLinea = opciones.segundaLinea ?? false;
   const n = Math.max(1, Math.floor(personas));
   const separacion = separacionPara(n, ancho);
-  let mejor: (Acomodo & { area: number }) | null = null;
+  let mejor: Acomodo | null = null;
+  let mejorArea = 0;
 
   for (let columnas = 1; columnas <= n; columnas++) {
     const libre = Math.floor((ancho - separacion * (columnas - 1)) / columnas);
     if (libre < ANCHO_MINIMO) break; // con más columnas solo se angosta
     const anchoCasilla = Math.min(ANCHO_MAXIMO, libre);
     const filas = Math.ceil(n / columnas);
-    const interior = anchoCasilla - 2 * RELLENO_CASILLA;
-    const texto = altoDelTexto(anchoCasilla, segundaLinea);
+    const interior = anchoCasilla - MARCO_CASILLA;
+    const renglones = renglonesPara(interior, segundaLinea);
+    const texto = altoDelTexto(anchoCasilla, renglones);
     const altoFila = Math.floor((alto - separacion * (filas - 1)) / filas);
-    const foto = Math.min(altoFila - 2 * RELLENO_CASILLA - texto, Math.floor(interior * PROPORCION_MAXIMA), FOTO_MAXIMA);
+    const foto = Math.min(altoFila - MARCO_CASILLA - texto, Math.floor(interior * PROPORCION_MAXIMA), FOTO_MAXIMA);
     if (foto < interior * PROPORCION_MINIMA) continue; // quedaría una franja, no un retrato
     const area = interior * foto;
-    if (!mejor || area > mejor.area) {
-      mejor = { columnas, filas, ancho: anchoCasilla, foto, letraNombre: letraDelNombre(anchoCasilla), texto, separacion, desliza: false, area };
+    if (!mejor || area > mejorArea) {
+      mejor = { columnas, filas, ancho: anchoCasilla, foto, letraNombre: letraDelNombre(anchoCasilla), texto, renglones, separacion, desliza: false };
+      mejorArea = area;
     }
   }
 
-  if (mejor) {
-    const { area: _area, ...acomodo } = mejor;
-    return acomodo;
-  }
+  if (mejor) return mejor;
 
   // No entran sin encoger los nombres: tantas columnas como quepan al ancho mínimo, y se desliza.
   const columnas = Math.max(1, Math.min(n, Math.floor((ancho + separacion) / (ANCHO_MINIMO + separacion))));
   const anchoCasilla = Math.max(1, Math.min(ANCHO_MAXIMO, Math.floor((ancho - separacion * (columnas - 1)) / columnas)));
+  const renglones = renglonesPara(anchoCasilla - MARCO_CASILLA, segundaLinea);
   return {
     columnas,
     filas: Math.ceil(n / columnas),
     ancho: anchoCasilla,
-    foto: Math.max(1, Math.round((anchoCasilla - 2 * RELLENO_CASILLA) * 0.8)),
+    foto: Math.max(1, Math.round((anchoCasilla - MARCO_CASILLA) * 0.8)),
     letraNombre: letraDelNombre(anchoCasilla),
-    texto: altoDelTexto(anchoCasilla, segundaLinea),
+    texto: altoDelTexto(anchoCasilla, renglones),
+    renglones,
     separacion,
     desliza: true,
   };

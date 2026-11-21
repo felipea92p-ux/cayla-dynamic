@@ -1,0 +1,556 @@
+/* El terminal en retratos: la pantalla de nombres que Felipe aprobó el 2026-11-21 mirando maquetas.
+
+   QUÉ PROMETE
+     Con NEXT_PUBLIC_VIDRIO_TERMINAL=1 la pantalla de marcar es una isla de vidrio (hora, fecha y sede), el título «Encuentra tu
+     nombre» con la leyenda de estados, y una grilla de retratos que se acomoda sola al equipo de la sede (lib/terminal/acomodo.ts).
+     Apagado, ninguna regla de aquí alcanza a nadie y marcar/page.tsx dibuja la pantalla de siempre.
+     Solo cambia cómo se ve: ningún botón cambia lo que hace ni cuántos toques cuesta marcar, y nada mide menos de 48 px.
+
+   QUÉ ASUME
+     Que las piezas llevan su clase `tr-…` (marcar/retratos.tsx y marcar/hojas-retratos.tsx) y que las medidas de la casilla son las
+     de lib/terminal/acomodo.ts: 8 px de relleno y 1 de borde, el nombre, los apellidos de 20 px y el estado de 20, 38 o 56 px. Si cambia
+     una, cambia la otra.
+
+   DECIDÍ: un archivo aparte de terminal.css. Aquel viste las piezas de la pantalla de casillas, que sigue viva en las hojas que todavía
+     no se rediseñan (motivo, refrigerio, almacén) y en lo que avisa; este es solo la pantalla nueva.
+   DESCARTÉ: los colores sueltos de la maqueta. Todo sale de los trece colores y de las recetas de vidrio (recetas.generado.css).
+   SE ROMPE SI: alguien le pone `backdrop-filter` a la casilla. Con treinta retratos son treinta desenfoques en una Mac mini; el
+     desenfoque va solo en lo que flota: la isla, la lista de sedes y las hojas. */
+@media screen {
+  /* ---------- La pantalla: ocupa la Mac mini entera. Lo que se desliza, si hace falta, es la grilla ---------- */
+  [data-vidrio="terminal"] .tr-pantalla {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    min-height: 480px;
+    overflow: hidden;
+    padding: clamp(14px, 2.6vh, 30px) clamp(18px, 3vw, 56px) 12px;
+  }
+  [data-vidrio="terminal"] .tr-fondo {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* ---------- Arriba: la marca, la isla y el tema ---------- */
+  [data-vidrio="terminal"] .tr-cima {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    min-height: 104px;
+  }
+  [data-vidrio="terminal"] .tr-marca {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    translate: 0 -50%;
+  }
+  [data-vidrio="terminal"] .tr-marca-palabra {
+    font-size: 25px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    line-height: 1.1;
+  }
+  [data-vidrio="terminal"] .tr-marca-bajada {
+    margin-top: 5px;
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .tr-acciones {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    translate: 0 -50%;
+  }
+  /* El botón del tema, a 52 px y con su borde de control: aquí se toca con el dedo. */
+  [data-vidrio="terminal"] .tr-acciones .boton-tema {
+    width: 52px;
+    height: 52px;
+    border: 1.5px solid var(--color-borde-control);
+    border-radius: 999px;
+    background: var(--gota-fondo);
+    box-shadow: var(--gota-luz);
+    color: var(--color-tinta);
+  }
+
+  /* ---------- La isla: lo único de la pantalla de nombres que flota, y por eso lleva desenfoque ---------- */
+  [data-vidrio="terminal"] .tr-isla {
+    display: grid;
+    grid-template-columns: minmax(170px, 1.05fr) 1px minmax(170px, 1fr) 1px minmax(230px, 1.3fr);
+    align-items: center;
+    gap: 20px;
+    width: min(940px, 66vw);
+    min-height: 100px;
+    padding: 12px 26px;
+    border: 1px solid var(--marco-vidrio-borde);
+    border-radius: 999px;
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: var(--vidrio-flota-filtro);
+    backdrop-filter: var(--vidrio-flota-filtro);
+    box-shadow: var(--vidrio-flota-sombra);
+  }
+  [data-vidrio="terminal"] .tr-isla-raya {
+    width: 1px;
+    height: 52px;
+    background: color-mix(in srgb, var(--color-taupe) 30%, transparent);
+  }
+  [data-vidrio="terminal"] .tr-reloj {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  [data-vidrio="terminal"] .tr-hora {
+    font-size: clamp(36px, 3.05vw, 54px);
+    line-height: 0.9;
+    letter-spacing: -0.03em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Los segundos: un tubo que se llena de abajo hacia arriba cada minuto. */
+  [data-vidrio="terminal"] .tr-segundos {
+    display: flex;
+    align-items: flex-end;
+    width: 7px;
+    height: 54px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--tubo-fondo);
+    box-shadow: var(--tubo-sombra);
+  }
+  [data-vidrio="terminal"] .tr-segundos > i {
+    display: block;
+    width: 100%;
+    border-radius: 999px;
+    background: var(--color-rojo);
+    transition: height 1s linear;
+  }
+  [data-vidrio="terminal"] .tr-dia {
+    font-size: 25px;
+    line-height: 1;
+    text-transform: capitalize;
+  }
+  [data-vidrio="terminal"] .tr-fecha {
+    margin-top: 6px;
+    font-size: 14px;
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .tr-isla-sede {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  [data-vidrio="terminal"] .tr-isla-sede > svg {
+    flex: none;
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .tr-sede-nombre {
+    font-size: 22px;
+    line-height: 1.1;
+  }
+
+  /* ---------- «Encuentra tu nombre» y la leyenda ---------- */
+  [data-vidrio="terminal"] .tr-estado {
+    flex: none;
+    margin-top: clamp(10px, 2.2vh, 26px);
+  }
+  [data-vidrio="terminal"] .tr-titulo-fila {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  /* En la Mac mini de 1920 px la leyenda cabe al lado del título: son 60 px más de alto para los retratos. */
+  @media (min-width: 1700px) {
+    [data-vidrio="terminal"] .tr-titulo-fila {
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    [data-vidrio="terminal"] .tr-leyenda {
+      justify-content: flex-end;
+    }
+  }
+  [data-vidrio="terminal"] .tr-titulo {
+    margin: 0;
+    font-size: clamp(27px, 2.3vw, 38px);
+    line-height: 1;
+    letter-spacing: -0.015em;
+  }
+  [data-vidrio="terminal"] .tr-bajada {
+    margin: 6px 0 0;
+    font-size: 15px;
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .tr-leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 9px;
+  }
+  /* Cada estado es una gota que se toca: ilumina a quienes lo tienen y atenúa al resto. Volver a tocarla lo apaga. */
+  [data-vidrio="terminal"] .tr-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 48px;
+    padding: 8px 12px 8px 12px;
+    border: 1.5px solid var(--color-borde-control);
+    border-radius: 999px;
+    background: var(--gota-fondo);
+    box-shadow: var(--gota-luz);
+    color: var(--color-tinta);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 200ms var(--ease-cayla), border-color 200ms var(--ease-cayla), box-shadow 200ms var(--ease-cayla), scale var(--t-resp) var(--ease-cayla);
+  }
+  [data-vidrio="terminal"] .tr-chip:active {
+    scale: 0.97;
+  }
+  [data-vidrio="terminal"] .tr-chip[aria-pressed="true"] {
+    border-color: var(--color-tinta);
+    background: var(--gota-marca);
+    box-shadow: var(--gota-luz), 0 0 0 1.5px var(--color-tinta);
+  }
+  [data-vidrio="terminal"] .tr-chip-circulo {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 1.5px solid currentColor;
+    border-radius: 50%;
+  }
+  [data-vidrio="terminal"] .tr-chip-cuenta {
+    display: grid;
+    place-items: center;
+    min-width: 27px;
+    height: 27px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (hover: hover) {
+    [data-vidrio="terminal"] .tr-chip:hover {
+      background: var(--gota-fondo-encima);
+    }
+  }
+
+  /* ---------- La grilla: columnas, ancho y alto del retrato los pone lib/terminal/acomodo.ts ---------- */
+  [data-vidrio="terminal"] .tr-zona {
+    flex: 1;
+    min-height: 0;
+    margin-top: 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-borde-control) transparent;
+  }
+  [data-vidrio="terminal"] .tr-zona-centro {
+    display: grid;
+    place-items: center;
+    min-height: 100%;
+  }
+  /* Flex y no grid, para que una última fila incompleta quede centrada (Felipe, 2026-11-03). El ancho de la grilla es el
+     de sus columnas exactas: así nunca entra una casilla de más en una fila. */
+  [data-vidrio="terminal"] .tr-grilla {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    gap: var(--tr-separacion);
+    width: var(--tr-ancho-grilla);
+    max-width: 100%;
+    min-height: 100%;
+    margin: 0 auto;
+  }
+  [data-vidrio="terminal"] .tr-grilla > .tr-casilla {
+    flex: none;
+    width: var(--tr-ancho);
+  }
+  [data-vidrio="terminal"] .tr-grilla[data-desliza="true"] {
+    align-content: start;
+    padding-bottom: 8px;
+  }
+
+  /* ---------- La casilla: una placa Serena con su borde de control ----------
+     El borde café es del terminal y no de la maqueta: se midió en septiembre que sin un borde de 3:1 una grilla de nombres a un
+     metro «es una nube sin nada que diga esto es un botón» (WCAG 1.4.11). Y el rojo al pasar o apretar es la señal que se ve de lejos. */
+  [data-vidrio="terminal"] .tr-casilla {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--color-borde-control);
+    border-radius: var(--radius-tarjeta);
+    background: var(--serena-fondo);
+    box-shadow: var(--serena-sombra);
+    color: var(--color-tinta);
+    text-align: left;
+    cursor: pointer;
+    transition: translate 250ms var(--ease-cayla), scale var(--t-resp) var(--ease-cayla), opacity 200ms var(--ease-cayla),
+      border-color 200ms var(--ease-cayla), background 200ms var(--ease-cayla), box-shadow 250ms var(--ease-cayla);
+  }
+  [data-vidrio="terminal"] .tr-casilla:active {
+    scale: 0.97;
+    border-color: var(--color-rojo);
+  }
+  @media (hover: hover) {
+    [data-vidrio="terminal"] .tr-casilla:hover {
+      translate: 0 -2px;
+      border-color: var(--color-rojo);
+      background: var(--serena-fondo-encima);
+      box-shadow: var(--serena-sombra-encima);
+    }
+  }
+  /* Quien está en preselección: borde punteado y cinta, dos señales que no dependen del color. */
+  [data-vidrio="terminal"] .tr-casilla[data-prueba="true"] {
+    border-style: dashed;
+  }
+  [data-vidrio="terminal"] .tr-casilla[data-atenuada="true"] {
+    opacity: 0.3;
+  }
+  /* La encendida desde la leyenda toma el color de su estado (`--c`, de ESTILO_PRESENCIA). */
+  [data-vidrio="terminal"] .tr-casilla[data-encendida="true"] {
+    border-color: var(--c);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--c) 14%, transparent), color-mix(in srgb, var(--c) 6%, transparent)), var(--serena-fondo-encima);
+    box-shadow: var(--serena-sombra-encima), 0 0 0 1.5px var(--c);
+  }
+
+  /* El retrato: la foto, o las iniciales de quien no subió ninguna sobre un tono cálido de la casa. */
+  [data-vidrio="terminal"] .tr-retrato {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 100%;
+    height: var(--tr-foto);
+    overflow: hidden;
+    border-radius: 15px;
+    background: linear-gradient(150deg, var(--color-sand), color-mix(in srgb, var(--color-taupe) 24%, var(--color-sand)));
+  }
+  [data-vidrio="terminal"] .tr-casilla:nth-child(4n + 2) .tr-retrato {
+    background: linear-gradient(145deg, color-mix(in srgb, var(--color-ceniza) 10%, var(--color-sand)), color-mix(in srgb, var(--color-ceniza) 30%, var(--color-sand)));
+  }
+  [data-vidrio="terminal"] .tr-casilla:nth-child(4n + 3) .tr-retrato {
+    background: linear-gradient(145deg, color-mix(in srgb, var(--color-rojo) 8%, var(--color-sand)), color-mix(in srgb, var(--color-rojo) 20%, var(--color-sand)));
+  }
+  [data-vidrio="terminal"] .tr-casilla:nth-child(4n + 4) .tr-retrato {
+    background: linear-gradient(145deg, color-mix(in srgb, var(--color-pizarra) 14%, var(--color-sand)), color-mix(in srgb, var(--color-pizarra) 32%, var(--color-sand)));
+  }
+  [data-vidrio="terminal"] .tr-retrato > img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 22%;
+  }
+  [data-vidrio="terminal"] .tr-iniciales {
+    font-size: min(calc(var(--tr-foto) * 0.46), 84px);
+    line-height: 1;
+    letter-spacing: -0.045em;
+    color: color-mix(in srgb, var(--color-tinta) 74%, transparent);
+  }
+  /* Quien ya terminó o hoy no trabaja se ve apagado: ahí no hay nada que hacer. */
+  [data-vidrio="terminal"] .tr-casilla[data-apagada="true"] .tr-retrato {
+    filter: grayscale(0.65);
+    opacity: 0.56;
+  }
+  [data-vidrio="terminal"] .tr-casilla[data-apagada="true"] .tr-nombre {
+    color: var(--vidrio-letra-secundaria);
+  }
+
+  [data-vidrio="terminal"] .tr-nombre {
+    display: block;
+    height: var(--tr-nombre-alto);
+    margin: 10px 4px 0;
+    overflow: hidden;
+    font-size: var(--tr-letra);
+    line-height: var(--tr-nombre-alto);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-vidrio="terminal"] .tr-apellidos {
+    display: block;
+    height: 20px;
+    margin: 0 4px;
+    overflow: hidden;
+    font-size: 14.5px;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--vidrio-letra-secundaria);
+  }
+  /* El estado: ícono y hora en el color del estado. Con la casilla angosta, o si alguien salió y volvió, ocupa dos renglones. */
+  [data-vidrio="terminal"] .tr-linea {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    height: 20px;
+    margin: 6px 2px 4px;
+    overflow: hidden;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 18px;
+  }
+  [data-vidrio="terminal"] .tr-linea[data-lineas="2"] {
+    height: 38px;
+  }
+  [data-vidrio="terminal"] .tr-linea[data-lineas="3"] {
+    height: 56px;
+  }
+  [data-vidrio="terminal"] .tr-linea > svg {
+    flex: none;
+    margin-top: 2px;
+  }
+  [data-vidrio="terminal"] .tr-linea-texto {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+  [data-vidrio="terminal"] .tr-linea[data-lineas="2"] .tr-linea-texto {
+    -webkit-line-clamp: 2;
+  }
+  [data-vidrio="terminal"] .tr-linea[data-lineas="3"] .tr-linea-texto {
+    -webkit-line-clamp: 3;
+  }
+  [data-vidrio="terminal"] .tr-linea-extra {
+    display: block;
+    font-weight: 400;
+    color: var(--vidrio-letra-secundaria);
+  }
+
+  /* En almacén: un disco oscuro arriba a la derecha. Quien está en el piso no lleva nada: se marca la excepción. */
+  [data-vidrio="terminal"] .tr-almacen {
+    position: absolute;
+    z-index: 1;
+    right: 14px;
+    top: 14px;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--color-tinta);
+    box-shadow: var(--gota-luz);
+    color: var(--color-crema);
+  }
+  [data-vidrio="terminal"] .tr-cinta {
+    position: absolute;
+    z-index: 1;
+    left: 14px;
+    top: 14px;
+    max-width: calc(100% - 28px);
+    padding: 4px 9px;
+    border: 1px solid var(--color-borde-control);
+    border-radius: 9px;
+    background: var(--color-papel);
+    color: var(--color-tinta);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+    /* En una casilla angosta parte en dos renglones: «2 de 3» no se corta con puntos suspensivos. */
+    text-wrap: balance;
+  }
+
+  [data-vidrio="terminal"] .tr-desliza {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding-top: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .tr-pie {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding-top: 8px;
+    font-size: 14px;
+    color: var(--vidrio-letra-secundaria);
+  }
+
+  /* ---------- Las hojas: se abren sobre la lista, que queda detrás, quieta y sin recibir toques ---------- */
+  [data-vidrio="terminal"] .tr-capa {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    padding: 20px;
+    overflow: auto;
+    background: var(--vidrio-velo);
+    animation: vidrio-velo-entra var(--t-hoja) var(--ease-cayla) backwards;
+  }
+  /* Sobre la lista la hoja sí desenfoca lo que tiene detrás: es una sola y flota. Sobre la aurora sola no hacía falta. */
+  [data-vidrio="terminal"] .tr-capa .terminal-hoja {
+    -webkit-backdrop-filter: var(--vidrio-hoja-filtro);
+    backdrop-filter: var(--vidrio-hoja-filtro);
+  }
+
+  @media (max-height: 850px) {
+    [data-vidrio="terminal"] .tr-cima {
+      min-height: 86px;
+    }
+    [data-vidrio="terminal"] .tr-isla {
+      min-height: 80px;
+    }
+    [data-vidrio="terminal"] .tr-isla-raya {
+      height: 42px;
+    }
+    [data-vidrio="terminal"] .tr-segundos {
+      height: 44px;
+    }
+    [data-vidrio="terminal"] .tr-zona {
+      margin-top: 9px;
+    }
+  }
+  @media (max-width: 1150px) {
+    [data-vidrio="terminal"] .tr-marca-palabra {
+      font-size: 20px;
+    }
+    [data-vidrio="terminal"] .tr-isla {
+      grid-template-columns: minmax(135px, 1fr) 1px minmax(115px, 0.9fr) 1px minmax(190px, 1.2fr);
+      gap: 12px;
+      width: min(760px, 68vw);
+      padding: 10px 18px;
+    }
+    [data-vidrio="terminal"] .tr-dia {
+      font-size: 20px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-vidrio="terminal"] :is(.tr-casilla, .tr-chip, .tr-capa) {
+      animation: none;
+      transition: none;
+    }
+    [data-vidrio="terminal"] .tr-casilla:hover {
+      translate: none;
+    }
+    [data-vidrio="terminal"] .tr-segundos > i {
+      transition: none;
+    }
+  }
+}
