@@ -119,8 +119,8 @@ export const NOVEDADES: readonly Novedad[] = [
     fecha: "2026-11-21",
     titulo: "En Horas, la salida va junto a la entrada",
     queMejoro:
-      "Al abrir los días de una persona en Horas, la tabla ahora dice Fecha, Entrada y Salida primero, y el " +
-      "almuerzo después. En el celular se ve la jornada completa sin tener que deslizar la tabla de lado.\n\n" +
+      "Al abrir los días de una persona en Horas, la tabla ahora dice Fecha, Entrada, Salida y Horas primero, y " +
+      "el almuerzo después. En el celular se ve la jornada completa sin tener que deslizar la tabla de lado.\n\n" +
       "Además, la fila de títulos se queda arriba mientras bajas por los días: ya no hay que volver a subir para " +
       "saber qué columna es cuál.",
     audiencia: "panel",
