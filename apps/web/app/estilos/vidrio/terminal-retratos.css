@@ -37,6 +37,7 @@
   /* ---------- Arriba: la marca, la isla y el tema ---------- */
   [data-vidrio="terminal"] .tr-cima {
     position: relative;
+    z-index: 5;
     display: flex;
     flex: none;
     align-items: center;
@@ -153,9 +154,98 @@
     flex: none;
     color: var(--vidrio-letra-secundaria);
   }
+  [data-vidrio="terminal"] .tr-sede {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+  [data-vidrio="terminal"] .tr-sede-rotulo {
+    margin-bottom: 5px;
+    color: var(--vidrio-letra-secundaria);
+  }
   [data-vidrio="terminal"] .tr-sede-nombre {
     font-size: 22px;
     line-height: 1.1;
+  }
+  /* El botón que abre la lista es un pozo: lo hundido espera tu elección. */
+  [data-vidrio="terminal"] .tr-sede-boton {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    height: 48px;
+    padding: 0 12px 0 14px;
+    border: 1.5px solid var(--color-borde-control);
+    border-radius: var(--radius-campo);
+    background: var(--pozo-fondo);
+    box-shadow: var(--pozo-sombra);
+    color: var(--color-tinta);
+    font-size: 17px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: background 200ms var(--ease-cayla), border-color 200ms var(--ease-cayla);
+  }
+  [data-vidrio="terminal"] .tr-sede-boton[aria-expanded="true"] {
+    border-color: var(--color-tinta);
+    background: var(--pozo-encendido-fondo);
+  }
+  [data-vidrio="terminal"] .tr-sede-boton > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* La lista flota sobre la leyenda y los primeros retratos. Va casi opaca y sin desenfoque propio: cuelga de la isla, que
+     ya tiene el suyo, y un desenfoque dentro de otro no alcanza a lo que hay fuera de la isla (se veía la leyenda detrás). */
+  [data-vidrio="terminal"] .tr-sede-lista {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 10px);
+    right: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 250px;
+    padding: 6px;
+    border: 1px solid var(--color-borde-control);
+    border-radius: var(--radius-tarjeta);
+    background: color-mix(in srgb, var(--color-vidrio) 94%, var(--color-crema));
+    box-shadow: var(--vidrio-flota-sombra);
+    animation: vidrio-tr-lista 160ms var(--ease-cayla) backwards;
+  }
+  [data-vidrio="terminal"] .tr-sede-opcion {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--radius-campo);
+    background: none;
+    color: var(--color-tinta);
+    font-size: 17px;
+    text-align: left;
+    cursor: pointer;
+  }
+  [data-vidrio="terminal"] .tr-sede-opcion[aria-selected="true"] {
+    background: var(--gota-marca);
+    box-shadow: var(--gota-luz);
+    font-weight: 600;
+  }
+  [data-vidrio="terminal"] .tr-sede-opcion-nombre {
+    flex: 1;
+  }
+  [data-vidrio="terminal"] .tr-sede-opcion-nota {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--vidrio-letra-secundaria);
+  }
+  @media (hover: hover) {
+    [data-vidrio="terminal"] .tr-sede-opcion:hover {
+      background: var(--gota-fondo-encima);
+    }
   }
 
   /* ---------- «Encuentra tu nombre» y la leyenda ---------- */
@@ -246,6 +336,60 @@
   }
   @media (hover: hover) {
     [data-vidrio="terminal"] .tr-chip:hover {
+      background: var(--gota-fondo-encima);
+    }
+  }
+
+  /* ---------- «Estás viendo otra sede»: la placa teñida de ámbar del terminal, con su salida a un toque ---------- */
+  [data-vidrio="terminal"] .tr-aviso-sede {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 60px;
+    margin-top: 12px;
+    padding: 6px 8px 6px 20px;
+    border: 1.5px solid color-mix(in srgb, var(--color-ambar) 55%, transparent);
+    border-radius: 18px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--color-ambar) 11%, transparent), color-mix(in srgb, var(--color-ambar) 5%, transparent)), var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+    font-size: 16px;
+    font-weight: 500;
+  }
+  [data-vidrio="terminal"] .tr-aviso-sede-texto {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  [data-vidrio="terminal"] .tr-aviso-sede-texto > svg {
+    flex: none;
+    color: var(--color-ambar-profundo);
+  }
+  [data-vidrio="terminal"] .tr-aviso-sede-boton {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 0 20px;
+    border: 1.5px solid var(--color-borde-control);
+    border-radius: 999px;
+    background: var(--gota-fondo);
+    box-shadow: var(--gota-luz);
+    color: var(--color-tinta);
+    font-size: 16px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: var(--vidrio-boton-transicion);
+  }
+  [data-vidrio="terminal"] .tr-aviso-sede-boton:active {
+    scale: 0.97;
+  }
+  @media (hover: hover) {
+    [data-vidrio="terminal"] .tr-aviso-sede-boton:hover {
+      border-color: var(--color-rojo);
       background: var(--gota-fondo-encima);
     }
   }
@@ -542,7 +686,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    [data-vidrio="terminal"] :is(.tr-casilla, .tr-chip, .tr-capa) {
+    [data-vidrio="terminal"] :is(.tr-casilla, .tr-chip, .tr-capa, .tr-sede-lista, .tr-sede-boton, .tr-aviso-sede-boton) {
       animation: none;
       transition: none;
     }
@@ -552,5 +696,12 @@
     [data-vidrio="terminal"] .tr-segundos > i {
       transition: none;
     }
+  }
+}
+
+@keyframes vidrio-tr-lista {
+  from {
+    opacity: 0;
+    translate: 0 -6px;
   }
 }

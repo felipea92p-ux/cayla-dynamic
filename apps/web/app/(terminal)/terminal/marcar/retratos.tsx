@@ -1,7 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
-import { ChevronDown, MapPin, Warehouse } from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { Check, ChevronDown, ChevronsUpDown, MapPin, TriangleAlert, Undo2, Warehouse } from "lucide-react";
 import { TZ_LIMA, etiquetaDePrueba } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
@@ -83,6 +83,121 @@ export function IslaTerminal({ sede }: { sede: ReactNode }) {
         <MapPin size={21} strokeWidth={1.8} aria-hidden />
         {sede}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Qué sede se está viendo, y la lista para cambiarla. El terminal abre en SU sede; esto deja ver otra a quien está de
+ * visita, igual que las píldoras de la pantalla de casillas: elegir una sede llama a `onCambiar`, nada más. Con una sola
+ * sede a la vista no hay nada que elegir y se muestra su nombre.
+ *
+ * Es una lista propia y no un `<select>` del navegador: el menú del sistema en una Mac tiene opciones de 22 px de alto,
+ * y aquí nada que se toque mide menos de 48.
+ */
+export function SedeDeIsla({
+  sedes,
+  activa,
+  sedeDeLaMac,
+  onCambiar,
+}: {
+  sedes: Array<{ codigo: string; nombre: string }>;
+  activa: string | null;
+  /** El código de la sede de este terminal: en la lista lleva «Esta Mac». */
+  sedeDeLaMac: string | null;
+  onCambiar: (codigo: string) => void;
+}) {
+  const [abierta, setAbierta] = useState(false);
+  const caja = useRef<HTMLDivElement>(null);
+  const idLista = useId();
+  const nombre = sedes.find((s) => s.codigo === activa)?.nombre ?? "…";
+
+  // Abierta, se cierra al tocar fuera o con Escape: una lista que se queda abierta tapa los primeros retratos.
+  useEffect(() => {
+    if (!abierta) return;
+    const alTocar = (e: PointerEvent) => {
+      if (!caja.current?.contains(e.target as Node)) setAbierta(false);
+    };
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAbierta(false);
+    };
+    document.addEventListener("pointerdown", alTocar);
+    document.addEventListener("keydown", alTeclear);
+    return () => {
+      document.removeEventListener("pointerdown", alTocar);
+      document.removeEventListener("keydown", alTeclear);
+    };
+  }, [abierta]);
+
+  if (sedes.length <= 1) {
+    return (
+      <div className="tr-sede">
+        <div className="etiqueta tr-sede-rotulo">Estás viendo</div>
+        <div className="tr-sede-nombre font-serif">{nombre}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tr-sede" ref={caja}>
+      <div className="etiqueta tr-sede-rotulo">Estás viendo</div>
+      <button
+        type="button"
+        className="tr-sede-boton"
+        aria-haspopup="listbox"
+        aria-expanded={abierta}
+        aria-controls={idLista}
+        aria-label={`Estás viendo ${nombre}. Cambiar de sede`}
+        onClick={() => setAbierta((a) => !a)}
+      >
+        <span>{nombre}</span>
+        <ChevronsUpDown size={18} strokeWidth={2} aria-hidden />
+      </button>
+      {abierta && (
+        <div className="tr-sede-lista" role="listbox" id={idLista} aria-label="Sede">
+          {sedes.map((s) => {
+            const elegida = s.codigo === activa;
+            return (
+              <button
+                key={s.codigo}
+                type="button"
+                role="option"
+                aria-selected={elegida}
+                className="tr-sede-opcion"
+                onClick={() => {
+                  setAbierta(false);
+                  if (!elegida) onCambiar(s.codigo);
+                }}
+              >
+                <span className="tr-sede-opcion-nombre">{s.nombre}</span>
+                {s.codigo === sedeDeLaMac && <span className="tr-sede-opcion-nota">Esta Mac</span>}
+                {elegida && <Check size={18} strokeWidth={2.5} aria-hidden />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * El aviso de que la lista NO es la de esta sede. Sin él, quien llega a marcar después de una visita no encuentra su
+ * nombre y no sabe por qué. El botón hace lo mismo que elegir la sede de la Mac en la lista de arriba.
+ */
+export function AvisoOtraSede({ viendo, casa, onVolver }: { viendo: string; casa: string; onVolver: () => void }) {
+  return (
+    <div className="tr-aviso-sede" role="status">
+      <span className="tr-aviso-sede-texto">
+        <TriangleAlert size={21} strokeWidth={1.9} aria-hidden />
+        <span>
+          Estás viendo <strong>{viendo}</strong>. Esta Mac es de {casa}.
+        </span>
+      </span>
+      <button type="button" className="tr-aviso-sede-boton" onClick={onVolver}>
+        <Undo2 size={18} strokeWidth={2.25} aria-hidden />
+        Volver a {casa}
+      </button>
     </div>
   );
 }

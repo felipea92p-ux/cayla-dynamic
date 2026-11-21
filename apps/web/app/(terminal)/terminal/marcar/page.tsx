@@ -82,7 +82,7 @@ import {
   type EstadoRoster,
 } from "./components";
 import { PildoraDeEstados } from "./presencia-visual";
-import { GrillaRetratos, IslaTerminal, MarcaTerminal, PieRetratos, TituloYLeyenda } from "./retratos";
+import { AvisoOtraSede, GrillaRetratos, IslaTerminal, MarcaTerminal, PieRetratos, SedeDeIsla, TituloYLeyenda } from "./retratos";
 
 type Pantalla =
   | "lista"
@@ -1299,6 +1299,14 @@ export default function MarcarPage() {
   // la hoja de cada paso, quieta y sin recibir toques (`inert`), en vez de desaparecer.
   if (conRetratos) {
     const hayHoja = pantalla !== "lista";
+    const cambiarDeSede = (codigo: string) => {
+      setResaltado(null);
+      setSedeSeleccionada(codigo);
+    };
+    // ¿La lista es de otra sede que la de esta Mac? Solo se avisa si se sabe cuál es la de la Mac y sigue a la vista.
+    const viendoOtraSede =
+      !!terminal && !!sedeSeleccionada && sedeSeleccionada !== terminal.sedeCodigo &&
+      sedesDisponibles.some((s) => s.codigo === terminal.sedeCodigo);
     return (
       <div className="tr-pantalla">
         <div className="tr-fondo" inert={hayHoja} aria-hidden={hayHoja || undefined}>
@@ -1306,18 +1314,12 @@ export default function MarcarPage() {
             <MarcaTerminal />
             <IslaTerminal
               sede={
-                sedesDisponibles.length > 1 ? (
-                  <SelectorSede
-                    sedes={sedesDisponibles}
-                    activa={sedeSeleccionada}
-                    onCambiar={(codigo) => {
-                      setResaltado(null);
-                      setSedeSeleccionada(codigo);
-                    }}
-                  />
-                ) : (
-                  <span className="tr-sede-nombre font-serif">{sedeActivaNombre}</span>
-                )
+                <SedeDeIsla
+                  sedes={sedesDisponibles.length > 0 ? sedesDisponibles : [{ codigo: sedeSeleccionada ?? "", nombre: sedeActivaNombre }]}
+                  activa={sedeSeleccionada ?? ""}
+                  sedeDeLaMac={terminal?.sedeCodigo ?? null}
+                  onCambiar={cambiarDeSede}
+                />
               }
             />
             <div className="tr-acciones">
@@ -1339,6 +1341,13 @@ export default function MarcarPage() {
               resaltado={resaltadoActivo}
               onResaltar={resaltar}
             />
+            {viendoOtraSede && terminal && (
+              <AvisoOtraSede
+                viendo={sedeActivaNombre}
+                casa={terminal.sedeNombre}
+                onVolver={() => cambiarDeSede(terminal.sedeCodigo)}
+              />
+            )}
           </section>
 
           <GrillaRetratos
