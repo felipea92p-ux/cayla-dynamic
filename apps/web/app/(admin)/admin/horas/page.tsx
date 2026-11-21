@@ -628,13 +628,18 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia, enCajon = 
         </div>
       </TarjetaInfo>
 
-      <Tabla className="[font-variant-numeric:tabular-nums]">
+      {/* Alto propio para que la cabecera se quede fija al bajar (el sticky de
+          TablaEncabezado se pega al contenedor con scroll, ver tabla.tsx), y
+          Salida y Horas antes que Almuerzo: en el celular la tabla corre de
+          lado y Fecha · Entrada · Salida · Horas tienen que verse primero
+          (Felipe, 2026-11-21). */}
+      <Tabla className="[font-variant-numeric:tabular-nums]" alturaMaxima="70vh">
         <TablaEncabezado>
           <Th>Fecha</Th>
           <Th>Entrada</Th>
-          <Th>Almuerzo</Th>
           <Th>Salida</Th>
           <Th>Horas</Th>
+          <Th>Almuerzo</Th>
           <Th>Tardanza</Th>
           <Th>Sal. antic.</Th>
           <Th>T. adicional</Th>
@@ -657,6 +662,8 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia, enCajon = 
                 title="Abrir este día">
                 <td className="px-4 py-2 capitalize">{fechaLarga(d.fecha)}</td>
                 <td className="px-4 py-2">{horaLima(d.entradaTs)}</td>
+                <td className="px-4 py-2">{d.salidaTs ? horaLima(d.salidaTs) : <span className={d.enCurso ? "text-taupe" : "text-ambar"}>—</span>}</td>
+                <td className="px-4 py-2">{d.horas !== null ? fmtHoras(d.horas) : "—"}</td>
                 <td className="px-4 py-2 whitespace-nowrap">
                   {(() => {
                     const a = almuerzos.get(d.fecha);
@@ -672,8 +679,6 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia, enCajon = 
                     );
                   })()}
                 </td>
-                <td className="px-4 py-2">{d.salidaTs ? horaLima(d.salidaTs) : <span className={d.enCurso ? "text-taupe" : "text-ambar"}>—</span>}</td>
-                <td className="px-4 py-2">{d.horas !== null ? fmtHoras(d.horas) : "—"}</td>
                 <td className="px-4 py-2">
                   {(d.minutosTarde ?? 0) > 0
                     ? d.levantada

@@ -359,6 +359,14 @@
   [data-vidrio="panel"] thead th:not(.hoja *) {
     border-bottom: 1px solid var(--hilo-cabeza);
   }
+  /* La cabecera que se queda fija (<Tabla alturaMaxima>) flota sobre filas que
+     se desplazan: sin fondo, las filas se leían encima de «Fecha» y «Entrada»
+     (Horas, 2026-11-21). Lleva el vidrio de lo que flota, como el marco. */
+  [data-vidrio="panel"] [data-cabecera-fija] > table > thead:not(.hoja *) {
+    background: var(--vidrio-flota-fondo);
+    -webkit-backdrop-filter: var(--vidrio-flota-filtro);
+    backdrop-filter: var(--vidrio-flota-filtro);
+  }
   [data-vidrio="panel"] tbody tr:is(.border-t, .border-b, .border-y):not(.hoja *) {
     border-color: var(--hilo-fila);
   }
