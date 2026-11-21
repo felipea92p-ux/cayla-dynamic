@@ -81,9 +81,7 @@ import {
   SelectorSede,
   type EstadoRoster,
 } from "./components";
-import { HojaAnillo, HojaCerrado, HojaTuMomento } from "./hojas-retratos";
 import { PildoraDeEstados } from "./presencia-visual";
-import { AvisoOtraSede, GrillaRetratos, IslaTerminal, MarcaTerminal, PieRetratos, SedeDeIsla, TituloYLeyenda } from "./retratos";
 
 type Pantalla =
   | "lista"
@@ -1127,12 +1125,23 @@ export default function MarcarPage() {
   const sedeActivaNombre =
     sedesDisponibles.find((s) => s.codigo === sedeSeleccionada)?.nombre ?? terminal?.sedeNombre ?? "…";
 
-  // Lo que avisa el terminal (marcas sin registrar, Mac sin vínculo, reloj corrido) y las hojas de cada paso se
-  // dibujan igual en la pantalla de retratos y en la de casillas: por eso viven aquí y no dentro de una de las dos.
-  const conRetratos = interruptoresVidrio().terminal;
+  return (
+    <div className="flex flex-1 flex-col">
+      <header className="terminal-cabecera flex items-center justify-between border-b border-sand px-6 py-4">
+        <Marca tono="tinta" isotipo="rojo" />
+        <div className="flex items-center gap-3">
+          {pendientesSinEnviar > 0 && (
+            <Insignia variante="advertencia" punto={false}>
+              ⟳ {pendientesSinEnviar} sin enviar
+            </Insignia>
+          )}
+          <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
+          {/* El botón del tema solo existe con el vidrio del terminal: es de esta Mac y nada más (lib/vidrio-tema.ts). No
+              cambia nada de lo que se marca, y arranca en claro aunque alguien lo haya dejado en oscuro en otra Mac. */}
+          {interruptoresVidrio().terminal ? <BotonTema /> : null}
+        </div>
+      </header>
 
-  const avisosDelTerminal = (
-    <>
       {/* Las apartadas ya NO se reintentan solas: si nadie las ve, no vuelven, y
           es lo más grave que este terminal puede decir —que una marca no llegó
           y no va a llegar sola—. Por eso ya no vive metida en la fila de
@@ -1220,208 +1229,6 @@ export default function MarcarPage() {
           </p>
         </div>
       )}
-    </>
-  );
-
-  const hojas = (
-    <>
-      {pantalla === "confirmando_estado" && personaActual &&
-        (conRetratos ? (
-          <div className="terminal-hoja">
-            <Cargando texto={`Confirmando el estado de ${personaActual.nombres}…`} clase="font-serif text-2xl" />
-          </div>
-        ) : (
-          <Cargando texto={`Confirmando el estado de ${personaActual.nombres}…`} clase="font-serif text-2xl" />
-        ))}
-
-      {/* El menú de salida. Con retratos es «Tu momento»: las mismas opciones, con la foto de a quién se le pregunta. */}
-      {pantalla === "elegir_salida" && personaActual && salidaConfig &&
-        (conRetratos ? (
-          <HojaTuMomento
-            persona={personaActual}
-            presencia={presenciaPorPersona?.get(personaActual.id)}
-            principal={salidaConfig.principal}
-            secundaria={salidaConfig.secundaria}
-            otras={salidaConfig.otras}
-            neutra={salidaConfig.neutra}
-            aviso={salidaConfig.aviso}
-            almacen={opcionAlmacen}
-            onElegir={elegirTipoSalida}
-            onCancelar={volverALista}
-          />
-        ) : (
-          <SelectorSalida
-            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
-            principal={salidaConfig.principal}
-            secundaria={salidaConfig.secundaria}
-            otras={salidaConfig.otras}
-            neutra={salidaConfig.neutra}
-            aviso={salidaConfig.aviso}
-            almacen={opcionAlmacen}
-            onElegir={elegirTipoSalida}
-            onCancelar={volverALista}
-          />
-        ))}
-
-      {pantalla === "elegir_tiempo_almacen" && personaActual && (
-        <ElegirTiempoAlmacen
-          nombre={personaActual.nombres}
-          duraciones={DURACIONES_ALMACEN}
-          onElegir={(minutos) => void registrarUbicacion("almacen", minutos)}
-          onCancelar={volverALista}
-        />
-      )}
-
-      {pantalla === "cerrado" && personaActual &&
-        (conRetratos ? (
-          <HojaCerrado
-            persona={personaActual}
-            historial={historialCerrado}
-            onVolviAEntrar={() => setPantalla("motivo_reentrada")}
-            onCancelar={volverALista}
-          />
-        ) : (
-          <PantallaCerrado
-            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
-            historial={historialCerrado}
-            onVolviAEntrar={() => setPantalla("motivo_reentrada")}
-            onCancelar={volverALista}
-          />
-        ))}
-
-      {pantalla === "motivo_reentrada" && personaActual && (
-        <MotivoReentrada onElegir={reabrirDia} onCancelar={volverALista} />
-      )}
-
-      {pantalla === "motivo_otro" && (
-        <FormularioMotivoOtro onConfirmar={confirmarMotivoOtro} onCancelar={volverALista} />
-      )}
-
-      {pantalla === "confirmar_refrigerio" && personaActual && (
-        <ConfirmarRefrigerio
-          nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
-          onElegir={confirmarRefrigerio}
-          onCancelar={volverALista}
-        />
-      )}
-
-      {pantalla === "confirmando" &&
-        personaActual &&
-        accionPendiente &&
-        (conRetratos ? (
-          <HojaAnillo
-            persona={personaActual}
-            marca={TIPO_MARCA_LABELS[accionPendiente.tipo]}
-            segundosTotal={SEGUNDOS_CONFIRMACION}
-            onConfirmar={confirmarMarcaje}
-            onCancelar={volverALista}
-          />
-        ) : (
-          <ConfirmacionToast
-            texto={`¿Confirmas ${TIPO_MARCA_LABELS[accionPendiente.tipo]} de ${personaActual.nombres}?`}
-            segundosTotal={SEGUNDOS_CONFIRMACION}
-            onConfirmar={confirmarMarcaje}
-            onCancelar={volverALista}
-          />
-        ))}
-
-      {pantalla === "mensaje" && <PantallaMensaje mensaje={mensaje} tono={tonoMensaje} detalle={detalleMensaje} />}
-    </>
-  );
-
-  // Con el vidrio del terminal encendido, la pantalla de nombres es la de retratos (retratos.tsx, Felipe 2026-11-21).
-  // Recibe lo mismo que la de casillas y llama a las mismas funciones: solo cambia cómo se ve. La lista queda detrás de
-  // la hoja de cada paso, quieta y sin recibir toques (`inert`), en vez de desaparecer.
-  if (conRetratos) {
-    const hayHoja = pantalla !== "lista";
-    const cambiarDeSede = (codigo: string) => {
-      setResaltado(null);
-      setSedeSeleccionada(codigo);
-    };
-    // ¿La lista es de otra sede que la de esta Mac? Solo se avisa si se sabe cuál es la de la Mac y sigue a la vista.
-    const viendoOtraSede =
-      !!terminal && !!sedeSeleccionada && sedeSeleccionada !== terminal.sedeCodigo &&
-      sedesDisponibles.some((s) => s.codigo === terminal.sedeCodigo);
-    return (
-      <div className="tr-pantalla">
-        <div className="tr-fondo" inert={hayHoja} aria-hidden={hayHoja || undefined}>
-          <header className="tr-cima">
-            <MarcaTerminal />
-            <IslaTerminal
-              sede={
-                <SedeDeIsla
-                  sedes={sedesDisponibles.length > 0 ? sedesDisponibles : [{ codigo: sedeSeleccionada ?? "", nombre: sedeActivaNombre }]}
-                  activa={sedeSeleccionada ?? ""}
-                  sedeDeLaMac={terminal?.sedeCodigo ?? null}
-                  onCambiar={cambiarDeSede}
-                />
-              }
-              // El «Listo» de la última marca sale DENTRO de la isla: no ocupa lugar, así que ningún retrato se mueve
-              // bajo el dedo de quien sigue, y la lista de abajo ya está libre.
-              listo={avisoListo}
-              onCerrarListo={() => setAvisoListo(null)}
-            />
-            <div className="tr-acciones">
-              {pendientesSinEnviar > 0 && (
-                <Insignia variante="advertencia" punto={false}>
-                  ⟳ {pendientesSinEnviar} sin enviar
-                </Insignia>
-              )}
-              {/* El tema es de esta Mac y nada más (lib/vidrio-tema.ts): no cambia nada de lo que se marca, y arranca
-                  en claro aunque alguien lo haya dejado en oscuro en otra Mac. */}
-              <BotonTema />
-            </div>
-          </header>
-
-          {avisosDelTerminal}
-
-          <section className="tr-estado">
-            <TituloYLeyenda
-              integrantes={rosterFiltrado.length}
-              conteos={presenciaPorPersona ? conteosPresencia : undefined}
-              resaltado={resaltadoActivo}
-              onResaltar={resaltar}
-            />
-            {viendoOtraSede && terminal && (
-              <AvisoOtraSede
-                viendo={sedeActivaNombre}
-                casa={terminal.sedeNombre}
-                onVolver={() => cambiarDeSede(terminal.sedeCodigo)}
-              />
-            )}
-          </section>
-
-          <GrillaRetratos
-            roster={rosterFiltrado}
-            estado={estadoRoster}
-            presencia={presenciaPorPersona}
-            resaltado={resaltadoActivo}
-            onSeleccionar={seleccionarPersona}
-            onReintentar={() => { setEstadoRoster("cargando"); void arrancar(); }}
-          />
-          <PieRetratos sedeDeLaMac={terminal?.sedeNombre ?? null} />
-        </div>
-
-        {hayHoja && <div className="tr-capa">{hojas}</div>}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-1 flex-col">
-      <header className="terminal-cabecera flex items-center justify-between border-b border-sand px-6 py-4">
-        <Marca tono="tinta" isotipo="rojo" />
-        <div className="flex items-center gap-3">
-          {pendientesSinEnviar > 0 && (
-            <Insignia variante="advertencia" punto={false}>
-              ⟳ {pendientesSinEnviar} sin enviar
-            </Insignia>
-          )}
-          <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
-        </div>
-      </header>
-
-      {avisosDelTerminal}
 
       <main className="flex flex-1 flex-col items-center justify-center p-6">
         {pantalla === "lista" && (
@@ -1454,7 +1261,68 @@ export default function MarcarPage() {
           </div>
         )}
 
-        {hojas}
+        {pantalla === "confirmando_estado" && personaActual && (
+          <Cargando texto={`Confirmando el estado de ${personaActual.nombres}…`} clase="font-serif text-2xl" />
+        )}
+
+        {pantalla === "elegir_salida" && personaActual && salidaConfig && (
+          <SelectorSalida
+            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
+            principal={salidaConfig.principal}
+            secundaria={salidaConfig.secundaria}
+            otras={salidaConfig.otras}
+            neutra={salidaConfig.neutra}
+            aviso={salidaConfig.aviso}
+            almacen={opcionAlmacen}
+            onElegir={elegirTipoSalida}
+            onCancelar={volverALista}
+          />
+        )}
+
+        {pantalla === "elegir_tiempo_almacen" && personaActual && (
+          <ElegirTiempoAlmacen
+            nombre={personaActual.nombres}
+            duraciones={DURACIONES_ALMACEN}
+            onElegir={(minutos) => void registrarUbicacion("almacen", minutos)}
+            onCancelar={volverALista}
+          />
+        )}
+
+        {pantalla === "cerrado" && personaActual && (
+          <PantallaCerrado
+            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
+            historial={historialCerrado}
+            onVolviAEntrar={() => setPantalla("motivo_reentrada")}
+            onCancelar={volverALista}
+          />
+        )}
+
+        {pantalla === "motivo_reentrada" && personaActual && (
+          <MotivoReentrada onElegir={reabrirDia} onCancelar={volverALista} />
+        )}
+
+        {pantalla === "motivo_otro" && (
+          <FormularioMotivoOtro onConfirmar={confirmarMotivoOtro} onCancelar={volverALista} />
+        )}
+
+        {pantalla === "confirmar_refrigerio" && personaActual && (
+          <ConfirmarRefrigerio
+            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
+            onElegir={confirmarRefrigerio}
+            onCancelar={volverALista}
+          />
+        )}
+
+        {pantalla === "confirmando" && personaActual && accionPendiente && (
+          <ConfirmacionToast
+            texto={`¿Confirmas ${TIPO_MARCA_LABELS[accionPendiente.tipo]} de ${personaActual.nombres}?`}
+            segundosTotal={SEGUNDOS_CONFIRMACION}
+            onConfirmar={confirmarMarcaje}
+            onCancelar={volverALista}
+          />
+        )}
+
+        {pantalla === "mensaje" && <PantallaMensaje mensaje={mensaje} tono={tonoMensaje} detalle={detalleMensaje} />}
       </main>
 
       {/* El «Listo» de la última marca: flota sobre la cabecera, fuera del flujo, y la lista de abajo ya está libre. */}

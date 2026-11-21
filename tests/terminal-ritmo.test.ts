@@ -71,9 +71,6 @@ describe("los relojes", () => {
 const MARCAR = path.resolve(import.meta.dirname, "../apps/web/app/(terminal)/terminal/marcar");
 const pagina = readFileSync(path.join(MARCAR, "page.tsx"), "utf8");
 const componentes = readFileSync(path.join(MARCAR, "components.tsx"), "utf8");
-const hojasRetratos = readFileSync(path.join(MARCAR, "hojas-retratos.tsx"), "utf8");
-const retratos = readFileSync(path.join(MARCAR, "retratos.tsx"), "utf8");
-const estilosRetratos = readFileSync(path.resolve(MARCAR, "../../../estilos/vidrio/terminal-retratos.css"), "utf8");
 
 /** El cuerpo de una función exportada o interna, hasta la siguiente del mismo nivel. */
 function cuerpoDe(fuente: string, firma: string): string {
@@ -124,41 +121,6 @@ describe("el aviso «Listo»", () => {
   });
 });
 
-// En la pantalla de retratos el «Listo» sale dentro de la isla. Otro dibujo, los mismos cuidados.
-describe("el «Listo» de la isla, en la pantalla de retratos", () => {
-  /** El bloque de una regla del CSS, por su selector exacto. */
-  const regla = (selector: string) => {
-    const desde = estilosRetratos.indexOf(`[data-vidrio="terminal"] ${selector} {`);
-    expect(desde, `no encontré la regla «${selector}»`).toBeGreaterThanOrEqual(0);
-    return estilosRetratos.slice(desde, estilosRetratos.indexOf("}", desde));
-  };
-
-  it("no ocupa lugar ni recibe toques: la isla mide lo mismo y ningún retrato se mueve bajo el dedo de quien sigue", () => {
-    expect(regla(".tr-listo")).toContain("position: absolute;");
-    expect(regla(".tr-listo")).toContain("pointer-events: none;");
-    // Lo de siempre se esconde SIN dejar de ocupar su lugar: con `display: none` la isla cambiaría de tamaño.
-    expect(regla(".tr-isla[data-listo] > :not(.tr-listo)")).toContain("visibility: hidden;");
-  });
-
-  it("sigue a la vista aunque la persona siguiente ya haya abierto su hoja", () => {
-    const z = (bloque: string) => Number(/z-index: (\d+);/.exec(bloque)?.[1]);
-    expect(z(regla(".tr-isla[data-listo]"))).toBeGreaterThan(z(regla(".tr-capa")));
-  });
-
-  it("lo anuncia un lector de pantalla sin interrumpir, desde una región que ya existía", () => {
-    const cuerpo = cuerpoDe(retratos, "function ListoDeIsla(");
-    expect(cuerpo).toContain('role="status"');
-    expect(cuerpo).toContain('aria-live="polite"');
-    // La región se dibuja siempre y es su contenido el que aparece: no `{listo && <div role="status">`.
-    expect(cuerpo.indexOf('role="status"')).toBeLessThan(cuerpo.indexOf("{listo && ("));
-  });
-
-  it("es el mismo aviso con el mismo reloj: la pantalla le pasa el de siempre y no lo dibuja dos veces", () => {
-    expect(pagina).toContain("listo={avisoListo}");
-    expect(pagina.match(/<AvisoListo /g)).toHaveLength(1);
-  });
-});
-
 describe("la cuenta atrás, una vez que la marca salió", () => {
   const cuenta = () => cuerpoDe(componentes, "export function ConfirmacionToast(");
 
@@ -168,30 +130,5 @@ describe("la cuenta atrás, una vez que la marca salió", () => {
 
   it("dice que está enviando, no «Confirmando en 0s…»", () => {
     expect(cuenta()).toContain('enviando ? "Enviando…"');
-  });
-});
-
-// La pantalla de retratos dibuja la misma cuenta atrás como un anillo alrededor de la foto. Cambia el dibujo, no la
-// regla: lo que protege de una marca cancelada que igual cuenta para el pago tiene que seguir ahí.
-describe("el anillo de la pantalla de retratos, una vez que la marca salió", () => {
-  const anillo = () => cuerpoDe(hojasRetratos, "export function HojaAnillo(");
-
-  it("no ofrece cancelar lo que ya no se puede cancelar, ni confirmar dos veces", () => {
-    expect(anillo().match(/disabled=\{enviando\}/g)).toHaveLength(2);
-    expect(anillo()).toContain("if (yaConfirmoRef.current) return;");
-  });
-
-  it("dice que está enviando", () => {
-    expect(anillo()).toContain('enviando ? "Enviando…"');
-  });
-
-  it("espera lo que diga el ritmo, no un número propio", () => {
-    expect(anillo()).toContain("segundosTotal * 1000");
-    expect(pagina.match(/segundosTotal=\{SEGUNDOS_CONFIRMACION\}/g)).toHaveLength(2);
-  });
-
-  it("no muestra la hora de la marca antes de que la base la selle", () => {
-    // La hora que cuenta la pone el servidor; el reloj de la Mac puede estar corrido.
-    expect(anillo()).not.toMatch(/toLocaleTimeString|Intl\.DateTimeFormat|new Date\(/);
   });
 });

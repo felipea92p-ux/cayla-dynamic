@@ -6,68 +6,34 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-21 — El terminal pasa a retratos: isla, «Tu momento», anillo y «Listo» en la isla · sin SQL · **Felipe aprobó la demo y pidió publicarlo el 2026-11-21** · rama `claude/keen-heisenberg-naagvu`
+## 2026-11-21 — El terminal en retratos se publicó y se retiró el mismo día · sin SQL · **retirado a pedido de Felipe; se van a ver otros diseños** · PR #749 y su reversión
 
-**De dónde sale.** Felipe pidió ideas para que el terminal se viera mejor, eligió cuatro mirando una lámina (retratos con isla, «Tu
-momento», el anillo y la isla que avisa «Listo»), pidió una maqueta que aguantara sedes de 3 y de más de 20 personas y el cambio de
-sede, la llevó a ChatGPT y trajo el diseño que quiso construir (2026-11-21: «Me gusta, realicémoslo»). Decidió también: la marca es
-«CAYLA · Terminal de marcaje» con el colibrí, y de piso o almacén solo se marca el almacén.
+**Qué pasó.** Felipe eligió, mirando maquetas y un diseño que trajo de ChatGPT, otra pantalla de nombres para el terminal: retratos
+con una isla (hora, fecha, sede), la hoja «Tu momento», la cuenta atrás como un anillo y el «Listo» dentro de la isla. Se construyó
+y se le mostró en una demo (video y capturas con datos inventados). La aprobó y pidió publicarla. Se fusionó el #749 a las 14:19 de
+Lima, un sábado con tiendas abiertas, y a las 14:23 pidió volver: «regresa al diseño anterior, veamos otros diseños».
 
-**Construido**, en siete actividades con su commit. Solo cambia cómo se ve; se dibuja solo con `NEXT_PUBLIC_VIDRIO_TERMINAL=1`.
-- `lib/terminal/acomodo.ts`: la regla que decide columnas y tamaño del retrato para lo que mide la pantalla. Si el equipo no entra a un
-  tamaño que se lea, la grilla se desliza y lo dice; nunca encoge los nombres bajo 19 px.
-- `marcar/retratos.tsx`: la marca, la isla (hora, tubo de segundos, fecha y sede), el selector de sede con «Esta Mac», el aviso «Estás
-  viendo X. Esta Mac es de Y», «Encuentra tu nombre» con la leyenda (solo los estados que tienen a alguien) y la grilla.
-- `marcar/hojas-retratos.tsx`: «Tu momento» (las mismas opciones de `SelectorSalida`, en el mismo orden), la de quien ya cerró su día y
-  el anillo (la regla de `ConfirmacionToast`: una sola marca, «Enviando…» con los dos botones apagados).
-- El «Listo» sale dentro de la isla: no ocupa lugar, no tapa nombres y sigue a la vista sobre el velo de la hoja siguiente.
-- `estilos/vidrio/terminal-retratos.css`, todo bajo `[data-vidrio="terminal"]` y con los trece colores y las recetas de vidrio.
-- Una novedad para todo el equipo en `lib/novedades.ts`. **Su fecha es el día en que se fusione**: si no es el 21, se corrige antes.
+**Dónde estamos.** El terminal es otra vez la pantalla de casillas con vidrio, idéntica byte por byte a la de antes (`d0780cd`): la
+reversión se comparó con `git diff` contra ese commit. No hubo SQL en ninguna de las dos direcciones. Las marcas hechas en esos
+minutos quedaron registradas igual: el diseño nunca cambió qué hace cada botón.
 
-**Lo que se aparta del diseño que trajo Felipe, y por qué** (se le dijo en la demo): el nombre de pila y los apellidos van en dos
-líneas; la línea de estado dice la hora («entró 09:07»), no solo la palabra; la leyenda no lista estados en cero ni «Todos»; la lista
-de sedes es propia y no el menú del navegador, que mide 22 px por opción; la última fila va centrada (decisión del 2026-11-03); el
-anillo NO muestra la hora de la marca, porque la pone el servidor; y el «Listo» dice el texto de siempre, sin hora.
+**Dónde quedó el trabajo.** En la historia de `main`, commits `de049ad..52221d3` (PR #749). Lo que vale la pena rescatar para el
+diseño que venga, porque no depende de cómo se vea:
+- `lib/terminal/acomodo.ts` con sus 17 pruebas: la regla que acomoda de 3 a más de 30 personas sin cortar a nadie.
+- La forma de probar: la pantalla real contra una base desechable (`scripts/local`, que corre con Postgres 16 y sin Docker) con la
+  cuenta del terminal de cada sede, comprobando cada marca en `marcajes`; y el contraste medido contra los píxeles.
+- Lo que se midió y quedó escrito en la descripción del #749, con lo que NO se llegó a probar: Safari, pantalla táctil, el monitor
+  real de cada sede.
 
-**Verificado.**
-- Con datos inventados en un arnés (no se sube), a 1920×1080, 1440×900 y 1366×768, claro y oscuro: 0 casillas cortadas y 0 horas
-  con «…» en equipos de 3, 8, 13, 24 y 33; nada que se toque mide menos de 48 px; el anillo se confirma solo a los 2 s y una sola vez,
-  y cancelar antes no marca; el «Listo» no cambia la medida de la isla ni mueve un retrato. 1 490 textos medidos contra sus píxeles:
-  bajo 4.5:1 solo las casillas atenuadas al iluminar un estado (30 %, como hoy). Esa medición encontró y corrigió los apellidos de la
-  casilla iluminada en oscuro (3,7:1).
-- **Con la pantalla real** contra una base desechable (Postgres 16, las 590 migraciones, `scripts/local/sembrar.mjs`; la siembra se
-  cortó en las boletas, que el terminal no usa, y eso ya lo arregló el #748), con la cuenta
-  del terminal de cada sede: entrada, salida a refrigerio y su regreso, cancelar en el anillo (no deja marca), salida final con la
-  pregunta del refrigerio, el día cerrado y reabrirlo, «Voy a almacén», «Otra salida» y el cambio de sede con dos personas visibles en
-  todas las sedes. Cada marca se comprobó en `marcajes`, y la casilla quedó diciendo lo mismo que la base.
-- Con el interruptor **apagado**, la pantalla de casillas marca igual que antes (entrada comprobada en la base).
-- `tests/terminal-acomodo.test.ts` (17), `tests/terminal-ritmo.test.ts` (23: al anillo y al «Listo» de la isla se les exige lo mismo
-  que a sus gemelos), `vidrio-css`, `vidrio-marca`, `novedades`, typecheck y linter de lo tocado.
+**Lo que enseña.** Se decidió sobre un video, no sobre el terminal corriendo en una Mac mini, y se publicó en horario de tienda.
+Para lo que venga: los diseños se miran antes en la pantalla de verdad (una vista previa con datos inventados que se pueda abrir
+en una Mac mini), y se publica uno solo, con las tiendas cerradas.
 
-**No verificado.** Con el dedo en una pantalla táctil (todo se probó con mouse). En Safari, que es el navegador de las Mac mini: se
-probó en Chromium. El tamaño real de los monitores de las sedes: si alguno es menor de 1366×768, hay que mirarlo. Fotos de verdad: el
-entorno local no tiene almacenamiento, así que en la pantalla real solo se vieron iniciales; las fotos se vieron en el arnés. El tiempo
-real (sin Docker aquí): la lista se puso al día al volver de cada marca, no por el aviso de la base. Y marcar sin conexión.
-
-**Queda, y no es de este cambio.** Las hojas que no se rediseñaron (motivo, refrigerio, almacén, reabrir) conservan su «Cancelar» como
-enlace chico. Cuando la primera persona del día vuelve de su refrigerio, las casillas ganan un renglón y el retrato cede 18 px: se
-mueve una vez, no bajo el dedo.
-
-**Publicación.** Felipe vio la demo (un video y capturas del navegador con datos inventados, no el terminal corriendo en su
-computadora) y pidió publicarlo el 2026-11-21 a las 14:08 de Lima, un sábado con tiendas abiertas: «implementa a producción pero
-guarda un respaldo del terminal actual en producción». Fusionar este PR **es publicarlo encendido** en las Mac mini de las cuatro sedes.
-
-**El respaldo, y cómo volver al terminal de antes.** La rama `respaldo/terminal-casillas-2026-11-21` de GitHub apunta al commit de
-`main` que estaba publicado (`d0780cd`): la pantalla de casillas con vidrio. **No se borra en una limpieza de ramas**, aunque figure
-como fusionada: es el nombre del respaldo. (Se quiso una etiqueta; la sesión no tenía permiso para subirla.) Tres caminos para
-volver, del más rápido al que se queda:
-1. En Vercel, «Instant Rollback» al despliegue anterior. Vuelve en segundos, pero la siguiente fusión que toque la web publica otra
-   vez el terminal nuevo: sirve para ganar tiempo, no para quedarse.
-2. Revertir este PR en GitHub (botón «Revert») y fusionar esa reversión. Vuelve el terminal exacto de antes, y se queda.
-3. Quitar `NEXT_PUBLIC_VIDRIO_TERMINAL` en Vercel y reconstruir. Vuelve la pantalla de casillas sin vidrio, que se probó marcando
-   contra la base. Ojo: con el interruptor encendido ya no se puede elegir la pantalla de casillas con vidrio; esa solo vuelve por 1 o 2.
-
-**Queda después de publicar.** Marcar una entrada y una salida en una Mac mini de sede (Safari) y mirar que la casilla lo diga.
+**Queda.**
+- Ver otros diseños con Felipe. Antes de dibujar: preguntarle qué no le convenció de este.
+- El id de novedad `2026-11-21-el-terminal-muestra-retratos` ya estuvo en producción: no se reutiliza.
+- La rama `respaldo/terminal-casillas-2026-11-21` apunta a `d0780cd`, lo mismo que hoy tiene `main` en el terminal. Ya no hace
+  falta; se puede borrar cuando Felipe quiera.
 
 ---
 
