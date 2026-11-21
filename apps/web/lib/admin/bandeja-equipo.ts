@@ -58,9 +58,10 @@ function pendientesDeNormas(data: unknown): number {
 export async function traerFuentesYNormas(
   supabase: ClienteCayla,
   rol: string | null | undefined,
+  alFallar?: (que: string, error: unknown) => void,
 ): Promise<{ fuentes: FuentesBandeja; constanciasNormas: number }> {
   const [fuentes, constanciasNormas] = await Promise.all([
-    traerFuentesBandeja(supabase, rol),
+    traerFuentesBandeja(supabase, rol, alFallar),
     rolEsDo(rol)
       ? supabase.rpc("fn_documentos_vigentes").then(({ data }) => pendientesDeNormas(data))
       : Promise.resolve(0),
@@ -117,8 +118,13 @@ export async function resumenNormasPendientes(
 ): Promise<ResumenNormas | null> {
   if (!rolEsDo(rol)) return null;
   const { data } = await supabase.rpc("fn_documentos_vigentes");
-  const n = pendientesDeNormas(data);
-  if (n === 0) return null;
+  return resumenDeNormas(pendientesDeNormas(data), rol);
+}
+
+/** El mismo enlace, para quien YA tiene la cuenta de constancias (la lectura compartida de la Bandeja la trae:
+ *  `lib/admin/bandeja-compartida.ts`) y no necesita volver a preguntarla. */
+export function resumenDeNormas(n: number, rol: string | null | undefined): ResumenNormas | null {
+  if (!rolEsDo(rol) || n === 0) return null;
   return {
     // Constancias, no personas: `pendientesDeNormas` suma (población − acuses) por
     // documento, o sea pares persona-documento. Una persona con cuatro documentos

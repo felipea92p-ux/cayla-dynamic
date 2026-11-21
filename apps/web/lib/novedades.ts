@@ -130,6 +130,28 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-11-21-horas-salida-junto-a-la-entrada",
+    fecha: "2026-11-21",
+    titulo: "En Horas, la salida va junto a la entrada",
+    queMejoro:
+      "Al abrir los días de una persona en Horas, la tabla ahora dice Fecha, Entrada, Salida y Horas primero, y " +
+      "el almuerzo después. En el celular se ve la jornada completa sin tener que deslizar la tabla de lado.\n\n" +
+      "Además, la fila de títulos se queda arriba mientras bajas por los días: ya no hay que volver a subir para " +
+      "saber qué columna es cuál.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-11-17-la-bandeja-abre-al-instante",
+    fecha: "2026-11-17",
+    titulo: "La Bandeja abre al instante",
+    queMejoro:
+      "Al entrar a la Bandeja desde otra pantalla del panel, la lista ya no espera: sale con lo que el menú había " +
+      "leído para su número y se confirma con la base enseguida, sin que tengas que hacer nada.\n\n" +
+      "Además, el número del menú y la lista ahora salen de la misma lectura. Si algo se resuelve o llega algo " +
+      "nuevo mientras tienes la Bandeja abierta, la lista se pone al día sola junto con el número.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-17-marcar-en-el-terminal-toma-menos-tiempo",
     fecha: "2026-11-17",
     titulo: "Marcar en el terminal toma menos tiempo",

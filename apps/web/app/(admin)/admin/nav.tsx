@@ -25,7 +25,7 @@
 // también dice qué se pierde. Resolver algo en la Bandeja sigue refrescando al
 // instante.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -33,7 +33,9 @@ import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
 import { usePulsoContadores } from "@/lib/admin/use-pulso-contadores";
 import { useAlDia } from "@/lib/tiempo-real";
 import { traerBandeja } from "@/lib/bandeja-mia";
-import { CUENTA_VACIA, cuentaBandejaEquipo } from "@/lib/admin/bandeja-equipo";
+import { CUENTA_VACIA } from "@/lib/admin/bandeja-equipo";
+import { HOLGURA_MISMA_ENTRADA_MS, lectorDeLaBandeja, olvidarLaBandeja, useLecturaBandeja } from "@/lib/admin/bandeja-compartida";
+import { cuentaDeLaBandeja } from "@/lib/admin/bandeja-fuentes";
 import { tituloDelContadorBandeja } from "@/lib/admin/bandeja-sistema";
 import { EVENTO_CAMBIO_BANDEJA } from "@/lib/admin/bandeja-urgencia";
 import { useGruposCerrados, useNavColapsado } from "@/lib/use-nav-colapsado";
@@ -140,7 +142,6 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
   const [revisionesPendientes, setRevisionesPendientes] = useState(0);
   const [misAvisos, setMisAvisos] = useState(0);
-  const [bandejaCuenta, setBandejaCuenta] = useState(CUENTA_VACIA);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
   // Resolver algo DENTRO de la Bandeja no cambia el pathname, así que los dos
@@ -246,13 +247,34 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   // propio ítem «Bandeja» decide si se pinta (`roles: SEDE` en nav-items.ts);
   // dentro de la función cada sección vuelve a preguntar su propio permiso,
   // así que una encargada sin acceso a Educación no la cuenta dos veces.
+  //
+  // Desde el 2026-11-17 no la pide el menú por su cuenta: sale del lector que comparte con la pantalla Bandeja, el
+  // Dashboard y Equipo (`lib/admin/bandeja-compartida.ts`). El número es `cuentaDeLaBandeja` sobre la ÚLTIMA
+  // lectura, la haya pedido quien la haya pedido: si la pantalla relee después de resolver algo, el menú se entera
+  // sin preguntar otra vez. Medido en producción: estas ~28 consultas eran el 72 % del tiempo de base de Dynamic.
+  const lectorBandeja = useMemo(
+    () => (veEquipo ? lectorDeLaBandeja(persona?.id, rol) : null),
+    [veEquipo, persona?.id, rol],
+  );
+  const lecturaBandeja = useLecturaBandeja(lectorBandeja);
+  const bandejaCuenta = useMemo(
+    () => (lecturaBandeja
+      ? cuentaDeLaBandeja(lecturaBandeja.valor.fuentes, lecturaBandeja.valor.constanciasNormas)
+      : CUENTA_VACIA),
+    [lecturaBandeja],
+  );
+  // Al entrar y con cada pulso: no hay un guardado de por medio, así que una lectura que salió hace un instante
+  // sirve (la pantalla Bandeja pide la suya en ese mismo momento, y las dos son una).
   useEffect(() => {
-    if (!veEquipo) return;
-    let vivo = true;
-    void cuentaBandejaEquipo(createAdminSupabaseClient(), rol)
-      .then((c) => { if (vivo) setBandejaCuenta(c); });
-    return () => { vivo = false; };
-  }, [veEquipo, rol, pulso, cambiosEnBandeja]);
+    if (!lectorBandeja) return;
+    void lectorBandeja.pedir(Date.now() - HOLGURA_MISMA_ENTRADA_MS);
+  }, [lectorBandeja, pulso]);
+  // Alguien resolvió algo o la base avisó un cambio: hace falta una lectura que salga DESPUÉS de eso. El 0 es el
+  // valor de arranque, no un cambio: esa primera lectura ya la pide el efecto de arriba.
+  useEffect(() => {
+    if (!lectorBandeja || cambiosEnBandeja === 0) return;
+    void lectorBandeja.pedir();
+  }, [lectorBandeja, cambiosEnBandeja]);
 
   // Lo suyo. Sale de `traerBandeja`, la MISMA función que pinta el número del
   // botón «Bandeja» de /mio: el menú del panel y esa pantalla no pueden decir
@@ -273,6 +295,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   async function cerrarSesion() {
     const supabase = createAdminSupabaseClient();
     await supabase.auth.signOut();
+    olvidarLaBandeja();
     router.replace("/admin/login");
   }
 

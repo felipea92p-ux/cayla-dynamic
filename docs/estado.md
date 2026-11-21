@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-21 — El terminal pasa a retratos: isla, «Tu momento», anillo y «Listo» en la isla · sin SQL · **en local: falta que Felipe apruebe la demo** · rama `claude/keen-heisenberg-naagvu`
+## 2026-11-21 — El terminal pasa a retratos: isla, «Tu momento», anillo y «Listo» en la isla · sin SQL · **Felipe aprobó la demo y pidió publicarlo el 2026-11-21** · rama `claude/keen-heisenberg-naagvu`
 
 **De dónde sale.** Felipe pidió ideas para que el terminal se viera mejor, eligió cuatro mirando una lámina (retratos con isla, «Tu
 momento», el anillo y la isla que avisa «Listo»), pidió una maqueta que aguantara sedes de 3 y de más de 20 personas y el cambio de
@@ -35,7 +35,8 @@ anillo NO muestra la hora de la marca, porque la pone el servidor; y el «Listo�
   y cancelar antes no marca; el «Listo» no cambia la medida de la isla ni mueve un retrato. 1 490 textos medidos contra sus píxeles:
   bajo 4.5:1 solo las casillas atenuadas al iluminar un estado (30 %, como hoy). Esa medición encontró y corrigió los apellidos de la
   casilla iluminada en oscuro (3,7:1).
-- **Con la pantalla real** contra una base desechable (Postgres 16, las 590 migraciones, `scripts/local/sembrar.mjs`), con la cuenta
+- **Con la pantalla real** contra una base desechable (Postgres 16, las 590 migraciones, `scripts/local/sembrar.mjs`; la siembra se
+  cortó en las boletas, que el terminal no usa, y eso ya lo arregló el #748), con la cuenta
   del terminal de cada sede: entrada, salida a refrigerio y su regreso, cancelar en el anillo (no deja marca), salida final con la
   pregunta del refrigerio, el día cerrado y reabrirlo, «Voy a almacén», «Otra salida» y el cambio de sede con dos personas visibles en
   todas las sedes. Cada marca se comprobó en `marcajes`, y la casilla quedó diciendo lo mismo que la base.
@@ -50,11 +51,89 @@ real (sin Docker aquí): la lista se puso al día al volver de cada marca, no po
 
 **Queda, y no es de este cambio.** Las hojas que no se rediseñaron (motivo, refrigerio, almacén, reabrir) conservan su «Cancelar» como
 enlace chico. Cuando la primera persona del día vuelve de su refrigerio, las casillas ganan un renglón y el retrato cede 18 px: se
-mueve una vez, no bajo el dedo. `scripts/local/sembrar.mjs` falló el 2026-11-21 en `datos-pago.sql` («Ese periodo todavía no está
-pagado…») después de sembrar personas, cuentas y marcas: no afecta al terminal, pero una base local nueva queda sin boletas de prueba.
+mueve una vez, no bajo el dedo.
 
-**Publicación.** Nada subido todavía: Felipe pidió ver la demo y aprobarla antes. Fusionar este PR **es publicarlo encendido** en las
-Mac mini de las cuatro sedes. Después de publicar: marcar una entrada y una salida en un terminal de sede y mirar la casilla.
+**Publicación.** Felipe vio la demo (un video y capturas del navegador con datos inventados, no el terminal corriendo en su
+computadora) y pidió publicarlo el 2026-11-21 a las 14:08 de Lima, un sábado con tiendas abiertas: «implementa a producción pero
+guarda un respaldo del terminal actual en producción». Fusionar este PR **es publicarlo encendido** en las Mac mini de las cuatro sedes.
+
+**El respaldo, y cómo volver al terminal de antes.** La etiqueta de git `respaldo/terminal-casillas-2026-11-21` marca el commit de
+`main` que estaba publicado (`d0780cd`): la pantalla de casillas con vidrio. Tres caminos, del más rápido al que se queda:
+1. En Vercel, «Instant Rollback» al despliegue anterior. Vuelve en segundos, pero la siguiente fusión que toque la web publica otra
+   vez el terminal nuevo: sirve para ganar tiempo, no para quedarse.
+2. Revertir este PR en GitHub (botón «Revert») y fusionar esa reversión. Vuelve el terminal exacto de antes, y se queda.
+3. Quitar `NEXT_PUBLIC_VIDRIO_TERMINAL` en Vercel y reconstruir. Vuelve la pantalla de casillas sin vidrio, que se probó marcando
+   contra la base. Ojo: con el interruptor encendido ya no se puede elegir la pantalla de casillas con vidrio; esa solo vuelve por 1 o 2.
+
+**Queda después de publicar.** Marcar una entrada y una salida en una Mac mini de sede (Safari) y mirar que la casilla lo diga.
+
+---
+
+## 2026-11-17 — Reactividad de Dynamic, paso 1: la Bandeja se lee una vez por pestaña (y la siembra local, arreglada) · sin SQL · **SIN FUSIONAR, espera a Felipe** · rama `claude/modest-fermi-4pwns6`
+
+**De dónde sale.** Felipe (2026-11-17): «mejorar la reactividad de todo el sistema». Eligió «las dos cosas» (primero la espera al
+tocar, después que las pantallas se pongan al día solas) y «Dynamic primero».
+
+**Lo medido en producción** (solo lectura, `pg_stat_statements`, 12 al 17 de noviembre; nombres de función y tiempos, ningún dato de
+personas):
+- El terminal no espera a la base: `fn_registrar_marcaje` 26 ms de media (109 la peor) y la lista 9 ms.
+- Las ~28 consultas de la Bandeja son el **72 %** del tiempo de base de Dynamic (3 156 de 4 376 s). El menú las relanza al navegar,
+  con cada aviso de tiempo real (o sea, cada vez que alguien marca) y cada 5 min; la pantalla Bandeja, el indicador del Dashboard y
+  Equipo las volvían a pedir por su cuenta.
+- `fn_liquidaciones_vencidas_bandeja` sola es el **24 %**: 886 ms de media y 4,5 s la peor, para devolver 1 fila. Corre el motor de
+  planilla por cada cesada sin liquidación pagada (ese día, 2). La pantalla Bandeja de admin y DO esperaba a esa consulta para pintar.
+- La base no está saturada (Dynamic usa cerca del 1 % de un núcleo): la espera está en el camino del clic, no en la máquina.
+- Provisiones 1,3 s, `fn_grati_cts_periodo` 1,8 s y `fn_planilla_variacion` 1,0 s: pantallas de plata, de uso puntual.
+
+**Construido.** `apps/web/lib/lector-compartido.ts` (sin React ni Supabase) y `apps/web/lib/admin/bandeja-compartida.ts`: un solo
+lector por persona y rol, que comparten el menú, `/admin/bandeja`, el indicador del Dashboard y Equipo.
+- Dos que piden a la vez comparten una ronda. Nunca hay dos rondas en vuelo.
+- La pantalla Bandeja pinta con lo que el menú ya leyó (hasta 5 min de edad) y se confirma con la base detrás.
+- Quien acaba de guardar nunca recibe una lectura que salió antes de su guardado (`umbral` en la pantalla).
+- El número del menú y la lista salen de la misma lectura. La lista se pone al día sola con cada lectura nueva, y marca «visto» lo
+  que llega después de entrar, una vez por visita.
+- La llave lleva a la persona, no solo el rol: dos líderes de equipo ven sedes distintas. Al cerrar sesión se olvida.
+- El enlace de Normas de la Bandeja sale de la misma lectura (antes pedía `fn_documentos_vigentes` otra vez).
+
+**Verificado.** `tests/lector-compartido.test.ts` (8) y `tests/bandeja-compartida.test.ts` (5); las 4 266 de vitest, typecheck y el
+linter sobre los archivos tocados. En un navegador (Chromium), con el ingreso de verdad y **la API de datos simulada en el propio
+navegador** con datos inventados, la consulta lenta puesta en 3 s y el mismo guion sobre el código de antes como control:
+
+| | Antes | Después |
+|---|---|---|
+| Abrir la Bandeja desde otra pantalla | 3 380 ms | 239 ms |
+| Algo cambia fuera de la pantalla | el menú dice 2 y la lista sigue en 3 | los dos dicen 2 |
+| Recargar estando en la Bandeja | 3 rondas de consultas | 2 |
+
+**No verificado.** Contra una base de verdad: en el contenedor de la sesión no hay PostgREST ni Docker, y ejecutar el binario
+descargado fue denegado por el control de permisos de la sesión. Por lo mismo **no se pudo medir pantalla por pantalla** (peticiones y
+esperas en cadena), que era la otra mitad del encargo. Tampoco en Safari, ni el flujo de resolver una fila con el botón (se probó el
+aviso que ese botón dispara).
+
+**Lo que NO arregla.** Entrar en frío a la Bandeja (recargar, o con una lectura de más de 5 min) sigue esperando a
+`fn_liquidaciones_vencidas_bandeja`. Eso se arregla en la base, y toca plata: es decisión de Felipe.
+
+**Sigue, en este orden** (cada uno espera el OK de Felipe):
+1. La consulta de liquidaciones vencidas deja de correr el motor de planilla en cada vuelta (SQL, la pega Felipe).
+2. Esperas en cadena leídas en el código, sin medir: `/admin/equipo` (5 rondas, 4 de ellas independientes), `cargarDisciplina` del
+   Dashboard (3 rondas con 5 lecturas independientes), `traerCasosTraspasados` de la Bandeja (5 rondas, 2 sobran), «Lo mío» y Turnos.
+3. Un cronómetro del clic para Dynamic, como el de Retail (ADR-0654 de allá): hoy no hay forma de saber cuánto espera cada pantalla.
+4. Tiempo real, lotes 2 a 5 del ADR 0006 (migraciones que pega Felipe).
+
+**El entorno local, arreglado el mismo día** (a pedido de Felipe: «Arreglar la siembra de la base local en una base nueva»).
+- **La siembra en una base nueva.** `sembrar.mjs` corría `datos-pago.sql` (Boletas y Educación) dentro de `sembrarFirmados`, antes de
+  `pagarPeriodosAnteriores()`: `fn_boleta_marcar_papel` rechazaba («Ese periodo todavía no está pagado…») y la siembra se cortaba ahí.
+  La base quedaba con los 5 periodos abiertos, sin boletas, sin apoyos y sin las dos cesadas, y el siguiente `arrancar.sh` la daba por
+  buena porque la carpeta ya existía. Ahora `datos-pago.sql` va después de pagar, y dice de dónde viene si le falta el periodo pagado.
+  Medido en una base aparte, desde cero, antes y después: de `abierto=5`, 0 boletas, 0 apoyos y 1 cese, a `pagado=2, abierto=3`,
+  4 boletas, 2 apoyos y 3 ceses, que es lo que promete el `LEEME`. Repetir `datos-pago.sql` no duplica nada.
+- **`arrancar.sh` ya no dice «encendido» sin la API de datos.** Si falta PostgREST lo dice antes de encender lo demás, y antes de
+  terminar espera a que conteste (hasta 10 s; un 503 no vale). Probado en cinco casos: sin PostgREST (antes salía con 0 y «Entorno local
+  encendido»; ahora con 1 y el motivo), uno que arranca y muere, uno que contesta 503, uno que contesta bien y uno que ya estaba
+  escuchando. **Con un doble de PostgREST, no con el de verdad:** en el contenedor de la sesión no se puede ejecutar.
+- **Sigue igual:** los guiones asumen Mac (Postgres 17 de Homebrew en `comun.sh`, `initdb --locale-provider=builtin`). En Linux hizo
+  falta un envoltorio fuera del repo. Y `next dev`/`next build` (Next 16.4.1) se detienen una vez para avisar de una vulnerabilidad
+  conocida y recomendar actualizar; no se actualizó nada.
 
 ---
 
