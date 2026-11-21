@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-21-horas-salida-junto-a-la-entrada",
+    fecha: "2026-11-21",
+    titulo: "En Horas, la salida va junto a la entrada",
+    queMejoro:
+      "Al abrir los días de una persona en Horas, la tabla ahora dice Fecha, Entrada y Salida primero, y el " +
+      "almuerzo después. En el celular se ve la jornada completa sin tener que deslizar la tabla de lado.\n\n" +
+      "Además, la fila de títulos se queda arriba mientras bajas por los días: ya no hay que volver a subir para " +
+      "saber qué columna es cuál.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-17-la-bandeja-abre-al-instante",
     fecha: "2026-11-17",
     titulo: "La Bandeja abre al instante",

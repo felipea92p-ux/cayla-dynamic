@@ -31,6 +31,9 @@ export function Tabla({
         className,
       )}
       style={style}
+      // Marca para el vidrio: esta cabecera SÍ se pega mientras las filas pasan
+      // por debajo, así que no puede quedar sin fondo (ver piezas.css).
+      data-cabecera-fija={alturaMaxima ? "" : undefined}
     >
       <table className="w-full text-sm">{children}</table>
     </div>
