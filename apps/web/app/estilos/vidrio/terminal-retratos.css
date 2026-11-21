@@ -35,23 +35,22 @@
   }
 
   /* ---------- Arriba: la marca, la isla y el tema ---------- */
+  /* Tres columnas: la marca, la isla y el tema. Las de los lados miden lo mismo, así la isla queda al centro y nunca se
+     monta sobre la marca en un monitor angosto (a 1366 px se montaba cuando la marca iba suelta). */
   [data-vidrio="terminal"] .tr-cima {
     position: relative;
     z-index: 5;
-    display: flex;
+    display: grid;
     flex: none;
+    grid-template-columns: minmax(max-content, 1fr) minmax(0, 940px) minmax(max-content, 1fr);
     align-items: center;
-    justify-content: center;
+    gap: 20px;
     min-height: 104px;
   }
   [data-vidrio="terminal"] .tr-marca {
-    position: absolute;
-    left: 0;
-    top: 50%;
     display: flex;
     align-items: center;
     gap: 14px;
-    translate: 0 -50%;
   }
   [data-vidrio="terminal"] .tr-marca-palabra {
     font-size: 25px;
@@ -64,13 +63,10 @@
     color: var(--vidrio-letra-secundaria);
   }
   [data-vidrio="terminal"] .tr-acciones {
-    position: absolute;
-    right: 0;
-    top: 50%;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 10px;
-    translate: 0 -50%;
   }
   /* El botón del tema, a 52 px y con su borde de control: aquí se toca con el dedo. */
   [data-vidrio="terminal"] .tr-acciones .boton-tema {
@@ -89,7 +85,7 @@
     grid-template-columns: minmax(170px, 1.05fr) 1px minmax(170px, 1fr) 1px minmax(230px, 1.3fr);
     align-items: center;
     gap: 20px;
-    width: min(940px, 66vw);
+    width: min(940px, 100%);
     min-height: 100px;
     padding: 12px 26px;
     border: 1px solid var(--marco-vidrio-borde);
@@ -654,7 +650,241 @@
     backdrop-filter: var(--vidrio-hoja-filtro);
   }
 
+  /* ---------- «Tu momento»: a la izquierda quién eres y cómo va tu día; a la derecha, lo que puedes marcar ---------- */
+  [data-vidrio="terminal"] .tr-hoja {
+    position: relative;
+    width: min(940px, 100%);
+    max-height: calc(100dvh - 40px);
+    margin: auto;
+    padding: 30px;
+    overflow: auto;
+    border: 1px solid var(--vidrio-hoja-borde);
+    border-radius: var(--radius-hoja);
+    background: var(--vidrio-hoja-fondo);
+    -webkit-backdrop-filter: var(--vidrio-hoja-filtro);
+    backdrop-filter: var(--vidrio-hoja-filtro);
+    box-shadow: var(--vidrio-hoja-sombra);
+    color: var(--color-tinta);
+    animation: vidrio-tr-hoja var(--t-hoja) var(--ease-cayla) backwards;
+  }
+  [data-vidrio="terminal"] .tr-hoja-cabeza {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  [data-vidrio="terminal"] .tr-hoja-cabeza > h2 {
+    margin: 0;
+    font-size: 38px;
+    line-height: 1;
+  }
+  [data-vidrio="terminal"] .tr-cerrar {
+    display: grid;
+    place-items: center;
+    width: 50px;
+    height: 50px;
+    border: 1.5px solid var(--color-borde-control);
+    border-radius: 999px;
+    background: var(--gota-fondo);
+    box-shadow: var(--gota-luz);
+    color: var(--color-tinta);
+    cursor: pointer;
+    transition: var(--vidrio-boton-transicion);
+  }
+  [data-vidrio="terminal"] .tr-momento {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.85fr) minmax(300px, 1.15fr);
+    gap: 30px;
+  }
+  /* Quién es: una placa, que es lo que explica. */
+  [data-vidrio="terminal"] .tr-perfil {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    border: 1px solid var(--placa-borde);
+    border-radius: var(--radius-tarjeta);
+    background: var(--placa-fondo);
+    box-shadow: var(--placa-luz);
+    text-align: center;
+  }
+  [data-vidrio="terminal"] .tr-perfil-foto {
+    --tr-foto: 236px;
+    width: min(100%, 236px);
+    border-radius: 19px;
+  }
+  [data-vidrio="terminal"] .tr-perfil > h3 {
+    margin: 18px 0 0;
+    font-size: 38px;
+    line-height: 1.05;
+  }
+  [data-vidrio="terminal"] .tr-perfil-apellidos {
+    margin: 4px 0 0;
+    font-size: 17px;
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .tr-perfil-rotulo {
+    margin: 16px 0 6px;
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .tr-perfil-hoy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-size: 16px;
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .tr-perfil-hoy > p {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    font-weight: 500;
+  }
+  [data-vidrio="terminal"] .tr-perfil-historial {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    font-size: 16px;
+    list-style: none;
+    text-align: left;
+  }
+  [data-vidrio="terminal"] .tr-perfil-historial > li {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  [data-vidrio="terminal"] .tr-perfil-historial > li > span:last-child {
+    color: var(--vidrio-letra-secundaria);
+    font-variant-numeric: tabular-nums;
+  }
+
+  [data-vidrio="terminal"] .tr-opciones {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+  [data-vidrio="terminal"] .tr-opciones-rotulo {
+    margin-bottom: 4px;
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .tr-opciones .tr-opciones-aviso {
+    margin: 0 0 4px;
+    padding: 12px 16px;
+    font-size: 15px;
+  }
+  [data-vidrio="terminal"] .tr-pregunta {
+    margin: 6px 0 14px;
+    font-size: 30px;
+    line-height: 1.1;
+  }
+  /* Cada opción es una gota; la sugerida, ahumada. Al pasar el mouse la ahumada va a rojo profundo, como todo botón negro. */
+  [data-vidrio="terminal"] .tr-opcion {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    min-height: 70px;
+    padding: 12px 18px;
+    border: 1.5px solid var(--color-borde-control);
+    border-radius: 18px;
+    background: var(--gota-fondo);
+    box-shadow: var(--gota-luz);
+    color: var(--color-tinta);
+    font-size: 18px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: var(--vidrio-boton-transicion);
+  }
+  [data-vidrio="terminal"] .tr-opcion > svg {
+    flex: none;
+  }
+  [data-vidrio="terminal"] .tr-opcion small {
+    display: block;
+    margin-top: 3px;
+    font-size: 14px;
+    font-weight: 400;
+    opacity: 0.86;
+  }
+  [data-vidrio="terminal"] .tr-opcion[data-principal="true"] {
+    min-height: 78px;
+    border-color: var(--ahumado-borde);
+    background: var(--ahumado-fondo);
+    box-shadow: var(--ahumado-luz);
+    color: var(--color-crema);
+    font-size: 20px;
+  }
+  [data-vidrio="terminal"] :is(.tr-opcion, .tr-cancelar, .tr-cerrar, .tr-enlace):active {
+    scale: 0.97;
+  }
+  [data-vidrio="terminal"] .tr-opciones-enlaces {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 12px;
+  }
+  /* Lo que se toca poco pesa poco, pero no mide menos: quien tocó por error busca cómo volver con prisa. */
+  [data-vidrio="terminal"] .tr-enlace {
+    min-height: 48px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--vidrio-letra-secundaria);
+    font-size: 16px;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    cursor: pointer;
+  }
+  [data-vidrio="terminal"] .tr-cancelar {
+    min-height: 54px;
+    margin-top: 6px;
+    border: 1.5px solid var(--color-borde-control);
+    border-radius: 999px;
+    background: none;
+    color: var(--color-tinta);
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--vidrio-boton-transicion);
+  }
+  @media (hover: hover) {
+    [data-vidrio="terminal"] :is(.tr-opcion, .tr-cerrar):hover {
+      border-color: var(--color-rojo);
+      background: var(--gota-fondo-encima);
+    }
+    [data-vidrio="terminal"] .tr-opcion[data-principal="true"]:hover {
+      border-color: color-mix(in srgb, var(--color-rojo-profundo) 70%, transparent);
+      background: var(--ahumado-hover);
+    }
+    [data-vidrio="terminal"] .tr-cancelar:hover {
+      background: var(--gota-fondo);
+    }
+    [data-vidrio="terminal"] .tr-enlace:hover {
+      color: var(--color-tinta);
+    }
+  }
+
   @media (max-height: 850px) {
+    [data-vidrio="terminal"] .tr-hoja {
+      padding: 22px;
+    }
+    [data-vidrio="terminal"] .tr-hoja-cabeza {
+      margin-bottom: 14px;
+    }
+    [data-vidrio="terminal"] .tr-perfil-foto {
+      --tr-foto: 170px;
+      width: min(100%, 170px);
+    }
+    [data-vidrio="terminal"] .tr-opcion {
+      min-height: 60px;
+    }
     [data-vidrio="terminal"] .tr-cima {
       min-height: 86px;
     }
@@ -671,6 +901,12 @@
       margin-top: 9px;
     }
   }
+  /* En un monitor de 1440 o 1366 px la isla cede ancho para seguir al centro, con la marca y el tema a los lados. */
+  @media (max-width: 1500px) {
+    [data-vidrio="terminal"] .tr-cima {
+      grid-template-columns: minmax(max-content, 1fr) minmax(0, 800px) minmax(max-content, 1fr);
+    }
+  }
   @media (max-width: 1150px) {
     [data-vidrio="terminal"] .tr-marca-palabra {
       font-size: 20px;
@@ -678,7 +914,6 @@
     [data-vidrio="terminal"] .tr-isla {
       grid-template-columns: minmax(135px, 1fr) 1px minmax(115px, 0.9fr) 1px minmax(190px, 1.2fr);
       gap: 12px;
-      width: min(760px, 68vw);
       padding: 10px 18px;
     }
     [data-vidrio="terminal"] .tr-dia {
@@ -686,7 +921,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    [data-vidrio="terminal"] :is(.tr-casilla, .tr-chip, .tr-capa, .tr-sede-lista, .tr-sede-boton, .tr-aviso-sede-boton) {
+    [data-vidrio="terminal"] :is(.tr-casilla, .tr-chip, .tr-capa, .tr-sede-lista, .tr-sede-boton, .tr-aviso-sede-boton, .tr-hoja, .tr-opcion, .tr-cancelar, .tr-cerrar) {
       animation: none;
       transition: none;
     }
@@ -699,6 +934,13 @@
   }
 }
 
+@keyframes vidrio-tr-hoja {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+    scale: 0.985;
+  }
+}
 @keyframes vidrio-tr-lista {
   from {
     opacity: 0;

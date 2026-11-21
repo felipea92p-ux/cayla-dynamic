@@ -81,6 +81,7 @@ import {
   SelectorSede,
   type EstadoRoster,
 } from "./components";
+import { HojaCerrado, HojaTuMomento } from "./hojas-retratos";
 import { PildoraDeEstados } from "./presencia-visual";
 import { AvisoOtraSede, GrillaRetratos, IslaTerminal, MarcaTerminal, PieRetratos, SedeDeIsla, TituloYLeyenda } from "./retratos";
 
@@ -1233,19 +1234,34 @@ export default function MarcarPage() {
           <Cargando texto={`Confirmando el estado de ${personaActual.nombres}…`} clase="font-serif text-2xl" />
         ))}
 
-      {pantalla === "elegir_salida" && personaActual && salidaConfig && (
-        <SelectorSalida
-          nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
-          principal={salidaConfig.principal}
-          secundaria={salidaConfig.secundaria}
-          otras={salidaConfig.otras}
-          neutra={salidaConfig.neutra}
-          aviso={salidaConfig.aviso}
-          almacen={opcionAlmacen}
-          onElegir={elegirTipoSalida}
-          onCancelar={volverALista}
-        />
-      )}
+      {/* El menú de salida. Con retratos es «Tu momento»: las mismas opciones, con la foto de a quién se le pregunta. */}
+      {pantalla === "elegir_salida" && personaActual && salidaConfig &&
+        (conRetratos ? (
+          <HojaTuMomento
+            persona={personaActual}
+            presencia={presenciaPorPersona?.get(personaActual.id)}
+            principal={salidaConfig.principal}
+            secundaria={salidaConfig.secundaria}
+            otras={salidaConfig.otras}
+            neutra={salidaConfig.neutra}
+            aviso={salidaConfig.aviso}
+            almacen={opcionAlmacen}
+            onElegir={elegirTipoSalida}
+            onCancelar={volverALista}
+          />
+        ) : (
+          <SelectorSalida
+            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
+            principal={salidaConfig.principal}
+            secundaria={salidaConfig.secundaria}
+            otras={salidaConfig.otras}
+            neutra={salidaConfig.neutra}
+            aviso={salidaConfig.aviso}
+            almacen={opcionAlmacen}
+            onElegir={elegirTipoSalida}
+            onCancelar={volverALista}
+          />
+        ))}
 
       {pantalla === "elegir_tiempo_almacen" && personaActual && (
         <ElegirTiempoAlmacen
@@ -1256,14 +1272,22 @@ export default function MarcarPage() {
         />
       )}
 
-      {pantalla === "cerrado" && personaActual && (
-        <PantallaCerrado
-          nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
-          historial={historialCerrado}
-          onVolviAEntrar={() => setPantalla("motivo_reentrada")}
-          onCancelar={volverALista}
-        />
-      )}
+      {pantalla === "cerrado" && personaActual &&
+        (conRetratos ? (
+          <HojaCerrado
+            persona={personaActual}
+            historial={historialCerrado}
+            onVolviAEntrar={() => setPantalla("motivo_reentrada")}
+            onCancelar={volverALista}
+          />
+        ) : (
+          <PantallaCerrado
+            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
+            historial={historialCerrado}
+            onVolviAEntrar={() => setPantalla("motivo_reentrada")}
+            onCancelar={volverALista}
+          />
+        ))}
 
       {pantalla === "motivo_reentrada" && personaActual && (
         <MotivoReentrada onElegir={reabrirDia} onCancelar={volverALista} />
