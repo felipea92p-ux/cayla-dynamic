@@ -871,7 +871,119 @@
     }
   }
 
+  /* ---------- El anillo: la cuenta atrás es un aro que se vacía alrededor de tu foto ---------- */
+  [data-vidrio="terminal"] .tr-hoja-anillo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: min(640px, 100%);
+    padding: 30px 38px 34px;
+    text-align: center;
+  }
+  [data-vidrio="terminal"] .tr-anillo-rotulo {
+    color: var(--vidrio-letra-secundaria);
+  }
+  [data-vidrio="terminal"] .tr-anillo-marca {
+    margin: 8px 0 0;
+    font-size: clamp(42px, 4.4vw, 64px);
+    line-height: 1.02;
+    text-wrap: balance;
+  }
+  [data-vidrio="terminal"] .tr-anillo {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 228px;
+    height: 228px;
+    margin: 20px 0 16px;
+  }
+  [data-vidrio="terminal"] .tr-anillo > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    rotate: -90deg;
+  }
+  [data-vidrio="terminal"] .tr-anillo-pista {
+    fill: none;
+    stroke: var(--tubo-anillo);
+    stroke-width: 3.6;
+  }
+  [data-vidrio="terminal"] .tr-anillo-aro {
+    fill: none;
+    stroke: var(--color-rojo);
+    stroke-width: 3.6;
+    stroke-linecap: round;
+  }
+  [data-vidrio="terminal"] .tr-anillo-foto {
+    --tr-foto: 196px;
+    width: 196px;
+    border-radius: 50%;
+  }
+  [data-vidrio="terminal"] .tr-anillo-nombre {
+    margin: 0;
+    font-size: 34px;
+    line-height: 1.1;
+  }
+  [data-vidrio="terminal"] .tr-anillo-cuenta {
+    margin: 8px 0 22px;
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--vidrio-letra-secundaria);
+    font-variant-numeric: tabular-nums;
+  }
+  [data-vidrio="terminal"] .tr-anillo-botones {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    width: 100%;
+  }
+  [data-vidrio="terminal"] .tr-boton {
+    min-height: 60px;
+    border: 1.5px solid var(--color-borde-control);
+    border-radius: 999px;
+    background: var(--gota-fondo);
+    box-shadow: var(--gota-luz);
+    color: var(--color-tinta);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--vidrio-boton-transicion);
+  }
+  [data-vidrio="terminal"] .tr-boton[data-principal] {
+    border-color: var(--ahumado-borde);
+    background: var(--ahumado-fondo);
+    box-shadow: var(--ahumado-luz);
+    color: var(--color-crema);
+  }
+  [data-vidrio="terminal"] .tr-boton:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+  [data-vidrio="terminal"] .tr-boton:not(:disabled):active {
+    scale: 0.97;
+  }
+  @media (hover: hover) {
+    [data-vidrio="terminal"] .tr-boton:not(:disabled):hover {
+      border-color: var(--color-rojo);
+      background: var(--gota-fondo-encima);
+    }
+    [data-vidrio="terminal"] .tr-boton[data-principal]:not(:disabled):hover {
+      border-color: color-mix(in srgb, var(--color-rojo-profundo) 70%, transparent);
+      background: var(--ahumado-hover);
+    }
+  }
+
   @media (max-height: 850px) {
+    [data-vidrio="terminal"] .tr-anillo {
+      width: 188px;
+      height: 188px;
+      margin: 14px 0 12px;
+    }
+    [data-vidrio="terminal"] .tr-anillo-foto {
+      --tr-foto: 160px;
+      width: 160px;
+    }
     [data-vidrio="terminal"] .tr-hoja {
       padding: 22px;
     }
@@ -921,7 +1033,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    [data-vidrio="terminal"] :is(.tr-casilla, .tr-chip, .tr-capa, .tr-sede-lista, .tr-sede-boton, .tr-aviso-sede-boton, .tr-hoja, .tr-opcion, .tr-cancelar, .tr-cerrar) {
+    [data-vidrio="terminal"] :is(.tr-casilla, .tr-chip, .tr-capa, .tr-sede-lista, .tr-sede-boton, .tr-aviso-sede-boton, .tr-hoja, .tr-opcion, .tr-cancelar, .tr-cerrar, .tr-boton) {
       animation: none;
       transition: none;
     }

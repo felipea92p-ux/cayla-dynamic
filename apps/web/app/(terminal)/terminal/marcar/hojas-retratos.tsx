@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Footprints, LogIn, LogOut, Store, Undo2, Utensils, Warehouse, X, type LucideIcon } from "lucide-react";
 import type { TipoMarca } from "@cayla-dynamic/shared";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
@@ -9,7 +9,8 @@ import type { OpcionAlmacen } from "./components";
 import { ESTILO_PRESENCIA } from "./presencia-visual";
 import { FotoRetrato } from "./retratos";
 
-// Las hojas de marcar de la pantalla de retratos (Felipe, 2026-11-21): «Tu momento» y la de quien ya cerró su día.
+// Las hojas de marcar de la pantalla de retratos (Felipe, 2026-11-21): «Tu momento», la de quien ya cerró su día y la
+// confirmación con anillo.
 // Solo existen con el vidrio del terminal encendido (estilos/vidrio/terminal-retratos.css).
 //
 // SON LAS MISMAS PREGUNTAS CON OTRA CARA. Cada una recibe lo que recibía su gemela de marcar/components.tsx
@@ -269,5 +270,115 @@ export function HojaCerrado({
         No, ya me voy
       </button>
     </Hoja>
+  );
+}
+
+/** El largo del aro, para vaciarlo: 2πr con r = 47 en un dibujo de 100. */
+const LARGO_DEL_ARO = 2 * Math.PI * 47;
+
+/**
+ * La cuenta atrás antes de registrar una marca: el aro rojo alrededor de la foto se vacía en `segundosTotal` y la marca
+ * se confirma sola. Es la única ventana para arrepentirse, y en la entrada y los regresos —donde tocar el nombre ya es
+ * la marca— es lo único que separa un dedo en el retrato de al lado de una marca a nombre de otra persona
+ * (lib/terminal/ritmo.ts). Por eso arriba dice QUÉ se va a marcar y abajo de quién, con su foto.
+ *
+ * LA REGLA ES LA DE `ConfirmacionToast`, sin cambios:
+ *   · Se confirma una sola vez, al acabarse el tiempo o al tocar «Confirmar ahora», lo que pase primero.
+ *   · Desde que la marca sale hasta que la base contesta dice «Enviando…» y apaga los DOS botones: cancelar ya no
+ *     cancelaría nada, y una marca que la persona cree haber cancelado y que igual cuenta para su pago es justo lo que
+ *     este terminal no puede hacer.
+ *
+ * No muestra la hora de la marca: la pone el servidor al registrarla, y el reloj de esta Mac puede estar corrido. La
+ * hora que cuenta es la que dice el «Listo».
+ */
+export function HojaAnillo({
+  persona,
+  marca,
+  segundosTotal,
+  onConfirmar,
+  onCancelar,
+}: {
+  persona: RosterEntry;
+  /** Qué se va a marcar, con sus palabras: «Entrada», «Salida final»… */
+  marca: string;
+  segundosTotal: number;
+  onConfirmar: () => void;
+  onCancelar: () => void;
+}) {
+  const [segundosRestantes, setSegundosRestantes] = useState(segundosTotal);
+  // El aro arranca lleno y, un instante después de montar, pasa a vacío con una transición de `segundosTotal`
+  // segundos: el navegador interpola solo. El paso por `requestAnimationFrame` hace falta: pedido en el mismo render,
+  // el navegador nunca llega a pintar el punto de partida y no hay nada que animar.
+  const [vaciando, setVaciando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const yaConfirmoRef = useRef(false);
+  const idMarca = useId();
+
+  const confirmarUnaVez = () => {
+    if (yaConfirmoRef.current) return;
+    yaConfirmoRef.current = true;
+    setEnviando(true);
+    onConfirmar();
+  };
+  // El reloj llama a la versión de AHORA de esa función, no a la del render en que arrancó.
+  const confirmarRef = useRef(confirmarUnaVez);
+  useEffect(() => {
+    confirmarRef.current = confirmarUnaVez;
+  });
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVaciando(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    const fin = window.setTimeout(() => confirmarRef.current(), segundosTotal * 1000);
+    const tic = window.setInterval(() => setSegundosRestantes((s) => Math.max(0, s - 1)), 1000);
+    return () => {
+      window.clearTimeout(fin);
+      window.clearInterval(tic);
+    };
+  }, [segundosTotal]);
+
+  return (
+    <div className="tr-hoja tr-hoja-anillo" role="dialog" aria-modal="true" aria-labelledby={idMarca}>
+      <div className="etiqueta tr-anillo-rotulo">Vas a marcar</div>
+      <p id={idMarca} className="tr-anillo-marca font-serif">
+        {marca}
+      </p>
+      <div className="tr-anillo">
+        <svg viewBox="0 0 100 100" aria-hidden>
+          <circle className="tr-anillo-pista" cx="50" cy="50" r="47" />
+          <circle
+            className="tr-anillo-aro"
+            cx="50"
+            cy="50"
+            r="47"
+            style={{
+              strokeDasharray: LARGO_DEL_ARO,
+              strokeDashoffset: vaciando || enviando ? LARGO_DEL_ARO : 0,
+              transition: vaciando && !enviando ? `stroke-dashoffset ${segundosTotal}s linear` : "none",
+            }}
+          />
+        </svg>
+        <FotoRetrato persona={persona} className="tr-anillo-foto" />
+      </div>
+      <p className="tr-anillo-nombre font-serif">
+        {persona.nombres} {persona.apellidos}
+      </p>
+      <p className="tr-anillo-cuenta" aria-live="polite">
+        {enviando ? "Enviando…" : `Se confirma sola en ${segundosRestantes} s`}
+      </p>
+      {/* Cancelar mide lo mismo que Confirmar: es el único momento en que cancelar es gratis, y la única diferencia
+          que debe quedar entre los dos es de color, no de tamaño. */}
+      <div className="tr-anillo-botones">
+        <button type="button" className="tr-boton" onClick={onCancelar} disabled={enviando}>
+          Cancelar
+        </button>
+        <button type="button" className="tr-boton" data-principal onClick={confirmarUnaVez} disabled={enviando}>
+          Confirmar ahora
+        </button>
+      </div>
+    </div>
   );
 }

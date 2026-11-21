@@ -81,7 +81,7 @@ import {
   SelectorSede,
   type EstadoRoster,
 } from "./components";
-import { HojaCerrado, HojaTuMomento } from "./hojas-retratos";
+import { HojaAnillo, HojaCerrado, HojaTuMomento } from "./hojas-retratos";
 import { PildoraDeEstados } from "./presencia-visual";
 import { AvisoOtraSede, GrillaRetratos, IslaTerminal, MarcaTerminal, PieRetratos, SedeDeIsla, TituloYLeyenda } from "./retratos";
 
@@ -1305,14 +1305,25 @@ export default function MarcarPage() {
         />
       )}
 
-      {pantalla === "confirmando" && personaActual && accionPendiente && (
-        <ConfirmacionToast
-          texto={`¿Confirmas ${TIPO_MARCA_LABELS[accionPendiente.tipo]} de ${personaActual.nombres}?`}
-          segundosTotal={SEGUNDOS_CONFIRMACION}
-          onConfirmar={confirmarMarcaje}
-          onCancelar={volverALista}
-        />
-      )}
+      {pantalla === "confirmando" &&
+        personaActual &&
+        accionPendiente &&
+        (conRetratos ? (
+          <HojaAnillo
+            persona={personaActual}
+            marca={TIPO_MARCA_LABELS[accionPendiente.tipo]}
+            segundosTotal={SEGUNDOS_CONFIRMACION}
+            onConfirmar={confirmarMarcaje}
+            onCancelar={volverALista}
+          />
+        ) : (
+          <ConfirmacionToast
+            texto={`¿Confirmas ${TIPO_MARCA_LABELS[accionPendiente.tipo]} de ${personaActual.nombres}?`}
+            segundosTotal={SEGUNDOS_CONFIRMACION}
+            onConfirmar={confirmarMarcaje}
+            onCancelar={volverALista}
+          />
+        ))}
 
       {pantalla === "mensaje" && <PantallaMensaje mensaje={mensaje} tono={tonoMensaje} detalle={detalleMensaje} />}
     </>
