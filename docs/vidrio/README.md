@@ -90,6 +90,9 @@ en oscuro. Sus piezas viven en `estilos/vidrio/terminal.css`, colgadas de clases
 `tema/pixeles.mjs`, en claro y oscuro, a 1440 y a 375 px: los 68 textos de la grilla y de las hojas pasan. Solo quedan bajo 4.5:1 las iniciales de
 quien ya terminó su día, que hoy ya se atenúan a propósito al 50 %, y las casillas atenuadas al iluminar un estado (30 %), como hoy.
 
+**Un terminal en retratos se publicó y se retiró el 2026-11-21** (PR #749 y su reversión), a pedido de Felipe, que quiere ver otros
+diseños. El terminal sigue siendo el de casillas. Qué se construyó, dónde quedó y qué enseñó: `docs/estado.md`.
+
 **Las recetas de vidrio vienen de `main` de Retail, con su bloque para quien pide menos transparencia o más contraste (#1650).** Sus variables viajan; sus reglas, una lista exacta, las escribe `estilos/vidrio/piezas.css` solo para el panel, porque apuntan a clases de Retail. Si Retail cambia esa lista, la copia se detiene y el vigilante avisa.
 
 **`tema:auditar` no alcanza con vidrio:** casi todo el texto va sobre un degradado, y ahí solo suma colores planos. Se mide también con los píxeles de cada pantalla: se saca una captura sin letras y se compara cada texto contra lo que de verdad tiene detrás. Es `tema/pixeles.mjs`; las fotos de antes y ahora salen de `tema/fotos.mjs`.

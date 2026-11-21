@@ -6,6 +6,37 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-21 — El terminal en retratos se publicó y se retiró el mismo día · sin SQL · **retirado a pedido de Felipe; se van a ver otros diseños** · PR #749 y su reversión
+
+**Qué pasó.** Felipe eligió, mirando maquetas y un diseño que trajo de ChatGPT, otra pantalla de nombres para el terminal: retratos
+con una isla (hora, fecha, sede), la hoja «Tu momento», la cuenta atrás como un anillo y el «Listo» dentro de la isla. Se construyó
+y se le mostró en una demo (video y capturas con datos inventados). La aprobó y pidió publicarla. Se fusionó el #749 a las 14:19 de
+Lima, un sábado con tiendas abiertas, y a las 14:23 pidió volver: «regresa al diseño anterior, veamos otros diseños».
+
+**Dónde estamos.** El terminal es otra vez la pantalla de casillas con vidrio, idéntica byte por byte a la de antes (`d0780cd`): la
+reversión se comparó con `git diff` contra ese commit. No hubo SQL en ninguna de las dos direcciones. Las marcas hechas en esos
+minutos quedaron registradas igual: el diseño nunca cambió qué hace cada botón.
+
+**Dónde quedó el trabajo.** En la historia de `main`, commits `de049ad..52221d3` (PR #749). Lo que vale la pena rescatar para el
+diseño que venga, porque no depende de cómo se vea:
+- `lib/terminal/acomodo.ts` con sus 17 pruebas: la regla que acomoda de 3 a más de 30 personas sin cortar a nadie.
+- La forma de probar: la pantalla real contra una base desechable (`scripts/local`, que corre con Postgres 16 y sin Docker) con la
+  cuenta del terminal de cada sede, comprobando cada marca en `marcajes`; y el contraste medido contra los píxeles.
+- Lo que se midió y quedó escrito en la descripción del #749, con lo que NO se llegó a probar: Safari, pantalla táctil, el monitor
+  real de cada sede.
+
+**Lo que enseña.** Se decidió sobre un video, no sobre el terminal corriendo en una Mac mini, y se publicó en horario de tienda.
+Para lo que venga: los diseños se miran antes en la pantalla de verdad (una vista previa con datos inventados que se pueda abrir
+en una Mac mini), y se publica uno solo, con las tiendas cerradas.
+
+**Queda.**
+- Ver otros diseños con Felipe. Antes de dibujar: preguntarle qué no le convenció de este.
+- El id de novedad `2026-11-21-el-terminal-muestra-retratos` ya estuvo en producción: no se reutiliza.
+- La rama `respaldo/terminal-casillas-2026-11-21` apunta a `d0780cd`, lo mismo que hoy tiene `main` en el terminal. Ya no hace
+  falta; se puede borrar cuando Felipe quiera.
+
+---
+
 ## 2026-11-17 — Reactividad de Dynamic, paso 1: la Bandeja se lee una vez por pestaña (y la siembra local, arreglada) · sin SQL · **SIN FUSIONAR, espera a Felipe** · rama `claude/modest-fermi-4pwns6`
 
 **De dónde sale.** Felipe (2026-11-17): «mejorar la reactividad de todo el sistema». Eligió «las dos cosas» (primero la espera al
