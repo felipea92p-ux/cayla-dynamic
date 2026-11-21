@@ -537,6 +537,11 @@
     background: linear-gradient(180deg, color-mix(in srgb, var(--c) 14%, transparent), color-mix(in srgb, var(--c) 6%, transparent)), var(--serena-fondo-encima);
     box-shadow: var(--serena-sombra-encima), 0 0 0 1.5px var(--c);
   }
+  /* Teñida, la casilla ya no es el fondo contra el que se midió la letra secundaria: en oscuro los apellidos quedaban a
+     3,7:1 (medido contra los píxeles, 2026-11-21). La que se ilumina es justo la que se está buscando: va en tinta. */
+  [data-vidrio="terminal"] .tr-casilla[data-encendida="true"] :is(.tr-apellidos, .tr-linea-extra) {
+    color: var(--color-tinta);
+  }
 
   /* El retrato: la foto, o las iniciales de quien no subió ninguna sobre un tono cálido de la casa. */
   [data-vidrio="terminal"] .tr-retrato {
