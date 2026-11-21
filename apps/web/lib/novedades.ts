@@ -115,6 +115,21 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-21-el-terminal-muestra-retratos",
+    fecha: "2026-11-21",
+    titulo: "El terminal de marcaje cambió de aspecto: ahora buscas tu retrato",
+    queMejoro:
+      "El terminal de la sede cambió de aspecto: ahora buscas tu retrato, con tu foto (o tus iniciales, si aún no " +
+      "tienes una), tu nombre y cómo va tu día, y lo tocas para marcar. Se marca igual que antes y con los mismos " +
+      "toques. Arriba quedan la hora, la fecha y la sede.\n\n" +
+      "Al tocar tu retrato se abre «Tu momento» con tu foto, para que veas que eres tú antes de elegir. Antes de " +
+      "registrar la marca, un aro alrededor de tu foto se vacía en 2 segundos: en ese rato todavía puedes cancelar. " +
+      "El «Listo» aparece arriba, donde está la hora, con tu nombre.\n\n" +
+      "Si estás de visita en otra sede, cambia la sede junto a la hora para encontrar tu nombre. La pantalla avisa " +
+      "cuando muestra una sede que no es la de ese terminal y ofrece volver.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-17-marcar-en-el-terminal-toma-menos-tiempo",
     fecha: "2026-11-17",
     titulo: "Marcar en el terminal toma menos tiempo",

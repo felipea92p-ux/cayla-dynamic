@@ -6,6 +6,58 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-21 — El terminal pasa a retratos: isla, «Tu momento», anillo y «Listo» en la isla · sin SQL · **en local: falta que Felipe apruebe la demo** · rama `claude/keen-heisenberg-naagvu`
+
+**De dónde sale.** Felipe pidió ideas para que el terminal se viera mejor, eligió cuatro mirando una lámina (retratos con isla, «Tu
+momento», el anillo y la isla que avisa «Listo»), pidió una maqueta que aguantara sedes de 3 y de más de 20 personas y el cambio de
+sede, la llevó a ChatGPT y trajo el diseño que quiso construir (2026-11-21: «Me gusta, realicémoslo»). Decidió también: la marca es
+«CAYLA · Terminal de marcaje» con el colibrí, y de piso o almacén solo se marca el almacén.
+
+**Construido**, en siete actividades con su commit. Solo cambia cómo se ve; se dibuja solo con `NEXT_PUBLIC_VIDRIO_TERMINAL=1`.
+- `lib/terminal/acomodo.ts`: la regla que decide columnas y tamaño del retrato para lo que mide la pantalla. Si el equipo no entra a un
+  tamaño que se lea, la grilla se desliza y lo dice; nunca encoge los nombres bajo 19 px.
+- `marcar/retratos.tsx`: la marca, la isla (hora, tubo de segundos, fecha y sede), el selector de sede con «Esta Mac», el aviso «Estás
+  viendo X. Esta Mac es de Y», «Encuentra tu nombre» con la leyenda (solo los estados que tienen a alguien) y la grilla.
+- `marcar/hojas-retratos.tsx`: «Tu momento» (las mismas opciones de `SelectorSalida`, en el mismo orden), la de quien ya cerró su día y
+  el anillo (la regla de `ConfirmacionToast`: una sola marca, «Enviando…» con los dos botones apagados).
+- El «Listo» sale dentro de la isla: no ocupa lugar, no tapa nombres y sigue a la vista sobre el velo de la hoja siguiente.
+- `estilos/vidrio/terminal-retratos.css`, todo bajo `[data-vidrio="terminal"]` y con los trece colores y las recetas de vidrio.
+- Una novedad para todo el equipo en `lib/novedades.ts`. **Su fecha es el día en que se fusione**: si no es el 21, se corrige antes.
+
+**Lo que se aparta del diseño que trajo Felipe, y por qué** (se le dijo en la demo): el nombre de pila y los apellidos van en dos
+líneas; la línea de estado dice la hora («entró 09:07»), no solo la palabra; la leyenda no lista estados en cero ni «Todos»; la lista
+de sedes es propia y no el menú del navegador, que mide 22 px por opción; la última fila va centrada (decisión del 2026-11-03); el
+anillo NO muestra la hora de la marca, porque la pone el servidor; y el «Listo» dice el texto de siempre, sin hora.
+
+**Verificado.**
+- Con datos inventados en un arnés (no se sube), a 1920×1080, 1440×900 y 1366×768, claro y oscuro: 0 casillas cortadas y 0 horas
+  con «…» en equipos de 3, 8, 13, 24 y 33; nada que se toque mide menos de 48 px; el anillo se confirma solo a los 2 s y una sola vez,
+  y cancelar antes no marca; el «Listo» no cambia la medida de la isla ni mueve un retrato. 1 490 textos medidos contra sus píxeles:
+  bajo 4.5:1 solo las casillas atenuadas al iluminar un estado (30 %, como hoy). Esa medición encontró y corrigió los apellidos de la
+  casilla iluminada en oscuro (3,7:1).
+- **Con la pantalla real** contra una base desechable (Postgres 16, las 590 migraciones, `scripts/local/sembrar.mjs`), con la cuenta
+  del terminal de cada sede: entrada, salida a refrigerio y su regreso, cancelar en el anillo (no deja marca), salida final con la
+  pregunta del refrigerio, el día cerrado y reabrirlo, «Voy a almacén», «Otra salida» y el cambio de sede con dos personas visibles en
+  todas las sedes. Cada marca se comprobó en `marcajes`, y la casilla quedó diciendo lo mismo que la base.
+- Con el interruptor **apagado**, la pantalla de casillas marca igual que antes (entrada comprobada en la base).
+- `tests/terminal-acomodo.test.ts` (17), `tests/terminal-ritmo.test.ts` (23: al anillo y al «Listo» de la isla se les exige lo mismo
+  que a sus gemelos), `vidrio-css`, `vidrio-marca`, `novedades`, typecheck y linter de lo tocado.
+
+**No verificado.** Con el dedo en una pantalla táctil (todo se probó con mouse). En Safari, que es el navegador de las Mac mini: se
+probó en Chromium. El tamaño real de los monitores de las sedes: si alguno es menor de 1366×768, hay que mirarlo. Fotos de verdad: el
+entorno local no tiene almacenamiento, así que en la pantalla real solo se vieron iniciales; las fotos se vieron en el arnés. El tiempo
+real (sin Docker aquí): la lista se puso al día al volver de cada marca, no por el aviso de la base. Y marcar sin conexión.
+
+**Queda, y no es de este cambio.** Las hojas que no se rediseñaron (motivo, refrigerio, almacén, reabrir) conservan su «Cancelar» como
+enlace chico. Cuando la primera persona del día vuelve de su refrigerio, las casillas ganan un renglón y el retrato cede 18 px: se
+mueve una vez, no bajo el dedo. `scripts/local/sembrar.mjs` falló el 2026-11-21 en `datos-pago.sql` («Ese periodo todavía no está
+pagado…») después de sembrar personas, cuentas y marcas: no afecta al terminal, pero una base local nueva queda sin boletas de prueba.
+
+**Publicación.** Nada subido todavía: Felipe pidió ver la demo y aprobarla antes. Fusionar este PR **es publicarlo encendido** en las
+Mac mini de las cuatro sedes. Después de publicar: marcar una entrada y una salida en un terminal de sede y mirar la casilla.
+
+---
+
 ## 2026-11-17 — En el terminal, marcar ya no deja la pantalla quieta casi seis segundos · sin SQL · **Felipe pidió publicarlo el 2026-11-17** · rama `claude/pensive-albattani-fch9dr`
 
 **De dónde sale.** Felipe (2026-11-17): «cuando le doy a salir a refrigerio o cualquier otro siento que tarda mucho, sería ideal bajar
