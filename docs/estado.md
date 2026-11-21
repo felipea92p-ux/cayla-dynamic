@@ -57,8 +57,10 @@ mueve una vez, no bajo el dedo.
 computadora) y pidió publicarlo el 2026-11-21 a las 14:08 de Lima, un sábado con tiendas abiertas: «implementa a producción pero
 guarda un respaldo del terminal actual en producción». Fusionar este PR **es publicarlo encendido** en las Mac mini de las cuatro sedes.
 
-**El respaldo, y cómo volver al terminal de antes.** La etiqueta de git `respaldo/terminal-casillas-2026-11-21` marca el commit de
-`main` que estaba publicado (`d0780cd`): la pantalla de casillas con vidrio. Tres caminos, del más rápido al que se queda:
+**El respaldo, y cómo volver al terminal de antes.** La rama `respaldo/terminal-casillas-2026-11-21` de GitHub apunta al commit de
+`main` que estaba publicado (`d0780cd`): la pantalla de casillas con vidrio. **No se borra en una limpieza de ramas**, aunque figure
+como fusionada: es el nombre del respaldo. (Se quiso una etiqueta; la sesión no tenía permiso para subirla.) Tres caminos para
+volver, del más rápido al que se queda:
 1. En Vercel, «Instant Rollback» al despliegue anterior. Vuelve en segundos, pero la siguiente fusión que toque la web publica otra
    vez el terminal nuevo: sirve para ganar tiempo, no para quedarse.
 2. Revertir este PR en GitHub (botón «Revert») y fusionar esa reversión. Vuelve el terminal exacto de antes, y se queda.
