@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
+import { Modal } from "@/components/ui/modal";
+import { Boton } from "@/components/ui/boton";
 
 // ============================================================================
 // Una cuenta de servicio no entra a Dynamic
@@ -46,6 +48,31 @@ import { Colibri } from "@/components/marca";
 // cuenta del terminal eso desvincula la Mac mini de la sede —deja de enviar
 // marcas— y con una estación de Retail saca a la caja de la tienda. Solo la
 // baja (0597) cierra en todos lados, que es lo que se busca ahí.
+//
+// Y una más, del 2026-11-23: LA SESIÓN QUE SE CIERRA SOLA CON LA PANTALLA ABIERTA.
+// Felipe, administrador, llenó «Agregar persona» en Equipo y al guardar le salió
+// «No se pudo comprobar si ya está registrada: No tienes permiso para hacer esto».
+// Se midió en producción: los permisos de la función estaban bien. Lo que pasó
+// es que supabase-js no pudo renovar la sesión, la borró, y la petición salió
+// SIN sesión —como `anon`—; PostgREST contesta eso con 42501, que la pantalla
+// traduce a «no tienes permiso». Cerrar sesión y volver a entrar lo arregló.
+// Así que el sistema le dijo a un administrador que no tenía permiso, cuando lo
+// que había perdido era la sesión, y lo mandó a buscar un problema de rol que
+// no existía. Y no era solo Equipo: cualquier pantalla abierta en ese estado
+// falla con un error equivocado o, peor, muestra listas vacías sin error.
+//
+// supabase-js avisa cuando borra la sesión (`SIGNED_OUT`), también desde otra
+// pestaña. La guarda lo escucha y lo dice, en un aviso ENCIMA de la pantalla, sin
+// desmontarla: lo que la persona estaba escribiendo sigue ahí. Entra en otra
+// pestaña, esta se entera (`SIGNED_IN` llega por el mismo canal) y el aviso se
+// va solo; vuelve y guarda. Se descartó llevarla al login de inmediato: perdía el
+// formulario, que es justo lo que estaba por guardar.
+//
+// El cierre A PROPÓSITO («Cerrar sesión») también dispara `SIGNED_OUT`; para que
+// no asome el aviso un instante antes de ir al login, se cierra con
+// `cerrarSesionAProposito`, que lo marca mientras dura. En OTRA pestaña ese
+// mismo cierre sí avisa, y es correcto: ahí la sesión se cerró sin que nadie
+// lo pidiera desde esa pantalla.
 // ============================================================================
 
 export const MENSAJE_CUENTA_DE_SERVICIO =
@@ -119,7 +146,51 @@ export function mensajeSinAcceso(motivo: MotivoSinAcceso): string {
  * terminal de la sede o saca a la caja de Retail).
  */
 export async function cerrarSesionSinAcceso(supabase: Cliente, motivo: MotivoSinAcceso): Promise<void> {
-  await supabase.auth.signOut({ scope: motivo === "baja" ? "global" : "local" });
+  await cerrarSesionAProposito(supabase, motivo === "baja" ? "global" : "local");
+}
+
+// Mientras es true, el `SIGNED_OUT` que llega es el que pidió esta pestaña. supabase-js
+// espera a cada oyente dentro de `signOut()`, así que la marca alcanza para cubrirlo.
+let cerrandoAProposito = false;
+
+/** ¿Esta pestaña está cerrando la sesión a propósito en este momento? */
+export function estaCerrandoAProposito(): boolean {
+  return cerrandoAProposito;
+}
+
+/**
+ * El único camino para cerrar la sesión a propósito desde el panel o «Lo mío».
+ * Sin `alcance`, el de supabase-js (global), que es lo que hacía «Cerrar sesión».
+ */
+export async function cerrarSesionAProposito(supabase: Cliente, alcance?: "global" | "local"): Promise<void> {
+  cerrandoAProposito = true;
+  try {
+    await (alcance ? supabase.auth.signOut({ scope: alcance }) : supabase.auth.signOut());
+  } finally {
+    cerrandoAProposito = false;
+  }
+}
+
+/** Qué hace la guarda con un cambio de sesión. `null` = nada. */
+export type ReaccionSesion = "avisar" | "quitar_aviso" | "recargar" | null;
+
+/**
+ * La regla, sin React, para poder probarla:
+ * - La sesión desapareció sin que esta pestaña la cerrara → avisar.
+ * - Volvió la MISMA cuenta (entró en otra pestaña, o se renovó) → quitar el aviso.
+ * - Volvió OTRA cuenta → recargar: la pantalla tiene datos y un formulario de la
+ *   anterior, y guardar eso a nombre de otra persona sería peor que perderlo.
+ */
+export function reaccionASesion(
+  evento: string,
+  usuarioAhora: string | null,
+  usuarioAntes: string | null,
+  aProposito: boolean,
+): ReaccionSesion {
+  if (evento === "SIGNED_OUT") return aProposito ? null : "avisar";
+  if (!usuarioAhora) return null;
+  if (usuarioAntes && usuarioAhora !== usuarioAntes) return "recargar";
+  return "quitar_aviso";
 }
 
 /**
@@ -131,6 +202,23 @@ export async function cerrarSesionSinAcceso(supabase: Cliente, motivo: MotivoSin
  */
 export function GuardaDeAcceso({ children }: { children: React.ReactNode }) {
   const [motivo, setMotivo] = useState<MotivoSinAcceso | null>(null);
+  const [sesionCerrada, setSesionCerrada] = useState(false);
+
+  // La sesión que se cierra sola (ver el encabezado, 2026-11-23).
+  useEffect(() => {
+    const supabase = createAdminSupabaseClient();
+    let usuarioAntes: string | null = null;
+    // Sin llamar a supabase adentro: el oyente corre con el candado de la sesión tomado.
+    const { data } = supabase.auth.onAuthStateChange((evento, sesion) => {
+      const usuarioAhora = sesion?.user.id ?? null;
+      const reaccion = reaccionASesion(evento, usuarioAhora, usuarioAntes, estaCerrandoAProposito());
+      if (usuarioAhora) usuarioAntes = usuarioAhora;
+      if (reaccion === "avisar") setSesionCerrada(true);
+      else if (reaccion === "quitar_aviso") setSesionCerrada(false);
+      else if (reaccion === "recargar") window.location.reload();
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     let vivo = true;
@@ -156,7 +244,48 @@ export function GuardaDeAcceso({ children }: { children: React.ReactNode }) {
   if (motivo === "baja") return <CuentaDadaDeBajaSinAcceso />;
   if (motivo === "terminal") return <SinAccesoConOtroUsuario titulo="Esta es la cuenta del terminal" texto={MENSAJE_CUENTA_DE_TERMINAL} />;
   if (motivo === "sin_ficha") return <SinAccesoConOtroUsuario titulo="Este usuario no tiene ficha" texto={MENSAJE_CUENTA_SIN_FICHA} />;
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <SesionCerrada abierto={sesionCerrada} />
+    </>
+  );
+}
+
+export const MENSAJE_SESION_CERRADA =
+  "Para seguir, Dynamic necesita que vuelvas a entrar. Lo que estabas escribiendo sigue en esta pantalla: " +
+  "entra en otra pestaña, vuelve aquí y guárdalo.";
+
+/** El aviso encima de la pantalla. No se cierra con Escape ni tocando afuera: sin sesión, nada de abajo funciona. */
+function SesionCerrada({ abierto }: { abierto: boolean }) {
+  // Cada cajón y cada modal escuchan Escape en `document`, y el de abajo no sabe que
+  // hay un aviso encima: un Escape aquí cerraba el cajón de «Agregar persona» y se
+  // llevaba lo escrito (medido en el navegador al construir esto). Se corta antes,
+  // en la captura de `window`, que corre antes que cualquier oyente de `document`.
+  useEffect(() => {
+    if (!abierto) return;
+    const tragarEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    window.addEventListener("keydown", tragarEscape, true);
+    return () => window.removeEventListener("keydown", tragarEscape, true);
+  }, [abierto]);
+
+  return (
+    <Modal abierto={abierto} onCerrar={() => {}} bloqueado titulo="Tu sesión se cerró" ancho="sm">
+      <p className="text-sm text-taupe">{MENSAJE_SESION_CERRADA}</p>
+      <div className="mt-5 flex flex-col gap-2">
+        <Boton variante="primario" onClick={() => window.open("/admin/login", "_blank", "noopener")}>
+          Entrar en otra pestaña
+        </Boton>
+        <Boton variante="enlace" onClick={() => window.location.assign("/admin/login")}>
+          Entrar aquí (se pierde lo que no guardaste)
+        </Boton>
+      </div>
+    </Modal>
+  );
 }
 
 function SinAccesoConOtroUsuario({ titulo, texto }: { titulo: string; texto: string }) {

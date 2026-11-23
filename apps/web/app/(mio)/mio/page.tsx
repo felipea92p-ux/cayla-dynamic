@@ -25,6 +25,7 @@ import { PASOS_GUIA_HISTORIAL, PASOS_GUIA_OBJETIVOS, PASOS_GUIA_REPORTES } from 
 import { SaludoCumpleanos } from "./saludo-cumpleanos";
 import { cargoPorRecibir, cuantosPidenConCargos, porLeer, type CargoMio, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { cerrarSesionAProposito } from "@/lib/cuenta-de-servicio";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
@@ -1803,7 +1804,7 @@ export default function MioPage() {
         // misma pantalla: ese formulario vuelve siempre a /mio, así que cerrar
         // sesión y entrar de nuevo devolvía aquí para siempre. El login del
         // panel sí reparte por rol.
-        onSalir={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}
+        onSalir={() => void cerrarSesionAProposito(supabase).then(() => router.replace("/admin/login"))}
         sesion={yo?.nombre}
         placa={yo ? {
           nombre: yo.nombre,

@@ -50,7 +50,7 @@ import { SidebarAdmin } from "@/components/nav/sidebar-admin";
 import { CajonAdmin } from "@/components/nav/cajon-admin";
 import type { Contadores } from "@/components/nav/panel-navegacion";
 import { GRUPOS, RUTAS_SIN_MARCO, type Item } from "./nav-items";
-import { GuardaDeAcceso } from "@/lib/cuenta-de-servicio";
+import { GuardaDeAcceso, cerrarSesionAProposito } from "@/lib/cuenta-de-servicio";
 import { MarcoPanelVidrio } from "@/components/vidrio/marco-panel";
 import { interruptoresVidrio, quienSigueElTemaGlobal } from "@/lib/vidrio";
 import { ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
@@ -294,7 +294,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
 
   async function cerrarSesion() {
     const supabase = createAdminSupabaseClient();
-    await supabase.auth.signOut();
+    await cerrarSesionAProposito(supabase);
     olvidarLaBandeja();
     router.replace("/admin/login");
   }

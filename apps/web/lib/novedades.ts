@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-23-si-la-sesion-se-cierra-dynamic-lo-dice",
+    fecha: "2026-11-23",
+    titulo: "Si tu sesión se cierra, Dynamic te lo dice",
+    queMejoro:
+      "A veces la sesión se cierra sola: la pestaña estuvo abierta mucho tiempo o la computadora se durmió. Antes " +
+      "Dynamic no lo decía, y al guardar aparecía un error confuso, como «No tienes permiso para hacer esto», " +
+      "aunque sí lo tuvieras.\n\n" +
+      "Ahora aparece un aviso: «Tu sesión se cerró». Lo que estabas escribiendo no se pierde: entra en otra " +
+      "pestaña, vuelve y guarda. El aviso se va solo apenas vuelves a entrar.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-21-horas-salida-junto-a-la-entrada",
     fecha: "2026-11-21",
     titulo: "En Horas, la salida va junto a la entrada",

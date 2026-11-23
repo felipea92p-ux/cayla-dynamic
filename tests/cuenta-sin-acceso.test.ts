@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  cerrarSesionAProposito,
   cerrarSesionSinAcceso,
+  estaCerrandoAProposito,
+  reaccionASesion,
   mensajeSinAcceso,
   motivoSinAcceso,
   type MotivoSinAcceso,
@@ -110,5 +113,57 @@ describe("mensajeSinAcceso", () => {
     expect(new Set(frases).size).toBe(4);
     expect(mensajeSinAcceso("terminal")).toMatch(/no se desvinculó/);
     expect(mensajeSinAcceso("terminal")).not.toMatch(/encargad|jefe|empleado/i);
+  });
+});
+
+// 2026-11-23: a un administrador, con Equipo abierto, le salió «No tienes permiso»
+// al dar de alta. Los permisos estaban bien: la sesión se había cerrado sola y la
+// petición salió como `anon`. Desde entonces la guarda lo dice en vez de dejar que
+// cada pantalla falle con un error equivocado.
+describe("reaccionASesion", () => {
+  it("la sesión se cerró sin que nadie lo pidiera: se avisa", () => {
+    expect(reaccionASesion("SIGNED_OUT", null, "u1", false)).toBe("avisar");
+  });
+
+  it("«Cerrar sesión» a propósito no avisa: va directo al login", () => {
+    expect(reaccionASesion("SIGNED_OUT", null, "u1", true)).toBeNull();
+  });
+
+  it("volvió a entrar la misma cuenta (en otra pestaña): el aviso se va y lo escrito sigue", () => {
+    expect(reaccionASesion("SIGNED_IN", "u1", "u1", false)).toBe("quitar_aviso");
+  });
+
+  it("entró OTRA cuenta: se recarga, para no guardar lo de una a nombre de otra", () => {
+    expect(reaccionASesion("SIGNED_IN", "u2", "u1", false)).toBe("recargar");
+  });
+
+  it("abrir la pantalla o renovar el token no avisa nada", () => {
+    expect(reaccionASesion("INITIAL_SESSION", "u1", null, false)).toBe("quitar_aviso");
+    expect(reaccionASesion("TOKEN_REFRESHED", "u1", "u1", false)).toBe("quitar_aviso");
+    expect(reaccionASesion("INITIAL_SESSION", null, null, false)).toBeNull();
+  });
+});
+
+describe("cerrarSesionAProposito", () => {
+  it("sin alcance usa el de supabase-js, como hacía «Cerrar sesión»", async () => {
+    const c = cliente({});
+    await cerrarSesionAProposito(comoCliente(c));
+    expect(c.signOut).toHaveBeenCalledWith();
+  });
+
+  it("la marca vale MIENTRAS dura signOut (ahí llega el SIGNED_OUT) y se quita al terminar", async () => {
+    let duranteElCierre: boolean | undefined;
+    const signOut = vi.fn(async () => { duranteElCierre = estaCerrandoAProposito(); return { error: null }; });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ver comoCliente.
+    await cerrarSesionAProposito({ auth: { signOut } } as any);
+    expect(duranteElCierre).toBe(true);
+    expect(estaCerrandoAProposito()).toBe(false);
+  });
+
+  it("si signOut falla, la marca tampoco queda puesta: la próxima salida que nadie pidió avisa", async () => {
+    const signOut = vi.fn(async () => { throw new Error("red"); });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ver comoCliente.
+    await expect(cerrarSesionAProposito({ auth: { signOut } } as any)).rejects.toThrow("red");
+    expect(estaCerrandoAProposito()).toBe(false);
   });
 });
