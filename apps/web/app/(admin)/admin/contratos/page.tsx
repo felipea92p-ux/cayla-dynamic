@@ -44,6 +44,7 @@ import {
   FUNCIONES_PLACEHOLDER,
   MARCADOR_FIRMA_EMPRESA,
   MARCADOR_FIRMA_PERSONA,
+  movilidadEnResumen,
   tipoQueCorresponde,
   type DatosContrato,
 } from "@/lib/admin/contrato-texto";
@@ -1562,9 +1563,10 @@ export default function ContratosPage() {
   }
   // Un beneficio con monto es un monto REAL o no se imprime. Sin tarifa vigente
   // el contrato decía «asignación diaria de movilidad (S/ 0.00)», que promete
-  // por escrito un beneficio de cero. Ninguno de los dos aplica a un convenio:
-  // movilidad y bono de onomástico son beneficios de planilla (en_planilla),
-  // y una practicante no está en planilla (0322).
+  // por escrito un beneficio de cero. Un convenio no pasa por estos dos frenos
+  // porque no imprime ningún monto: la practicante cobra movilidad (0397) y el
+  // bono de onomástico (0518/0520), pero su convenio solo los nombra como
+  // beneficios voluntarios, sin cifra («Beneficios adicionales voluntarios»).
   if (persona && !esAdendum && !esConvenio && persona.cobra_movilidad && movilidadTarifa === null) {
     bloqueos.push("No hay tarifa de movilidad vigente para su sede: publícala antes de generar el contrato.");
   }
@@ -3262,13 +3264,11 @@ export default function ContratosPage() {
                           <div>
                             <dt className="font-semibold">Movilidad</dt>
                             <dd className="tabular-nums">
-                              {esConvenio
-                                ? "no aplica — no está en planilla (0322)"
-                                : persona.cobra_movilidad
-                                  ? movilidadTarifa !== null
-                                    ? `S/ ${movilidadTarifa}/día`
-                                    : "sin tarifa vigente para su sede"
-                                  : "no cobra"}
+                              {movilidadEnResumen({
+                                esConvenio,
+                                cobraMovilidad: persona.cobra_movilidad,
+                                tarifaDiaria: movilidadTarifa,
+                              })}
                             </dd>
                           </div>
                           <div>

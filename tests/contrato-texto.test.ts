@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 import {
   construirContrato,
   finDelPeriodoDePrueba,
+  movilidadEnResumen,
   numeroALetras,
   sinNumeroEscrito,
   tipoQueCorresponde,
@@ -657,5 +658,29 @@ describe("lo numerado a mano no se numera dos veces", () => {
       '<ol start="1"><li>Reclutamiento y selección: Apoyar en la revisión de currículums.</li><li>Inducción e integración: Acompañar la inducción.</li></ol>',
     );
     expect(html).not.toMatch(/<li>\d/);
+  });
+});
+
+// El resumen del generador decía «no aplica — no está en planilla (0322)» en todo convenio, aunque desde la 0397 la
+// planilla le paga movilidad a la practicante que la tiene marcada. Se leyó como «no se le va a pagar» (2026-11-24).
+describe("lo que el resumen dice de la movilidad es lo que paga la planilla", () => {
+  it("una practicante que cobra movilidad la ve con su tarifa, por día asistido y como beneficio voluntario", () => {
+    const texto = movilidadEnResumen({ esConvenio: true, cobraMovilidad: true, tarifaDiaria: 10 });
+    expect(texto).toBe("S/ 10 por día asistido — beneficio voluntario, no remunerativo");
+    expect(texto).not.toContain("no aplica");
+  });
+
+  it("una practicante sin movilidad en su ficha no la cobra, igual que cualquiera", () => {
+    expect(movilidadEnResumen({ esConvenio: true, cobraMovilidad: false, tarifaDiaria: 10 })).toBe("no cobra");
+  });
+
+  it("sin tarifa vigente lo dice, sea convenio o contrato", () => {
+    expect(movilidadEnResumen({ esConvenio: true, cobraMovilidad: true, tarifaDiaria: null })).toBe("sin tarifa vigente para su sede");
+    expect(movilidadEnResumen({ esConvenio: false, cobraMovilidad: true, tarifaDiaria: null })).toBe("sin tarifa vigente para su sede");
+  });
+
+  it("en un contrato de trabajo dice lo mismo que antes", () => {
+    expect(movilidadEnResumen({ esConvenio: false, cobraMovilidad: true, tarifaDiaria: 12 })).toBe("S/ 12/día");
+    expect(movilidadEnResumen({ esConvenio: false, cobraMovilidad: false, tarifaDiaria: 12 })).toBe("no cobra");
   });
 });
