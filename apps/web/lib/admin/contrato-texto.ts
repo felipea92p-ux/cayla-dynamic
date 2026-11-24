@@ -305,6 +305,28 @@ export function soles(n: number): string {
 }
 
 /**
+ * Lo que el resumen del generador dice de la movilidad antes de «Generar
+ * borrador». Tiene que decir lo mismo que pagará la planilla
+ * (`fn_planilla_calcular_nucleo`): por día asistido, a quien tiene
+ * `cobra_movilidad`, con la tarifa de su sede o la general.
+ *
+ * Una practicante la cobra desde la 0397 (decisión de Felipe, 2026-09-07). Hasta
+ * el 2026-11-24 el resumen del convenio decía «no aplica — no está en planilla
+ * (0322)», que era cierto antes de la 0397 y quedó sin actualizar. Al armar un
+ * convenio de prácticas eso se leyó como «no se le va a pagar», cuando la
+ * planilla sí le paga. El convenio no fija el monto, porque es un beneficio
+ * voluntario (cláusula «Beneficios adicionales voluntarios»); por eso el
+ * resumen lo dice así y no como una cifra prometida.
+ */
+export function movilidadEnResumen(o: { esConvenio: boolean; cobraMovilidad: boolean; tarifaDiaria: number | null }): string {
+  if (!o.cobraMovilidad) return "no cobra";
+  if (o.tarifaDiaria === null) return "sin tarifa vigente para su sede";
+  return o.esConvenio
+    ? `S/ ${o.tarifaDiaria} por día asistido — beneficio voluntario, no remunerativo`
+    : `S/ ${o.tarifaDiaria}/día`;
+}
+
+/**
  * `documento_html` se guarda tal cual y se inyecta con `dangerouslySetInnerHTML`
  * en la pantalla — así que todo texto libre que viene de datos de la persona
  * (nombre, dirección, cargo, funciones, activos) se escapa antes de

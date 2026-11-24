@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-24-el-convenio-dice-la-movilidad-de-la-practicante",
+    fecha: "2026-11-24",
+    titulo: "El convenio de prácticas ya no dice que la movilidad «no aplica»",
+    queMejoro:
+      "Al revisar un convenio de prácticas antes de generarlo, la línea de Movilidad decía «no aplica», aunque la " +
+      "planilla sí le paga movilidad a la practicante que la tiene marcada en su ficha. Ahora dice la tarifa de su " +
+      "sede, por día asistido y como beneficio voluntario, que es como se paga.\n\n" +
+      "No cambia nada de lo que se paga ni del texto del convenio: solo el resumen dejó de decir lo contrario.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-24-las-listas-del-contrato-llevan-un-solo-numero",
     fecha: "2026-11-24",
     titulo: "Las listas de un contrato llevan un solo número",
