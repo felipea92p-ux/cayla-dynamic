@@ -18,6 +18,7 @@ import {
   construirContrato,
   finDelPeriodoDePrueba,
   numeroALetras,
+  sinNumeroEscrito,
   tipoQueCorresponde,
   type DatosContrato,
 } from "../apps/web/lib/admin/contrato-texto";
@@ -585,5 +586,76 @@ describe("el convenio no gana huecos sin que nadie lo note", () => {
     const html = construirContrato(convenioVacio("profesional"));
     expect(html).toContain("[completar — grado/título y universidad de egreso]");
     expect(html).not.toContain("razón social del centro de formación");
+  });
+});
+
+// El HTML numera la lista (`<ol>`), así que el número que alguien escribió a mano salía dos veces: un convenio de
+// prácticas firmado el 2026-10-28 dice «1. 1. Reclutamiento y selección…» en sus ocho actividades. Se quita la marca
+// del principio de cada línea, y solo esa: un número que es parte de lo que se dice se queda.
+describe("lo numerado a mano no se numera dos veces", () => {
+  it.each([
+    ["1. Atender a las clientas", "Atender a las clientas"],
+    ["2) Atender a las clientas", "Atender a las clientas"],
+    ["3.- Atender a las clientas", "Atender a las clientas"],
+    ["4 - Atender a las clientas", "Atender a las clientas"],
+    ["1.1. Atender a las clientas", "Atender a las clientas"],
+    ["12. Atender a las clientas", "Atender a las clientas"],
+    ["a) Atender a las clientas", "Atender a las clientas"],
+    ["B) Atender a las clientas", "Atender a las clientas"],
+    ["- Atender a las clientas", "Atender a las clientas"],
+    ["• Atender a las clientas", "Atender a las clientas"],
+    ["* Atender a las clientas", "Atender a las clientas"],
+    ["– Atender a las clientas", "Atender a las clientas"],
+  ])("quita la marca de «%s»", (linea, esperado) => {
+    expect(sinNumeroEscrito(linea)).toBe(esperado);
+  });
+
+  it.each([
+    "30 minutos de inducción diaria",
+    "1.5 horas de capacitación",
+    "2026: cierre del inventario anual",
+    "-5 % de merma como meta",
+    "Atender a las clientas",
+    "1.",
+  ])("deja «%s» como está: el número es parte de lo que se dice", (linea) => {
+    expect(sinNumeroEscrito(linea)).toBe(linea);
+  });
+
+  it("quita solo la primera marca, no lo que viene después", () => {
+    expect(sinNumeroEscrito("1. 2 vitrinas por semana")).toBe("2 vitrinas por semana");
+  });
+
+  it("las funciones del Anexo I numeradas a mano salen con un solo número", () => {
+    const html = construirContrato(datos({ funcionesTexto: "1. Atender a las clientas\n2. Ordenar la vitrina" }));
+    expect(html).toContain('<ol start="1"><li>Atender a las clientas</li><li>Ordenar la vitrina</li></ol>');
+  });
+
+  it("sin números escritos, la lista sale igual que antes", () => {
+    const html = construirContrato(datos({ funcionesTexto: "Atender a las clientas\nOrdenar la vitrina" }));
+    expect(html).toContain('<ol start="1"><li>Atender a las clientas</li><li>Ordenar la vitrina</li></ol>');
+  });
+
+  it("con secciones, la cuenta sigue corrida y el título se queda como se escribió", () => {
+    const html = construirContrato(
+      datos({ funcionesTexto: "A) EN TIENDA:\n1. función A\n2. función B\nB) EN ALMACÉN:\n3. función C" }),
+    );
+    expect(html).toContain("<p><strong>A) EN TIENDA:</strong></p>");
+    expect(html).toContain('<ol start="1"><li>función A</li><li>función B</li></ol>');
+    expect(html).toContain('<ol start="3"><li>función C</li></ol>');
+  });
+
+  it("el plan de capacitación de un convenio, con líneas en blanco entre actividades, sale con un solo número", () => {
+    const html = construirContrato(
+      datos({
+        tipo: "convenio_practicas",
+        practicanteModalidad: "profesional",
+        planCapacitacionTexto:
+          "1. Reclutamiento y selección: Apoyar en la revisión de currículums.\n\n2. Inducción e integración: Acompañar la inducción.",
+      }),
+    );
+    expect(html).toContain(
+      '<ol start="1"><li>Reclutamiento y selección: Apoyar en la revisión de currículums.</li><li>Inducción e integración: Acompañar la inducción.</li></ol>',
+    );
+    expect(html).not.toMatch(/<li>\d/);
   });
 });

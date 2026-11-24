@@ -86,6 +86,7 @@ import {
   MARCADOR_FIRMA_EMPRESA,
   MARCADOR_FIRMA_PERSONA,
   numeroALetras,
+  sinNumeroEscrito,
   soles,
 } from "./contrato-texto";
 
@@ -187,11 +188,14 @@ export function estamparFirmas(html: string, f: FirmasLocacion): string {
     .replaceAll(MARCADOR_FECHA_FIRMA_PERSONA, textoFechaFirma(f.personaAt));
 }
 
-/** Las líneas de los entregables como lista; si viene vacío, se dice. */
+/**
+ * Las líneas de los entregables como lista; si viene vacío, se dice. La lista la numera el HTML, así que el número
+ * escrito a mano se quita (`sinNumeroEscrito`, el mismo criterio del Anexo I del contrato de trabajo).
+ */
 function listaEntregables(texto: string): string {
   const lineas = texto.split("\n").map((l) => l.trim()).filter(Boolean);
   if (lineas.length === 0) return `<p>${falta("DESCRIBIR QUÉ COMPRENDE EL SERVICIO")}</p>`;
-  return `<ol>${lineas.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ol>`;
+  return `<ol>${lineas.map((l) => `<li>${escapeHtml(sinNumeroEscrito(l))}</li>`).join("")}</ol>`;
 }
 
 /** Arma el contrato. Todo texto que viene de datos se escapa: el resultado se guarda y se inyecta como HTML. */

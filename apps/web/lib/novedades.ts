@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-24-las-listas-del-contrato-llevan-un-solo-numero",
+    fecha: "2026-11-24",
+    titulo: "Las listas de un contrato llevan un solo número",
+    queMejoro:
+      "Si escribes las funciones, las actividades de un convenio o lo que comprende un servicio con su número " +
+      "adelante («1.», «2)», «a)» o un guion), el contrato ya no las numera dos veces: queda «1. Reclutamiento» y no " +
+      "«1. 1. Reclutamiento».\n\n" +
+      "Un número que es parte de lo que se dice, como «30 minutos» o «1.5 horas», se queda como está. Los " +
+      "contratos ya generados no cambian: lo firmado es lo firmado.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-21-horas-salida-junto-a-la-entrada",
     fecha: "2026-11-21",
     titulo: "En Horas, la salida va junto a la entrada",
