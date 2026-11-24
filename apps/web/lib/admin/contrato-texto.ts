@@ -361,6 +361,26 @@ function escapado(d: DatosContrato): DatosContrato {
 }
 
 /**
+ * Lo que se reconoce como numeración escrita a mano al inicio de una línea:
+ * un número de hasta tres cifras cerrado con punto o paréntesis («1.», «2)»,
+ * «3.-», «1.1.»), un número seguido de guion («4 - …»), una letra con
+ * paréntesis («a)») o una viñeta («-», «•», «*», «–», «—», «·»). Siempre
+ * seguido de un espacio: es lo que distingue «1. Atender» de «1.5 horas» o de
+ * «30 minutos», donde el número es parte de lo que se dice y se queda.
+ */
+const NUMERO_ESCRITO_A_MANO = /^(?:(?:\d{1,3}[.)])+-?|\d{1,3}\s+-|[a-z]\)|[-•*–—·])\s+/i;
+
+/**
+ * Una línea que va a una lista numerada por el HTML, sin el número que le
+ * escribió a mano quien llenó el formulario. La etiqueta del campo ya dice
+ * «se numeran solas», y aun así se numera a mano: es el gesto de siempre al
+ * escribir una lista. Solo se quita una marca, la del principio.
+ */
+export function sinNumeroEscrito(linea: string): string {
+  return linea.replace(NUMERO_ESCRITO_A_MANO, "");
+}
+
+/**
  * Una lista escrita a mano en el textarea, una función por línea, se imprime
  * NUMERADA — no como un párrafo corrido ni con viñetas. Numerada porque un
  * anexo de funciones se cita ("la función 14 del Anexo I") cuando hay que
@@ -377,6 +397,11 @@ function escapado(d: DatosContrato): DatosContrato {
  * El texto ya llega escapado (ver `escapado`), así que partir por salto de
  * línea es seguro: `escapeHtml` no toca `\n`. Una sola línea se queda como
  * párrafo, para no cambiar el caso corto que ya existía.
+ *
+ * Y como la numera el HTML, el número que alguien igual escribió a mano se
+ * quita (`sinNumeroEscrito`): si no, el papel lo dice dos veces. Pasó en un
+ * convenio de prácticas firmado el 2026-10-28, que salió con «1. 1.
+ * Reclutamiento y selección…» en sus ocho actividades.
  */
 function listaDesdeTexto(texto: string): string {
   const lineas = texto
@@ -403,7 +428,7 @@ function listaDesdeTexto(texto: string): string {
       partes.push(`<ol start="${contados + 1}">`);
       abierta = true;
     }
-    partes.push(`<li>${linea}</li>`);
+    partes.push(`<li>${sinNumeroEscrito(linea)}</li>`);
     contados += 1;
   }
   if (abierta) partes.push("</ol>");

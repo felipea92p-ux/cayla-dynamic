@@ -214,3 +214,10 @@ describe("un borrador lo dice, y se reconoce aunque el texto ya esté aprobado",
     expect(esBorradorLocacion(html)).toBe(!TEXTO_LOCACION_APROBADO);
   });
 });
+
+describe("los entregables numerados a mano no se numeran dos veces", () => {
+  it("la lista la numera el HTML: el número escrito se quita y el resto se escapa igual", () => {
+    const html = texto({ entregables: "1. Fotos de cada colección\n2) Retoque en 5 días & entrega" });
+    expect(html).toContain("<ol><li>Fotos de cada colección</li><li>Retoque en 5 días &amp; entrega</li></ol>");
+  });
+});
