@@ -11,6 +11,7 @@ import { Boton } from "@/components/ui/boton";
 import { BoletaHoja } from "@/components/boleta-hoja";
 import { MESES_LARGO } from "@/lib/admin/planilla/formato";
 import type { Fila, Proyeccion, SubvencionPracticante } from "@/lib/admin/planilla/tipos";
+import type { DepositoBoleta } from "@/lib/boleta-depositos";
 import { nombreOficial, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // Boleta INTERNA de CAYLA: resumen para que la persona vea cómo se calculó su
@@ -46,6 +47,7 @@ function BoletaContenido() {
   const [fechaIngreso, setFechaIngreso] = useState<string | null>(null);
   const [nombreDni, setNombreDni] = useState<string | null>(null);
   const [subvencionPracticante, setSubvencionPracticante] = useState<SubvencionPracticante | null>(null);
+  const [depositos, setDepositos] = useState<DepositoBoleta[] | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,6 +100,18 @@ function BoletaContenido() {
     } else {
       setSubvencionPracticante(null);
     }
+
+    // Lo pagado aparte de esta planilla dentro del periodo (0622): la CTS
+    // depositada, una gratificación transferida aparte. Consulta APARTE, como
+    // la subvención: si falla —o si la 0622 aún no está pegada— la boleta sale
+    // igual, sin ese bloque. `as never`: la función nace con la 0622 y los
+    // tipos generados no la conocen hasta regenerarlos.
+    const { data: dep } = await supabase.rpc("fn_boleta_depositos" as never, {
+      p_persona_id: personaId,
+      p_desde: proyeccion.fecha_ini,
+      p_hasta: proyeccion.fecha_fin,
+    } as never);
+    setDepositos((dep as unknown as DepositoBoleta[] | null) ?? null);
 
     // La base legal contractual (0103) es un atributo de la PERSONA, no un
     // resultado del cálculo, así que se lee de personas y no de
@@ -235,6 +249,7 @@ function BoletaContenido() {
         fechaIngreso={fechaIngreso}
         nombreDni={nombreDni}
         subvencionPracticante={subvencionPracticante}
+        depositos={depositos}
       />
     </main>
   );

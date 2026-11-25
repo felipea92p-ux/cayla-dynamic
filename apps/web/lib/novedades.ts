@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-25-la-boleta-muestra-la-cts-depositada",
+    fecha: "2026-11-25",
+    titulo: "Tu boleta muestra la CTS que ya se depositó",
+    queMejoro:
+      "Cuando se te deposita la CTS en tu cuenta del banco —o se te paga aparte la gratificación—, tu boleta de ese " +
+      "mes ahora lo dice en un bloque propio, debajo del total: qué semestre se pagó, cuándo y cuánto. No se suma a " +
+      "lo que recibes en el mes, porque ya te llegó por otro lado.\n\n" +
+      "Y la gratificación y la CTS ya no aparecen con otros nombres en ningún lado: se llaman como dice la ley.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-24-el-convenio-dice-la-movilidad-de-la-practicante",
     fecha: "2026-11-24",
     titulo: "El convenio de prácticas ya no dice que la movilidad «no aplica»",
