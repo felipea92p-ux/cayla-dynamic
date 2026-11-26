@@ -1,6 +1,6 @@
 import {
   CalendarCheck2, CalendarClock, CalendarDays, Car, FileSignature, Gavel, GraduationCap, History, IdCard, LayoutDashboard,
-  MessageSquareText, ReceiptText, ScrollText, ShieldCheck, Target, TreePalm, UserRound,
+  MessageSquareText, Network, ReceiptText, ScrollText, ShieldCheck, Target, TreePalm, UserRound,
   ClipboardCheck, FolderOpen, ListChecks, Wallet,
 } from "lucide-react";
 import type { GrupoDetalle } from "./secciones-de-menu";
@@ -9,13 +9,13 @@ import type { GrupoDetalle } from "./secciones-de-menu";
 // Las secciones de «Lo mío» (/mio), en el orden y los grupos en que se leen.
 // ============================================================================
 
-/** Las diecisiete secciones de la pantalla. Ver el comentario de `tab` en mio/page.tsx. */
+/** Las dieciocho secciones de la pantalla. Ver el comentario de `tab` en mio/page.tsx. */
 export type Tab =
   | "resumen" | "dias" | "turnos" | "dni" | "seguro" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad"
-  | "educacion" | "firma" | "objetivos" | "reportes" | "disciplina" | "historial" | "disponibilidad";
+  | "educacion" | "firma" | "objetivos" | "reportes" | "disciplina" | "historial" | "disponibilidad" | "organigrama";
 
 /**
- * Las diecisiete, agrupadas.
+ * Las dieciocho, agrupadas.
  *
  * LOS GRUPOS (2026-10-06). Hasta ese día eran una sola lista, en el orden en que
  * se fueron agregando: «Mi DNI» y «Tus datos» quedaban entre «Mis turnos» y
@@ -35,6 +35,9 @@ export type Tab =
  *     con un prototipo (`docs/disciplina-mio-prototipo-2026-10-06.html`).
  *     El ícono es el de «Disciplina» en el menú del panel.
  *   · «Resumen» va solo y sin título, arriba: es donde se aterriza.
+ *   · «Organigrama» (0623) va al final de Documentos: se consulta de vez en
+ *     cuando, como los otros papeles, y no merece un grupo (ni un renglón más del
+ *     menú) para él solo.
  *   · «Mi seguro» (2026-10-17, migración 0530) va en Documentos, junto a Contrato,
  *     Firma y Mi DNI: lo que se viene a buscar es el PDF de su póliza. Es de TODO el
  *     equipo: cada quien ve el suyo —FOLA con su póliza, EsSalud por planilla…— y la
@@ -90,6 +93,7 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
     // seguros de hoy, «pacífico» la aseguradora de FOLA, «clínica» a donde va a usarlo.
     { valor: "seguro", label: "Mi seguro", Icon: ShieldCheck, alias: ["póliza", "fola", "essalud", "seguro", "salud", "clínica", "pacífico", "vida ley", "seguro de vida", "eps"] },
     { valor: "datos", label: "Mis datos", Icon: UserRound, alias: ["cuenta", "banco", "celular", "dirección", "emergencia", "ficha"] },
+    { valor: "organigrama", label: "Organigrama", Icon: Network, alias: ["equipo", "quién es quién", "líderes", "empresa"] },
   ] },
   { label: "Seguimiento", Icon: ListChecks, corto: "Seguim.", secciones: [
     { valor: "objetivos", label: "Objetivos", Icon: Target, alias: ["metas"] },
@@ -103,7 +107,7 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
   ] },
 ];
 
-/** Las diecisiete, en el orden del menú. */
+/** Las dieciocho, en el orden del menú. */
 export const TABS: readonly Tab[] = GRUPOS_MIO.flatMap((g) => g.secciones.map((s) => s.valor));
 
 /** Si un texto que llegó de fuera (un `?tab=` de un enlace) es una sección que existe. */

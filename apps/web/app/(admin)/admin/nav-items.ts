@@ -13,7 +13,7 @@ import {
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
   BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare, Archive, ShieldCheck, FileStack, SlidersHorizontal,
   ClipboardCheck, UsersRound, Wallet, Newspaper, ChartColumn, Landmark, Settings,
-  type LucideIcon,
+  type LucideIcon, Network,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS } from "@cayla-dynamic/shared";
 
@@ -220,6 +220,9 @@ export const GRUPOS: Grupo[] = [
   // licencias, REMYPE. Va al fondo, junto a Configuración, por frecuencia —se
   // abre pocas veces al año—, aunque el día que se abre sea urgente.
   { label: "Empresa", Icon: Landmark, items: [
+    // Quien no tiene panel lo ve en «Lo mío → Organigrama». Mientras no se
+    // publique, la base (0623) solo se lo muestra a DO.
+    { href: "/admin/organigrama", label: "Organigrama", Icon: Network, roles: SEDE },
     { href: "/admin/archivo", label: "Archivo", Icon: Archive, roles: DO },
   ] },
   { label: "Configuración", Icon: Settings, corto: "Config.", items: [

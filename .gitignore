@@ -34,3 +34,6 @@ politica-salarial.pdf
 .env.sentry-build-plugin
 .env.local
 .cambios-del-rit.md
+
+# Carga inicial del organigrama (0623): lleva nombres de integrantes
+scripts/sql-manual/organigrama_inicial.sql

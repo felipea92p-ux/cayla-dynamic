@@ -106,7 +106,7 @@ describe("lo registrado existe", () => {
     });
   }
 
-  it("Lo mío se mide sección por sección: las mismas diecisiete que tiene la pantalla", () => {
+  it("Lo mío se mide sección por sección: las mismas dieciocho que tiene la pantalla", () => {
     expect(["resumen", ...SECCIONES_DE_LO_MIO].sort()).toEqual([...TABS].sort());
   });
 
