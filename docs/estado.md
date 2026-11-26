@@ -6,28 +6,26 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-25 — Organigrama en Dynamic · **publicado** (PR #754) · SQL 0623 y carga inicial pegados · **en borrador: solo lo ve DO**
+## 2026-11-26 — Organigrama en Dynamic · publicado (PR #754 y #756) · SQL 0623 y 0624 con sus datos pegados · **en borrador: solo lo ve DO**
 
 **Qué es.** «Personas › Organigrama» en el panel y «Documentos › Organigrama» en «Lo mío». Se arma desde las fichas (nombre y foto);
-DO ordena equipo, función, color y líneas. Hasta «Publicar al equipo» lo ve solo DO; al resto, «Lo mío» le dice que todavía no está
-publicado. La función del dibujo no cambia el cargo de la ficha. Quien asesora o es externo no admite línea de equipo (candado en la base).
+DO ordena equipo, función, color, distintivo y líneas. Hasta «Publicar al equipo» lo ve solo DO; al resto, «Lo mío» le dice que todavía
+no está publicado. La función del dibujo no cambia el cargo de la ficha. Quien asesora o es externo no admite línea de equipo (candado
+en la base).
 
-**Cómo quedó.** El PR se fusionó a las 23:08 (Lima), antes de pegar la 0623: las dos pantallas mostraron error hasta que se pegó,
-esa misma noche. Verificado en producción con consultas de solo lectura: 6 equipos, 6 funciones, sin publicar; la carga inicial dejó
-28 ubicados, 7 líneas, nadie sin encontrar y ningún nombre con dos fichas activas. **No se miró la pantalla en producción.**
+**Verificado en producción** con consultas de solo lectura: 28 ubicados, 12 líneas, 3 distintivos, 2 tarjetas pequeñas, sin publicar.
+El #754 se fusionó antes de pegar la 0623 y las pantallas mostraron error unos minutos; en el #756 el SQL fue primero.
+
+**Tercera ronda, el diseño «Estudio» (sin SQL).** Elegido entre tres versiones: fichas horizontales parejas con la foto recortada hacia
+el rostro, color como tinte suave y líneas de una persona a un equipo. Medido en local a 860, 1100 y 1440 de ancho: sin líneas sobre
+fichas ni títulos. **No se probó con fotos reales.** En Arequipa y Desarrollo Organizacional el campo «Columna» ahora solo ordena.
 
 **Pendiente antes de publicar al equipo.** Revisar contrato y sueldo de quienes aparecen con una función distinta de su cargo en la
-ficha, y que los permisos de cada quien coincidan con lo que dice el dibujo (el organigrama no cambia roles).
+ficha; que los permisos coincidan con lo que dice el dibujo (el organigrama no cambia roles); y confirmar la función de encargo de un
+área en alguien con etiqueta «Asesoría».
 
 **Límites.** Los seis equipos se crean por migración: todavía no hay pantalla para agregar o renombrar uno. No se probó la pantalla con la
 base caída ni a alguien de DO ordenando sin explicación.
-
-**Segunda ronda, mismo día · PR abierto, sin fusionar · SQL 0624 sin pegar.** Distintivo en las tarjetas, líneas entre filas sin
-cruzarse (medido en local a 800, 1000, 1280 y 1600 de ancho, con la distribución aprobada; si DO mueve a alguien hay que volver a
-mirarlo), Dirección a la izquierda de Sistemas y Desarrollo Organizacional más ancho. **Para publicarla:** 1) pegar la 0624, antes de
-fusionar; 2) fusionar; 3) pegar `scripts/sql-manual/organigrama_lineas_2.sql` (fuera de git, solo en el worktree donde se hizo):
-líneas, distintivo, posiciones, un tamaño de tarjeta y una función. **A confirmar antes de publicar al equipo:** alguien con etiqueta
-«Asesoría» pasa a figurar con una función de encargo de un área.
 
 ---
 

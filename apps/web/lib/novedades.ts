@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-26-el-organigrama-estrena-fichas",
+    fecha: "2026-11-26",
+    titulo: "El organigrama se ve más limpio",
+    queMejoro:
+      "Cada persona es una ficha del mismo tamaño, con su foto redonda a la izquierda, recortada hacia el rostro. Quien " +
+      "lleva color tiene la ficha teñida suave.\n\n" +
+      "Las líneas ahora van de una persona a un equipo y se dibujan una sola vez, así que el dibujo se lee de un vistazo.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-25-el-organigrama-une-mejor-los-equipos",
     fecha: "2026-11-25",
     titulo: "El organigrama une equipos con líneas más claras",
