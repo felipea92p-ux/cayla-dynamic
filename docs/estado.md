@@ -22,6 +22,13 @@ ficha, y que los permisos de cada quien coincidan con lo que dice el dibujo (el 
 **Límites.** Los seis equipos se crean por migración: todavía no hay pantalla para agregar o renombrar uno. No se probó la pantalla con la
 base caída ni a alguien de DO ordenando sin explicación.
 
+**Segunda ronda, mismo día · PR abierto, sin fusionar · SQL 0624 sin pegar.** Distintivo en las tarjetas, líneas entre filas sin
+cruzarse (medido en local a 800, 1000, 1280 y 1600 de ancho, con la distribución aprobada; si DO mueve a alguien hay que volver a
+mirarlo), Dirección a la izquierda de Sistemas y Desarrollo Organizacional más ancho. **Para publicarla:** 1) pegar la 0624, antes de
+fusionar; 2) fusionar; 3) pegar `scripts/sql-manual/organigrama_lineas_2.sql` (fuera de git, solo en el worktree donde se hizo):
+líneas, distintivo, posiciones, un tamaño de tarjeta y una función. **A confirmar antes de publicar al equipo:** alguien con etiqueta
+«Asesoría» pasa a figurar con una función de encargo de un área.
+
 ---
 
 ## 2026-11-21 — El terminal en retratos se publicó y se retiró el mismo día · sin SQL · **retirado a pedido de Felipe; se van a ver otros diseños** · PR #749 y su reversión

@@ -36,4 +36,4 @@ politica-salarial.pdf
 .cambios-del-rit.md
 
 # Carga inicial del organigrama (0623): lleva nombres de integrantes
-scripts/sql-manual/organigrama_inicial.sql
+scripts/sql-manual/organigrama_*.sql

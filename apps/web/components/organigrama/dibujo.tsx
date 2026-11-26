@@ -14,7 +14,7 @@ import { cx } from "@/components/ui/cx";
 import { Insignia } from "@/components/ui/insignia";
 import { inicialesDe, urlPublicaFotoPerfil } from "@/lib/foto-perfil";
 import {
-  ETIQUETAS, filasDelOrganigrama, trazarLinea,
+  ETIQUETAS, alturaDelCanal, asignarCarriles, filasDelOrganigrama, redondear, tramoEn, trazarEntreFilas, trazarLinea,
   type Caja, type Color, type Linea, type Nodo, type Organigrama,
 } from "@/lib/organigrama";
 
@@ -34,7 +34,8 @@ function Tarjeta({ nodo, foto, onElegir }: { nodo: Nodo; foto: string | null; on
     // La tarjeta se acomoda a SU ancho: angosta, el círculo va encima; ancha, al costado.
     <span className="flex flex-col items-center gap-2 text-center @min-[11rem]:flex-row @min-[11rem]:text-left">
       <span aria-hidden className={cx(
-        "flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-medium",
+        "flex shrink-0 items-center justify-center overflow-hidden rounded-full font-medium",
+        nodo.discreto ? "size-7 text-[11px]" : "size-9 text-xs",
         nodo.color ? CIRCULO[nodo.color] : "bg-sand text-tinta",
       )}>
         {foto
@@ -43,16 +44,23 @@ function Tarjeta({ nodo, foto, onElegir }: { nodo: Nodo; foto: string | null; on
           : inicialesDe(nodo.nombres, nodo.apellidos)}
       </span>
       <span className="min-w-0">
-        <span className={cx("block text-sm leading-snug text-tinta", nodo.discreto ? "font-normal" : "font-medium")}>
+        <span className={cx("block leading-snug text-tinta", nodo.discreto ? "text-xs font-normal" : "text-sm font-medium")}>
           {nodo.nombres} {nodo.apellidos}
         </span>
-        <span className="block text-xs leading-snug text-taupe">{nodo.funcion}</span>
-        {nodo.etiqueta && <Insignia punto={false} className="mt-1">{ETIQUETAS[nodo.etiqueta]}</Insignia>}
+        <span className={cx("block leading-snug text-taupe", nodo.discreto ? "text-[11px]" : "text-xs")}>{nodo.funcion}</span>
+        {(nodo.etiqueta || nodo.distintivo) && (
+          <span className="mt-1 flex flex-wrap justify-center gap-1 @min-[11rem]:justify-start">
+            {nodo.etiqueta && <Insignia punto={false} tamano={nodo.discreto ? "sm" : "md"}>{ETIQUETAS[nodo.etiqueta]}</Insignia>}
+            {nodo.distintivo && <Insignia punto={false} tamano={nodo.discreto ? "sm" : "md"} variante="informativo" className="max-w-full"><span className="whitespace-normal text-center">◆ {nodo.distintivo}</span></Insignia>}
+          </span>
+        )}
       </span>
     </span>
   );
   const clases = cx(
-    "@container block w-full rounded-control p-2",
+    "@container relative z-10 block rounded-control",
+    // La tarjeta discreta ocupa menos que su casilla y va centrada en ella (la línea la sigue).
+    nodo.discreto ? "mx-auto w-4/5 p-1.5" : "w-full p-2",
     nodo.color ? TARJETA[nodo.color] : "border border-sand bg-papel",
   );
   return onElegir ? (
@@ -89,11 +97,48 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
     const m = marco.current;
     if (!m) return;
     const tarjeta = (id: string) => m.querySelector<HTMLElement>(`[data-persona="${CSS.escape(id)}"]`);
-    setTrazos(datos.lineas.flatMap((l) => {
+    const filaDe = (el: HTMLElement) => Number(el.closest<HTMLElement>("[data-fila]")?.dataset.fila ?? 0);
+    const filas = Array.from(m.querySelectorAll<HTMLElement>("[data-fila]")).map((el) => {
+      const equipos = Array.from(el.querySelectorAll<HTMLElement>("section")).map((s) => medir(s, m)).sort((x, y) => x.izq - y.izq);
+      return {
+        arriba: medir(el, m).arr,
+        pasillos: equipos.slice(1).map((e, i) => Math.round((equipos[i].der + e.izq) / 2)),
+      };
+    });
+    const obstaculos = Array.from(m.querySelectorAll<HTMLElement>("[data-persona]")).map((el) => medir(el, m));
+    // Cada línea, vista de arriba hacia abajo.
+    const unidas = datos.lineas.flatMap((l) => {
       const a = tarjeta(l.desde);
       const b = tarjeta(l.hasta);
-      return a && b ? [{ clave: `${l.desde}-${l.hasta}`, tipo: l.tipo, d: trazarLinea(medir(a, m), medir(b, m)) }] : [];
-    }));
+      if (!a || !b) return [];
+      const [alta, baja] = filaDe(a) <= filaDe(b) ? [a, b] : [b, a];
+      return [{ l, a, b, alta, baja }];
+    });
+    type Unida = (typeof unidas)[number];
+    const cruzaFilas = (u: Unida) => filaDe(u.alta) !== filaDe(u.baja);
+    const trazoEntre = ({ alta, baja }: Unida, carril: number) => trazarEntreFilas(medir(alta, m), medir(baja, m), {
+      filas: filas.slice(filaDe(alta) + 1, filaDe(baja) + 1),
+      obstaculos,
+      carril,
+    });
+    // Dos personas solo van en alturas distintas si sus líneas se pisarían en el mismo canal.
+    const carriles = new Map<HTMLElement, number>();
+    for (const filaDeSalida of new Set(unidas.filter(cruzaFilas).map((u) => filaDe(u.alta)))) {
+      const deAqui = unidas.filter((u) => cruzaFilas(u) && filaDe(u.alta) === filaDeSalida);
+      const personas = [...new Set(deAqui.map((u) => u.alta))];
+      const canal = alturaDelCanal(filas[filaDeSalida + 1], 0);
+      const asignados = asignarCarriles(personas.map((persona, n) => {
+        const tramos = deAqui.filter((u) => u.alta === persona).flatMap((u) => tramoEn(trazoEntre(u, 0), canal) ?? []);
+        return { clave: String(n), ini: Math.min(...tramos.map((t) => t.ini)), fin: Math.max(...tramos.map((t) => t.fin)) };
+      }));
+      personas.forEach((persona, n) => carriles.set(persona, asignados.get(String(n)) ?? 0));
+    }
+    setTrazos(unidas.map((u) => ({
+      clave: `${u.l.desde}-${u.l.hasta}`,
+      tipo: u.l.tipo,
+      d: redondear(cruzaFilas(u) ? trazoEntre(u, carriles.get(u.alta) ?? 0) : trazarLinea(medir(u.a, m), medir(u.b, m))),
+    // Las llenas van encima: donde dos comparten recorrido se ve el tronco lleno.
+    })).sort((x, y) => (x.tipo === y.tipo ? 0 : x.tipo === "asesoria" ? -1 : 1)));
   }, [datos]);
 
   // Las líneas salen de dónde quedaron las tarjetas: se miden al pintar y cada vez que el dibujo cambia de tamaño.
@@ -109,10 +154,19 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
   const filas = filasDelOrganigrama(datos.bloques, datos.personas);
 
   return (
-    <div ref={marco} className="relative flex flex-col gap-4 md:gap-0">
+    // Entre tableta y escritorio angosto, el dibujo conserva su ancho y se desliza de lado: encogerlo más rompe las palabras.
+    <div className="md:overflow-x-auto">
+    <div ref={marco} className="relative flex flex-col gap-4 md:min-w-[52rem] md:gap-0 md:px-5">
+      <svg aria-hidden className="pointer-events-none absolute inset-0 hidden size-full md:block">
+        {trazos.map((t) => (
+          <path key={t.clave} d={t.d} fill="none" strokeWidth={1.5} strokeLinecap="round"
+            strokeDasharray={t.tipo === "asesoria" ? "2 5" : undefined}
+            className={t.tipo === "equipo" ? "stroke-taupe/70" : "stroke-pizarra"} />
+        ))}
+      </svg>
       {filas.map((f, i) => (
-        <div key={f.fila}
-          className={cx("contents md:grid md:items-start md:gap-x-7 md:py-4", i > 0 && "md:border-t md:border-sand")}
+        <div key={f.fila} data-fila={i}
+          className={cx("contents md:grid md:items-start md:gap-x-9", i > 0 ? "md:pt-14" : "md:pt-2")}
           style={{ gridTemplateColumns: f.equipos.map((e) => `minmax(0, ${e.bloque.ancho}fr)`).join(" ") }}>
           {f.equipos.map(({ bloque, niveles }, columna) => (
             <section key={bloque.clave} aria-label={bloque.nombre}
@@ -122,7 +176,10 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
                 gridColumn: columna + 1,
                 gridRow: f.comparteNiveles ? `1 / span ${f.ultimoNivel + 1}` : 1,
               } as React.CSSProperties}>
-              <h3 className={cx("font-serif text-center", bloque.discreto ? "text-sm text-taupe" : "text-base text-tinta")}>
+              <h3 className={cx(
+                "relative z-10 mx-auto w-fit max-w-full rounded-pildora border border-sand bg-crema px-3 py-0.5 text-center font-serif",
+                bloque.discreto ? "text-sm text-taupe" : "text-base text-tinta",
+              )}>
                 {bloque.nombre}
               </h3>
               {niveles.map((n) => (
@@ -135,7 +192,8 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
                   } as React.CSSProperties}>
                   {n.celdas.map((c) => (
                     <div key={c.nodo.persona_id}
-                      className="flex md:[grid-column:var(--en)] [&>*]:self-stretch"
+                      // La tarjeta pequeña no se estira hasta el alto de su vecina.
+                      className={cx("flex md:[grid-column:var(--en)]", c.nodo.discreto ? "[&>*]:self-start" : "[&>*]:self-stretch")}
                       style={{ "--en": `${c.columna} / span ${c.ocupa}` } as React.CSSProperties}>
                       <Tarjeta nodo={c.nodo} foto={urlPublicaFotoPerfil(supabase, c.nodo.foto_url)} onElegir={onElegir} />
                     </div>
@@ -146,18 +204,12 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
           ))}
         </div>
       ))}
-      <svg aria-hidden className="pointer-events-none absolute inset-0 hidden size-full md:block">
-        {trazos.map((t) => (
-          <path key={t.clave} d={t.d} fill="none" strokeWidth={t.tipo === "equipo" ? 1.5 : 2}
-            strokeDasharray={t.tipo === "asesoria" ? "3 4" : undefined}
-            className={t.tipo === "equipo" ? "stroke-taupe" : "stroke-pizarra"} />
-        ))}
-      </svg>
       {datos.lineas.length > 0 && (
         <p className="hidden text-center text-xs text-taupe md:block" style={{ order: 1000 }}>
           Línea llena: equipo · línea punteada: asesoría, sin mando
         </p>
       )}
+    </div>
     </div>
   );
 }

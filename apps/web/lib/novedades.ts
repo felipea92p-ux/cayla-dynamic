@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-25-el-organigrama-une-mejor-los-equipos",
+    fecha: "2026-11-25",
+    titulo: "El organigrama une equipos con líneas más claras",
+    queMejoro:
+      "Las líneas que unen equipos distintos ahora van por los espacios libres, entran por el centro de cada tarjeta y " +
+      "pasan por detrás de los títulos. En una pantalla angosta el dibujo se desliza de lado en vez de apretarse.\n\n" +
+      "En «Ordenar» hay un campo nuevo, «Distintivo», para marcar una especialidad que comparten personas de equipos " +
+      "distintos, y la opción «Tarjeta pequeña y sin negrita».",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-25-el-organigrama-entra-a-dynamic",
     fecha: "2026-11-25",
     titulo: "El organigrama ya se arma en Dynamic",

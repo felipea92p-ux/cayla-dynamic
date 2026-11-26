@@ -3,7 +3,8 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import {
-  filasDelOrganigrama, leerOrganigrama, trazarLinea, type Bloque, type Nodo,
+  asignarCarriles, filasDelOrganigrama, leerOrganigrama, redondear, tramoEn, trazarEntreFilas, trazarLinea,
+  type Bloque, type Nodo,
 } from "@/lib/organigrama";
 
 const bloque = (clave: string, fila: number, orden: number, columnas: number | null = null): Bloque =>
@@ -62,6 +63,48 @@ describe("las líneas", () => {
     const jefa = caja(150, 100);
     expect(trazarLinea(caja(0, 0), jefa)).toBe("M100 25H136V125H150");
     expect(trazarLinea(caja(0, 200), jefa)).toBe("M100 225H136V125H150");
+  });
+});
+
+describe("las líneas que unen filas distintas", () => {
+  const caja = (izq: number, arr: number, ancho = 100, alto = 50) => ({ izq, arr, der: izq + ancho, aba: arr + alto });
+  const filas = [{ arriba: 100, pasillos: [150, 450] }, { arriba: 300, pasillos: [] }];
+  const jefa = caja(500, 20);
+
+  it("a la fila siguiente: baja al canal, avanza y entra por el centro de la tarjeta", () => {
+    const abajo = caja(0, 130);
+    expect(trazarEntreFilas(jefa, abajo, { filas: filas.slice(0, 1), obstaculos: [jefa, abajo], carril: 0 }))
+      .toBe("M550 70V114H50V130");
+  });
+
+  it("si hay una tarjeta justo debajo, sale por el costado izquierdo", () => {
+    const debajo = caja(500, 80, 100, 20);
+    const lejos = caja(700, 130);
+    expect(trazarEntreFilas(jefa, lejos, { filas: filas.slice(0, 1), obstaculos: [jefa, debajo], carril: 1 }))
+      .toBe("M500 45H488V124H750V130");
+  });
+
+  it("a dos filas: atraviesa la del medio por el pasillo más cercano a quien sale", () => {
+    const abajo = caja(0, 330);
+    expect(trazarEntreFilas(jefa, abajo, { filas, obstaculos: [jefa, abajo], carril: 0 }))
+      .toBe("M550 70V114H450V314H50V330");
+  });
+
+  it("si el pasillo ya cae sobre la tarjeta de llegada, entra derecho", () => {
+    const ancha = caja(200, 330, 400);
+    expect(trazarEntreFilas(jefa, ancha, { filas, obstaculos: [jefa, ancha], carril: 0 }))
+      .toBe("M550 70V114H450V314H450V330");
+  });
+
+  it("dos personas comparten altura salvo que sus tramos se pisen", () => {
+    const c = asignarCarriles([{ clave: "a", ini: 0, fin: 300 }, { clave: "b", ini: 400, fin: 600 }, { clave: "c", ini: 250, fin: 420 }]);
+    expect([c.get("a"), c.get("b"), c.get("c")]).toEqual([0, 0, 1]);
+    expect(tramoEn("M550 70V114H150V314H50V330", 114)).toEqual({ ini: 150, fin: 550 });
+  });
+
+  it("redondea las esquinas y deja las rectas como rectas", () => {
+    expect(redondear("M0 0V100H100", 10)).toBe("M0 0L0 90Q0 100 10 100L100 100");
+    expect(redondear("M0 0H50H100", 10)).toBe("M0 0L100 0");
   });
 });
 
