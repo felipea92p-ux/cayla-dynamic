@@ -6,13 +6,11 @@
 // dónde pasa cada línea. Son funciones puras, sin navegador ni Supabase.
 //
 // LAS TRES REGLAS DEL DIBUJO
-//   · Los equipos de una misma «fila» van lado a lado, con su ancho relativo.
-//   · Dentro de un equipo, cada «nivel» es un renglón. Si el equipo tiene
-//     columnas, cada persona cae en la suya (quien no la dice ocupa todo el
-//     renglón); si no, el renglón se reparte solo.
-//   · Si algún equipo de una fila empieza más abajo del nivel 1, toda la fila
-//     comparte los renglones: así quien encabeza queda a la altura del medio
-//     de su equipo sin escribir medidas a mano.
+//   · Los equipos de una misma «fila» van lado a lado.
+//   · Junto a otros, un equipo es una columna de fichas (o dos, si su ancho es
+//     2: Dirección). Solo en su fila, cada «nivel» es un renglón centrado.
+//   · Las líneas van de una persona a un equipo, no ficha por ficha: varias
+//     que llegan al mismo equipo se dibujan una sola vez.
 // ============================================================================
 
 export type Etiqueta = "apoyo_lider" | "asesoria" | "externo";
@@ -98,75 +96,114 @@ export function leerOrganigrama(json: unknown): Organigrama {
   };
 }
 
-export interface Celda {
-  nodo: Nodo;
-  /** Columna de la cuadrícula en la que cae (desde 1). */
-  columna: number;
-  /** Cuántas columnas ocupa. */
-  ocupa: number;
-}
-
-export interface Nivel {
-  nivel: number;
-  columnas: number;
-  celdas: Celda[];
-}
-
 export interface Equipo {
   bloque: Bloque;
-  niveles: Nivel[];
+  /** Su gente, en el orden en que se lee: por nivel, columna y posición. */
+  personas: Nodo[];
 }
 
 export interface Fila {
   fila: number;
   equipos: Equipo[];
-  /** Los renglones se comparten entre equipos (alguno empieza más abajo del primero). */
-  comparteNiveles: boolean;
-  /** El nivel más bajo que usa la fila: cuántos renglones compartidos hacen falta. */
-  ultimoNivel: number;
 }
 
 const porLugar = (a: Nodo, b: Nodo) =>
-  a.orden - b.orden || a.apellidos.localeCompare(b.apellidos, "es") || a.nombres.localeCompare(b.nombres, "es")
+  a.nivel - b.nivel || (a.columna ?? 99) - (b.columna ?? 99) || a.orden - b.orden
+  || a.apellidos.localeCompare(b.apellidos, "es") || a.nombres.localeCompare(b.nombres, "es")
   || a.persona_id.localeCompare(b.persona_id);
-
-function nivelesDe(bloque: Bloque, nodos: readonly Nodo[]): Nivel[] {
-  const numeros = [...new Set(nodos.map((n) => n.nivel))].sort((a, b) => a - b);
-  return numeros.map((nivel) => {
-    const enNivel = nodos.filter((n) => n.nivel === nivel)
-      .sort((a, b) => (a.columna ?? 99) - (b.columna ?? 99) || porLugar(a, b));
-    if (bloque.columnas) {
-      const columnas = bloque.columnas;
-      return {
-        nivel,
-        columnas,
-        celdas: enNivel.map((nodo) => {
-          const cabe = nodo.columna !== null && nodo.columna <= columnas;
-          return { nodo, columna: cabe ? (nodo.columna as number) : 1, ocupa: cabe ? 1 : columnas };
-        }),
-      };
-    }
-    const columnas = enNivel.length;
-    return { nivel, columnas, celdas: enNivel.map((nodo, i) => ({ nodo, columna: i + 1, ocupa: 1 })) };
-  });
-}
 
 /** El dibujo en filas. Un equipo sin nadie no se dibuja. */
 export function filasDelOrganigrama(bloques: readonly Bloque[], personas: readonly Nodo[]): Fila[] {
   const equipos = [...bloques]
     .sort((a, b) => a.fila - b.fila || a.orden - b.orden)
-    .map((bloque) => ({ bloque, niveles: nivelesDe(bloque, personas.filter((p) => p.bloque === bloque.clave)) }))
-    .filter((e) => e.niveles.length > 0);
-  const numeros = [...new Set(equipos.map((e) => e.bloque.fila))];
-  return numeros.map((fila) => {
-    const suyos = equipos.filter((e) => e.bloque.fila === fila);
-    return {
-      fila,
-      equipos: suyos,
-      comparteNiveles: suyos.length > 1 && suyos.some((e) => e.niveles[0].nivel > 1),
-      ultimoNivel: Math.max(...suyos.map((e) => e.niveles[e.niveles.length - 1].nivel)),
-    };
+    .map((bloque) => ({ bloque, personas: personas.filter((p) => p.bloque === bloque.clave).sort(porLugar) }))
+    .filter((e) => e.personas.length > 0);
+  return [...new Set(equipos.map((e) => e.bloque.fila))]
+    .map((fila) => ({ fila, equipos: equipos.filter((e) => e.bloque.fila === fila) }));
+}
+
+/** Cómo se acomoda la gente de un equipo: en columnas una junto a otra, o en renglones centrados. */
+export type Forma = { tipo: "columnas"; grupos: Nodo[][] } | { tipo: "renglones"; grupos: Nodo[][] };
+
+export function formaDelEquipo({ bloque, personas }: Equipo, soloEnSuFila: boolean): Forma {
+  if (soloEnSuFila) {
+    const niveles = [...new Set(personas.map((p) => p.nivel))];
+    return { tipo: "renglones", grupos: niveles.map((n) => personas.filter((p) => p.nivel === n)) };
+  }
+  const columnas = bloque.ancho >= 2 ? bloque.columnas ?? 1 : 1;
+  if (columnas < 2) return { tipo: "columnas", grupos: [personas] };
+  // Quien no dice columna (o dice una que ya no existe) va en la primera.
+  const en = (p: Nodo) => (p.columna !== null && p.columna <= columnas ? p.columna : 1);
+  return {
+    tipo: "columnas",
+    grupos: Array.from({ length: columnas }, (_, i) => personas.filter((p) => en(p) === i + 1)).filter((g) => g.length > 0),
+  };
+}
+
+/** Cuántas fichas por renglón: hasta cuatro en una fila; si son más, de tres en tres. */
+export const fichasPorRenglon = (cuantas: number) => (cuantas > 4 ? 3 : cuantas);
+
+/** «Arequipa · tienda» se lee como título y bajada. */
+export function tituloDeEquipo(nombre: string): { titulo: string; bajada: string | null } {
+  const [titulo, ...resto] = nombre.split(" · ");
+  return { titulo, bajada: resto.length ? resto.join(" · ") : null };
+}
+
+/** Dónde quedó cada persona en el dibujo. */
+export interface Lugar {
+  fila: number;
+  equipo: string;
+  columna: number;
+  /** Su puesto dentro de la columna, de arriba abajo. */
+  puesto: number;
+}
+
+export type Trazo =
+  /** Entre dos fichas vecinas de la misma columna. */
+  | { clase: "vecinas"; tipo: TipoLinea; desde: string; hasta: string }
+  /** Entre dos equipos de la misma fila: sale de `desde` y llega a la ficha más a mano. */
+  | { clase: "al-lado"; tipo: TipoLinea; desde: string; hasta: string[] }
+  /** De una persona a un equipo de más abajo. */
+  | { clase: "a-equipo"; tipo: TipoLinea; desde: string; equipo: string };
+
+/**
+ * Las líneas guardadas (de persona a persona) convertidas en las que se dibujan.
+ * Dentro de un equipo el panel ya dice quiénes van juntos: solo se traza la que
+ * une a dos fichas vecinas en línea de equipo.
+ */
+export function agruparLineas(lineas: readonly Linea[], lugares: ReadonlyMap<string, Lugar>): Trazo[] {
+  const entre = lineas.flatMap((l) => {
+    const a = lugares.get(l.desde);
+    const b = lugares.get(l.hasta);
+    return a && b ? [{ l, a, b }] : [];
   });
+  const salida = new Map<string, Trazo>();
+  // Cuántas líneas de un tipo tiene cada persona hacia un equipo: en una misma fila, quien más tiene es de quien sale.
+  const abanico = new Map<string, number>();
+  const llave = (persona: string, equipo: string, tipo: TipoLinea) => `${persona}|${equipo}|${tipo}`;
+  for (const { l, a, b } of entre) {
+    for (const k of [llave(l.desde, b.equipo, l.tipo), llave(l.hasta, a.equipo, l.tipo)]) abanico.set(k, (abanico.get(k) ?? 0) + 1);
+  }
+  for (const { l, a, b } of entre) {
+    if (a.equipo === b.equipo) {
+      if (l.tipo === "equipo" && a.columna === b.columna && Math.abs(a.puesto - b.puesto) === 1) {
+        salida.set(`${l.desde}|${l.hasta}`, { clase: "vecinas", tipo: l.tipo, desde: l.desde, hasta: l.hasta });
+      }
+      continue;
+    }
+    const sale = a.fila !== b.fila
+      ? a.fila < b.fila
+      : (abanico.get(llave(l.desde, b.equipo, l.tipo)) ?? 0) >= (abanico.get(llave(l.hasta, a.equipo, l.tipo)) ?? 0);
+    const [desde, hasta, destino] = sale ? [l.desde, l.hasta, b] : [l.hasta, l.desde, a];
+    const k = llave(desde, destino.equipo, l.tipo);
+    if (a.fila !== b.fila) {
+      salida.set(k, { clase: "a-equipo", tipo: l.tipo, desde, equipo: destino.equipo });
+    } else {
+      const previo = salida.get(k);
+      salida.set(k, { clase: "al-lado", tipo: l.tipo, desde, hasta: [...(previo?.clase === "al-lado" ? previo.hasta : []), hasta] });
+    }
+  }
+  return [...salida.values()];
 }
 
 // ── Las líneas ──────────────────────────────────────────────────────────────
@@ -216,9 +253,7 @@ const CANAL = 14;
 /** Separación entre los carriles de un canal, cuando dos personas necesitan el mismo tramo. */
 const CARRIL = 10;
 /** Cuánto se aparta de la tarjeta una línea que tiene que salir de costado. */
-const SALIDA = 12;
-/** A cuánto de la orilla de una tarjeta puede entrar una línea sin verse torcida. */
-const HOLGURA = 20;
+const SALIDA = 14;
 
 /** Una fila por la que pasa una línea: dónde empieza (ahí está su canal) y los pasillos libres entre sus equipos. */
 export interface PasoDeFila {
@@ -235,8 +270,8 @@ export function alturaDelCanal(fila: PasoDeFila, carril: number): number {
  * El trazo de una línea que une dos filas sin pasar por encima de ninguna
  * tarjeta: baja hasta el canal que hay sobre la fila siguiente, avanza por él,
  * atraviesa las filas intermedias por el pasillo más cercano a quien sale (así
- * cada árbol se queda de su lado y no cruza el de los demás) y entra en la
- * tarjeta desde arriba: por su centro, o derecho si el pasillo ya cae sobre ella.
+ * cada árbol se queda de su lado y no cruza el de los demás) y entra por el
+ * centro de la llegada, desde arriba.
  *
  * Si hay una tarjeta justo debajo de quien sale, la línea sale por su costado
  * izquierdo: así el árbol de quien está en la orilla corre por el margen.
@@ -255,14 +290,11 @@ export function trazarEntreFilas(desde: Caja, hasta: Caja, { filas, obstaculos, 
   let trazo = tapado
     ? `M${Math.round(desde.izq)} ${medio(desde.arr, desde.aba)}H${Math.round(desde.izq) - SALIDA}V${canal(0)}`
     : `M${centro} ${Math.round(desde.aba)}V${canal(0)}`;
-  let entra = medio(hasta.izq, hasta.der);
-  let bajaPor: number | null = null;
+  const entra = medio(hasta.izq, hasta.der);
   for (let i = 1; i < filas.length; i++) {
     const [pasillo] = [...filas[i - 1].pasillos].sort((a, b) => Math.abs(a - centro) - Math.abs(b - centro));
-    bajaPor = Math.round(pasillo ?? entra);
-    trazo += `H${bajaPor}V${canal(i)}`;
+    trazo += `H${Math.round(pasillo ?? entra)}V${canal(i)}`;
   }
-  if (bajaPor !== null && bajaPor >= hasta.izq + HOLGURA && bajaPor <= hasta.der - HOLGURA) entra = bajaPor;
   return `${trazo}H${entra}V${Math.round(hasta.arr)}`;
 }
 
@@ -286,12 +318,13 @@ export function tramoEn(d: string, y: number): { ini: number; fin: number } | nu
 
 /**
  * A cada quien, el carril más alto en el que su tramo no se pisa con el de otro.
- * Quienes no se estorban comparten altura: el dibujo queda con menos renglones.
+ * Quienes no se estorban comparten altura. Entre dos que sí, va arriba quien
+ * sale más a la derecha: su bajada no corta el renglón del otro.
  */
 export function asignarCarriles(tramos: readonly { clave: string; ini: number; fin: number }[]): Map<string, number> {
   const ocupados: { ini: number; fin: number }[][] = [];
   const carriles = new Map<string, number>();
-  for (const t of [...tramos].sort((a, b) => a.ini - b.ini || a.clave.localeCompare(b.clave))) {
+  for (const t of [...tramos].sort((a, b) => b.ini - a.ini || a.clave.localeCompare(b.clave))) {
     let c = ocupados.findIndex((o) => o.every((x) => t.fin + 8 < x.ini || t.ini > x.fin + 8));
     if (c < 0) { c = ocupados.length; ocupados.push([]); }
     ocupados[c].push(t);
