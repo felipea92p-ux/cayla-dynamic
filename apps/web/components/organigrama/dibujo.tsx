@@ -115,12 +115,13 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
     const equipoEn = (clave: string) => m.querySelector<HTMLElement>(`[data-equipo="${CSS.escape(clave)}"]`);
     const lugares = new Map<string, Lugar>();
     m.querySelectorAll<HTMLElement>("[data-persona]").forEach((el) => {
-      const grupo = el.closest<HTMLElement>("[data-columna]");
+      const equipo = el.closest<HTMLElement>("[data-equipo]");
+      const columna = el.closest<HTMLElement>("[data-columna]")?.dataset.columna ?? "0";
       lugares.set(el.dataset.persona ?? "", {
         fila: Number(el.closest<HTMLElement>("[data-fila]")?.dataset.fila ?? 0),
-        equipo: el.closest<HTMLElement>("[data-equipo]")?.dataset.equipo ?? "",
-        columna: Number(grupo?.dataset.columna ?? 0),
-        puesto: grupo ? Array.from(grupo.querySelectorAll("[data-persona]")).indexOf(el) : 0,
+        equipo: equipo?.dataset.equipo ?? "",
+        columna: Number(columna),
+        puesto: Array.from(equipo?.querySelectorAll(`[data-columna="${columna}"] [data-persona]`) ?? []).indexOf(el),
       });
     });
     const medidas = Array.from(m.querySelectorAll<HTMLElement>("[data-fila]")).map((el) => {
@@ -159,21 +160,18 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
     }
 
     setTrazos(lineas.flatMap((t, i) => {
-      let d = "";
+      let caminos: string[] = [];
       if (t.clase === "a-equipo") {
-        d = bajar(t, carriles.get(t.desde) ?? 0);
+        caminos = [bajar(t, carriles.get(t.desde) ?? 0)];
       } else {
         const desde = ficha(t.desde);
-        const candidatas = (t.clase === "al-lado" ? t.hasta : [t.hasta]).flatMap((id) => ficha(id) ?? []);
-        if (desde && candidatas.length) {
-          const a = medir(desde, m);
-          // De las fichas del otro equipo, la que queda más a la altura de quien sale.
-          const centro = (c: Caja) => (c.arr + c.aba) / 2;
-          const [b] = candidatas.map((c) => medir(c, m)).sort((x, y) => Math.abs(centro(x) - centro(a)) - Math.abs(centro(y) - centro(a)));
-          d = trazarLinea(a, b);
-        }
+        // En la misma fila va una línea por persona: comparten el tronco y se ven todas por igual.
+        caminos = (t.clase === "al-lado" ? t.hasta : [t.hasta]).flatMap((id) => {
+          const hasta = ficha(id);
+          return desde && hasta ? [trazarLinea(medir(desde, m), medir(hasta, m))] : [];
+        });
       }
-      return d ? [{ clave: `${i}-${t.desde}`, tipo: t.tipo, d: redondear(d, 12) }] : [];
+      return caminos.filter(Boolean).map((d, n) => ({ clave: `${i}-${n}-${t.desde}`, tipo: t.tipo, d: redondear(d, 12) }));
       // Las llenas van encima: donde dos comparten recorrido se ve el tronco lleno.
     }).sort((x, y) => (x.tipo === y.tipo ? 0 : x.tipo === "asesoria" ? -1 : 1)));
   }, [datos]);
@@ -209,18 +207,38 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
         </svg>
         {filas.map((f, i) => (
           <div key={f.fila} data-fila={i}
-            className={cx("contents md:flex md:items-start md:justify-center md:gap-x-[clamp(2rem,6vw,5.25rem)]", i > 0 ? "md:pt-16" : "md:pt-2")}>
-            {f.equipos.map(({ bloque, forma }) => {
+            className={cx(
+              "contents md:justify-center md:gap-x-[clamp(2rem,6vw,5.25rem)]",
+              f.comparteNiveles ? "md:grid md:grid-cols-[repeat(var(--equipos),max-content)] md:gap-y-2.5" : "md:flex md:items-start",
+              i > 0 ? "md:pt-16" : "md:pt-2",
+            )}
+            style={{
+              "--equipos": f.equipos.length,
+              ...(f.comparteNiveles ? { gridTemplateRows: `repeat(${f.ultimoNivel - f.primerNivel + 2}, auto)` } : {}),
+            } as React.CSSProperties}>
+            {f.equipos.map(({ bloque, forma }, e) => {
               const { titulo, bajada } = tituloDeEquipo(bloque.nombre);
               return (
                 <section key={bloque.clave} data-equipo={bloque.clave} aria-label={bloque.nombre}
-                  className="flex flex-col items-center gap-3 max-md:[order:var(--orden-movil)]"
-                  style={{ "--orden-movil": bloque.orden_movil } as React.CSSProperties}>
+                  className={cx("flex flex-col items-center gap-3 max-md:[order:var(--orden-movil)]",
+                    f.comparteNiveles && "md:grid md:grid-rows-subgrid md:justify-items-center md:gap-y-2.5")}
+                  style={{ "--orden-movil": bloque.orden_movil, gridColumn: e + 1, gridRow: "1 / -1" } as React.CSSProperties}>
                   <h3 className={cx("relative z-10 text-center text-sm font-semibold leading-tight", bloque.discreto ? "text-taupe" : "text-tinta")}>
                     {titulo}
                     {bajada && <span className="block text-xs font-normal text-taupe">{bajada}</span>}
                   </h3>
-                  {forma.tipo === "columnas" ? (
+                  {forma.tipo === "columnas" && f.comparteNiveles ? (
+                    // Cada persona cae en el renglón de su nivel, compartido con los equipos vecinos.
+                    <div className="flex w-full flex-col items-center gap-2.5 md:grid md:grid-cols-[repeat(var(--columnas),14rem)] md:grid-rows-subgrid md:gap-x-3 md:[grid-row:2/-1]"
+                      style={{ "--columnas": forma.grupos.length } as React.CSSProperties}>
+                      {forma.grupos.flatMap((g, c) => [...new Set(g.map((n) => n.nivel))].map((nivel) => (
+                        <div key={`${c}-${nivel}`} data-columna={c} className={cx(columna, "md:self-center")}
+                          style={{ gridColumn: c + 1, gridRow: nivel - f.primerNivel + 1 }}>
+                          {g.filter((n) => n.nivel === nivel).map(ficha)}
+                        </div>
+                      )))}
+                    </div>
+                  ) : forma.tipo === "columnas" ? (
                     <div className="flex w-full flex-col items-center gap-2.5 md:flex-row md:items-start md:gap-3">
                       {forma.grupos.map((g, c) => <div key={g[0].persona_id} data-columna={c} className={columna}>{g.map(ficha)}</div>)}
                     </div>
