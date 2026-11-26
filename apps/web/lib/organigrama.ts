@@ -214,7 +214,7 @@ export function trazarLinea(desde: Caja, hasta: Caja): string {
 /** Cuánto dentro de la tarjeta de llegada baja una línea que viene de otra fila: lejos del título, que va centrado. */
 const ENTRADA = 24;
 /** Separación entre los carriles de un canal, para que las líneas de dos personas no se confundan. */
-const CARRIL = 8;
+const CARRIL = 12;
 
 /** Una fila por la que pasa una línea: dónde empieza (ahí está su canal) y los pasillos libres entre sus equipos. */
 export interface PasoDeFila {

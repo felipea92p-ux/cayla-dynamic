@@ -80,7 +80,7 @@ describe("las líneas que unen filas distintas", () => {
     const debajo = caja(500, 80, 100, 20);
     const lejos = caja(700, 130);
     expect(trazarEntreFilas(jefa, lejos, { filas: filas.slice(0, 1), obstaculos: [jefa, debajo], centroDestino: 800, carril: 1 }))
-      .toBe("M500 45H495V114H724V130");
+      .toBe("M500 45H495V118H724V130");
   });
 
   it("a dos filas: atraviesa la del medio por el pasillo más cercano al equipo de llegada", () => {

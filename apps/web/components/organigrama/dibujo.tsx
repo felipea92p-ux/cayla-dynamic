@@ -51,7 +51,7 @@ function Tarjeta({ nodo, foto, onElegir }: { nodo: Nodo; foto: string | null; on
         {(nodo.etiqueta || nodo.distintivo) && (
           <span className="mt-1 flex flex-wrap justify-center gap-1 @min-[11rem]:justify-start">
             {nodo.etiqueta && <Insignia punto={false} tamano={nodo.discreto ? "sm" : "md"}>{ETIQUETAS[nodo.etiqueta]}</Insignia>}
-            {nodo.distintivo && <Insignia punto={false} tamano={nodo.discreto ? "sm" : "md"} variante="informativo">◆ {nodo.distintivo}</Insignia>}
+            {nodo.distintivo && <Insignia punto={false} tamano={nodo.discreto ? "sm" : "md"} variante="informativo" className="max-w-full"><span className="whitespace-normal text-center">◆ {nodo.distintivo}</span></Insignia>}
           </span>
         )}
       </span>
@@ -149,7 +149,7 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
     <div ref={marco} className="relative flex flex-col gap-4 md:gap-0">
       {filas.map((f, i) => (
         <div key={f.fila} data-fila={i}
-          className={cx("contents md:grid md:items-start md:gap-x-7 md:pb-4", i > 0 ? "md:border-t md:border-sand md:pt-7" : "md:pt-4")}
+          className={cx("contents md:grid md:items-start md:gap-x-7 md:pb-4", i > 0 ? "md:border-t md:border-sand md:pt-9" : "md:pt-4")}
           style={{ gridTemplateColumns: f.equipos.map((e) => `minmax(0, ${e.bloque.ancho}fr)`).join(" ") }}>
           {f.equipos.map(({ bloque, niveles }, columna) => (
             <section key={bloque.clave} aria-label={bloque.nombre}
