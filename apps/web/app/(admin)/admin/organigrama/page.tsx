@@ -21,7 +21,7 @@ export default function OrganigramaPage() {
   return (
     <main className="flex-1 p-4 pt-6 sm:p-6">
       <CabeceraPagina
-        sobretitulo={sobretituloDeHoy("Empresa")}
+        sobretitulo={sobretituloDeHoy("Personas")}
         titulo="Organigrama"
         descripcion="Quién es quién en CAYLA y en qué equipo está."
       />

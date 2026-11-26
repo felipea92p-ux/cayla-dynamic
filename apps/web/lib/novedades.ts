@@ -119,7 +119,7 @@ export const NOVEDADES: readonly Novedad[] = [
     fecha: "2026-11-25",
     titulo: "El organigrama ya se arma en Dynamic",
     queMejoro:
-      "En «Empresa › Organigrama» se ve quién es quién y en qué equipo está. Los nombres y las fotos salen de cada " +
+      "En «Personas › Organigrama» se ve quién es quién y en qué equipo está. Los nombres y las fotos salen de cada " +
       "ficha, y quien pasa a inactivo deja de aparecer solo.\n\n" +
       "Nace como borrador: hasta que toques «Publicar al equipo» lo ve solo Desarrollo Organizacional. Con «Ordenar» " +
       "cambias equipo, función, color y líneas; eso no modifica el cargo de la ficha.",

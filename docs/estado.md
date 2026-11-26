@@ -8,7 +8,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ## 2026-11-25 — Organigrama en Dynamic · construido en local · **SQL 0623 sin pegar, nada subido**
 
-**Qué es.** «Empresa › Organigrama» en el panel y «Documentos › Organigrama» en «Lo mío». Se arma desde las fichas (nombre y foto);
+**Qué es.** «Personas › Organigrama» en el panel y «Documentos › Organigrama» en «Lo mío». Se arma desde las fichas (nombre y foto);
 DO ordena equipo, función, color y líneas. Nace como borrador, visible solo para DO, hasta «Publicar al equipo». La función del
 dibujo no cambia el cargo de la ficha. Quien asesora o es externo no admite línea de equipo (candado en la base).
 

@@ -155,6 +155,9 @@ export const GRUPOS: Grupo[] = [
   ] },
   { label: "Personas", Icon: UsersRound, items: [
     { href: "/admin/equipo", label: "Equipo", Icon: Users, roles: SEDE },
+    // Quien no tiene panel lo ve en «Lo mío → Organigrama». Mientras no se
+    // publique, la base (0623) solo se lo muestra a DO.
+    { href: "/admin/organigrama", label: "Organigrama", Icon: Network, roles: SEDE },
     { href: "/admin/datos-personales", label: "Datos personales", Icon: IdCard, roles: SEDE },
     { href: "/admin/contratos", label: "Contratos", Icon: ScrollText, roles: DO },
     { href: "/admin/documentacion", label: "Documentación", Icon: FileSignature, roles: DO },
@@ -220,9 +223,6 @@ export const GRUPOS: Grupo[] = [
   // licencias, REMYPE. Va al fondo, junto a Configuración, por frecuencia —se
   // abre pocas veces al año—, aunque el día que se abre sea urgente.
   { label: "Empresa", Icon: Landmark, items: [
-    // Quien no tiene panel lo ve en «Lo mío → Organigrama». Mientras no se
-    // publique, la base (0623) solo se lo muestra a DO.
-    { href: "/admin/organigrama", label: "Organigrama", Icon: Network, roles: SEDE },
     { href: "/admin/archivo", label: "Archivo", Icon: Archive, roles: DO },
   ] },
   { label: "Configuración", Icon: Settings, corto: "Config.", items: [
