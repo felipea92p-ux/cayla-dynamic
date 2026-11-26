@@ -22,12 +22,11 @@ ficha, y que los permisos de cada quien coincidan con lo que dice el dibujo (el 
 **Límites.** Los seis equipos se crean por migración: todavía no hay pantalla para agregar o renombrar uno. No se probó la pantalla con la
 base caída ni a alguien de DO ordenando sin explicación.
 
-**Segunda ronda, mismo día · PR abierto, sin fusionar · SQL 0624 sin pegar.** Distintivo en las tarjetas, líneas entre filas sin
-cruzarse (medido en local a 800, 1000, 1280 y 1600 de ancho, con la distribución aprobada; si DO mueve a alguien hay que volver a
-mirarlo), Dirección a la izquierda de Sistemas y Desarrollo Organizacional más ancho. **Para publicarla:** 1) pegar la 0624, antes de
-fusionar; 2) fusionar; 3) pegar `scripts/sql-manual/organigrama_lineas_2.sql` (fuera de git, solo en el worktree donde se hizo):
-líneas, distintivo, posiciones, un tamaño de tarjeta y una función. **A confirmar antes de publicar al equipo:** alguien con etiqueta
-«Asesoría» pasa a figurar con una función de encargo de un área.
+**Segunda ronda, mismo día · PR #756 · SQL 0624 y sus datos pegados y verificados en producción** (12 líneas, 3 distintivos, 2
+tarjetas pequeñas, nadie sin encontrar). Distintivo en las tarjetas, líneas entre filas sin cruzarse (medido en local a 800, 1000,
+1280 y 1600 de ancho, con la distribución aprobada; si DO mueve a alguien hay que volver a mirarlo), Dirección a la izquierda de
+Sistemas y Desarrollo Organizacional más ancho. Sigue en borrador y **no se miró en producción**. **A confirmar antes de publicar al
+equipo**, además de lo de arriba: alguien con etiqueta «Asesoría» figura ahora con una función de encargo de un área.
 
 ---
 
