@@ -39,7 +39,7 @@ grant execute on function pg_temp.nombres() to authenticated;
 
 -- ── Permisos de ejecución ────────────────────────────────────────────────────
 select ok(not has_function_privilege('anon', 'fn_organigrama()', 'execute'), 'sin sesión no se lee');
-select ok(not has_function_privilege('anon', 'fn_organigrama_guardar(uuid,text,int,text,text,text,boolean,int,int)', 'execute'), 'sin sesión no se escribe');
+select ok(not has_function_privilege('anon', 'fn_organigrama_guardar(uuid,text,int,text,text,text,boolean,int,int,text)', 'execute'), 'sin sesión no se escribe');
 select ok(not has_function_privilege('anon', 'fn_organigrama_publicar(boolean)', 'execute'), 'sin sesión no se publica');
 select is((select publicado from organigrama_publicacion), false, 'nace sin publicar');
 select is((select count(*)::int from organigrama_bloques), 6, 'nace con sus seis equipos');

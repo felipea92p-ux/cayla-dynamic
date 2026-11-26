@@ -46,6 +46,7 @@ export function EditorDePersona({ datos, quien, onCerrar, onGuardado }: {
   const [etiqueta, setEtiqueta] = useState<Etiqueta | "">(actual?.etiqueta ?? "");
   const [color, setColor] = useState<Color | "">(actual?.color ?? "");
   const [discreto, setDiscreto] = useState(actual?.discreto ?? false);
+  const [distintivo, setDistintivo] = useState(actual?.distintivo ?? "");
   const [con, setCon] = useState("");
   const [tipo, setTipo] = useState<TipoLinea>("equipo");
   const [enviando, setEnviando] = useState(false);
@@ -74,7 +75,7 @@ export function EditorDePersona({ datos, quien, onCerrar, onGuardado }: {
   const guardar = () => correr("guardar en el organigrama", () => supabase.rpc("fn_organigrama_guardar", {
     p_persona_id: quien.persona_id, p_bloque: bloque, p_nivel: nivel, p_funcion: funcion,
     p_etiqueta: etiqueta || null, p_color: color || null, p_discreto: discreto,
-    p_columna: columnas ? columna : null, p_orden: orden,
+    p_columna: columnas ? columna : null, p_orden: orden, p_distintivo: distintivo,
   }), true);
 
   const unir = () => correr("unir en el organigrama", () => supabase.rpc("fn_organigrama_linea", {
@@ -114,7 +115,9 @@ export function EditorDePersona({ datos, quien, onCerrar, onGuardado }: {
             {Object.entries(COLORES).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
           </CampoSelect>
         </div>
-        <CampoCasilla etiqueta="Mostrar su nombre sin negrita" checked={discreto} onChange={(e) => setDiscreto(e.target.checked)} />
+        <Campo etiqueta="Distintivo (opcional): una especialidad en común" value={distintivo} maxLength={40}
+          onChange={(e) => setDistintivo(e.target.value)} />
+        <CampoCasilla etiqueta="Tarjeta pequeña y sin negrita" checked={discreto} onChange={(e) => setDiscreto(e.target.checked)} />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           {actual ? (

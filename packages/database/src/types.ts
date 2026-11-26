@@ -4623,6 +4623,7 @@ export type Database = {
           color: string | null
           columna: number | null
           discreto: boolean
+          distintivo: string | null
           etiqueta: string | null
           funcion: string
           nivel: number
@@ -4636,6 +4637,7 @@ export type Database = {
           color?: string | null
           columna?: number | null
           discreto?: boolean
+          distintivo?: string | null
           etiqueta?: string | null
           funcion: string
           nivel: number
@@ -4649,6 +4651,7 @@ export type Database = {
           color?: string | null
           columna?: number | null
           discreto?: boolean
+          distintivo?: string | null
           etiqueta?: string | null
           funcion?: string
           nivel?: number
@@ -10412,6 +10415,7 @@ export type Database = {
           p_color?: string | null
           p_columna?: number | null
           p_discreto?: boolean | null
+          p_distintivo?: string | null
           p_etiqueta?: string | null
           p_funcion: string | null
           p_nivel: number | null

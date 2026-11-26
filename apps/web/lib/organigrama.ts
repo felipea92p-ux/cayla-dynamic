@@ -57,6 +57,8 @@ export interface Nodo {
   etiqueta: Etiqueta | null;
   color: Color | null;
   discreto: boolean;
+  /** Una especialidad en común con otras personas («Negocios internacionales», 0624). Puede faltar antes de pegar la migración. */
+  distintivo?: string | null;
 }
 
 export interface Linea {
@@ -207,4 +209,45 @@ export function trazarLinea(desde: Caja, hasta: Caja): string {
   }
   const xCodo = aLaDerecha ? xLlega - CODO : xLlega + CODO;
   return `M${xSale} ${medio(desde.arr, desde.aba)}H${xCodo}V${medio(hasta.arr, hasta.aba)}H${xLlega}`;
+}
+
+/** Cuánto dentro de la tarjeta de llegada baja una línea que viene de otra fila: lejos del título, que va centrado. */
+const ENTRADA = 24;
+/** Separación entre los carriles de un canal, para que las líneas de dos personas no se confundan. */
+const CARRIL = 8;
+
+/** Una fila por la que pasa una línea: dónde empieza (ahí está su canal) y los pasillos libres entre sus equipos. */
+export interface PasoDeFila {
+  arriba: number;
+  pasillos: number[];
+}
+
+/**
+ * El trazo de una línea que une dos filas sin pasar por encima de ninguna
+ * tarjeta: baja hasta el canal que hay sobre la fila siguiente, avanza por él,
+ * atraviesa las filas intermedias por el pasillo más cercano al equipo de
+ * llegada y entra en la tarjeta desde arriba.
+ *
+ * `filas` va desde la que sigue a la de salida hasta la de llegada.
+ */
+export function trazarEntreFilas(desde: Caja, hasta: Caja, { filas, obstaculos, centroDestino, carril }: {
+  filas: readonly PasoDeFila[];
+  /** Todas las tarjetas: si hay una justo debajo de quien sale, la línea sale de costado. */
+  obstaculos: readonly Caja[];
+  /** El centro del equipo al que llega. */
+  centroDestino: number;
+  carril: number;
+}): string {
+  const canal = (i: number) => Math.round(filas[i].arriba + 6 + carril * CARRIL);
+  const centro = medio(desde.izq, desde.der);
+  const tapado = obstaculos.some((o) => o.izq < centro && o.der > centro && o.arr >= desde.aba && o.arr < canal(0));
+  let trazo = tapado
+    ? `M${Math.round(desde.izq)} ${medio(desde.arr, desde.aba)}H${Math.round(desde.izq) - 5}V${canal(0)}`
+    : `M${centro} ${Math.round(desde.aba)}V${canal(0)}`;
+  const entra = Math.round(medio(hasta.izq, hasta.der) <= centroDestino + 1 ? hasta.izq + ENTRADA : hasta.der - ENTRADA);
+  for (let i = 1; i < filas.length; i++) {
+    const [pasillo] = [...filas[i - 1].pasillos].sort((a, b) => Math.abs(a - centroDestino) - Math.abs(b - centroDestino));
+    trazo += `H${Math.round(pasillo ?? entra)}V${canal(i)}`;
+  }
+  return `${trazo}H${entra}V${Math.round(hasta.arr)}`;
 }
