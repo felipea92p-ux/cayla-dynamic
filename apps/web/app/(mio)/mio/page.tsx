@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Inbox } from "lucide-react";
 import { ResumenEducacionMia } from "./educacion/resumen";
 import { MiSeguro } from "./seguro/mi-seguro";
+import { VistaDelOrganigrama } from "@/components/organigrama/organigrama";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
@@ -2983,6 +2984,11 @@ export default function MioPage() {
           PDF. Es de todo el equipo: no se filtra por vínculo. El componente vive
           aparte, como Educación, y pide sus datos cuando se abre. */}
       {visitadas.has("seguro") && <div hidden={tab !== "seguro"}><MiSeguro alVerlo={() => void cargarAvisosDeBandeja()} /></div>}
+
+      {/* ── ORGANIGRAMA (0623) ───────────────────────────────────────────────
+          Quién es quién. Solo se mira: se ordena desde el panel. Se pide al
+          abrirse; sin publicar, la base no entrega nada. */}
+      {tab === "organigrama" && <VistaDelOrganigrama />}
 
       {/* ── BOLETAS (0482) ───────────────────────────────────────────────────
           Las boletas oficiales del contador, por periodo pagado. NO es

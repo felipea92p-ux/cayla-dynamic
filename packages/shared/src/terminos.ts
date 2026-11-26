@@ -277,6 +277,14 @@ export const TERMINOS: readonly TerminosModulo[] = [
     ],
     texto: "El historial es un registro de auditoría. No puede modificarse desde esta pantalla.",
   },
+  {
+    modulo: "organigrama", titulo: "Organigrama", peso: "aviso", version: 1, estado: "borrador",
+    puntos: [
+      "Aquí ves quién es quién en CAYLA y en qué equipo está.",
+      "La función que aparece es la del dibujo; tu cargo es el que dice tu contrato.",
+    ],
+    texto: "El organigrama es informativo: no cambia el cargo, las funciones pactadas ni la remuneración de nadie.",
+  },
 ];
 
 /**

@@ -4564,6 +4564,120 @@ export type Database = {
           },
         ]
       }
+      organigrama_bloques: {
+        Row: {
+          ancho: number
+          clave: string
+          columnas: number | null
+          discreto: boolean
+          fila: number
+          nombre: string
+          orden: number
+          orden_movil: number
+        }
+        Insert: {
+          ancho?: number
+          clave: string
+          columnas?: number | null
+          discreto?: boolean
+          fila: number
+          nombre: string
+          orden: number
+          orden_movil?: number
+        }
+        Update: {
+          ancho?: number
+          clave?: string
+          columnas?: number | null
+          discreto?: boolean
+          fila?: number
+          nombre?: string
+          orden?: number
+          orden_movil?: number
+        }
+        Relationships: []
+      }
+      organigrama_lineas: {
+        Row: {
+          desde: string
+          hasta: string
+          tipo: string
+        }
+        Insert: {
+          desde: string
+          hasta: string
+          tipo: string
+        }
+        Update: {
+          desde?: string
+          hasta?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
+      organigrama_personas: {
+        Row: {
+          actualizado_at: string
+          actualizado_por: string | null
+          bloque: string
+          color: string | null
+          columna: number | null
+          discreto: boolean
+          etiqueta: string | null
+          funcion: string
+          nivel: number
+          orden: number
+          persona_id: string
+        }
+        Insert: {
+          actualizado_at?: string
+          actualizado_por?: string | null
+          bloque: string
+          color?: string | null
+          columna?: number | null
+          discreto?: boolean
+          etiqueta?: string | null
+          funcion: string
+          nivel: number
+          orden?: number
+          persona_id: string
+        }
+        Update: {
+          actualizado_at?: string
+          actualizado_por?: string | null
+          bloque?: string
+          color?: string | null
+          columna?: number | null
+          discreto?: boolean
+          etiqueta?: string | null
+          funcion?: string
+          nivel?: number
+          orden?: number
+          persona_id?: string
+        }
+        Relationships: []
+      }
+      organigrama_publicacion: {
+        Row: {
+          actualizado_at: string
+          actualizado_por: string | null
+          publicado: boolean
+          unica: boolean
+        }
+        Insert: {
+          actualizado_at?: string
+          actualizado_por?: string | null
+          publicado?: boolean
+          unica?: boolean
+        }
+        Update: {
+          actualizado_at?: string
+          actualizado_por?: string | null
+          publicado?: boolean
+          unica?: boolean
+        }
+        Relationships: []
+      }
       organos_titulo_x: {
         Row: {
           acta: string | null
@@ -10291,6 +10405,27 @@ export type Database = {
         }
         Returns: string
       }
+      fn_organigrama: { Args: never; Returns: Json }
+      fn_organigrama_guardar: {
+        Args: {
+          p_bloque: string | null
+          p_color?: string | null
+          p_columna?: number | null
+          p_discreto?: boolean | null
+          p_etiqueta?: string | null
+          p_funcion: string | null
+          p_nivel: number | null
+          p_orden?: number | null
+          p_persona_id: string | null
+        }
+        Returns: undefined
+      }
+      fn_organigrama_linea: {
+        Args: { p_desde: string | null; p_hasta: string | null; p_tipo?: string | null }
+        Returns: undefined
+      }
+      fn_organigrama_publicar: { Args: { p_publicar: boolean | null }; Returns: undefined }
+      fn_organigrama_quitar: { Args: { p_persona_id: string | null }; Returns: undefined }
       fn_organos_titulo_x: {
         Args: never
         Returns: {

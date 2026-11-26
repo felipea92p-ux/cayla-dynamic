@@ -13,7 +13,7 @@ import {
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
   BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare, Archive, ShieldCheck, FileStack, SlidersHorizontal,
   ClipboardCheck, UsersRound, Wallet, Newspaper, ChartColumn, Landmark, Settings,
-  type LucideIcon,
+  type LucideIcon, Network,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS } from "@cayla-dynamic/shared";
 
@@ -155,6 +155,9 @@ export const GRUPOS: Grupo[] = [
   ] },
   { label: "Personas", Icon: UsersRound, items: [
     { href: "/admin/equipo", label: "Equipo", Icon: Users, roles: SEDE },
+    // Quien no tiene panel lo ve en «Lo mío → Organigrama». Mientras no se
+    // publique, la base (0623) solo se lo muestra a DO.
+    { href: "/admin/organigrama", label: "Organigrama", Icon: Network, roles: SEDE },
     { href: "/admin/datos-personales", label: "Datos personales", Icon: IdCard, roles: SEDE },
     { href: "/admin/contratos", label: "Contratos", Icon: ScrollText, roles: DO },
     { href: "/admin/documentacion", label: "Documentación", Icon: FileSignature, roles: DO },

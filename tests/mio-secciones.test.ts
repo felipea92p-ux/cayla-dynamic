@@ -17,11 +17,11 @@ import { buscarSecciones, type GrupoDetalle } from "@/lib/secciones-de-menu";
 
 const TODAS: Tab[] = [
   "resumen", "dias", "turnos", "dni", "seguro", "datos", "ausencias", "contrato", "boletas", "movilidad", "educacion",
-  "firma", "objetivos", "reportes", "disciplina", "historial", "disponibilidad",
+  "firma", "objetivos", "reportes", "disciplina", "historial", "disponibilidad", "organigrama",
 ];
 
 describe("cada sección vive en un grupo, y en uno solo", () => {
-  it("están las diecisiete, ni una más ni una menos", () => {
+  it("están las dieciocho, ni una más ni una menos", () => {
     expect([...TABS].sort()).toEqual([...TODAS].sort());
   });
 

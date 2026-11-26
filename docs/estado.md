@@ -6,6 +6,20 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-25 — Organigrama en Dynamic · aprobado en local · PR #754 abierto, **sin fusionar** · **SQL 0623 sin pegar**
+
+**Qué es.** «Personas › Organigrama» en el panel y «Documentos › Organigrama» en «Lo mío». Se arma desde las fichas (nombre y foto);
+DO ordena equipo, función, color y líneas. Nace como borrador, visible solo para DO, hasta «Publicar al equipo». La función del
+dibujo no cambia el cargo de la ficha. Quien asesora o es externo no admite línea de equipo (candado en la base).
+
+**Para publicarlo.** 1) Se pega la 0623, antes de fusionar. 2) Se fusiona el PR. 3) Se pega la carga inicial
+(`scripts/sql-manual/organigrama_inicial.sql`, fuera de git: lleva nombres y hoy solo existe en el worktree donde se construyó).
+
+**Pendiente antes de publicar al equipo.** Revisar contrato y sueldo de quienes cambian de función respecto de su cargo en la ficha.
+Los equipos (seis) se crean por migración: todavía no hay pantalla para agregar uno.
+
+---
+
 ## 2026-11-21 — El terminal en retratos se publicó y se retiró el mismo día · sin SQL · **retirado a pedido de Felipe; se van a ver otros diseños** · PR #749 y su reversión
 
 **Qué pasó.** Felipe eligió, mirando maquetas y un diseño que trajo de ChatGPT, otra pantalla de nombres para el terminal: retratos

@@ -477,7 +477,8 @@ with repo(numero, nombre, nunca) as (values
     (619, 'grati_y_cts_se_pagan_con_el_sueldo_del_cierre', false),
     (620, 'lo_que_pasa_del_maximo_legal_se_puede_pagar_al_practicante', false),
     (621, 'la_gratificacion_y_la_cts_dejan_de_llamarse_bono', false),
-    (622, 'la_boleta_muestra_lo_ya_depositado', false)
+    (622, 'la_boleta_muestra_lo_ya_depositado', false),
+    (623, 'el_organigrama_vive_en_el_sistema', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

@@ -31,7 +31,8 @@ const PAGE = leer(path.join(RAIZ, "page.tsx"));
 const DEFINEN_PASOS = TODOS.filter((f) => /guias-de-[a-z]+\.ts$/.test(f) || /disciplina-mia\.tsx$/.test(f) || f.endsWith("page.tsx") && f === path.join(RAIZ, "page.tsx"));
 
 /** Secciones que no tienen guía A PROPÓSITO. Vacía: hoy las dieciséis la tienen. */
-const SIN_GUIA_A_PROPOSITO: readonly string[] = [];
+// «Organigrama» solo se mira: no hay nada que enseñar a hacer.
+const SIN_GUIA_A_PROPOSITO: readonly string[] = ["organigrama"];
 
 function selectoresCitados(): Array<{ archivo: string; ancla: string }> {
   const salida: Array<{ archivo: string; ancla: string }> = [];

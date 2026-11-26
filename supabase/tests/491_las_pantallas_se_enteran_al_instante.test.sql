@@ -115,7 +115,11 @@ insert into decision (tabla, estado, tema) values
   ('expediente_correlativo_seq', 'excluida', null),       -- el contador interno de correlativos
   ('push_tokens', 'excluida', null),                      -- tokens de dispositivo; no se muestran
   ('correcciones_auditoria', 'excluida', null),           -- se escribe junto con la corrección, que ya avisa
-  ('parametros_historial', 'excluida', null);             -- se escribe junto con el cambio de `configuracion`
+  ('parametros_historial', 'excluida', null),             -- se escribe junto con el cambio de `configuracion`
+  ('organigrama_bloques', 'excluida', null),              -- el organigrama (0623) lo cambia DO muy de vez en cuando:
+  ('organigrama_personas', 'excluida', null),             -- la pantalla relee al guardar y al volver a ella, y nadie
+  ('organigrama_lineas', 'excluida', null),               -- necesita verlo moverse en vivo
+  ('organigrama_publicacion', 'excluida', null);
 
 -- ── 1–4. Las cuatro funciones ───────────────────────────────────────────────
 select ok(to_regprocedure('fn_tiempo_real_enviar(text)') is not null, 'existe fn_tiempo_real_enviar(text)');

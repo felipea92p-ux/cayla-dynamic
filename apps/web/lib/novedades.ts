@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-25-el-organigrama-entra-a-dynamic",
+    fecha: "2026-11-25",
+    titulo: "El organigrama ya se arma en Dynamic",
+    queMejoro:
+      "En «Personas › Organigrama» se ve quién es quién y en qué equipo está. Los nombres y las fotos salen de cada " +
+      "ficha, y quien pasa a inactivo deja de aparecer solo.\n\n" +
+      "Nace como borrador: hasta que toques «Publicar al equipo» lo ve solo Desarrollo Organizacional. Con «Ordenar» " +
+      "cambias equipo, función, color y líneas; eso no modifica el cargo de la ficha.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-25-la-boleta-muestra-la-cts-depositada",
     fecha: "2026-11-25",
     titulo: "Tu boleta muestra la CTS que ya se depositó",

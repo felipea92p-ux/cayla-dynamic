@@ -7,7 +7,7 @@ import { abrirPantalla } from "../../tema/motor/pagina.mjs";
 // La lista de `Tab` en lib/mio-secciones.ts, sin «resumen», que es el estado inicial. La prueba de medidores compara las dos.
 export const SECCIONES_DE_LO_MIO = [
   "dias", "turnos", "disponibilidad", "ausencias", "boletas", "movilidad", "educacion", "contrato", "firma", "dni", "seguro", "datos",
-  "objetivos", "reportes", "disciplina", "historial",
+  "objetivos", "reportes", "disciplina", "historial", "organigrama",
 ];
 
 /** @type {import('./registro.mjs').PantallaSinModulo} */
