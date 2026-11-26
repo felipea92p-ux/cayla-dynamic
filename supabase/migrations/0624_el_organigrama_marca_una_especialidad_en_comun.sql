@@ -7,6 +7,10 @@
 --   internacionales»), para mostrar que varias personas de equipos distintos
 --   comparten una especialidad sin cruzar el dibujo con más líneas.
 --
+--   Y acomoda los equipos para que las líneas no se crucen: Dirección pasa a la
+--   izquierda de Sistemas (quien reparte hacia las tiendas queda en la orilla de
+--   su lado) y Desarrollo Organizacional toma más ancho.
+--
 -- QUÉ ASUME
 --   La 0623. Parte de sus dos funciones, y se niega a correr si en la base no
 --   son esas (md5 sin retornos de carro: fn_organigrama
@@ -48,6 +52,12 @@ begin
   end if;
 end
 $guard$;
+
+-- El puesto 12 es un lugar de paso: dos equipos no pueden compartir (fila, orden).
+update organigrama_bloques set orden = 12 where clave = 'sistemas';
+update organigrama_bloques set orden = 1 where clave = 'direccion';
+update organigrama_bloques set orden = 2 where clave = 'sistemas';
+update organigrama_bloques set ancho = 1.35 where clave = 'do';
 
 alter table organigrama_personas add column if not exists distintivo text
   constraint organigrama_distintivo_corto check (distintivo is null or char_length(btrim(distintivo)) between 2 and 40);

@@ -211,10 +211,14 @@ export function trazarLinea(desde: Caja, hasta: Caja): string {
   return `M${xSale} ${medio(desde.arr, desde.aba)}H${xCodo}V${medio(hasta.arr, hasta.aba)}H${xLlega}`;
 }
 
-/** Cuánto dentro de la tarjeta de llegada baja una línea que viene de otra fila: lejos del título, que va centrado. */
-const ENTRADA = 24;
-/** Separación entre los carriles de un canal, para que las líneas de dos personas no se confundan. */
-const CARRIL = 12;
+/** A qué altura, bajo el comienzo de una fila, va su canal horizontal. */
+const CANAL = 14;
+/** Separación entre los carriles de un canal, cuando dos personas necesitan el mismo tramo. */
+const CARRIL = 10;
+/** Cuánto se aparta de la tarjeta una línea que tiene que salir de costado. */
+const SALIDA = 12;
+/** A cuánto de la orilla de una tarjeta puede entrar una línea sin verse torcida. */
+const HOLGURA = 20;
 
 /** Una fila por la que pasa una línea: dónde empieza (ahí está su canal) y los pasillos libres entre sus equipos. */
 export interface PasoDeFila {
@@ -222,32 +226,97 @@ export interface PasoDeFila {
   pasillos: number[];
 }
 
+/** La altura del canal de una fila para un carril. */
+export function alturaDelCanal(fila: PasoDeFila, carril: number): number {
+  return Math.round(fila.arriba + CANAL + carril * CARRIL);
+}
+
 /**
  * El trazo de una línea que une dos filas sin pasar por encima de ninguna
  * tarjeta: baja hasta el canal que hay sobre la fila siguiente, avanza por él,
- * atraviesa las filas intermedias por el pasillo más cercano al equipo de
- * llegada y entra en la tarjeta desde arriba.
+ * atraviesa las filas intermedias por el pasillo más cercano a quien sale (así
+ * cada árbol se queda de su lado y no cruza el de los demás) y entra en la
+ * tarjeta desde arriba: por su centro, o derecho si el pasillo ya cae sobre ella.
+ *
+ * Si hay una tarjeta justo debajo de quien sale, la línea sale por su costado
+ * izquierdo: así el árbol de quien está en la orilla corre por el margen.
  *
  * `filas` va desde la que sigue a la de salida hasta la de llegada.
  */
-export function trazarEntreFilas(desde: Caja, hasta: Caja, { filas, obstaculos, centroDestino, carril }: {
+export function trazarEntreFilas(desde: Caja, hasta: Caja, { filas, obstaculos, carril }: {
   filas: readonly PasoDeFila[];
-  /** Todas las tarjetas: si hay una justo debajo de quien sale, la línea sale de costado. */
+  /** Todas las tarjetas, para saber si debajo de quien sale hay una. */
   obstaculos: readonly Caja[];
-  /** El centro del equipo al que llega. */
-  centroDestino: number;
   carril: number;
 }): string {
-  const canal = (i: number) => Math.round(filas[i].arriba + 6 + carril * CARRIL);
+  const canal = (i: number) => alturaDelCanal(filas[i], carril);
   const centro = medio(desde.izq, desde.der);
   const tapado = obstaculos.some((o) => o.izq < centro && o.der > centro && o.arr >= desde.aba && o.arr < canal(0));
   let trazo = tapado
-    ? `M${Math.round(desde.izq)} ${medio(desde.arr, desde.aba)}H${Math.round(desde.izq) - 5}V${canal(0)}`
+    ? `M${Math.round(desde.izq)} ${medio(desde.arr, desde.aba)}H${Math.round(desde.izq) - SALIDA}V${canal(0)}`
     : `M${centro} ${Math.round(desde.aba)}V${canal(0)}`;
-  const entra = Math.round(medio(hasta.izq, hasta.der) <= centroDestino + 1 ? hasta.izq + ENTRADA : hasta.der - ENTRADA);
+  let entra = medio(hasta.izq, hasta.der);
+  let bajaPor: number | null = null;
   for (let i = 1; i < filas.length; i++) {
-    const [pasillo] = [...filas[i - 1].pasillos].sort((a, b) => Math.abs(a - centroDestino) - Math.abs(b - centroDestino));
-    trazo += `H${Math.round(pasillo ?? entra)}V${canal(i)}`;
+    const [pasillo] = [...filas[i - 1].pasillos].sort((a, b) => Math.abs(a - centro) - Math.abs(b - centro));
+    bajaPor = Math.round(pasillo ?? entra);
+    trazo += `H${bajaPor}V${canal(i)}`;
   }
+  if (bajaPor !== null && bajaPor >= hasta.izq + HOLGURA && bajaPor <= hasta.der - HOLGURA) entra = bajaPor;
   return `${trazo}H${entra}V${Math.round(hasta.arr)}`;
+}
+
+type Punto = [number, number];
+
+/** Los vértices de un trazo hecho con M, H y V. */
+export function vertices(d: string): Punto[] {
+  const puntos: Punto[] = [];
+  for (const [, orden, a, b] of d.matchAll(/([MHV])(-?\d+(?:\.\d+)?)(?: (-?\d+(?:\.\d+)?))?/g)) {
+    const [x, y] = puntos[puntos.length - 1] ?? [0, 0];
+    puntos.push(orden === "M" ? [Number(a), Number(b)] : orden === "H" ? [Number(a), y] : [x, Number(a)]);
+  }
+  return puntos;
+}
+
+/** De dónde a dónde ocupa un trazo la altura `y`: sirve para saber si dos líneas se estorban en el canal. */
+export function tramoEn(d: string, y: number): { ini: number; fin: number } | null {
+  const xs = vertices(d).filter((p) => p[1] === y).map((p) => p[0]);
+  return xs.length ? { ini: Math.min(...xs), fin: Math.max(...xs) } : null;
+}
+
+/**
+ * A cada quien, el carril más alto en el que su tramo no se pisa con el de otro.
+ * Quienes no se estorban comparten altura: el dibujo queda con menos renglones.
+ */
+export function asignarCarriles(tramos: readonly { clave: string; ini: number; fin: number }[]): Map<string, number> {
+  const ocupados: { ini: number; fin: number }[][] = [];
+  const carriles = new Map<string, number>();
+  for (const t of [...tramos].sort((a, b) => a.ini - b.ini || a.clave.localeCompare(b.clave))) {
+    let c = ocupados.findIndex((o) => o.every((x) => t.fin + 8 < x.ini || t.ini > x.fin + 8));
+    if (c < 0) { c = ocupados.length; ocupados.push([]); }
+    ocupados[c].push(t);
+    carriles.set(t.clave, c);
+  }
+  return carriles;
+}
+
+/** El mismo trazo con las esquinas redondeadas. */
+export function redondear(d: string, radio = 9): string {
+  // Los puntos repetidos o en la misma recta no son esquinas.
+  const p = vertices(d).filter((q, i, v) => i === 0 || q[0] !== v[i - 1][0] || q[1] !== v[i - 1][1]);
+  const esquinas = p.filter((q, i) => i === 0 || i === p.length - 1
+    || !((p[i - 1][0] === q[0] && q[0] === p[i + 1][0]) || (p[i - 1][1] === q[1] && q[1] === p[i + 1][1])));
+  if (esquinas.length < 2) return d;
+  const hacia = (a: Punto, b: Punto, r: number): string => {
+    const largo = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    return `${a[0] + ((b[0] - a[0]) * r) / largo} ${a[1] + ((b[1] - a[1]) * r) / largo}`;
+  };
+  let trazo = `M${esquinas[0][0]} ${esquinas[0][1]}`;
+  for (let i = 1; i < esquinas.length - 1; i++) {
+    const [a, q, b] = [esquinas[i - 1], esquinas[i], esquinas[i + 1]];
+    const r = Math.min(radio, Math.hypot(q[0] - a[0], q[1] - a[1]) / 2, Math.hypot(b[0] - q[0], b[1] - q[1]) / 2);
+    trazo += `L${hacia(q, a, r)}Q${q[0]} ${q[1]} ${hacia(q, b, r)}`;
+  }
+  const fin = esquinas[esquinas.length - 1];
+  return `${trazo}L${fin[0]} ${fin[1]}`;
 }

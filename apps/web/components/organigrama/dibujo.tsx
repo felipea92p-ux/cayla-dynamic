@@ -14,7 +14,7 @@ import { cx } from "@/components/ui/cx";
 import { Insignia } from "@/components/ui/insignia";
 import { inicialesDe, urlPublicaFotoPerfil } from "@/lib/foto-perfil";
 import {
-  ETIQUETAS, filasDelOrganigrama, trazarEntreFilas, trazarLinea,
+  ETIQUETAS, alturaDelCanal, asignarCarriles, filasDelOrganigrama, redondear, tramoEn, trazarEntreFilas, trazarLinea,
   type Caja, type Color, type Linea, type Nodo, type Organigrama,
 } from "@/lib/organigrama";
 
@@ -58,7 +58,7 @@ function Tarjeta({ nodo, foto, onElegir }: { nodo: Nodo; foto: string | null; on
     </span>
   );
   const clases = cx(
-    "@container block rounded-control",
+    "@container relative z-10 block rounded-control",
     // La tarjeta discreta ocupa menos que su casilla y va centrada en ella (la línea la sigue).
     nodo.discreto ? "mx-auto w-4/5 p-1.5" : "w-full p-2",
     nodo.color ? TARJETA[nodo.color] : "border border-sand bg-papel",
@@ -114,23 +114,31 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
       const [alta, baja] = filaDe(a) <= filaDe(b) ? [a, b] : [b, a];
       return [{ l, a, b, alta, baja }];
     });
-    // Un carril por cada persona de la que bajan líneas a otra fila, de derecha a izquierda.
-    const carriles = [...new Set(unidas.filter((u) => filaDe(u.alta) !== filaDe(u.baja)).map((u) => u.alta))]
-      .sort((x, y) => medir(y, m).izq - medir(x, m).izq);
-    setTrazos(unidas.map(({ l, a, b, alta, baja }) => {
-      const equipo = baja.closest<HTMLElement>("section");
-      const caja = equipo ? medir(equipo, m) : medir(baja, m);
-      const d = filaDe(alta) === filaDe(baja)
-        ? trazarLinea(medir(a, m), medir(b, m))
-        : trazarEntreFilas(medir(alta, m), medir(baja, m), {
-          filas: filas.slice(filaDe(alta) + 1, filaDe(baja) + 1),
-          obstaculos,
-          centroDestino: Math.round((caja.izq + caja.der) / 2),
-          carril: carriles.indexOf(alta),
-        });
-      return { clave: `${l.desde}-${l.hasta}`, tipo: l.tipo, d };
+    type Unida = (typeof unidas)[number];
+    const cruzaFilas = (u: Unida) => filaDe(u.alta) !== filaDe(u.baja);
+    const trazoEntre = ({ alta, baja }: Unida, carril: number) => trazarEntreFilas(medir(alta, m), medir(baja, m), {
+      filas: filas.slice(filaDe(alta) + 1, filaDe(baja) + 1),
+      obstaculos,
+      carril,
+    });
+    // Dos personas solo van en alturas distintas si sus líneas se pisarían en el mismo canal.
+    const carriles = new Map<HTMLElement, number>();
+    for (const filaDeSalida of new Set(unidas.filter(cruzaFilas).map((u) => filaDe(u.alta)))) {
+      const deAqui = unidas.filter((u) => cruzaFilas(u) && filaDe(u.alta) === filaDeSalida);
+      const personas = [...new Set(deAqui.map((u) => u.alta))];
+      const canal = alturaDelCanal(filas[filaDeSalida + 1], 0);
+      const asignados = asignarCarriles(personas.map((persona, n) => {
+        const tramos = deAqui.filter((u) => u.alta === persona).flatMap((u) => tramoEn(trazoEntre(u, 0), canal) ?? []);
+        return { clave: String(n), ini: Math.min(...tramos.map((t) => t.ini)), fin: Math.max(...tramos.map((t) => t.fin)) };
+      }));
+      personas.forEach((persona, n) => carriles.set(persona, asignados.get(String(n)) ?? 0));
+    }
+    setTrazos(unidas.map((u) => ({
+      clave: `${u.l.desde}-${u.l.hasta}`,
+      tipo: u.l.tipo,
+      d: redondear(cruzaFilas(u) ? trazoEntre(u, carriles.get(u.alta) ?? 0) : trazarLinea(medir(u.a, m), medir(u.b, m))),
     // Las llenas van encima: donde dos comparten recorrido se ve el tronco lleno.
-    }).sort((x, y) => (x.tipo === y.tipo ? 0 : x.tipo === "asesoria" ? -1 : 1)));
+    })).sort((x, y) => (x.tipo === y.tipo ? 0 : x.tipo === "asesoria" ? -1 : 1)));
   }, [datos]);
 
   // Las líneas salen de dónde quedaron las tarjetas: se miden al pintar y cada vez que el dibujo cambia de tamaño.
@@ -146,10 +154,19 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
   const filas = filasDelOrganigrama(datos.bloques, datos.personas);
 
   return (
-    <div ref={marco} className="relative flex flex-col gap-4 md:gap-0">
+    // Entre tableta y escritorio angosto, el dibujo conserva su ancho y se desliza de lado: encogerlo más rompe las palabras.
+    <div className="md:overflow-x-auto">
+    <div ref={marco} className="relative flex flex-col gap-4 md:min-w-[52rem] md:gap-0 md:px-5">
+      <svg aria-hidden className="pointer-events-none absolute inset-0 hidden size-full md:block">
+        {trazos.map((t) => (
+          <path key={t.clave} d={t.d} fill="none" strokeWidth={1.5} strokeLinecap="round"
+            strokeDasharray={t.tipo === "asesoria" ? "2 5" : undefined}
+            className={t.tipo === "equipo" ? "stroke-taupe/70" : "stroke-pizarra"} />
+        ))}
+      </svg>
       {filas.map((f, i) => (
         <div key={f.fila} data-fila={i}
-          className={cx("contents md:grid md:items-start md:gap-x-7 md:pb-4", i > 0 ? "md:border-t md:border-sand md:pt-9" : "md:pt-4")}
+          className={cx("contents md:grid md:items-start md:gap-x-9", i > 0 ? "md:pt-14" : "md:pt-2")}
           style={{ gridTemplateColumns: f.equipos.map((e) => `minmax(0, ${e.bloque.ancho}fr)`).join(" ") }}>
           {f.equipos.map(({ bloque, niveles }, columna) => (
             <section key={bloque.clave} aria-label={bloque.nombre}
@@ -159,7 +176,10 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
                 gridColumn: columna + 1,
                 gridRow: f.comparteNiveles ? `1 / span ${f.ultimoNivel + 1}` : 1,
               } as React.CSSProperties}>
-              <h3 className={cx("font-serif text-center", bloque.discreto ? "text-sm text-taupe" : "text-base text-tinta")}>
+              <h3 className={cx(
+                "relative z-10 mx-auto w-fit max-w-full rounded-pildora border border-sand bg-crema px-3 py-0.5 text-center font-serif",
+                bloque.discreto ? "text-sm text-taupe" : "text-base text-tinta",
+              )}>
                 {bloque.nombre}
               </h3>
               {niveles.map((n) => (
@@ -184,18 +204,12 @@ export function DibujoDelOrganigrama({ datos, onElegir }: {
           ))}
         </div>
       ))}
-      <svg aria-hidden className="pointer-events-none absolute inset-0 hidden size-full md:block">
-        {trazos.map((t) => (
-          <path key={t.clave} d={t.d} fill="none" strokeWidth={t.tipo === "equipo" ? 1.5 : 2}
-            strokeDasharray={t.tipo === "asesoria" ? "3 4" : undefined}
-            className={t.tipo === "equipo" ? "stroke-taupe" : "stroke-pizarra"} />
-        ))}
-      </svg>
       {datos.lineas.length > 0 && (
         <p className="hidden text-center text-xs text-taupe md:block" style={{ order: 1000 }}>
           Línea llena: equipo · línea punteada: asesoría, sin mando
         </p>
       )}
+    </div>
     </div>
   );
 }
