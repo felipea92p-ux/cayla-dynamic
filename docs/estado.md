@@ -6,17 +6,21 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-25 — Organigrama en Dynamic · aprobado en local · PR #754 abierto, **sin fusionar** · **SQL 0623 sin pegar**
+## 2026-11-25 — Organigrama en Dynamic · **publicado** (PR #754) · SQL 0623 y carga inicial pegados · **en borrador: solo lo ve DO**
 
 **Qué es.** «Personas › Organigrama» en el panel y «Documentos › Organigrama» en «Lo mío». Se arma desde las fichas (nombre y foto);
-DO ordena equipo, función, color y líneas. Nace como borrador, visible solo para DO, hasta «Publicar al equipo». La función del
-dibujo no cambia el cargo de la ficha. Quien asesora o es externo no admite línea de equipo (candado en la base).
+DO ordena equipo, función, color y líneas. Hasta «Publicar al equipo» lo ve solo DO; al resto, «Lo mío» le dice que todavía no está
+publicado. La función del dibujo no cambia el cargo de la ficha. Quien asesora o es externo no admite línea de equipo (candado en la base).
 
-**Para publicarlo.** 1) Se pega la 0623, antes de fusionar. 2) Se fusiona el PR. 3) Se pega la carga inicial
-(`scripts/sql-manual/organigrama_inicial.sql`, fuera de git: lleva nombres y hoy solo existe en el worktree donde se construyó).
+**Cómo quedó.** El PR se fusionó a las 23:08 (Lima), antes de pegar la 0623: las dos pantallas mostraron error hasta que se pegó,
+esa misma noche. Verificado en producción con consultas de solo lectura: 6 equipos, 6 funciones, sin publicar; la carga inicial dejó
+28 ubicados, 7 líneas, nadie sin encontrar y ningún nombre con dos fichas activas. **No se miró la pantalla en producción.**
 
-**Pendiente antes de publicar al equipo.** Revisar contrato y sueldo de quienes cambian de función respecto de su cargo en la ficha.
-Los equipos (seis) se crean por migración: todavía no hay pantalla para agregar uno.
+**Pendiente antes de publicar al equipo.** Revisar contrato y sueldo de quienes aparecen con una función distinta de su cargo en la
+ficha, y que los permisos de cada quien coincidan con lo que dice el dibujo (el organigrama no cambia roles).
+
+**Límites.** Los seis equipos se crean por migración: todavía no hay pantalla para agregar o renombrar uno. No se probó la pantalla con la
+base caída ni a alguien de DO ordenando sin explicación.
 
 ---
 
