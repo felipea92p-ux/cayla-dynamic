@@ -20,6 +20,9 @@ El #754 se fusionó antes de pegar la 0623 y las pantallas mostraron error unos 
 el rostro, color como tinte suave y líneas de una persona a un equipo. Medido en local a 860, 1100 y 1440 de ancho: sin líneas sobre
 fichas ni títulos. **No se probó con fotos reales.** En Arequipa y Desarrollo Organizacional el campo «Columna» ahora solo ordena.
 
+**Ajuste posterior (sin SQL).** Entre equipos de la misma fila va una línea por persona, con tronco compartido, y quien encabeza queda a
+la altura del medio de su equipo (medido en local a 1440 y 1100: sin líneas sobre fichas ni títulos).
+
 **Pendiente antes de publicar al equipo.** Revisar contrato y sueldo de quienes aparecen con una función distinta de su cargo en la
 ficha; que los permisos coincidan con lo que dice el dibujo (el organigrama no cambia roles); y confirmar la función de encargo de un
 área en alguien con etiqueta «Asesoría».

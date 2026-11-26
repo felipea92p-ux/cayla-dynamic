@@ -115,6 +115,15 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-26-el-organigrama-une-por-igual",
+    fecha: "2026-11-26",
+    titulo: "En el organigrama, cada quien con su línea",
+    queMejoro:
+      "Cuando dos equipos están lado a lado, vuelve a salir una línea para cada persona, con el tronco compartido, y " +
+      "quien encabeza queda a la altura del medio de su equipo.",
+    audiencia: "do",
+  },
+  {
     id: "2026-11-26-el-organigrama-estrena-fichas",
     fecha: "2026-11-26",
     titulo: "El organigrama se ve más limpio",

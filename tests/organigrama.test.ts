@@ -22,6 +22,14 @@ describe("las filas y la forma de cada equipo", () => {
     expect(filas.map((f) => f.equipos.map((e) => e.bloque.clave))).toEqual([["direccion", "sistemas"], ["tienda"]]);
   });
 
+  it("comparte renglones solo cuando algún equipo de la fila empieza más abajo", () => {
+    const filas = filasDelOrganigrama(bloques, [
+      nodo("a", "sistemas", 1), nodo("a2", "sistemas", 3), nodo("b", "direccion", 2, 1), nodo("c", "tienda", 1),
+    ]);
+    expect(filas[0]).toMatchObject({ comparteNiveles: true, primerNivel: 1, ultimoNivel: 3 });
+    expect(filas[1]).toMatchObject({ comparteNiveles: false });
+  });
+
   it("junto a otros, un equipo angosto es una sola columna, en orden de nivel y columna", () => {
     const [fila] = filasDelOrganigrama([{ ...bloque("tienda", 1, 1, 2), ancho: 1.35 }, bloque("otro", 1, 2)],
       [nodo("lado", "tienda", 1, 2), nodo("abajo", "tienda", 2), nodo("lider", "tienda", 1, 1), nodo("x", "otro", 1)]);

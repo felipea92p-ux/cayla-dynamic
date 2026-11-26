@@ -9,8 +9,8 @@
 //   · Los equipos de una misma «fila» van lado a lado.
 //   · Junto a otros, un equipo es una columna de fichas (o dos, si su ancho es
 //     2: Dirección). Solo en su fila, cada «nivel» es un renglón centrado.
-//   · Las líneas van de una persona a un equipo, no ficha por ficha: varias
-//     que llegan al mismo equipo se dibujan una sola vez.
+//   · Hacia un equipo de más abajo va una sola línea; entre equipos de la misma
+//     fila, una por persona (así los tres de un equipo se ven unidos por igual).
 // ============================================================================
 
 export type Etiqueta = "apoyo_lider" | "asesoria" | "externo";
@@ -105,6 +105,13 @@ export interface Equipo {
 export interface Fila {
   fila: number;
   equipos: Equipo[];
+  /**
+   * Algún equipo empieza más abajo que otro: la fila comparte los renglones, así
+   * quien encabeza queda a la altura del medio de su equipo sin medidas a mano.
+   */
+  comparteNiveles: boolean;
+  primerNivel: number;
+  ultimoNivel: number;
 }
 
 const porLugar = (a: Nodo, b: Nodo) =>
@@ -118,8 +125,18 @@ export function filasDelOrganigrama(bloques: readonly Bloque[], personas: readon
     .sort((a, b) => a.fila - b.fila || a.orden - b.orden)
     .map((bloque) => ({ bloque, personas: personas.filter((p) => p.bloque === bloque.clave).sort(porLugar) }))
     .filter((e) => e.personas.length > 0);
-  return [...new Set(equipos.map((e) => e.bloque.fila))]
-    .map((fila) => ({ fila, equipos: equipos.filter((e) => e.bloque.fila === fila) }));
+  return [...new Set(equipos.map((e) => e.bloque.fila))].map((fila) => {
+    const suyos = equipos.filter((e) => e.bloque.fila === fila);
+    const niveles = suyos.flatMap((e) => e.personas.map((p) => p.nivel));
+    const primerNivel = Math.min(...niveles);
+    return {
+      fila,
+      equipos: suyos,
+      comparteNiveles: suyos.length > 1 && suyos.some((e) => e.personas[0].nivel > primerNivel),
+      primerNivel,
+      ultimoNivel: Math.max(...niveles),
+    };
+  });
 }
 
 /** Cómo se acomoda la gente de un equipo: en columnas una junto a otra, o en renglones centrados. */
@@ -161,7 +178,7 @@ export interface Lugar {
 export type Trazo =
   /** Entre dos fichas vecinas de la misma columna. */
   | { clase: "vecinas"; tipo: TipoLinea; desde: string; hasta: string }
-  /** Entre dos equipos de la misma fila: sale de `desde` y llega a la ficha más a mano. */
+  /** Entre dos equipos de la misma fila: de `desde` sale una línea a cada una de `hasta`, con el tronco compartido. */
   | { clase: "al-lado"; tipo: TipoLinea; desde: string; hasta: string[] }
   /** De una persona a un equipo de más abajo. */
   | { clase: "a-equipo"; tipo: TipoLinea; desde: string; equipo: string };
