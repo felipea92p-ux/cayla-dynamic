@@ -10,6 +10,7 @@ import { Boton } from "@/components/ui/boton";
 import { BoletaHoja } from "@/components/boleta-hoja";
 import { MESES_LARGO } from "@/lib/admin/planilla/formato";
 import type { Fila, Proyeccion, SubvencionPracticante } from "@/lib/admin/planilla/tipos";
+import type { DepositoBoleta } from "@/lib/boleta-depositos";
 import { hoyLima, nombreOficial } from "@cayla-dynamic/shared";
 
 // Tu boleta, en autoservicio (0339) — SOLO el periodo actual, nunca uno pasado.
@@ -50,6 +51,7 @@ function MiBoletaContenido() {
   const [fila, setFila] = useState<(Fila & { sin_datos?: boolean }) | null>(null);
   const [fuente, setFuente] = useState<"foto" | "calculo" | null>(null);
   const [subvencionPracticante, setSubvencionPracticante] = useState<SubvencionPracticante | null>(null);
+  const [depositos, setDepositos] = useState<DepositoBoleta[] | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -178,6 +180,18 @@ function MiBoletaContenido() {
     } else {
       setSubvencionPracticante(null);
     }
+
+    // Lo pagado aparte de esta planilla dentro del periodo (0622): la CTS
+    // depositada, una gratificación transferida aparte. Consulta APARTE, como
+    // la subvención: si falla —o si la 0622 aún no está pegada— la boleta sale
+    // igual, sin ese bloque. `as never`: la función nace con la 0622 y los
+    // tipos generados no la conocen hasta regenerarlos.
+    const { data: dep } = await supabase.rpc("fn_boleta_depositos" as never, {
+      p_persona_id: yoActual.id,
+      p_desde: periodoActual.fecha_ini,
+      p_hasta: periodoActual.fecha_fin,
+    } as never);
+    setDepositos((dep as unknown as DepositoBoleta[] | null) ?? null);
   }, [supabase, router]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -276,6 +290,7 @@ function MiBoletaContenido() {
         fechaIngreso={yo.fechaIngreso}
         nombreDni={yo.nombreDni}
         subvencionPracticante={subvencionPracticante}
+        depositos={depositos}
       />
     </main>
   );

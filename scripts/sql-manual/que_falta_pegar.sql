@@ -475,7 +475,9 @@ with repo(numero, nombre, nunca) as (values
     (617, 'los_factores_de_provisiones_dejan_rastro', false),
     (618, 'lo_que_quedo_de_un_beneficio_se_decide_y_queda_escrito', false),
     (619, 'grati_y_cts_se_pagan_con_el_sueldo_del_cierre', false),
-    (620, 'lo_que_pasa_del_maximo_legal_se_puede_pagar_al_practicante', false)
+    (620, 'lo_que_pasa_del_maximo_legal_se_puede_pagar_al_practicante', false),
+    (621, 'la_gratificacion_y_la_cts_dejan_de_llamarse_bono', false),
+    (622, 'la_boleta_muestra_lo_ya_depositado', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -996,21 +998,23 @@ plata(etiqueta, funcion, estado, orden) as (
   union all
   select 'PLATA', 'fn_grati_cts_periodo', coalesce((
            select string_agg(case md5(p.prosrc)
-             when '7dd160467dd28ef4a6cd922c506e04d1' then '✓   al día (0619)'
-             when '0aa5ac491cc26c40f3e6ef764c171a6a' then '✓   al día (0619, pegada sin comentarios)'
-             when 'f7fc7c7c741d355b6ab9395d3a20bd81' then '✓   al día (0619, pegada desde Windows)'
-             when 'f317f2d927fd30f3ea1e1c8c8bb1ed47' then '✓   al día (0619, desde Windows y sin comentarios)'
-             when 'af4a525b4abbad640f7349ee33cdf499' then '✗   0619 con los acentos rotos — vuelve a pegarla'
-             when '029c534ff79b6e60d7a5a760be659053' then '❌  se quedó en la 0346 — la vigente es la 0619'
-             when '6fa0ce305883c9d3216161998cee43bc' then '❌  se quedó en la 0346 — la vigente es la 0619'
-             when '2051d2fc838ca0514a75f32791aef614' then '❌  se quedó en la 0338 — la vigente es la 0619'
-             when '1737f40c452fe240db07ea2a4a2320d3' then '❌  se quedó en la 0338 — la vigente es la 0619'
-             when '0bc70f11dd23ede89441e11486d58d70' then '❌  se quedó en la 0088 — la vigente es la 0619'
-             when '1c01cf1afcedd57358d9c7cd4f65346c' then '❌  se quedó en la 0088 — la vigente es la 0619'
-             when 'b9739b9367b2e32bf250dc6455d9e30f' then '❌  se quedó en la 0050 — la vigente es la 0619'
-             when 'c9f611aa3eb2e7efff0c9c8b6451aa3a' then '❌  se quedó en la 0050 — la vigente es la 0619'
-             when '8357793976dc7db790fb443c067d4cac' then '❌  se quedó en la 0049 — la vigente es la 0619'
-             when '9ea7afb55c21135c7370e946eb3e4020' then '❌  se quedó en la 0049 — la vigente es la 0619'
+             when '143908623678087f07c40ee9a4a3b786' then '✓   al día (0621)'
+             when '8f9b02ec21ff463f045861a0977f1a63' then '✓   al día (0621, pegada sin comentarios)'
+             when 'a6891ce50c1e5598d59b65d04dde38d9' then '✓   al día (0621, pegada desde Windows)'
+             when '706b827e906ad25edb512ec0eb679603' then '✓   al día (0621, desde Windows y sin comentarios)'
+             when '191391ac2a9425b7fd4cef3e13d08dd8' then '✗   0621 con los acentos rotos — vuelve a pegarla'
+             when '7dd160467dd28ef4a6cd922c506e04d1' then '❌  se quedó en la 0619 — la vigente es la 0621'
+             when '0aa5ac491cc26c40f3e6ef764c171a6a' then '❌  se quedó en la 0619 — la vigente es la 0621'
+             when '029c534ff79b6e60d7a5a760be659053' then '❌  se quedó en la 0346 — la vigente es la 0621'
+             when '6fa0ce305883c9d3216161998cee43bc' then '❌  se quedó en la 0346 — la vigente es la 0621'
+             when '2051d2fc838ca0514a75f32791aef614' then '❌  se quedó en la 0338 — la vigente es la 0621'
+             when '1737f40c452fe240db07ea2a4a2320d3' then '❌  se quedó en la 0338 — la vigente es la 0621'
+             when '0bc70f11dd23ede89441e11486d58d70' then '❌  se quedó en la 0088 — la vigente es la 0621'
+             when '1c01cf1afcedd57358d9c7cd4f65346c' then '❌  se quedó en la 0088 — la vigente es la 0621'
+             when 'b9739b9367b2e32bf250dc6455d9e30f' then '❌  se quedó en la 0050 — la vigente es la 0621'
+             when 'c9f611aa3eb2e7efff0c9c8b6451aa3a' then '❌  se quedó en la 0050 — la vigente es la 0621'
+             when '8357793976dc7db790fb443c067d4cac' then '❌  se quedó en la 0049 — la vigente es la 0621'
+             when '9ea7afb55c21135c7370e946eb3e4020' then '❌  se quedó en la 0049 — la vigente es la 0621'
              else '⚠   md5 sin catalogar: ' || left(md5(p.prosrc), 8) || ' — mídela con ./scripts/donde-vive.sh fn_grati_cts_periodo'
            end, ' · ')
            from pg_proc p join pg_namespace n on n.oid = p.pronamespace

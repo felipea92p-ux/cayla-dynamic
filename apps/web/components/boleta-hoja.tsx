@@ -3,6 +3,7 @@ import { Marca } from "@/components/marca";
 import { Insignia } from "@/components/ui/insignia";
 import { MESES_LARGO, fechaCorta, feriadoNoCorresponde, fmtHoras } from "@/lib/admin/planilla/formato";
 import type { Fila, Proyeccion, SubvencionPracticante } from "@/lib/admin/planilla/tipos";
+import { detalleDeposito, nombreDeposito, type DepositoBoleta } from "@/lib/boleta-depositos";
 import {
   EMPRESA,
   TZ_LIMA,
@@ -134,9 +135,14 @@ export interface BoletaHojaProps {
   // contestó, o para cualquiera que no sea practicante — nunca se pide para
   // los otros dos documentos.
   subvencionPracticante?: SubvencionPracticante | null;
+  // Lo pagado FUERA de esta planilla dentro del periodo —la CTS depositada, una
+  // gratificación transferida aparte— según el libro de desembolsos (0622).
+  // Se imprime debajo del total y NO se suma. Ausente (undefined/null) mientras
+  // carga o si la consulta falla: la boleta sale igual, sin ese bloque.
+  depositos?: DepositoBoleta[] | null;
 }
 
-export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, nombreDni, subvencionPracticante }: BoletaHojaProps) {
+export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, nombreDni, subvencionPracticante, depositos }: BoletaHojaProps) {
   // ── QUIÉN RECIBE ESTE PAPEL ────────────────────────────────────────────────
   // Hasta el 2026-08-08 esta pantalla imprimía UN solo documento para todos, y
   // ese documento hablaba el idioma de un contrato de trabajo: «boleta»,
@@ -1090,6 +1096,40 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, nombre
                   Organizacional cuando corresponda.
                 </p>
               )}
+          </div>
+        )}
+
+        {/* ── LO YA DEPOSITADO, APARTE DE ESTE PAGO (0622) ──────────────────────
+            Pedido de Felipe el 2026-11-25. La CTS de noviembre se depositó el 14 en
+            la cuenta CTS de cada persona y la boleta no lo decía; el único rastro
+            que llegó a mostrar fue el ERROR —la misma CTS registrada como «bono» y
+            sumada al total—. Lo correcto es lo inverso: que conste cuánto y cuándo,
+            en su propio bloque y DEBAJO del total, sin entrar en él, porque esa
+            plata ya salió. Mismo resguardo que «Además, CAYLA paga por ti»: la
+            separación física y la leyenda son lo que impide leerlo como parte de
+            «Total a recibir este mes». Sin `!esLocador`: a un locador el libro no
+            le registra nada, y si algún día lo hiciera, el papel tiene que decirlo. */}
+        {depositos && depositos.length > 0 && (
+          <div className="mb-6 rounded-lg bg-sand/40 p-4 print:mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-tinta">
+              Ya depositado este mes, aparte de este pago
+            </p>
+            <p className="mb-3 text-xs text-taupe">
+              Ya lo recibiste — <strong>no se suma al total de arriba.</strong>
+            </p>
+            <table className="w-full text-sm">
+              <tbody>
+                {depositos.map((d, i) => (
+                  <tr key={`${i}-${d.ventana}-${d.anio}`} className="border-t border-sand">
+                    <td className="py-2">
+                      {nombreDeposito(d)}
+                      <span className="block text-xs text-taupe">{detalleDeposito(d)}</span>
+                    </td>
+                    <td className="py-2 text-right align-top">{formatSoles(Number(d.monto))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 

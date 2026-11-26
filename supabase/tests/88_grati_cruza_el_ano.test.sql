@@ -45,11 +45,11 @@ select is((fn_grati_cts_periodo('bbbbbbb1-0000-0000-0000-000000000001')->>'grati
           true, 'CRUZA · un periodo que contiene el 15-dic paga su gratificación aunque cierre en enero');
 
 select is(fn_grati_cts_periodo('bbbbbbb1-0000-0000-0000-000000000001')->>'grati_concepto',
-          'Bono Gratitud jul–dic 2026',
+          'Gratificación jul–dic 2026',
           'CRUZA · y es la de jul–dic 2026, no la del año del cierre');
 
 select isnt(fn_grati_cts_periodo('bbbbbbb1-0000-0000-0000-000000000001')->>'grati_concepto',
-            'Bono Gratitud jul–dic 2027',
+            'Gratificación jul–dic 2027',
             'CRUZA · nunca la del año siguiente, que aún no ha ocurrido');
 
 select is(jsonb_array_length(fn_grati_cts_periodo('bbbbbbb1-0000-0000-0000-000000000001')->'personas') > 0,
@@ -64,7 +64,7 @@ values ('bbbbbbb1-0000-0000-0000-000000000002', '2026-12-10', '2026-12-31', 'abi
 select is((fn_grati_cts_periodo('bbbbbbb1-0000-0000-0000-000000000002')->>'grati_aplica')::boolean,
           true, 'NORMAL · el periodo de diciembre de siempre sigue pagando');
 select is(fn_grati_cts_periodo('bbbbbbb1-0000-0000-0000-000000000002')->>'grati_concepto',
-          'Bono Gratitud jul–dic 2026', 'NORMAL · con el mismo concepto de antes');
+          'Gratificación jul–dic 2026', 'NORMAL · con el mismo concepto de antes');
 
 delete from periodos_planilla where id = 'bbbbbbb1-0000-0000-0000-000000000002';
 
@@ -73,7 +73,7 @@ insert into periodos_planilla (id, fecha_ini, fecha_fin, estado)
 values ('bbbbbbb1-0000-0000-0000-000000000003', '2026-07-01', '2026-07-25', 'abierto');
 
 select is(fn_grati_cts_periodo('bbbbbbb1-0000-0000-0000-000000000003')->>'grati_concepto',
-          'Bono Gratitud ene–jun 2026', 'JULIO · el periodo que contiene el 15-jul paga la de ene–jun');
+          'Gratificación ene–jun 2026', 'JULIO · el periodo que contiene el 15-jul paga la de ene–jun');
 
 delete from periodos_planilla where id = 'bbbbbbb1-0000-0000-0000-000000000003';
 
@@ -93,7 +93,7 @@ insert into periodos_planilla (id, fecha_ini, fecha_fin, estado)
 values ('bbbbbbb1-0000-0000-0000-000000000005', '2026-11-01', '2026-11-30', 'abierto');
 
 select is(fn_grati_cts_periodo('bbbbbbb1-0000-0000-0000-000000000005')->>'cts_concepto',
-          'Bono Comprometidos may–oct 2026', 'NOVIEMBRE · el CTS de may–oct se sigue detectando igual');
+          'CTS may–oct 2026', 'NOVIEMBRE · el CTS de may–oct se sigue detectando igual');
 
 select * from finish();
 rollback;
