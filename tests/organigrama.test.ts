@@ -3,8 +3,8 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import {
-  asignarCarriles, filasDelOrganigrama, leerOrganigrama, redondear, tramoEn, trazarEntreFilas, trazarLinea,
-  type Bloque, type Nodo,
+  agruparLineas, asignarCarriles, fichasPorRenglon, filasDelOrganigrama, formaDelEquipo, leerOrganigrama, redondear,
+  tituloDeEquipo, tramoEn, trazarEntreFilas, trazarLinea, type Bloque, type Lugar, type Nodo,
 } from "@/lib/organigrama";
 
 const bloque = (clave: string, fila: number, orden: number, columnas: number | null = null): Bloque =>
@@ -13,36 +13,70 @@ const nodo = (id: string, b: string, nivel: number, columna: number | null = nul
   ({ persona_id: id, nombres: id, apellidos: "Prueba", foto_url: null, bloque: b, nivel, columna, orden,
     funcion: "x", etiqueta: null, color: null, discreto: false });
 
-describe("las filas y los renglones", () => {
-  const bloques = [bloque("direccion", 1, 2, 2), bloque("sistemas", 1, 1), bloque("tienda", 2, 1), bloque("vacio", 2, 2)];
+describe("las filas y la forma de cada equipo", () => {
+  const bloques = [bloque("direccion", 1, 1, 2), bloque("sistemas", 1, 2), bloque("tienda", 2, 1), bloque("vacio", 2, 2)];
+  bloques[0].ancho = 2;
 
   it("ordena los equipos por fila y posición, y no dibuja los vacíos", () => {
     const filas = filasDelOrganigrama(bloques, [nodo("a", "sistemas", 1), nodo("b", "direccion", 2, 1), nodo("c", "tienda", 1)]);
-    expect(filas.map((f) => f.equipos.map((e) => e.bloque.clave))).toEqual([["sistemas", "direccion"], ["tienda"]]);
+    expect(filas.map((f) => f.equipos.map((e) => e.bloque.clave))).toEqual([["direccion", "sistemas"], ["tienda"]]);
   });
 
-  it("comparte renglones solo cuando algún equipo de la fila empieza más abajo", () => {
-    const filas = filasDelOrganigrama(bloques, [
-      nodo("a", "sistemas", 1), nodo("a2", "sistemas", 3), nodo("b", "direccion", 2, 1), nodo("c", "tienda", 1),
-    ]);
-    expect(filas[0]).toMatchObject({ comparteNiveles: true, ultimoNivel: 3 });
-    expect(filas[1]).toMatchObject({ comparteNiveles: false, ultimoNivel: 1 });
+  it("junto a otros, un equipo angosto es una sola columna, en orden de nivel y columna", () => {
+    const [fila] = filasDelOrganigrama([{ ...bloque("tienda", 1, 1, 2), ancho: 1.35 }, bloque("otro", 1, 2)],
+      [nodo("lado", "tienda", 1, 2), nodo("abajo", "tienda", 2), nodo("lider", "tienda", 1, 1), nodo("x", "otro", 1)]);
+    const forma = formaDelEquipo(fila.equipos[0], false);
+    expect(forma.tipo).toBe("columnas");
+    expect(forma.grupos.map((g) => g.map((n) => n.persona_id))).toEqual([["lider", "lado", "abajo"]]);
   });
 
-  it("sin columnas, el renglón se reparte entre quienes están, por orden", () => {
-    const [fila] = filasDelOrganigrama([bloque("tienda", 1, 1)],
-      [nodo("z", "tienda", 1, null, 2), nodo("a", "tienda", 1, null, 3), nodo("m", "tienda", 1, null, 1)]);
-    const [nivel] = fila.equipos[0].niveles;
-    expect(nivel.columnas).toBe(3);
-    expect(nivel.celdas.map((c) => [c.nodo.persona_id, c.columna])).toEqual([["m", 1], ["z", 2], ["a", 3]]);
+  it("el de ancho 2 reparte en dos columnas; quien no dice columna va en la primera", () => {
+    const [fila] = filasDelOrganigrama(bloques,
+      [nodo("derecha", "direccion", 2, 2), nodo("izquierda", "direccion", 2, 1), nodo("debajo", "direccion", 3, 1), nodo("s", "sistemas", 1)]);
+    expect(formaDelEquipo(fila.equipos[0], false).grupos.map((g) => g.map((n) => n.persona_id)))
+      .toEqual([["izquierda", "debajo"], ["derecha"]]);
   });
 
-  it("con columnas, cada quien cae en la suya y quien no la dice ocupa todo el renglón", () => {
-    const [fila] = filasDelOrganigrama([bloque("tienda", 1, 1, 2)],
-      [nodo("lado", "tienda", 1, 2), nodo("lider", "tienda", 1, 1), nodo("abajo", "tienda", 2)]);
-    const [arriba, abajo] = fila.equipos[0].niveles;
-    expect(arriba.celdas.map((c) => [c.nodo.persona_id, c.columna, c.ocupa])).toEqual([["lider", 1, 1], ["lado", 2, 1]]);
-    expect(abajo.celdas[0]).toMatchObject({ columna: 1, ocupa: 2 });
+  it("solo en su fila, cada nivel es un renglón; de más de cuatro se parte de tres en tres", () => {
+    const [fila] = filasDelOrganigrama([bloque("tienda", 1, 1)], [nodo("b", "tienda", 2), nodo("a", "tienda", 1)]);
+    const forma = formaDelEquipo(fila.equipos[0], true);
+    expect(forma.tipo).toBe("renglones");
+    expect(forma.grupos.map((g) => g.length)).toEqual([1, 1]);
+    expect([2, 4, 6].map(fichasPorRenglon)).toEqual([2, 4, 3]);
+  });
+
+  it("el nombre del equipo se parte en título y bajada", () => {
+    expect(tituloDeEquipo("Lima · taller y tienda")).toEqual({ titulo: "Lima", bajada: "taller y tienda" });
+    expect(tituloDeEquipo("Sistemas")).toEqual({ titulo: "Sistemas", bajada: null });
+  });
+});
+
+describe("las líneas que se dibujan", () => {
+  const lugares = new Map<string, Lugar>([
+    ["jefa", { fila: 0, equipo: "dir", columna: 0, puesto: 0 }],
+    ["debajo", { fila: 0, equipo: "dir", columna: 0, puesto: 1 }],
+    ["jefe", { fila: 0, equipo: "dir", columna: 1, puesto: 0 }],
+    ["ing1", { fila: 0, equipo: "sis", columna: 0, puesto: 0 }],
+    ["ing2", { fila: 0, equipo: "sis", columna: 0, puesto: 1 }],
+    ["t1", { fila: 2, equipo: "tienda", columna: 0, puesto: 0 }],
+    ["t2", { fila: 2, equipo: "tienda", columna: 1, puesto: 0 }],
+  ]);
+  const linea = (desde: string, hasta: string, tipo: "equipo" | "asesoria" = "equipo") => ({ desde, hasta, tipo });
+
+  it("dos que llegan al mismo equipo se dibujan una sola vez, desde quien las reparte", () => {
+    expect(agruparLineas([linea("jefa", "t1"), linea("t2", "jefa")], lugares))
+      .toEqual([{ clase: "a-equipo", tipo: "equipo", desde: "jefa", equipo: "tienda" }]);
+  });
+
+  it("en la misma fila sale de quien tiene varias", () => {
+    expect(agruparLineas([linea("ing1", "jefe"), linea("ing2", "jefe")], lugares))
+      .toEqual([{ clase: "al-lado", tipo: "equipo", desde: "jefe", hasta: ["ing1", "ing2"] }]);
+  });
+
+  it("dentro de un equipo solo se traza la de dos vecinas en línea de equipo", () => {
+    expect(agruparLineas([linea("jefa", "debajo")], lugares)).toHaveLength(1);
+    expect(agruparLineas([linea("jefa", "debajo", "asesoria"), linea("jefa", "jefe")], lugares)).toEqual([]);
+    expect(agruparLineas([linea("jefa", "nadie")], lugares)).toEqual([]);
   });
 });
 
@@ -81,7 +115,7 @@ describe("las líneas que unen filas distintas", () => {
     const debajo = caja(500, 80, 100, 20);
     const lejos = caja(700, 130);
     expect(trazarEntreFilas(jefa, lejos, { filas: filas.slice(0, 1), obstaculos: [jefa, debajo], carril: 1 }))
-      .toBe("M500 45H488V124H750V130");
+      .toBe("M500 45H486V124H750V130");
   });
 
   it("a dos filas: atraviesa la del medio por el pasillo más cercano a quien sale", () => {
@@ -90,15 +124,12 @@ describe("las líneas que unen filas distintas", () => {
       .toBe("M550 70V114H450V314H50V330");
   });
 
-  it("si el pasillo ya cae sobre la tarjeta de llegada, entra derecho", () => {
-    const ancha = caja(200, 330, 400);
-    expect(trazarEntreFilas(jefa, ancha, { filas, obstaculos: [jefa, ancha], carril: 0 }))
-      .toBe("M550 70V114H450V314H450V330");
-  });
-
   it("dos personas comparten altura salvo que sus tramos se pisen", () => {
     const c = asignarCarriles([{ clave: "a", ini: 0, fin: 300 }, { clave: "b", ini: 400, fin: 600 }, { clave: "c", ini: 250, fin: 420 }]);
     expect([c.get("a"), c.get("b"), c.get("c")]).toEqual([0, 0, 1]);
+    // Entre dos que se pisan, va arriba quien sale más a la derecha.
+    const dos = asignarCarriles([{ clave: "izq", ini: 0, fin: 400 }, { clave: "der", ini: 300, fin: 600 }]);
+    expect([dos.get("der"), dos.get("izq")]).toEqual([0, 1]);
     expect(tramoEn("M550 70V114H150V314H50V330", 114)).toEqual({ ini: 150, fin: 550 });
   });
 
