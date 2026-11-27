@@ -16,8 +16,8 @@
 
    DECIDÍ: sin `backdrop-filter` en las tarjetas y las tablas.
    DESCARTÉ: copiarlo de `--serena-filtro` como Retail, porque aquí las ventanas viven DENTRO de las pantallas (`Modal` no va en un portal, y hay 50 usos): un
-     desenfoque en la tarjeta la vuelve el contenedor de todo lo `fixed` de adentro y la ventana quedaría encerrada en ella. Detrás de una tarjeta solo está la
-     aurora, que ya viene desenfocada: quitarlo no cambia lo que se ve.
+     desenfoque en la tarjeta la vuelve el contenedor de todo lo `fixed` de adentro y la ventana quedaría encerrada en ella. Detrás de una tarjeta solo está el
+     Lienzo, un degradado liso: desenfocarlo no cambia lo que se ve.
    SE ROMPE SI: alguien le pone un `transform` o un `filter` a una tarjeta que contiene una ventana. */
 @media screen {
   /* ---------- La serif de títulos y cifras: 600 (P6 del contrato). El papel se queda como está. ---------- */
@@ -94,7 +94,9 @@
     color: var(--color-taupe);
   }
   /* La letra secundaria: el café de marca da 5.2:1 sobre crema, pero sobre la nube más teñida de la aurora bajaba a 3.82:1, medido con los píxeles de 40 pantallas. Un punto
-     más de tinta y no otro color: se ve igual y pasa. No se toca el token: `taupe` también pinta líneas y fondos, y es del contrato. */
+     más de tinta y no otro color: se ve igual y pasa. No se toca el token: `taupe` también pinta líneas y fondos, y es del contrato.
+     Desde el Lienzo (2026-11-27) ya no hay nube: el café solo da 4.90:1 en el punto más oscuro del degradado (tests/vidrio-marco.test.ts), así que sobre el fondo
+     esta regla ya no hace falta. Se deja hasta medirla sobre las tarjetas y la cabecera de vidrio, que también la llevan: quitarla es otra decisión. */
   [data-vidrio="panel"] :is(.text-taupe, [class*="text-taupe/"]):not([role="tab"], .vidrio-pestanas > button, .hoja *) {
     color: var(--vidrio-letra-secundaria);
   }

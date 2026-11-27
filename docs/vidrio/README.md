@@ -109,6 +109,8 @@ diseños. El terminal sigue siendo el de casillas. Qué se construyó, dónde qu
 | Piezas: botones, campos, listas, hojas, tablas, tarjetas, insignias, avisos, filtros, pestañas y estados vacíos | Felipe lo miró y dijo «sigue». Sigue en local |
 | Lo que se mueve: movimiento, loader, «atrás» que cierra la hoja y botones a la vista en hojas largas | Felipe lo aprobó el 2026-11-05. Sigue en local |
 
+**El fondo pasó al Lienzo de Retail (2026-11-27).** Felipe: «El fondo del retail no es igual al del dynamic, este segundo debería ser como el retail». La Aurora (tres nubes desenfocadas) se cambió por el Lienzo del ADR-0706 de Retail: un solo degradado recto, sin formas ni `filter`, en `estilos/vidrio/marco.css` (`.vidrio-lienzo`), para el panel, «Lo mío» y el terminal. Lo vigila «el fondo Lienzo» en `tests/vidrio-marco.test.ts`. **Lo que no se trajo:** en Retail el menú lateral de escritorio no tiene fondo propio y deja ver el Lienzo de borde a borde (Felipe en Retail, 2026-11-19); en Dynamic sigue con su columna papel (`--riel-fondo`). Es un cambio aparte y espera a que Felipe lo pida.
+
 **Dónde está:** Felipe aprobó la Etapa 1 y el 2026-11-06 decidió «Se deja en local». Vive en commits locales hasta que él diga que se sube.
 
 ## Etapa 2: módulo por módulo

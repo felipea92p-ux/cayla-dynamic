@@ -2,7 +2,7 @@ import { SeguirRuta } from "@/components/enlace-volver";
 import { RegistrarSinConexion } from "@/components/registrar-sin-conexion";
 import { AvisoVersionNueva } from "@/components/aviso-version-nueva";
 import { GuardaDeAcceso } from "@/lib/cuenta-de-servicio";
-import { Aurora } from "@/components/vidrio/aurora";
+import { Lienzo } from "@/components/vidrio/lienzo";
 import { interruptoresVidrio } from "@/lib/vidrio";
 
 // «Lo mío» no tenía marco propio: cada pantalla se monta sola. Este layout
@@ -18,10 +18,10 @@ export default function MioLayout({ children }: { children: React.ReactNode }) {
       <SeguirRuta />
       <RegistrarSinConexion />
       <AvisoVersionNueva />
-      {/* Un ternario y no `{x && <Aurora />}`: un hueco entre los hijos cambiaría el HTML apagado (lib/vidrio.ts). */}
+      {/* Un ternario y no `{x && <Lienzo />}`: un hueco entre los hijos cambiaría el HTML apagado (lib/vidrio.ts). */}
       {interruptoresVidrio().panel ? (
         <>
-          <Aurora />
+          <Lienzo />
           {children}
         </>
       ) : (

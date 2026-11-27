@@ -6,6 +6,26 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-27 — El fondo del vidrio pasa al Lienzo de Retail · sin SQL · **en local, esperando que Felipe lo mire**
+
+**Qué es.** Felipe: «El fondo del retail no es igual al del dynamic, este segundo debería ser como el retail». Dynamic seguía con la
+Aurora (tres nubes desenfocadas) que Retail ya había cambiado dos veces. Ahora usa el Lienzo de Retail (su ADR-0706): un solo degradado
+de arriba abajo, sin formas. Mismo fondo para el panel, «Lo mío» y el terminal (`estilos/vidrio/marco.css`, componente
+`components/vidrio/lienzo.tsx`).
+
+**Verificado** en el navegador, con un Next local sin base (el Postgres de `scripts/local/` no está en esta máquina): panel y terminal,
+claro y oscuro, escritorio y 375 px. El degradado calculado coincide con el esperado en los dos temas y no queda ninguna nube. Nueva prueba
+«el fondo Lienzo» en `tests/vidrio-marco.test.ts`: toda letra se lee en cualquier punto del degradado (≥ 4.5:1), sin formas ni `filter`.
+Se comprobó que falla si se le agrega un `filter`, un `radial-gradient` o un tono más oscuro.
+
+**Lo que queda abierto.** (1) El menú lateral de escritorio conserva su columna papel; en Retail deja ver el fondo de borde a borde.
+No se cambió sin preguntarle a Felipe. (2) La letra secundaria lleva un punto más de tinta que el café de marca (`--vidrio-letra-secundaria`)
+porque sobre la nube más teñida de la Aurora bajaba a 3.82:1. Sobre el Lienzo el café solo ya da 4.90:1, pero esa regla también vale
+sobre tarjetas y cabecera de vidrio. Se dejó como estaba; quitarla requiere medir esas superficies. (3) El aviso #687 del vigilante
+de la familia sigue abierto: el resto de lo que cambió en `vidrio/` de Retail desde el 2026-11-05 no se revisó, y por eso no se tomaron las huellas.
+
+---
+
 ## 2026-11-26 — Organigrama en Dynamic · publicado (PR #754 y #756) · SQL 0623 y 0624 con sus datos pegados · **en borrador: solo lo ve DO**
 
 **Qué es.** «Personas › Organigrama» en el panel y «Documentos › Organigrama» en «Lo mío». Se arma desde las fichas (nombre y foto);

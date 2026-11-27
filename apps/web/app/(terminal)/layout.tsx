@@ -1,6 +1,6 @@
 import { SeguirTemaGlobal } from "@/components/seguir-tema-global";
 import { RegistrarServiceWorker } from "@/components/registrar-service-worker";
-import { Aurora } from "@/components/vidrio/aurora";
+import { Lienzo } from "@/components/vidrio/lienzo";
 import { interruptoresVidrio } from "@/lib/vidrio";
 
 // Con el vidrio del terminal encendido, el tema es de cada Mac mini: arranca en claro y lo cambia el botón de su cabecera
@@ -9,7 +9,7 @@ import { interruptoresVidrio } from "@/lib/vidrio";
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-1 select-none flex-col bg-crema text-tinta">
-      {interruptoresVidrio().terminal ? <Aurora /> : <SeguirTemaGlobal />}
+      {interruptoresVidrio().terminal ? <Lienzo /> : <SeguirTemaGlobal />}
       <RegistrarServiceWorker />
       {children}
     </div>

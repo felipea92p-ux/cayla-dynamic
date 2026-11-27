@@ -2,7 +2,7 @@
    los mismos colores, fondo y botón de tema que el panel (marca.css y marco.css lo nombran en cada selector).
 
    QUÉ PROMETE
-     Con NEXT_PUBLIC_VIDRIO_TERMINAL=1, la Mac mini de cada sede se ve como Retail: la aurora detrás, la cabecera de vidrio, las casillas como
+     Con NEXT_PUBLIC_VIDRIO_TERMINAL=1, la Mac mini de cada sede se ve como Retail: el Lienzo detrás, la cabecera de vidrio, las casillas como
      placas, los pasos de marcar como una hoja, el principal ahumado y lo demás en gota. Apagado, ninguna regla de aquí alcanza a nadie.
      Solo cambia el material: ningún botón cambia lo que hace, ni cuántos toques cuesta marcar, ni su tamaño mínimo de 48 px.
 
@@ -14,7 +14,7 @@
    DECIDÍ: clases propias, una por material (gota, ahumado, placa, pozo, hoja) más las dos piezas que Retail no tiene (casilla y reloj).
    DESCARTÉ: leer las clases de Tailwind como hace piezas.css, porque en el terminal la misma receta escrita (`TILE`) es a la vez la casilla de un
      nombre y una opción de salida, y el CSS tendría que adivinar cuál es por su lugar. Son siete pantallas en cuatro archivos: nombrarlas es barato.
-   SE ROMPE SI: alguien agrega un botón al terminal sin su clase. No se rompe en silencio: se ve con el aspecto viejo sobre la aurora.
+   SE ROMPE SI: alguien agrega un botón al terminal sin su clase. No se rompe en silencio: se ve con el aspecto viejo sobre el Lienzo.
 
    LO QUE NO ES DE RETAIL, y por eso va a mostrarse con imagen antes de decidirlo (paso 5 del tablero):
      · La casilla conserva el borde café de control. Retail separa sus placas solo con luz y sombra, pero aquí se midió en septiembre que sin borde
@@ -23,10 +23,10 @@
      · El reloj es una lente redonda de la placa Serena, con el anillo y el segundero de siempre.
      · Lo que avisa (marcas sin registrar, Mac sin vínculo, reloj corrido) es el aviso teñido del panel, ancho y con su color.
    Sin `backdrop-filter` salvo en la cabecera, que es lo único que tiene algo pasando por detrás: detrás de una casilla o de una hoja solo está
-   la aurora, que ya viene desenfocada, y una Mac mini con treinta casillas no tiene por qué pagar treinta desenfoques. */
+   el Lienzo, un degradado liso que no hay que desenfocar, y una Mac mini con treinta casillas no tiene por qué pagar treinta desenfoques. */
 @media screen {
   /* ---------- El fondo ----------
-     La envoltura del terminal (y su pantalla de error) traen `bg-crema`, que taparía la aurora. El crema sigue siendo el del <body>. */
+     La envoltura del terminal (y su pantalla de error) traen `bg-crema`, que taparía el Lienzo. El crema sigue siendo el del <body>. */
   [data-vidrio="terminal"] .bg-crema.min-h-screen {
     background-color: transparent;
   }
@@ -222,7 +222,7 @@
     box-shadow: var(--placa-luz);
   }
 
-  /* ---------- La hoja: cada paso de marcar, sobre la aurora ----------
+  /* ---------- La hoja: cada paso de marcar, sobre el Lienzo ----------
      Antes cada paso ocupaba la pantalla entera sin bordes; ahora es una sola hoja de vidrio en el centro, como una ventana de Retail. Lo que no se
      deshace sigue diciéndolo el texto, y el rojo de un rechazo tiñe la hoja entera, como antes teñía la pantalla. */
   [data-vidrio="terminal"] .terminal-hoja {

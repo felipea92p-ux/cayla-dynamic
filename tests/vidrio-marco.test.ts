@@ -239,3 +239,57 @@ describe("las reglas de la casa, en las piezas", () => {
     }
   });
 });
+
+// El fondo Lienzo (estilos/vidrio/marco.css, el de Retail: su ADR-0706). Sobre el fondo va letra directa —el título de una pantalla, su bajada,
+// un enlace rojo, el estado de alguien en el terminal—, así que todo color de texto tiene que leerse en cualquier punto del degradado, en los dos
+// temas. Los tonos se leen del archivo y no se copian aquí: si alguien los mueve, esta prueba mide los nuevos.
+describe("el fondo Lienzo", () => {
+  const marco = leer("apps/web/app/estilos/vidrio/marco.css").replace(/\/\*[\s\S]*?\*\//g, "");
+  /** Lo que hay entre las llaves de la regla que empieza con `cabecera`. */
+  const cuerpoDe = (cabecera: string) => {
+    const i = marco.indexOf(cabecera);
+    if (i < 0) throw new Error(`no encontré «${cabecera}»`);
+    const ini = marco.indexOf("{", i);
+    return marco.slice(ini + 1, marco.indexOf("}", ini));
+  };
+  const CLARO = '[data-vidrio="panel"] .vidrio-lienzo {';
+  const OSCURO = ':root[data-vidrio="panel"][data-tema="oscuro"] .vidrio-lienzo {';
+  const tono = (cabecera: string, cual: "alto" | "bajo") => {
+    const m = cuerpoDe(cabecera).match(new RegExp(`--lienzo-${cual}:\\s*([^;]+);`));
+    if (!m) throw new Error(`«${cabecera}» no declara --lienzo-${cual}`);
+    return m[1].trim();
+  };
+  const degradado = (tema: "claro" | "oscuro") => {
+    const cab = tema === "claro" ? CLARO : OSCURO;
+    return `linear-gradient(180deg, ${tono(cab, "alto")}, ${tono(cab, "bajo")})`;
+  };
+
+  const LETRAS = [
+    "var(--color-tinta)", "var(--color-taupe)", "var(--vidrio-letra-secundaria)", tinte("tinta", 66), tinte("tinta", 80),
+    "var(--color-rojo)", "var(--color-rojo-profundo)", "var(--color-verde)", "var(--color-ambar)", "var(--color-ambar-profundo)",
+    "var(--color-pizarra)", "var(--color-azul)", "var(--color-ceniza)",
+  ];
+  describe.each(["claro", "oscuro"] as const)("%s: toda letra se lee en cualquier punto del degradado (≥ 4.5:1)", (tema) => {
+    it.each(LETRAS)("%s", (letra) => {
+      expect(peorLetra(letra, degradado(tema), TEMAS[tema], ["var(--color-crema)"])).toBeGreaterThanOrEqual(UMBRAL.texto);
+    });
+  });
+
+  it("no dibuja formas: un solo degradado recto, sin curvas, imágenes ni `filter` (detrás del vidrio, las nubes se veían como manchas)", () => {
+    const cuerpo = cuerpoDe(CLARO);
+    expect(cuerpo).toMatch(/background:\s*linear-gradient\(180deg, var\(--lienzo-alto\), var\(--lienzo-bajo\)\);/);
+    expect(marco).not.toMatch(/vidrio-lienzo[^{]*\{[^}]*(radial-gradient|conic-gradient|url\(|(^|[;\s])filter\s*:)/);
+  });
+
+  it("la Aurora no vuelve: ni sus nubes ni su clase", () => {
+    expect(marco).not.toMatch(/vidrio-aurora|blur\(90px\)/);
+  });
+
+  it("el terminal y el panel usan el mismo Lienzo: cada regla nombra a los dos", () => {
+    for (const cab of [CLARO, OSCURO]) {
+      const i = marco.indexOf(cab);
+      const antes = marco.slice(marco.lastIndexOf("}", i) + 1, i);
+      expect(antes).toContain('[data-vidrio="terminal"]');
+    }
+  });
+});
