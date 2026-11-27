@@ -857,8 +857,8 @@ export default function CorreccionesPage() {
                 <li key={m.id} className="rounded-lg bg-papel px-3 py-2 text-sm">
                   <div>
                     <span className="font-medium text-tinta">{m.persona}</span>
-                    <span className="block text-xs text-taupe">
-                      {m.sede}, {m.tipo} del {m.fecha} a las {horaTextoLima(m.timestamp_cliente)}
+                    <span className="text-taupe">
+                      {" "}en {m.sede}, {m.tipo} del {m.fecha} a las {horaTextoLima(m.timestamp_cliente)}
                     </span>
                   </div>
                   {m.ultimo_error && (
@@ -1304,7 +1304,7 @@ export default function CorreccionesPage() {
                       ) : levTardanza ? (
                         <span className="flex flex-wrap items-center gap-1.5 text-sm">
                           <s className="text-taupe">{formatoMinutos(jornada.minutos_tarde)}</s>
-                          <Insignia variante="positivo" tamano="sm">levantada: {motivoTardLabel(levTardanza.motivo).toLocaleLowerCase("es")}</Insignia>
+                          <Insignia variante="positivo" tamano="sm">levantada por {motivoTardLabel(levTardanza.motivo).toLocaleLowerCase("es")}</Insignia>
                           <Boton variante="enlace" className="text-xs" onClick={() => void quitarLevantamiento()}>quitar</Boton>
                         </span>
                       ) : diaFallas.levantamiento ? (
@@ -1527,7 +1527,7 @@ export default function CorreccionesPage() {
                       {/* La etiqueta dice de dónde salió la hora mientras nadie la
                           haya tocado: un valor que llega solo tiene que decirlo. */}
                       <Campo
-                        etiqueta={agregarYaElegido.hora === undefined && agregarHoraDelHorario ? "Hora, según su horario" : "Hora"}
+                        etiqueta={agregarYaElegido.hora === undefined && agregarHoraDelHorario ? "Hora (según su horario)" : "Hora"}
                         type="time" value={agregarHora} ref={horaAgregarRef}
                         error={agregarHoraIncompleta ? "Falta completar la hora" : undefined}
                         onChange={(e) => setAgregarElegido({ ...agregarYaElegido, hora: e.target.value })}
@@ -1624,8 +1624,8 @@ export default function CorreccionesPage() {
                                 <span className="font-medium">
                                   {!esDeMarcaje && <Insignia variante="informativo" tamano="sm" className="mr-1.5">{TEMA_AUDITORIA_LABELS[temaDeCampo(row.campo_modificado)]}</Insignia>}
                                   {accion}
-                                  {cuando && <span className="font-normal text-taupe">, del {cuando}</span>}
-                                  <span className="block font-normal text-taupe">{detalle}</span>
+                                  {cuando && <span className="font-normal text-taupe"> del {cuando}</span>}
+                                  <span className="font-normal text-taupe">: {detalle}</span>
                                 </span>
                                 <span className="text-xs text-taupe">
                                   corregido {selloLima(row.corregido_at)} por {nombrePorId.get(row.corregido_por) ?? "alguien fuera de tu lista"}

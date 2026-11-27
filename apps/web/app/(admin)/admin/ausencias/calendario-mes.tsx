@@ -130,7 +130,7 @@ export function CalendarioMes({
           </span>
         ))}
         {hayPendientes && <span>Rayado: pendiente de aprobar</span>}
-        <span className="basis-full">Las anuladas no se dibujan (están en la lista). Toca una barra para ver a esa persona en la lista.</span>
+        <span>Las anuladas no se dibujan (están en la lista). Toca una barra para ver a esa persona en la lista.</span>
       </div>
     </TarjetaInfo>
   );

@@ -11,20 +11,24 @@ Retail manda en el diseño (ver `docs/familia/`), así que la regla llega a Dyna
 visibles con «·» en unos 230 archivos. Felipe eligió empezar por el grupo **Asistencia** del menú como muestra y decidir
 después si se sigue.
 
-## La regla
+## La regla: lo mismo que puso Retail
 
-El punto amontona datos distintos en una línea y no da jerarquía. **No se cambia por otro signo** («|», «—», «/»): cada
-dato va en su pieza, según qué separa.
+El punto amontona datos distintos en una línea y no da jerarquía. **No se cambia por otro signo** («|», «—», «/»). En su lugar
+va lo que la tienda de Retail ya usó al quitarlos (cayla-retail#2021), en este orden de preferencia. Felipe pidió el
+2026-11-27 que Dynamic dijera las cosas igual que Retail («cuando no hay punto, ¿qué usa en su lugar?»), así que la primera
+versión de esta muestra —con más comas y datos bajados a una segunda línea en letra chica— se rehízo con esta tabla.
 
-| Qué separa | Cómo queda | Ejemplo en Asistencia |
-|---|---|---|
-| Dos partes de una frase | Coma o «y» | «entró a las 9:12, 14 min tarde»; «sobra 2, meta 3»; «lun a vie 08:30–14:00 y sáb 08:30–14:30» |
-| Quién y cuándo (o dónde) | El nombre arriba y la fecha o la sede abajo, en letra chica | Incidencias, Correcciones, Desempeño |
-| Un dato con su rótulo | «Rótulo: valor», o el rótulo arriba y el valor abajo | «Motivo: Estudios»; «Descanso: sábado, domingo»; «Personas: estado» |
-| Varios valores sueltos (conteos, estados) | Chips o etiquetas, con las piezas que ya hay (`<Insignia>`) | «7 casos» en la cabecera de cada sede |
-| Un filtro o un botón con su número | El número aparte, más tenue, como en `<Filtro>` | «Equipo 22», «Lun sin meta» |
-| Lo vacío de una tabla | «—», como el resto del sistema | La tabla de metas de Turnos |
-| El título de la pestaña del navegador | El único lugar donde va un signo: «\|» | — |
+| Forma | Cuándo | Retail | Asistencia |
+|---|---|---|---|
+| **Una palabra que une** («en», «el», «del», «desde», «por», «con», «y») | Siempre que exista: es la primera opción | «Pedido W-0012 en Trujillo», «Tú escribiste el 3 nov» | «Ana Torres en TRU, el lun 3 nov», «levantada por salud», «Del mié 28 oct. al vie 27 nov.», «40 h en 6 días» |
+| **Coma** | Rasgos de la misma cosa, o lugar y fecha | «Negro, talla M», «Trujillo, 3 nov» | «Tienda Arequipa, miércoles 25 de noviembre», «AQP, Calidad & servicio, 1 a. 7 m.», «sobra 2, meta 3» |
+| **Dos puntos** | Un rótulo con su valor, o una explicación | «3 colores: toca uno para elegirlo» | «Patrón de tardanzas: 3 en 30 días corridos», «Anulada: …», «Se paga: lo aprueba DO…» |
+| **Paréntesis** | Una nota al margen | «(sin prendas con lo otro elegido)» | «llegó 08:50 (plan 08:30)», «Por revisar 29 (incompleto)», «Hora (según su horario)», «Vacaciones (se paga por ley)» |
+| **Piezas separadas por espacio**, sin signo | Datos distintos que van juntos | El código del pedido y su total; razón social, RUC y domicilio | «Equipo 22», «Lun sin meta», «46.25 h   Descanso: sábado, domingo», «7 casos» junto al nombre de la sede |
+| **«\|»** | Solo el título de la pestaña del navegador | «Blusa Emma \| CAYLA» | — |
+
+Lo que **no** se hace: bajar un dato a una segunda línea en letra chica para separarlo (Retail no lo hace), ni convertir en
+etiqueta lo que antes era texto.
 
 La línea de arriba del título (`lib/admin/sobretitulo.ts`) queda en dos piezas: la sección con más peso y el día aparte
 («ASISTENCIA» y «VIERNES, 27 DE NOVIEMBRE, 11:20 A. M.»). En un teléfono, el día baja a su propia línea en vez de partirse

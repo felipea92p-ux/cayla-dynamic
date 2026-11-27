@@ -419,7 +419,7 @@ function PastillasAtencion({ f, hayObjetivos, mesEnCurso, semanaCerrada = false 
       )}
       {f.tardanzas > 0 && (
         <Insignia variante={f.peorTardanza >= TARDANZA_SERIA_MIN ? "alerta" : "advertencia"} tamano="sm">
-          {f.tardanzas} tardanza{f.tardanzas === 1 ? "" : "s"}, peor {formatoMinutos(f.peorTardanza)}
+          {f.tardanzas} tardanza{f.tardanzas === 1 ? "" : "s"}, la peor de {formatoMinutos(f.peorTardanza)}
         </Insignia>
       )}
       {f.faltas > 0 && <Insignia variante="alerta" tamano="sm">{f.faltas} falta{f.faltas === 1 ? "" : "s"}</Insignia>}
@@ -683,7 +683,7 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia, enCajon = 
                 <td className="px-4 py-2">
                   {(d.minutosTarde ?? 0) > 0
                     ? d.levantada
-                      ? <span className="text-taupe"><s>{formatoMinutos(d.minutosTarde!)}</s>, levantada</span>
+                      ? <span className="text-taupe"><s>{formatoMinutos(d.minutosTarde!)}</s> (levantada)</span>
                       : <span className="text-rojo">{formatoMinutos(d.minutosTarde!)}</span>
                     : <span className="text-taupe/50">—</span>}
                 </td>
@@ -695,7 +695,7 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia, enCajon = 
                 <td className="px-4 py-2">{d.horasExtra > 0 ? <span className="text-verde">{fmtHoras(d.horasExtra)}</span> : <span className="text-taupe/50">—</span>}</td>
                 <td className={`px-4 py-2 text-xs ${mc.sospechoso ? "text-ambar" : "text-taupe"}`}>
                   {mc.texto}
-                  {d.esperado.trabaja && <span className="block text-taupe/60">{d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</span>}
+                  {d.esperado.trabaja && <span className="text-taupe/60"> ({d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""})</span>}
                   {mc.sospechoso && <span title="Este día no tenía turno cargado: la tardanza o la salida anticipada se midió contra el horario base."> ⚠</span>}
                 </td>
                 <td className="px-4 py-2 text-xs">
@@ -1290,7 +1290,7 @@ function DesempenoContenido() {
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Desempeño del equipo"
-          descripcion={<>Toca una fila para ver sus días.<span className="block">{resumen}</span></>}
+          descripcion={<>Toca una fila para ver sus días. {resumen}.</>}
           vidrio={{ dato: resumen, frase: "Toca una fila para ver sus días." }}
           ayuda={
             <AyudaPantalla titulo="Cómo leer el desempeño" intro="Cada fila es una persona y cada cuadrito, un día: tócalo para ver qué pasó y resolverlo ahí mismo.">
@@ -1559,7 +1559,7 @@ function DesempenoContenido() {
         {sel && filaSel && diaSel && (
             <div className="space-y-4 text-sm">
               <div className="-mt-2 flex items-start justify-between gap-4">
-                <p className="text-taupe">{filaSel.nombre}<span className="block text-xs">Sede {filaSel.sede}</span></p>
+                <p className="text-taupe">{filaSel.nombre} en {filaSel.sede}</p>
                 <button onClick={cerrarDia} aria-label="Cerrar" className="rounded-lg border border-sand p-1.5 text-taupe hover:text-tinta">
                   <X size={18} strokeWidth={1.8} />
                 </button>
@@ -1572,7 +1572,7 @@ function DesempenoContenido() {
                     <dd className="text-right">
                       {diaSel.esperado.trabaja
                         ? <>{diaSel.esperado.entrada}{diaSel.esperado.salida ? `–${diaSel.esperado.salida}` : ""}
-                            {diaSel.esperado.horas > 0 && <span className="block text-xs text-taupe">{fmtHoras(diaSel.esperado.horas)}</span>}</>
+                            {diaSel.esperado.horas > 0 && <span className="text-taupe"> ({fmtHoras(diaSel.esperado.horas)})</span>}</>
                         : diaSel.esperado.origen === "sin_horario" ? <span className="text-ambar">sin horario cargado</span> : "descanso"}
                       {diaSel.esperado.origen === "turno" && <div className="text-[11px] text-taupe">turno puntual del día</div>}
                     </dd>

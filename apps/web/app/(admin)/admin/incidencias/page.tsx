@@ -494,7 +494,7 @@ function IncidenciasContenido() {
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Incidencias"
-          descripcion={<>{fechaCorta(desde)} – {fechaCorta(hasta)}. Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya.</>}
+          descripcion={<>Del {fechaCorta(desde)} al {fechaCorta(hasta)}. Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya.</>}
           vidrio={{ dato: <>{fechaCorta(desde)} – {fechaCorta(hasta)}</>, frase: "Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya." }}
           ayuda={
             <AyudaPantalla
@@ -541,7 +541,7 @@ function IncidenciasContenido() {
               {revisiones.map((r) => (
                 <li key={r.id} className="rounded-control border border-sand p-3 text-sm">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span><strong>{r.nombre}</strong> <span className="block text-xs text-taupe">{r.sede}, {fechaCorta(r.fecha)}</span></span>
+                    <span><strong>{r.nombre}</strong> <span className="text-taupe">en {r.sede}, el {fechaCorta(r.fecha)}</span></span>
                     <Link href={`/admin/correcciones?persona=${r.persona_id}&fecha=${r.fecha}`} className="text-tinta underline underline-offset-2">
                       Abrir ese día en Correcciones →
                     </Link>
@@ -670,7 +670,7 @@ function IncidenciasContenido() {
               title={!cargando && carga.duras.length > 0 ? "Incompleto: hay fuentes que no se pudieron comprobar." : undefined}
             >
               Por revisar <span className="tabular-nums text-[0.8em] opacity-70">{cargando ? "—" : porRevisar.length}</span>
-              {!cargando && carga.duras.length > 0 && <span className="text-[0.8em] opacity-70">, incompleto</span>}
+              {!cargando && carga.duras.length > 0 && <span className="ml-1 text-[0.8em] opacity-70">(incompleto)</span>}
             </Filtro>
             {CATEGORIAS.map((c) => {
               const n = porRevisar.filter((i) => i.categoria === c.clave).length;
@@ -768,7 +768,7 @@ function IncidenciasContenido() {
                   >
                     <span className="font-serif text-xl text-tinta">{rotuloDeSede(sede)}</span>
                     {rotuloDeSede(sede) !== sede && <span className="text-sm text-taupe">{sede}</span>}
-                    <Insignia variante="neutral" tamano="sm" punto={false}>{casos.length} caso{casos.length === 1 ? "" : "s"}</Insignia>
+                    <span className="text-sm text-taupe">{casos.length} caso{casos.length === 1 ? "" : "s"}</span>
                     {altas > 0 && <Insignia variante="alerta" tamano="sm">{altas} alta{altas === 1 ? "" : "s"}</Insignia>}
                     <ChevronDown aria-hidden className={cx("ml-auto size-4 self-center text-taupe transition-transform", !abiertaSede && "-rotate-90")} />
                   </button>
@@ -851,7 +851,7 @@ function IncidenciasContenido() {
                                     <IconoIncidencia incidencia={i} />
                                     <span>
                                       <span className="text-tinta">{i.titulo}</span>
-                                      {i.detalle && <span className="block text-xs text-taupe">{i.detalle}</span>}
+                                      {i.detalle && <span className="text-taupe">: {i.detalle}</span>}
                                     </span>
                                   </div>
                                 </td>
@@ -958,16 +958,15 @@ function IncidenciasContenido() {
                       <Fila key={`${h.persona_id}-${h.fecha}-${h.tipo}-${h.aceptado_at}-${idx}`}>
                         <td className="px-4 py-2.5">
                           {`${h.personas?.nombres ?? ""} ${h.personas?.apellidos ?? ""}`.trim()}
-                          <span className="block text-xs text-taupe">{h.personas?.sedes?.codigo ?? "?"}</span>
+                          <span className="text-taupe"> ({h.personas?.sedes?.codigo ?? "?"})</span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-2.5 capitalize tabular-nums">{fechaCorta(h.fecha)}</td>
                         <td className="px-4 py-2.5">
                           {NOMBRE_TIPO[h.tipo as TipoIncidencia] ?? h.tipo.replaceAll("_", " ")}
-                          {h.valor !== null && <span className="text-taupe">, sobre {h.valor}</span>}
+                          {h.valor !== null && <span className="text-taupe"> sobre {h.valor}</span>}
                         </td>
                         <td className="px-4 py-2.5 text-taupe">
-                          {nombrePorId.get(h.aceptado_por) ?? "otra persona"}
-                          <span className="block text-xs">{fechaHoraLima(h.aceptado_at)}</span>
+                          {nombrePorId.get(h.aceptado_por) ?? "otra persona"}, el {fechaHoraLima(h.aceptado_at)}
                           {h.nota && <span className="block">«{h.nota}»</span>}
                         </td>
                         <td className="px-4 py-2.5">
@@ -1021,9 +1020,9 @@ function IncidenciasContenido() {
                   <li key={i.clave} className="flex flex-col">
                     <span>
                       <strong className="font-medium text-tinta">{i.nombre}</strong>
-                      <span className="text-taupe">, {rotuloDeSede(i.sede)}, {fechaCorta(i.fecha)}</span>
+                      <span className="text-taupe"> en {rotuloDeSede(i.sede)}, el {fechaCorta(i.fecha)}</span>
                     </span>
-                    <span className="text-taupe">{i.titulo}{i.detalle ? `, ${i.detalle}` : ""}</span>
+                    <span className="text-taupe">{i.titulo}{i.detalle ? `: ${i.detalle}` : ""}</span>
                   </li>
                 ))}
               </ul>

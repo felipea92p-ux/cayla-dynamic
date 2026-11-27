@@ -254,7 +254,7 @@ function FilaPersona({
               {enPalabras(vigente).map((l) => <p key={l}>{l}</p>)}
               <p className="text-taupe">
                 Desde el {diaMes(vigente.vigente_desde)}{vigente.vigente_hasta ? ` hasta el ${diaMes(vigente.vigente_hasta)}` : ""}
-                {vigente.motivo && <span className="block">Motivo: {etiquetaMotivo(vigente.motivo)}</span>}
+                {vigente.motivo ? ` (${etiquetaMotivo(vigente.motivo)})` : ""}
               </p>
             </>
           ) : <p>Nada registrado: puede cualquier día y hora.</p>}
@@ -267,8 +267,7 @@ function FilaPersona({
         {pendiente && (
           <div className="flex flex-col gap-2 rounded-control bg-hueso p-3">
             <span className="text-xs font-medium uppercase tracking-wide text-taupe">
-              Mandó el {diaMes(pendiente.creada_at.slice(0, 10))}
-              {pendiente.motivo && <span className="block font-normal normal-case tracking-normal">Motivo: {etiquetaMotivo(pendiente.motivo)}</span>}
+              Mandó el {diaMes(pendiente.creada_at.slice(0, 10))}{pendiente.motivo ? ` (${etiquetaMotivo(pendiente.motivo)})` : ""}
             </span>
             {enPalabras(pendiente).map((l) => <p key={l}>{l}</p>)}
             <p className="text-taupe">

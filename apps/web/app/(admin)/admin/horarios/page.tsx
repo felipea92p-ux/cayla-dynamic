@@ -1249,8 +1249,7 @@ export default function HorariosPage() {
                     <li key={`${t.vigente_desde}-${t.vigente_hasta ?? "abierto"}`} className="flex items-center justify-between gap-2 text-xs text-taupe">
                       <span>
                         <span className="text-tinta">{fechaCorta(t.vigente_desde)}</span>
-                        {" — "}{esActual ? "actual" : (t.vigente_hasta ? fechaCorta(t.vigente_hasta) : "hoy")}
-                        <span className="block">{resumen}</span>
+                        {" — "}{esActual ? "actual" : (t.vigente_hasta ? fechaCorta(t.vigente_hasta) : "hoy")}: {resumen}
                       </span>
                       {!esActual && (
                         <button type="button" onClick={() => form.aplicarAnalisis(at)} className="shrink-0 text-pizarra underline hover:text-tinta">
@@ -1321,7 +1320,7 @@ export default function HorariosPage() {
                 </p>
                 <p className="text-sm">
                   Hoy: <strong>{desdeBase ? `almacén, desde el ${desdeBase.split("-").reverse().join("/")}` : "piso"}</strong>
-                  {programada && <span className="block text-taupe">Programado: almacén desde el {programada.vigente_desde.split("-").reverse().join("/")}</span>}
+                  {programada && <span className="text-taupe"> (programado: almacén desde el {programada.vigente_desde.split("-").reverse().join("/")})</span>}
                 </p>
                 <div role="group" aria-label="Puesto base" className="flex flex-wrap gap-2">
                   <Filtro activo={puestoBaseSel === "piso"} onClick={() => setPuestoBaseSel("piso")}>Piso</Filtro>

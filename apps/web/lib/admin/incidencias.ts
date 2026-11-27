@@ -501,11 +501,11 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
         (id) => turnoPorClave.get(`${id}|${dia}`) ?? null, tramosDe,
       ) === "no_trabaja") continue;
       const codigo = codigoPorSede.get(m.sede_id) ?? "?";
-      const sufijo = proximaSemana ? ", próxima semana: todavía se puede reprogramar" : "";
+      const sufijo = proximaSemana ? " (próxima semana: todavía se puede reprogramar)" : "";
       out.push(conAceptacion({
         personaId: null, nombre: `Sede ${codigo}`, sede: codigo, fecha: dia, entrada: null, salida: null,
         tipo: "deficit_encargadas", titulo: "Déficit de líderes",
-        detalle: `${cubiertas} de ${m.meta_encargadas}${proximaSemana ? ", próxima semana" : ""}`,
+        detalle: `${cubiertas} de ${m.meta_encargadas}${proximaSemana ? " (próxima semana)" : ""}`,
         texto: `Déficit de líderes (${cubiertas}/${m.meta_encargadas})${sufijo}`,
         valor: cubiertas, severidad: "media", categoria: "otros",
       }));

@@ -3,9 +3,9 @@
 // ============================================================================
 // Felipe, 2026-11-24 (en Retail; la tienda ya los quitó todos, cayla-retail#2021): el punto medio amontona
 // datos distintos en una línea y no dice dónde termina uno y empieza el otro. No se cambia por otro signo
-// («|», «—», «/»): cada dato va en su pieza. Dos partes de una frase, con coma o «y»; quién y cuándo, el
-// nombre arriba y la fecha abajo en chico; un dato con su rótulo, «Rótulo: valor» o el rótulo arriba; varios
-// valores sueltos, en chips. La decisión y el cómo: docs/adr/0007-sin-punto-medio.md.
+// («|», «—», «/»): se usa lo mismo que puso Retail, en este orden: una palabra que une («en», «el», «por»), coma para rasgos
+// de lo mismo, dos puntos para rótulo y valor, paréntesis para una nota y piezas separadas por espacio. La tabla con
+// ejemplos de los dos sistemas: docs/adr/0007-sin-punto-medio.md.
 //
 // Se hace por módulos del menú, empezando por Asistencia como muestra. Por eso MODULOS es una lista que
 // SOLO CRECE: el día que Felipe apruebe otro grupo se agregan sus rutas aquí y la prueba lo vigila desde ese

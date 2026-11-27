@@ -2393,7 +2393,7 @@ export default function TurnosPage() {
                 const hoy = hoyLima();
                 const abierto = diaAbierto;
                 const i = abierto ? dias.indexOf(abierto) : -1;
-                const titulo = abierto ? (() => { const { num } = etiquetaDia(abierto); return `${DIAS_LARGOS[diaSemana(abierto)]} ${num}${abierto === hoy ? ", hoy" : ""}`; })() : "";
+                const titulo = abierto ? (() => { const { num } = etiquetaDia(abierto); return `${DIAS_LARGOS[diaSemana(abierto)]} ${num}${abierto === hoy ? " (hoy)" : ""}`; })() : "";
                 return (
                   <>
                     {planDeLaSemana()}

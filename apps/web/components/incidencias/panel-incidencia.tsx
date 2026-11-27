@@ -282,8 +282,8 @@ export function PanelIncidencia({
             {i.aceptacion ? (
               <div className="flex flex-col gap-3">
                 <p className="text-tinta">
-                  <strong>{VISTO_BUENO[i.aceptable].boton}</strong>
-                  <span className="block text-taupe">{quien(i.aceptacion.aceptadoPor)}, {fechaHoraLima(i.aceptacion.aceptadoAt)}</span>
+                  <strong>{VISTO_BUENO[i.aceptable].boton}</strong>{" "}
+                  <span className="text-taupe">({quien(i.aceptacion.aceptadoPor)}, {fechaHoraLima(i.aceptacion.aceptadoAt)})</span>
                   {i.aceptacion.nota && <span className="block text-taupe">«{i.aceptacion.nota}»</span>}
                 </p>
                 {puedeActuar && !deshaciendo && (
@@ -456,7 +456,7 @@ export function PanelIncidencia({
                   <li key={m.id} className="flex gap-3">
                     <span className="w-12 shrink-0 text-taupe">{horaLima(m.timestamp_marca)}</span>
                     <span className={m.anulada_at ? "text-taupe line-through" : "text-tinta"}>
-                      Marca: {m.tipo.replaceAll("_", " ")}{m.origen && m.origen !== "terminal" ? `, ${m.origen.replaceAll("_", " ")}` : ""}
+                      Marca: {m.tipo.replaceAll("_", " ")}{m.origen && m.origen !== "terminal" ? ` (${m.origen.replaceAll("_", " ")})` : ""}
                     </span>
                     {m.anulada_at && <span className="text-taupe">anulada: {m.anulada_motivo}</span>}
                   </li>

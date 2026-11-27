@@ -10,8 +10,9 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 **Qué es.** Felipe pidió en Retail dejar el «·» como separador (2026-11-24) y eligió Asistencia como muestra en Dynamic. Las ocho
 pantallas del grupo —Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias— y lo que solo
-ellas usan separan cada dato en su pieza: frases con coma o «y», la sede o la fecha debajo del nombre en letra chica, «Rótulo: valor»,
-conteos en `<Insignia>`. La línea de arriba del título de TODAS las pantallas del panel pasa a dos piezas (sección y día). La regla, lo
+ellas usan dicen los datos con las mismas formas que usó la tienda de Retail al quitarlos: primero una palabra que une («en», «el»,
+«por»), coma para rasgos de lo mismo, dos puntos para rótulo y valor, paréntesis para notas y piezas con espacio. Una primera versión
+con más comas y datos bajados a otra línea se rehízo así a pedido de Felipe. La línea de arriba del título de TODAS las pantallas del panel pasa a dos piezas (sección y día). La regla, lo
 que queda fuera y los pendientes: [ADR 0007](adr/0007-sin-punto-medio.md). Novedad para el panel incluida.
 
 **El freno.** `tests/sin-punto-medio.test.ts` lee lo que el código dibuja (sin comentarios) y falla si vuelve un «·»; su lista de módulos

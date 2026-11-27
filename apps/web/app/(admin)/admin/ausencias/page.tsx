@@ -864,7 +864,7 @@ export default function AusenciasPage() {
           const etiquetaPago = insigniaPago(t.codigo, t.paga);
           return (
             <option key={t.codigo} value={t.codigo}>
-              {t.nombre}{etiquetaPago ? `, ${etiquetaPago}` : ""}
+              {t.nombre}{etiquetaPago ? ` (${etiquetaPago})` : ""}
             </option>
           );
         })}
