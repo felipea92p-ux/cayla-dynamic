@@ -99,8 +99,8 @@ const TIPOS_PAGA_POLITICA = new Set(["licencia_con_goce"]);
 
 function insigniaPago(tipo: string, paga: boolean): string | null {
   if (!paga) return null;
-  if (TIPOS_PAGA_LEY.has(tipo)) return "se paga · ley";
-  if (TIPOS_PAGA_POLITICA.has(tipo)) return "se paga · política CAYLA";
+  if (TIPOS_PAGA_LEY.has(tipo)) return "se paga por ley";
+  if (TIPOS_PAGA_POLITICA.has(tipo)) return "se paga por política CAYLA";
   return "se paga";
 }
 
@@ -602,7 +602,7 @@ export default function AusenciasPage() {
     setProgreso(null);
     if (errorSubida) {
       setAdjuntando(null);
-      avisar("error", `El certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). La ausencia sigue registrada igual.`);
+      avisar("error", `El certificado no subió (${errorSubida}, pesaba ${pesoLegible(paraSubir.size)}). La ausencia sigue registrada igual.`);
       return;
     }
     const { error } = await supabase.rpc("fn_ausencia_adjuntar_certificado", {
@@ -726,7 +726,7 @@ export default function AusenciasPage() {
       setProgreso(null);
       if (errorSubida) {
         setGuardando(false);
-        avisar("error", `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.`);
+        avisar("error", `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida}, pesaba ${pesoLegible(paraSubir.size)}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.`);
         setRegistrando(false);
         await cargar();
         return;
@@ -864,7 +864,7 @@ export default function AusenciasPage() {
           const etiquetaPago = insigniaPago(t.codigo, t.paga);
           return (
             <option key={t.codigo} value={t.codigo}>
-              {t.nombre}{etiquetaPago ? ` · ${etiquetaPago}` : ""}
+              {t.nombre}{etiquetaPago ? `, ${etiquetaPago}` : ""}
             </option>
           );
         })}
@@ -1094,14 +1094,14 @@ export default function AusenciasPage() {
                     {atencion === "vacaciones" && f.legal && (
                       <Insignia variante={f.legal.records_vencidos > 0 ? "alerta" : "advertencia"} punto={false}>
                         {f.legal.records_vencidos > 0
-                          ? `${f.legal.records_vencidos === 1 ? "récord vencido" : `${f.legal.records_vencidos} récords vencidos`} · ${f.legal.dias_pendientes}d`
-                          : `vence en ${f.legal.dias_para_vencer}d · ${f.legal.dias_pendientes}d sin gozar`}
+                          ? `${f.legal.records_vencidos === 1 ? "récord vencido" : `${f.legal.records_vencidos} récords vencidos`}, ${f.legal.dias_pendientes}d sin gozar`
+                          : `vence en ${f.legal.dias_para_vencer}d, ${f.legal.dias_pendientes}d sin gozar`}
                       </Insignia>
                     )}
                     {atencion === "essalud" && f.financiero && (
                       <Insignia punto={false}>
                         EsSalud: {f.financiero.dias_calendario}/{f.financiero.umbral}d
-                        {f.financiero.sin_certificado > 0 ? " · sin certificado" : ""}
+                        {f.financiero.sin_certificado > 0 ? ", sin certificado" : ""}
                       </Insignia>
                     )}
                     {atencion === "patron" && f.patron.map((p) => (
@@ -1257,7 +1257,7 @@ export default function AusenciasPage() {
                       {a.motivo && <div className="text-xs text-taupe">{a.motivo}</div>}
                       {a.doc_colegiatura && (
                         <div className="text-xs text-taupe">
-                          {a.doc_profesional} · {a.doc_colegiatura} · {fmt(a.doc_fecha)}
+                          {a.doc_profesional}, colegiatura {a.doc_colegiatura}, emitido el {fmt(a.doc_fecha)}
                         </div>
                       )}
                     </td>
@@ -1404,8 +1404,8 @@ export default function AusenciasPage() {
             {tipoSel && (
               <span className="mr-auto text-xs text-taupe">
                 {tipoSel.paga
-                  ? "Se paga · lo aprueba Desarrollo Organizacional antes de entrar en planilla."
-                  : "No se paga · esos días no se cobran, pero tampoco son falta."}
+                  ? "Se paga: lo aprueba Desarrollo Organizacional antes de entrar en planilla."
+                  : "No se paga: esos días no se cobran, pero tampoco son falta."}
               </span>
             )}
             <Boton variante="secundario" onClick={() => setRegistrando(false)} disabled={guardando}>

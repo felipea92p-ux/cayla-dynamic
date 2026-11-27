@@ -50,7 +50,7 @@ export function InsigniaCumple({ cumple }: { cumple: Cumple }) {
   );
 }
 
-const horasYDias = (x: { horas: number; dias: number }) => `${coma(x.horas)} h · ${x.dias} ${x.dias === 1 ? "día" : "días"}`;
+const horasYDias = (x: { horas: number; dias: number }) => `${coma(x.horas)} h en ${x.dias} ${x.dias === 1 ? "día" : "días"}`;
 
 export function BorradorDeLaSemana({
   semana,

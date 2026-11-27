@@ -57,8 +57,8 @@ function ContadorMotivo({ texto }: { texto: string }) {
   const n = texto.trim().length;
   const falta = MOTIVO_MIN - n;
   return (
-    <p className={`mt-1 text-xs ${falta > 0 ? "text-taupe" : "text-verde"}`}>
-      {falta > 0 ? `Mínimo ${MOTIVO_MIN} caracteres · ${n}/${MOTIVO_MAX}` : `${n}/${MOTIVO_MAX} caracteres`}
+    <p className={`mt-1 flex justify-between gap-3 text-xs ${falta > 0 ? "text-taupe" : "text-verde"}`}>
+      {falta > 0 ? <><span>Mínimo {MOTIVO_MIN} caracteres</span><span className="tabular-nums">{n}/{MOTIVO_MAX}</span></> : `${n}/${MOTIVO_MAX} caracteres`}
     </p>
   );
 }
@@ -1057,7 +1057,7 @@ export default function HorariosPage() {
                                   onClick={() => setSemanaExpandida((x) => (x === p.id ? null : p.id))}
                                   className="text-pizarra hover:text-tinta"
                                 >
-                                  varía por día · {expandida ? "Ocultar" : "Ver semana →"}
+                                  varía por día <span className="ml-1 underline underline-offset-2">{expandida ? "Ocultar" : "Ver semana →"}</span>
                                 </button>
                               )}
                               {a && a.dias.length > 0 && (
@@ -1167,13 +1167,14 @@ export default function HorariosPage() {
                           `${a.e}–${a.s}`
                         ) : (
                           <button type="button" onClick={() => setSemanaExpandida((x) => (x === p.id ? null : p.id))} className="text-pizarra">
-                            varía por día · {expandida ? "Ocultar" : "Ver semana →"}
+                            varía por día <span className="ml-1 underline underline-offset-2">{expandida ? "Ocultar" : "Ver semana →"}</span>
                           </button>
                         )}
                       </p>
                       {interruptoresVidrio().panel && !a ? null : (
-                      <p className="text-xs text-taupe">
-                        {a && a.dias.length ? fmtH(semana) : "—"} · Descanso {a ? textoDescanso(a.dias) : "—"}
+                      <p className="flex flex-wrap gap-x-3 text-xs text-taupe">
+                        <span>{a && a.dias.length ? fmtH(semana) : "—"}</span>
+                        <span>Descanso: {a ? textoDescanso(a.dias) : "—"}</span>
                       </p>
                       )}
                       {interruptoresVidrio().panel && !h ? null : (
@@ -1248,7 +1249,8 @@ export default function HorariosPage() {
                     <li key={`${t.vigente_desde}-${t.vigente_hasta ?? "abierto"}`} className="flex items-center justify-between gap-2 text-xs text-taupe">
                       <span>
                         <span className="text-tinta">{fechaCorta(t.vigente_desde)}</span>
-                        {" — "}{esActual ? "actual" : (t.vigente_hasta ? fechaCorta(t.vigente_hasta) : "hoy")} · {resumen}
+                        {" — "}{esActual ? "actual" : (t.vigente_hasta ? fechaCorta(t.vigente_hasta) : "hoy")}
+                        <span className="block">{resumen}</span>
                       </span>
                       {!esActual && (
                         <button type="button" onClick={() => form.aplicarAnalisis(at)} className="shrink-0 text-pizarra underline hover:text-tinta">
@@ -1277,7 +1279,7 @@ export default function HorariosPage() {
               return (
                 <div className={`mt-4 rounded-control px-3 py-2 text-sm ${seExcede ? "bg-rojo/10" : "bg-sand/30"}`}>
                   Total semana: <span className="font-medium text-tinta">{fmtH(form.totalSemana)}</span>
-                  <span className="text-taupe"> · máximo legal {maxLegal} h ({editando?.practicante_modalidad})</span>
+                  <span className="text-taupe">, máximo legal {maxLegal} h ({editando?.practicante_modalidad})</span>
                   {seExcede && (
                     <span className="text-rojo"> — supera el máximo del art. 44, Ley 28518, por {fmtH(form.totalSemana - maxLegal)}</span>
                   )}
@@ -1298,10 +1300,10 @@ export default function HorariosPage() {
             return (
               <div className="mt-4 rounded-control bg-sand/30 px-3 py-2 text-sm">
                 Total semana: <span className="font-medium text-tinta">{fmtH(form.totalSemana)}</span>
-                <span className="text-taupe"> · {jornada !== null ? `su jornada: ${fmtH(jornada)}` : `meta ${META_SEMANA} h`}</span>
+                <span className="text-taupe">, {jornada !== null ? `su jornada: ${fmtH(jornada)}` : `meta ${META_SEMANA} h`}</span>
                 {form.totalSemana > meta + 0.01 && <span className="text-ambar"> (te pasas {fmtH(form.totalSemana - meta)})</span>}
                 {form.totalSemana < meta - 0.01 && <span className="text-taupe"> (faltan {fmtH(meta - form.totalSemana)})</span>}
-                {Math.abs(form.totalSemana - meta) <= 0.01 && <span className="text-verde"> · cumple</span>}
+                {Math.abs(form.totalSemana - meta) <= 0.01 && <span className="text-verde">, cumple</span>}
               </div>
             );
           })()}
@@ -1319,7 +1321,7 @@ export default function HorariosPage() {
                 </p>
                 <p className="text-sm">
                   Hoy: <strong>{desdeBase ? `almacén, desde el ${desdeBase.split("-").reverse().join("/")}` : "piso"}</strong>
-                  {programada && <span className="text-taupe"> · programado: almacén desde el {programada.vigente_desde.split("-").reverse().join("/")}</span>}
+                  {programada && <span className="block text-taupe">Programado: almacén desde el {programada.vigente_desde.split("-").reverse().join("/")}</span>}
                 </p>
                 <div role="group" aria-label="Puesto base" className="flex flex-wrap gap-2">
                   <Filtro activo={puestoBaseSel === "piso"} onClick={() => setPuestoBaseSel("piso")}>Piso</Filtro>
@@ -1450,7 +1452,7 @@ export default function HorariosPage() {
 
           <div className="mt-4 rounded-control bg-sand/30 px-3 py-2 text-sm">
             Total semana: <span className="font-medium text-tinta">{fmtH(formRetro.totalSemana)}</span>
-            <span className="text-taupe"> · meta {META_SEMANA} h</span>
+            <span className="text-taupe">, meta {META_SEMANA} h</span>
           </div>
 
           <div className="mt-4">

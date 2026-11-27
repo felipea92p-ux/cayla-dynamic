@@ -157,20 +157,20 @@ export function columnasEnElMomento(
     let detalle = "";
     if (est === "por_llegar") {
       if (entrada) detalle = `entra ${horaLima(entrada.timestamp)}`;
-      else if (cerrado) detalle = p.plan ? `sin marca de entrada · plan ${hhmm(p.plan.desde)}` : "sin marca de entrada";
+      else if (cerrado) detalle = p.plan ? `sin marca de entrada, plan ${hhmm(p.plan.desde)}` : "sin marca de entrada";
       else detalle = p.plan ? `plan ${hhmm(p.plan.desde)}` : "";
     } else if (est === "salio") {
       const fin = ultimaHasta(p.marcajes, ["salida_final"], corte)!;
       const real = (ms(fin.timestamp) - ms(medianocheIso)) / 3_600_000;
       detalle = `salió ${horaLima(fin.timestamp)}`;
-      if (p.plan && Math.abs(real - p.plan.hasta) > DIFERENCIA_QUE_SE_DICE) detalle += ` · plan ${hhmm(p.plan.hasta)}`;
+      if (p.plan && Math.abs(real - p.plan.hasta) > DIFERENCIA_QUE_SE_DICE) detalle += `, plan ${hhmm(p.plan.hasta)}`;
     } else if (est === "refrigerio" || est === "pausa") {
       const s = ultimaHasta(p.marcajes, ["salida_almuerzo", "salida_personal", "salida_tramite", "salida_medico", "salida_otro"], corte);
       detalle = s ? `desde ${horaLima(s.timestamp)}` : "";
     } else {
       const real = entrada ? (ms(entrada.timestamp) - ms(medianocheIso)) / 3_600_000 : null;
       detalle = entrada ? `llegó ${horaLima(entrada.timestamp)}` : "";
-      if (real !== null && p.plan && Math.abs(real - p.plan.desde) > DIFERENCIA_QUE_SE_DICE) detalle += ` · plan ${hhmm(p.plan.desde)}`;
+      if (real !== null && p.plan && Math.abs(real - p.plan.desde) > DIFERENCIA_QUE_SE_DICE) detalle += `, plan ${hhmm(p.plan.desde)}`;
       if (est === "almacen") {
         const a = p.almacen.find((x) => x.desde <= t && t < x.hasta);
         if (a) detalle = `en almacén ${hhmm(a.desde)}–${hhmm(a.hasta)}`;

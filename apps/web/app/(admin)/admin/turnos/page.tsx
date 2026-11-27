@@ -295,7 +295,7 @@ function AlertaSobretiempo({ sedeSel, abierto, onConteo }: {
           <li key={f.personaId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
             <span>{f.nombre}</span>
             <span className={`tabular-nums font-medium ${f.ciclo.horas >= 48 ? "text-rojo" : "text-ambar"}`}>
-              {f.ciclo.horas.toFixed(1)}/48 h · día {f.ciclo.dia} de 7
+              {f.ciclo.horas.toFixed(1)}/48 h, día {f.ciclo.dia} de 7
             </span>
           </li>
         ))}
@@ -606,11 +606,11 @@ function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo, alDia, onCambio 
                 <li key={clave} className="px-4 py-2">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                     <button onClick={() => onIrADia(d.fecha)} className="text-left text-sm hover:underline">
-                      <span className="font-medium">{d.persona}</span> <span className="text-taupe">· {abr} {num}</span>
+                      <span className="font-medium">{d.persona}</span><span className="text-taupe">, {abr} {num}</span>
                     </button>
                     <span className="text-xs">
-                      <span className="text-ambar">turno {d.turnoTxt}</span> <span className="text-taupe">· base {d.baseTxt}</span>
-                      {d.yaCorrio && <span className="text-taupe"> · {d.marco ? `marcó ${d.marco}` : "sin marcaje"}</span>}
+                      <span className="text-ambar">turno {d.turnoTxt}</span><span className="text-taupe">, base {d.baseTxt}</span>
+                      {d.yaCorrio && <span className="text-taupe">, {d.marco ? `marcó ${d.marco}` : "sin marcaje"}</span>}
                     </span>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -1612,7 +1612,7 @@ export default function TurnosPage() {
     const { abr, num } = etiquetaDia(fecha);
     avisar("ok", siempre
       ? `Listo: desde el ${abr} ${num}, el puesto base de ${p?.nombres ?? "la persona"} es ${almacenSel.todoElTurno ? "el almacén" : "el piso"}.`
-      : `Listo: ${p?.nombres ?? "la persona"} · ${textoPuesto(almacenSel)}.`);
+      : `Listo: ${p?.nombres ?? "la persona"}, ${textoPuesto(almacenSel)}.`);
     setAlmacenEdit(null);
     await trasGuardar();
   }
@@ -1889,7 +1889,7 @@ export default function TurnosPage() {
             <span className="text-taupe">Meta operativas {metaMan}/{metaTar} <span className="opacity-70">mañana / tarde</span></span>
             <span className="font-medium" style={{ color: colorDeTono(etOp.tono, r.pct) }}>
               {etOp.texto}
-              {r.supHoras > 0 && <span className="text-ambar"> · sobra {r.supHoras}h</span>}
+              {r.supHoras > 0 && <span className="text-ambar">, sobra {r.supHoras}h</span>}
             </span>
             <span className="border-l border-sand pl-3 text-taupe">Líderes {metaEnc || "—"}</span>
             {!sinTurnosSede && (
@@ -2013,7 +2013,7 @@ export default function TurnosPage() {
                     key={i}
                     className="flex flex-1 items-center justify-center text-[11px] font-medium tabular-nums"
                     style={{ background: e.fondo, color: e.texto }}
-                    title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} en piso en el peor momento${cel.meta > 0 ? ` (meta ${cel.meta})` : ""}${enAlm ? ` · ${enAlm} en almacén parte o toda la hora` : ""}`}
+                    title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} en piso en el peor momento${cel.meta > 0 ? ` (meta ${cel.meta})` : ""}${enAlm ? `, y ${enAlm} en almacén parte o toda la hora` : ""}`}
                   >
                     {cel.fuera ? "" : n}
                   </span>
@@ -2175,7 +2175,7 @@ export default function TurnosPage() {
             items={[
               {
                 clave: "base",
-                texto: `${nBase} turno${nBase === 1 ? "" : "s"} distinto${nBase === 1 ? "" : "s"} al horario base${nEspejos > 0 ? ` · ${nEspejos} espejo${nEspejos === 1 ? "" : "s"} viejo${nEspejos === 1 ? "" : "s"}` : ""}`,
+                texto: `${nBase} turno${nBase === 1 ? "" : "s"} distinto${nBase === 1 ? "" : "s"} al horario base${nEspejos > 0 ? `, y ${nEspejos} espejo${nEspejos === 1 ? "" : "s"} viejo${nEspejos === 1 ? "" : "s"}` : ""}`,
                 n: nBase,
                 tono: "ambar",
               },
@@ -2290,11 +2290,11 @@ export default function TurnosPage() {
                                 outlineOffset: c.sinLider ? "-1.5px" : undefined,
                               }}>
                               <button type="button" onClick={() => verLineaDelDia(iso)}
-                                title={`${abr} ${decimalAHHMM(h)}–${decimalAHHMM(h + 1)}: ${c.enPiso} operativa${c.enPiso === 1 ? "" : "s"} en el peor momento${c.meta > 0 ? `, meta ${c.meta}` : ""}${c.lideres > 0 ? ` · ${c.lideres} ${c.lideres === 1 ? "líder" : "líderes"}` : c.sinLider ? " · sin líder" : ""}. Ver la línea del día.`}
+                                title={`${abr} ${decimalAHHMM(h)}–${decimalAHHMM(h + 1)}: ${c.enPiso} operativa${c.enPiso === 1 ? "" : "s"} en el peor momento${c.meta > 0 ? `, meta ${c.meta}` : ""}${c.lideres > 0 ? `, ${c.lideres} ${c.lideres === 1 ? "líder" : "líderes"}` : c.sinLider ? ", sin líder" : ""}. Ver la línea del día.`}
                                 className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-left">
                                 <span className="whitespace-nowrap text-[13.5px] font-semibold tabular-nums">{c.fuera ? "—" : `${c.enPiso} en piso`}</span>
                                 <span className="whitespace-nowrap rounded-full bg-papel/80 px-1.5 text-[10.5px] font-semibold tabular-nums" style={{ color: tono.texto }}>
-                                  {palabra}{c.meta > 0 && !c.fuera ? ` · meta ${c.meta}` : ""}
+                                  {palabra}{c.meta > 0 && !c.fuera ? `, meta ${c.meta}` : ""}
                                 </span>
                               </button>
                               {(() => {
@@ -2302,12 +2302,12 @@ export default function TurnosPage() {
                                 // quien pasa solo una parte sigue en piso, con su tramo de almacén al lado.
                                 const ficha = (g: (typeof c.gente)[number]) => {
                                   const tt = delDia.find((x) => x.id === g.id);
-                                  const turno = tt ? `${decimalAHHMM(tt.entrada)}–${decimalAHHMM(tt.salida)} · ${fmtH(tt.salida - tt.entrada)} h en tienda ese día` : "";
+                                  const turno = tt ? `${decimalAHHMM(tt.entrada)}–${decimalAHHMM(tt.salida)}, ${fmtH(tt.salida - tt.entrada)} h en tienda ese día` : "";
                                   const alm = g.almacen.map((x) => `${decimalAHHMM(x.desde)}–${decimalAHHMM(x.hasta)}`).join(", ");
                                   return (
                                     <li key={g.id}>
                                       <button type="button" disabled={!puedeVer} onClick={() => abrir(g.id, iso)}
-                                        title={`${g.nombre}${turno ? ` · ${turno}` : ""}${alm ? ` · en almacén ${alm}` : ""}${g.aparte ? ` · ${g.aparte}: no suma a la meta` : ""}${puedeVer ? ". Toca para cambiar su turno o su puesto." : ""}`}
+                                        title={`${g.nombre}${turno ? `: ${turno}` : ""}${alm ? `, en almacén ${alm}` : ""}${g.aparte ? `. ${g.aparte}: no suma a la meta` : ""}${puedeVer ? ". Toca para cambiar su turno o su puesto." : ""}`}
                                         className={`flex w-full items-center gap-1.5 rounded-full border bg-papel px-1.5 py-0.5 text-left text-[12.5px] transition-colors enabled:hover:border-taupe disabled:cursor-default ${g.cuenta || g.lider ? "border-sand" : "border-dashed border-taupe/60 text-taupe"}`}
                                         style={g.soloAlmacen ? { background: "color-mix(in srgb, var(--color-azul) 10%, var(--color-papel))", borderColor: "color-mix(in srgb, var(--color-azul) 45%, transparent)" } : undefined}>
                                         {g.lider ? (
@@ -2348,8 +2348,8 @@ export default function TurnosPage() {
                       <button type="button" onClick={() => setResumenAbierto(!resumenAbierto)} aria-expanded={resumenAbierto}
                         className="flex items-center gap-1.5 text-xs font-medium text-taupe transition-colors hover:text-tinta">
                         <ChevronRight aria-hidden className={`h-3.5 w-3.5 transition-transform ${resumenAbierto ? "rotate-90" : ""}`} />
-                        Resumen de horas
-                        <span className="font-normal tabular-nums">· {fmtH(resumenes.reduce((a, r) => a + r.horasEnTienda, 0))} h en tienda la semana</span>
+                        Resumen de horas:
+                        <span className="font-normal tabular-nums">{fmtH(resumenes.reduce((a, r) => a + r.horasEnTienda, 0))} h en tienda la semana</span>
                       </button>
                     </div>
                     {resumenAbierto && (
@@ -2393,7 +2393,7 @@ export default function TurnosPage() {
                 const hoy = hoyLima();
                 const abierto = diaAbierto;
                 const i = abierto ? dias.indexOf(abierto) : -1;
-                const titulo = abierto ? (() => { const { num } = etiquetaDia(abierto); return `${DIAS_LARGOS[diaSemana(abierto)]} ${num}${abierto === hoy ? " · hoy" : ""}`; })() : "";
+                const titulo = abierto ? (() => { const { num } = etiquetaDia(abierto); return `${DIAS_LARGOS[diaSemana(abierto)]} ${num}${abierto === hoy ? ", hoy" : ""}`; })() : "";
                 return (
                   <>
                     {planDeLaSemana()}

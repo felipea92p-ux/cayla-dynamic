@@ -114,9 +114,9 @@ export function cumpleJornada(horas: number, jornada: number | null, porDia: rea
 
 const coma = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
 
-/** «cumple 45 h» · «faltan 3 h de 45» · «se pasa 2 h de 45» · «45 h · sin jornada fijada». */
+/** «cumple 45 h» · «faltan 3 h de 45» · «se pasa 2 h de 45» · «45 h, sin jornada fijada». */
 export function textoCumple(c: Cumple): string {
-  if (c.estado === "sin_jornada") return `${coma(c.horas)} h · sin jornada fijada`;
+  if (c.estado === "sin_jornada") return `${coma(c.horas)} h, sin jornada fijada`;
   if (c.estado === "cumple") return `cumple ${coma(c.jornada!)} h`;
   const d = coma(Math.abs(c.diferencia!));
   return c.estado === "faltan" ? `faltan ${d} h de ${coma(c.jornada!)}` : `se pasa ${d} h de ${coma(c.jornada!)}`;

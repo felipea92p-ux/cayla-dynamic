@@ -106,7 +106,7 @@ export function CalendarioMes({
                       type="button"
                       role="cell"
                       onClick={() => onElegir(f.nombre)}
-                      title={`${c.ausencia.tipoNombre}${c.ausencia.pendiente ? " · pendiente de aprobar" : ""} · ${c.ausencia.inicio.split("-").reverse().join("/")} → ${c.ausencia.fin.split("-").reverse().join("/")}`}
+                      title={`${c.ausencia.tipoNombre}${c.ausencia.pendiente ? ", pendiente de aprobar" : ""}: ${c.ausencia.inicio.split("-").reverse().join("/")} → ${c.ausencia.fin.split("-").reverse().join("/")}`}
                       aria-label={`${f.nombre}, día ${c.dia}: ${c.ausencia.tipoNombre}${c.ausencia.pendiente ? ", pendiente de aprobar" : ""}`}
                       className="h-6 transition-opacity duration-150 hover:opacity-70"
                       style={estiloCasilla(c.ausencia.tipo, c.ausencia.pendiente)}
@@ -121,7 +121,7 @@ export function CalendarioMes({
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-taupe">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-taupe">
         {/* La leyenda lleva el cuadro del color: sin él, el nombre del tipo no dice cuál barra es cuál. */}
         {[...new Map([...tiposVistos].map((t) => [colorDe(t).leyenda, colorDe(t).token])).entries()].map(([leyenda, token]) => (
           <span key={leyenda} className="inline-flex items-center gap-1.5 text-tinta">
@@ -129,8 +129,8 @@ export function CalendarioMes({
             {leyenda}
           </span>
         ))}
-        {hayPendientes && <span>· rayado = pendiente de aprobar</span>}
-        <span>· las anuladas no se dibujan (están en la lista) · toca una barra para ver a esa persona en la lista</span>
+        {hayPendientes && <span>Rayado: pendiente de aprobar</span>}
+        <span className="basis-full">Las anuladas no se dibujan (están en la lista). Toca una barra para ver a esa persona en la lista.</span>
       </div>
     </TarjetaInfo>
   );

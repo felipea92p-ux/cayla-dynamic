@@ -180,7 +180,7 @@ export function TablaSemana({
         {grupos.map((g) => [
           <tr key={`g-${g.titulo}`}>
             <th colSpan={dias.length + 2} scope="rowgroup" className="bg-hueso px-3 py-1 text-left text-[11px] font-medium uppercase tracking-wide text-taupe">
-              {g.titulo}{g.nota && <span className="font-normal normal-case tracking-normal"> · {g.nota}</span>}
+              {g.titulo}{g.nota && <span className="ml-3 font-normal normal-case tracking-normal">{g.nota}</span>}
             </th>
           </tr>,
           ...g.filas.map((f) => (
