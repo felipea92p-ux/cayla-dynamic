@@ -6,6 +6,29 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-27 — Asistencia sin «·» entre datos (muestra) · sin SQL · **solo commits locales: Felipe la mira antes de subir**
+
+**Qué es.** Felipe pidió en Retail dejar el «·» como separador (2026-11-24) y eligió Asistencia como muestra en Dynamic. Las ocho
+pantallas del grupo —Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias— y lo que solo
+ellas usan separan cada dato en su pieza: frases con coma o «y», la sede o la fecha debajo del nombre en letra chica, «Rótulo: valor»,
+conteos en `<Insignia>`. La línea de arriba del título de TODAS las pantallas del panel pasa a dos piezas (sección y día). La regla, lo
+que queda fuera y los pendientes: [ADR 0007](adr/0007-sin-punto-medio.md). Novedad para el panel incluida.
+
+**El freno.** `tests/sin-punto-medio.test.ts` lee lo que el código dibuja (sin comentarios) y falla si vuelve un «·»; su lista de módulos
+solo crece. Control hecho: con la Horarios de `main` se pone en rojo.
+
+**Verificado** en el navegador con una base local aparte (Supabase en Docker con las 624 migraciones y los datos inventados de
+`scripts/local/sembrar.mjs`; la compartida iba en la 397): las ocho pantallas en claro y oscuro, escritorio y 375 px, con capturas antes y
+después. **No se vio con datos** lo que la base inventada no trae: entradas de Cambios de horario, pedidos y cambios de turno en
+Disponibilidad, revisiones pedidas, practicantes cerca del tope y el historial de vistos buenos en Incidencias, ni marcas apartadas en
+Correcciones. Sus textos los cubren la prueba y el typecheck, no una captura.
+
+**Lo que queda abierto.** (1) «Tienda · Trujillo» y «Taller · Lima» son el nombre de la sede (`etiquetaDeSede`, compartido por todo el
+sistema): cambiarlo es elegir cómo se llama cada una, y es de Felipe. (2) Si la muestra le gusta, seguir módulo por módulo (693 líneas
+en 140 archivos). (3) Lo que escriben las funciones de la base con « · » se muestra con coma solo en el libro de correcciones.
+
+---
+
 ## 2026-11-27 — El fondo del vidrio pasa al Lienzo de Retail · sin SQL · PR #759 abierto, sin fusionar · **fusionarlo lo publica**
 
 **Qué es.** Felipe: «El fondo del retail no es igual al del dynamic, este segundo debería ser como el retail». Dynamic seguía con la

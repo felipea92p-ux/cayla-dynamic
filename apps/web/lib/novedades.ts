@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-27-asistencia-sin-datos-amontonados",
+    fecha: "2026-11-27",
+    titulo: "Asistencia se lee más clara",
+    queMejoro:
+      "En las pantallas de Asistencia los datos ya no van amontonados en una línea con puntitos entre ellos: cada uno va " +
+      "en su lugar. Lo que forma una frase va con comas («entró a las 9:12, 14 min tarde»), la sede o la fecha van debajo " +
+      "del nombre en letra chica, y las cuentas van en su etiqueta.\n\n" +
+      "Vale para Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias. " +
+      "Arriba del título de cada pantalla, la sección y el día ahora van aparte.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-27-el-fondo-se-vuelve-liso",
     fecha: "2026-11-27",
     titulo: "Un fondo más limpio",

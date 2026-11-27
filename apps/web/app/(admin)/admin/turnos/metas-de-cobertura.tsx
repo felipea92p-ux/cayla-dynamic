@@ -289,7 +289,7 @@ export function MetasDeCobertura({
             <div role="group" aria-label="Día de la semana" className="flex flex-wrap gap-1.5">
               {DIAS.map((d) => (
                 <Filtro key={d.dia} activo={diaSel === d.dia} onClick={() => setDiaSel(d.dia)}>
-                  {d.corto}{(porDia.get(d.dia) ?? []).length ? null : <span className="text-[0.8em] opacity-70">sin meta</span>}
+                  {d.corto}{(porDia.get(d.dia) ?? []).length ? null : <span className="ml-1 text-[0.8em] opacity-70">sin meta</span>}
                 </Filtro>
               ))}
             </div>

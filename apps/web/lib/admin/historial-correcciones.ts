@@ -324,8 +324,12 @@ export function describirCambio(row: Auditoria): { accion: string; cuando: strin
   // Cada valor se juzga por separado: antes bastaba que UNO fuera legible para
   // mostrar los dos, y el otro podía ser el error crudo de Postgres.
   const esTexto = (v: string | null) => !!v && v.length < 80 && !/[{}();]|=>|public\./.test(v);
-  const antes = esTexto(row.valor_anterior) ? row.valor_anterior : null;
-  const despues = esTexto(row.valor_nuevo) ? row.valor_nuevo : null;
+  // Varias funciones de la base escriben sus valores con «·» entre datos («S/2535.54 · version 1», la 0243 y otras). Aquí
+  // se muestran con coma: el dato es el mismo, y la pantalla no separa con «·» (Felipe, 2026-11-24).
+  // punto-medio-permitido: lee el separador que la base ya guardó, para cambiarlo por una coma al mostrarlo.
+  const legible = (v: string | null) => (esTexto(v) ? v!.replaceAll(" · ", ", ") : null);
+  const antes = legible(row.valor_anterior);
+  const despues = legible(row.valor_nuevo);
   // Un valor que NACE (una firma, un documento) no tiene «antes»: «— → firmado»
   // se leía como si algo se hubiera borrado. Se dice solo lo nuevo.
   const detalle = antes && despues ? `${antes} → ${despues}`

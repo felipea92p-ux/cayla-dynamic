@@ -768,7 +768,7 @@ function IncidenciasContenido() {
                   >
                     <span className="font-serif text-xl text-tinta">{rotuloDeSede(sede)}</span>
                     {rotuloDeSede(sede) !== sede && <span className="text-sm text-taupe">{sede}</span>}
-                    <Insignia variante="neutral" tamano="sm">{casos.length} caso{casos.length === 1 ? "" : "s"}</Insignia>
+                    <Insignia variante="neutral" tamano="sm" punto={false}>{casos.length} caso{casos.length === 1 ? "" : "s"}</Insignia>
                     {altas > 0 && <Insignia variante="alerta" tamano="sm">{altas} alta{altas === 1 ? "" : "s"}</Insignia>}
                     <ChevronDown aria-hidden className={cx("ml-auto size-4 self-center text-taupe transition-transform", !abiertaSede && "-rotate-90")} />
                   </button>

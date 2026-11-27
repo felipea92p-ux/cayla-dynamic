@@ -122,9 +122,10 @@ const ROTULOS: Record<string, string> = {
   "expediente.carta_de_despido": "Carta de despido preparada",
 };
 
-/** El nombre en español de un campo; si no lo conoce, el crudo sin guiones bajos. */
+/** El nombre en español de un campo; si no lo conoce, el crudo sin guiones bajos: «personas.estado» → «Personas: estado»
+ *  (la tabla como rótulo y la columna como valor; nunca «·» entre datos, Felipe 2026-11-24). */
 export function rotuloDeCampo(campo: string): string {
-  const crudo = campo.replaceAll("_", " ").replaceAll(".", " · ");
+  const crudo = campo.replaceAll("_", " ").replace(".", ": ").replaceAll(".", " ");
   return ROTULOS[campo] ?? crudo.charAt(0).toUpperCase() + crudo.slice(1);
 }
 

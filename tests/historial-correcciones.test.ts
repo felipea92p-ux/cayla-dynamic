@@ -95,7 +95,8 @@ describe("horario cambiado", () => {
   it("un valor que nace no se lee como si algo se hubiera borrado", () => {
     const { accion, detalle } = describirCambio(fila("documento_firmado", null, "ruta · firmado digitalmente el 2026-10-06"));
     expect(accion).toBe("Documento firmado");
-    expect(detalle).toBe("ruta · firmado digitalmente el 2026-10-06");
+    // La base lo guarda con «·»; la pantalla lo dice con coma (Felipe, 2026-11-24: nunca «·» entre datos).
+    expect(detalle).toBe("ruta, firmado digitalmente el 2026-10-06");
   });
 
   it("la fecha de vigencia no se corre al día anterior", () => {

@@ -83,6 +83,8 @@ describe("vocabulario de la auditoría", () => {
 
   it("un campo que no conoce se lee sin guiones bajos, nunca vacío", () => {
     expect(rotuloDeCampo("campo_nuevo_de_manana")).toBe("Campo nuevo de manana");
+    // «tabla.columna» se dice con la tabla de rótulo, nunca con «·» entre las dos (Felipe, 2026-11-24).
+    expect(rotuloDeCampo("personas.estado")).toBe("Personas: estado");
   });
 
   it("una marca apartada declarada improcedente NO se lee como pendiente", () => {

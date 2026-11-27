@@ -69,6 +69,8 @@ const MODULOS: readonly Modulo[] = [
       // El sobretítulo de TODAS las pantallas del panel («Asistencia» y la fecha): compartido, y su cambio vale igual en todas.
       `${WEB}/lib/admin/sobretitulo.ts`,
       `${WEB}/components/vidrio/hora-lima.tsx`,
+      // Cómo se nombra un campo del libro de correcciones (Correcciones, Cambios de horario y «Lo mío»).
+      "packages/shared/src/auditoria.ts",
     ],
   },
 ];
