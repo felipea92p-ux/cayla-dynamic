@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-11-27 — El fondo del vidrio pasa al Lienzo de Retail · sin SQL · **en local, esperando que Felipe lo mire**
+## 2026-11-27 — El fondo del vidrio pasa al Lienzo de Retail · sin SQL · PR #759 abierto, sin fusionar · **fusionarlo lo publica**
 
 **Qué es.** Felipe: «El fondo del retail no es igual al del dynamic, este segundo debería ser como el retail». Dynamic seguía con la
 Aurora (tres nubes desenfocadas) que Retail ya había cambiado dos veces. Ahora usa el Lienzo de Retail (su ADR-0706): un solo degradado
