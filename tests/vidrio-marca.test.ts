@@ -108,7 +108,7 @@ describe("el vidrio no sale al papel ni al terminal", () => {
   it("del marco, al terminal solo le llegan el fondo y el botón del tema: el menú y la cabecera del panel no", () => {
     const reglasDelTerminal = [...marco.matchAll(/[^{};]*\[data-vidrio="terminal"\][^{};,]*/g)].map((m) => m[0]);
     expect(reglasDelTerminal.length).toBeGreaterThan(0);
-    for (const regla of reglasDelTerminal) expect(regla).toMatch(/vidrio-aurora|boton-tema/);
+    for (const regla of reglasDelTerminal) expect(regla).toMatch(/vidrio-lienzo|boton-tema/);
   });
 
   it("los colores fijos y los del terminal no se tocan", () => {

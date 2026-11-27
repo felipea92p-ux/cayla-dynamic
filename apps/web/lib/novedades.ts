@@ -115,6 +115,15 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-27-el-fondo-se-vuelve-liso",
+    fecha: "2026-11-27",
+    titulo: "Un fondo más limpio",
+    queMejoro:
+      "Detrás de las pantallas ya no hay manchas de color: el fondo es un tono parejo que baja suave de arriba abajo, el " +
+      "mismo que tiene el sistema de las tiendas. Se ve igual en el panel, en «Lo mío» y en el terminal de marcaje.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-11-26-el-organigrama-une-por-igual",
     fecha: "2026-11-26",
     titulo: "En el organigrama, cada quien con su línea",

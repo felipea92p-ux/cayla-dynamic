@@ -2,49 +2,35 @@
    terminal desde su módulo (2026-11-09), nombrado en cada selector; el resto es solo del panel. Copiado de apps/web/app/estilos/vidrio/marco.css,
    estilos/tema.css y estilos/ayuda-cabecera.css de Retail, colgado del atributo. */
 @media screen {
-  /* ---------- El fondo: la aurora ----------
-     Tres nubes muy tenues y quietas detrás de todo: el vidrio necesita algo detrás. Entran una vez con un fundido y no se mueven
-     más. z-index negativo: quedan sobre el crema del <body> y bajo el contenido. */
-  [data-vidrio="terminal"] .vidrio-aurora,
-  [data-vidrio="panel"] .vidrio-aurora {
+  /* ---------- El fondo: el Lienzo ----------
+     El de Retail (su ADR-0706, Felipe 2026-11-26: las formas detrás del vidrio «se ven como manchas blancas», quería «algo limpio y
+     minimalista»). No dibuja NADA: un solo degradado recto, de arriba abajo, entre dos tonos de la misma familia. La jerarquía la llevan
+     las tarjetas, no el fondo. Reemplaza a la Aurora (tres nubes desenfocadas): Retail ya la había cambiado por Seda, y Seda por este.
+     Detrás de todo (z-index negativo: queda sobre el crema del <body> y bajo el contenido). Entra una vez con un fundido y no se mueve más.
+
+     Dos cosas que no se cambian sin leer el ADR de Retail:
+     · Sus dos tonos no salen del rango en que todo texto se lee: sobre el fondo va letra directa (un título, una bajada, un enlace rojo).
+       Lo mide tests/vidrio-marco.test.ts («el fondo Lienzo»).
+     · No lleva formas, ni `filter`, ni una imagen. Una curva, una nube o un brillo detrás del vidrio es justo lo que se quitó. */
+  [data-vidrio="terminal"] .vidrio-lienzo,
+  [data-vidrio="panel"] .vidrio-lienzo {
     position: fixed;
     inset: 0;
     z-index: -1;
-    overflow: hidden;
     pointer-events: none;
+    --lienzo-alto: var(--color-crema);
+    --lienzo-bajo: color-mix(in srgb, var(--color-hueso) 46%, var(--color-crema));
+    background: linear-gradient(180deg, var(--lienzo-alto), var(--lienzo-bajo));
+    animation: vidrio-lienzo-entra 1.4s var(--ease-cayla) both;
   }
-  [data-vidrio="terminal"] .vidrio-aurora i,
-  [data-vidrio="panel"] .vidrio-aurora i {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(90px);
-    opacity: var(--vidrio-aurora-o);
-    animation: vidrio-aurora-entra 1.4s var(--ease-cayla) both;
-  }
-  [data-vidrio="terminal"] .vidrio-aurora i:nth-child(1),
-  [data-vidrio="panel"] .vidrio-aurora i:nth-child(1) {
-    width: 620px; height: 520px; right: 12%; top: -260px;
-    background: var(--color-rojo);
-    --vidrio-aurora-o: 0.12;
-  }
-  [data-vidrio="terminal"] .vidrio-aurora i:nth-child(2),
-  [data-vidrio="panel"] .vidrio-aurora i:nth-child(2) {
-    width: 700px; height: 560px; right: -220px; top: 120px;
-    background: var(--color-pizarra);
-    --vidrio-aurora-o: 0.12;
-  }
-  [data-vidrio="terminal"] .vidrio-aurora i:nth-child(3),
-  [data-vidrio="panel"] .vidrio-aurora i:nth-child(3) {
-    width: 560px; height: 460px; left: 30%; bottom: -260px;
-    background: var(--color-ambar);
-    --vidrio-aurora-o: 0.1;
-  }
-  :root[data-vidrio="terminal"][data-tema="oscuro"] .vidrio-aurora i,
-  :root[data-vidrio="panel"][data-tema="oscuro"] .vidrio-aurora i {
-    --vidrio-aurora-o: 0.1;
+  /* En oscuro va al revés en claridad: arriba sube apenas hacia el papel y abajo queda el negro cálido de la página. */
+  :root[data-vidrio="terminal"][data-tema="oscuro"] .vidrio-lienzo,
+  :root[data-vidrio="panel"][data-tema="oscuro"] .vidrio-lienzo {
+    --lienzo-alto: color-mix(in srgb, var(--color-papel) 45%, var(--color-crema));
+    --lienzo-bajo: var(--color-crema);
   }
 
-  /* Las envolturas de cada pantalla traen `bg-crema`, que taparía la aurora. Se quitan aquí y no en cada archivo: apagado, el HTML
+  /* Las envolturas de cada pantalla traen `bg-crema`, que taparía el Lienzo. Se quitan aquí y no en cada archivo: apagado, el HTML
      de esas pantallas sigue idéntico. El color de fondo sigue siendo crema: es el del <body>. */
   [data-vidrio="panel"] .bg-crema.min-h-screen {
     background-color: transparent;
@@ -84,8 +70,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    [data-vidrio="terminal"] .vidrio-aurora i,
-    [data-vidrio="panel"] .vidrio-aurora i {
+    [data-vidrio="terminal"] .vidrio-lienzo,
+    [data-vidrio="panel"] .vidrio-lienzo {
       animation: none;
     }
     [data-vidrio="terminal"] .boton-tema > svg,
@@ -1048,7 +1034,7 @@
   }
 }
 
-@keyframes vidrio-aurora-entra {
+@keyframes vidrio-lienzo-entra {
   from {
     opacity: 0;
   }

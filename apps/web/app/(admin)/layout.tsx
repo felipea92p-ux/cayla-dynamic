@@ -1,6 +1,6 @@
 import { MarcoAdmin } from "./admin/nav";
 import { RUTAS_SIN_MARCO } from "./admin/nav-items";
-import { Aurora } from "@/components/vidrio/aurora";
+import { Lienzo } from "@/components/vidrio/lienzo";
 import { interruptoresVidrio } from "@/lib/vidrio";
 import { RegistrarSinConexion } from "@/components/registrar-sin-conexion";
 import { AvisoVersionNueva } from "@/components/aviso-version-nueva";
@@ -23,10 +23,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="flex min-h-screen flex-1 flex-col bg-crema text-tinta print:bg-transparent">
       <RegistrarSinConexion />
       <AvisoVersionNueva />
-      {/* Un ternario y no `{x && <Aurora />}`: un hueco entre los hijos cambiaría el HTML apagado (lib/vidrio.ts). */}
+      {/* Un ternario y no `{x && <Lienzo />}`: un hueco entre los hijos cambiaría el HTML apagado (lib/vidrio.ts). */}
       {interruptoresVidrio().panel ? (
         <>
-          <Aurora excepto={RUTAS_SIN_MARCO} />
+          <Lienzo excepto={RUTAS_SIN_MARCO} />
           {marco}
         </>
       ) : (

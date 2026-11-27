@@ -26,7 +26,7 @@
     --t-hoja: 260ms;
     --t-momento: 480ms;
     --vidrio-boton-transicion: background 200ms var(--ease-cayla), border-color 200ms var(--ease-cayla), scale var(--t-resp) var(--ease-cayla), translate var(--t-cambio) var(--ease-cayla);
-    /* La letra secundaria sobre la aurora: un punto más de tinta que el café de marca. Medido con píxeles: sobre la nube más teñida el café daba 3.82:1. */
+    /* La letra secundaria: un punto más de tinta que el café de marca. Nació por la aurora (sobre su nube más teñida el café daba 3.82:1); sobre el Lienzo el café solo ya da 4.90:1 (ver piezas.css). */
     --vidrio-letra-secundaria: color-mix(in srgb, var(--color-taupe) 85%, var(--color-tinta));
     --brillo-superior: rgb(255 255 255 / 0.95);
     --color-ambar-profundo: #734f15;
