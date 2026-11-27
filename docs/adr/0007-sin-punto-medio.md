@@ -11,24 +11,46 @@ Retail manda en el diseño (ver `docs/familia/`), así que la regla llega a Dyna
 visibles con «·» en unos 230 archivos. Felipe eligió empezar por el grupo **Asistencia** del menú como muestra y decidir
 después si se sigue.
 
-## La regla: lo mismo que puso Retail
+## La regla aprobada: once casos, para Retail y Dynamic
 
-El punto amontona datos distintos en una línea y no da jerarquía. **No se cambia por otro signo** («|», «—», «/»). En su lugar
-va lo que la tienda de Retail ya usó al quitarlos (cayla-retail#2021), en este orden de preferencia. Felipe pidió el
-2026-11-27 que Dynamic dijera las cosas igual que Retail («cuando no hay punto, ¿qué usa en su lugar?»), así que la primera
-versión de esta muestra —con más comas y datos bajados a una segunda línea en letra chica— se rehízo con esta tabla.
+**Aprobada por Felipe el 2026-11-27**, después de pedir que se investigaran «mejores maneras» y no solo quitar el signo.
+La propuesta completa, con maquetas y fuentes, está en el artifact «Separar sin punto»
+(https://claude.ai/artifact/WXzKXUXxn8wzt17nuib4aH).
 
-| Forma | Cuándo | Retail | Asistencia |
+**La idea:** antes de separar, preguntar qué relación tienen los datos. Si se pueden decir en voz alta, van en una frase.
+Si son atributos sueltos de una misma cosa, van como piezas con espacio. Si son de distinta clase (un nombre y una
+cuenta), van en zonas distintas. Un signo entre ellos solo esconde que nadie tomó esa decisión.
+
+**Por qué no otro signo:** los sistemas de diseño grandes (BBC, GOV.UK, Atlassian, Primer, Stripe, Carbon, Fluent) separan
+con estructura, no con un carácter. Y un signo se oye distinto en cada lector de pantalla: NVDA calla el «·» sin pausa,
+así que «Ana Torres · TRU · lun 3 nov» suena como una sola tira (pruebas de Deque y Eleven Ways, 2023). El «|» igual.
+
+| # | Caso | En lugar del «·» | Ejemplo |
 |---|---|---|---|
-| **Una palabra que une** («en», «el», «del», «desde», «por», «con», «y») | Siempre que exista: es la primera opción | «Pedido W-0012 en Trujillo», «Tú escribiste el 3 nov» | «Ana Torres en TRU, el lun 3 nov», «levantada por salud», «Del mié 28 oct. al vie 27 nov.», «40 h en 6 días» |
-| **Coma** | Rasgos de la misma cosa, o lugar y fecha | «Negro, talla M», «Trujillo, 3 nov» | «Tienda Arequipa, miércoles 25 de noviembre», «AQP, Calidad & servicio, 1 a. 7 m.», «sobra 2, meta 3» |
-| **Dos puntos** | Un rótulo con su valor, o una explicación | «3 colores: toca uno para elegirlo» | «Patrón de tardanzas: 3 en 30 días corridos», «Anulada: …», «Se paga: lo aprueba DO…» |
-| **Paréntesis** | Una nota al margen | «(sin prendas con lo otro elegido)» | «llegó 08:50 (plan 08:30)», «Por revisar 29 (incompleto)», «Hora (según su horario)», «Vacaciones (se paga por ley)» |
-| **Piezas separadas por espacio**, sin signo | Datos distintos que van juntos | El código del pedido y su total; razón social, RUC y domicilio | «Equipo 22», «Lun sin meta», «46.25 h   Descanso: sábado, domingo», «7 casos» junto al nombre de la sede |
-| **«\|»** | Solo el título de la pestaña del navegador | «Blusa Emma \| CAYLA» | — |
+| 1 | Quién, dónde, cuándo | Frase con la palabra que une («en», «el», «por»); rangos con «de… a…» | «Ana Torres en TRU, el lun 3 nov» |
+| 2 | Datos sueltos de una fila | **Línea de datos**: piezas con espacio y **ícono** (decidido), rótulo solo para el lector | `<LineaDeDatos>`: 📍 AQP  💼 Calidad & servicio  ⏳ 1 a. 7 m. |
+| 3 | Un nombre y una cuenta | Nombre a la izquierda; la cuenta a la derecha **como frase** (decidido), lo urgente en rojo | «Tienda Arequipa AQP … 7 casos, todos de prioridad alta» |
+| 4 | Un dato con su rótulo | Rótulo arriba y valor abajo; en una línea, «Rótulo: valor» | «Sede: todas» |
+| 5 | Un valor con una nota | Paréntesis | «llegó 08:50 (plan 08:30)» |
+| 6 | Un estado con su tiempo, en una etiqueta | Frase corta | «En pausa hace 12 min» |
+| 7 | Una lista armada en código (`join(" · ")`) | «a, b y c» (`Intl.ListFormat`) | «3 negro, 2 beige y 1 crudo» |
+| 8 | Un paso numerado | El número como pieza aparte | «4  Precio y cantidad» |
+| 9 | Una celda vacía | «—» | — |
+| 10 | Un papel que se imprime | Cada dato en su pieza, con espacio | el pie legal de la tienda |
+| 11 | El título de la pestaña | «\|», el único signo que queda | «Blusa Emma \| CAYLA» |
 
-Lo que **no** se hace: bajar un dato a una segunda línea en letra chica para separarlo (Retail no lo hace), ni convertir en
-etiqueta lo que antes era texto.
+**El orden para llevarla:** primero Retail, porque manda en el diseño: la regla y las tres piezas compartidas (línea de
+datos, cabecera con cuenta, la lista dicha en castellano). Las piezas viajan a Dynamic por `docs/familia/`, y después se
+limpia módulo por módulo en los dos, con la prueba de cada sistema. Para la muestra de Asistencia, las dos primeras piezas
+se hicieron en Dynamic (`components/ui/linea-de-datos.tsx` y `cuentaDeCasos` en `lib/admin/incidencias.ts`); la versión
+que quede en Retail las reemplaza con la misma forma.
+
+### La primera versión de Asistencia, y por qué cambió
+
+Se hizo dos veces antes de llegar a la regla. La primera puso casi todo con comas y bajó datos a una segunda línea en letra
+chica. Felipe pidió decirlo como lo dice la tienda de Retail (palabra que une, paréntesis, dos puntos, piezas con espacio),
+y después, al ver «AQP 7 casos» suelto en Incidencias, pidió investigar formas mejores para los dos sistemas. De ahí salió
+la tabla de arriba.
 
 La línea de arriba del título (`lib/admin/sobretitulo.ts`) queda en dos piezas: la sección con más peso y el día aparte
 («ASISTENCIA» y «VIERNES, 27 DE NOVIEMBRE, 11:20 A. M.»). En un teléfono, el día baja a su propia línea en vez de partirse

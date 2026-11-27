@@ -20,6 +20,8 @@ import { Filtro } from "@/components/ui/filtro";
 import { HojaInferior } from "@/components/ui/hoja-inferior";
 import { ImprimibleAparte } from "@/components/ui/imprimible-aparte";
 import { Insignia } from "@/components/ui/insignia";
+import { LineaDeDatos } from "@/components/ui/linea-de-datos";
+import { MapPin } from "../apps/web/node_modules/lucide-react";
 import { ItemObjetivo } from "@/components/ui/item-objetivo";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
@@ -168,6 +170,7 @@ variantes("Insignia", Insignia, { variante: ["neutral", "alerta", "advertencia",
 variantes("Insignia", Insignia, { atenuada: [true] });
 variantes("Insignia", Insignia, { punto: BOOLEANO, variante: ["neutral", "contador"] });
 variantes("Punto", Punto, { tono: TONOS_PUNTO }, {}, null);
+variantes("LineaDeDatos", LineaDeDatos, { datos: [[{ icono: MapPin, rotulo: X, valor: X }], []] }, {}, null);
 variantes("Rotulo", Rotulo, { como: ["p", "div", "span", "h3"] });
 variantes("RotuloEstado", RotuloEstado, { tono: [undefined, ...TONOS_PUNTO] });
 variantes("ItemObjetivo", ItemObjetivo, { cumplido: BOOLEANO, indicaciones: [undefined, X] }, { descripcion: X }, null);

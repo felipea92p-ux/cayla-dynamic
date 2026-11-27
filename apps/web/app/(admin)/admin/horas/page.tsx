@@ -83,7 +83,8 @@ import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { cumpleJornada } from "@/lib/admin/borrador-semana";
-import { X, Search, SlidersHorizontal, ChevronDown, Download, Table2, LayoutGrid } from "lucide-react";
+import { X, Search, SlidersHorizontal, ChevronDown, Download, Table2, LayoutGrid, MapPin, Briefcase, Hourglass } from "lucide-react";
+import { LineaDeDatos } from "@/components/ui/linea-de-datos";
 import { interruptoresVidrio } from "@/lib/vidrio";
 
 // Por encima de esto la cuadrícula deja de ayudar y empieza a colgar el
@@ -1088,6 +1089,13 @@ function DesempenoContenido() {
   // Los totales (y por tanto las cuentas de «Para atender») se miden SIN la pastilla puesta: si
   // tocar «3 tardanzas» dejara la cuenta en lo que muestra la tabla, la pastilla cambiaría de
   // número al tocarla.
+  // Sede, área y antigüedad debajo del nombre: una línea de datos con ícono, no una tira con «·» (ADR 0007, caso 2).
+  const datosDeFila = (f: Fila) => [
+    { icono: MapPin, rotulo: "Sede", valor: f.sede },
+    { icono: Briefcase, rotulo: "Área", valor: f.area ? areaCorto(areas, f.area) : "sin área" },
+    f.fechaIngreso ? { icono: Hourglass, rotulo: "En CAYLA", valor: antiguedad(f.fechaIngreso, hasta) } : null,
+  ];
+
   const vista = useMemo(() => {
     if (!foco) return vistaBase;
     const pasa: Record<NonNullable<typeof foco>, (f: Fila) => boolean> = {
@@ -1475,10 +1483,7 @@ function DesempenoContenido() {
                         {f.activa && <EtiquetaPrueba fila={pruebas.get(f.personaId)} className="ml-2" />}
                         {!f.activa && <Insignia atenuada tamano="sm" punto={false} className="ml-2">inactiva</Insignia>}
                       </div>
-                      <div className="whitespace-nowrap text-[11px] text-taupe">
-                        {f.sede}, {f.area ? areaCorto(areas, f.area) : "sin área"}
-                        {f.fechaIngreso && <>, {antiguedad(f.fechaIngreso, hasta)}</>}
-                      </div>
+                      <LineaDeDatos className="mt-0.5 text-[11px]" datos={datosDeFila(f)} />
                     </td>
                     <td className="px-3 py-2"><HorasConBarra f={f} /></td>
                     <td className="px-3 py-2"><PastillasAtencion f={f} hayObjetivos={hayObjetivos} mesEnCurso={mesObjetivosEnCurso} semanaCerrada={semanaCerrada} /></td>
@@ -1500,10 +1505,7 @@ function DesempenoContenido() {
                           {f.activa && <EtiquetaPrueba fila={pruebas.get(f.personaId)} className="ml-2" />}
                           {!f.activa && <Insignia atenuada tamano="sm" punto={false} className="ml-2">inactiva</Insignia>}
                         </span>
-                        <span className="block text-xs text-taupe">
-                          {f.sede}, {f.area ? areaCorto(areas, f.area) : "sin área"}
-                          {f.fechaIngreso && <>, {antiguedad(f.fechaIngreso, hasta)}</>}
-                        </span>
+                        <LineaDeDatos className="mt-0.5" datos={datosDeFila(f)} />
                       </span>
                       <span className="shrink-0 text-right"><HorasConBarra f={f} /></span>
                     </span>

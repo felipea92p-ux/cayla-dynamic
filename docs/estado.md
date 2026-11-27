@@ -12,7 +12,10 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 pantallas del grupo —Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias— y lo que solo
 ellas usan dicen los datos con las mismas formas que usó la tienda de Retail al quitarlos: primero una palabra que une («en», «el»,
 «por»), coma para rasgos de lo mismo, dos puntos para rótulo y valor, paréntesis para notas y piezas con espacio. Una primera versión
-con más comas y datos bajados a otra línea se rehízo así a pedido de Felipe. La línea de arriba del título de TODAS las pantallas del panel pasa a dos piezas (sección y día). La regla, lo
+con más comas y datos bajados a otra línea se rehízo así a pedido de Felipe. Después Felipe aprobó una regla de once casos para Retail y Dynamic (investigada contra BBC, GOV.UK, Atlassian y
+otros; ADR 0007): la sede, el área y la antigüedad de Desempeño van en una **línea de datos con íconos**, y la cabecera de
+cada sede en Incidencias dice su cuenta como frase («7 casos, todos de prioridad alta»). **Retail va primero** con las
+piezas compartidas; las de Dynamic son de la muestra y se reemplazan por las de Retail. La línea de arriba del título de TODAS las pantallas del panel pasa a dos piezas (sección y día). La regla, lo
 que queda fuera y los pendientes: [ADR 0007](adr/0007-sin-punto-medio.md). Novedad para el panel incluida.
 
 **El freno.** `tests/sin-punto-medio.test.ts` lee lo que el código dibuja (sin comentarios) y falla si vuelve un «·»; su lista de módulos

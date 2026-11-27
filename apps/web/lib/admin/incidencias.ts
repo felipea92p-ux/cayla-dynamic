@@ -631,6 +631,20 @@ export function coberturaDeCarga(errores: Partial<Record<FuenteDeIncidencias, un
   };
 }
 
+/**
+ * La cuenta de la cabecera de una sede, dicha como frase (ADR 0007, caso 3): «7 casos» y, aparte para pintarlo de
+ * rojo, lo urgente: «todos de prioridad alta», «3 de prioridad alta». Antes era «7 casos» suelto junto al código de la
+ * sede y una etiqueta «7 altas», tres piezas pegadas sin decir cómo se relacionan.
+ */
+export function cuentaDeCasos(casos: number, altas: number): { cuenta: string; urgente: string | null } {
+  const cuenta = `${casos} caso${casos === 1 ? "" : "s"}`;
+  if (altas <= 0) return { cuenta, urgente: null };
+  if (altas >= casos) {
+    return { cuenta, urgente: casos === 1 ? "de prioridad alta" : casos === 2 ? "los dos de prioridad alta" : "todos de prioridad alta" };
+  }
+  return { cuenta, urgente: `${altas} de prioridad alta` };
+}
+
 /** «a», «a y b», «a, b y c». */
 export function enFrase(items: readonly string[]): string {
   if (items.length <= 1) return items[0] ?? "";

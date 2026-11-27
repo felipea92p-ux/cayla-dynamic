@@ -506,6 +506,20 @@ text-taupe/50
 text-verde
 text-xs
 whitespace-pre-wrap
+## linea-de-datos.tsx
+flex
+flex-wrap
+gap-1
+gap-x-3.5
+gap-y-0.5
+inline-flex
+items-center
+shrink-0
+size-3
+sr-only
+text-taupe
+text-xs
+whitespace-nowrap
 ## menu.tsx
 bg-papel
 block

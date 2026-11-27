@@ -55,7 +55,7 @@ import { crearCargaVigente } from "@/lib/admin/carga-vigente";
 import { sinTildes } from "@/lib/sin-tildes";
 import type { HorarioTramo } from "@/lib/admin/jornada-esperada";
 import {
-  addDias, CARGA_COMPLETA, compararIncidencias, coberturaDeCarga, detectarIncidencias, enFrase, estadoDe,
+  addDias, CARGA_COMPLETA, compararIncidencias, coberturaDeCarga, cuentaDeCasos, detectarIncidencias, enFrase, estadoDe,
   lunesDeLaSemana, TIPOS_EN_LOTE, ventanasDeConsulta,
   type Categoria, type CoberturaDeCarga, type DatosDeteccion, type Incidencia, type TipoIncidencia,
 } from "@/lib/admin/incidencias";
@@ -768,9 +768,16 @@ function IncidenciasContenido() {
                   >
                     <span className="font-serif text-xl text-tinta">{rotuloDeSede(sede)}</span>
                     {rotuloDeSede(sede) !== sede && <span className="text-sm text-taupe">{sede}</span>}
-                    <span className="text-sm text-taupe">{casos.length} caso{casos.length === 1 ? "" : "s"}</span>
-                    {altas > 0 && <Insignia variante="alerta" tamano="sm">{altas} alta{altas === 1 ? "" : "s"}</Insignia>}
-                    <ChevronDown aria-hidden className={cx("ml-auto size-4 self-center text-taupe transition-transform", !abiertaSede && "-rotate-90")} />
+                    {/* El nombre a la izquierda y la cuenta a la derecha, dicha como frase (ADR 0007, caso 3). */}
+                    {(() => {
+                      const { cuenta, urgente } = cuentaDeCasos(casos.length, altas);
+                      return (
+                        <span className="ml-auto text-sm text-taupe">
+                          {cuenta}{urgente && <>, <span className="font-medium text-rojo-profundo">{urgente}</span></>}
+                        </span>
+                      );
+                    })()}
+                    <ChevronDown aria-hidden className={cx("size-4 self-center text-taupe transition-transform", !abiertaSede && "-rotate-90")} />
                   </button>
                 </h2>
 

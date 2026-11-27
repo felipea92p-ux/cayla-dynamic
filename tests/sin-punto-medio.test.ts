@@ -23,6 +23,11 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { createElement } from "../apps/web/node_modules/react";
+import { renderToStaticMarkup } from "../apps/web/node_modules/react-dom/server.node.js";
+import { Briefcase, Hourglass, MapPin } from "../apps/web/node_modules/lucide-react";
+import { LineaDeDatos } from "@/components/ui/linea-de-datos";
+import { cuentaDeCasos } from "@/lib/admin/incidencias";
 
 const RAIZ = path.resolve(__dirname, "..");
 const WEB = "apps/web";
@@ -69,6 +74,8 @@ const MODULOS: readonly Modulo[] = [
       // El sobretítulo de TODAS las pantallas del panel («Asistencia» y la fecha): compartido, y su cambio vale igual en todas.
       `${WEB}/lib/admin/sobretitulo.ts`,
       `${WEB}/components/vidrio/hora-lima.tsx`,
+      // Las piezas que reemplazan al «·» (ADR 0007).
+      `${WEB}/components/ui/linea-de-datos.tsx`,
       // Cómo se nombra un campo del libro de correcciones (Correcciones, Cambios de horario y «Lo mío»).
       "packages/shared/src/auditoria.ts",
       // Cómo se nombra una sede («Tienda Arequipa»): lo usa todo el sistema, y el nombre es el mismo en todas partes.
@@ -173,5 +180,38 @@ describe("ningún texto que se ve separa datos con «·» (Felipe, 2026-11-24)",
       'const c = "sin punto";',
     ].join("\n");
     expect(puntosVisibles(codigo)).toEqual([]);
+  });
+});
+
+// Las dos piezas de la regla que Felipe aprobó el 2026-11-27 (ADR 0007, casos 2 y 3).
+describe("las piezas que reemplazan al «·»", () => {
+  it("la cuenta de una sede se dice como frase y aparta lo urgente", () => {
+    expect(cuentaDeCasos(7, 0)).toEqual({ cuenta: "7 casos", urgente: null });
+    expect(cuentaDeCasos(7, 7)).toEqual({ cuenta: "7 casos", urgente: "todos de prioridad alta" });
+    expect(cuentaDeCasos(7, 3)).toEqual({ cuenta: "7 casos", urgente: "3 de prioridad alta" });
+    expect(cuentaDeCasos(2, 2)).toEqual({ cuenta: "2 casos", urgente: "los dos de prioridad alta" });
+    expect(cuentaDeCasos(1, 1)).toEqual({ cuenta: "1 caso", urgente: "de prioridad alta" });
+  });
+
+  it("la línea de datos pone cada dato en su pieza, sin signo, con el ícono mudo y el rótulo solo para el lector", () => {
+    const html = renderToStaticMarkup(
+      createElement(LineaDeDatos, {
+        datos: [
+          { icono: MapPin, rotulo: "Sede", valor: "AQP" },
+          { icono: Briefcase, rotulo: "Área", valor: "Calidad & servicio" },
+          null,
+          { icono: Hourglass, rotulo: "En CAYLA", valor: "" },
+        ],
+      }),
+    );
+    expect(html).not.toMatch(PUNTO_MEDIO);
+    expect(html.match(/<svg/g)).toHaveLength(2); // la pieza vacía y el null no se dibujan
+    expect(html.match(/aria-hidden="true"/g)).toHaveLength(2);
+    expect(html).toContain('<span class="sr-only">Sede: </span>AQP');
+    expect(html).toContain('<span class="sr-only">Área: </span>Calidad &amp; servicio');
+  });
+
+  it("sin datos no dibuja nada", () => {
+    expect(renderToStaticMarkup(createElement(LineaDeDatos, { datos: [null, { icono: MapPin, rotulo: "Sede", valor: "" }] }))).toBe("");
   });
 });
