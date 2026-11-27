@@ -6,6 +6,35 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-11-27 — Asistencia sin «·» entre datos (muestra) · sin SQL · **solo commits locales: Felipe la mira antes de subir**
+
+**Qué es.** Felipe pidió en Retail dejar el «·» como separador (2026-11-24) y eligió Asistencia como muestra en Dynamic. Las ocho
+pantallas del grupo —Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias— y lo que solo
+ellas usan dicen los datos con las mismas formas que usó la tienda de Retail al quitarlos: primero una palabra que une («en», «el»,
+«por»), coma para rasgos de lo mismo, dos puntos para rótulo y valor, paréntesis para notas y piezas con espacio. Una primera versión
+con más comas y datos bajados a otra línea se rehízo así a pedido de Felipe. Después Felipe aprobó una regla de once casos para Retail y Dynamic (investigada contra BBC, GOV.UK, Atlassian y
+otros; ADR 0007): la sede, el área y la antigüedad de Desempeño van en una **línea de datos con íconos**, y la cabecera de
+cada sede en Incidencias dice su cuenta como frase («7 casos, todos de prioridad alta»). **Retail va primero** con las
+piezas compartidas; las de Dynamic son de la muestra y se reemplazan por las de Retail. La línea de arriba del título de TODAS las pantallas del panel pasa a dos piezas (sección y día). La regla, lo
+que queda fuera y los pendientes: [ADR 0007](adr/0007-sin-punto-medio.md). Novedad para el panel incluida.
+
+**El freno.** `tests/sin-punto-medio.test.ts` lee lo que el código dibuja (sin comentarios) y falla si vuelve un «·»; su lista de módulos
+solo crece. Control hecho: con la Horarios de `main` se pone en rojo.
+
+**Verificado** en el navegador con una base local aparte (Supabase en Docker con las 624 migraciones y los datos inventados de
+`scripts/local/sembrar.mjs`; la compartida iba en la 397): las ocho pantallas en claro y oscuro, escritorio y 375 px, con capturas antes y
+después. **No se vio con datos** lo que la base inventada no trae: entradas de Cambios de horario, pedidos y cambios de turno en
+Disponibilidad, revisiones pedidas, practicantes cerca del tope y el historial de vistos buenos en Incidencias, ni marcas apartadas en
+Correcciones. Sus textos los cubren la prueba y el typecheck, no una captura.
+
+**Las sedes** se llaman ahora «Tienda Arequipa», «Taller Lima», como en Retail (Felipe vio el punto en Incidencias). Sale de
+`etiquetaDeSede`, así que cambia igual en todo el sistema, también en desplegables y CSV.
+
+**Lo que queda abierto.** (1) Si la muestra le gusta, seguir módulo por módulo (unas 690 líneas en 140 archivos). (2) Lo que escriben
+las funciones de la base con « · » se muestra con coma solo en el libro de correcciones.
+
+---
+
 ## 2026-11-27 — El fondo del vidrio pasa al Lienzo de Retail · sin SQL · PR #759 abierto, sin fusionar · **fusionarlo lo publica**
 
 **Qué es.** Felipe: «El fondo del retail no es igual al del dynamic, este segundo debería ser como el retail». Dynamic seguía con la

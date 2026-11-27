@@ -80,10 +80,10 @@ export interface PersonaEnFeriado {
   plazo: number | null;
 }
 
-/** La línea de la lista de avisos de la semana: «Mariel · Fiestas Patrias · lleva 1 de 3 días de preselección». */
+/** La línea de la lista de avisos de la semana: «Mariel — 28 jul, Fiestas Patrias, lleva 1 de 3 días de preselección». */
 export function lineaDeSemana(p: PersonaEnFeriado, fechaCorta: string): string {
   const dias = textoDiasDePrueba(p);
-  return `${p.nombre} — ${fechaCorta} · ${p.feriado}${dias ? ` · ${dias}` : ""}`;
+  return `${p.nombre} — ${fechaCorta}, ${p.feriado}${dias ? `, ${dias}` : ""}`;
 }
 
 /** Texto extra del botón «Copiar semana anterior» cuando la semana destino tiene feriado y hay gente en preselección. */

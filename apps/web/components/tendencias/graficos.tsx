@@ -527,7 +527,7 @@ export function LlegadaPorSede({ sedes, nombreDe }: { sedes: LlegadaSede[]; nomb
 // ── Cuándo se llega tarde: sede × día de la semana ──────────────────────────
 const DIAS_CAL = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 export function CalorTardanza({ filas, nombreDe }: { filas: { sede: string; celdas: CeldaCalor[] }[]; nombreDe: (codigo: string) => string }) {
-  // En el teléfono la sede va por su código (el nombre sigue en el `title`): con ocho columnas en 300 px, «Tienda · Arequipa» se cortaba en «Tien…».
+  // En el teléfono la sede va por su código (el nombre sigue en el `title`): con ocho columnas en 300 px, «Tienda Arequipa» se cortaba en «Tien…».
   const angosto = useAngosto();
   const conVidrio = interruptoresVidrio().panel;
   const max = Math.max(1, ...filas.flatMap((f) => f.celdas.map((c) => c.pctTarde ?? 0)));

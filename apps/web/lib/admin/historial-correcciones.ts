@@ -149,7 +149,7 @@ function fechaCorta(iso: string): string {
 
 const hhmm = (t?: string) => (t ?? "").slice(0, 5);
 
-// {"1": {...}, "2": {...}, "6": {...}} → «lun a vie 08:30–14:00 · sáb 08:30–14:30».
+// {"1": {...}, "2": {...}, "6": {...}} → «lun a vie 08:30–14:00 y sáb 08:30–14:30».
 // Agrupa días SEGUIDOS con el mismo horario; el refrigerio se dice una vez si
 // es igual para todos, y por grupo si no — si no, un cambio que solo toca el
 // refrigerio se leería «X → X», igual antes que después.
@@ -179,7 +179,9 @@ export function horarioSemanalEnPalabras(porDia: Record<string, Tramo>): string 
     return `${nombre} ${horas}${!refriComun && r ? ` (${r} min de refrigerio)` : ""}`;
   });
   const r = refriComun ? refri(porDia[dias[0]]) : null;
-  return partes.join(" · ") + (r ? `, ${r} min de refrigerio` : "");
+  // Los tramos dichos como frase («a, b y c»), nunca con «·» entre ellos (Felipe, 2026-11-24).
+  const lista = partes.length <= 1 ? (partes[0] ?? "") : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`;
+  return lista + (r ? `, ${r} min de refrigerio` : "");
 }
 
 export function horarioEnPalabras(valor: string | null): string {
@@ -274,6 +276,7 @@ export function describirCambio(row: Auditoria): { accion: string; cuando: strin
   //  · la vieja, con el error crudo de Postgres en los dos valores.
   if (row.campo_modificado === "marca_apartada" && row.valor_nuevo && row.valor_nuevo in RESOLUCION_MARCA_APARTADA) {
     // El error del terminal (tras « · ») no se muestra: es ruido técnico.
+    // punto-medio-permitido: es el formato que la base guarda en `valor_anterior` (0304/0376); aquí se lee, no se muestra.
     const marca = (row.valor_anterior ?? "").split(" · ")[0];
     const [tipo, cuando] = marca.split(" del ");
     return {
@@ -321,8 +324,12 @@ export function describirCambio(row: Auditoria): { accion: string; cuando: strin
   // Cada valor se juzga por separado: antes bastaba que UNO fuera legible para
   // mostrar los dos, y el otro podía ser el error crudo de Postgres.
   const esTexto = (v: string | null) => !!v && v.length < 80 && !/[{}();]|=>|public\./.test(v);
-  const antes = esTexto(row.valor_anterior) ? row.valor_anterior : null;
-  const despues = esTexto(row.valor_nuevo) ? row.valor_nuevo : null;
+  // Varias funciones de la base escriben sus valores con «·» entre datos («S/2535.54 · version 1», la 0243 y otras). Aquí
+  // se muestran con coma: el dato es el mismo, y la pantalla no separa con «·» (Felipe, 2026-11-24).
+  // punto-medio-permitido: lee el separador que la base ya guardó, para cambiarlo por una coma al mostrarlo.
+  const legible = (v: string | null) => (esTexto(v) ? v!.replaceAll(" · ", ", ") : null);
+  const antes = legible(row.valor_anterior);
+  const despues = legible(row.valor_nuevo);
   // Un valor que NACE (una firma, un documento) no tiene «antes»: «— → firmado»
   // se leía como si algo se hubiera borrado. Se dice solo lo nuevo.
   const detalle = antes && despues ? `${antes} → ${despues}`

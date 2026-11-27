@@ -89,7 +89,7 @@ function Cambio({ c, nombre, esDeEllas, supabase, avisar, onListo }: {
   };
 
   return (
-    <TarjetaInfo como="li" titulo={`${diaMes(c.fecha)} · ${nombre(c.solicitante_id)} ⇄ ${nombre(c.companera_id)}`}
+    <TarjetaInfo como="li" titulo={`${nombre(c.solicitante_id)} ⇄ ${nombre(c.companera_id)}, ${diaMes(c.fecha)}`}
       accion={pasoADo(desde) ? <Insignia variante="advertencia">Pasó a DO</Insignia>
         : <Insignia variante="informativo" atenuada>{`Pasa a DO en ${horasParaDo(desde)} h`}</Insignia>}>
       <div className="flex flex-col gap-2 text-sm">
@@ -161,7 +161,7 @@ export function ProponerCambioDesdePedido({ supabase, pedidoId, personaId, fecha
           <div className="flex flex-wrap gap-2">
             {candidatas.map((k) => (
               <Boton key={k.persona_id} tamano="sm" disabled={enviando} onClick={() => void proponer(k.persona_id)}>
-                {k.nombre} · {tramo(k.hora_entrada, k.hora_salida)}
+                {k.nombre} <span className="tabular-nums opacity-70">{tramo(k.hora_entrada, k.hora_salida)}</span>
               </Boton>
             ))}
           </div>

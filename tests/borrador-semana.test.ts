@@ -55,7 +55,7 @@ describe("cumpleJornada — contra la jornada que fija DO", () => {
     expect(cumpleJornada(48, 45).pasa48).toBe(false);
   });
   it("sin jornada fijada no dice que falta ni que sobra", () => {
-    expect(textoCumple(cumpleJornada(40, null))).toBe("40 h · sin jornada fijada");
+    expect(textoCumple(cumpleJornada(40, null))).toBe("40 h, sin jornada fijada");
   });
   it("en palabras", () => {
     expect(textoCumple(cumpleJornada(45, 45))).toBe("cumple 45 h");

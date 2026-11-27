@@ -203,13 +203,13 @@ export function MetasDeCobertura({
   const resumenDia = (pd: PorDia | undefined, dia: number) => {
     const rs = pd?.get(dia) ?? [];
     if (rs.length === 0) return "—";
-    return rs.map((r) => `${hhmm(r.desde)}–${hastaAHHMM(r.hasta)} ${r.personal ?? "venta"}${r.lideres ? `+${r.lideres}L` : ""}`).join(" · ");
+    return rs.map((r) => `${hhmm(r.desde)}–${hastaAHHMM(r.hasta)} ${r.personal ?? "venta"}${r.lideres ? `+${r.lideres}L` : ""}`).join(", ");
   };
 
   const comparacion = esTienda && ventaDe ? compararHoraPorHora(delDia, (h) => ventaDe(diaSel, h), HORA_DESDE, HORA_HASTA) : null;
 
   return (
-    <Modal abierto onCerrar={onCerrar} bloqueado={guardando} ancho="xl" titulo={`Metas de cobertura · ${sedeNombre}`}>
+    <Modal abierto onCerrar={onCerrar} bloqueado={guardando} ancho="xl" titulo={`Metas de cobertura de ${sedeNombre}`}>
       <div className="space-y-4">
         <p className="text-sm text-taupe">
           Cuánta gente hace falta en piso, por rangos de hora. <strong>Manda la meta.</strong> Un rango sin número deja que mande
@@ -289,7 +289,7 @@ export function MetasDeCobertura({
             <div role="group" aria-label="Día de la semana" className="flex flex-wrap gap-1.5">
               {DIAS.map((d) => (
                 <Filtro key={d.dia} activo={diaSel === d.dia} onClick={() => setDiaSel(d.dia)}>
-                  {d.corto}{(porDia.get(d.dia) ?? []).length ? "" : " ·"}
+                  {d.corto}{(porDia.get(d.dia) ?? []).length ? null : <span className="ml-1 text-[0.8em] opacity-70">sin meta</span>}
                 </Filtro>
               ))}
             </div>
@@ -328,13 +328,13 @@ export function MetasDeCobertura({
                   <table className="text-xs tabular-nums">
                     <tbody>
                       <tr><th className="pr-2 text-left font-normal text-taupe">Hora</th>{comparacion.map((c) => <td key={c.hora} className="px-1.5 text-center text-taupe">{c.hora}</td>)}</tr>
-                      <tr><th className="pr-2 text-left font-normal text-taupe">Meta</th>{comparacion.map((c) => <td key={c.hora} className="px-1.5 text-center">{c.meta ?? "·"}</td>)}</tr>
-                      <tr><th className="pr-2 text-left font-normal text-taupe">Venta</th>{comparacion.map((c) => <td key={c.hora} className="px-1.5 text-center">{c.sugerido ?? "·"}</td>)}</tr>
+                      <tr><th className="pr-2 text-left font-normal text-taupe">Meta</th>{comparacion.map((c) => <td key={c.hora} className="px-1.5 text-center">{c.meta ?? "—"}</td>)}</tr>
+                      <tr><th className="pr-2 text-left font-normal text-taupe">Venta</th>{comparacion.map((c) => <td key={c.hora} className="px-1.5 text-center">{c.sugerido ?? "—"}</td>)}</tr>
                       <tr>
                         <th className="pr-2 text-left font-normal text-taupe">Diferencia</th>
                         {comparacion.map((c) => (
                           <td key={c.hora} className={`px-1.5 text-center ${c.diferencia === null || c.diferencia === 0 ? "text-taupe" : c.diferencia < 0 ? "text-rojo-profundo" : "text-ambar"}`}>
-                            {c.diferencia === null ? "·" : c.diferencia > 0 ? `+${c.diferencia}` : c.diferencia}
+                            {c.diferencia === null ? "—" : c.diferencia > 0 ? `+${c.diferencia}` : c.diferencia}
                           </td>
                         ))}
                       </tr>

@@ -244,7 +244,7 @@ function FilaPersona({
       <div className="flex flex-col gap-3 text-sm">
         <p className="text-taupe">
           Jornada: {jornada !== null ? <strong className="text-tinta">{jornada} h por semana</strong> : "sin registrar"}
-          {esDO && <> · <Boton variante="enlace" onClick={onJornada}>{jornada !== null ? "Cambiar" : "Fijarla"}</Boton></>}
+          {esDO && <>{" "}<Boton variante="enlace" className="ml-2" onClick={onJornada}>{jornada !== null ? "Cambiar" : "Fijarla"}</Boton></>}
         </p>
 
         <div>
@@ -254,7 +254,7 @@ function FilaPersona({
               {enPalabras(vigente).map((l) => <p key={l}>{l}</p>)}
               <p className="text-taupe">
                 Desde el {diaMes(vigente.vigente_desde)}{vigente.vigente_hasta ? ` hasta el ${diaMes(vigente.vigente_hasta)}` : ""}
-                {vigente.motivo ? ` · ${etiquetaMotivo(vigente.motivo)}` : ""}
+                {vigente.motivo ? ` (${etiquetaMotivo(vigente.motivo)})` : ""}
               </p>
             </>
           ) : <p>Nada registrado: puede cualquier día y hora.</p>}
@@ -267,7 +267,7 @@ function FilaPersona({
         {pendiente && (
           <div className="flex flex-col gap-2 rounded-control bg-hueso p-3">
             <span className="text-xs font-medium uppercase tracking-wide text-taupe">
-              Mandó el {diaMes(pendiente.creada_at.slice(0, 10))}{pendiente.motivo ? ` · ${etiquetaMotivo(pendiente.motivo)}` : ""}
+              Mandó el {diaMes(pendiente.creada_at.slice(0, 10))}{pendiente.motivo ? ` (${etiquetaMotivo(pendiente.motivo)})` : ""}
             </span>
             {enPalabras(pendiente).map((l) => <p key={l}>{l}</p>)}
             <p className="text-taupe">

@@ -857,6 +857,13 @@ span bg-ambar rounded-pildora shrink-0 size-2
 span bg-verde rounded-pildora shrink-0 size-2
 ## Punto tono=informativo
 span bg-pizarra rounded-pildora shrink-0 size-2
+## LineaDeDatos datos=[{"icono":{},"rotulo":"x","valor":"x"}]
+span flex flex-wrap gap-x-3.5 gap-y-0.5 items-center text-taupe text-xs
+  span gap-1 inline-flex items-center whitespace-nowrap
+    svg shrink-0 size-3
+    span sr-only
+## LineaDeDatos datos=[]
+(no dibuja nada)
 ## Rotulo como=p
 p font-medium text-taupe text-xs
 ## Rotulo como=div

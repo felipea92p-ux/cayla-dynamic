@@ -55,7 +55,7 @@ import { crearCargaVigente } from "@/lib/admin/carga-vigente";
 import { sinTildes } from "@/lib/sin-tildes";
 import type { HorarioTramo } from "@/lib/admin/jornada-esperada";
 import {
-  addDias, CARGA_COMPLETA, compararIncidencias, coberturaDeCarga, detectarIncidencias, enFrase, estadoDe,
+  addDias, CARGA_COMPLETA, compararIncidencias, coberturaDeCarga, cuentaDeCasos, detectarIncidencias, enFrase, estadoDe,
   lunesDeLaSemana, TIPOS_EN_LOTE, ventanasDeConsulta,
   type Categoria, type CoberturaDeCarga, type DatosDeteccion, type Incidencia, type TipoIncidencia,
 } from "@/lib/admin/incidencias";
@@ -414,7 +414,7 @@ function IncidenciasContenido() {
   const sedesDeLaVista = [...new Set(visibles.map((i) => i.sede))].sort();
   // Cómo se dice una sede: UNA función para todas las pantallas (packages/shared/src/sedes.ts).
   // El código es la llave y no describe nada («003» es el de la Tienda de Lima); lo que se
-  // lee es «Taller · Lima» / «Tienda · Lima». Un código sin sede en la tabla se queda como está.
+  // lee es «Taller Lima» / «Tienda Lima». Un código sin sede en la tabla se queda como está.
   const sedePorCodigo = useMemo(() => new Map(sedes.map((s) => [s.codigo, etiquetaDeSede(s)])), [sedes]);
   const rotuloDeSede = (codigo: string) => sedePorCodigo.get(codigo)?.titulo ?? codigo;
 
@@ -494,7 +494,7 @@ function IncidenciasContenido() {
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Incidencias"
-          descripcion={<>{fechaCorta(desde)} – {fechaCorta(hasta)} · Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya.</>}
+          descripcion={<>Del {fechaCorta(desde)} al {fechaCorta(hasta)}. Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya.</>}
           vidrio={{ dato: <>{fechaCorta(desde)} – {fechaCorta(hasta)}</>, frase: "Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya." }}
           ayuda={
             <AyudaPantalla
@@ -541,7 +541,7 @@ function IncidenciasContenido() {
               {revisiones.map((r) => (
                 <li key={r.id} className="rounded-control border border-sand p-3 text-sm">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span><strong>{r.nombre}</strong> <span className="text-taupe">· {r.sede} · {fechaCorta(r.fecha)}</span></span>
+                    <span><strong>{r.nombre}</strong> <span className="text-taupe">en {r.sede}, el {fechaCorta(r.fecha)}</span></span>
                     <Link href={`/admin/correcciones?persona=${r.persona_id}&fecha=${r.fecha}`} className="text-tinta underline underline-offset-2">
                       Abrir ese día en Correcciones →
                     </Link>
@@ -581,10 +581,10 @@ function IncidenciasContenido() {
               {practicantesSobreTope.map((p) => (
                 <li key={p.persona_id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <span>
-                    <strong>{p.persona}</strong> <span className="text-taupe">· {p.sede}</span>{" — "}
+                    <strong>{p.persona}</strong> <span className="text-taupe">de {p.sede}</span>{" "}
                     {p.estado === "vencido"
                       ? "superó el tope de 12 meses"
-                      : `se acerca al tope de 12 meses${p.dias_restantes !== null ? ` · ${p.dias_restantes} días` : ""}`}
+                      : `se acerca al tope de 12 meses${p.dias_restantes !== null ? `, le quedan ${p.dias_restantes} días` : ""}`}
                   </span>
                   <Link href="/admin/contratos" className="shrink-0 text-taupe underline underline-offset-2 hover:text-tinta">Ver en Contratos →</Link>
                 </li>
@@ -670,7 +670,7 @@ function IncidenciasContenido() {
               title={!cargando && carga.duras.length > 0 ? "Incompleto: hay fuentes que no se pudieron comprobar." : undefined}
             >
               Por revisar <span className="tabular-nums text-[0.8em] opacity-70">{cargando ? "—" : porRevisar.length}</span>
-              {!cargando && carga.duras.length > 0 && <span className="ml-1 text-[0.8em] opacity-70">· incompleto</span>}
+              {!cargando && carga.duras.length > 0 && <span className="ml-1 text-[0.8em] opacity-70">(incompleto)</span>}
             </Filtro>
             {CATEGORIAS.map((c) => {
               const n = porRevisar.filter((i) => i.categoria === c.clave).length;
@@ -679,8 +679,7 @@ function IncidenciasContenido() {
               return (
                 <Filtro key={c.clave} activo={activa}
                   onClick={() => { setCategoria(activa ? "" : c.clave); if (!activa) setEstadoFiltro("por_revisar"); }}>
-                  {c.etiqueta} <span className="tabular-nums text-[0.8em] opacity-70">{cargando || sinComprobar ? "—" : n}</span>
-                  {sinComprobar && <span className="ml-1 text-[0.8em] opacity-70">· sin comprobar</span>}
+                  {c.etiqueta} <span className="tabular-nums text-[0.8em] opacity-70">{sinComprobar ? "sin comprobar" : cargando ? "—" : n}</span>
                 </Filtro>
               );
             })}
@@ -769,9 +768,16 @@ function IncidenciasContenido() {
                   >
                     <span className="font-serif text-xl text-tinta">{rotuloDeSede(sede)}</span>
                     {rotuloDeSede(sede) !== sede && <span className="text-sm text-taupe">{sede}</span>}
-                    <span className="text-sm text-taupe">· {casos.length} caso{casos.length === 1 ? "" : "s"}</span>
-                    {altas > 0 && <Insignia variante="alerta" tamano="sm">{altas} alta{altas === 1 ? "" : "s"}</Insignia>}
-                    <ChevronDown aria-hidden className={cx("ml-auto size-4 self-center text-taupe transition-transform", !abiertaSede && "-rotate-90")} />
+                    {/* El nombre a la izquierda y la cuenta a la derecha, dicha como frase (ADR 0007, caso 3). */}
+                    {(() => {
+                      const { cuenta, urgente } = cuentaDeCasos(casos.length, altas);
+                      return (
+                        <span className="ml-auto text-sm text-taupe">
+                          {cuenta}{urgente && <>, <span className="font-medium text-rojo-profundo">{urgente}</span></>}
+                        </span>
+                      );
+                    })()}
+                    <ChevronDown aria-hidden className={cx("size-4 self-center text-taupe transition-transform", !abiertaSede && "-rotate-90")} />
                   </button>
                 </h2>
 
@@ -852,7 +858,7 @@ function IncidenciasContenido() {
                                     <IconoIncidencia incidencia={i} />
                                     <span>
                                       <span className="text-tinta">{i.titulo}</span>
-                                      {i.detalle && <span className="text-taupe"> · {i.detalle}</span>}
+                                      {i.detalle && <span className="text-taupe">: {i.detalle}</span>}
                                     </span>
                                   </div>
                                 </td>
@@ -959,15 +965,15 @@ function IncidenciasContenido() {
                       <Fila key={`${h.persona_id}-${h.fecha}-${h.tipo}-${h.aceptado_at}-${idx}`}>
                         <td className="px-4 py-2.5">
                           {`${h.personas?.nombres ?? ""} ${h.personas?.apellidos ?? ""}`.trim()}
-                          <span className="text-taupe"> · {h.personas?.sedes?.codigo ?? "?"}</span>
+                          <span className="text-taupe"> ({h.personas?.sedes?.codigo ?? "?"})</span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-2.5 capitalize tabular-nums">{fechaCorta(h.fecha)}</td>
                         <td className="px-4 py-2.5">
                           {NOMBRE_TIPO[h.tipo as TipoIncidencia] ?? h.tipo.replaceAll("_", " ")}
-                          {h.valor !== null && <span className="text-taupe"> · sobre {h.valor}</span>}
+                          {h.valor !== null && <span className="text-taupe"> sobre {h.valor}</span>}
                         </td>
                         <td className="px-4 py-2.5 text-taupe">
-                          {nombrePorId.get(h.aceptado_por) ?? "otra persona"} · {fechaHoraLima(h.aceptado_at)}
+                          {nombrePorId.get(h.aceptado_por) ?? "otra persona"}, el {fechaHoraLima(h.aceptado_at)}
                           {h.nota && <span className="block">«{h.nota}»</span>}
                         </td>
                         <td className="px-4 py-2.5">
@@ -1021,9 +1027,9 @@ function IncidenciasContenido() {
                   <li key={i.clave} className="flex flex-col">
                     <span>
                       <strong className="font-medium text-tinta">{i.nombre}</strong>
-                      <span className="text-taupe"> · {rotuloDeSede(i.sede)} · {fechaCorta(i.fecha)}</span>
+                      <span className="text-taupe"> en {rotuloDeSede(i.sede)}, el {fechaCorta(i.fecha)}</span>
                     </span>
-                    <span className="text-taupe">{i.titulo}{i.detalle ? ` · ${i.detalle}` : ""}</span>
+                    <span className="text-taupe">{i.titulo}{i.detalle ? `: ${i.detalle}` : ""}</span>
                   </li>
                 ))}
               </ul>

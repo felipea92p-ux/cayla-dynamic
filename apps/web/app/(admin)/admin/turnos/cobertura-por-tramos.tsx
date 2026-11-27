@@ -24,7 +24,7 @@ export interface PersonaDelDia {
 
 type VarianteInsignia = "positivo" | "alerta" | "advertencia" | "neutral";
 const INSIGNIA: Record<EstadoTramo, { texto: (faltan: number, sobran: number) => string; variante: VarianteInsignia; simbolo: string }> = {
-  sin_meta: { texto: () => "sin meta", variante: "neutral", simbolo: "·" },
+  sin_meta: { texto: () => "sin meta", variante: "neutral", simbolo: "○" },
   falta: { texto: (f) => (f === 1 ? "falta 1" : `faltan ${f}`), variante: "alerta", simbolo: "▲" },
   con_huecos: { texto: () => "con huecos", variante: "advertencia", simbolo: "▲" },
   sobra: { texto: (_, s) => (s === 1 ? "sobra 1" : `sobran ${s}`), variante: "advertencia", simbolo: "●" },
@@ -65,7 +65,7 @@ function Chip({ p, onAbrir }: { p: PersonaDelDia; onAbrir?: (id: string) => void
     >
       <span>{p.nombre}</span>
       <small className="tabular-nums text-taupe">{p.detalle}</small>
-      {p.aparte && <small className="text-ambar">· {p.aparte}</small>}
+      {p.aparte && <small className="text-ambar">{p.aparte}</small>}
     </button>
   );
 }
@@ -107,8 +107,8 @@ export function TarjetaTramo({
         <strong className="tabular-nums">{n}</strong>
         <span className="flex items-center gap-1.5 text-sm text-taupe">
           {/* «1 de 0» no se lee: sin meta, se dice «1 persona» y que falta fijar la meta. */}
-          {meta === 0 && <span>{n === 1 ? "persona" : "personas"} con turno</span>}
-          {metaEditable ?? (meta > 0 ? `de ${meta}` : "· sin meta")}
+          {meta === 0 && <span>{n === 1 ? "persona" : "personas"} con turno{metaEditable ? "," : ", sin meta"}</span>}
+          {metaEditable ?? (meta > 0 ? `de ${meta}` : null)}
         </span>
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -153,7 +153,7 @@ export function CampoMeta({
   return (
     <>
       {/* Sin meta no se lee «de 0»: se lee «meta: [ ]» (y la tarjeta dice «N personas con turno»). */}
-      <span>{valor > 0 ? "de" : "· meta:"}</span>
+      <span>{valor > 0 ? "de" : "meta:"}</span>
       <input
         type="number"
         min={0}

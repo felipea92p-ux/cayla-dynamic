@@ -107,7 +107,7 @@ export function ListaHistorial({
                   {mostrarPersona && nombreDe && <strong>{nombreDe(e.personaId)}</strong>}
                   <span className="font-medium">{e.accion}</span>
                   <Insignia tamano="sm" atenuada>{ETIQUETA_TIPO[e.tipo]}</Insignia>
-                  {e.dia && <span className="text-taupe">· para el {diaMes(e.dia)}</span>}
+                  {e.dia && <span className="text-taupe">para el {diaMes(e.dia)}</span>}
                 </div>
                 <p>{e.detalle}</p>
                 {e.motivo && <p className="text-taupe">Motivo: {e.motivo}</p>}

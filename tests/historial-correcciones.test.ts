@@ -84,8 +84,8 @@ describe("horario cambiado", () => {
     const { accion, detalle } = describirCambio(fila("horarios_asignados", antes, despues));
     expect(accion).toBe("Horario cambiado");
     expect(detalle).not.toMatch(/[{}"]/);
-    expect(detalle).toContain("lun a vie 08:30–14:00 · sáb 08:30–14:30");
-    expect(detalle).toContain("lun y mar 08:30–18:00 · sáb 08:30–18:00");
+    expect(detalle).toContain("lun a vie 08:30–14:00 y sáb 08:30–14:30");
+    expect(detalle).toContain("lun y mar 08:30–18:00 y sáb 08:30–18:00");
     expect(detalle).toContain("60 min de refrigerio");
     // La vigencia es la misma en los dos lados: se dice una sola vez.
     expect(detalle).toMatch(/^Desde el 26 set\. pasa de lun a vie/);
@@ -95,7 +95,8 @@ describe("horario cambiado", () => {
   it("un valor que nace no se lee como si algo se hubiera borrado", () => {
     const { accion, detalle } = describirCambio(fila("documento_firmado", null, "ruta · firmado digitalmente el 2026-10-06"));
     expect(accion).toBe("Documento firmado");
-    expect(detalle).toBe("ruta · firmado digitalmente el 2026-10-06");
+    // La base lo guarda con «·»; la pantalla lo dice con coma (Felipe, 2026-11-24: nunca «·» entre datos).
+    expect(detalle).toBe("ruta, firmado digitalmente el 2026-10-06");
   });
 
   it("la fecha de vigencia no se corre al día anterior", () => {

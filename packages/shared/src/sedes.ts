@@ -15,7 +15,7 @@
 // POR QUÉ EL CÓDIGO VIAJA APARTE
 //   El código es la llave de la que cuelgan la planilla y la tarifa de
 //   movilidad; no se cambia y no describe nada. Si en una ciudad abren dos
-//   tiendas, el título sale igual en las dos —«Tienda · Trujillo»— y lo único
+//   tiendas, el título sale igual en las dos —«Tienda Trujillo»— y lo único
 //   que las separa es el código. Por eso `texto` lo lleva siempre. Cuando esa
 //   colisión exista de verdad, entra la columna `zona` (decisión de
 //   2026-09-19: «cuando haga falta»), no un sufijo dentro del código.
@@ -42,11 +42,11 @@ export interface SedeParaRotular {
 }
 
 export interface EtiquetaDeSede {
-  /** «Taller · Lima», «Tienda · Trujillo», «Central». Nunca vacío. */
+  /** «Taller Lima», «Tienda Trujillo», «Central». Nunca vacío. */
   titulo: string;
   /** La llave de la sede, tal cual. */
   codigo: string;
-  /** Para un desplegable o un CSV: «Tienda · Trujillo (TRU)». Único mientras
+  /** Para un desplegable o un CSV: «Tienda Trujillo (TRU)». Único mientras
    *  los códigos lo sean, aunque dos sedes compartan título. */
   texto: string;
 }
@@ -59,7 +59,7 @@ export function etiquetaDeSede(s: SedeParaRotular): EtiquetaDeSede {
   const codigo = s.codigo.trim();
   const ciudad = s.ciudad?.trim() ?? "";
   const nombre = s.nombre.trim();
-  // Lo que se muestra cuando no se puede armar «Tipo · Ciudad»: el nombre que
+  // Lo que se muestra cuando no se puede armar «Tipo Ciudad»: el nombre que
   // alguien escribió en /admin/sedes, y si tampoco hay, el código. Nunca vacío.
   const respaldo = nombre || codigo;
 
@@ -69,7 +69,9 @@ export function etiquetaDeSede(s: SedeParaRotular): EtiquetaDeSede {
   // CCO («Central») y OTRU («Oficina TRU»), las dos de tipo central, y un
   // rótulo fijo las habría vuelto idénticas.
   const rotulaPorCiudad = esTipoSede(s.tipo) && s.tipo !== "central" && ciudad !== "";
-  const titulo = rotulaPorCiudad ? `${TIPO_SEDE_LABELS[s.tipo as TipoSede]} · ${ciudad}` : respaldo;
+  // «Tienda Trujillo» y no «Tienda Trujillo» (Felipe, 2026-11-27, la regla del ADR 0007): es un nombre, no dos datos, y
+  // así lo dice Retail («Pedido de Tienda Trujillo»).
+  const titulo = rotulaPorCiudad ? `${TIPO_SEDE_LABELS[s.tipo as TipoSede]} ${ciudad}` : respaldo;
 
   return { titulo, codigo, texto: `${titulo} (${codigo})` };
 }

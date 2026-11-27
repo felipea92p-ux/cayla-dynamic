@@ -69,17 +69,17 @@ describe("columnasEnElMomento — qué se dice de cada una", () => {
   it("dice la hora real, y el plan al lado solo si difiere más de 5 minutos", () => {
     const tarde = persona({ id: "Dani", marcajes: [{ tipo: "entrada", timestamp: iso("08:50") }] });
     const col = columnasEnElMomento([ana, tarde], 10, medianocheIso, true);
-    expect(col.piso.map((f) => f.detalle)).toEqual(["llegó 08:34", "llegó 08:50 · plan 08:30"]);
+    expect(col.piso.map((f) => f.detalle)).toEqual(["llegó 08:34", "llegó 08:50 (plan 08:30)"]);
   });
   it("en un día cerrado, quien nunca marcó dice «sin marca de entrada», sin acusar", () => {
     const nunca = persona({ id: "Eli" });
     const col = columnasEnElMomento([nunca], 12, medianocheIso, true);
-    expect(col.por_llegar[0].detalle).toBe("sin marca de entrada · plan 08:30");
+    expect(col.por_llegar[0].detalle).toBe("sin marca de entrada (plan 08:30)");
   });
   it("quien ya salió lleva su hora, y el plan si se fue antes", () => {
     const temprano = persona({ id: "Fio", marcajes: [{ tipo: "entrada", timestamp: iso("08:30") }, { tipo: "salida_final", timestamp: iso("15:00") }] });
     const col = columnasEnElMomento([ana, temprano], 18, medianocheIso, true);
-    expect(col.salio.map((f) => f.detalle)).toEqual(["salió 17:02", "salió 15:00 · plan 17:00"]);
+    expect(col.salio.map((f) => f.detalle)).toEqual(["salió 17:02", "salió 15:00 (plan 17:00)"]);
   });
   it("las líderes van primero", () => {
     const lider = persona({ id: "Zoe", lider: true, marcajes: [{ tipo: "entrada", timestamp: iso("08:30") }] });

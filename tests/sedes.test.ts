@@ -11,14 +11,14 @@ describe("etiquetaDeSede", () => {
   it("el Taller de Lima y la Tienda de Lima no se pueden confundir", () => {
     const taller = etiquetaDeSede(TALLER_LIMA);
     const tienda = etiquetaDeSede(TIENDA_LIMA);
-    expect(taller.titulo).toBe("Taller · Lima");
-    expect(tienda.titulo).toBe("Tienda · Lima");
+    expect(taller.titulo).toBe("Taller Lima");
+    expect(tienda.titulo).toBe("Tienda Lima");
     expect(taller.titulo).not.toBe(tienda.titulo);
   });
 
   it("el rótulo se deriva del tipo: una sede que nadie conocía se rotula sola", () => {
     const nueva = etiquetaDeSede({ codigo: "TRUAS", nombre: "lo que sea", tipo: "tienda", ciudad: "Trujillo" });
-    expect(nueva.titulo).toBe("Tienda · Trujillo");
+    expect(nueva.titulo).toBe("Tienda Trujillo");
   });
 
   it("una sede central no lleva ciudad, ni siquiera si una fila vieja la trae (0282)", () => {
@@ -62,7 +62,7 @@ describe("etiquetaDeSede", () => {
     const avSur = etiquetaDeSede({ codigo: "TRUAS", nombre: "Tienda AS", tipo: "tienda", ciudad: "Trujillo" });
     expect(sinchiRoca.titulo).toBe(avSur.titulo);
     expect(sinchiRoca.texto).not.toBe(avSur.texto);
-    expect(sinchiRoca.texto).toBe("Tienda · Trujillo (TRU)");
+    expect(sinchiRoca.texto).toBe("Tienda Trujillo (TRU)");
   });
 
   it("el código viaja tal cual, sin espacios sobrantes", () => {

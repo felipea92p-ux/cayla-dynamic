@@ -1120,7 +1120,7 @@ export default function DisciplinaPage() {
   // Una función que devuelve celdas, no un componente: un componente definido
   // dentro de la página se volvería a montar entero en cada render.
   function celdaPersona(id: string, nombre: string, sede: string, alAbrir: (e: MouseEvent<HTMLElement>) => void, cesada = false) {
-    // `sede` es el código (lo que filtra); lo que se lee es su rótulo: «Taller · Lima», no «LIM».
+    // `sede` es el código (lo que filtra); lo que se lee es su rótulo: «Taller Lima», no «LIM».
     const rotulo = sedes.find((x) => x.codigo === sede)?.titulo ?? sede;
     return (
       <>

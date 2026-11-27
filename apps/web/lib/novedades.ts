@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-11-27-asistencia-sin-datos-amontonados",
+    fecha: "2026-11-27",
+    titulo: "Asistencia se lee más clara",
+    queMejoro:
+      "En las pantallas de Asistencia los datos ya no van amontonados en una línea con puntitos entre ellos: cada uno va " +
+      "dicho como frase, igual que en el sistema de las tiendas: «en TRU, el lun 3 nov», «llegó 08:50 (plan " +
+      "08:30)», «Patrón de tardanzas: 3 en 30 días corridos».\n\n" +
+      "Vale para Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias. " +
+      "Arriba del título de cada pantalla, la sección y el día ahora van aparte. Y las sedes se llaman igual que en el " +
+      "sistema de las tiendas, sin el punto: «Tienda Arequipa», «Taller Lima».",
+    audiencia: "panel",
+  },
+  {
     id: "2026-11-27-el-fondo-se-vuelve-liso",
     fecha: "2026-11-27",
     titulo: "Un fondo más limpio",

@@ -133,7 +133,10 @@ export function RepeticionDelDia({
               {col[estado].length === 0 && <li className="text-xs text-taupe">{vacio}</li>}
               {col[estado].map(({ persona, detalle }) => (
                 <li key={persona.id} className="text-xs">
-                  <span className="font-medium">{persona.lider ? "L · " : ""}{persona.nombre}</span>
+                  <span className="font-medium">
+                    {persona.lider && <span aria-label="Líder de equipo" className="mr-1 inline-grid h-4 w-4 place-items-center rounded-full bg-tinta align-[-3px] text-[9px] font-bold leading-none text-crema">L</span>}
+                    {persona.nombre}
+                  </span>
                   {!persona.cuenta && <span className="text-taupe"> (no suma)</span>}
                   {detalle && <span className="block text-taupe">{detalle}</span>}
                 </li>
@@ -144,7 +147,8 @@ export function RepeticionDelDia({
       </div>
 
       <div>
-        <Rotulo>El día completo · número: operativas en piso en el peor momento de la hora{conVenta ? " · barra: compras de esa hora" : ""}</Rotulo>
+        <Rotulo>El día completo</Rotulo>
+        <p className="text-xs text-taupe">El número son las operativas en piso en el peor momento de la hora{conVenta ? "; la barra, las compras de esa hora" : ""}.</p>
         <div className="mt-1 overflow-x-auto">
           <div className="flex min-w-[560px] gap-px">
             {dia.map((h) => {
@@ -152,7 +156,7 @@ export function RepeticionDelDia({
               const actual = h.hora === horaEntera;
               return (
                 <button key={h.hora} type="button" onClick={() => { setReproduciendo(false); setT(h.hora + 0.5); }}
-                  title={`${h.hora}:00 · ${h.enPiso} en piso${h.compras !== null ? ` · ${h.compras} compras` : ""}${h.pedia !== null ? ` · la venta pedía ${h.pedia}` : ""}${conVenta && !h.juzgada ? " · la tienda abre o cierra en esta hora: no se compara" : ""}`}
+                  title={`${h.hora}:00: ${h.enPiso} en piso${h.compras !== null ? `, ${h.compras} compras` : ""}${h.pedia !== null ? `, la venta pedía ${h.pedia}` : ""}${conVenta && !h.juzgada ? ". La tienda abre o cierra en esta hora: no se compara" : ""}`}
                   className={`flex flex-1 flex-col items-center gap-0.5 rounded px-0.5 pb-1 pt-1 text-[11px] ${actual ? "ring-2 ring-tinta" : ""}`}
                   style={{ background: e.fondo, color: e.texto }}>
                   <span className="font-medium tabular-nums">{h.enPiso}</span>
@@ -161,7 +165,8 @@ export function RepeticionDelDia({
                       <span className="w-2 rounded-sm bg-tinta/40" style={{ height: `${((h.compras ?? 0) / maxCompras) * 100}%` }} />
                     </span>
                   )}
-                  <span className="text-[10px] text-taupe tabular-nums">{h.hora}:00{h.compras !== null ? ` · ${h.compras}` : ""}</span>
+                  <span className="text-[10px] text-taupe tabular-nums">{h.hora}:00</span>
+                  {h.compras !== null && <span className="text-[10px] text-taupe tabular-nums">{h.compras}</span>}
                 </button>
               );
             })}

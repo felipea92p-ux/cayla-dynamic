@@ -81,7 +81,7 @@ export function PropuestaDeLaSemana({
             <li key={id} className="flex justify-between gap-2 border-b border-sand py-1 text-xs">
               <span>{nombres.get(id) ?? "—"}</span>
               <span className={Math.abs(r.horas - r.objetivo) > 0.25 ? "text-ambar" : "text-taupe"}>
-                {coma(r.horas)} h de {coma(r.objetivo)} h · {r.dias} días
+                {coma(r.horas)} h de {coma(r.objetivo)} h en {r.dias} días
               </span>
             </li>
           ))}

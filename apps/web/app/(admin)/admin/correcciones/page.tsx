@@ -415,7 +415,7 @@ export default function CorreccionesPage() {
     const { data: ap } = await supabase.rpc("fn_marcas_apartadas");
     setApartadas((ap as unknown as MarcaApartada[]) ?? []);
     if (fallos.length === 0) avisar("ok", `${repuestas} marcas registradas con su hora original.`);
-    else avisar("error", `${repuestas} registradas, ${fallos.length} no se pudieron: ${fallos.slice(0, 3).join(" · ")}${fallos.length > 3 ? " …" : ""} Revísalas una a una.`);
+    else avisar("error", `${repuestas} registradas, ${fallos.length} no se pudieron: ${fallos.slice(0, 3).join("; ")}${fallos.length > 3 ? " …" : ""} Revísalas una a una.`);
     void refrescar();
   }
 
@@ -809,7 +809,7 @@ export default function CorreccionesPage() {
           >
             <span className="min-w-0">
               <span className="block truncate font-medium text-tinta">{d.nombre}</span>
-              <span className="block text-xs text-taupe">{d.sede} · {diaCorto(d.fecha)}</span>
+              <span className="block text-xs text-taupe">{d.sede}, {diaCorto(d.fecha)}</span>
             </span>
             <span className="shrink-0 text-xs font-medium text-tinta">Abrir →</span>
           </button>
@@ -858,7 +858,7 @@ export default function CorreccionesPage() {
                   <div>
                     <span className="font-medium text-tinta">{m.persona}</span>
                     <span className="text-taupe">
-                      {" "}· {m.sede} · {m.tipo} del {m.fecha} a las {horaTextoLima(m.timestamp_cliente)}
+                      {" "}en {m.sede}, {m.tipo} del {m.fecha} a las {horaTextoLima(m.timestamp_cliente)}
                     </span>
                   </div>
                   {m.ultimo_error && (
@@ -1109,7 +1109,7 @@ export default function CorreccionesPage() {
               onClick={() => setEquipoColapsado(false)}
               className="mb-4 hidden items-center gap-1.5 md:inline-flex rounded-pildora bg-tinta px-3 py-1.5 text-xs font-medium text-crema transition-colors hover:bg-rojo-profundo"
             >
-              <PanelLeftOpen size={14} strokeWidth={1.8} aria-hidden /> Equipo · {personasListadas.length}
+              <PanelLeftOpen size={14} strokeWidth={1.8} aria-hidden /> Equipo <span className="tabular-nums opacity-70">{personasListadas.length}</span>
             </button>
           )}
           {!personaId || !personaSel ? (
@@ -1304,7 +1304,7 @@ export default function CorreccionesPage() {
                       ) : levTardanza ? (
                         <span className="flex flex-wrap items-center gap-1.5 text-sm">
                           <s className="text-taupe">{formatoMinutos(jornada.minutos_tarde)}</s>
-                          <Insignia variante="positivo" tamano="sm">levantada · {motivoTardLabel(levTardanza.motivo)}</Insignia>
+                          <Insignia variante="positivo" tamano="sm">levantada por {motivoTardLabel(levTardanza.motivo).toLocaleLowerCase("es")}</Insignia>
                           <Boton variante="enlace" className="text-xs" onClick={() => void quitarLevantamiento()}>quitar</Boton>
                         </span>
                       ) : diaFallas.levantamiento ? (
@@ -1446,7 +1446,7 @@ export default function CorreccionesPage() {
                                     <Insignia variante="positivo" tamano="sm" className="ml-2">confirmada</Insignia>
                                   )}
                                   {anulada && (
-                                    <p className="mt-1 text-xs text-taupe">Anulada · {m.anulada_motivo}</p>
+                                    <p className="mt-1 text-xs text-taupe">Anulada: {m.anulada_motivo}</p>
                                   )}
                                 </td>
                                 <td className="px-4 py-2">
@@ -1527,7 +1527,7 @@ export default function CorreccionesPage() {
                       {/* La etiqueta dice de dónde salió la hora mientras nadie la
                           haya tocado: un valor que llega solo tiene que decirlo. */}
                       <Campo
-                        etiqueta={agregarYaElegido.hora === undefined && agregarHoraDelHorario ? "Hora · según su horario" : "Hora"}
+                        etiqueta={agregarYaElegido.hora === undefined && agregarHoraDelHorario ? "Hora (según su horario)" : "Hora"}
                         type="time" value={agregarHora} ref={horaAgregarRef}
                         error={agregarHoraIncompleta ? "Falta completar la hora" : undefined}
                         onChange={(e) => setAgregarElegido({ ...agregarYaElegido, hora: e.target.value })}
@@ -1582,7 +1582,7 @@ export default function CorreccionesPage() {
                   <TarjetaInfo className="mt-4 overflow-hidden p-0 sm:p-0 @4xl:mt-0">
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sand px-4 py-2.5">
                       <h3 className="text-sm font-medium">
-                        Historial de correcciones · {personaSel.nombres} {personaSel.apellidos}
+                        Historial de correcciones de {personaSel.nombres} {personaSel.apellidos}
                       </h3>
                       <div className="flex gap-1" role="group" aria-label="Qué cambios ver">
                         {([["marcajes", "Marcajes"], ["todo", "Todo"]] as const).map(([v, etiqueta]) => (
@@ -1624,11 +1624,11 @@ export default function CorreccionesPage() {
                                 <span className="font-medium">
                                   {!esDeMarcaje && <Insignia variante="informativo" tamano="sm" className="mr-1.5">{TEMA_AUDITORIA_LABELS[temaDeCampo(row.campo_modificado)]}</Insignia>}
                                   {accion}
-                                  {cuando && <span className="font-normal text-taupe"> · del {cuando}</span>}
-                                  <span className="font-normal text-taupe"> · {detalle}</span>
+                                  {cuando && <span className="font-normal text-taupe"> del {cuando}</span>}
+                                  <span className="font-normal text-taupe">: {detalle}</span>
                                 </span>
                                 <span className="text-xs text-taupe">
-                                  corregido {selloLima(row.corregido_at)} · por {nombrePorId.get(row.corregido_por) ?? "alguien fuera de tu lista"}
+                                  corregido {selloLima(row.corregido_at)} por {nombrePorId.get(row.corregido_por) ?? "alguien fuera de tu lista"}
                                 </span>
                               </div>
                               <p className="mt-1 text-taupe">“{row.motivo}”</p>
@@ -1710,7 +1710,7 @@ export default function CorreccionesPage() {
                 accion.nuevaHora !== horaInput(accion.marcaje.timestamp_marca)
                   ? `hora: ${horaInput(accion.marcaje.timestamp_marca)} → ${accion.nuevaHora}`
                   : null,
-              ].filter(Boolean).join(" · ")}
+              ].filter(Boolean).join(", ")}
               {accion.modo === "anular" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} de las ${horaInput(accion.marcaje.timestamp_marca)}. Dejará de contar para el día, pero se queda en el historial y puedes deshacerlo.`}
               {accion.modo === "reactivar" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} de las ${horaInput(accion.marcaje.timestamp_marca)}. Volverá a contar para el cálculo del día.`}
               {accion.modo === "confirmar" && `Das por buena la salida de las ${horaInput(accion.marcaje.timestamp_marca)} que puso el sistema. El día deja de estar pendiente y pasa a medirse entero, incluida la salida anticipada y el tiempo adicional.`}

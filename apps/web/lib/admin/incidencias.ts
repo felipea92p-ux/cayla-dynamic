@@ -365,7 +365,7 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
     const viva = ventanaMasCargada(dias, addDias(hoy, -EXCESO_AUN_EVITABLE_DIAS), hoy);
     if (viva !== null && viva.horas > maxLegal) {
       const sinConfirmarTxt = apoyadoEnHoraSinConfirmar(sinConfirmar, viva.fin)
-        ? " · incluye días cuya salida puso el sistema y falta confirmar"
+        ? ", incluye días cuya salida puso el sistema y falta confirmar"
         : "";
       out.push(conAceptacion({
         ...quien(fila), fecha: viva.fin, entrada: null, salida: null,
@@ -501,11 +501,11 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
         (id) => turnoPorClave.get(`${id}|${dia}`) ?? null, tramosDe,
       ) === "no_trabaja") continue;
       const codigo = codigoPorSede.get(m.sede_id) ?? "?";
-      const sufijo = proximaSemana ? " · próxima semana, todavía se puede reprogramar" : "";
+      const sufijo = proximaSemana ? " (próxima semana: todavía se puede reprogramar)" : "";
       out.push(conAceptacion({
         personaId: null, nombre: `Sede ${codigo}`, sede: codigo, fecha: dia, entrada: null, salida: null,
         tipo: "deficit_encargadas", titulo: "Déficit de líderes",
-        detalle: `${cubiertas} de ${m.meta_encargadas}${proximaSemana ? " · próxima semana" : ""}`,
+        detalle: `${cubiertas} de ${m.meta_encargadas}${proximaSemana ? " (próxima semana)" : ""}`,
         texto: `Déficit de líderes (${cubiertas}/${m.meta_encargadas})${sufijo}`,
         valor: cubiertas, severidad: "media", categoria: "otros",
       }));
@@ -520,7 +520,7 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
       tipo: f.justificada ? "falta_justificada" : "falta_injustificada",
       titulo: f.justificada ? "Falta justificada" : "Falta injustificada",
       detalle: f.justificada ? motivo : null,
-      texto: f.justificada ? `Falta justificada · ${motivo}` : "Falta injustificada",
+      texto: f.justificada ? `Falta justificada: ${motivo}` : "Falta injustificada",
       valor: null, justificada: f.justificada, motivoFalta: f.motivo,
       severidad: f.justificada ? "baja" : "alta", categoria: "faltas",
     }));
@@ -629,6 +629,20 @@ export function coberturaDeCarga(errores: Partial<Record<FuenteDeIncidencias, un
       fuentes.map((f) => FUENTES[f].categoria).filter((c): c is Categoria => c !== null),
     ),
   };
+}
+
+/**
+ * La cuenta de la cabecera de una sede, dicha como frase (ADR 0007, caso 3): «7 casos» y, aparte para pintarlo de
+ * rojo, lo urgente: «todos de prioridad alta», «3 de prioridad alta». Antes era «7 casos» suelto junto al código de la
+ * sede y una etiqueta «7 altas», tres piezas pegadas sin decir cómo se relacionan.
+ */
+export function cuentaDeCasos(casos: number, altas: number): { cuenta: string; urgente: string | null } {
+  const cuenta = `${casos} caso${casos === 1 ? "" : "s"}`;
+  if (altas <= 0) return { cuenta, urgente: null };
+  if (altas >= casos) {
+    return { cuenta, urgente: casos === 1 ? "de prioridad alta" : casos === 2 ? "los dos de prioridad alta" : "todos de prioridad alta" };
+  }
+  return { cuenta, urgente: `${altas} de prioridad alta` };
 }
 
 /** «a», «a y b», «a, b y c». */

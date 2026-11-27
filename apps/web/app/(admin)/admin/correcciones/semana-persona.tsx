@@ -103,7 +103,7 @@ export function SemanaDePersona({
               {resumen ? (
                 resumen.tachado ? (
                   <>
-                    <s>{resumen.texto}</s>{resumen.nota && <span> · {resumen.nota}</span>}
+                    <s>{resumen.texto}</s>{resumen.nota && <span> ({resumen.nota})</span>}
                   </>
                 ) : (
                   resumen.texto

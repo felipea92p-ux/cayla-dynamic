@@ -96,7 +96,7 @@ export function PanelIncidencia({
   volverElFocoA: RefObject<HTMLElement | null>;
   /** null si quien mira puede actuar sobre este caso; si no, por qué no. */
   motivoNoPuedeActuar: string | null;
-  /** Cómo se dice la sede de un caso («Tienda · Lima»), no su código. */
+  /** Cómo se dice la sede de un caso («Tienda Lima»), no su código. */
   rotuloDeSede: (codigo: string) => string;
   etiquetaMotivo: (motivo: string | null) => string;
   nombrePorId: Map<string, string>;
@@ -225,7 +225,7 @@ export function PanelIncidencia({
         {/* ── Qué es ─────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
           <p className="text-taupe">
-            {i.personaId ? `${rotuloDeSede(i.sede)} · ` : ""}{fechaLarga(i.fecha)}
+            {i.personaId ? `${rotuloDeSede(i.sede)}, ` : ""}{fechaLarga(i.fecha)}
           </p>
           <div className="flex items-start gap-3">
             <IconoIncidencia incidencia={i} />
@@ -282,8 +282,8 @@ export function PanelIncidencia({
             {i.aceptacion ? (
               <div className="flex flex-col gap-3">
                 <p className="text-tinta">
-                  <strong>{VISTO_BUENO[i.aceptable].boton}</strong> · {quien(i.aceptacion.aceptadoPor)},{" "}
-                  {fechaHoraLima(i.aceptacion.aceptadoAt)}
+                  <strong>{VISTO_BUENO[i.aceptable].boton}</strong>{" "}
+                  <span className="text-taupe">({quien(i.aceptacion.aceptadoPor)}, {fechaHoraLima(i.aceptacion.aceptadoAt)})</span>
                   {i.aceptacion.nota && <span className="block text-taupe">«{i.aceptacion.nota}»</span>}
                 </p>
                 {puedeActuar && !deshaciendo && (
@@ -375,10 +375,10 @@ export function PanelIncidencia({
               <div className="flex flex-col gap-3">
                 <p className="text-tinta">
                   <strong>{etiquetaMotivo(rastro.ausencia.tipo)}</strong>
-                  {diasAusencia > 1 && <> · del {fechaCorta(rastro.ausencia.fecha_inicio)} al {fechaCorta(rastro.ausencia.fecha_fin)} ({diasAusencia} días)</>}
+                  {diasAusencia > 1 && <>, del {fechaCorta(rastro.ausencia.fecha_inicio)} al {fechaCorta(rastro.ausencia.fecha_fin)} ({diasAusencia} días)</>}
                   <span className="block text-taupe">
                     Registrada por {quien(rastro.ausencia.registrada_por)}, {fechaHoraLima(rastro.ausencia.registrada_at)}
-                    {rastro.ausencia.aprobada_at && " · aprobada por Desarrollo Organizacional"}
+                    {rastro.ausencia.aprobada_at && ", aprobada por Desarrollo Organizacional"}
                   </span>
                   {rastro.ausencia.motivo && <span className="block text-taupe">«{rastro.ausencia.motivo}»</span>}
                 </p>
@@ -456,7 +456,7 @@ export function PanelIncidencia({
                   <li key={m.id} className="flex gap-3">
                     <span className="w-12 shrink-0 text-taupe">{horaLima(m.timestamp_marca)}</span>
                     <span className={m.anulada_at ? "text-taupe line-through" : "text-tinta"}>
-                      Marca: {m.tipo.replaceAll("_", " ")}{m.origen && m.origen !== "terminal" ? ` · ${m.origen.replaceAll("_", " ")}` : ""}
+                      Marca: {m.tipo.replaceAll("_", " ")}{m.origen && m.origen !== "terminal" ? ` (${m.origen.replaceAll("_", " ")})` : ""}
                     </span>
                     {m.anulada_at && <span className="text-taupe">anulada: {m.anulada_motivo}</span>}
                   </li>
@@ -467,7 +467,7 @@ export function PanelIncidencia({
                     <span className="text-tinta">
                       Corrección de {c.campo_modificado.replaceAll("_", " ")}
                       {c.valor_anterior || c.valor_nuevo ? `: ${valorDeCorreccion(c.valor_anterior)} → ${valorDeCorreccion(c.valor_nuevo)}` : ""}
-                      <span className="block text-taupe">{quien(c.corregido_por)}{c.motivo ? ` · «${c.motivo}»` : ""}</span>
+                      <span className="block text-taupe">{quien(c.corregido_por)}{c.motivo ? `: «${c.motivo}»` : ""}</span>
                     </span>
                   </li>
                 ))}

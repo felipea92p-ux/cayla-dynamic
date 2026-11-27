@@ -51,7 +51,7 @@ describe("lo que dicen los textos", () => {
   });
   it("la línea de la semana junta persona, día, feriado y días de prueba", () => {
     expect(lineaDeSemana({ personaId: "x", nombre: "Mariel Sarmiento", fecha: "2026-11-01", feriado: "Todos los Santos", dias: 2, plazo: 3 }, "Dom 1 nov"))
-      .toBe("Mariel Sarmiento — Dom 1 nov · Todos los Santos · lleva 2 de 3 días de preselección");
+      .toBe("Mariel Sarmiento — Dom 1 nov, Todos los Santos, lleva 2 de 3 días de preselección");
   });
 });
 

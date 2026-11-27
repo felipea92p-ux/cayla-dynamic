@@ -40,7 +40,7 @@ export type CasoAbierto =
   | { tipo: "falta"; personaId: string }
   | { tipo: "documento"; id: string };
 
-/** `sede` es el código (la llave); `sedeRotulo` es lo que se lee: «Taller · Lima». */
+/** `sede` es el código (la llave); `sedeRotulo` es lo que se lee: «Taller Lima». */
 export interface PersonaInfo { nombre: string; sede: string; sedeRotulo?: string; estado: string; fechaCese: string | null; rol?: string; tieneCuenta?: boolean }
 
 export const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };

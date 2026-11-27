@@ -267,7 +267,7 @@ describe("déficit de encargadas", () => {
     }));
     expect(r.map((i) => [i.fecha, i.detalle])).toEqual([
       ["2026-09-14", "0 de 1"],
-      ["2026-09-21", "0 de 1 · próxima semana"],
+      ["2026-09-21", "0 de 1 (próxima semana)"],
     ]);
     expect(r[0].personaId).toBeNull();
     expect(r[0].clave).not.toBe(r[1].clave);
@@ -404,7 +404,7 @@ describe("déficit de encargadas", () => {
         horarios: [horarioDias("a1", lunesASabado), horarioDias("c1", lunesASabado)],
         turnos: [turnoTrabaja("c1", DOMINGO_SIGUIENTE)],
       }));
-      expect(r.map((i) => [i.fecha, i.detalle])).toEqual([[DOMINGO_SIGUIENTE, "0 de 1 · próxima semana"]]);
+      expect(r.map((i) => [i.fecha, i.detalle])).toEqual([[DOMINGO_SIGUIENTE, "0 de 1 (próxima semana)"]]);
     });
 
     it("un turno de descanso es una respuesta real, aunque no haya horario base", () => {
@@ -440,7 +440,7 @@ describe("déficit de encargadas", () => {
         horarios: [horarioDias("c1", lunesASabado), horario("f1")],
       }));
       expect(r.map((i) => [i.fecha, i.detalle])).toEqual([
-        [DOMINGO, "1 de 2"], [DOMINGO_SIGUIENTE, "1 de 2 · próxima semana"],
+        [DOMINGO, "1 de 2"], [DOMINGO_SIGUIENTE, "1 de 2 (próxima semana)"],
       ]);
     });
 
