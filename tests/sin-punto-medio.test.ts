@@ -71,6 +71,8 @@ const MODULOS: readonly Modulo[] = [
       `${WEB}/components/vidrio/hora-lima.tsx`,
       // Cómo se nombra un campo del libro de correcciones (Correcciones, Cambios de horario y «Lo mío»).
       "packages/shared/src/auditoria.ts",
+      // Cómo se nombra una sede («Tienda Arequipa»): lo usa todo el sistema, y el nombre es el mismo en todas partes.
+      "packages/shared/src/sedes.ts",
     ],
   },
 ];

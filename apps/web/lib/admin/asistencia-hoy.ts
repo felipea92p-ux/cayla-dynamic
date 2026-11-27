@@ -644,7 +644,7 @@ export function metaDelDiaTexto(cob: Pick<CoberturaSede, "metaOpDelDia" | "metaE
  * Una sola, para «Requiere atención». Es una PREGUNTA a propósito: la respuesta puede ser
  * «sí, abre» o «no, hoy cierra», y el sistema no lo sabe.
  *
- * Sin «:» adentro, a propósito: la lista la escribe detrás de «Tienda · Trujillo (TRU):», y
+ * Sin «:» adentro, a propósito: la lista la escribe detrás de «Tienda Trujillo (TRU):», y
  * un «feriado:» propio dejaba dos dos puntos seguidos (visto en pantalla el 2026-09-21).
  */
 export const TEXTO_FERIADO_SIN_CONFIRMAR = "es feriado y nadie ha marcado todavía — ¿abre hoy la sede?";

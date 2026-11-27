@@ -414,7 +414,7 @@ function IncidenciasContenido() {
   const sedesDeLaVista = [...new Set(visibles.map((i) => i.sede))].sort();
   // Cómo se dice una sede: UNA función para todas las pantallas (packages/shared/src/sedes.ts).
   // El código es la llave y no describe nada («003» es el de la Tienda de Lima); lo que se
-  // lee es «Taller · Lima» / «Tienda · Lima». Un código sin sede en la tabla se queda como está.
+  // lee es «Taller Lima» / «Tienda Lima». Un código sin sede en la tabla se queda como está.
   const sedePorCodigo = useMemo(() => new Map(sedes.map((s) => [s.codigo, etiquetaDeSede(s)])), [sedes]);
   const rotuloDeSede = (codigo: string) => sedePorCodigo.get(codigo)?.titulo ?? codigo;
 

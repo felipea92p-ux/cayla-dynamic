@@ -96,7 +96,7 @@ export function PanelIncidencia({
   volverElFocoA: RefObject<HTMLElement | null>;
   /** null si quien mira puede actuar sobre este caso; si no, por qué no. */
   motivoNoPuedeActuar: string | null;
-  /** Cómo se dice la sede de un caso («Tienda · Lima»), no su código. */
+  /** Cómo se dice la sede de un caso («Tienda Lima»), no su código. */
   rotuloDeSede: (codigo: string) => string;
   etiquetaMotivo: (motivo: string | null) => string;
   nombrePorId: Map<string, string>;

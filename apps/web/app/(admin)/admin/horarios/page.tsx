@@ -404,7 +404,7 @@ export default function HorariosPage() {
   const [vigentesHoy, setVigentesHoy] = useState<Map<string, Horario>>(new Map());
   const [sedes, setSedes] = useState<Record<string, string>>({});
   // Código → cómo se dice en pantalla. El código sigue siendo la llave de
-  // agrupar y filtrar; lo que cambia es lo que se lee: «Tienda · Lima» y no
+  // agrupar y filtrar; lo que cambia es lo que se lee: «Tienda Lima» y no
   // «003», «Oficina TRU» y no «OTRU» (etiquetaDeSede, mismo rótulo que
   // Incidencias y Dashboard).
   const [etiquetas, setEtiquetas] = useState<Map<string, EtiquetaDeSede>>(new Map());

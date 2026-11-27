@@ -123,7 +123,8 @@ export const NOVEDADES: readonly Novedad[] = [
       "en su lugar. Lo que forma una frase va con comas («entró a las 9:12, 14 min tarde»), la sede o la fecha van debajo " +
       "del nombre en letra chica, y las cuentas van en su etiqueta.\n\n" +
       "Vale para Incidencias, Correcciones, Turnos, Disponibilidad, Cambios de horario, Horarios, Desempeño y Ausencias. " +
-      "Arriba del título de cada pantalla, la sección y el día ahora van aparte.",
+      "Arriba del título de cada pantalla, la sección y el día ahora van aparte. Y las sedes se llaman igual que en el " +
+      "sistema de las tiendas, sin el punto: «Tienda Arequipa», «Taller Lima».",
     audiencia: "panel",
   },
   {

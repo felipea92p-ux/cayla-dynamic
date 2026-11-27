@@ -1362,10 +1362,10 @@ describe("feriado — la sede: nadie marcó y nadie armó turnos", () => {
     expect(TEXTO_FERIADO_SIN_CONFIRMAR).not.toMatch(/falt|cerrad|insuficiente/i);
   });
 
-  it("no lleva «:» propio: la lista la escribe detrás de «Tienda · Trujillo (TRU):» y quedaban dos seguidos", () => {
+  it("no lleva «:» propio: la lista la escribe detrás de «Tienda Trujillo (TRU):» y quedaban dos seguidos", () => {
     expect(TEXTO_FERIADO_SIN_CONFIRMAR).toBe("es feriado y nadie ha marcado todavía — ¿abre hoy la sede?");
     expect(TEXTO_FERIADO_SIN_CONFIRMAR).not.toContain(":");
-    expect(`Tienda · Trujillo (TRU): ${TEXTO_FERIADO_SIN_CONFIRMAR}`.match(/:/g)).toHaveLength(1);
+    expect(`Tienda Trujillo (TRU): ${TEXTO_FERIADO_SIN_CONFIRMAR}`.match(/:/g)).toHaveLength(1);
   });
 
   it("no la confunde con «Sin turnos»: a nadie le tocaba NO es lo que se sabe", () => {

@@ -362,7 +362,7 @@ export default function AusenciasPage() {
 
   // Las sedes que ofrece el filtro: las activas de la tabla, más cualquiera que aparezca en las ausencias aunque ya no
   // esté activa — la ausencia de alguien de una sede cerrada sigue siendo historial. Mismo criterio que Incidencias, y
-  // el mismo rótulo: «Tienda · Trujillo (TRU)», de `etiquetaDeSede`, nunca escrito a mano.
+  // el mismo rótulo: «Tienda Trujillo (TRU)», de `etiquetaDeSede`, nunca escrito a mano.
   const sedesDelFiltro = useMemo(() => {
     const porCodigo = new Map(sedes.map((s) => [s.codigo, s]));
     const codigos = new Set(sedes.filter((s) => s.activa).map((s) => s.codigo));
@@ -1139,7 +1139,7 @@ export default function AusenciasPage() {
           </div>
           {/* Solo para quien ve todas las sedes: una líder de equipo ya recibe de la base únicamente su sede
               (`fn_ausencias`), y un desplegable de una sola opción sería un control que no hace nada.
-              Anchos medidos el 2026-11-07, no a ojo: la opción más larga («Tienda · Arequipa (AQP)») ocupa 132 px
+              Anchos medidos el 2026-11-07, no a ojo: la opción más larga («Tienda Arequipa (AQP)») ocupa 132 px
               más 44 de relleno, y «Pendientes de aprobar» 126 + 44. Con los dos en w-52 la fila sumaba 1 161 px
               contra 1 136 en una pantalla de 1440, y al aparecer «Limpiar» lista/calendario saltaban de línea. */}
           {esDO && sedesDelFiltro.length > 1 && (

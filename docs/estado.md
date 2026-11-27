@@ -23,9 +23,11 @@ después. **No se vio con datos** lo que la base inventada no trae: entradas de 
 Disponibilidad, revisiones pedidas, practicantes cerca del tope y el historial de vistos buenos en Incidencias, ni marcas apartadas en
 Correcciones. Sus textos los cubren la prueba y el typecheck, no una captura.
 
-**Lo que queda abierto.** (1) «Tienda · Trujillo» y «Taller · Lima» son el nombre de la sede (`etiquetaDeSede`, compartido por todo el
-sistema): cambiarlo es elegir cómo se llama cada una, y es de Felipe. (2) Si la muestra le gusta, seguir módulo por módulo (693 líneas
-en 140 archivos). (3) Lo que escriben las funciones de la base con « · » se muestra con coma solo en el libro de correcciones.
+**Las sedes** se llaman ahora «Tienda Arequipa», «Taller Lima», como en Retail (Felipe vio el punto en Incidencias). Sale de
+`etiquetaDeSede`, así que cambia igual en todo el sistema, también en desplegables y CSV.
+
+**Lo que queda abierto.** (1) Si la muestra le gusta, seguir módulo por módulo (unas 690 líneas en 140 archivos). (2) Lo que escriben
+las funciones de la base con « · » se muestra con coma solo en el libro de correcciones.
 
 ---
 

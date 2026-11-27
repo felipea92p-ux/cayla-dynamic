@@ -66,7 +66,7 @@ const ETIQUETA_ESTADO: Record<EstadoDelDia, { texto: string; variante: "positivo
 const dur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${String(m % 60).padStart(2, "0")}` : ""}` : `${m} min`);
 const enMinutosDelDia = (ts: string) => Math.round(horaDecimalLima(ts) * 60);
 
-/** `nombre` es la etiqueta completa («Taller · Lima (LIM)», para las pastillas); `titulo`, sin el código («Taller · Lima»),
+/** `nombre` es la etiqueta completa («Taller Lima (LIM)», para las pastillas); `titulo`, sin el código («Taller Lima»),
  *  para el encabezado del grupo, que lleva el código aparte y en chico, como las tarjetas de sede de «Hoy». */
 type SedeDeAlcance = { codigo: string; nombre: string; titulo?: string };
 
@@ -155,7 +155,7 @@ export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: SedeDeAlcance[
   // Tiendas y talleres, un grupo por sede; las oficinas, al final y por área.
   const tiendas = visibles.filter((d) => d.f.sedeTipo !== "central");
   const oficinas = visibles.filter((d) => d.f.sedeTipo === "central");
-  // Una sede se dice con su etiqueta («Taller · Lima (LIM)»), la misma que usan «Hoy» y «Tendencias»: el código solo
+  // Una sede se dice con su etiqueta («Taller Lima (LIM)»), la misma que usan «Hoy» y «Tendencias»: el código solo
   // no distingue el Taller de la Tienda de Lima. Si una sede no llegó en el alcance, cae a su código antes que a nada.
   const nombreDeSede = useCallback(
     (codigo: string) => sedesDeAlcance?.find((s) => s.codigo === codigo)?.nombre ?? codigo,

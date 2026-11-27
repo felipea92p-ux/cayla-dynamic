@@ -31,6 +31,13 @@ La línea de arriba del título (`lib/admin/sobretitulo.ts`) queda en dos piezas
 a la mitad. Es compartida por todas las pantallas del panel y se cambió para todas, porque el cambio es igual de bueno en
 cualquiera.
 
+## El nombre de las sedes
+
+«Tienda · Trujillo» y «Taller · Lima» pasan a «Tienda Trujillo» y «Taller Lima» (Felipe lo marcó en Incidencias el
+2026-11-27). Es el nombre de la sede, no dos datos, y así lo escribe Retail («Pedido de Tienda Trujillo»). Sale de una
+sola función, `etiquetaDeSede` (`packages/shared/src/sedes.ts`), así que cambia igual en todo el sistema: cabeceras,
+desplegables («Tienda Trujillo (TRU)») y CSV. Nadie partía ese texto por el punto; se comprobó antes de cambiarlo.
+
 ## Lo que queda fuera
 
 - **Los comentarios de código y el texto que no se ve.** Ahí el «·» no lo lee nadie.
@@ -54,15 +61,11 @@ comillas, plantillas y texto de JSX, sin comentarios) en las rutas de cada módu
 
 ## Lo que queda pendiente
 
-1. **El nombre de las sedes: «Tienda · Trujillo», «Taller · Lima».** Sale de `etiquetaDeSede` (`packages/shared/src/sedes.ts`)
-   y se ve en las cabeceras de Incidencias y Horarios, en el detalle de una incidencia y en todo el sistema, también en
-   desplegables y CSV. No es un separador entre datos sueltos sino el nombre de la sede, y cambiarlo es elegir cómo se
-   llama cada una («Tienda Trujillo», «Tienda de Trujillo»…). Es de Felipe.
-2. **El resto de los módulos.** Medido el 2026-11-27 con el mismo analizador de la prueba: 693 líneas visibles en 140
+1. **El resto de los módulos.** Medido el 2026-11-27 con el mismo analizador de la prueba: 693 líneas visibles en 140
    archivos fuera de Asistencia (cuenta también los papeles que se imprimen), entre ellas la bienvenida del ingreso
    («BUENOS DÍAS · VIERNES…»), Bandeja, Pago y «Lo mío».
-3. **Lo que escriben las funciones de la base** con « · » (por ejemplo, la liquidación pagada en `correcciones_auditoria`).
+2. **Lo que escriben las funciones de la base** con « · » (por ejemplo, la liquidación pagada en `correcciones_auditoria`).
    Hoy se muestra con coma en Correcciones; en otra pantalla que lo lea crudo seguiría saliendo el punto.
-4. **Lo compartido con otros módulos que no se tocó:** `lib/admin/pruebas.ts` (preselección, también en Equipo, Planilla
+3. **Lo compartido con otros módulos que no se tocó:** `lib/admin/pruebas.ts` (preselección, también en Equipo, Planilla
    y Contratos), `lib/terminal/ubicacion.ts` (el terminal) y `components/jornada/panel-jornada.tsx` (Dashboard). Entran
    con su módulo.
